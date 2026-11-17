@@ -137,6 +137,50 @@ class SubmissionAuditTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "retrieval checkpoints are not submission audit candidates" do
+    @block.update!(block_type: :checkpoint)
+    @block.create_knowledge_check!(prompt: "Check", options: [ "A", "B" ], correct_option: 0, explanation: "A is correct")
+    assert_empty SubmissionAudit.rows
+    assert_nil SubmissionAudit.suggested_type(@block)
+    as_user(@admin) do
+      patch "/api/v1/submission_audits/#{@block.id}", params: { content_digest: SubmissionAudit.digest(@block) }, headers: headers, as: :json
+      assert_response :unprocessable_entity
+    end
+  end
+
+  test "type submission mode and lesson requirement changes invalidate a review digest" do
+    digest = SubmissionAudit.digest(@block)
+    @block.update!(block_type: :text)
+    refute_equal digest, SubmissionAudit.digest(@block)
+    digest = SubmissionAudit.digest(@block)
+    @block.update!(submission_type: nil)
+    refute_equal digest, SubmissionAudit.digest(@block)
+    digest = SubmissionAudit.digest(@block)
+    @lesson.update!(requires_submission: true)
+    refute_equal digest, SubmissionAudit.digest(@block)
+  end
+
+  test "review rejects missing input noncandidates and nonexistent blocks and uses a non-key-update lock" do
+    as_user(@admin) do
+      patch "/api/v1/submission_audits/#{@block.id}", params: {}, headers: headers, as: :json
+      assert_response :bad_request
+      assert_equal "content_digest is required.", response.parsed_body["error"]
+      @block.update!(submission_type: :text_submission)
+      patch "/api/v1/submission_audits/#{@block.id}", params: { content_digest: SubmissionAudit.digest(@block) }, headers: headers, as: :json
+      assert_response :unprocessable_entity
+      assert_nil @block.reload.submission_audit_review
+      patch "/api/v1/submission_audits/999999999", params: { content_digest: "missing" }, headers: headers, as: :json
+      assert_response :not_found
+      @block.update!(submission_type: :manual_complete)
+      queries = capture_queries do
+        patch "/api/v1/submission_audits/#{@block.id}", params: { content_digest: SubmissionAudit.digest(@block) }, headers: headers, as: :json
+      end
+      assert_response :success
+      assert queries.any? { |sql| sql.include?("FOR NO KEY UPDATE") }
+      refute queries.any? { |sql| sql.match?(/FOR UPDATE/) }
+    end
+  end
+
   private
 
   def headers = { "Authorization" => "Bearer audit" }

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
-import { curriculumPath, lessonEditorPath, lessonRecordPath, moduleRecordPath } from '../../lib/routes'
+import { cohortPath, curriculumPath, lessonEditorPath, lessonRecordPath, moduleRecordPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink, type BackLink } from '../../lib/recordOrigin'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -131,6 +131,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('lesson')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<BlockDraft | null>(null)
+  const [reopen, setReopen] = useState<{ impact: LessonBlockEditorResponse['completion_impact']; watchReset?: number[] } | null>(null)
   const [watchReset, setWatchReset] = useState<{ ids: number[]; message: string } | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
@@ -221,15 +222,15 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const saving = status === 'saving'
 
   // What a save reads when it starts, not when it was asked for.
-  const live = useRef({ activity, pendingUploads, uploads, completeDeferredUpload })
+  const live = useRef({ activity, pendingUploads, uploads, completeDeferredUpload, completionImpact: server?.completion_impact })
   useEffect(() => {
-    live.current = { activity, pendingUploads, uploads, completeDeferredUpload }
-  }, [activity, completeDeferredUpload, pendingUploads, uploads])
+    live.current = { activity, pendingUploads, uploads, completeDeferredUpload, completionImpact: server?.completion_impact }
+  }, [activity, completeDeferredUpload, pendingUploads, uploads, server?.completion_impact])
 
   // One save at a time. Each builds its payload and base version when it
   // starts, so a save queued behind another sends the newest edits on top of
   // the version the first one produced.
-  const runSave = useCallback(async (confirmWatchReset?: number[]): Promise<boolean> => {
+  const runSave = useCallback(async (confirmWatchReset?: number[], confirmReopenCount?: number): Promise<boolean> => {
     const sent = draftRef.current
     if (!sent) return false
     if (statusRef.current === 'conflict') return false
@@ -241,6 +242,18 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     }
     const { activity: currentActivity, pendingUploads: uploading, uploads: currentUploads, completeDeferredUpload: completeUpload } = live.current
     const payload = draftPayload(sent, { baseUpdatedAt: updatedAtRef.current, baseline: baselineRef.current, pendingUploads: uploading, confirmWatchReset })
+    const addsWork = sent.blocks.some((block) => !block.id && ['exercise', 'code_challenge', 'checkpoint'].includes(block.block_type))
+    const impact = live.current.completionImpact
+    if (addsWork && !impact) {
+      setSaveError('The completion impact is unavailable. Reload the lesson before adding new work.')
+      setStatus('error')
+      return false
+    }
+    if (addsWork && impact && impact.completed_learners > 0 && confirmReopenCount === undefined) {
+      setReopen({ impact, watchReset: confirmWatchReset })
+      return false
+    }
+    if (confirmReopenCount !== undefined) payload.confirm_reopen_completed_count = confirmReopenCount
     setStatus('saving')
     setSaveError(null)
     const response = await api.saveLessonBlockEditor(lessonId, payload)
@@ -249,6 +262,11 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       if (response.status === 409) {
         setStatus('conflict')
         setSaveError(message)
+        return false
+      }
+      if (response.errorCode === 'confirm_reopen_completed' && response.errorCompletionImpact) {
+        setReopen({ impact: response.errorCompletionImpact, watchReset: confirmWatchReset })
+        setStatus('idle')
         return false
       }
       if (response.errorCode === 'confirm_watch_reset') {
@@ -294,8 +312,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     return true
   }, [lessonId, setDraft, setSavedSig, setStatus])
 
-  const save = useCallback((confirmWatchReset?: number[]): Promise<boolean> => {
-    const next = saveQueueRef.current.then(() => runSave(confirmWatchReset), () => runSave(confirmWatchReset))
+  const save = useCallback((confirmWatchReset?: number[], confirmReopenCount?: number): Promise<boolean> => {
+    const next = saveQueueRef.current.then(() => runSave(confirmWatchReset, confirmReopenCount), () => runSave(confirmWatchReset, confirmReopenCount))
     saveQueueRef.current = next.catch(() => undefined)
     return next
   }, [runSave])
@@ -722,6 +740,14 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
           <Button variant="danger" onClick={() => pendingDelete && deleteBlock(pendingDelete)}>Delete block</Button>
         </>}
       />
+
+      <Modal open={Boolean(reopen)} onClose={() => setReopen(null)} title="Reopen finished lessons?" subtitle={reopen ? `${reopen.impact.completed_learners} ${reopen.impact.completed_learners === 1 ? 'learner' : 'learners'} finished this lesson. Adding new work reopens it for them until they finish that work.` : ''} size="md" footer={<>
+        <Button variant="secondary" onClick={() => setReopen(null)}>Keep editing</Button>
+        <Button variant="danger" onClick={() => { const warning = reopen; setReopen(null); if (warning) void save(warning.watchReset, warning.impact.completed_learners) }}>Add work and reopen</Button>
+      </>}>
+        <ul className="space-y-2 text-sm text-ink-muted">{reopen?.impact.cohorts.map((cohort) => <li key={cohort.id}><Link className="app-link" to={cohortPath(cohort.id)}>{cohort.name}</Link>: {cohort.completed_learners} learners</li>)}</ul>
+        <p className="mt-3 text-sm text-ink-muted">Their saved work stays recorded, but their lesson and course completion percentages may go down.</p>
+      </Modal>
 
       <Modal
         open={Boolean(watchReset)}

@@ -50,6 +50,7 @@ let access: LessonBlockEditorResponse['access'] = adminAccess
 function response(overrides: Partial<LessonBlockEditorResponse['lesson']> = {}): LessonBlockEditorResponse {
   return {
     access,
+    completion_impact: { completed_learners: 0, cohorts: [] },
     lesson: {
       id: 2, curriculum_id: 1, module_id: 3, title: 'Make decisions', lesson_type: 'exercise', position: 0, release_day: 0, required: true,
       requires_submission: true, submission_type: 'text_submission', content_blocks_count: blocks.length, archived_at: null,
@@ -169,6 +170,70 @@ describe('block lesson editor', () => {
     await type(cards()[2].querySelector('input')!, 'Updated exercise')
     await click(button('Save'))
     expect(container.textContent).not.toContain('Suggested submission:')
+  })
+
+  it('warns before a companion save and cancel keeps the draft unsaved', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockImplementation(async () => ({ data: { ...response(), completion_impact: { completed_learners: 2, cohorts: [{ id: 4, name: 'Cohort 3', completed_learners: 2 }] } }, error: null }))
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(dialog.textContent).toContain('2 learners finished this lesson')
+    expect(dialog.textContent).toContain('Cohort 3')
+    expect(save).not.toHaveBeenCalled()
+    await click(button('Keep editing', dialog))
+    expect(cards()).toHaveLength(7)
+    expect(button('Save')!.disabled).toBe(false)
+    expect(save).not.toHaveBeenCalled()
+    await click(button('Save'))
+    await click(button('Add work and reopen'))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][1].confirm_reopen_completed_count).toBe(2)
+  })
+
+  it('also warns for manually duplicated work on a completed lesson', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockImplementation(async () => ({ data: { ...response(), completion_impact: { completed_learners: 1, cohorts: [] } }, error: null }))
+    await mount()
+    await click(button('Duplicate exercise block'))
+    await click(button('Save'))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('1 learner finished this lesson')
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('does not ask to reopen when nobody completed the lesson', async () => {
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Reopen finished lessons?')
+  })
+
+  it('uses a newer server count when completion changes after the editor loads', async () => {
+    save.mockResolvedValueOnce({ data: null, error: 'Reopen', errorCode: 'confirm_reopen_completed', errorCompletionImpact: { completed_learners: 3, cohorts: [] } }).mockResolvedValue({ data: response(), error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('3 learners finished this lesson')
+    await click(button('Add work and reopen'))
+    expect(save.mock.calls[1][1].confirm_reopen_completed_count).toBe(3)
+  })
+
+  it('does not guess zero completed learners when an older API omits the impact', async () => {
+    const data: Partial<LessonBlockEditorResponse> = response()
+    delete data.completion_impact
+    vi.mocked(api.getLessonBlockEditor).mockResolvedValue({ data: data as LessonBlockEditorResponse, error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    expect(save).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('completion impact is unavailable')
+  })
+
+  it('requires a fresh decision when another learner finishes after the first warning', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockResolvedValue({ data: { ...response(), completion_impact: { completed_learners: 1, cohorts: [] } }, error: null })
+    save.mockResolvedValueOnce({ data: null, error: 'Count changed', errorCode: 'confirm_reopen_completed', errorCompletionImpact: { completed_learners: 2, cohorts: [] } }).mockResolvedValue({ data: response(), error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    await click(button('Add work and reopen'))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('2 learners finished this lesson')
+    await click(button('Add work and reopen'))
+    expect(save.mock.calls.map((call) => call[1].confirm_reopen_completed_count)).toEqual([1, 2])
   })
 
   it('shows every block in order as an editable card with the two-mode editor on formatted text', async () => {

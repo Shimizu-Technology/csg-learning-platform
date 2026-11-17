@@ -38,7 +38,7 @@ module Api
           code: "stale_editor"
         }, status: :conflict
       rescue LessonBlockEditor::Invalid => error
-        render json: { error: error.message, code: error.code, block_ids: error.block_ids }.compact, status: :unprocessable_entity
+        render json: { error: error.message, code: error.code, block_ids: error.block_ids, completion_impact: error.completion_impact }.compact, status: :unprocessable_entity
       end
 
       private
@@ -53,7 +53,7 @@ module Api
 
       def editor_params
         params.require(:lesson).permit(
-          :base_updated_at, :title, :required, :release_day,
+          :base_updated_at, :title, :required, :release_day, :confirm_reopen_completed_count,
           removed_block_ids: [],
           confirm_watch_reset_block_ids: [],
           blocks: [
@@ -72,6 +72,7 @@ module Api
           lesson: lesson_json(@lesson, include_content: true),
           block_activity: block_activity_json,
           context: context_json,
+          completion_impact: LessonCompletionImpact.for_lessons([ @lesson ], cohort_ids: cohort_scope.visible_ids(@lesson.curriculum_module.curriculum_id)).fetch(@lesson.id),
           access: LessonEditAccess.for(current_user, @lesson.curriculum_module.curriculum).as_json
         }
       end

@@ -3782,6 +3782,26 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The review requires content_digest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAudit400Response"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The block is not currently an audit candidate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAudit422Response"
+                }
+              }
+            }
           }
         }
       }
@@ -9529,6 +9549,9 @@
           "impact": {
             "$ref": "#/components/schemas/LessonMoveImpact",
             "description": "Included with code impact_changed: the impact the move would have now."
+          },
+          "completion_impact": {
+            "$ref": "#/components/schemas/LessonCompletionImpact"
           }
         },
         "required": [
@@ -10037,13 +10060,17 @@
           },
           "access": {
             "$ref": "#/components/schemas/LessonEditAccess"
+          },
+          "completion_impact": {
+            "$ref": "#/components/schemas/LessonCompletionImpact"
           }
         },
         "required": [
           "lesson",
           "block_activity",
           "context",
-          "access"
+          "access",
+          "completion_impact"
         ],
         "additionalProperties": false
       },
@@ -10306,6 +10333,10 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "confirm_reopen_completed_count": {
+                "type": "integer",
+                "minimum": 0
               }
             },
             "required": [
@@ -22962,6 +22993,9 @@
               ],
               "additionalProperties": false
             }
+          },
+          "completion_impact": {
+            "$ref": "#/components/schemas/LessonCompletionImpact"
           }
         },
         "required": [
@@ -22977,7 +23011,8 @@
           "completed_learners",
           "suggested_type",
           "content_digest",
-          "cohort_submissions"
+          "cohort_submissions",
+          "completion_impact"
         ],
         "additionalProperties": false
       },
@@ -23018,6 +23053,66 @@
           "error": {
             "type": "string",
             "const": "This block changed. Reload the audit before reviewing it."
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "LessonCompletionImpact": {
+        "type": "object",
+        "properties": {
+          "completed_learners": {
+            "type": "integer"
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "completed_learners": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "completed_learners"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "completed_learners",
+          "cohorts"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAudit400Response": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAudit422Response": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
           }
         },
         "required": [

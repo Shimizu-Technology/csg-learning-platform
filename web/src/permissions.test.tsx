@@ -23,7 +23,7 @@ vi.mock('./lib/routePreload', () => ({
   preloadPrimaryRoutes: () => {}, preloadRoute: () => {},
   AdminActivity: () => <p>School activity feed</p>, AdminDashboard: () => <p>Staff dashboard</p>, Announcements: () => null, CohortDetail: () => <p>Administrative cohort settings</p>,
   CohortWorkspace: () => <p>Cohort page</p>, CohortManagement: () => null, CohortModuleGrading: () => null,
-  CohortStudentView: () => null, CohortWatchProgress: () => null, ContentManagement: () => null,
+  CohortStudentView: () => null, CohortWatchProgress: () => null, ContentManagement: () => null, SubmissionAudit: () => <p>Lazy submission audit</p>,
   Dashboard: () => <p>Dashboard destination</p>, PrivateMeetings: () => null, StaffPrivateMeetings: () => null,
   Grading: () => null, LessonEditor: () => null, LessonView: () => null, Materials: () => null,
   Messages: () => null, ModuleView: () => null, Profile: () => null, Recordings: () => null,
@@ -139,4 +139,18 @@ it.each(['admin', 'instructor', 'student', 'signed-out'])('unknown routes show N
   const destination = state.signedIn ? role === 'student' ? '/dashboard' : '/admin' : '/'
   expect(container.querySelector('main a')?.getAttribute('href')).toBe(destination)
   if (state.signedIn) expect([...container.querySelectorAll('a[aria-label="Go to Today"]')].every(a => a.getAttribute('href') === destination)).toBe(true)
+})
+
+it('loads Submission audit through the lazy route registry for admins', async () => {
+  window.history.replaceState({}, '', '/admin/content/submission-audit')
+  state.role = 'admin'
+  await act(async () => root.render(<App />))
+  expect(container.textContent).toContain('Lazy submission audit')
+})
+it.each(['student', 'instructor'])('blocks %s from the lazy audit route', async (role) => {
+  window.history.replaceState({}, '', '/admin/content/submission-audit')
+  state.role = role
+  await act(async () => root.render(<App />))
+  expect(container.textContent).toContain('No access')
+  expect(container.textContent).not.toContain('Lazy submission audit')
 })

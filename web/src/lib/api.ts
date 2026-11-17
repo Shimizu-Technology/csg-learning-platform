@@ -161,6 +161,7 @@ export interface ApiResponse<T> {
   errorCode?: string;
   /** Blocks an error is about, e.g. the videos a save would reset watch progress on (confirm_watch_reset). */
   errorBlockIds?: number[];
+  errorCompletionImpact?: components['schemas']['LessonCompletionImpact'];
   /** The move's impact now, with code impact_changed (POST /lessons/:id/move). */
   errorImpact?: components['schemas']['LessonMoveImpact'];
   latestSubmissionId?: number;
@@ -252,6 +253,7 @@ async function fetchApi<T>(
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
           errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
+          errorCompletionImpact: errorBody.completion_impact,
           errorImpact: errorBody.impact && typeof errorBody.impact === 'object' ? errorBody.impact : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),

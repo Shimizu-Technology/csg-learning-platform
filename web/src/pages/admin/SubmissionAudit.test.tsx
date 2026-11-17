@@ -8,7 +8,7 @@ import * as routes from '../../lib/routes'
 
 const mocks = vi.hoisted(() => ({ getSubmissionAudit: vi.fn(), reviewSubmissionAudit: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
-const block = { id: 1, title: 'Your work', body: 'Submit your work', lesson_id: 2, lesson_title: 'Lesson', module_id: 3, module_name: 'Module', curriculum_id: 4, curriculum_name: 'Curriculum', completed_learners: 1, suggested_type: 'text_submission', content_digest: 'digest', cohort_submissions: [] }
+const block = { id: 1, title: 'Your work', body: 'Submit your work', lesson_id: 2, lesson_title: 'Lesson', module_id: 3, module_name: 'Module', curriculum_id: 4, curriculum_name: 'Curriculum', completed_learners: 1, suggested_type: 'text_submission', content_digest: 'digest', cohort_submissions: [], completion_impact: { completed_learners: 0, cohorts: [] } }
 let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
@@ -51,6 +51,12 @@ it('preserves encoded audit parameters on registry-based links', async () => {
   expect(url.searchParams.get('suggest_submission')).toBe('text_submission')
   expect(Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Sync class')!.getAttribute('href')).toBe('/registry/cohorts/8')
 })
+it('warns that a companion reopens lessons rather than promising unchanged completion', async () => {
+  mocks.getSubmissionAudit.mockResolvedValue({ data: { blocks: [{ ...block, suggested_type: null, completion_impact: { completed_learners: 2, cohorts: [] } }] } })
+  await mount()
+  expect(container.textContent).toContain('2 learners finished this lesson. Adding an exercise reopens it for them until they submit.')
+  expect(container.textContent).not.toContain('Learner progress stays saved')
+})
 it('drops a delayed reload captured before a successful practice review', async () => {
   await mount()
   mocks.reviewSubmissionAudit.mockResolvedValueOnce({ error: 'Try again' }).mockResolvedValue({ data: { reviewed_by_id: 1, reviewed_at: '2026-11-17' } })
@@ -63,4 +69,5 @@ it('drops a delayed reload captured before a successful practice review', async 
   await act(async () => finish({ data: { blocks: [block] } }))
   expect(container.querySelectorAll('article')).toHaveLength(0)
   expect(container.textContent).toContain('No blocks need review')
+  expect(container.textContent).toContain('unless its content or submission settings change')
 })

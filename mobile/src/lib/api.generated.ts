@@ -4931,6 +4931,15 @@ export interface paths {
                         "application/json": components["schemas"]["SubmissionAuditReviewResponse"];
                     };
                 };
+                /** @description The review requires content_digest. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAudit400Response"];
+                    };
+                };
                 /** @description The content digest is stale. Reload the audit before reviewing the changed block. */
                 409: {
                     headers: {
@@ -4938,6 +4947,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SubmissionAuditConflictResponse"];
+                    };
+                };
+                /** @description The block is not currently an audit candidate. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAudit422Response"];
                     };
                 };
             };
@@ -6115,6 +6133,7 @@ export interface components {
             community_policy?: components["schemas"]["CommunityPolicy"];
             /** @description Included with code impact_changed: the impact the move would have now. */
             impact?: components["schemas"]["LessonMoveImpact"];
+            completion_impact?: components["schemas"]["LessonCompletionImpact"];
         };
         ApiValidationError: {
             errors: string[];
@@ -6236,6 +6255,7 @@ export interface components {
             block_activity: components["schemas"]["BlockLearnerActivity"][];
             context: components["schemas"]["LessonEditorContext"];
             access: components["schemas"]["LessonEditAccess"];
+            completion_impact: components["schemas"]["LessonCompletionImpact"];
         };
         /** @description One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference. */
         LessonBlockInput: {
@@ -6295,6 +6315,7 @@ export interface components {
                     content_block_id?: number | null;
                     block_client_id?: string;
                 }[];
+                confirm_reopen_completed_count?: number;
             };
         };
         CurriculumSummary: {
@@ -8993,6 +9014,7 @@ export interface components {
                 name: string;
                 submission_type: string;
             }[];
+            completion_impact: components["schemas"]["LessonCompletionImpact"];
         };
         SubmissionAuditResponse: {
             blocks: components["schemas"]["SubmissionAuditBlock"][];
@@ -9004,6 +9026,20 @@ export interface components {
         SubmissionAuditConflictResponse: {
             /** @constant */
             error: "This block changed. Reload the audit before reviewing it.";
+        };
+        LessonCompletionImpact: {
+            completed_learners: number;
+            cohorts: {
+                id: number;
+                name: string;
+                completed_learners: number;
+            }[];
+        };
+        SubmissionAudit400Response: {
+            error: string;
+        };
+        SubmissionAudit422Response: {
+            error: string;
         };
     };
     responses: {
