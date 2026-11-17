@@ -5014,8 +5014,15 @@ export interface components {
                     [key: string]: number;
                 };
             };
-            /** @description Learners only: who reviews work in this cohort (its support instructor, else its first instructor). */
-            reviewer?: components["schemas"]["PersonName"] | null;
+            learning_navigation?: components["schemas"]["LessonNavigation"];
+            outline?: components["schemas"]["CourseOutline"];
+            instructor?: {
+                id: number;
+                full_name: string;
+                /** @enum {string} */
+                role: "admin" | "instructor";
+                avatar_url: string | null;
+            } | null;
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -5108,6 +5115,11 @@ export interface components {
             s3_video_uploaded_at?: string | null;
             /** @description Present for staff readers. */
             s3_video_uploaded_by?: string | null;
+            /**
+             * @description Lesson block evidence from LearnerProgress for the new student experience.
+             * @enum {string}
+             */
+            learner_state?: "not_started" | "in_progress" | "submitted" | "redo_requested" | "complete";
         };
         Rubric: {
             id: number;
@@ -5171,8 +5183,6 @@ export interface components {
             updated_at: string;
             github_issue_url: string | null;
             github_code_url: string | null;
-            /** @description Who graded the attempt. Present on the learner's lesson payload. */
-            grader?: components["schemas"]["PersonName"] | null;
         };
         LessonResponse: {
             lesson: components["schemas"]["LessonDetail"];
@@ -8305,6 +8315,29 @@ export interface components {
         };
         CourseOutlineResponse: {
             outline: components["schemas"]["CourseOutline"];
+        };
+        /** @description LearnerProgress continuation, completion and course reading order for the new student experience. */
+        LessonNavigation: {
+            number: number;
+            total: number;
+            previous: {
+                id: number;
+                title: string;
+                module_id: number;
+            } | null;
+            next: {
+                id: number;
+                title: string;
+                module_id: number;
+            } | null;
+            next_module: boolean;
+            course_complete: boolean;
+            counts: {
+                completed_lessons: number;
+                total_lessons: number;
+            };
+            manual_block_ids: number[];
+            next_redo: boolean;
         };
         /** @description A person named on a learner page: only an id and a name. */
         PersonName: {

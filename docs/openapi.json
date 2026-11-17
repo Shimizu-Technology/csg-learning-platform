@@ -4501,16 +4501,45 @@
             "additionalProperties": false,
             "description": "Present only when GET /api/v1/lessons/{id} named an id from before Make a copy for this cohort and returned the cohort's copy instead. Clients can replace the old id in their URL."
           },
-          "reviewer": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PersonName"
-              },
-              {
-                "type": "null"
-              }
+          "learning_navigation": {
+            "$ref": "#/components/schemas/LessonNavigation"
+          },
+          "outline": {
+            "$ref": "#/components/schemas/CourseOutline"
+          },
+          "instructor": {
+            "type": [
+              "object",
+              "null"
             ],
-            "description": "Learners only: who reviews work in this cohort (its support instructor, else its first instructor)."
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "instructor"
+                ]
+              },
+              "avatar_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "role",
+              "avatar_url"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -4906,6 +4935,17 @@
               "null"
             ],
             "description": "Present for staff readers."
+          },
+          "learner_state": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "in_progress",
+              "submitted",
+              "redo_requested",
+              "complete"
+            ],
+            "description": "Lesson block evidence from LearnerProgress for the new student experience."
           }
         },
         "required": [
@@ -5229,17 +5269,6 @@
               "string",
               "null"
             ]
-          },
-          "grader": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PersonName"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Who graded the attempt. Present on the learner's lesson payload."
           }
         },
         "required": [
@@ -9795,7 +9824,7 @@
           },
           "used_in": {
             "type": "array",
-            "description": "Cohorts on this lesson’s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
+            "description": "Cohorts on this lesson\u2019s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
             "items": {
               "type": "object",
               "properties": {
@@ -9834,7 +9863,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "submissions_count": {
             "type": "integer",
@@ -13693,7 +13722,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_cohorts": {
             "type": "array",
@@ -14845,7 +14874,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null for an instructor who doesn’t teach that cohort."
+            "description": "Null for an instructor who doesn\u2019t teach that cohort."
           },
           "source_curriculum": {
             "anyOf": [
@@ -14955,7 +14984,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "already_copied": {
             "type": "boolean"
@@ -18773,7 +18802,7 @@
           },
           "assigned": {
             "type": "boolean",
-            "description": "False when the cohort’s content defaults leave this module out."
+            "description": "False when the cohort\u2019s content defaults leave this module out."
           },
           "starts_on": {
             "type": [
@@ -18792,7 +18821,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading’s All filter counts them."
+            "description": "Every attempt, as Grading\u2019s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -18824,7 +18853,7 @@
           "open_help"
         ],
         "additionalProperties": false,
-        "description": "A cohort’s schedule for the module; dates are null for self-paced cohorts."
+        "description": "A cohort\u2019s schedule for the module; dates are null for self-paced cohorts."
       },
       "LessonUsageCohort": {
         "type": "object",
@@ -18884,7 +18913,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading’s All filter counts them."
+            "description": "Every attempt, as Grading\u2019s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -19035,7 +19064,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_of": {
             "anyOf": [
@@ -19064,7 +19093,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Null when the viewer doesn’t teach the cohort."
+                    "description": "Null when the viewer doesn\u2019t teach the cohort."
                   },
                   "source_curriculum": {
                     "anyOf": [
@@ -19128,7 +19157,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set when this curriculum is one cohort’s own copy."
+            "description": "Set when this curriculum is one cohort\u2019s own copy."
           },
           "copies": {
             "type": "array",
@@ -19446,7 +19475,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "totals": {
             "type": "object",
@@ -19622,7 +19651,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "help_requests": {
             "type": "array",
@@ -20033,7 +20062,7 @@
                 "type": "null"
               }
             ],
-            "description": "\"Week 3\" in programs, \"Part 2 · lessons 21–40\" in a split self-paced section, null for a single group."
+            "description": "\"Week 3\" in programs, \"Part 2 \u00b7 lessons 21\u201340\" in a split self-paced section, null for a single group."
           },
           "week": {
             "anyOf": [
@@ -20300,6 +20329,107 @@
           "outline"
         ],
         "additionalProperties": false
+      },
+      "LessonNavigation": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "previous": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "module_id": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "module_id"
+            ],
+            "additionalProperties": false
+          },
+          "next": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "module_id": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "module_id"
+            ],
+            "additionalProperties": false
+          },
+          "next_module": {
+            "type": "boolean"
+          },
+          "course_complete": {
+            "type": "boolean"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "completed_lessons": {
+                "type": "integer"
+              },
+              "total_lessons": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "completed_lessons",
+              "total_lessons"
+            ],
+            "additionalProperties": false
+          },
+          "manual_block_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "next_redo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "number",
+          "total",
+          "previous",
+          "next",
+          "next_module",
+          "course_complete",
+          "counts",
+          "manual_block_ids",
+          "next_redo"
+        ],
+        "additionalProperties": false,
+        "description": "LearnerProgress continuation, completion and course reading order for the new student experience."
       },
       "PersonName": {
         "type": "object",

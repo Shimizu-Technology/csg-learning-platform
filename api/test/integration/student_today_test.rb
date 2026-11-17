@@ -201,14 +201,6 @@ class StudentTodayTest < ActionDispatch::IntegrationTest
     assert_equal "/lessons/#{@weeks[4].first.id}?cohort_id=#{@cohort.id}#block-#{block_id}", LearningDestination.help_request(help), "other links keep the plain lesson"
   end
 
-  test "lesson submissions name who graded them" do
-    submit(@weeks[4].first, grade: "R", feedback: "Again")
-    get "/api/v1/lessons/#{@weeks[4].first.id}", params: { cohort_id: @cohort.id }, headers: headers(@student)
-    assert_response :success
-    block = response.parsed_body.dig("lesson", "content_blocks").find { |item| item["submissions"].present? }
-    assert_equal({ "id" => @teacher.id, "full_name" => "Audreana Synthetic" }, block.dig("submissions", 0, "grader"))
-  end
-
   test "My work is the learner's own, in a cohort they can read" do
     get "/api/v1/my_work", params: { cohort_id: @cohort.id }, headers: headers(@teacher)
     assert_response :forbidden

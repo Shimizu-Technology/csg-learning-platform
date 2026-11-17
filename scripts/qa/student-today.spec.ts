@@ -186,7 +186,7 @@ if (mode === 'on') {
       const feedbackTop = await feedback.evaluate((element) => Math.round(element.getBoundingClientRect().top))
       journey.redoFeedbackTop = feedbackTop
       expect(feedbackTop, 'the feedback is on the first screen after the jump').toBeLessThan(500)
-      await expect(feedback).toContainText(/QA asked for a redo/)
+      await expect(feedback).toContainText('Add the missing edge case.')
       await page.screenshot({ path: new URL(`journey-redo-landing-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
       await page.goBack()
 

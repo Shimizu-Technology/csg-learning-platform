@@ -17,6 +17,8 @@ interface CodeEditorProps {
   showKeyboardHelp?: boolean
   /** Temporarily blocks edits (for example while a submission is sending) without hiding the help row. */
   busy?: boolean
+  /** Lesson redesign: source never wraps mid-token. Off keeps the existing editor. */
+  wordWrap?: 'on' | 'off'
 }
 
 // Derive Monaco language from filename first, then fall back to explicit admin hint.
@@ -65,6 +67,7 @@ export function CodeEditor({
   height,
   showKeyboardHelp = false,
   busy = false,
+  wordWrap = 'on',
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const helpButtonRef = useRef<HTMLButtonElement>(null)
@@ -125,7 +128,7 @@ export function CodeEditor({
             tabSize: indentSize,
             insertSpaces: true,
             detectIndentation: false,
-            wordWrap: 'on',
+            wordWrap,
             automaticLayout: true,
             padding: { top: 12, bottom: 12 },
             overviewRulerBorder: false,

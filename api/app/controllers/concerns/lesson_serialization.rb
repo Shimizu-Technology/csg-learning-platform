@@ -36,8 +36,6 @@ module LessonSerialization
         json[:required] = enrollment.lesson_required?(lesson)
         json[:cohort_id] = cohort.id
         json[:capabilities] = EnrollmentCapabilities.for(enrollment)
-        reviewer = MyWork.reviewer_for(cohort)
-        json[:reviewer] = reviewer && { id: reviewer.id, full_name: reviewer.full_name }
         mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
         requires_github = mod_gh["requires_github"] || false
         json[:requires_github] = requires_github
@@ -108,8 +106,6 @@ module LessonSerialization
               grade: s.grade,
               feedback: s.feedback,
               graded_at: s.graded_at,
-              # Who reviewed it, so feedback names the person (S-8); only an id and a name.
-              grader: s.grader && { id: s.grader.id, full_name: s.grader.full_name },
               github_issue_url: s.github_issue_url,
               github_code_url: s.github_code_url,
               repo_url: s.repo_url,
@@ -151,6 +147,17 @@ module LessonSerialization
           json[:total_blocks] = current_progress&.total_blocks
           next_step = progress.next_lesson
           json[:next_step] = next_step && { id: next_step.id, title: next_step.title, module_id: next_step.module_id }
+          if json.dig(:capabilities, :features, "student_experience_v2") == true
+            json[:learning_navigation] = progress.lesson_navigation(current) if current
+            json[:content_blocks].each do |block|
+              source = current&.content_blocks&.find { |item| item.id == block[:id] }
+              block[:learner_state] = progress.block_state(source) if source
+            end
+            json[:outline] = CourseOutline.new(@lesson_enrollment, progress: progress).call
+            instructor = @lesson_enrollment.cohort.support_instructor || @lesson_enrollment.cohort.instructors.not_archived.order(:id).first
+            instructor = nil if instructor && UserBlock.between(current_user.id, [ instructor.id ]).exists?
+            json[:instructor] = instructor && { id: instructor.id, full_name: instructor.full_name, role: instructor.role, avatar_url: instructor.avatar_url }
+          end
         else
           prev_lesson = nil
           next_lesson = nil

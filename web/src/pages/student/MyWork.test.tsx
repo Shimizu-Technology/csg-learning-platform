@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import { act, useEffect, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /*
- * W8 PR 8.2: My work (L-1.2), help answers that open on the lesson (L-1.3)
- * and the reviewer named on a lesson block (S-8). New behavior shows only with
- * the new student experience on; off keeps today's labels and copy.
+ * W8 PR 8.2: My work (L-1.2) and help answers that open on the lesson (L-1.3).
+ * New behavior shows only with the new student experience on; off keeps
+ * today's labels and copy.
  */
 const state = vi.hoisted(() => ({ cohortId: 9, user: { id: 5, full_name: 'Alex Rivera', is_staff: false } }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: state.user, enrollments: [{ cohort: { id: state.cohortId, review_response_time: 'usually reviewed within 2 days' } }] }) }))
@@ -22,7 +21,6 @@ vi.mock('../../lib/api', () => ({ api: { getMyWork: vi.fn(), createDirectConvers
 import { api } from '../../lib/api'
 import { MyWorkPage } from './MyWork'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
-import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { StudentExperienceProvider } from '../../lib/studentExperience'
 import { composerDestinationKey, readComposerDraft } from '../../lib/messageComposerState'
 import type { HelpRequest, LearnerCapabilities } from '../../types/api'
@@ -200,22 +198,5 @@ describe('help answers (L-1.3)', () => {
     expect(button('Your instructor replied')).toBeTruthy()
     await render(help(false, [request({ status: 'resolved', resolved_at: '2026-11-17T02:00:00Z' })]), '/lessons/42?cohort_id=9', '/lessons/:id')
     expect(button('Ask for help')).toBeTruthy()
-  })
-})
-
-describe('the reviewer is named on a lesson block (S-8)', () => {
-  const block = (submission: Record<string, unknown>) => ({ id: 701, block_type: 'exercise', position: 0, title: 'Practice', body: null, video_url: null, filename: null, submission_type: 'text_submission', metadata: {}, submissions: [{ id: 1, text: 'Answer', feedback: 'Return the string.', graded_at: null, num_submissions: 1, created_at: '2026-11-11T00:00:00Z', ...submission }] })
-  const markup = (v2: boolean, submission: Record<string, unknown>) => renderToStaticMarkup(<MemoryRouter><StudentExperienceProvider v2={v2}><ContentBlockRenderer block={block(submission) as never} cohortId={9} reviewerName="Audreana Synthetic" /></StudentExperienceProvider></MemoryRouter>)
-
-  it('on: who graded it and who will review it', () => {
-    expect(markup(true, { grade: 'R', grader: person(2, 'Audreana Synthetic') })).toContain('Audreana asked for a redo. Read the feedback, then resubmit below.')
-    expect(markup(true, { grade: 'A', grader: person(6, 'Leon Shimizu') })).toContain('Reviewed by Leon · A (Excellent)')
-    expect(markup(true, { grade: null })).toContain('Audreana will review it, usually within 2 days. Feedback will appear here.')
-  })
-
-  it('off: today’s copy, unchanged', () => {
-    expect(markup(false, { grade: 'R', grader: person(2, 'Audreana Synthetic') })).toContain('Your instructor asked for a redo (R). Read the feedback, then resubmit below.')
-    expect(markup(false, { grade: 'A', grader: person(6, 'Leon Shimizu') })).toContain('Reviewed by your instructor · A (Excellent)')
-    expect(markup(false, { grade: null })).toContain('Your instructor will review it — usually within 2 days. Feedback will appear here.')
   })
 })
