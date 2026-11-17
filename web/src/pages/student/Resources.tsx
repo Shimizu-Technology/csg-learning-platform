@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
@@ -99,7 +100,7 @@ export function Resources() {
 
   if (loadError && resources.length === 0) {
     return (
-      <div className="app-page max-w-5xl"><EmptyState
+      <div className="app-page max-w-5xl"><EmptyState headingLevel={1}
         icon={WifiOff}
         title="Could not load resources"
         description={loadError}
@@ -115,7 +116,7 @@ export function Resources() {
 
   if (resources.length === 0) {
     return (
-      <div className="app-page max-w-5xl"><EmptyState
+      <div className="app-page max-w-5xl"><EmptyState headingLevel={1}
         icon={Link2}
         title="No resources yet"
         description="Class resources will appear here once your instructor adds them."
@@ -124,6 +125,7 @@ export function Resources() {
     )
   }
 
+  const Header = v2 ? 'div' : 'header'
   return (
     <div className="app-page max-w-5xl">
       {showingSavedData && (
@@ -131,15 +133,17 @@ export function Resources() {
           Showing saved resources while your connection catches up.
         </div>
       )}
-      <header>
+      <Header>
         <Link to={todayPath} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Today
         </Link>
+        {v2 ? <PageHeader eyebrow="Your class library" title="Resources" description="Important links, references, and shortcuts collected for your cohort." /> : <>
         <p className="app-eyebrow">Your class library</p>
         <h1 className="app-title mt-2">Resources</h1>
         <p className="app-description mt-2">Important links, references, and shortcuts collected for your cohort.</p>
-      </header>
+        </>}
+      </Header>
 
       {(resources.length > 4 || query.length > 0) && (
         <div className="relative">

@@ -179,7 +179,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   if (loadError && !data) {
     return (
-      <EmptyState
+      <EmptyState headingLevel={1}
         icon={WifiOff}
         title="Could not load Today"
         description={loadError}
@@ -190,13 +190,13 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   if (!data?.enrolled && data?.pending_purchases?.length) {
     return <section className="space-y-4">
-      {data.pending_purchases.map((purchase) => <EmptyState key={purchase.id} icon={BookOpen} title={`Confirming your enrollment in ${purchase.course_name}`} description="Your purchase is still being confirmed. Check its status before trying another payment." action={<LinkButton to={`/courses?checkout=return&purchase_id=${purchase.id}&offering_id=${purchase.cohort_id}`}>Check enrollment</LinkButton>} />)}
+      {data.pending_purchases.map((purchase, index) => <EmptyState headingLevel={index === 0 ? 1 : 2} key={purchase.id} icon={BookOpen} title={`Confirming your enrollment in ${purchase.course_name}`} description="Your purchase is still being confirmed. Check its status before trying another payment." action={<LinkButton to={`/courses?checkout=return&purchase_id=${purchase.id}&offering_id=${purchase.cohort_id}`}>Check enrollment</LinkButton>} />)}
     </section>
   }
 
   if (!data?.enrolled) {
     return (
-      <EmptyState
+      <EmptyState headingLevel={1}
         icon={BookOpen}
         title="No course yet"
         description={`Choose a course or contact ${brand.schoolName} for help getting started.`}

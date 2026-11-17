@@ -350,28 +350,28 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
         {(sub.github_code_url || sub.repo_url || sub.pr_url || sub.live_url) && (
           <div className="flex flex-wrap gap-2">
             {sub.github_code_url && (
-              <a href={sanitizeUrl(sub.github_code_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+              <a href={sanitizeUrl(sub.github_code_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <Code className="h-3 w-3" />
                 GitHub Code
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.repo_url && (
-              <a href={sanitizeUrl(sub.repo_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+              <a href={sanitizeUrl(sub.repo_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <Code className="h-3 w-3" />
                 Repo
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.pr_url && (
-              <a href={sanitizeUrl(sub.pr_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+              <a href={sanitizeUrl(sub.pr_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <GitBranch className="h-3 w-3" />
                 PR
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.live_url && (
-              <a href={sanitizeUrl(sub.live_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+              <a href={sanitizeUrl(sub.live_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <Globe className="h-3 w-3" />
                 Live
                 <ExternalLink className="h-3 w-3" />
