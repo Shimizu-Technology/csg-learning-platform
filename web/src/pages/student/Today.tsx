@@ -78,7 +78,7 @@ export function StudentTodayPage() {
   }
   // Not enrolled, a pending purchase, or a payload from before the redesign: today's page handles it.
   if (!data?.enrolled || !data.student_today) return <Dashboard />
-  return <TodayView data={data} today={data.student_today} saved={saved} onDismissStartHere={() => setData((value) => value && { ...value, start_here: false, student_today: value.student_today ? { ...value.student_today, first_run: false } : value.student_today })} />
+  return <TodayView data={data} today={data.student_today} saved={saved} onDismissStartHere={() => setData((value) => value?.cohort?.id === data.cohort?.id && value?.user.id === data.user.id ? { ...value, start_here: false, student_today: value.student_today ? { ...value.student_today, first_run: false } : value.student_today } : value)} />
 }
 
 function TodayView({ data, today, saved, onDismissStartHere }: { data: DashboardData; today: StudentToday; saved: boolean; onDismissStartHere: () => void }) {

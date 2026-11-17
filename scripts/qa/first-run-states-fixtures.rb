@@ -32,5 +32,5 @@ first.completion_blocks.each do |block|
     Submission.create!(enrollment: e, user_id: 3, content_block: block, text: "Synthetic ongoing learner work", grade: "A", graded_by_id: 2, graded_at: Time.current)
   end
 end
-File.write(Rails.root.join("..", ".qa-local", "first-run.json"), JSON.pretty_generate({ program: program.id, solo: solo.id, alumni: alumni.id, off: off.id, first: first.id, solo_first: solo_first.id, new_program: new_program.id, program_user: first_day.id }))
+File.write(Rails.root.join("..", ".qa-local", "first-run.json"), JSON.pretty_generate({ program: program.id, program_workspace: program.workspace.id, solo: solo.id, alumni: alumni.id, off: off.id, first: first.id, solo_first: solo_first.id, new_program: new_program.id, program_user: first_day.id }))
 puts "First run fixtures ready"

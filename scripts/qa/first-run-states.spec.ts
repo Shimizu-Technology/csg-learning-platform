@@ -58,7 +58,6 @@ for (const theme of ['light','dark']) {
     expect(overflow).toBe(false)
     const path = `${persona.key}-${info.project.use.viewport!.width}-${theme}.png`
     await page.screenshot({ path: new URL(path, shots).pathname, fullPage: true })
-    results.push({ persona: persona.key, theme, width: info.project.use.viewport!.width, overflow, passed: true, screenshot: path })
     if (persona.first) {
       const start = page.getByRole('link', { name: 'Start Orientation', exact: true })
       if (info.project.use.viewport!.width === 390) { const box = await start.boundingBox(); expect(box!.y + box!.height).toBeLessThanOrEqual(776) }
@@ -80,6 +79,28 @@ for (const theme of ['light','dark']) {
       await expect(page).toHaveURL(new RegExp(`/dashboard\\?cohort_id=${ids.program}`))
       await expect(page.getByRole('heading', { name: 'CSG Alumni library' })).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Needs you', exact: true })).toBeVisible()
+      const switcher = page.locator('select[aria-label="Switch cohort"]:visible').first()
+      await switcher.selectOption(String(ids.alumni))
+      await expect(page).toHaveURL(new RegExp(`/dashboard\\?cohort_id=${ids.alumni}`))
+      await expect(page.getByRole('heading', { name: 'CSG Alumni library' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Needs you', exact: true })).toHaveCount(0)
+      await switcher.selectOption(String(ids.program))
+      await expect(page).toHaveURL(new RegExp(`/dashboard\\?cohort_id=${ids.program}`))
+      await expect(page.getByRole('heading', { name: 'Needs you', exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Message QA', exact: true }).click()
+      await expect(page).toHaveURL(/\/messages\/dm\//)
+      const cohortLink = page.locator(`main header a[href="/materials?cohort_id=${ids.program}"]`).first()
+      await expect(cohortLink).toBeVisible()
+      await page.screenshot({ path: new URL(`dm-header-${info.project.use.viewport!.width}-${theme}.png`, shots).pathname, fullPage: true })
+      if (info.project.use.viewport!.width === 390) {
+        await page.getByRole('button', { name: 'Back to conversations', exact: true }).click()
+        await expect(page).toHaveURL(new RegExp(`/messages\\?workspace_id=${ids.program_workspace}$`))
+        await expect(page.getByRole('heading', { name: 'Messages', exact: true })).toBeVisible()
+      } else {
+        await cohortLink.click()
+        await expect(page).toHaveURL(new RegExp(`/materials\\?cohort_id=${ids.program}`))
+        await expect(page.locator('main h1')).toBeVisible()
+      }
     }
     if (persona.key === 'self-paced-new') {
       await page.goto(`/profile?cohort_id=${persona.cohort}`)
@@ -100,6 +121,7 @@ for (const theme of ['light','dark']) {
       await page.getByRole('link', { name: 'Back to Today', exact: true }).click()
       await expect(page).toHaveURL(new RegExp(`cohort_id=${persona.cohort}`))
     }
+    results.push({ persona: persona.key, theme, width: info.project.use.viewport!.width, overflow, passed: true, screenshot: path })
   })
   test(`public legal recovery ${theme}`, async ({ page }, info) => {
     await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)

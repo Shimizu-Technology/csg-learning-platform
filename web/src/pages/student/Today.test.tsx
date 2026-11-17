@@ -364,3 +364,20 @@ it('a failed welcome dismissal stays visible and retries the same enrollment', a
   expect(mocks.dismissStartHere).toHaveBeenNthCalledWith(2, 9)
   expect(text()).not.toContain('Here’s how your course works')
 })
+
+it('a late dismissal cannot dismiss the next enrollment’s welcome', async () => {
+  let finish!: (value: unknown) => void
+  mocks.dismissStartHere.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  mocks.getDashboard.mockImplementation(async (id: number) => ({ data: { dashboard: { ...onDashboard(studentToday({ first_run: true, counts: { completed_lessons: 0, total_lessons: 2 } })), cohort: { id, name: `Course ${id}`, features: { student_experience_v2: true } } } } }))
+  const stable = async () => { await act(async () => root.render(<MemoryRouter initialEntries={['/dashboard']}><TodayRoute /></MemoryRouter>)) }
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  await stable()
+  const dismiss = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Dismiss welcome')!
+  await act(async () => dismiss.click())
+  state.cohort = { ready: true, selectedCohort: cohort(11, true), selectedCohortId: 11, error: null }
+  await stable()
+  expect(text()).toContain('Course 11')
+  await act(async () => finish({ data: { dismissed: true } }))
+  expect(text()).toContain('Here’s how your course works')
+  expect(container.querySelector('[data-region="next-action"]')?.textContent).toContain('Dismiss welcome')
+})

@@ -65,3 +65,13 @@ it('receipt failures allow retry and requesting a copy; success uses a safe exte
   expect(state.receipt).toHaveBeenCalledWith(3)
   expect(container.querySelector('a[href="https://pay.stripe.com/receipts/synthetic"]')?.textContent).toBe('Open receipt')
 })
+
+it('Off student recovery states keep their old markup', async () => {
+  state.v2 = false
+  await render(<StudentCohortHome />)
+  expect(container.textContent).toContain('Could not open cohort')
+  expect(container.querySelector('a[href="/dashboard"]')).toBeNull()
+  await render(<Materials />)
+  expect(container.textContent).toContain('No lessons yet')
+  expect(container.querySelector('a[href="/courses"]')).toBeNull()
+})
