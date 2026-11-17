@@ -23,6 +23,8 @@ exact web booking automatically, with a retry action after failure.
   production build and bundle gate. The bundle gate reads
   `dist/.well-known/apple-app-site-association`; routing tests verify its explicit
   rule before the SPA fallback and its JSON Content-Type rule in netlify.toml.
+- Native packaging: iOS and Android JavaScript exports pass. Metro watches the
+  shared API config directory; the export first failed without that watch folder.
 - API: results recorded in the PR after the full prepared/unprepared runs,
   RuboCop and Brakeman. No migration or API response shape changed.
 - Shared fixtures exercise both client adapters and Rails; the alias table is
