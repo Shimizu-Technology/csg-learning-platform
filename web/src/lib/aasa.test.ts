@@ -18,8 +18,9 @@ it('claims no public Route in App, including any future public route', () => {
     ts.forEachChild(node, walk)
   }
   walk(source)
-  expect(publicPaths).toEqual(expect.arrayContaining(['/', '/privacy', '/terms', '/account-deletion', '/courses']))
+  expect(publicPaths).toEqual(expect.arrayContaining(['/', '/privacy', '/terms', '/account-deletion', '/courses', '/courses/:slug']))
   for (const path of publicPaths) for (const url of [path, path.replace(/\/$/, '') + '/new-public-child']) expect(claims(url), url).toBe(false)
   expect(paths).not.toContain('/*')
 })
+it.each(['/courses', '/courses/python-fundamentals'])('keeps public course browsing in Safari: %s', path => expect(claims(path)).toBe(false))
 it.each(['/lessons/42', '/modules/7', '/messages/dm/3', '/meetings', '/admin/submissions/7'])('keeps native learning links %s', path => expect(claims(path)).toBe(true))
