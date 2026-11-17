@@ -72,6 +72,19 @@ it('keeps the draft after a failed save and offers an explicit reload next to th
   expect(bar.textContent).toContain('Reload latest plan')
 })
 
+it('says what the student sees while staff edit, with and without a saved plan', async () => {
+  await mount(); await click('Customize plan')
+  expect(container.textContent).toContain('Until then they see the regular curriculum')
+  await click('Cancel')
+
+  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
+  getPlan.mockResolvedValue({ data: personal })
+  await act(async () => root.unmount()); root = createRoot(container)
+  await mount(); await click('Edit personal plan')
+  expect(container.textContent).toContain('The student keeps their saved plan until you save these changes.')
+  expect(container.textContent).not.toContain('Until then they see the regular curriculum')
+})
+
 it('restores regular curriculum after confirmation and includes the current version', async () => {
   const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
   getPlan.mockResolvedValue({ data: personal }); savePlan.mockResolvedValue({ data: regular })
