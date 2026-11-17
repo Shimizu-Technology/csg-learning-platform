@@ -363,7 +363,8 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
   test "self-paced students cannot book even when a meeting configuration exists" do
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, access_expires_at: 12.months.from_now)
     config = PrivateMeetingConfig.create!(cohort: @cohort, instructor: @instructor)
-    starts_at = 2.days.from_now
+    # Mid-day local time, so the slot never crosses a course-week boundary at midnight.
+    starts_at = 2.days.from_now.in_time_zone(config.timezone).change(hour: 10)
     slot = config.private_meeting_slots.create!(instructor: @instructor, starts_at: starts_at, ends_at: starts_at + 1.hour)
     as_user(@student) { post "/api/v1/private_meetings", params: { slot_id: slot.id }, headers: auth_headers, as: :json }
     assert_response :unprocessable_entity

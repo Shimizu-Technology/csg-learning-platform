@@ -55,13 +55,14 @@ export function LearningTab({
         <SectionBoundary section={recordingsSection} label="Recordings">
           {recordings.length ? (
             recordings.map((recording) => (
-              <Link
+              <RecordLink
                 key={recording.recording_id}
-                to={`/recordings?cohort_id=${cohortId}&recording=${recording.recording_id}`}
-                className="app-link block min-h-11 py-3"
+                record={{ type: 'recording', id: recording.recording_id, cohortId }}
+                variant="app"
+                className="block min-h-11 py-3"
               >
                 {recording.recording_title} · {recording.completed ? 'Complete' : 'In progress'}
-              </Link>
+              </RecordLink>
             ))
           ) : (
             <p className="mt-3 text-sm text-ink-muted">No class recordings yet.</p>

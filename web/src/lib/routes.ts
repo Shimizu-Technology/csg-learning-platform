@@ -69,6 +69,46 @@ export function conversationPath(target: { type: 'channel' | 'dm'; id: number },
   return `${target.type === 'channel' ? '/messages' : '/messages/dm'}/${target.id}${query ? `?${query}` : ''}`
 }
 
+/** A recording's staff record page (L-5.2): cohort, week, lessons and sections, who watched. Learners keep Recordings. */
+export function recordingRecordPath(recordingId: number) {
+  return `/admin/recordings/${recordingId}`
+}
+
+/** An office-hour or live-class session's staff page (L-5.2). */
+export function officeHourPath(officeHourId: number) {
+  return `/admin/office-hours/${officeHourId}`
+}
+
+/** A private-meeting booking's staff page (L-5.2). Learners keep My meetings. */
+export function meetingBookingPath(bookingId: number) {
+  return `/admin/meetings/${bookingId}`
+}
+
+/** A learning plan's staff page (L-5.2): milestones, revisions and the way into the plan editor. */
+export function learningPlanPath(planId: number) {
+  return `/admin/learning-plans/${planId}`
+}
+
+/** The plan editor (#285) on the student page's Learning tab. */
+export function learningPlanEditorPath(cohortId: number, studentId: number) {
+  return `${cohortStudentPath(cohortId, studentId, 'learning')}#learning-plan`
+}
+
+/** A channel as a cohort record (L-5.2): members, recent activity and the way into Messages. */
+export function channelRecordPath(channelId: number) {
+  return `/admin/channels/${channelId}`
+}
+
+/** A rubric's staff page (L-5.2): criteria and the exercises graded with it. */
+export function rubricPath(rubricId: number) {
+  return `/admin/rubrics/${rubricId}`
+}
+
+/** One activity event (L-5.2): what happened, who, when, and its subject. */
+export function activityEventPath(eventId: number) {
+  return `/admin/activity/${eventId}`
+}
+
 /** A staff person's record page (admins only). */
 export function teamMemberPath(userId: number) {
   return `/admin/team/${userId}`
@@ -247,16 +287,27 @@ export type RecordRef =
   | { type: 'intervention'; id: Id }
   /** `cohortId` keeps the cohort the update was opened from (L-2.9). */
   | { type: 'announcement'; id: Id; cohortId?: OptionalId }
-  | { type: 'channel'; id: Id; messageId?: OptionalId }
+  /** The conversation in Messages. Staff pass `view: 'record'` for the channel's record page (L-5.2). */
+  | { type: 'channel'; id: Id; messageId?: OptionalId; view?: 'record' }
   /** `cohortId` selects that cohort in the app while the conversation is open. */
   | { type: 'direct_conversation'; id: Id; messageId?: OptionalId; cohortId?: OptionalId }
-  /** Bookings are listed on My meetings / Private meetings; there is no booking page. */
-  | { type: 'private_meeting'; id: Id }
-  /** Office hours are listed on the cohort and Today; there is no office-hour page. */
+  /** Staff open the booking page (L-5.2); the learner opens their own booking on My meetings. */
+  | { type: 'private_meeting'; id: Id; cohortId?: OptionalId; week?: OptionalId }
+  /** Staff open the session page (L-5.2). Learners see office hours on their cohort and Today. */
   | { type: 'office_hour'; id: Id }
+  /** Staff open the recording page (L-5.2); learners open it on Recordings. */
   | { type: 'recording'; id: Id; cohortId?: OptionalId }
-  /** A learner's plan for one enrollment. Staff see it in the workspace's Learning tab. */
-  | { type: 'learning_plan'; userId: Id; cohortId: Id }
+  /**
+   * A learner's plan for one enrollment. With the plan's `id`, staff open the
+   * plan page (L-5.2); without it, the workspace's Learning tab, where the editor is.
+   */
+  | { type: 'learning_plan'; id?: OptionalId; userId?: OptionalId; cohortId?: OptionalId }
+  /** A return plan (stored as a recovery plan): the student page's Support tab, showing that plan. */
+  | { type: 'recovery_plan'; id: Id; userId: Id; cohortId: Id }
+  /** Staff open the rubric page (L-5.2). */
+  | { type: 'rubric'; id: Id }
+  /** Staff open the activity event page (L-5.2). */
+  | { type: 'activity_event'; id: Id }
 
 export type RecordType = RecordRef['type']
 
@@ -283,6 +334,8 @@ export interface RecordRouteInfo {
   returnTo: ReturnSupport
   /** What the staff page honors, where it differs from the learner page (`returnTo`). */
   staffReturnTo?: ReturnSupport
+  /** A second staff page for the same record, reached with `view: 'record'` (a channel's record page). */
+  staffRecord?: string
 }
 
 /**
@@ -304,12 +357,15 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   help_request: { staff: '/admin/help-requests/:id', admin: '/admin/help-requests/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   intervention: { staff: '/admin/interventions/:id', admin: '/admin/interventions/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   announcement: { staff: '/announcements/:id', admin: '/announcements/:id', student: '/announcements/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'any' },
-  channel: { staff: '/messages/:id', admin: '/messages/:id', student: '/messages/:id', contextKeys: ['message_id'], returnTo: 'none' },
+  channel: { staff: '/messages/:id', admin: '/messages/:id', student: '/messages/:id', staffRecord: '/admin/channels/:id', contextKeys: ['message_id', 'return_to'], returnTo: 'none', staffReturnTo: 'any' },
   direct_conversation: { staff: '/messages/dm/:id', admin: '/messages/dm/:id', student: '/messages/dm/:id', contextKeys: ['cohort_id', 'message_id', 'return_to'], returnTo: 'any' },
-  private_meeting: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
-  office_hour: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
-  recording: { staff: '/recordings', admin: '/recordings', student: '/recordings', contextKeys: ['cohort_id', 'recording', 'return_to'], returnTo: 'activity' },
-  learning_plan: { staff: '/admin/cohorts/:cohortId/students/:userId/learning', admin: '/admin/cohorts/:cohortId/students/:userId/learning', student: null, contextKeys: [], returnTo: 'none' },
+  private_meeting: { staff: '/admin/meetings/:id', admin: '/admin/meetings/:id', student: '/meetings', contextKeys: ['cohort_id', 'booking_id', 'week', 'return_to'], returnTo: 'none', staffReturnTo: 'any' },
+  office_hour: { staff: '/admin/office-hours/:id', admin: '/admin/office-hours/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
+  recording: { staff: '/admin/recordings/:id', admin: '/admin/recordings/:id', student: '/recordings', contextKeys: ['cohort_id', 'recording', 'return_to'], returnTo: 'activity', staffReturnTo: 'any' },
+  learning_plan: { staff: '/admin/learning-plans/:id', admin: '/admin/learning-plans/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
+  recovery_plan: { staff: '/admin/cohorts/:cohortId/students/:userId/support', admin: '/admin/cohorts/:cohortId/students/:userId/support', student: null, contextKeys: ['plan_id'], returnTo: 'none' },
+  rubric: { staff: '/admin/rubrics/:id', admin: '/admin/rubrics/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
+  activity_event: { staff: '/admin/activity/:id', admin: '/admin/activity/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
 }
 
 function withQuery(path: string, params: Record<string, string | number | null | undefined>, hash = '') {
@@ -401,16 +457,32 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     case 'announcement':
       return validId(ref.id) ? withQuery(announcementPath(ref.id), { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, return_to: routeReturn('announcement') }) : null
     case 'channel':
-      return validId(ref.id) ? conversationPath({ type: 'channel', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined }) : null
+      if (!validId(ref.id)) return null
+      if (staff && ref.view === 'record') return withQuery(channelRecordPath(ref.id), { return_to: routeReturn('channel', true) })
+      return conversationPath({ type: 'channel', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined })
     case 'direct_conversation':
       return validId(ref.id) ? withQuery(`/messages/dm/${ref.id}`, { message_id: validId(ref.messageId) ? ref.messageId : undefined, cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, return_to: routeReturn('direct_conversation') }) : null
     case 'recording':
-      return validId(ref.id) ? withQuery('/recordings', { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, recording: ref.id, return_to: routeReturn('recording') }) : null
+      if (!validId(ref.id)) return null
+      if (staff) return withQuery(recordingRecordPath(ref.id), { return_to: routeReturn('recording', true) })
+      return withQuery('/recordings', { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, recording: ref.id, return_to: routeReturn('recording') })
     case 'learning_plan':
-      return staff && validId(ref.userId) && validId(ref.cohortId) ? cohortStudentPath(ref.cohortId, ref.userId, 'learning') : null
-    case 'user':
+      if (!staff) return null
+      if (validId(ref.id)) return withQuery(learningPlanPath(ref.id), { return_to: routeReturn('learning_plan') })
+      return validId(ref.userId) && validId(ref.cohortId) ? cohortStudentPath(ref.cohortId, ref.userId, 'learning') : null
+    case 'recovery_plan':
+      return staff && validId(ref.id) && validId(ref.userId) && validId(ref.cohortId) ? withQuery(cohortStudentPath(ref.cohortId, ref.userId, 'support'), { plan_id: ref.id }) : null
     case 'private_meeting':
+      if (!validId(ref.id)) return null
+      if (staff) return withQuery(meetingBookingPath(ref.id), { return_to: routeReturn('private_meeting', true) })
+      return withQuery('/meetings', { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, booking_id: ref.id, week: validId(ref.week) ? ref.week : undefined })
     case 'office_hour':
+      return staff && validId(ref.id) ? withQuery(officeHourPath(ref.id), { return_to: routeReturn('office_hour') }) : null
+    case 'rubric':
+      return staff && validId(ref.id) ? withQuery(rubricPath(ref.id), { return_to: routeReturn('rubric') }) : null
+    case 'activity_event':
+      return staff && validId(ref.id) ? withQuery(activityEventPath(ref.id), { return_to: routeReturn('activity_event') }) : null
+    case 'user':
       return null
   }
 }

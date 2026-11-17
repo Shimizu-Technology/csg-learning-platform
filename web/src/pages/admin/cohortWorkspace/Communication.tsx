@@ -1,4 +1,5 @@
 import { ArrowRight, MessageSquareText } from 'lucide-react'
+import { CohortChannels } from '../../../components/admin/CohortChannels'
 import { RecordLink } from '../../../components/shared/RecordLink'
 import { Button, LinkButton } from '../../../components/ui/Button'
 import { PreviewLink as Link } from '../../../contexts/PreviewNavigationContext'
@@ -28,6 +29,7 @@ export function Communication({
           <p className="text-xs font-semibold text-ink-muted">Conversation</p>
           <h2 className="mt-2 text-lg font-bold text-ink">Class messages</h2>
           <p className="mt-2 text-sm leading-6 text-ink-secondary">Open this cohort’s class chat and conversations.</p>
+          <CohortChannels cohortId={cohort.id} cohortName={cohort.name} />
           <LinkButton
             to={`/messages?workspace_id=${home?.cohort.workspace_id || ''}&cohort_id=${cohort.id}`}
             className="mt-5"

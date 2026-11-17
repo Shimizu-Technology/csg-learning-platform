@@ -269,7 +269,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
         {activeTab === 'recordings' && (
           <section className="app-surface p-5 sm:p-6">
             <h2 className="mb-4 text-lg font-bold text-ink">Class recordings</h2>
-            <RecordingUploadManager key={cohort.id} cohortId={cohort.id} />
+            <RecordingUploadManager key={cohort.id} cohortId={cohort.id} editRecordingId={Number(searchParams.get('edit_recording')) || null} />
           </section>
         )}
         {activeTab === 'insights' && (

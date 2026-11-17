@@ -49,6 +49,15 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
   const [picker, setPicker] = useState<Picker>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const noteId = useId()
+  // The plan page's "Edit plan" links here with #learning-plan: scroll to the editor once it loads.
+  const scrolledRef = useRef(false)
+  useEffect(() => {
+    if (!data || scrolledRef.current || window.location.hash !== '#learning-plan') return
+    scrolledRef.current = true
+    const target = document.getElementById('learning-plan')
+    target?.scrollIntoView?.({ block: 'start' })
+    target?.focus({ preventScroll: true })
+  }, [data])
   const load = useCallback(async () => {
     setError(null)
     try {
@@ -131,9 +140,9 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
   const plannedCount = draft.milestones.reduce((sum, item) => sum + item.lesson_ids.length, 0)
   const remainingCount = (data?.lessons || []).filter((lesson) => !lesson.completed && !placement.has(lesson.id)).length
 
-  return <section className="app-surface space-y-5 p-5 sm:p-6" aria-label="Student learning plan">
+  return <section id="learning-plan" tabIndex={-1} className="app-surface scroll-mt-24 space-y-5 p-5 outline-none sm:p-6" aria-label="Student learning plan">
     {leave.dialog}
-    <div><p className="app-eyebrow">Learning plan</p><h2 className="mt-1 text-lg font-bold text-ink">{editing ? (plan?.active ? 'Edit personal plan' : 'Customize learning plan') : plan?.active ? plan.title : 'Regular curriculum'}</h2><p className="mt-2 text-sm leading-6 text-ink-secondary">{editing ? (plan?.active ? 'The student keeps their saved plan until you save these changes.' : 'The student sees this plan only after you save it. Until then they see the regular curriculum and how far behind they are.') : plan?.active ? 'This student has a personal plan. Shared lessons and other students keep their existing settings.' : 'This student follows the regular curriculum. Customize only the pacing or requirements that need to differ.'}</p></div>
+    <div><div className="flex flex-wrap items-center justify-between gap-2"><p className="app-eyebrow">Learning plan</p>{plan?.id && !editing && <RecordLink record={{ type: 'learning_plan', id: plan.id, cohortId }} variant="app" touchTarget className="text-sm">Plan page and history</RecordLink>}</div><h2 className="mt-1 text-lg font-bold text-ink">{editing ? (plan?.active ? 'Edit personal plan' : 'Customize learning plan') : plan?.active ? plan.title : 'Regular curriculum'}</h2><p className="mt-2 text-sm leading-6 text-ink-secondary">{editing ? (plan?.active ? 'The student keeps their saved plan until you save these changes.' : 'The student sees this plan only after you save it. Until then they see the regular curriculum and how far behind they are.') : plan?.active ? 'This student has a personal plan. Shared lessons and other students keep their existing settings.' : 'This student follows the regular curriculum. Customize only the pacing or requirements that need to differ.'}</p></div>
     {error && !editing && <div role="alert" className="space-y-2 rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink"><p>{error}</p><Button type="button" variant="secondary" onClick={() => void load()} disabled={saving}>Reload latest plan</Button></div>}
     {notice && <p role="status" className="text-sm font-semibold text-ink-secondary">{notice}</p>}
     {!data && !error && <p className="text-sm text-ink-muted">Loading learning plan…</p>}

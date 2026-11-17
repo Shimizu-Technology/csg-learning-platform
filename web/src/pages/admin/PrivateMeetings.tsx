@@ -217,7 +217,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
             <Avatar name={booking.student_name || 'Student'} size="sm" />
             <div className="min-w-0">
               <h3 className="truncate font-semibold text-ink" title={booking.student_name || 'Student'}>{booking.student_id ? <Link className="inline-flex min-h-11 items-center underline underline-offset-4" state={{ returnTo: `/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`, returnLabel: 'Meetings' }} to={`${cohortStudentPath(booking.cohort_id, booking.student_id)}?return_to=${encodeURIComponent(`/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`)}`}>{booking.student_name || 'Student'}</Link> : booking.student_name || 'Student'}</h3>
-              <p className="mt-0.5 text-sm tabular-nums text-ink-secondary">Week {booking.week_number} · {formatGuamMeetingTime(booking.starts_at)}</p>
+              <p className="mt-0.5 text-sm tabular-nums text-ink-secondary"><RecordLink record={{ type: 'private_meeting', id: booking.id }} variant="plain" touchTarget returnLabel="Meetings" className="font-normal text-ink-secondary" aria-label={`Meeting details: ${booking.student_name || 'Student'}, week ${booking.week_number}`}>Week {booking.week_number} · {formatGuamMeetingTime(booking.starts_at)}</RecordLink></p>
             </div>
           </div>
           {isPast
