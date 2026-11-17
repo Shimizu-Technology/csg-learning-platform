@@ -10,13 +10,13 @@ Agent-executed affected-flow checks use disposable ASUS PostgreSQL fixtures and 
 
 | Scenario | Expected outcome | Evidence/status |
 | --- | --- | --- |
-| Expired self-paced support | Lesson, dashboard, and weekly plan advertise `none`; learning writes remain available; old help responses remain readable | Pending final stress/suite results |
-| Missing assigned instructor | No course questions or guided-help writes | Pending final stress/suite results |
-| Existing first-open timestamp | Reading does not restart support or change its expiry | Explicit persisted-timestamp assertions; pending execution |
-| Profile growth | Exactly 1 then 6 enrollments, with distinct copied curricula; flat logical SQL counts and correct cohort-qualified names | Pending final run |
-| Copy privacy | Existing redaction and custom-name behavior remains intact | Existing curriculum-copy/privacy regressions in full suite |
-| Transaction pooler canary | Multiple backend PIDs across autocommit; LISTEN state belongs to one backend; another backend receives no notification; production Cable avoids PostgreSQL adapter | Pooler-only test; pending PR CI |
-| Prepared/unprepared pooling | Full suite passes with `max_prepared_statements=100` / `0` and matching Rails prepared-statement modes | Pending PR CI matrix |
+| Expired self-paced support | Lesson, dashboard, and weekly plan advertise `none`; learning writes remain available; old help responses remain readable | Passed: delayed stress and full ASUS suites in both modes |
+| Missing assigned instructor | No course questions or guided-help writes | Passed: delayed stress and full ASUS suites in both modes |
+| Existing first-open timestamp | Reading does not restart support or change its expiry | Passed: explicit persisted-timestamp assertions in both stress modes |
+| Profile growth | Exactly 1 then 6 enrollments, with distinct copied curricula; flat logical SQL counts and correct cohort-qualified names | Passed: 10 → 10 logical queries; exactly 1 then 6 enrollment rows |
+| Copy privacy | Existing redaction and custom-name behavior remains intact | Passed: existing curriculum-copy/privacy regressions in both full suites |
+| Transaction pooler canary | Multiple backend PIDs across autocommit and protocol-prepared executions; LISTEN state belongs to one backend; another backend receives no notification; production Cable avoids PostgreSQL adapter | Passed: both CI pooler legs at `27c14cc1`; stronger prepared rotation also passed on ASUS |
+| Prepared/unprepared pooling | Full suite passes with `max_prepared_statements=100` / `0` and matching Rails prepared-statement modes | Passed: both full pooler legs at `27c14cc1`; final-head check links in PR description |
 
 ## Investigation
 
@@ -51,3 +51,10 @@ The remaining run results, final head/check links, review status, and cleanup ar
 The first prepared pooler run passed its canary (1 test / 6 assertions) but exposed two existing harness assumptions: `ProductionDatabaseTest` demanded unprepared mode for every pooler run, and Rails/PostgreSQL 16 statement cleanup sends individual SQL `DEALLOCATE aN` commands. PgBouncer maps protocol-level statement names, so those SQL commands fail and abort migration-test transactions; server-side plans also survive DDL across other pooled backends. See [PgBouncer prepared-statement limitations](https://www.pgbouncer.org/config.html#max_prepared_statements).
 
 The matrix-mode assertion now follows its explicit expected mode while production's YAML policy remains separately asserted false. Migration round-trip tests use the direct local connection, retaining the matrix's prepared-statement setting, as production migrations do. After fixture rollback the helper restores the runtime pool, sends admin `RECONNECT`, and waits with `WAIT_CLOSE` to invalidate plans on every pooler backend. Application tests continue through the pooler without adapter patches or disabled prepared statements. This is test isolation for intentional schema mutation; R-7 still needs to assess runtime statement eviction on Rails/PostgreSQL 16 before enabling prepared statements in production.
+
+
+Full ASUS gate on the application/API snapshot `ac2294fd`: prepared and unprepared each passed **2,188 tests / 42,883 assertions**, zero failures/errors and one expected pooler-only skip. RuboCop inspected 760 files with no offenses; Brakeman found no security warnings/errors. The migration-process tests retained their localhost:55432 adapter. Application code did not change afterward; subsequent changes affect CI/test isolation and its canary.
+
+Corrected CI at `27c14cc1` passed every job. The [prepared pooler job](https://github.com/Shimizu-Technology/csg-learning-platform/actions/runs/44123387625/job/134180492037) and [unprepared pooler job](https://github.com/Shimizu-Technology/csg-learning-platform/actions/runs/44123387625/job/134180492097) each explicitly ran the canary (1 test / 6 assertions, no skips) and the full suite (2,188 tests / 42,890 assertions, zero failures/errors/skips). Running-config verification confirmed max_prepared_statements=100 and 0 respectively.
+
+The final canary additionally executes the same named protocol-prepared statement across rotating backend PIDs. A fresh ASUS run using Ubuntu 24.04's actual PgBouncer package passed that canary, the four formerly failing migration round trips, production config tests, catalog integration tests, and learner capabilities: **35 tests / 293 assertions**, zero failures/errors/skips. Its exact pooler container and temporary PostgreSQL container were removed by cleanup traps; the ASUS wrapper stopped WSL. The final PR head's CI/review outcome is recorded in the PR description rather than triggering another CI cycle for evidence-only changes.

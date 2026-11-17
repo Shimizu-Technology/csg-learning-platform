@@ -25,6 +25,13 @@ class TransactionPoolerCanaryTest < ActiveSupport::TestCase
       pids = 12.times.map { probe.exec("SELECT pg_backend_pid()").getvalue(0, 0) }
       assert_operator pids.uniq.size, :>, 1, "autocommit must cross backends; a direct/session connection is not a pooler test"
 
+      if ENV.fetch("EXPECTED_PREPARED_STATEMENTS") == "true"
+        probe.prepare("canary_pid", "SELECT pg_backend_pid()")
+        prepared_pids = 12.times.map { probe.exec_prepared("canary_pid").getvalue(0, 0) }
+        assert_operator prepared_pids.uniq.size, :>, 1, "protocol prepared statements must survive backend rotation"
+        probe.close_prepared("canary_pid")
+      end
+
       channel = "csg_canary_#{Process.pid}"
       probe.exec("LISTEN #{channel}")
       # Each transaction pins one of the six backends, including the listener.
