@@ -25,8 +25,9 @@ exact web booking automatically, with a retry action after failure.
   rule before the SPA fallback and its JSON Content-Type rule in netlify.toml.
 - Native packaging: iOS and Android JavaScript exports pass. Metro watches the
   shared API config directory; the export first failed without that watch folder.
-- API: results recorded in the PR after the full prepared/unprepared runs,
-  RuboCop and Brakeman. No migration or API response shape changed.
+- API: full suites with prepared statements explicitly true and false each
+  pass 1,929 tests (41,099 assertions); RuboCop passes and Brakeman reports no
+  warnings. No migration or API response shape changed.
 - Shared fixtures exercise both client adapters and Rails; the alias table is
   `api/config/record_destination_aliases.json`. Existing invalid-recording-id
   behavior is covered: `/recordings?cohort_id=2` cannot become `/recording/`.
