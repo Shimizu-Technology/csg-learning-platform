@@ -5,7 +5,7 @@ import { checkedLifecycle } from './ownership.mjs'
 const session = process.env.DEV_LIFECYCLE_SESSION!
 const state = JSON.parse(readFileSync(new URL('../../.qa-local/state.json', import.meta.url), 'utf8'))
 const ids = JSON.parse(readFileSync(new URL('../../.qa-local/student-polish.json', import.meta.url), 'utf8'))
-const output = new URL('../../docs/qa/student-polish-2026-11-18/polish/', import.meta.url)
+const output = new URL('../../.qa-local/student-polish/', import.meta.url)
 mkdirSync(output, { recursive: true })
 const mainPort = Number(process.env.QA_MAIN_WEB_PORT) || null
 const owners = new Map<object, string>()

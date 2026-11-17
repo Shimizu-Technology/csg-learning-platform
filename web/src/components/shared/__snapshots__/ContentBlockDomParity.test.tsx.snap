@@ -1,0 +1,3161 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`preserves pre-split DOM: check:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<section class="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
+<div class="flex flex-wrap items-center gap-2">
+<p class="text-xs font-semibold text-ink-muted">Quick recall</p>
+</div>
+<p class="mt-2 text-base font-semibold leading-6 text-ink">Choose</p>
+<div class="mt-4 grid gap-2">
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">One</button>
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">Two</button>
+</div>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm mt-4" disabled="">Check answer</button>
+</section>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: check:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<section class="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
+<div class="flex flex-wrap items-center gap-2">
+<p class="text-xs font-semibold text-ink-muted">Quick recall</p>
+</div>
+<p class="mt-2 text-base font-semibold leading-6 text-ink">Choose</p>
+<div class="mt-4 grid gap-2">
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">One</button>
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">Two</button>
+</div>
+<div class="mt-4 rounded-xl border border-line bg-surface-raised p-3 text-sm text-ink-secondary">
+<p class="font-semibold text-ink">Answer: One</p>
+<p class="mt-1 leading-6">One is right</p>
+</div>
+</section>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: check:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span role="img" aria-label="Check not answered yet">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>
+</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<section class="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
+<div class="flex flex-wrap items-center gap-2">
+<p class="text-xs font-semibold text-ink-muted">Quick recall</p>
+</div>
+<p class="mt-2 text-base font-semibold leading-6 text-ink">Choose</p>
+<div class="mt-4 grid gap-2">
+<button type="button" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">One</button>
+<button type="button" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">Two</button>
+</div>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm mt-4" disabled="">Check answer</button>
+</section>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: check:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<section class="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
+<div class="flex flex-wrap items-center gap-2">
+<p class="text-xs font-semibold text-ink-muted">Quick recall</p>
+</div>
+<p class="mt-2 text-base font-semibold leading-6 text-ink">Choose</p>
+<div class="mt-4 grid gap-2">
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">One</button>
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">Two</button>
+</div>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm mt-4" disabled="">Check answer</button>
+</section>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: check:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<section class="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
+<div class="flex flex-wrap items-center gap-2">
+<p class="text-xs font-semibold text-ink-muted">Quick recall</p>
+</div>
+<p class="mt-2 text-base font-semibold leading-6 text-ink">Choose</p>
+<div class="mt-4 grid gap-2">
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">One</button>
+<button type="button" disabled="" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">Two</button>
+</div>
+<div class="mt-4 rounded-xl border border-line bg-surface-raised p-3 text-sm text-ink-secondary">
+<p class="font-semibold text-ink">Answer: One</p>
+<p class="mt-1 leading-6">One is right</p>
+</div>
+</section>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: check:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span role="img" aria-label="Check not answered yet">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>
+</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<section class="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
+<div class="flex flex-wrap items-center gap-2">
+<p class="text-xs font-semibold text-ink-muted">Quick recall</p>
+</div>
+<p class="mt-2 text-base font-semibold leading-6 text-ink">Choose</p>
+<div class="mt-4 grid gap-2">
+<button type="button" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">One</button>
+<button type="button" aria-pressed="false" class="pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default">Two</button>
+</div>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm mt-4" disabled="">Check answer</button>
+</section>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: checkpoint:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: checkpoint:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: checkpoint:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Write your solution</h3>
+</div>
+<pre data-editor="editable">
+</pre>
+<div class="flex items-center justify-end">
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit checkpoint</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: checkpoint:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: checkpoint:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: checkpoint:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Checkpoint</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Write your solution</h3>
+</div>
+<pre data-editor="editable">
+</pre>
+<div class="flex items-center justify-end">
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit checkpoint</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: feedback:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span data-tone="warning" class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold leading-4 border-warning-line bg-warning-soft text-warning-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw h-3.5 w-3.5" aria-hidden="true">
+<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8">
+</path>
+<path d="M3 3v5h5">
+</path>
+</svg>Redo requested</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<section aria-label="Instructor feedback: redo requested" class="rounded-xl border px-4 py-3 border-warning-line bg-warning-soft">
+<p class="flex items-center gap-1.5 text-sm font-semibold text-warning-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw h-4 w-4 shrink-0" aria-hidden="true">
+<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8">
+</path>
+<path d="M3 3v5h5">
+</path>
+</svg>Your instructor asked for a redo. Your feedback remains available below.</p>
+<div data-feedback="">Try again</div>
+</section>
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<div class="space-y-3">
+<h3 class="text-sm font-semibold text-ink">Your submission</h3>
+<div class="rounded-xl border border-line p-4 bg-surface-raised">
+<p class="mb-3 text-xs text-ink-muted">
+<span class="font-semibold text-ink-secondary tabular-nums">Submission #1</span> · <span class="tabular-nums">Nov 9, 2026</span> · Latest · Redo requested</p>
+<div class="mt-2">
+<div class="code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink  my-0" data-language="python">
+<div class="flex h-9 items-center gap-2 border-b border-code-line bg-code-header pl-3 pr-1.5">
+<span class="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-ink-muted">Python</span>
+<button type="button" data-state="idle" aria-label="Copy code" class="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-secondary transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus data-[state=copied]:text-success-ink data-[state=failed]:bg-warning-soft data-[state=failed]:text-warning-ink relative ">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy h-3.5 w-3.5" aria-hidden="true">
+<rect width="14" height="14" x="8" y="8" rx="2" ry="2">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span>Copy</span>
+<span class="sr-only" aria-live="polite">
+</span>
+</button>
+</div>
+<div tabindex="0" role="region" aria-label="Python code" class="flex min-w-0 overflow-x-auto font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus text-sm max-h-[min(70vh,40rem)] overflow-y-auto">
+<pre aria-hidden="true" data-line-numbers="true" class="sticky left-0 m-0 shrink-0 select-none border-r border-code-line bg-code-bg py-3 pl-3 pr-2.5 text-right tabular-nums text-code-gutter">1</pre>
+<pre class="m-0 min-w-0 flex-1 whitespace-pre px-3.5 py-3">
+<code>answer</code>
+</pre>
+</div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex flex-wrap gap-2">
+<a href="https://example.invalid/code" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>GitHub Code<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/repo" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>Repo<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/pr" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch h-3 w-3" aria-hidden="true">
+<path d="M15 6a9 9 0 0 0-9 9V3">
+</path>
+<circle cx="18" cy="6" r="3">
+</circle>
+<circle cx="6" cy="18" r="3">
+</circle>
+</svg>PR<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/live" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe h-3 w-3" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20">
+</path>
+<path d="M2 12h20">
+</path>
+</svg>Live<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+</div>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: feedback:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span data-tone="warning" class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold leading-4 border-warning-line bg-warning-soft text-warning-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw h-3.5 w-3.5" aria-hidden="true">
+<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8">
+</path>
+<path d="M3 3v5h5">
+</path>
+</svg>Redo requested</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<section aria-label="Instructor feedback: redo requested" class="rounded-xl border px-4 py-3 border-warning-line bg-warning-soft">
+<p class="flex items-center gap-1.5 text-sm font-semibold text-warning-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw h-4 w-4 shrink-0" aria-hidden="true">
+<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8">
+</path>
+<path d="M3 3v5h5">
+</path>
+</svg>Your instructor asked for a redo (R). Read the feedback, then resubmit below.</p>
+<div data-feedback="">Try again</div>
+</section>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: feedback:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span data-tone="warning" class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold leading-4 border-warning-line bg-warning-soft text-warning-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw h-3.5 w-3.5" aria-hidden="true">
+<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8">
+</path>
+<path d="M3 3v5h5">
+</path>
+</svg>Redo requested</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<section aria-label="Instructor feedback: redo requested" class="rounded-xl border px-4 py-3 border-warning-line bg-warning-soft">
+<p class="flex items-center gap-1.5 text-sm font-semibold text-warning-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw h-4 w-4 shrink-0" aria-hidden="true">
+<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8">
+</path>
+<path d="M3 3v5h5">
+</path>
+</svg>Your instructor asked for a redo (R). Read the feedback, then resubmit below.</p>
+<div data-feedback="">Try again</div>
+</section>
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3">
+<h3 class="text-sm font-semibold text-ink">Your submission</h3>
+<div class="rounded-xl border border-line p-4 bg-surface-raised">
+<p class="mb-3 text-xs text-ink-muted">
+<span class="font-semibold text-ink-secondary tabular-nums">Submission #1</span> · <span class="tabular-nums">Nov 9, 2026</span> · Latest · Redo requested</p>
+<div class="mt-2">
+<div class="code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink  my-0" data-language="python">
+<div class="flex h-9 items-center gap-2 border-b border-code-line bg-code-header pl-3 pr-1.5">
+<span class="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-ink-muted">Python</span>
+<button type="button" data-state="idle" aria-label="Copy code" class="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-secondary transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus data-[state=copied]:text-success-ink data-[state=failed]:bg-warning-soft data-[state=failed]:text-warning-ink relative ">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy h-3.5 w-3.5" aria-hidden="true">
+<rect width="14" height="14" x="8" y="8" rx="2" ry="2">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span>Copy</span>
+<span class="sr-only" aria-live="polite">
+</span>
+</button>
+</div>
+<div tabindex="0" role="region" aria-label="Python code" class="flex min-w-0 overflow-x-auto font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus text-sm max-h-[min(70vh,40rem)] overflow-y-auto">
+<pre aria-hidden="true" data-line-numbers="true" class="sticky left-0 m-0 shrink-0 select-none border-r border-code-line bg-code-bg py-3 pl-3 pr-2.5 text-right tabular-nums text-code-gutter">1</pre>
+<pre class="m-0 min-w-0 flex-1 whitespace-pre px-3.5 py-3">
+<code>answer</code>
+</pre>
+</div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex flex-wrap gap-2">
+<a href="https://example.invalid/code" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>GitHub Code<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/repo" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>Repo<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/pr" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch h-3 w-3" aria-hidden="true">
+<path d="M15 6a9 9 0 0 0-9 9V3">
+</path>
+<circle cx="18" cy="6" r="3">
+</circle>
+<circle cx="6" cy="18" r="3">
+</circle>
+</svg>PR<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/live" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe h-3 w-3" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20">
+</path>
+<path d="M2 12h20">
+</path>
+</svg>Live<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-4">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Revise and resubmit</h3>
+<span class="text-xs text-ink-muted">Repository URL required</span>
+</div>
+<div class="grid gap-3 md:grid-cols-2">
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Repository URL</span>
+<input placeholder="https://github.com/username/project" class="app-control w-full" value="">
+</label>
+</div>
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Notes (optional)</span>
+<textarea rows="4" placeholder="Anything your instructor should know about this submission." class="app-control w-full">
+</textarea>
+</label>
+<div class="space-y-3">
+<button type="button" data-variant="quiet" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-line/70 min-h-11 px-3 py-2 text-sm lg:min-h-9 -ml-2" aria-expanded="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down h-4 w-4" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>Add PR / branch / commit details</button>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-3">
+<p class="text-sm text-ink-muted">Share the repo you want reviewed. Notes are optional.</p>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Resubmit links</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: feedback:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<section aria-label="Instructor feedback" class="rounded-xl border px-4 py-3 border-success-line bg-success-soft">
+<p class="flex items-center gap-1.5 text-sm font-semibold text-success-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4 shrink-0" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>Reviewed by your instructor</p>
+<div data-feedback="">Try again</div>
+</section>
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<div class="min-w-0 space-y-2">
+<details class="min-w-0 rounded-xl border border-line bg-surface-raised">
+<summary class="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-ink">View submission #1</summary>
+<div class="min-w-0 space-y-3 px-4 pb-4">
+<div class="code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink  my-0" data-language="python">
+<div class="flex h-9 items-center gap-2 border-b border-code-line bg-code-header pl-3 pr-1.5">
+<span class="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-ink-muted">Python</span>
+<button type="button" data-state="idle" aria-label="Copy code" class="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-secondary transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus data-[state=copied]:text-success-ink data-[state=failed]:bg-warning-soft data-[state=failed]:text-warning-ink relative ">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy h-3.5 w-3.5" aria-hidden="true">
+<rect width="14" height="14" x="8" y="8" rx="2" ry="2">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span>Copy</span>
+<span class="sr-only" aria-live="polite">
+</span>
+</button>
+</div>
+<div tabindex="0" role="region" aria-label="Python code" class="flex min-w-0 overflow-x-auto font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus text-sm max-h-[min(70vh,40rem)] overflow-y-auto">
+<pre aria-hidden="true" data-line-numbers="true" class="sticky left-0 m-0 shrink-0 select-none border-r border-code-line bg-code-bg py-3 pl-3 pr-2.5 text-right tabular-nums text-code-gutter">1</pre>
+<pre class="m-0 min-w-0 flex-1 whitespace-pre px-3.5 py-3">
+<code>answer</code>
+</pre>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex flex-wrap gap-2">
+<a href="https://example.invalid/code" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>GitHub Code<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/repo" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>Repo<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/pr" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch h-3 w-3" aria-hidden="true">
+<path d="M15 6a9 9 0 0 0-9 9V3">
+</path>
+<circle cx="18" cy="6" r="3">
+</circle>
+<circle cx="6" cy="18" r="3">
+</circle>
+</svg>PR<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/live" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe h-3 w-3" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20">
+</path>
+<path d="M2 12h20">
+</path>
+</svg>Live<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+</div>
+</div>
+</div>
+</details>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: feedback:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<section aria-label="Instructor feedback" class="rounded-xl border px-4 py-3 border-success-line bg-success-soft">
+<p class="flex items-center gap-1.5 text-sm font-semibold text-success-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4 shrink-0" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>Reviewed by your instructor</p>
+<div data-feedback="">Try again</div>
+</section>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: feedback:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<section aria-label="Instructor feedback" class="rounded-xl border px-4 py-3 border-success-line bg-success-soft">
+<p class="flex items-center gap-1.5 text-sm font-semibold text-success-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4 shrink-0" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>Reviewed by your instructor</p>
+<div data-feedback="">Try again</div>
+</section>
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="min-w-0 space-y-2">
+<details class="min-w-0 rounded-xl border border-line bg-surface-raised">
+<summary class="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-ink">View submission #1</summary>
+<div class="min-w-0 space-y-3 px-4 pb-4">
+<div class="code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink  my-0" data-language="python">
+<div class="flex h-9 items-center gap-2 border-b border-code-line bg-code-header pl-3 pr-1.5">
+<span class="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-ink-muted">Python</span>
+<button type="button" data-state="idle" aria-label="Copy code" class="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-secondary transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus data-[state=copied]:text-success-ink data-[state=failed]:bg-warning-soft data-[state=failed]:text-warning-ink relative ">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy h-3.5 w-3.5" aria-hidden="true">
+<rect width="14" height="14" x="8" y="8" rx="2" ry="2">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span>Copy</span>
+<span class="sr-only" aria-live="polite">
+</span>
+</button>
+</div>
+<div tabindex="0" role="region" aria-label="Python code" class="flex min-w-0 overflow-x-auto font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus text-sm max-h-[min(70vh,40rem)] overflow-y-auto">
+<pre aria-hidden="true" data-line-numbers="true" class="sticky left-0 m-0 shrink-0 select-none border-r border-code-line bg-code-bg py-3 pl-3 pr-2.5 text-right tabular-nums text-code-gutter">1</pre>
+<pre class="m-0 min-w-0 flex-1 whitespace-pre px-3.5 py-3">
+<code>answer</code>
+</pre>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex flex-wrap gap-2">
+<a href="https://example.invalid/code" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>GitHub Code<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/repo" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-3 w-3" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>Repo<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/pr" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch h-3 w-3" aria-hidden="true">
+<path d="M15 6a9 9 0 0 0-9 9V3">
+</path>
+<circle cx="18" cy="6" r="3">
+</circle>
+<circle cx="6" cy="18" r="3">
+</circle>
+</svg>PR<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+<a href="https://example.invalid/live" target="_blank" rel="noopener noreferrer" class="pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe h-3 w-3" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20">
+</path>
+<path d="M2 12h20">
+</path>
+</svg>Live<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link h-3 w-3" aria-hidden="true">
+<path d="M15 3h6v6">
+</path>
+<path d="M10 14 21 3">
+</path>
+<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6">
+</path>
+</svg>
+</a>
+</div>
+</div>
+</div>
+</details>
+</div>
+<p class="text-sm text-ink-secondary">Review complete. You can inspect your submitted work and feedback above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: github:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: github:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: github:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-2 rounded-xl border border-line bg-surface-sunken/60 p-4">
+<p class="text-sm font-semibold text-ink">Submit via GitHub</p>
+<p class="text-sm text-ink-secondary">Complete this exercise in your local environment, then push your changes to your <span class="font-semibold text-ink">exercises</span> repository on GitHub.</p>
+<p class="text-sm text-ink-muted">Your instructor will sync and review your code from GitHub.</p>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: github:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: github:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: github:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-2 rounded-xl border border-line bg-surface-sunken/60 p-4">
+<p class="text-sm font-semibold text-ink">Submit via GitHub</p>
+<p class="text-sm text-ink-secondary">Complete this exercise in your local environment, then push your changes to your <span class="font-semibold text-ink">exercises</span> repository on GitHub.</p>
+<p class="text-sm text-ink-muted">Your instructor will sync and review your code from GitHub.</p>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: hosted:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div data-video="playable" data-tracking="false">
+<button>Simulate video progress</button>
+<button>Simulate video ended</button>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: hosted:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div data-video="playable" data-tracking="false">
+<button>Simulate video progress</button>
+<button>Simulate video ended</button>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: hosted:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div data-video="playable" data-tracking="true">
+<button>Simulate video progress</button>
+<button>Simulate video ended</button>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: hosted:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div data-video="playable" data-tracking="false">
+<button>Simulate video progress</button>
+<button>Simulate video ended</button>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: hosted:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div data-video="playable" data-tracking="false">
+<button>Simulate video progress</button>
+<button>Simulate video ended</button>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: hosted:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div data-video="playable" data-tracking="true">
+<button>Simulate video progress</button>
+<button>Simulate video ended</button>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: live:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: live:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: live:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-4">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Submit project</h3>
+<span class="text-xs text-ink-muted">Repo + live URL required</span>
+</div>
+<div class="grid gap-3 md:grid-cols-2">
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Repository URL</span>
+<input placeholder="https://github.com/username/project" class="app-control w-full" value="">
+</label>
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Live URL</span>
+<input placeholder="https://your-app.example.com" class="app-control w-full" value="">
+</label>
+</div>
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Notes (optional)</span>
+<textarea rows="4" placeholder="Anything your instructor should know about this submission." class="app-control w-full">
+</textarea>
+</label>
+<div class="space-y-3">
+<button type="button" data-variant="quiet" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-line/70 min-h-11 px-3 py-2 text-sm lg:min-h-9 -ml-2" aria-expanded="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down h-4 w-4" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>Add PR / branch / commit details</button>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-3">
+<p class="text-sm text-ink-muted">Share the repo and deployed app you want reviewed.</p>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit links</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: live:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: live:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: live:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-4">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Submit project</h3>
+<span class="text-xs text-ink-muted">Repo + live URL required</span>
+</div>
+<div class="grid gap-3 md:grid-cols-2">
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Repository URL</span>
+<input placeholder="https://github.com/username/project" class="app-control w-full" value="">
+</label>
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Live URL</span>
+<input placeholder="https://your-app.example.com" class="app-control w-full" value="">
+</label>
+</div>
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Notes (optional)</span>
+<textarea rows="4" placeholder="Anything your instructor should know about this submission." class="app-control w-full">
+</textarea>
+</label>
+<div class="space-y-3">
+<button type="button" data-variant="quiet" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-line/70 min-h-11 px-3 py-2 text-sm lg:min-h-9 -ml-2" aria-expanded="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down h-4 w-4" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>Add PR / branch / commit details</button>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-3">
+<p class="text-sm text-ink-muted">Share the repo and deployed app you want reviewed.</p>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit links</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: manual:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: manual:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: manual:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button class="pressable -my-1 flex h-11 w-11 items-center justify-center rounded-lg hover:bg-line/60 disabled:cursor-not-allowed disabled:opacity-50" aria-label="Mark exercise complete">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 rounded-xl border px-4 py-3 border-line bg-surface-sunken/60">
+<div class="flex flex-wrap items-center justify-between gap-3">
+<div class="min-w-0">
+<p class="text-sm font-semibold text-ink">Mark this exercise complete when you finish it</p>
+<p class="mt-1 text-sm text-ink-muted">For practice exercises that don't need a submission.</p>
+</div>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>Mark complete</button>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: manual:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: manual:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: manual:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span role="img" aria-label="Exercise not complete yet">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>
+</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 rounded-xl border px-4 py-3 border-line bg-surface-sunken/60">
+<div class="flex flex-wrap items-center justify-between gap-3">
+<div class="min-w-0">
+<p class="text-sm font-semibold text-ink">Mark this exercise complete when you finish it</p>
+<p class="mt-1 text-sm text-ink-muted">Nothing to hand in for this one.</p>
+</div>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>Mark complete</button>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: recording:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Recording</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+</iframe>
+</div>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: recording:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Recording</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+</iframe>
+</div>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: recording:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Recording</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+</iframe>
+</div>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: recording:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Recording</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+</iframe>
+</div>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: recording:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Recording</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+</iframe>
+</div>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: recording:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Recording</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+</iframe>
+</div>
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: repo:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: repo:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: repo:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-4">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Submit project</h3>
+<span class="text-xs text-ink-muted">Repository URL required</span>
+</div>
+<div class="grid gap-3 md:grid-cols-2">
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Repository URL</span>
+<input placeholder="https://github.com/username/project" class="app-control w-full" value="">
+</label>
+</div>
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Notes (optional)</span>
+<textarea rows="4" placeholder="Anything your instructor should know about this submission." class="app-control w-full">
+</textarea>
+</label>
+<div class="space-y-3">
+<button type="button" data-variant="quiet" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-line/70 min-h-11 px-3 py-2 text-sm lg:min-h-9 -ml-2" aria-expanded="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down h-4 w-4" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>Add PR / branch / commit details</button>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-3">
+<p class="text-sm text-ink-muted">Share the repo you want reviewed. Notes are optional.</p>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit links</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: repo:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: repo:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: repo:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-4">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Submit project</h3>
+<span class="text-xs text-ink-muted">Repository URL required</span>
+</div>
+<div class="grid gap-3 md:grid-cols-2">
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Repository URL</span>
+<input placeholder="https://github.com/username/project" class="app-control w-full" value="">
+</label>
+</div>
+<label class="block">
+<span class="mb-1 block text-sm font-medium text-ink-secondary">Notes (optional)</span>
+<textarea rows="4" placeholder="Anything your instructor should know about this submission." class="app-control w-full">
+</textarea>
+</label>
+<div class="space-y-3">
+<button type="button" data-variant="quiet" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-line/70 min-h-11 px-3 py-2 text-sm lg:min-h-9 -ml-2" aria-expanded="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down h-4 w-4" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>Add PR / branch / commit details</button>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-3">
+<p class="text-sm text-ink-muted">Share the repo you want reviewed. Notes are optional.</p>
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit links</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: text:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: text:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: text:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Write your solution</h3>
+</div>
+<pre data-editor="editable">
+</pre>
+<div class="flex items-center justify-end">
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: text:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
+<div class="flex items-start gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2">
+</rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+<div>
+<p class="text-sm font-semibold text-ink">Review only</p>
+<p class="mt-1 text-sm leading-6 text-ink-secondary">Existing submissions and feedback remain visible. This course is available for review only.</p>
+</div>
+</div>
+</div>
+<p class="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: text:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: text:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code h-4 w-4" aria-hidden="true">
+<path d="m16 18 6-6-6-6">
+</path>
+<path d="m8 6-6 6 6 6">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Exercise</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="">
+<div>Read this</div>
+</div>
+<div class="mt-4 space-y-3">
+<div class="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<h3 class="text-sm font-semibold text-ink">Write your solution</h3>
+</div>
+<pre data-editor="editable">
+</pre>
+<div class="flex items-center justify-end">
+<button type="button" data-variant="primary" class="inline-flex select-none items-center justify-center gap-2 font-semibold transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 rounded-xl bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed min-h-11 px-4 py-2.5 text-sm" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-4 w-4" aria-hidden="true">
+<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
+</path>
+<path d="m21.854 2.147-10.94 10.939">
+</path>
+</svg>Submit</button>
+</div>
+</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: vimeo:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<div class="w-full h-full">
+</div>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: vimeo:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<div class="w-full h-full">
+</div>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: vimeo:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<div class="w-full h-full">
+</div>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: vimeo:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<div class="w-full h-full">
+</div>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: vimeo:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<div class="w-full h-full">
+</div>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: vimeo:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<div class="w-full h-full">
+</div>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: youtube:false:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+</iframe>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: youtube:false:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+</iframe>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: youtube:false:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+</iframe>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: youtube:true:read-only 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<span class="text-xs font-semibold text-ink-muted">Review only</span>
+<div class="ml-auto">
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+</iframe>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: youtube:true:staff 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<span class="text-xs font-semibold text-ink-muted">Preview</span>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+</iframe>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;
+
+exports[`preserves pre-split DOM: youtube:true:student 1`] = `
+"<div class="app-surface overflow-hidden">
+<div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+<div class="text-ink-muted">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play h-4 w-4" aria-hidden="true">
+<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z">
+</path>
+</svg>
+</div>
+<span class="min-w-0 text-sm [overflow-wrap:anywhere]">
+<span class="font-semibold text-ink">Video</span>
+<span class="text-ink-muted"> · </span>
+<span class="text-ink-muted">Example</span>
+</span>
+<div class="ml-auto">
+<button type="button" aria-pressed="false" class="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle h-5 w-5 text-ink-muted" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+</svg>Mark complete</button>
+</div>
+</div>
+<div class="p-4 lg:p-6">
+<div class="aspect-video rounded-xl overflow-hidden bg-media">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+</iframe>
+</div>
+<div class="mt-4">
+<div>Read this</div>
+</div>
+</div>
+</div>"
+`;

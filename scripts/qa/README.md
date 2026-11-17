@@ -279,6 +279,14 @@ All provider requests are blocked except Monaco's script CDN; no real learner,
 GitHub push, payment or provider playback is used. See
 `docs/qa/student-polish-2026-11-18.md` for the acceptance ledger and limits.
 
+The student-polish spec now writes captures and comparison JSON under ignored
+`.qa-local/student-polish/`; rerunning it does not overwrite the committed W8.5
+report evidence. For the small renderer follow-ups, start a fresh harness and
+load only `first-run-states-fixtures.rb`, then run
+`QA_SPEC=renderer-followups.spec.ts` with the lifecycle session. It checks legacy
+Expand/Collapse sizing and the On missing-module recovery at both widths/themes.
+Captures and measured sizes go to ignored `.qa-local/renderer-followups/`.
+
 ### Staff home, scheduled updates and record pages (W6.4 + L-5.1)
 
 After `start`, load the fixture from `api/` with the exact owned database:

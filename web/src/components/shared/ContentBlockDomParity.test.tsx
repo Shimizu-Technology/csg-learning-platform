@@ -16,8 +16,6 @@ vi.mock('./GradeDisplay', () => ({ GradeDisplay: () => null }))
 
 import { ContentBlockRenderer } from './ContentBlockRenderer'
 import { StudentExperienceProvider } from '../../lib/studentExperience'
-import { createHash } from 'node:crypto'
-import expected from './contentBlockMainDom.json'
 
 type Props = Parameters<typeof ContentBlockRenderer>[0]
 const base: Props['block'] = { id: 91, block_type: 'exercise', position: 0, title: 'Example', body: 'Read this', video_url: null, filename: null, metadata: {} }
@@ -36,12 +34,32 @@ const cases: Record<string, Partial<Props['block']>> = {
   feedback: { submission_type: 'repo_url_submission', submissions: [{ id: 1, text: 'answer', grade: 'R', feedback: 'Try again', graded_at: '2026-11-10T00:00:00Z', github_code_url: 'https://example.invalid/code', repo_url: 'https://example.invalid/repo', pr_url: 'https://example.invalid/pr', live_url: 'https://example.invalid/live', num_submissions: 1, created_at: '2026-11-09T00:00:00Z' }] },
 }
 
-it('preserves main DOM for every extracted block in On, Off, staff and read-only modes', () => {
-  const actual: Record<string, string> = {}
-  for (const [name, patch] of Object.entries(cases)) for (const v2 of [false, true]) for (const mode of ['student', 'staff', 'read-only']) {
-    const html = renderToStaticMarkup(<MemoryRouter><StudentExperienceProvider v2={v2}><ContentBlockRenderer block={{ ...base, ...patch }} cohortId={2} isStaff={mode === 'staff'} readOnly={mode === 'read-only'} /></StudentExperienceProvider></MemoryRouter>)
-    // The only intentional renderer DOM change is the S-16 touch-target fix.
-    actual[`${name}:${v2}:${mode}`] = createHash('sha256').update(html.replaceAll('min-h-9', 'min-h-11')).digest('hex')
+// Only the four submission artifact links may differ from the pre-split DOM.
+// In particular, Button's responsive lg:min-h-9 must remain visible to snapshots.
+const oldArtifactClass = 'pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink'
+const artifactLabels = new Set(['GitHub Code', 'Repo', 'PR', 'Live'])
+function normalizeArtifactTargets(html: string) {
+  const container = document.createElement('div')
+  container.innerHTML = html
+  for (const link of container.querySelectorAll('a[target="_blank"][rel="noopener noreferrer"]')) {
+    if (link.className === oldArtifactClass && artifactLabels.has(link.textContent!.trim())) {
+      link.classList.replace('min-h-9', 'min-h-11')
+    }
   }
-  expect(actual).toEqual(expected)
+  return container
+}
+
+for (const [name, patch] of Object.entries(cases)) for (const v2 of [false, true]) for (const mode of ['student', 'staff', 'read-only']) {
+  it(`preserves pre-split DOM: ${name}:${v2}:${mode}`, () => {
+    const html = renderToStaticMarkup(<MemoryRouter><StudentExperienceProvider v2={v2}><ContentBlockRenderer block={{ ...base, ...patch }} cohortId={2} isStaff={mode === 'staff'} readOnly={mode === 'read-only'} /></StudentExperienceProvider></MemoryRouter>)
+    expect(normalizeArtifactTargets(html).innerHTML.replaceAll('><', '>\n<')).toMatchSnapshot()
+  })
+}
+
+it('normalizes only artifact links, preserving responsive Button target classes', () => {
+  const artifacts = [...artifactLabels].map(label => `<a target="_blank" rel="noopener noreferrer" class="${oldArtifactClass}">${label}</a>`).join('')
+  const dom = normalizeArtifactTargets(`${artifacts}<button class="min-h-11 lg:min-h-9">Details</button><a class="min-h-9">Other link</a>`)
+  expect([...dom.querySelectorAll('a[target]')].every(link => link.classList.contains('min-h-11'))).toBe(true)
+  expect(dom.querySelector('button')!.className).toBe('min-h-11 lg:min-h-9')
+  expect(dom.querySelector('a:not([target])')!.className).toBe('min-h-9')
 })

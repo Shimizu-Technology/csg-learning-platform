@@ -75,7 +75,7 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
     })
   }, [analyticsContext, latestSubmission?.grade, latestSubmission?.graded_at, latestSubmission?.id])
 
-  const { knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError, handleKnowledgeCheck } = useKnowledgeCheckBlock({ block, cohortId, isStaff, readOnly, onProgressUpdate, isCompleted, setIsCompleted })
+  const { knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError, handleKnowledgeCheck } = useKnowledgeCheckBlock({ block, cohortId, isStaff, readOnly, onProgressUpdate, setIsCompleted })
   const { activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect } = useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsContext, onProgressUpdate, isCompleted, setIsCompleted })
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
@@ -416,7 +416,6 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
   ) : null
 
   const header = blockHeaderParts(block.block_type, block.title)
-
 
   // Shared state stays mounted across parent refreshes and block-id changes, as before.
   return {
