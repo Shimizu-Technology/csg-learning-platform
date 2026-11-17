@@ -84,7 +84,7 @@ export function LessonExperience({
       cohortId={lesson.cohort_id}
       contextType="lesson"
       contextId={lesson.id}
-      contexts={[{ type: 'lesson', id: lesson.id, label: lesson.title }, ...lesson.content_blocks.filter(block => ['exercise', 'project', 'checkpoint'].includes(block.block_type)).map(block => ({ type: 'exercise' as const, id: block.id, label: block.title || `Exercise ${block.position + 1}` }))]}
+      contexts={[{ type: 'lesson', id: lesson.id, label: `Lesson: ${lesson.title}` }, ...lesson.content_blocks.filter(block => ['exercise', 'project', 'checkpoint'].includes(block.block_type)).map((block, index) => ({ type: 'exercise' as const, id: block.id, label: `Exercise ${index + 1}: ${block.title || 'Your answer'}` }))]}
       contextLabel={lesson.title}
       contextPath={`${window.location.origin}${paths.lesson(lesson.id)}`}
       requests={helpRequests}

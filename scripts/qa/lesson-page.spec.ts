@@ -122,6 +122,7 @@ test.describe('touch source entry and complete lesson journey', () => {
     const question = `Synthetic lesson help ${theme} ${page.viewportSize()!.width}`
     await modal.getByRole('textbox').fill(question)
     await modal.getByRole('button', { name: 'Send to my instructor' }).tap()
+    await expect(modal.getByRole('button', { name: 'Cancel request', exact: true })).toBeVisible()
     await expect(modal.getByText(question, { exact: true })).toBeVisible()
     await capture(page, `${theme}-help`)
     expect(errors).toEqual([])
