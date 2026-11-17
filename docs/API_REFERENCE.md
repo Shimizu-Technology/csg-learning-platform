@@ -37,10 +37,21 @@ Every authenticated request records activity in `users.last_seen_at`, at most on
     "role": "student",
     "github_username": "kevinsantos",
     "avatar_url": "https://...",
-    "last_sign_in_at": "2026-04-07T10:00:00Z"
+    "last_sign_in_at": "2026-04-07T10:00:00Z",
+    "editor_preferences": { "mode": "markdown", "enter_sends": null }
   }
 }
 ```
+
+`editor_preferences` is the shared editor's mode (`rich` or `markdown`) and Enter-to-send choice. `null` means the person hasn't chosen on the account yet: the web app uses its default (Rich, Enter sends) or uploads a choice it remembered in that browser. See `docs/MARKDOWN.md`, Preferences.
+
+### `PATCH /api/v1/editor_preferences`
+
+Saves the signed-in person's editor preferences on their account. Send `mode` (`"rich"` or `"markdown"`), `enter_sends` (`true` or `false`), or both; a field that isn't sent keeps its value. Doesn't change `users.updated_at`.
+
+With `"initialize": true`, each field is set only if the account has no value for it yet (one conditional `UPDATE … WHERE editor_mode IS NULL` per field). The web app uses it once, to upload a choice a browser remembered before preferences moved to the account, so a late upload never overwrites a choice saved on another device in between. Either way the response carries the account's current values, which the client adopts.
+
+**Response:** `{ "editor_preferences": { "mode": "markdown", "enter_sends": false } }`. `422` for an unknown mode, a non-boolean `enter_sends` or `initialize`, or neither field.
 
 **Access-denied response (`403`):**
 ```json

@@ -8,8 +8,8 @@ export type ConversationKind = 'channel' | 'dm';
 // Mention pickers also consume workspace members, which omit authorization flags.
 export type UserSummary = Omit<components['schemas']['UserSummary'], 'is_admin' | 'is_staff'> & Partial<Pick<components['schemas']['UserSummary'], 'is_admin' | 'is_staff'>>;
 
-// Persisted sessions from older clients may omit policy and presence metadata.
-export type SessionUser = Omit<components['schemas']['SessionUser'], 'handle' | 'last_seen_at' | 'community_policy'> & Partial<Pick<components['schemas']['SessionUser'], 'handle' | 'last_seen_at'>> & { community_policy?: CommunityPolicy | null };
+// Persisted sessions from older clients may omit policy, presence and editor preference metadata.
+export type SessionUser = Omit<components['schemas']['SessionUser'], 'handle' | 'last_seen_at' | 'community_policy' | 'editor_preferences'> & Partial<Pick<components['schemas']['SessionUser'], 'handle' | 'last_seen_at' | 'editor_preferences'>> & { community_policy?: CommunityPolicy | null };
 
 // Persisted enrollment context supports sessions saved before access-window fields.
 type WireEnrollment = components['schemas']['SessionEnrollment'];

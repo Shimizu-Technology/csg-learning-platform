@@ -188,3 +188,18 @@ review covered `1fa3e259`; no independent re-review of these follow-up changes i
 claimed. The PR remains held, with no merge or watch. The owned local test DB was
 dropped and the ASUS wrapper/gate cleaned its runtime resources normally. Lifecycle
 session: `manual-20261118-082544-25979-d537`.
+
+## Main integration and migration ordering
+
+Merged `origin/main` at `e058b415` (#304). Renamed the fan-out migration to
+`20261118130000_add_fanout_outbox_to_announcements.rb`, after main's latest
+`20261118120000` migration; the migration-test require and documentation now use
+130000. The Rails-inferred class remains `AddFanoutOutboxToAnnouncements`.
+
+The schema conflict was resolved by loading main's 120000 schema into a fresh
+owned local database, running `db:migrate` (which applied 130000), then running
+`db:schema:dump`. No schema conflict lines were hand-combined. The generated
+schema includes editor preference columns/constraint and the fan-out columns/
+index at version 130000; PostgreSQL also normalized three existing cast
+expressions during dumping. The local database was dropped after generation.
+Focused API/migration validation in both pooler modes is pending.

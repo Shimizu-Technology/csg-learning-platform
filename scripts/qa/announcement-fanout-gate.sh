@@ -68,7 +68,7 @@ for prepared in false true; do
       test/integration/scheduled_updates_test.rb test/integration/scheduled_update_races_test.rb \
       test/integration/sends_after_commit_test.rb test/models/announcement_test.rb \
       test/services/scheduled_tick_test.rb test/migrations/add_fanout_outbox_to_announcements_test.rb
-    [[ $prepared == true ]] || run_suite full
+    [[ ${FANOUT_FOCUSED_ONLY:-0} == 1 || $prepared == true ]] || run_suite full
   else
     run_suite full
   fi

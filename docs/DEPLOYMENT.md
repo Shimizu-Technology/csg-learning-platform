@@ -1166,7 +1166,7 @@ process-local limiter store before increasing Puma processes or instances.
 
 ### Announcement fan-out outbox (R-2)
 
-Migration `20261118070000` adds a nullable fan-out intent, completion time,
+Migration `20261118130000` adds a nullable fan-out intent, completion time,
 recipient snapshot and cursor. Existing publications have no intent and are
 never fanned out by the new recovery path. Its DDL uses explicit transactions
 with `SET LOCAL lock_timeout`, including through the transaction pooler.

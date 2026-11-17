@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -28,7 +28,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
     t.index ["actor_id"], name: "index_activity_events_on_actor_id"
     t.index ["cohort_id", "created_at", "id"], name: "index_activity_events_on_cohort_and_time"
     t.index ["cohort_id"], name: "index_activity_events_on_cohort_id"
-    t.index ["subject_user_id", "cohort_id", "created_at"], name: "index_activity_events_on_learner_activity", where: "((actor_id = subject_user_id) AND ((event_type)::text <> ALL ((ARRAY['account_signed_in'::character varying, 'submission_graded'::character varying])::text[])))"
+    t.index ["subject_user_id", "cohort_id", "created_at"], name: "index_activity_events_on_learner_activity", where: "((actor_id = subject_user_id) AND ((event_type)::text <> ALL (ARRAY[('account_signed_in'::character varying)::text, ('submission_graded'::character varying)::text])))"
     t.index ["subject_user_id", "created_at", "id"], name: "index_activity_events_on_subject_and_time", order: { created_at: :desc, id: :desc }
     t.index ["subject_user_id"], name: "index_activity_events_on_subject_user_id"
   end
@@ -269,7 +269,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
     t.datetime "created_at", null: false
     t.index ["cohort_id", "record_type", "old_id"], name: "index_content_redirects_on_cohort_type_old", unique: true
     t.index ["curriculum_copy_id"], name: "index_content_redirects_on_curriculum_copy_id"
-    t.check_constraint "record_type::text = ANY (ARRAY['CurriculumModule'::character varying, 'Lesson'::character varying, 'ContentBlock'::character varying, 'KnowledgeCheck'::character varying]::text[])", name: "content_redirects_record_type_valid"
+    t.check_constraint "record_type::text = ANY (ARRAY['CurriculumModule'::character varying::text, 'Lesson'::character varying::text, 'ContentBlock'::character varying::text, 'KnowledgeCheck'::character varying::text])", name: "content_redirects_record_type_valid"
   end
 
   create_table "content_reports", force: :cascade do |t|
@@ -1299,6 +1299,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
     t.datetime "community_terms_accepted_at"
     t.string "community_terms_version"
     t.datetime "created_at", null: false
+    t.boolean "editor_enter_sends"
+    t.string "editor_mode"
     t.string "email", null: false
     t.string "first_name"
     t.string "github_username"
@@ -1321,6 +1323,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
     t.index ["handle"], name: "index_users_on_handle", unique: true, where: "(handle IS NOT NULL)"
     t.index ["invite_delivery_status"], name: "index_users_on_invite_delivery_status"
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
+    t.check_constraint "editor_mode IS NULL OR (editor_mode::text = ANY (ARRAY['rich'::character varying::text, 'markdown'::character varying::text]))", name: "users_editor_mode_known"
     t.check_constraint "handle::text = lower(handle::text)", name: "users_handle_lowercase"
   end
 

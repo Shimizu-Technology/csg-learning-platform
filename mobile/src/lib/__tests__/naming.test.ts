@@ -53,7 +53,6 @@ const TERM_EXCEPTIONS: Record<string, string> = {
   'src/hooks/use-voice-draft.ts Record (developer word)': 'The verb: record audio for a voice draft',
   'src/components/staff-curriculum.tsx Block counts for learners': 'Staff-only curriculum browser; blocks are the authoring term (README §2: Block, authoring only)',
   'src/lib/learning-cache.ts Entity / payload': 'SQLite statements (a column named payload), not copy',
-  'src/lib/rich-text-editor.ts Entity / payload': 'Editor WebView source (a JavaScript variable named payload), not copy',
 };
 
 /** Files allowed to turn stored values into words (a time zone id, the label helpers). */

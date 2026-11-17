@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261118070000_add_fanout_outbox_to_announcements").to_s
+require Rails.root.join("db/migrate/20261118130000_add_fanout_outbox_to_announcements").to_s
 
 class AddFanoutOutboxToAnnouncementsTest < ActiveSupport::TestCase
   test "additive fanout outbox migration leaves existing updates without an intent and can run twice" do

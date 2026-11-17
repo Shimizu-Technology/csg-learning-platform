@@ -340,6 +340,69 @@ describe('controlled value', () => {
   })
 })
 
+describe('lesson text (U-6.8)', () => {
+  const lesson = 'Practice using `ls` and `cd`.\n\n- [https://pine.fm/LearnToProgram/chap\\_01.html](https://pine.fm/LearnToProgram/chap_01.html)\n\n&nbsp;View -\\> Developer -\\> JavaScript Console\n\n```ruby\nputs "hi"\n```\n\n\n\nCommit your code.'
+
+  it('saves nothing when a lesson is opened and closed in Rich mode', async () => {
+    const { onChange } = await mount({ defaultValue: lesson, target: 'lesson' })
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps every block nobody edited exactly as typed when one block changes in Rich mode', async () => {
+    const { editor, onChange } = await mount({ defaultValue: lesson, target: 'lesson' })
+    act(() => { editor().commands.setTextSelection(editor().state.doc.content.size - 1) })
+    type(editor(), ' Then push.')
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).toHaveBeenLastCalledWith(lesson.replace('Commit your code.', 'Commit your code. Then push.'), expect.objectContaining({ type: 'doc' }))
+  })
+
+  const stored = '\n\nIntro.\r\n\r\nUntouched &nbsp; paragraph.  \r\n\r\nOutro.\r\n\r\n'
+
+  it('keeps CRLF and outer blank lines when only one paragraph is edited in Rich mode', async () => {
+    const { editor, onChange } = await mount({ defaultValue: stored, target: 'lesson' })
+    act(() => { editor().commands.setTextSelection(1 + 'Intro.'.length) })
+    type(editor(), ' Edited.')
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).toHaveBeenLastCalledWith(stored.replace('Intro.', 'Intro. Edited.'), expect.objectContaining({ type: 'doc' }))
+  })
+
+  it('writes Markdown-mode edits back with the stored CRLF, and Rich edits after them too', async () => {
+    writeEditorPreferences(undefined, { mode: 'markdown' })
+    const { textarea, onChange, button, editor } = await mount({ defaultValue: stored, target: 'lesson' })
+    const box = textarea()
+    // The text box reads LF, as browsers normalize it.
+    expect(box.value).toBe(stored.replace(/\r\n/g, '\n'))
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+    act(() => {
+      setValue.call(box, box.value.replace('Outro.', 'Outro, typed.'))
+      box.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const typedInMarkdown = stored.replace('Outro.', 'Outro, typed.')
+    expect(onChange).toHaveBeenLastCalledWith(typedInMarkdown.replace(/\r?\n/g, '\r\n'), undefined)
+    act(() => button('Rich').click())
+    act(() => { editor().commands.setTextSelection(1 + 'Intro.'.length) })
+    type(editor(), ' Edited.')
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).toHaveBeenLastCalledWith(typedInMarkdown.replace(/\r?\n/g, '\r\n').replace('Intro.', 'Intro. Edited.'), expect.objectContaining({ type: 'doc' }))
+  })
+
+  it('keeps the original text when the lesson goes to Markdown mode and back', async () => {
+    const { button, onChange, editor } = await mount({ defaultValue: lesson, target: 'lesson' })
+    act(() => button('Markdown').click())
+    act(() => button('Rich').click())
+    act(() => { editor().commands.setTextSelection(1) })
+    type(editor(), 'Now: ')
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).toHaveBeenLastCalledWith(`Now: ${lesson}`, expect.objectContaining({ type: 'doc' }))
+  })
+})
+
 describe('review round 1', () => {
   it.each(['rich', 'markdown'] as const)('ignores composing keys in %s mode: no send, no onKeyDown', async (mode) => {
     writeEditorPreferences(undefined, { mode })

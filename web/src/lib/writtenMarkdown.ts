@@ -30,6 +30,7 @@ export const LESSON_PLUGINS: PluggableList = [[remarkGfm, { singleTilde: false }
 export const WRITTEN_PLUGINS: PluggableList = [[remarkGfm, { singleTilde: false }], remarkHtmlAsText, remarkBreaks]
 
 const writtenProcessor = unified().use(remarkParse).use(WRITTEN_PLUGINS).freeze()
+const lessonProcessor = unified().use(remarkParse).use(LESSON_PLUGINS).freeze()
 
 type TreeNode = { type: string; position?: unknown; children?: TreeNode[]; [key: string]: unknown }
 
@@ -47,6 +48,15 @@ function withoutPositions(node: TreeNode): unknown {
  */
 export function writtenMarkdownStructure(markdown: string): string {
   const tree = writtenProcessor.runSync(writtenProcessor.parse(markdown)) as unknown as TreeNode
+  return JSON.stringify(withoutPositions(tree))
+}
+
+/**
+ * The tree lesson readers see (`MarkdownRenderer`'s lesson pipeline: GFM, no
+ * line-break plugin), without source positions, like `writtenMarkdownStructure`.
+ */
+export function lessonMarkdownStructure(markdown: string): string {
+  const tree = lessonProcessor.runSync(lessonProcessor.parse(markdown)) as unknown as TreeNode
   return JSON.stringify(withoutPositions(tree))
 }
 

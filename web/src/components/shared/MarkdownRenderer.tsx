@@ -6,6 +6,7 @@ import { LESSON_PLUGINS, WRITTEN_PLUGINS } from '../../lib/writtenMarkdown'
 import { CodeBlock } from './CodeBlock'
 import { isHafaStarterLink, withLessonReturn } from '../../lib/hafaStarterLinks'
 import { DEFAULT_STARTER_LABEL, HafaStarterLink, STARTER_HINTS, STARTER_HINT_CLASS, STARTER_LINK_CLASS, useStarterLinkSameTab, type StarterLinkContext } from './HafaStarterLink'
+import { isLessonHtml } from '../../lib/lessonHtml'
 
 interface MarkdownRendererProps {
   content: string
@@ -20,10 +21,6 @@ interface MarkdownRendererProps {
   variant?: 'lesson' | 'written'
 }
 
-function isHtml(str: string): boolean {
-  if (!str) return false
-  return /^\s*<(p|div|h[1-6]|ul|ol|li|pre|blockquote|table|br|hr|!DOCTYPE)[\s>]/i.test(str)
-}
 
 const CODE_SLOT = 'data-code-block-slot'
 
@@ -160,7 +157,7 @@ function hastText(node: HastNode | undefined): string {
 export function MarkdownRenderer({ content, starterLinks, variant = 'lesson' }: MarkdownRendererProps) {
   // Only lessons have legacy HTML bodies (the old rich-text editors). Written text
   // is always Markdown, so "<div>…</div>" typed there shows as typed.
-  if (variant === 'lesson' && isHtml(content)) {
+  if (variant === 'lesson' && isLessonHtml(content)) {
     return <HtmlContentRenderer html={content} starterLinks={starterLinks} />
   }
 

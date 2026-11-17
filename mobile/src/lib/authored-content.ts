@@ -89,3 +89,13 @@ export function extractCodeBlocks(html: string): { html: string; blocks: Authore
   });
   return { html: next, blocks };
 }
+
+/** Inspect rendered source without changing the authored value being saved. */
+export function authoredContentHasVisibleContent(value: string) {
+  const html = authoredContentSource(value).html.replace(/<!--[\s\S]*?-->/g, '');
+  if (/<(?:img|hr)\b/i.test(html)) return true;
+  return html.replace(/<[^>]*>/g, '')
+    .replace(/(?:&nbsp;|&#160;|&#x0*a0;)/gi, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim().length > 0;
+}
