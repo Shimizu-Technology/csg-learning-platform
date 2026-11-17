@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { shellNavigation, moreIcon, adminIcon } from './shellNavigation'
 import type { AccessibleCohort } from '../types/api'
-const cohort = (live: boolean, features = {}) => ({ id: 1, workspace_id: 2, features, capabilities: { can_submit: false, read_only: false, support_mode: "guided_help", support_expires_at: null, access_expires_at: null, support_instructor_id: null, live_support: live, features } }) as AccessibleCohort
+const cohort = (live: boolean, features = {}) => ({ id: 1, workspace_id: 2, available_features: { recordings: true, resources: true }, features, capabilities: { can_submit: false, read_only: false, support_mode: "guided_help", support_expires_at: null, access_expires_at: null, support_instructor_id: null, live_support: live, features } }) as AccessibleCohort
 const labels = (nav: ReturnType<typeof shellNavigation>) => [...nav.primary, ...nav.more, ...nav.admin].map(item => item.label)
 it.each([true, false])('seven global staff destinations, admin=%s, unique icons', admin => {
   const nav = shellNavigation({ staff: true, admin, cohort: cohort(true) })
@@ -60,4 +60,12 @@ it('My work follows only the cohort’s own switch, never the school default (fi
   const bare = { id: 1, workspace_id: 2 } as AccessibleCohort
   expect(labels(shellNavigation({ staff: false, admin: false, cohort: bare, schoolFeatures: { student_experience_v2: true } }))).not.toContain('My work')
   expect(labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: true }), schoolFeatures: { student_experience_v2: false } }))).toContain('My work')
+})
+
+it('new nav hides empty features and keeps explicit off navigation identical', () => {
+  const empty = { ...cohort(true, { student_experience_v2: true }), available_features: { recordings: false, resources: false } }
+  expect(labels(shellNavigation({ staff: false, admin: false, cohort: empty }))).not.toContain('Recordings')
+  expect(labels(shellNavigation({ staff: false, admin: false, cohort: empty }))).not.toContain('Resources')
+  const off = { ...empty, features: { student_experience_v2: false }, capabilities: { ...empty.capabilities!, features: { student_experience_v2: false } } }
+  expect(shellNavigation({ staff: false, admin: false, cohort: off })).toEqual(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: false }) }))
 })

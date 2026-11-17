@@ -27,6 +27,10 @@ module Api
         end
 
         read_enrollments = current_user.staff? ? {} : current_user.enrollments.with_read_access.where(cohort_id: cohorts.map(&:id)).includes(:cohort).index_by(&:cohort_id)
+        # Preload the schedule once for the whole list, never once per recording.
+        scheduled = read_enrollments.values.select { |enrollment| !enrollment.cohort.self_paced? && !enrollment.cohort.alumni? && FeatureSwitches.for(cohort: enrollment.cohort)["student_experience_v2"] == true }
+        ActiveRecord::Associations::Preloader.new(records: scheduled, associations: [ { module_assignments: :curriculum_module }, :lesson_assignments, { cohort: [ :cohort_module_schedules, { curriculum: { modules: { lessons: :content_blocks } } } ] } ]).call
+        @course_weeks = scheduled.to_h { |enrollment| [ enrollment.cohort_id, CourseWeeks.groups(enrollment.cohort, AssignedLearningContent.new(enrollment)) ] }
         migrated_keys = Recording.where(cohort_id: cohorts.map(&:id)).where.not(legacy_key: nil).pluck(:cohort_id, :legacy_key).to_set
         legacy = cohorts.flat_map do |cohort|
           next [] unless current_user.staff? || read_enrollments[cohort.id]
@@ -45,6 +49,7 @@ module Api
               cohort_id: cohort.id,
               cohort_name: cohort.name,
               title: r["title"],
+              **learning_link(cohort, r["date"]),
               url: r["url"],
               date: r["date"],
               description: r["description"],
@@ -76,6 +81,7 @@ module Api
             cohort_id: r.cohort_id,
             cohort_name: r.cohort.name,
             title: r.title,
+            **learning_link(r.cohort, r.recorded_date),
             description: r.description,
             duration_seconds: r.duration_seconds,
             duration_display: r.duration_display,
@@ -103,6 +109,18 @@ module Api
       end
 
       private
+
+      # A recording has no lesson foreign key. Link its dated course week,
+      # never guess a lesson from its title. Undated recordings link to Learn.
+      def learning_link(cohort, date)
+        return {} unless FeatureSwitches.for(cohort: cohort)["student_experience_v2"] == true
+
+        recorded_on = Date.parse(date.to_s) if date.present?
+        week = CourseWeeks.on(recorded_on, @course_weeks.fetch(cohort.id, [])) if recorded_on
+        { learning_path: "/materials?cohort_id=#{cohort.id}#{week ? "&week=#{week}" : ""}", learning_label: week ? "Open Week #{week} in Learn" : "Open Learn" }
+      rescue Date::Error
+        { learning_path: "/materials?cohort_id=#{cohort.id}", learning_label: "Open Learn" }
+      end
 
       def normalized_recording_items(library, external)
         library_items = library.map do |recording|

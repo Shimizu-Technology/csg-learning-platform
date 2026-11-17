@@ -103,6 +103,14 @@ describe('useBackLink', () => {
     expect(render({ pathname: '/admin/submissions/8', search: '?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo', state: { returnTo: '/admin/grading?filter=redo', returnLabel: 'Grading · Redo' } }).label).toBe('Back to Grading · Redo')
   })
 
+  it('prefers valid router state over a query naming a different destination', () => {
+    expect(render({ pathname: '/lessons/8', search: '?return_to=%2Fdashboard%3Fcohort_id%3D9', state: { returnTo: '/materials?cohort_id=3', returnLabel: 'Learn' } })).toEqual({ to: '/materials?cohort_id=3', label: 'Back to Learn', fallback: false })
+  })
+
+  it('uses the validated query when conflicting router state is unsafe', () => {
+    expect(render({ pathname: '/lessons/8', search: '?return_to=%2Fdashboard%3Fcohort_id%3D9', state: { returnTo: '//evil.example', returnLabel: 'Learn' } })).toEqual({ to: '/dashboard?cohort_id=9', label: 'Back to Today', fallback: false })
+  })
+
   it.each([
     ['%2Fadmin', 'Back to Today'],
     ['%2Fadmin%2Fgrading%3Ffilter%3Dredo', 'Back to Grading · Redo'],
@@ -127,4 +135,15 @@ describe('useBackLink', () => {
     expect(render('/admin/cohorts/3?return_to=%2Fadmin%2Fsupport', 'activity').label).toBe('Back to Support')
     expect(render('/admin/cohorts/3?return_to=%2Fadmin%2Factivity', 'activity').label).toBe('Back to Activity')
   })
+  it('legacy inbox state is a safe return origin for every record', () => {
+    let result: BackLink | undefined
+    function Record() { result = useBackLink({ returnTo: '/materials', returnLabel: 'Learn' }, { legacyInbox: true }); return null }
+    act(() => root.render(<MemoryRouter initialEntries={[{ pathname: '/lessons/2', state: { from: '/announcements?tab=inbox&inbox_page=3' } }]}><Record /></MemoryRouter>))
+    expect(result).toMatchObject({ to: '/announcements?tab=inbox&inbox_page=3', label: 'Back to Notifications' })
+  })
+
+  it('standard views keep ignoring legacy inbox state, preserving Off markup', () => {
+    expect(render({ pathname: '/lessons/2', state: { from: '/announcements?tab=inbox' } })).toEqual({ to: fallback.returnTo, label: 'Back to Support', fallback: true })
+  })
+
 })

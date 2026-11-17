@@ -115,14 +115,24 @@ export interface BackLink {
  * origin is remembered for this tab, so a round trip through a linked page
  * keeps it.
  */
-export function useBackLink(fallback: ReturnContext, options: { scope?: string; accept?: 'any' | 'activity' } = {}): BackLink {
+/** Only the old inbox producer's validated origin is upgraded to modern state. */
+export function legacyInboxReturnContext(state: unknown): ReturnContext | null {
+  const from = state && typeof state === 'object' && 'from' in state ? state.from : null
+  const path = typeof from === 'string' ? safeInternalReturnPath(from, '') : ''
+  return path.split('?')[0] === '/announcements' && queryOf(path).get('tab') === 'inbox'
+    ? { returnTo: path, returnLabel: 'Notifications' } : null
+}
+
+export function backLinkOrigin(state: unknown, search: string, options: { accept?: 'any' | 'activity'; legacyInbox?: boolean } = {}): ReturnContext | null {
+  const fromState = readReturnContext(state) || (options.legacyInbox ? legacyInboxReturnContext(state) : null)
+  const fromParams = originFromParams(search, options.accept)
+  return fromState || fromParams
+}
+
+export function useBackLink(fallback: ReturnContext, options: { scope?: string; accept?: 'any' | 'activity'; legacyInbox?: boolean } = {}): BackLink {
   const location = useLocation()
   const remembered = useReturnContext(fallback, options.scope)
-  const fromState = readReturnContext(location.state)
-  const fromParams = originFromParams(location.search, options.accept)
-  // Router state wins when it points at the same place as the URL (or the URL says nothing).
-  const chosen = fromState && (!fromParams || fromParams.returnTo === fromState.returnTo)
-    ? fromState
-    : fromParams || remembered
-  return { to: chosen.returnTo, label: backLinkText(chosen.returnLabel), fallback: chosen === fallback }
+  const chosen = backLinkOrigin(location.state, location.search, options) || remembered
+  const inbox = options.legacyInbox && chosen.returnLabel === 'Updates' && chosen.returnTo.split('?')[0] === '/announcements' && queryOf(chosen.returnTo).get('tab') === 'inbox'
+  return { to: chosen.returnTo, label: backLinkText(inbox ? 'Notifications' : chosen.returnLabel), fallback: chosen === fallback }
 }

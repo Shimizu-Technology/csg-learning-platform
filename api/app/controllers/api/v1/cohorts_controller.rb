@@ -31,7 +31,7 @@ module Api
       # source of truth when a saved cohort selection has become unauthorized.
       def accessible
         cohorts = current_user.accessible_cohorts.includes({ curriculum: { cohort_copy: :cohort } }, :workspace).order(start_date: :desc)
-        enrollment_statuses = current_user.student? ? current_user.enrollments.includes(cohort: [ :support_instructor, :workspace ]).where(cohort_id: cohorts.map(&:id)).index_by(&:cohort_id) : {}
+        enrollment_statuses = current_user.student? ? current_user.enrollments.includes(cohort: [ :support_instructor, :workspace, :recordings, { curriculum: :curriculum_resources } ]).where(cohort_id: cohorts.map(&:id)).index_by(&:cohort_id) : {}
         blocked_instructors = UserBlock.related_user_ids(current_user.id, enrollment_statuses.values.map { |enrollment| enrollment.cohort.support_instructor_id }.compact)
         render json: { cohorts: cohorts.map { |cohort|
           features = FeatureSwitches.for(cohort: cohort)
@@ -47,7 +47,8 @@ module Api
             workspace_id: cohort.workspace&.id,
             capabilities: enrollment_statuses[cohort.id] && EnrollmentCapabilities.for(enrollment_statuses[cohort.id], features: features, blocked_support: blocked_instructors.include?(cohort.support_instructor_id)),
             enrollment_status: enrollment_statuses[cohort.id]&.status,
-            joined_at: enrollment_statuses[cohort.id]&.joined_at
+            joined_at: enrollment_statuses[cohort.id]&.joined_at,
+            **(features["student_experience_v2"] == true && enrollment_statuses[cohort.id] ? { available_features: StudentFeatureAvailability.for(enrollment_statuses[cohort.id]) } : {})
           }
         } }
       end

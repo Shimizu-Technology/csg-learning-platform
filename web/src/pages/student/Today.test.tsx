@@ -11,7 +11,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
  * server's next step, Needs you, waiting work, grades and the next session.
  */
 const state = vi.hoisted(() => ({ cohort: {} as Record<string, unknown>, auth: { user: { id: 4, is_staff: false, full_name: 'Lance Example' }, enrollments: [] as unknown[], schoolFeatures: {} } }))
-const mocks = vi.hoisted(() => ({ getDashboard: vi.fn(), getWeeklyPlan: vi.fn(), createDirectConversation: vi.fn(), markNotificationRead: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getDashboard: vi.fn(), getWeeklyPlan: vi.fn(), createDirectConversation: vi.fn(), markNotificationRead: vi.fn(), dismissStartHere: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => state.cohort }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
@@ -322,4 +322,72 @@ it('six waiting questions: five shown, then Show all 6', async () => {
   const showAll = [...section.querySelectorAll('button')].find((button) => button.textContent === 'Show all 6')!
   await act(async () => { showAll.click() })
   expect(section.querySelectorAll('li')).toHaveLength(6)
+})
+
+it('first run replaces both the hero and purchase Start here with one enrollment welcome', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, cohorts: [], error: null }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: { ...onDashboard(studentToday({ first_run: true, mode: 'self_paced', support: { mode: 'course_question', ends_on: '2026-12-26', ended: false } })), start_here: true } } })
+  mocks.dismissStartHere.mockResolvedValue({ data: { dismissed: true } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  expect(text()).toContain('Welcome, Alex')
+  expect(container.querySelectorAll('[data-region="next-action"]')).toHaveLength(1)
+  expect(text()).not.toContain('Got it, let’s start')
+  expect(text()).toContain('Dec 26')
+  expect(text()).not.toContain('PM ChST')
+  expect(container.querySelector('a[href="/lessons/404?cohort_id=9"]')?.textContent).toContain('Start Loops')
+  expect(text()).toContain('Ask a question')
+  const dismiss = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Dismiss welcome')!
+  await act(async () => dismiss.click())
+  expect(mocks.dismissStartHere).toHaveBeenCalledWith(9)
+  expect(text()).not.toContain('Here’s how your course works')
+})
+
+it('Alumni Today points to active work in other courses and keeps library framing', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, cohorts: [{ id: 3, name: 'Cohort 3', cohort_type: 'bootcamp', enrollment_status: 'active' }], error: null }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ mode: 'library', read_only: true, counts: null, next_lesson: null, continue_watching: { title: 'Workshop', path: '/recordings?cohort_id=9&recording=10' } })) } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  expect(text()).toContain('Continue watching: Workshop')
+  expect(container.querySelector('a[href="/dashboard?cohort_id=3"]')?.textContent).toContain('Today in Cohort 3')
+  expect(text()).not.toContain('0 of 80')
+})
+
+it('a failed welcome dismissal stays visible and retries the same enrollment', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ first_run: true })) } })
+  mocks.dismissStartHere.mockResolvedValueOnce({ error: 'Offline' }).mockResolvedValueOnce({ data: { dismissed: true } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  const dismiss = () => Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Dismiss welcome')!
+  await act(async () => dismiss().click())
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Could not save')
+  expect(text()).toContain('Here’s how your course works')
+  await act(async () => dismiss().click())
+  expect(mocks.dismissStartHere).toHaveBeenNthCalledWith(2, 9)
+  expect(text()).not.toContain('Here’s how your course works')
+})
+
+it('a late dismissal cannot dismiss the next enrollment’s welcome', async () => {
+  let finish!: (value: unknown) => void
+  mocks.dismissStartHere.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  mocks.getDashboard.mockImplementation(async (id: number) => ({ data: { dashboard: { ...onDashboard(studentToday({ first_run: true, counts: { completed_lessons: 0, total_lessons: 2 } })), cohort: { id, name: `Course ${id}`, features: { student_experience_v2: true } } } } }))
+  const stable = async () => { await act(async () => root.render(<MemoryRouter initialEntries={['/dashboard']}><TodayRoute /></MemoryRouter>)) }
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  await stable()
+  const dismiss = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Dismiss welcome')!
+  await act(async () => dismiss.click())
+  state.cohort = { ready: true, selectedCohort: cohort(11, true), selectedCohortId: 11, error: null }
+  await stable()
+  expect(text()).toContain('Course 11')
+  expect(text()).toContain('Follow the class schedule')
+  await act(async () => finish({ data: { dismissed: true } }))
+  expect(text()).toContain('Here’s how your course works')
+  expect(container.querySelector('[data-region="next-action"]')?.textContent).toContain('Dismiss welcome')
+})
+
+it.each([false, true])('first-run support date describes whether support ended (%s)', async (ended) => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ first_run: true, mode: 'self_paced', support: { mode: ended ? 'none' : 'course_question', ends_on: '2026-12-26', ended } })) } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  const welcome = container.querySelector('[aria-labelledby="welcome-title"]')!
+  expect(welcome.textContent).toContain(ended ? 'Support ended on Dec 26, 2026.' : 'Support until Dec 26, 2026.')
+  expect(welcome.textContent).not.toContain(ended ? 'Support until' : 'Support ended on')
 })

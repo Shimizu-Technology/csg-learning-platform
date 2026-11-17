@@ -40,7 +40,7 @@ const lesson = {
     ],
   },
 } as unknown as LessonDetail
-async function render(value = lesson, initial = '/lessons/2?cohort_id=1', readOnly = false) {
+async function render(value = lesson, initial: string | { pathname: string; search?: string; state?: unknown } = '/lessons/2?cohort_id=1', readOnly = false) {
   const host = document.createElement('div')
   document.body.append(host)
   const root = createRoot(host)
@@ -222,5 +222,18 @@ it('offers distinct lesson and exercise contexts, including code challenges', as
   try {
     const contexts = JSON.parse(page.host.querySelector('[data-contexts]')!.getAttribute('data-contexts')!)
     expect(contexts).toEqual([{ type: 'lesson', id: 2, label: 'Lesson: Loops' }, { type: 'exercise', id: 7, label: 'Exercise 1: Loops' }, { type: 'exercise', id: 8, label: 'Exercise 2: Loop more' }])
+  } finally { await page.close() }
+})
+
+it.each([
+  [{ pathname: '/lessons/2', state: { returnTo: '/dashboard?cohort_id=1', returnLabel: 'Today' } }, 'Back to Today', '/dashboard?cohort_id=1'],
+  [{ pathname: '/lessons/2', state: { from: '/announcements?tab=inbox&inbox_page=3' } }, 'Back to Notifications', '/announcements?tab=inbox&inbox_page=3'],
+  ['/lessons/2?cohort_id=1&return_to=%2Fannouncements%3Ftab%3Dinbox', 'Back to Notifications', '/announcements?tab=inbox'],
+] as const)('new lesson header honors its origin: %j', async (entry, label, destination) => {
+  const page = await render(lesson, entry)
+  try {
+    const back = [...page.host.querySelectorAll('a')].find(link => link.textContent?.trim() === label)
+    expect(back?.getAttribute('href')).toBe(destination)
+    expect(page.host.textContent).not.toContain('Back to Learn')
   } finally { await page.close() }
 })

@@ -7,6 +7,7 @@ module Api
       # GET /api/v1/profile
       def show
         enrollments = current_user.enrollments.includes(cohort: :curriculum)
+        purchases = current_user.course_purchases.where(status: "paid").index_by(&:cohort_id)
         readable_ids = current_user.enrollments.with_read_access.pluck(:id).to_set
 
         render json: {
@@ -30,7 +31,8 @@ module Api
               status: e.status,
               enrolled_at: e.enrolled_at,
               # Withdrawn or expired enrollments no longer open the cohort, so they show as text.
-              can_open: readable_ids.include?(e.id)
+              can_open: readable_ids.include?(e.id),
+              **(FeatureSwitches.for(cohort: e.cohort)["student_experience_v2"] == true ? { purchase_id: purchases[e.cohort_id]&.id, access_expires_at: e.access_expires_at } : {})
             }
           }
         }

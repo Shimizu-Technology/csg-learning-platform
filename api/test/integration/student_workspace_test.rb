@@ -425,6 +425,15 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_includes StaffCohortScope.new(@admin).visible_cohorts.pluck(:id), hidden.id
   end
 
+  test "meeting fixtures stay within a course week late at night" do
+    @cohort.update!(start_date: LearningCalendar.today - 3)
+    travel_to Time.current.in_time_zone(LearningCalendar::TIMEZONE).change(hour: 23, min: 30) do
+      booking = book(@teacher, 3)
+      config = @cohort.private_meeting_config
+      assert_equal config.week_for(booking.starts_at), config.week_for(booking.ends_at - 1.second)
+    end
+  end
+
   private
 
   def person(name, role)

@@ -1,4 +1,8 @@
 import { BellRing, ChevronDown, Hash, Lock, MessageCircle, MonitorSmartphone, PanelLeftClose, Plus, RefreshCw, Search, SquarePen, Users, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useBackLink } from '../../../lib/recordOrigin';
+import { useCohortContext } from '../../../contexts/CohortContext';
+import { useStudentExperience } from '../../../lib/studentExperience';
 import { IconButton } from '../../../components/ui/Button';
 import { OverflowMenu, type OverflowMenuItem } from '../../../components/ui/OverflowMenu';
 import { CountBadge, RowButton } from '../../../components/ui/RowButton';
@@ -22,6 +26,11 @@ type ConversationListProps = {
  * message, ⋯), then one list of conversations. Each channel appears once.
  */
 export function ConversationList({ directory, conversation, search, alerts, showListPane }: ConversationListProps) {
+  const experience = useStudentExperience()
+  const { selectedCohortId } = useCohortContext()
+  const v2 = experience.v2 && (!directory.selectedWorkspace?.cohort_id || directory.selectedWorkspace.cohort_id === selectedCohortId)
+  const back = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
+  const hasOrigin = !back.fallback
   const { isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
   const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation
   const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, setSearchResults } = search
@@ -45,6 +54,7 @@ export function ConversationList({ directory, conversation, search, alerts, show
 
   return (
     <aside aria-label="Conversations" className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised ${isDesktop ? 'border-r border-line' : ''}`}>
+      {v2 && hasOrigin && <Link to={back.to} className="app-link inline-flex min-h-11 items-center px-3">{back.label}</Link>}
       <div className="shrink-0 border-b border-line bg-surface-raised px-2 py-1.5 sm:px-2.5">
         <div className="flex min-h-11 min-w-0 items-center gap-0.5" data-testid="inbox-header">
           <h1 className="shrink-0 pl-1.5 pr-1 text-base font-bold text-ink">Messages</h1>

@@ -1,10 +1,12 @@
 import { Bell, BellOff, BookOpen, ChevronLeft, Hash, Info, Link2, Lock, MessageCircle, MonitorSmartphone, PanelLeftOpen, Pin, UserRound } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useCohortContext } from '../../../contexts/CohortContext';
+import { useStudentExperience } from '../../../lib/studentExperience';
 import { IconButton } from '../../../components/ui/Button';
 import { OverflowMenu } from '../../../components/ui/OverflowMenu';
 import { isPlainLeftClick } from '../../../lib/links';
-import { backLinkText, originLabel } from '../../../lib/recordOrigin';
+import { backLinkText, originLabel, useBackLink, backLinkOrigin } from '../../../lib/recordOrigin';
 import { readReturnContext } from '../../../lib/navigationContext';
 import { channelRecordPath, cohortPath, cohortStudentPath, safeInternalReturnPath } from '../../../lib/routes';
 import type { ChannelSummary, DirectConversationSummary } from '../../../types/api';
@@ -32,8 +34,15 @@ type ConversationHeaderProps = {
 
 /** The open conversation's title row, record links, mute and options, source context and alert status. */
 export function ConversationHeader({ selectedTarget, selected, route, conversation, directory, alerts, conversationReturnContext, copyConversationLink, setAuthorContext, showPushMessage }: ConversationHeaderProps) {
+  const experience = useStudentExperience()
+  const { selectedCohortId } = useCohortContext()
+  const v2 = experience.v2 && (!selected.cohort_id || selected.cohort_id === selectedCohortId)
   const location = useLocation()
-  const returnTo = safeInternalReturnPath(new URLSearchParams(location.search).get('return_to'), '')
+  const originBack = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
+  const hasOrigin = !originBack.fallback
+  const returnTo = v2 ? hasOrigin ? originBack.to : '' : safeInternalReturnPath(new URLSearchParams(location.search).get('return_to'), '')
+  const workspaceId = selected.workspace_id
+  const listPath = v2 && workspaceId ? `/messages?workspace_id=${workspaceId}` : '/messages'
   const { navigate, sourceRecord, sourceRecordPath } = route
   const { isDesktop, sidebarCollapsed, setSidebarCollapsed, conversationView, setConversationView, activeThreadRoot, setActiveThreadRootId, setMobilePane, selectedPinnedMessages } = conversation
   const { isStaff, selectedChannel, selectedDmStudent, selectedLabel, selectedMuted, isNavigationPending, toggleMute } = directory
@@ -42,7 +51,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
   // Names in the conversation header are real links (L-2.8). A plain click keeps
   // the message you were reading, so "Back to conversation" returns to it.
   const headerStudentPath = isStaff && selectedDmStudent && selected?.cohort_id ? cohortStudentPath(selected.cohort_id, selectedDmStudent.id) : null
-  const headerCohortPath = isStaff && selected?.cohort_id ? cohortPath(selected.cohort_id) : null
+  const headerCohortPath = selected?.cohort_id ? isStaff ? cohortPath(selected.cohort_id) : v2 ? `/materials?cohort_id=${selected.cohort_id}` : null : null
   const openRecordWithReturn = (event: MouseEvent<HTMLAnchorElement>, to: string) => {
     if (!isPlainLeftClick(event)) return
     event.preventDefault()
@@ -54,7 +63,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
 
   return (
     <header className="shrink-0 border-b border-line bg-surface-raised px-1.5 py-1.5 sm:px-3">
-      {returnTo && <Link to={returnTo} className="inline-flex min-h-11 items-center px-3 text-sm underline">{backLinkText(originLabel(returnTo) || 'Back')}</Link>}
+      {returnTo && (!v2 || !isDesktop || sidebarCollapsed) && <Link to={returnTo} className="inline-flex min-h-11 items-center px-3 text-sm underline">{v2 && hasOrigin ? originBack.label : backLinkText(originLabel(returnTo) || 'Back')}</Link>}
       <div className="flex min-h-11 min-w-0 items-center gap-1">
         {isDesktop && sidebarCollapsed && (
           <IconButton label="Show conversation list" size="sm" onClick={() => setSidebarCollapsed(false)}>
@@ -62,7 +71,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
           </IconButton>
         )}
         {!isDesktop && (
-          <IconButton label="Back to conversations" onClick={() => navigate('/messages', { replace: true })}>
+          <IconButton label="Back to conversations" onClick={() => navigate(listPath, v2 ? { replace: true, state: backLinkOrigin(location.state, location.search, { legacyInbox: true }) || undefined } : { replace: true })}>
             <ChevronLeft className="h-5 w-5" />
           </IconButton>
         )}
@@ -79,7 +88,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
           </h2>
           <p className="hide-with-keyboard truncate text-xs leading-4 text-ink-muted">
             {headerCohortPath
-              ? <Link to={headerCohortPath} onClick={(event) => openRecordWithReturn(event, headerCohortPath)} className="rounded-sm hover:text-ink hover:underline">{selected.workspace_name}</Link>
+              ? <Link to={headerCohortPath} onClick={(event) => openRecordWithReturn(event, headerCohortPath)} className={`rounded-sm hover:text-ink hover:underline${v2 && !isStaff ? ' inline-flex min-h-11 min-w-11 items-center' : ''}`}>{selected.workspace_name}</Link>
               : selected.workspace_name}
             {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && ' · Staff only'}
             {isNavigationPending && ' · updating'}

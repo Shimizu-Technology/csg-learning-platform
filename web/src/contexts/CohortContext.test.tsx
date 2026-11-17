@@ -28,6 +28,8 @@ function TestSurface() {
   </>
 }
 
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
 describe('cohort selection', () => {
   let container: HTMLDivElement
   let root: Root
@@ -35,6 +37,7 @@ describe('cohort selection', () => {
   beforeEach(() => {
     localStorage.clear()
     auth.user.is_staff = true
+    auth.user.is_admin = true
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -153,6 +156,20 @@ describe('cohort selection', () => {
     await act(async () => { await router.navigate(`/lessons/42?cohort_id=${destination}`) })
     expect(container.querySelector('[role="status"]')?.textContent ?? null).toBe(notice)
     expect(localStorage.getItem('csg-selected-cohort:7')).toBe(String(destination))
+  })
+
+  it.each([true, false])('learner switching lands on Today only when explicitly On: %s', v2 => {
+    return (async () => {
+      auth.user.is_staff = false
+      auth.user.is_admin = false
+      const items = cohorts.map(item => ({ ...item, features: { student_experience_v2: v2 } }))
+      vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts: items }, error: null, status: 200 })
+      const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/dashboard?cohort_id=1'] })
+      await act(async () => { root.render(<RouterProvider router={router} />) })
+      const select = container.querySelector('select')!
+      await act(async () => { select.value = '2'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+      expect(router.state.location.pathname + router.state.location.search).toBe(v2 ? '/dashboard?cohort_id=2' : '/cohorts/2')
+    })()
   })
 
 })

@@ -158,7 +158,9 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     const cohort = visibleCohorts.find((item) => item.id === id)
     if (!cohort) return
     setSelectedCohort(cohort.id)
-    navigate(recordPath({ type: 'cohort', id: cohort.id }, { viewer: user }) || '/dashboard')
+    navigate(!isStaff && (cohort.capabilities?.features || cohort.features)?.student_experience_v2 === true
+      ? `/dashboard?cohort_id=${cohort.id}`
+      : recordPath({ type: 'cohort', id: cohort.id }, { viewer: user }) || '/dashboard')
   }, [visibleCohorts, isStaff, navigate, setSelectedCohort, user])
 
   const ready = !userId || cohortsOwnerId === userId || Boolean(error)

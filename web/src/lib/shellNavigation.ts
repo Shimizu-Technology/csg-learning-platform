@@ -31,6 +31,8 @@ export function shellNavigation({ staff, admin, cohort, cohorts, schoolFeatures,
       { to: '/admin/moderation', icon: ShieldAlert, label: 'Safety' },
     ] : [],
   }
+  const redesigned = (cohort?.capabilities?.features || cohort?.features)?.student_experience_v2 === true
+  const available = (key: 'recordings' | 'resources') => !redesigned || cohort?.available_features?.[key] === true
   const live = !cohort || cohort.capabilities?.live_support === true
   const meetingCohort = cohorts?.find(item => item.capabilities?.live_support && (item.capabilities.features || item.features)?.private_meetings !== false)
   return {
@@ -46,8 +48,8 @@ export function shellNavigation({ staff, admin, cohort, cohorts, schoolFeatures,
       // The redesign folds cohort home into Learn (C-2), so the item goes with it. Only an explicit on does.
       ...(live && cohort && features?.student_experience_v2 !== true ? [{ to: learnerCohortPath(cohort.id), icon: Layers3, label: 'My cohort' }] : []),
       ...(meetingCohort || (live && enabled('private_meetings')) ? [{ to: meetingCohort ? `/meetings?cohort_id=${meetingCohort.id}` : '/meetings', icon: CalendarDays, label: 'My meetings' }] : []),
-      ...(live && enabled('recordings') && !alumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
-      { to: '/resources', icon: Link2, label: 'Resources' },
+      ...((redesigned || live) && enabled('recordings') && available('recordings') && !alumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
+      ...(available('resources') ? [{ to: '/resources', icon: Link2, label: 'Resources' }] : []),
       ...(enabled('announcements') ? [{ to: cohort ? `/announcements?cohort_id=${cohort.id}` : '/announcements', icon: Bell, label: 'Updates' }] : []),
     ], admin: [],
   }

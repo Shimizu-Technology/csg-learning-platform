@@ -171,3 +171,47 @@ it('tells a paused learner their past lessons stay open, without a next step', a
   expect(container.querySelector('[data-testid="continue-bar"]')).toBeNull()
   expect(Array.from(container.querySelectorAll('[role="group"][aria-label="Show"] button')).map((item) => item.textContent)).toEqual(['All', 'Needs redo1'])
 })
+
+it('a recording week link opens its named week instead of the current week', async () => {
+  await render(program(), '/materials?cohort_id=3&week=1')
+  expect(button('Week 1').getAttribute('aria-expanded')).toBe('true')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('false')
+})
+
+it('module mentions are links to their place in this course outline', async () => {
+  await render(program())
+  const link = container.querySelector('h2 a[href="/materials?cohort_id=3&module=5"]')
+  expect(link?.textContent).toContain('JavaScript')
+})
+
+it.each([1, 2])('a week hint is consumed so Week %s stays collapsed', async (week) => {
+  await render(program(), `/materials?cohort_id=3&week=${week}&open=m5-${week}`)
+  expect(button(`Week ${week}`).getAttribute('aria-expanded')).toBe('true')
+  await act(async () => button(`Week ${week}`).click())
+  expect(button(`Week ${week}`).getAttribute('aria-expanded')).toBe('false')
+})
+
+it('collapsing a hinted week preserves the other expanded week', async () => {
+  await render(program(), '/materials?cohort_id=3&week=1&open=m5-1')
+  await act(async () => button('Week 2').click())
+  expect(button('Week 1').getAttribute('aria-expanded')).toBe('true')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
+  await act(async () => button('Week 1').click())
+  expect(button('Week 1').getAttribute('aria-expanded')).toBe('false')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
+})
+
+it('a module-relative week hint opens every matching group and each can stay collapsed', async () => {
+  const outline = program()
+  Object.assign(outline.modules[1].groups[0], { label: 'Week 1', week: 1 })
+  await render(outline, '/materials?cohort_id=3&week=1')
+  const weeks = Array.from(container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')).filter(item => item.textContent?.trim().startsWith('Week 1'))
+  expect(weeks).toHaveLength(2)
+  expect(weeks.map(item => item.getAttribute('aria-expanded'))).toEqual(['true', 'true'])
+  await act(async () => weeks[0].click())
+  expect(weeks.map(item => item.getAttribute('aria-expanded'))).toEqual(['false', 'true'])
+})
+it('an unmatched week hint retains the current-group fallback', async () => {
+  await render(program(), '/materials?cohort_id=3&week=99')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
+})

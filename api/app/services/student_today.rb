@@ -48,6 +48,8 @@ class StudentToday
     needs_you = redos.map { |item| item.merge(kind: "redo") } + answers + unread_messages
     {
       mode: mode,
+      first_run: !library? && !@read_only && @enrollment.start_here_dismissed_at.nil? && @progress.overall[:completed_lessons].zero? && @progress.latest_submissions.empty?,
+      continue_watching: library? ? continue_watching : nil,
       read_only: @read_only,
       paused: @enrollment.paused?,
       course_week: course_week,
@@ -264,6 +266,18 @@ class StudentToday
       ends_on: capabilities[:support_expires_at]&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date,
       ended: @cohort.self_paced? && capabilities[:support_expires_at].present? && capabilities[:support_expires_at] <= @now
     }
+  end
+
+  def continue_watching
+    return nil unless @features["recordings"] == true
+
+    recordings = @cohort.recordings.student_visible.select { |item| @enrollment.recording_available_for_read?(item) }
+
+    watched = @student.watch_progresses.where(recording_id: recordings.map(&:id), completed: false).where("last_position_seconds > 0").order(last_watched_at: :desc, id: :desc).first
+    recording = recordings.find { |item| item.id == watched&.recording_id }
+    return nil unless recording
+
+    { title: recording.title, path: LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id) }
   end
 
   def recently_added

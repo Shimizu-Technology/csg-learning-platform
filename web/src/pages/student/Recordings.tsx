@@ -2,7 +2,7 @@ import { activityReturnPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
@@ -17,9 +17,13 @@ import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import type { LearnerCapabilities, RecordingEntry, RecordingItem as ApiRecordingItem, StudentLibraryRecording as ApiS3Recording } from '../../types/api'
+import { useBackLink, legacyInboxReturnContext } from '../../lib/recordOrigin'
+import { useStudentExperience } from '../../lib/studentExperience'
 import { formatShortDate } from '../../lib/format'
 
 interface LegacyRecording {
+  learning_path?: string;
+  learning_label?: string;
   legacy_item_key?: string | null;
   id: number | string
   cohort_id?: number
@@ -32,6 +36,8 @@ interface LegacyRecording {
 }
 
 interface S3Recording {
+  learning_path?: string;
+  learning_label?: string;
   legacy_item_key?: string | null;
   id: number
   cohort_id?: number
@@ -100,6 +106,8 @@ function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem):
     : extractYouTubeId(url) ? 'youtube' : 'external'
   return {
     id: typeof recording.id === 'number' ? recording.id : String(recording.id),
+    learning_path: recording.learning_path,
+    learning_label: recording.learning_label,
     legacy_item_key: recording.legacy_item_key,
     cohort_id: recording.cohort_id,
     title: recording.title,
@@ -114,6 +122,8 @@ function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem):
 function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem): S3Recording {
   return {
     id: Number(recording.id),
+    learning_path: recording.learning_path,
+    learning_label: recording.learning_label,
     legacy_item_key: recording.legacy_item_key,
     cohort_id: recording.cohort_id,
     title: recording.title,
@@ -129,6 +139,7 @@ function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem
 }
 
 export function Recordings() {
+  const { v2 } = useStudentExperience()
   const location = useLocation()
   const activityReturn = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
   const [{ source: requestedTab, recording: requestedRecording }, setUrlState] = useUrlState(RECORDINGS_URL)
@@ -138,6 +149,16 @@ export function Recordings() {
   const requestGeneration = useRef(0)
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  const navigate = useNavigate()
+  const legacyInbox = v2 ? legacyInboxReturnContext(location.state) : null
+  const legacyReturnTo = legacyInbox?.returnTo
+  useEffect(() => {
+    if (legacyReturnTo) navigate(`${location.pathname}${location.search}`, { replace: true, state: { returnTo: legacyReturnTo, returnLabel: 'Notifications' } })
+  }, [legacyReturnTo, location.pathname, location.search, navigate])
+  const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
+  const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' }, { legacyInbox: v2 })
+  const backTo = v2 ? originBack.to : todayPath
+  const backLabel = v2 ? originBack.label : 'Back to Today'
   const isStaff = Boolean(user?.is_staff)
   const isAlumniLibrary = !isStaff && isAlumniOnlyEnrollment(enrollments)
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
@@ -282,7 +303,9 @@ export function Recordings() {
   if (isAlumniLibrary && !requestedRecording) return <Navigate to="/materials" replace />
   if (loading) return <LoadingSpinner message="Loading recordings..." />
 
-  const activityBack = activityReturn ? <Link to={activityReturn} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center">Back to Activity</Link> : undefined
+  const todayBack = v2 ? <Link to={backTo} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center">{backLabel}</Link> : undefined
+
+  const activityBack = activityReturn ? <Link to={activityReturn} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center">Back to Activity</Link> : todayBack
 
   if (requestedRecording && !selectedItem && !loadError) return <EmptyState action={activityBack} icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
 
@@ -330,9 +353,9 @@ export function Recordings() {
         </div>
       )}
       <header>
-        <Link to={activityReturn || "/dashboard"} state={activityReturn ? RESTORE_LIST_STATE : undefined} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
+        <Link to={activityReturn || backTo} state={activityReturn ? RESTORE_LIST_STATE : undefined} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {activityReturn ? 'Back to activity' : 'Back to Today'}
+          {activityReturn ? 'Back to activity' : backLabel}
         </Link>
         <p className="app-eyebrow">Replay and review</p>
         <h1 className="app-title mt-2">Class recordings</h1>
@@ -399,6 +422,7 @@ export function Recordings() {
           ) : liveSelectedItem && (liveSelectedItem.source === 'youtube' || liveSelectedItem.source === 'external') ? (
             <LegacyPlayer recording={liveSelectedItem as LegacyRecording} />
           ) : null}
+          {v2 && liveSelectedItem?.learning_path && <Link to={liveSelectedItem.learning_path} className="app-link mt-3 inline-flex min-h-11 items-center">{liveSelectedItem.learning_label || 'Open Learn'}</Link>}
           {liveSelectedItem && recordingCohortId && selectedHelpContext && (
             <div className="mt-3 flex justify-end">
               <ContextualHelp

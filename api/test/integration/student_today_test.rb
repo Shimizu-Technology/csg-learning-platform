@@ -319,6 +319,48 @@ class StudentTodayTest < ActionDispatch::IntegrationTest
     assert_equal small, grown, "Today and My work cost the same for 3 submissions or 15"
   end
 
+  test "first run uses enrollment dismissal and completed lesson or submission state" do
+    Progress.where(enrollment: @enrollment).delete_all
+    assert_equal true, fetch_today["first_run"]
+    get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: headers(@student)
+    assert_equal true, fetch_today["first_run"], "opening Today alone is not course completion"
+    patch "/api/v1/dashboard/start_here", params: { cohort_id: @cohort.id }, headers: headers(@student)
+    assert_response :success
+    assert_equal false, fetch_today["first_run"]
+    @enrollment.update!(start_here_dismissed_at: nil)
+    complete(@weeks[1].first)
+    assert_equal false, fetch_today["first_run"]
+    Progress.where(enrollment: @enrollment).delete_all
+    submit(@weeks[1].first)
+    assert_equal false, fetch_today["first_run"], "work handed in is not first run"
+  end
+
+  test "welcome dismissal is per enrollment and paused and alumni never get a welcome" do
+    other = Cohort.create!(curriculum: @curriculum, name: "Other first run", start_date: LearningCalendar.today, settings: { "features" => { "student_experience_v2" => true } })
+    other_enrollment = Enrollment.create!(user: @student, cohort: other)
+    other_enrollment.assign_cohort_content_defaults!
+    patch "/api/v1/dashboard/start_here", params: { cohort_id: other.id }, headers: headers(@student)
+    assert_response :success
+    assert_not_nil other_enrollment.reload.start_here_dismissed_at
+    assert_nil @enrollment.reload.start_here_dismissed_at
+    Progress.where(enrollment: @enrollment).delete_all
+    @enrollment.update!(status: :paused)
+    assert_equal false, fetch_today["first_run"]
+    @enrollment.update!(status: :active)
+    @cohort.update!(cohort_type: :alumni)
+    assert_equal false, fetch_today["first_run"]
+  end
+
+  test "library continues only the student's readable unfinished recording" do
+    @cohort.update!(cohort_type: :alumni)
+    recording = @cohort.recordings.create!(title: "Workshop", source_kind: "external", source_url: "https://example.invalid/workshop", status: :published, position: 0)
+    @student.watch_progresses.create!(recording: recording, last_position_seconds: 30, total_watched_seconds: 30, duration_seconds: 600, last_watched_at: Time.current)
+    assert_equal "Workshop", fetch_today.dig("continue_watching", "title")
+    assert_includes fetch_today.dig("continue_watching", "path"), "cohort_id=#{@cohort.id}"
+    recording.update!(status: :draft)
+    assert_nil fetch_today["continue_watching"]
+  end
+
   private
 
   def fetch_work

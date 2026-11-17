@@ -1,0 +1,14 @@
+[
+  {
+    "persona": "recording-week",
+    "theme": "light",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "recording-week",
+    "theme": "dark",
+    "width": 1280,
+    "passed": true
+  }
+]

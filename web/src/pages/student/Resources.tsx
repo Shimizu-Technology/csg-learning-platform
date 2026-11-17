@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useStudentExperience } from '../../lib/studentExperience'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -24,7 +25,9 @@ const categoryConfig: Record<string, { label: string; icon: typeof Globe }> = {
 }
 
 export function Resources() {
+  const { v2 } = useStudentExperience()
   const { selectedCohortId } = useCohortContext()
+  const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -116,7 +119,7 @@ export function Resources() {
         icon={Link2}
         title="No resources yet"
         description="Class resources will appear here once your instructor adds them."
-        action={<Link to="/dashboard" className="app-link inline-flex min-h-11 items-center gap-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Today</Link>}
+        action={<Link to={todayPath} className="app-link inline-flex min-h-11 items-center gap-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Today</Link>}
       /></div>
     )
   }
@@ -129,7 +132,7 @@ export function Resources() {
         </div>
       )}
       <header>
-        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
+        <Link to={todayPath} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Today
         </Link>

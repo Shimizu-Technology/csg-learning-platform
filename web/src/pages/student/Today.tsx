@@ -19,7 +19,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { RecordLink } from '../../components/shared/RecordLink'
-import { StartHere } from '../../components/student/StartHere'
+import { FirstRunWelcome } from '../../components/student/FirstRunWelcome'
 import { GradeChip } from '../../components/student/GradeChip'
 import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button, LinkButton, buttonClasses } from '../../components/ui/Button'
@@ -70,6 +70,7 @@ export function StudentTodayPage() {
   useEffect(() => { load() }, [load])
 
   if (user?.is_staff) return <Dashboard />
+  if (data?.cohort && selectedCohortId && data.cohort.id !== selectedCohortId) return <LoadingSpinner message="Loading Today…" />
   if (loading && !data) return <LoadingSpinner message="Loading Today…" />
   if (error && !data) {
     return <EmptyState icon={WifiOff} title="Could not load Today" description={error}
@@ -77,13 +78,16 @@ export function StudentTodayPage() {
   }
   // Not enrolled, a pending purchase, or a payload from before the redesign: today's page handles it.
   if (!data?.enrolled || !data.student_today) return <Dashboard />
-  return <TodayView data={data} today={data.student_today} saved={saved} onDismissStartHere={() => setData((value) => value && { ...value, start_here: false })} />
+  return <TodayView data={data} today={data.student_today} saved={saved} onDismissStartHere={() => setData((value) => value?.cohort?.id === data.cohort?.id && value?.user.id === data.user.id ? { ...value, start_here: false, student_today: value.student_today ? { ...value.student_today, first_run: false } : value.student_today } : value)} />
 }
 
 function TodayView({ data, today, saved, onDismissStartHere }: { data: DashboardData; today: StudentToday; saved: boolean; onDismissStartHere: () => void }) {
   const cohortId = data.cohort?.id ?? null
   const paths = useLearnerPaths(cohortId)
   const messenger = useMessageInstructor(cohortId)
+  const { cohorts } = useCohortContext()
+  const otherCourses = (cohorts ?? []).filter((item) => item.id !== cohortId && item.cohort_type !== 'alumni' && item.enrollment_status === 'active')
+  const firstRun = today.first_run === true
   const firstName = data.user.full_name.split(' ')[0]
   const learnPath = cohortId ? `/materials?cohort_id=${cohortId}` : '/materials'
   const myWorkPath = (tab?: string) => `/my-work${cohortQuery(cohortId, tab ? { tab } : {})}`
@@ -95,10 +99,9 @@ function TodayView({ data, today, saved, onDismissStartHere }: { data: Dashboard
 
   return (
     <div className="app-page max-w-6xl" data-today="v2">
-      {data.start_here && <StartHere key={cohortId} data={data} onDismiss={onDismissStartHere} />}
       {saved && <p className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">Showing saved data while your connection catches up.</p>}
       <header data-page-header="">
-        <h1 className="app-title [overflow-wrap:anywhere]">{today.paused ? `Hi, ${firstName}` : `${greeting()}, ${firstName}`}</h1>
+        <h1 className="app-title [overflow-wrap:anywhere]">{today.paused ? `Hi, ${firstName}` : firstRun ? `Welcome, ${firstName}` : `${greeting()}, ${firstName}`}</h1>
         <p className="app-description mt-1 tabular-nums" data-page-context="">
           {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" returnLabel="Today" className="font-semibold text-ink-secondary">{data.cohort.name}</RecordLink>}
           {context && <> · {context}</>}
@@ -107,7 +110,10 @@ function TodayView({ data, today, saved, onDismissStartHere }: { data: Dashboard
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
         <div className="min-w-0 space-y-5">
-          <Hero data={data} today={today} paths={paths} learnPath={learnPath} myWorkPath={myWorkPath} messenger={messenger} />
+          {firstRun
+            ? <FirstRunWelcome key={cohortId} data={data} today={today} lessonPath={today.next_lesson ? paths.lesson(today.next_lesson.id) : null} learnPath={learnPath} onDismiss={onDismissStartHere} />
+            : <Hero data={data} today={today} paths={paths} learnPath={learnPath} myWorkPath={myWorkPath} messenger={messenger} />}
+          {today.mode === 'library' && otherCourses.length > 0 && <section className="app-surface p-5" aria-label="Your other courses"><h2 className="font-semibold text-ink">Your other courses</h2><p className="mt-1 text-sm text-ink-secondary">Check Today for your next lesson and work waiting for you.</p><ul>{otherCourses.map((item) => <li key={item.id}><Link to={`/dashboard?cohort_id=${item.id}`} className="app-link inline-flex min-h-11 items-center">Today in {item.name}<ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link></li>)}</ul></section>}
           <NeedsYou today={today} cohortId={cohortId} paths={paths} />
           <Questions today={today} />
           <Waiting today={today} paths={paths} myWorkPath={myWorkPath} />
@@ -166,7 +172,7 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
   const counts = today.counts
   const progress = counts && counts.total_lessons > 0 ? <span className="tabular-nums">{counts.completed_lessons} of {counts.total_lessons} lessons</span> : null
 
-  if (today.paused || today.read_only) {
+  if (today.paused || (today.read_only && today.mode !== 'library')) {
     const pausedSince = data.paused_since ? formatShortDate(data.paused_since, '', { withYear: false }) : null
     return (
       <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="today-hero">
@@ -210,6 +216,7 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
         <h2 id="today-hero" className="text-xl font-bold text-ink">{brand.schoolAbbreviation} Alumni library</h2>
         <p className="mt-1 text-sm text-ink-secondary">Browse lessons and recordings at your own pace.</p>
         <div className="mt-4"><LinkButton to={learnPath}>Open the library<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton></div>
+        {today.continue_watching && <Link to={today.continue_watching.path} className="app-link mt-3 flex min-h-11 items-center [overflow-wrap:anywhere]">Continue watching: {today.continue_watching.title}</Link>}
         {first && (
           <div className="mt-5 border-t border-line pt-3">
             <h3 className="text-sm font-semibold text-ink-muted">Recently added</h3>
@@ -476,8 +483,8 @@ function Support({ data, today, messenger }: { data: DashboardData; today: Stude
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {canMessage
-          ? <Button variant="secondary" size="sm" disabled={messenger.opening} onClick={() => void messenger.open(contact!.id)}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message {contact!.full_name.split(' ')[0]}</Button>
-          : <AnchorButton variant="secondary" size="sm" href={`mailto:${SUPPORT_EMAIL}`}>Contact {brand.schoolAbbreviation}</AnchorButton>}
+          ? <Button variant="secondary" size={today.first_run ? 'md' : 'sm'} disabled={messenger.opening} onClick={() => void messenger.open(contact!.id)}><MessageCircle className="h-4 w-4" aria-hidden="true" />{today.first_run ? 'Ask a question' : `Message ${contact!.full_name.split(' ')[0]}`}</Button>
+          : <AnchorButton variant="secondary" size={today.first_run ? 'md' : 'sm'} href={`mailto:${SUPPORT_EMAIL}`}>Contact {brand.schoolAbbreviation}</AnchorButton>}
       </div>
     </section>
   )

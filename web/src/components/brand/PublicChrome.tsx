@@ -26,9 +26,9 @@ export function BrandLink({ compact = false }: { compact?: boolean }) {
 export function PublicHeader({ actions }: { actions?: ReactNode }) {
   return (
     <header className="border-b border-brand-line bg-brand-cream" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="safe-px mx-auto flex h-[72px] max-w-[1200px] items-center justify-between gap-3">
+      <div className="safe-px mx-auto flex min-h-[72px] max-w-[1200px] flex-wrap py-2 sm:py-0 items-center justify-between gap-3">
         <BrandLink />
-        {actions && <div className="flex shrink-0 items-center gap-1 sm:gap-2">{actions}</div>}
+        {actions && <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">{actions}</div>}
       </div>
     </header>
   )

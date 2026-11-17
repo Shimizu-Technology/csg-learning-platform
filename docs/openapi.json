@@ -3715,6 +3715,33 @@
         }
       }
     },
+    "/api/v1/course_checkouts/{id}/receipt": {
+      "get": {
+        "operationId": "getCourseReceipt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The signed-in student\u2019s hosted payment receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseReceiptResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/submission_audits": {
       "get": {
         "responses": {
@@ -5998,6 +6025,12 @@
               "string"
             ],
             "description": "Present only when supplied by a library item."
+          },
+          "learning_path": {
+            "type": "string"
+          },
+          "learning_label": {
+            "type": "string"
           }
         },
         "required": [
@@ -6134,6 +6167,12 @@
             "type": "string"
           },
           "cohort_name": {
+            "type": "string"
+          },
+          "learning_path": {
+            "type": "string"
+          },
+          "learning_label": {
             "type": "string"
           }
         },
@@ -6295,6 +6334,12 @@
               }
             ],
             "description": "Present for students with saved watch progress."
+          },
+          "learning_path": {
+            "type": "string"
+          },
+          "learning_label": {
+            "type": "string"
           }
         },
         "required": [
@@ -6622,6 +6667,12 @@
             "type": "string"
           },
           "cohort_name": {
+            "type": "string"
+          },
+          "learning_path": {
+            "type": "string"
+          },
+          "learning_label": {
             "type": "string"
           }
         },
@@ -8915,6 +8966,18 @@
           "can_open": {
             "type": "boolean",
             "description": "Whether the learner can still open this cohort (false once withdrawn or expired)."
+          },
+          "purchase_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "access_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -13499,6 +13562,12 @@
           },
           "progress_percentage": {
             "type": "number"
+          },
+          "learning_path": {
+            "type": "string"
+          },
+          "learning_label": {
+            "type": "string"
           }
         },
         "required": [
@@ -14187,6 +14256,22 @@
           },
           "curriculum_name": {
             "type": "string"
+          },
+          "available_features": {
+            "type": "object",
+            "properties": {
+              "recordings": {
+                "type": "boolean"
+              },
+              "resources": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "recordings",
+              "resources"
+            ],
+            "additionalProperties": false
           }
         }
       },
@@ -22895,6 +22980,33 @@
           "can_ask_for_plan": {
             "type": "boolean",
             "description": "Offer Ask for a catch-up plan: an active program enrollment, learning plans on and a reachable contact."
+          },
+          "first_run": {
+            "type": "boolean",
+            "description": "Enrollment welcome is undismissed and LearnerProgress has no completed lessons or submissions."
+          },
+          "continue_watching": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -22922,6 +23034,19 @@
         ],
         "additionalProperties": false,
         "description": "The redesigned student Today (StudentToday). Every status, count and next step comes from LearnerProgress."
+      },
+      "CourseReceiptResponse": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "additionalProperties": false
       },
       "SubmissionAuditBlock": {
         "type": "object",

@@ -252,3 +252,13 @@ actionable item for seven persona setups at 1280/390 in light/dark and writes ca
 `docs/qa/student-today-2026-11-17/`. The On pass also walks View response, the redo link, My work's tabs
 and Ask about this feedback; it marks persona 3's help answer unread again afterwards
 (`student-today-fixtures.rb unread`). See `docs/qa/student-today-2026-11-17.md`.
+
+### First run and states (W8 PR 8.4)
+
+Start the owned harness, then run `first-run-states-fixtures.rb` from `api/`
+with its exact owned `DATABASE_URL`. Run `QA_SPEC=first-run-states.spec.ts`
+with `DEV_LIFECYCLE_SESSION` and the Playwright config above. It covers brand-new
+self-paced, program first day, alumni, two workspaces, paused, and synthetic
+Lance/Off at 390/1280 in light/dark; welcome dismissal/reload, lesson entry,
+workspace context, profile targets, and public legal recovery. Each new pass
+resets only its welcome dismissal fixtures. See `docs/qa/first-run-states-2026-11-18.md`.

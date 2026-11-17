@@ -1,0 +1,26 @@
+[
+  {
+    "persona": "legal-on",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "legal-signed-out",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "legal-off",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "admin-activity",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  }
+]
