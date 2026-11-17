@@ -37,6 +37,11 @@ module Api
         require_feature!("announcements", @announcement.cohort || announcement_context_cohort)
         return if performed?
 
+        unless can_view?(@announcement) || can_manage_view?(@announcement)
+          render_forbidden("Announcement is not visible")
+          return
+        end
+
         notification = current_user.notifications.find_by(notifiable: @announcement)
         notification&.mark_read!
         render json: { announcement: announcement_json(@announcement, notification, read_summary: read_summary(@announcement)) }
@@ -129,10 +134,10 @@ module Api
         outcome = Announcement.transaction do
           @announcement.lock!
           refresh_management_authorization!
-          # Someone who can no longer see it (their cohort assignment went, or
-          # it moved to a cohort they don't teach) gets the same 404 as a
-          # missing id; someone who can see it but not change it gets 403.
-          next :not_found unless viewable?(@announcement)
+          # A draft or scheduled update in a cohort these staff can no longer
+          # act on (their assignment went, or it moved to a cohort they don't
+          # teach) is the same 404 as a missing id. Everything else keeps 403.
+          next :not_found if hidden_draft?(@announcement)
           next :not_editor unless @announcement.editable_by?(current_user)
           next :cannot_manage unless can_manage?(@announcement)
 
@@ -187,7 +192,7 @@ module Api
         refusal = Announcement.transaction do
           @announcement.lock!
           refresh_management_authorization!
-          if !viewable?(@announcement)
+          if hidden_draft?(@announcement)
             :not_found
           elsif !can_manage?(@announcement)
             "Cannot manage this announcement"
@@ -225,11 +230,13 @@ module Api
         announcement.cohort? && announcement.cohort_id.present? && staff_scope.visible?(announcement.cohort_id)
       end
 
-      # Whether the viewer may know this update exists: they manage it, or it
-      # is posted and in their feed. Everything else is "not found", exactly
-      # as a missing id is, for show, edit, reschedule, cancel and delete.
-      def viewable?(announcement)
-        can_manage_view?(announcement) || (announcement.published? && can_view?(announcement))
+      # A draft or scheduled update that active staff can't act on: its cohort
+      # isn't one they teach (StaffCohortScope), or it isn't theirs. Show,
+      # edit, post, reschedule, cancel and delete answer it with the same 404
+      # as a missing id. Posted updates and every learner read keep 403 (the
+      # course-access contract the clients show as "access ended").
+      def hidden_draft?(announcement)
+        announcement.draft? && current_user.staff? && !current_user.archived? && !can_manage_view?(announcement)
       end
 
       # Management detail: posted and archived updates for their audience's
@@ -277,12 +284,13 @@ module Api
         NotificationDeliveryService.announcement_published(announcement, push: announcement.push_requested_at.present?)
       end
 
-      # An update someone may not see (a draft or scheduled update that isn't
-      # theirs, or anything in a cohort they don't teach) is "not found",
-      # exactly as a missing id is, so the response doesn't reveal it exists.
+      # A draft someone may not see is "not found", exactly as a missing id
+      # is, so the response doesn't reveal it exists: another author's draft
+      # for anyone, and for staff any draft or scheduled update in a cohort
+      # they can't act on.
       def set_announcement
         @announcement = Announcement.drafts_visible_to(current_user).find_by(id: params[:id])
-        @announcement = nil if @announcement && !viewable?(@announcement)
+        @announcement = nil if @announcement && hidden_draft?(@announcement)
         render_not_found unless @announcement
       end
 

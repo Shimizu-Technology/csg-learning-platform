@@ -93,8 +93,9 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
       end
 
       assert_nil AfterEarlyCheck.callback
-      # No longer teaching the cohort, the poster can't see it at all.
-      assert_response :not_found
+      # No longer teaching the cohort, the poster can't see a draft at all
+      # (the same 404 as a missing id, #299 review); a posted update keeps 403.
+      assert_response status == :draft ? :not_found : :forbidden
       assert_equal status.to_s, announcement.reload.status
       assert_equal "Lab notes", announcement.title
       assert_equal 0, Notification.where(notifiable: announcement).count
@@ -107,8 +108,8 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
 
     patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: auth(@author), as: :json
 
-    # Now a student, who can't see a draft.
-    assert_response :not_found
+    # Now a student: refused as any non-staff change is.
+    assert_response :forbidden
     assert draft.reload.draft?
     assert_equal 0, Notification.where(notifiable: draft).count
   end

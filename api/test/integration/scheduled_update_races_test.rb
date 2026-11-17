@@ -188,6 +188,64 @@ class ScheduledUpdateRacesTest < ActionDispatch::IntegrationTest
     assert @update.reload.push_settled_at
   end
 
+  test "a claim released after another job settled the push is unsettled again, and the re-request sends only to it" do
+    # Adapted from the independent re-check's race test: job A holds the web
+    # claims mid-send, job B claims Expo and settles, then A's provider
+    # reports it never started and A releases its web claims.
+    @update.update_columns(scheduled_send_push: true)
+    ScheduledAnnouncementPublisher.new.call(now: Time.current)
+    ids = Notification.where(notifiable: @update).pluck(:id)
+    entered = Queue.new
+    release = Queue.new
+    originals = [ WebPushNotificationService, ExpoPushNotificationService ].to_h { |service| [ service, service.method(:announcement_published) ] }
+    WebPushNotificationService.define_singleton_method(:announcement_published) do |_record, notifications|
+      entered << true
+      release.pop
+      raise PushDeliveryNotStarted.new(provider: "web_push", notification_ids: notifications.pluck(:id))
+    end
+    ExpoPushNotificationService.define_singleton_method(:announcement_published) { |*| }
+    first = in_thread { PushNotificationJob.perform_now("Announcement", @update.id, ids) }
+    Timeout.timeout(30) { entered.pop }
+    second = in_thread { PushNotificationJob.perform_now("Announcement", @update.id, ids) }
+    finish_test_threads(second)
+    assert @update.reload.push_settled_at, "B settled while A's web claims were held"
+    release << true
+    finish_test_threads(first)
+    @update.reload
+    assert_empty @update.web_push_attempted_notification_ids
+    assert_equal ids.sort, @update.expo_push_attempted_notification_ids.sort
+    assert_nil @update.push_settled_at, "the released recipients are recoverable again"
+    assert Announcement.push_pending.exists?(@update.id)
+    originals.each { |service, original| service.define_singleton_method(:announcement_published, original) }
+
+    # The tick re-requests it: web goes to both released recipients once, Expo to nobody again.
+    pushes = with_recorded_pushes do
+      travel_to(ScheduledAnnouncementPublisher::PUSH_GRACE.from_now + 1.second) do
+        assert_equal 1, ScheduledAnnouncementPublisher.new.call(now: Time.current)[:push_requeued]
+        assert_equal 0, ScheduledAnnouncementPublisher.new.call(now: Time.current)[:push_requeued]
+      end
+    end
+    assert_equal({ web: [ recipients ], expo: [] }, pushes)
+    assert @update.reload.push_settled_at
+  ensure
+    release&.<< true
+    originals&.each { |service, original| service.define_singleton_method(:announcement_published, original) }
+  end
+
+  test "a release after the push settled (no other job running) unsettles it, and only the released recipient is re-sent" do
+    @update.update_columns(scheduled_send_push: true)
+    with_recorded_pushes { ScheduledAnnouncementPublisher.new.call(now: Time.current) }
+    assert @update.reload.push_settled_at
+    released = Notification.where(notifiable: @update).order(:user_id).first
+    PushNotificationJob.new.send(:release_push_claims, @update, :expo_push_attempted_notification_ids, [ released.id ])
+    assert_nil @update.reload.push_settled_at
+    pushes = with_recorded_pushes do
+      travel_to(ScheduledAnnouncementPublisher::PUSH_GRACE.from_now + 1.second) { ScheduledAnnouncementPublisher.new.call(now: Time.current) }
+    end
+    assert_equal({ web: [], expo: [ [ released.user_id ] ] }, pushes)
+    assert @update.reload.push_settled_at
+  end
+
   private
 
   def recipients = @students.map(&:id).sort

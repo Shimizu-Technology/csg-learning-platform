@@ -118,7 +118,12 @@ class PushNotificationJob < ApplicationJob
 
     record.with_lock do
       attempted_ids = Array(record.public_send(attempted_attribute)).map(&:to_i)
-      record.update_columns(attempted_attribute => attempted_ids - notification_ids)
+      changes = { attempted_attribute => attempted_ids - notification_ids }
+      # Another job may have settled the update's push while this one was
+      # sending (every recipient was claimed then). Unsettle it under the same
+      # lock, so the tick re-requests the released recipients (#299 re-check).
+      changes[:push_settled_at] = nil if record.is_a?(Announcement)
+      record.update_columns(changes)
     end
     Rails.logger.warn(
       "[PushNotificationJob] provider_not_started_released attribute=#{attempted_attribute} " \

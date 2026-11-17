@@ -351,10 +351,10 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
     assert stale.reload.push_settled_at
   end
 
-  test "someone who can't act on the update's cohort gets the same 404 as a missing id for every action" do
+  test "staff who can't act on a scheduled update's or draft's cohort get the same 404 as a missing id for every action" do
     update = scheduled(at: 1.day.from_now)
+    draft = Announcement.create!(title: "Plain draft", body: "Words", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
     posted = Announcement.create!(title: "Posted", body: "Words", author: @admin, audience: :cohort, cohort: @cohort, status: :published)
-    archived = Announcement.create!(title: "Archived", body: "Words", author: @admin, audience: :cohort, cohort: @cohort, status: :archived)
     actions = [
       [ :get, {} ], [ :patch, { scheduled_for: nil } ], [ :patch, { scheduled_for: 2.days.from_now.iso8601 } ],
       [ :patch, { title: "Changed" } ], [ :patch, { status: "published" } ], [ :delete, {} ]
@@ -370,18 +370,26 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
     end
     # A colleague on the cohort, an instructor of another cohort, and the
     # author once their assignment is gone (the review's repro).
-    as_user(@colleague) { expect_missing.call(update, "colleague, scheduled") }
-    as_user(@outsider) { [ update, posted, archived ].each { |item| expect_missing.call(item, "outsider, #{item.title}") } }
+    as_user(@colleague) { [ update, draft ].each { |item| expect_missing.call(item, "colleague, #{item.title}") } }
+    as_user(@outsider) { [ update, draft ].each { |item| expect_missing.call(item, "outsider, #{item.title}") } }
     @author.cohort_instructor_assignments.destroy_all
-    as_user(@author) { [ update, posted, archived ].each { |item| expect_missing.call(item, "removed author, #{item.title}") } }
+    as_user(@author) { [ update, draft ].each { |item| expect_missing.call(item, "removed author, #{item.title}") } }
     assert update.reload.scheduled?
-    assert_equal "Posted", posted.reload.title
-    assert archived.reload.archived?
-    # Seeing it but not owning it is still 403: the colleague can read the posted update.
+    assert draft.reload.draft?
+
+    # Posted updates keep main's answers: 403 for staff outside the cohort, and
+    # for a colleague who can read it but not change it.
+    as_user(@author) do
+      get "/api/v1/announcements/#{posted.id}", headers: headers
+      assert_response :forbidden
+      patch "/api/v1/announcements/#{posted.id}", params: { title: "Changed" }, headers: headers, as: :json
+      assert_response :forbidden
+    end
     as_user(@colleague) do
       patch "/api/v1/announcements/#{posted.id}", params: { title: "Changed" }, headers: headers, as: :json
       assert_response :forbidden
     end
+    assert_equal "Posted", posted.reload.title
   end
 
   test "a scheduled draft stays hidden from students with the new student experience on and off, counts included" do

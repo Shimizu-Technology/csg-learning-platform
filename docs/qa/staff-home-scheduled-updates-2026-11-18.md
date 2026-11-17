@@ -100,6 +100,42 @@ The first gate, on `d6f27bf0`, failed one test in both modes: the OpenAPI contra
 required and nullable, as #279's contract expects; the description was reworded in `777c9ecf`. That
 run's other 2,203 tests passed in both modes. The gate was rerun once after the fix and the merge with main.
 
+## Fix round 1 (independent review of `2c19b5d1`)
+
+The review confirmed student invisibility (Today On and Off, counts included), the lock and
+transaction design, atomic notifications with push after commit, the additive migration and the
+record pages. It reported one P1, two P2s and one P3, each reproduced with a test. Its adversarial
+tests are adapted into `scheduled_update_races_test.rb` and `scheduled_updates_test.rb`.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| P1: a crash after the post commits loses the push | Push outbox (migration `20261118050000`). Posting with push sets `push_requested_at` in the posting UPDATE. `PushNotificationJob` claims each recipient per provider under the update's row lock, as messages do, then sets `push_settled_at`. The tick re-requests a push still unsettled after 5 minutes (one older than 24 hours is settled without sending). The fix covers request posts and scheduled posts, which shared the gap. Announcements send no email. | Forked child dies at the after-commit enqueue; a rerun inside the grace period sends nothing; after it, one re-request pushes each recipient once per provider; later runs send nothing. A request post whose job never ran is re-requested once by the tick. Two jobs at once push each recipient once per provider. After Expo reports "not started" for one recipient, the retry pushes only that one, with no repeated web push. |
+| P2: the 100-update cap leaves due updates behind the checkpoint | Drains in batches until a batch comes back short, within a 5-minute budget. Running out fails the task without advancing the checkpoint, so the next run continues, even in the same hour. A failing update is skipped for the rest of the run. | 101 due → one tick posts all 101. Batch 2 with no budget: 5 due drain over three runs in the same hour, the first two failing the task. One failing update doesn't loop. |
+| P2: non-uniform denials | For staff, show, edit, post, reschedule, cancel and delete on a draft or scheduled update in a cohort they can't act on (`StaffCohortScope`, now also given the assignments reloaded under the lock), or that isn't theirs, return the missing-id 404. That includes an assignment removed mid-request. Posted and archived updates and every learner read keep main's 403. A first version also turned those into 404, which broke the course-access contract (`CourseExpirationTest`); it was narrowed to drafts and scheduled updates. | Colleague, outsider and removed author on a scheduled update and a plain draft: every action's status and body match a missing id. Posted updates still return 403. `CourseExpirationTest` is unchanged and passing. |
+| P3: the instructor's query-count fixture stayed empty | Grows the instructor's own drafts and scheduled updates and asserts each response's size at 1 and 5, for the instructor and the admin, on both lists. | Passing |
+
+**Re-check P1 (settlement race).** If job A held web claims mid-send while job B claimed Expo and
+settled, and A's provider then reported "not started", A released its web claims, but the push stayed
+settled and was never recovered. Releasing a claim now clears `push_settled_at` under the same row lock.
+The re-check's race test is adapted, plus a test of a release after settlement with no other job
+running. Both fail on the previous code and pass now. The re-request then sends web to the released
+recipients once, and Expo to nobody again.
+
+The composer now says "Times are in Guam time, the school's time zone, for every cohort." Cohorts
+have no time zone field.
+
+Retest at `af861072`:
+
+- Focused API, prepared statements on and off: 130 runs / 1,172 assertions each, 0 failures. Both
+  migration tests also pass.
+- Web gate: 242 files / 2,776 tests, typecheck, lint, `api:check`, build, `test:bundle`. On the first
+  run, one unrelated `ContentManagement` focus test failed while Playwright was loading the machine. It
+  passed 3× alone, and the full gate then passed.
+- Browser recheck: B3–B5 (schedule → reschedule → cancel → schedule again, hidden from the student,
+  forced tick posts once, `push_requeued 0`) passed 4/4 at 1280/390 light/dark on a fresh harness,
+  which was then cleaned.
+- API responses are unchanged, so the generated types have no diff and mobile needed no re-run.
+
 ## Not run
 
 - Native devices or simulators, real Expo or Web Push delivery, and the real Render cron. The tick
