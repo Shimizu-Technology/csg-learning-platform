@@ -228,3 +228,42 @@ that link; no package installation or borrowed-directory mutation occurred.
 The integrated local smoke passed again. Earlier ASUS snapshots were deliberately
 stopped by exact validated task-owned PID/worktree after the day-reservation fix
 and then this API integration; neither interrupted run is counted as final QA.
+
+
+### Final integrated fix-round verification and ownership
+
+Final complete ASUS run used committed integrated source `3d1fed0a` on main
+`5fa85024`, after the schema conflict, nullable audit actor and student-experience
+switch checks. Both live prepared-mode assertions passed. With
+`OPENAPI_COVERAGE=1` and `PARALLEL_WORKERS=1`:
+
+| Gate | Result |
+| --- | --- |
+| API, prepared statements enabled, seed 6286 | **2,056 tests / 42,129 assertions; 0 failures/errors/skips** |
+| API, prepared statements disabled, seed 60592 | **2,056 tests / 42,129 assertions; 0 failures/errors/skips** |
+| RuboCop | **730 files, no offenses** |
+| Brakeman | **0 security warnings**; 1 existing ignored warning |
+| Combined gate | **Exit 0, zero failed stages** |
+
+The migration-process 55432 port adapter is retained. No tests were excluded and
+prepared statements were not disabled to get around failures. These were direct
+PostgreSQL ASUS runs; GitHub's transaction-pooler check remains separate CI.
+Local integrated focused checks passed **117 tests / 691 assertions**. Client
+regeneration/transport checks and the count-bearing smoke above also passed.
+
+Two superseded runs were stopped only after identifying the exact task-owned
+remote gate by command, working directory and process start identity: one before
+the per-day reservation hardening, one before the lead-requested #293 merge.
+They are not counted as completed acceptance. Their helper processes cleaned the
+disposable containers/WSL run. Final wrapper **25665** completed successfully and
+was released from lifecycle session `01a1e7d2-a929-7553-816a-d34897d56230`.
+Both local DBs (`csg_scheduled_fix_20261117`,
+`csg_scheduled_jobs_fix_20261117`) were dropped after the integrated tests/smoke.
+The temporary type-generator dependency link was removed; borrowed dependencies
+and all baseline services/tabs/simulators were left untouched. Lifecycle
+cleanup/status reports **no active owned resources**; no runtime handoff remains.
+
+All requested testable fix-round scenarios passed. Actual Render setup, the
+approved production baseline, live provider/device delivery and production
+compute validation remain the lead's rollout steps. No Render changes were
+made; the PR stays unmerged and unwatched, with prior review votes retained.
