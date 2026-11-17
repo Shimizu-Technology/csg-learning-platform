@@ -197,7 +197,7 @@ jobs:
             fi
             sleep 1
           done
-          tail -n 80 /tmp/csg-ci-pgbouncer.log
+          { grep -v 'command issued' /tmp/csg-ci-pgbouncer.log || true; } | tail -n 80
           exit 1
 
       - name: Verify pooled connection and run full API suite
@@ -206,6 +206,13 @@ jobs:
           bin/rails runner 'config = ActiveRecord::Base.connection_db_config; abort "tests must use PgBouncer" unless config.configuration_hash[:port] == 16432; abort "wrong prepared statement mode" unless ActiveRecord::Base.connection.prepared_statements == (ENV.fetch("EXPECTED_PREPARED_STATEMENTS") == "true")'
           bin/rails test test/config/transaction_pooler_canary_test.rb
           time bin/rails test
+          if [ "$EXPECTED_PREPARED_STATEMENTS" = "false" ]; then
+            if grep -Ei 'command issued: (RECONNECT|WAIT_CLOSE)' /tmp/csg-ci-pgbouncer.log; then
+              echo "::error::Unprepared migration tests must remain on the pooler"
+              exit 1
+            fi
+            echo "Verified unprepared migrations stayed pooled without direct-connection resets"
+          fi
 
       - name: Pooler diagnostics and cleanup
         if: always()
@@ -214,7 +221,7 @@ jobs:
             kill "$(cat /tmp/csg-ci-pgbouncer.pid)"
           fi
           if [ -f /tmp/csg-ci-pgbouncer.log ]; then
-            tail -n 80 /tmp/csg-ci-pgbouncer.log
+            { grep -v 'command issued' /tmp/csg-ci-pgbouncer.log || true; } | tail -n 80
           fi
 
   frontend:

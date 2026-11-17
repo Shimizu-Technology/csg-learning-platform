@@ -332,8 +332,8 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     new_week2 = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "CurriculumModule", old_id: @f.modules.second.id).new_id
     new_project = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "Lesson", old_id: @f.lessons[:project].id).new_id
 
-    # These requests begin after the copy. Pin that phase relative to its DB
-    # timestamp so this routing test does not depend on application/DB clock jitter.
+    # These requests begin after the copy. Pin that phase relative to its Ruby
+    # timestamp so this routing test explicitly exercises the post-copy phase.
     # The following test separately verifies the in-flight write is refused.
     travel_to(enrollment.content_moved_at + 1.second) do
       as_user(@f.admin) { post "/api/v1/enrollments/#{enrollment.id}/module_assignments", params: { module_id: @f.modules.second.id, unlocked: true }, headers: auth_headers, as: :json }
