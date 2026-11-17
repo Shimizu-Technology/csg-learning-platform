@@ -303,3 +303,54 @@ that whole-suite completeness audit, and passed both modes. Both prepared-mode
 guards remain intact. Before the earlier full run’s web stage, the final
 CourseOutline client/test files were synced and all 33 runtime hashes verified;
 API sources were unchanged during that run.
+
+
+## Final CodeRabbit round
+
+On November 18, the five minor comments on `cf7cb5e1` were fixed in
+`8d692d21d76da0947cc542783938ff04221c4b6c`. The recording browser selector was
+corrected in `7ec6e18a`; application code stayed unchanged for that retest.
+This affected-flow round was agent-executed on the MacBook with Node 22 and the
+isolated synthetic QA database. The product brief and acceptance above still
+apply. No API, contract, native, AASA or curriculum-query changes were made.
+
+- Welcome dates distinguish active support from ended support. Tests cover both.
+- Both legal recovery links wait for auth to finish, then retain the signed-out,
+  On and Off destinations. Tests cover both loading auth values and settlement.
+- A week-only recording link opens every matching module group. The fixture has
+  two modules sharing Week 1; collapsing one preserves the other. An unmatched
+  week keeps the existing fallback. No module-id API extension was needed.
+- Valid router state wins over a conflicting query destination, matching the
+  documented trust order. Unsafe state still falls back to a validated query.
+- Admin activity initializes the requested theme before navigation and asserts
+  the actual `html[data-theme]` value before capture. Both staff views retain
+  category-specific empty copy and the backfill caveat.
+
+The seven affected web files passed **163 tests**. Web typecheck, lint and build
+passed. `npm run api:generate` produced no diff in the schema or generated types.
+The advisory Impeccable scan of the three changed views returned no findings.
+API tests in both modes were not rerun because this round changes no API code,
+as requested; the previous ASUS results remain recorded above.
+
+Browser acceptance: **6 journeys passed in all 4 dimensions (24/24)**, at 390 and
+1280 in light and dark. Required journeys were On legal deletion → Today,
+signed-out Privacy → home, Off legal recovery, admin student/team activity,
+recording → both Week 1 groups → independent collapse, and expired-support
+welcome → Orientation. The first attempt passed 20 cases; four new recording
+cases timed out because the test shortened the existing link label. After
+correcting the selector to “Open Week 1 in Learn”, all four retests passed
+without an application change. The initial failure summary is retained.
+
+Evidence: [browser results](first-run-states-2026-11-18/review-round-2/browser-results.json),
+[automated results](first-run-states-2026-11-18/review-round-2/automated-results.json),
+[initial attempt](first-run-states-2026-11-18/review-round-2/attempt-1-summary.json),
+and 16 screenshots in `first-run-states-2026-11-18/review-round-2/`, including
+[dark admin](first-run-states-2026-11-18/review-round-2/admin-activity-390-dark.png),
+[overlapping weeks](first-run-states-2026-11-18/review-round-2/recording-week-390-dark.png)
+and [ended support](first-run-states-2026-11-18/review-round-2/support-ended-390-dark.png).
+Actual Safari/iPhone and native journeys were not rerun in this web-only round.
+
+Cleanup: task-owned servers, synthetic database and all browser tabs were
+removed. Lifecycle status reports no active owned resources. The PR remains
+open and unmerged. This is the final CodeRabbit minor-fix round; any further
+minor comments belong in the PR body's residuals instead of another fix round.

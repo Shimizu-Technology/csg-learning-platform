@@ -1,0 +1,24 @@
+{
+  "application_commit": "8d692d21d76da0947cc542783938ff04221c4b6c",
+  "harness_commit": "7ec6e18a75edb83b87f8c19bf66847ea51da6346",
+  "web": {
+    "affected_test_files": 7,
+    "tests": 163,
+    "failed": 0,
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "api_generate": "passed; no diff",
+    "impeccable_findings": 0
+  },
+  "browser": {
+    "journeys": 6,
+    "dimensions_per_journey": 4,
+    "passed": 24,
+    "failed_remaining": 0,
+    "initial_selector_timeouts": 4,
+    "recording_retest_passed": 4
+  },
+  "api": "not rerun; no API changes in final round",
+  "cleanup": "owned servers, database and browser tabs removed; lifecycle status none"
+}

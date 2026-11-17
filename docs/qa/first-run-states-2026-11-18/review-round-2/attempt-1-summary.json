@@ -1,0 +1,12 @@
+{
+  "source_commit": "8d692d21d76da0947cc542783938ff04221c4b6c",
+  "stats": {
+    "startTime": "2026-11-17T15:39:02.807Z",
+    "duration": 173418.06399999998,
+    "expected": 20,
+    "skipped": 0,
+    "unexpected": 4,
+    "flaky": 0
+  },
+  "failure": "Four recording cases used the shortened link label Open Week 1 instead of Open Week 1 in Learn. No application change required."
+}

@@ -1,0 +1,146 @@
+[
+  {
+    "persona": "legal-on",
+    "theme": "light",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "legal-signed-out",
+    "theme": "light",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "legal-off",
+    "theme": "light",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "admin-activity",
+    "theme": "light",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "support-ended",
+    "theme": "light",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "legal-on",
+    "theme": "dark",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "legal-signed-out",
+    "theme": "dark",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "legal-off",
+    "theme": "dark",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "admin-activity",
+    "theme": "dark",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "support-ended",
+    "theme": "dark",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "legal-on",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "legal-signed-out",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "legal-off",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "admin-activity",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "support-ended",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "legal-on",
+    "theme": "dark",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "legal-signed-out",
+    "theme": "dark",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "legal-off",
+    "theme": "dark",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "admin-activity",
+    "theme": "dark",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "support-ended",
+    "theme": "dark",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "recording-week",
+    "theme": "light",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "recording-week",
+    "theme": "dark",
+    "width": 1280,
+    "passed": true
+  },
+  {
+    "persona": "recording-week",
+    "theme": "light",
+    "width": 390,
+    "passed": true
+  },
+  {
+    "persona": "recording-week",
+    "theme": "dark",
+    "width": 390,
+    "passed": true
+  }
+]
