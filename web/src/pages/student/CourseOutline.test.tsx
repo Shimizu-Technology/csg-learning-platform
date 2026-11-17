@@ -156,6 +156,11 @@ it('frames the alumni library as a library', async () => {
   expect(container.textContent).not.toMatch(/\d+ of \d+/)
   expect(container.querySelector('input[type="search"]')!.getAttribute('placeholder')).toBe('Search the library')
   expect(titles()).toContain('Intro to Functions')
+  // A historical redo is past feedback here, not work: no redo, progress or next badges (U-5.10).
+  expect(titles()).toContain('Functions Recap')
+  expect(container.textContent).not.toMatch(/\bredos?\b/i)
+  expect(container.textContent).not.toContain('Next up')
+  expect(container.querySelector('a[aria-current="step"]')).toBeNull()
 })
 
 it('tells a paused learner their past lessons stay open, without a next step', async () => {

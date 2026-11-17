@@ -59,7 +59,7 @@ class CourseOutline
       lesson_count: lessons.size,
       next_lesson: next_lesson && lessons.find { |lesson| lesson[:id] == next_lesson.id }&.merge(module_id: next_lesson.module_id, group_key: current&.dig(:key)),
       current_group_key: current&.dig(:key),
-      filters: { todo: lessons.count { |lesson| lesson[:todo] }, redo: lessons.count { |lesson| lesson[:status] == LearnerProgress::Status::REDO } },
+      filters: { todo: lessons.count { |lesson| lesson[:todo] }, redo: library? ? 0 : lessons.count { |lesson| lesson[:status] == LearnerProgress::Status::REDO } },
       modules: modules
     }
   end

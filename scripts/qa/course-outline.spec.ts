@@ -166,3 +166,37 @@ test(`manual exercise has ${mode === 'on' ? 'one completion control' : 'today’
   await expect(controls).toHaveCount(mode === 'on' ? 1 : 2)
   results.push({ mode, case: 'manual completion controls', count: await controls.count(), passed: true })
 })
+
+// Fix round (P1): anything short of an explicit on keeps today's Learn, in either pass.
+for (const theme of ['light', 'dark'] as const) {
+  test(`cached cohort list without the switch keeps today's Learn (${theme})`, async ({ page }, info) => {
+    await page.route('**/api/v1/cohorts/accessible', async (route) => {
+      const response = await route.fetch()
+      const body = await response.json()
+      for (const item of body.cohorts) {
+        delete item.features?.student_experience_v2
+        delete item.capabilities?.features?.student_experience_v2
+      }
+      await route.fulfill({ response, json: body })
+    })
+    await page.addInitScript((value) => localStorage.setItem('csg-learn:theme', value), theme)
+    await page.goto(`/materials?cohort_id=${cohort('QA canonical program')}&qa_user=3`)
+    await expect(page.getByRole('heading', { name: 'Learn', exact: true, level: 1 })).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByTestId('course-outline')).toHaveCount(0)
+    const width = info.project.use.viewport?.width
+    await page.screenshot({ path: new URL(`${mode}-cached-no-flag-${width}-${theme}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
+    results.push({ mode, case: 'cached no-flag payload', theme, width, passed: true })
+  })
+}
+
+test('offline cold start: today’s Learn with a notice and Try again', async ({ page }) => {
+  await page.route('**/api/v1/cohorts/accessible', (route) => route.abort())
+  await page.goto(`/materials?cohort_id=${cohort('QA canonical program')}&qa_user=3`)
+  await expect(page.getByRole('alert').filter({ hasText: 'course settings' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('heading', { name: 'Learn', exact: true, level: 1 })).toBeVisible()
+  await expect(page.getByTestId('course-outline')).toHaveCount(0)
+  await page.unroute('**/api/v1/cohorts/accessible')
+  await page.getByRole('button', { name: 'Try again' }).click()
+  if (mode === 'on') await expect(page.getByTestId('course-outline')).toBeVisible({ timeout: 20_000 })
+  results.push({ mode, case: 'offline cold start with retry', passed: true })
+})

@@ -108,6 +108,18 @@
   },
   {
     "descriptor": {
+      "kind": "announcement",
+      "id": "80",
+      "context": {
+        "cohort_id": "3"
+      },
+      "anchor": {}
+    },
+    "web": "/announcements/80?cohort_id=3",
+    "native": "/updates?cohort_id=3&announcement_id=80"
+  },
+  {
+    "descriptor": {
       "kind": "recording",
       "id": "legacy-2-1",
       "context": {

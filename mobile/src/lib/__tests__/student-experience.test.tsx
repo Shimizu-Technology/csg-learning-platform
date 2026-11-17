@@ -22,14 +22,17 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), replace: 
 jest.mock('@tanstack/react-query', () => ({ useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({ data: queryKey[2] === 'dashboard' ? { dashboard: mockDashboard } : undefined, refetch: jest.fn(), isPending: false, isRefetching: false, isFetching: false, error: null }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: {}, user: { id: 1, is_staff: false }, enrollments: [] }) }));
-jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ cohorts: [{ id: 1, name: 'Cohort 3', features: mockFeatures }], selectedCohortId: 1, loading: false, error: null, stale: false, refresh: jest.fn() }) }));
+let mockStale = false;
+jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ cohorts: [{ id: 1, name: 'Cohort 3', features: mockFeatures }], selectedCohortId: 1, loading: false, error: mockStale ? 'Offline' : null, stale: mockStale, refresh: jest.fn() }) }));
 jest.mock('@/components/back-button', () => ({ BackButton: () => null }));
 
 // eslint-disable-next-line import/first
 import ModuleScreen from '../../app/(app)/module/[id]';
 
-it('reads the switch from resolved features, defaulting on', () => {
-  expect(studentExperienceV2(undefined)).toBe(true);
+it('reads the switch from resolved features: only an explicit on', () => {
+  expect(studentExperienceV2(undefined)).toBe(false);
+  expect(studentExperienceV2({})).toBe(false);
+  expect(studentExperienceV2({ student_experience_v2: true })).toBe(true);
   expect(studentExperienceV2({ student_experience_v2: false })).toBe(false);
   expect(lessonTypeLabel({ lesson_type: 'exercise', kind: 'reading' }, true)).toBe('Reading');
   expect(lessonTypeLabel({ lesson_type: 'exercise', kind: 'reading' }, false)).toBe('exercise');
@@ -45,4 +48,19 @@ it('a module shows the real lesson kind with the switch on and the stored type w
   const off = render(<ModuleScreen />);
   expect(off.getByText('exercise · Required')).toBeTruthy();
   expect(off.queryByText('Video · Required')).toBeNull();
+});
+
+it('keeps the stored type when the flag is missing, even with the kind in the dashboard (P1)', () => {
+  // A pre-rollout cached session: Lance's cohort has no student_experience_v2 key yet.
+  mockFeatures = { recordings: true };
+  const cached = render(<ModuleScreen />);
+  expect(cached.getByText('exercise · Required')).toBeTruthy();
+  expect(cached.queryByText('Video · Required')).toBeNull();
+  cached.unmount();
+  // An offline cold start from a stale cohort list without the key.
+  mockStale = true;
+  mockFeatures = {};
+  const offline = render(<ModuleScreen />);
+  expect(offline.getByText('exercise · Required')).toBeTruthy();
+  mockStale = false;
 });

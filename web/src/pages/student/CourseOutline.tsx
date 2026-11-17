@@ -242,7 +242,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
                       // One group: the module heading names it, so the rows sit in the card, collapsible from a slim bar.
                       return (
                         <div key={group.key}>
-                          <GroupTrigger expanded={expanded} onToggle={() => toggleGroup(group.key)} controls={`learn-group-${group.key}`} disabled={visible.narrowed}
+                          <GroupTrigger library={library} expanded={expanded} onToggle={() => toggleGroup(group.key)} controls={`learn-group-${group.key}`} disabled={visible.narrowed}
                             title={<span className="text-sm font-semibold text-ink-secondary">{expanded ? 'Lessons' : `Show ${group.lessons.length} ${group.lessons.length === 1 ? 'lesson' : 'lessons'}`}</span>} group={group} />
                           <Collapse open={expanded} id={`learn-group-${group.key}`}>{rows}</Collapse>
                         </div>
@@ -250,7 +250,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
                     }
                     return (
                       <div key={group.key} className={index > 0 ? 'border-t border-line' : ''}>
-                        <GroupTrigger expanded={expanded} onToggle={() => toggleGroup(group.key)} controls={`learn-group-${group.key}`} disabled={visible.narrowed} group={group}
+                        <GroupTrigger library={library} expanded={expanded} onToggle={() => toggleGroup(group.key)} controls={`learn-group-${group.key}`} disabled={visible.narrowed} group={group}
                           title={<span className="font-bold text-ink">{group.label}</span>} />
                         <Collapse open={expanded} id={`learn-group-${group.key}`}>{rows}</Collapse>
                       </div>
@@ -266,8 +266,9 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
   )
 }
 
-function GroupTrigger({ expanded, onToggle, controls, disabled, title, group }: { expanded: boolean; onToggle: () => void; controls: string; disabled: boolean; title: ReactNode; group: CourseOutlineGroup }) {
-  const redos = group.lessons.filter((lesson) => lesson.status === 'redo').length
+function GroupTrigger({ expanded, onToggle, controls, disabled, title, group, library }: { expanded: boolean; onToggle: () => void; controls: string; disabled: boolean; title: ReactNode; group: CourseOutlineGroup; library: boolean }) {
+  // The alumni library is browsed, not tracked (U-5.10): no redo, progress or next badges.
+  const redos = library ? 0 : group.lessons.filter((lesson) => lesson.status === 'redo').length
   const complete = group.counts && group.counts.total_lessons > 0 && group.counts.completed_lessons === group.counts.total_lessons
   return (
     <button type="button" onClick={onToggle} aria-expanded={expanded} aria-controls={controls} disabled={disabled}

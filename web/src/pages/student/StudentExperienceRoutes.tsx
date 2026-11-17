@@ -2,15 +2,15 @@ import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-import { useStudentExperience } from '../../lib/studentExperience'
+import { StudentExperienceSwitch } from '../../lib/studentExperience'
 import { CourseOutline, Materials, ModuleView } from '../../lib/routePreload'
 import { StudentCohortHome } from './StudentCohortHome'
 
 /*
- * Student routes behind the "New student experience" switch. Off renders each
- * page exactly as before; on renders the redesign. Until the cohort's switch
- * is known they show the old page's own loading state, so a cohort with it off
- * never sees the new view, even for a frame.
+ * Student routes behind the "New student experience" switch. Only an explicit
+ * on for the cohort renders the redesign; off, unknown or a failed lookup
+ * renders each page exactly as before. Until the switch is known they show
+ * the old page's own loading state (StudentExperienceSwitch).
  */
 
 function learnPath(cohortId: number | null | undefined, extra: Record<string, string> = {}) {
@@ -18,31 +18,25 @@ function learnPath(cohortId: number | null | undefined, extra: Record<string, st
   return `/materials${search ? `?${search}` : ''}`
 }
 
-/** Learn: the one course outline when on (C-2), today's Materials when off. */
+/** Learn: the one course outline when on (C-2), today's Materials otherwise. */
 export function LearnRoute() {
-  const { ready, v2 } = useStudentExperience()
-  if (!ready) return <LoadingSpinner message="Loading Learn…" />
-  return v2 ? <CourseOutline /> : <Materials />
+  return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading Learn…" />} on={<CourseOutline />} off={<Materials />} />
 }
 
-/** A module is a place in Learn's outline when on (S-9, S-1); today's module page when off. */
+/** A module is a place in Learn's outline when on (S-9, S-1); today's module page otherwise. */
 export function ModuleRoute() {
-  const { ready, v2 } = useStudentExperience()
   const { id } = useParams<{ id: string }>()
   const { selectedCohortId } = useCohortContext()
   const location = useLocation()
-  if (!ready) return <LoadingSpinner message="Loading module..." />
-  if (!v2) return <ModuleView />
   const cohortId = Number(new URLSearchParams(location.search).get('cohort_id')) || selectedCohortId
-  return <Navigate replace to={learnPath(cohortId, id && /^[1-9]\d*$/.test(id) ? { module: id } : {})} />
+  const target = learnPath(cohortId, id && /^[1-9]\d*$/.test(id) ? { module: id } : {})
+  return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading module..." />} on={<Navigate replace to={target} />} off={<ModuleView />} />
 }
 
-/** A learner's cohort page is their course outline when on (C-2); today's cohort home when off. */
+/** A learner's cohort page is their course outline when on (C-2); today's cohort home otherwise. */
 export function CohortHomeRoute() {
-  const { ready, v2 } = useStudentExperience()
   const { user } = useAuthContext()
   const { id } = useParams<{ id: string }>()
-  if (!ready) return <LoadingSpinner message="Loading your cohort…" />
-  if (!v2 || user?.is_staff || !id || !/^[1-9]\d*$/.test(id)) return <StudentCohortHome />
-  return <Navigate replace to={learnPath(Number(id))} />
+  if (user?.is_staff || !id || !/^[1-9]\d*$/.test(id)) return <StudentCohortHome />
+  return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading your cohort…" />} on={<Navigate replace to={learnPath(Number(id))} />} off={<StudentCohortHome />} />
 }

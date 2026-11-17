@@ -94,7 +94,7 @@ class CourseOutlineTest < ActionDispatch::IntegrationTest
     assert_equal "library", outline["mode"]
     assert_nil outline["counts"]
     assert_nil outline["next_lesson"]
-    assert_equal({ "todo" => 0, "redo" => 1 }, outline["filters"])
+    assert_equal({ "todo" => 0, "redo" => 0 }, outline["filters"], "a library counts no redo work, even historical")
     assert outline["modules"].all? { |mod| mod["counts"].nil? }
     assert_equal [ "Part 1 · lessons 1–3", "Part 2 · lessons 4–5", nil ], outline["modules"].flat_map { |mod| mod["groups"].map { |group| group["label"] } }, "a long library section splits into undated parts"
     assert outline["modules"].flat_map { |mod| mod["groups"] }.none? { |group| group["this_week"] || group["opens_on"] }

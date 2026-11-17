@@ -107,3 +107,37 @@ it('shows neither view until the cohort’s switch is known', async () => {
   expect(mocks.getDashboard).not.toHaveBeenCalled()
   expect(container.querySelector('[data-testid="new-outline"]')).toBeNull()
 })
+
+it('a cached cohort without the switch keeps today’s Learn', async () => {
+  state.cohort = { ready: true, selectedCohort: { id: 3, name: 'Cohort 3', features: { recordings: true }, capabilities: { features: { recordings: true } } }, selectedCohortId: 3, error: null }
+  await render('/materials?cohort_id=3', <LearnRoute />, '/materials')
+  expect(container.textContent).toContain('Expand all')
+  expect(container.querySelector('[data-testid="new-outline"]')).toBeNull()
+})
+
+it('a failed switch lookup shows today’s Learn with a notice and Retry, not a spinner', async () => {
+  const refreshCohorts = vi.fn()
+  state.cohort = { ready: true, selectedCohort: null, selectedCohortId: 3, error: 'Could not load your cohorts.', refreshCohorts }
+  await render('/materials?cohort_id=3', <LearnRoute />, '/materials')
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('couldn’t load your course settings')
+  expect(container.textContent).not.toContain('Loading Learn…')
+  expect(container.textContent).toContain('Expand all')
+  await act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Try again')!.click())
+  expect(refreshCohorts).toHaveBeenCalledTimes(1)
+})
+
+it('stops waiting for a slow switch lookup and shows today’s Learn with Retry', async () => {
+  vi.useFakeTimers()
+  try {
+    state.cohort = { ready: false, selectedCohort: null, selectedCohortId: 3, error: null, refreshCohorts: vi.fn() }
+    await render('/materials?cohort_id=3', <LearnRoute />, '/materials')
+    expect(container.textContent).toContain('Loading Learn…')
+    await act(async () => { vi.advanceTimersByTime(10_000) })
+    await act(async () => { await vi.runOnlyPendingTimersAsync() })
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('taking a while')
+    expect(container.textContent).not.toContain('Loading Learn…')
+    expect(container.querySelector('[data-testid="new-outline"]')).toBeNull()
+  } finally {
+    vi.useRealTimers()
+  }
+})
