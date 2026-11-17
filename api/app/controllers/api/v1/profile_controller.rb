@@ -6,7 +6,7 @@ module Api
 
       # GET /api/v1/profile
       def show
-        enrollments = current_user.enrollments.includes(cohort: :curriculum)
+        enrollments = current_user.enrollments.includes(cohort: { curriculum: { cohort_copy: :cohort } })
         purchases = current_user.course_purchases.where(status: "paid").index_by(&:cohort_id)
         readable_ids = current_user.enrollments.with_read_access.pluck(:id).to_set
 

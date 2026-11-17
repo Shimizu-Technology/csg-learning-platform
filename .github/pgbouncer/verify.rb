@@ -6,5 +6,6 @@ PG.connect(host: "127.0.0.1", port: 16432, user: "postgres", dbname: "pgbouncer"
   { "pool_mode" => "transaction", "server_round_robin" => "1", "default_pool_size" => "6" }.each do |key, expected|
     abort "#{key}: expected #{expected}, got #{settings[key]}" unless settings[key] == expected
   end
+  abort "wrong max_prepared_statements" unless settings["max_prepared_statements"] == ENV.fetch("EXPECTED_MAX_PREPARED")
   puts "Verified transaction mode, round robin, and six-backend pool"
 end
