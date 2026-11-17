@@ -24478,7 +24478,7 @@
       },
       "EditorPreferencesInput": {
         "type": "object",
-        "description": "Either field alone; a field that isn't sent keeps its value.",
+        "description": "Either field alone; a field that isn't sent keeps its value. With initialize: true each field is set only if the account has no value for it yet, so a browser's one-time upload of a choice it remembered never overwrites a choice made on another device. The response always carries the account's values.",
         "properties": {
           "mode": {
             "type": "string",
@@ -24488,6 +24488,9 @@
             ]
           },
           "enter_sends": {
+            "type": "boolean"
+          },
+          "initialize": {
             "type": "boolean"
           }
         },

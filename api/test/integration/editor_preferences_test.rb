@@ -39,9 +39,30 @@ class EditorPreferencesTest < ActionDispatch::IntegrationTest
     assert_equal({ "mode" => "rich", "enter_sends" => true }, session_preferences)
   end
 
+  test "initialize fills only what the account doesn't have yet and answers with the account's values" do
+    save(mode: "markdown", enter_sends: false, initialize: true)
+    assert_response :success
+    assert_equal({ "mode" => "markdown", "enter_sends" => false }, response.parsed_body["editor_preferences"])
+
+    # Another device chose since: a late legacy upload changes nothing and reports what the account has.
+    @user.update_columns(editor_mode: "rich", editor_enter_sends: nil)
+    save(mode: "markdown", enter_sends: false, initialize: true)
+    assert_response :success
+    assert_equal({ "mode" => "rich", "enter_sends" => false }, response.parsed_body["editor_preferences"])
+    assert_equal({ "mode" => "rich", "enter_sends" => false }, session_preferences)
+  end
+
+  test "a delayed legacy upload never overwrites a choice saved by another device in between" do
+    # Device A saw no preference; device B saves Rich; A's one-time upload arrives afterwards.
+    save(mode: "rich")
+    save(mode: "markdown", initialize: true)
+    assert_equal "rich", response.parsed_body.dig("editor_preferences", "mode")
+    assert_equal "rich", @user.reload.editor_mode
+  end
+
   test "unknown values and empty requests are refused without changing anything" do
     save(mode: "markdown", enter_sends: false)
-    [ { mode: "wysiwyg" }, { mode: "" }, { mode: nil }, { enter_sends: "false" }, { enter_sends: nil }, {}, { mode: "rich", enter_sends: "yes" } ].each do |body|
+    [ { mode: "wysiwyg" }, { mode: "" }, { mode: nil }, { enter_sends: "false" }, { enter_sends: nil }, {}, { mode: "rich", enter_sends: "yes" }, { mode: "rich", initialize: "true" }, { initialize: true } ].each do |body|
       save(body)
       assert_response :unprocessable_entity, body.inspect
     end

@@ -49,7 +49,9 @@ Every authenticated request records activity in `users.last_seen_at`, at most on
 
 Saves the signed-in person's editor preferences on their account. Send `mode` (`"rich"` or `"markdown"`), `enter_sends` (`true` or `false`), or both; a field that isn't sent keeps its value. Doesn't change `users.updated_at`.
 
-**Response:** `{ "editor_preferences": { "mode": "markdown", "enter_sends": false } }`. `422` for an unknown mode, a non-boolean `enter_sends`, or neither field.
+With `"initialize": true`, each field is set only if the account has no value for it yet (one conditional `UPDATE … WHERE editor_mode IS NULL` per field). The web app uses it once, to upload a choice a browser remembered before preferences moved to the account, so a late upload never overwrites a choice saved on another device in between. Either way the response carries the account's current values, which the client adopts.
+
+**Response:** `{ "editor_preferences": { "mode": "markdown", "enter_sends": false } }`. `422` for an unknown mode, a non-boolean `enter_sends` or `initialize`, or neither field.
 
 **Access-denied response (`403`):**
 ```json

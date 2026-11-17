@@ -127,6 +127,10 @@ type PasteNotice = { mode: 'code' | 'text' | 'markdown' | 'html'; text: string; 
 
 const PREVIEW_DEFAULT = (markdown: string) => <MarkdownText content={markdown} />
 
+/** The text box always reads LF (browsers normalize it), so its text is kept that way. */
+const normalizeLineEndings = (text: string) => text.replace(/\r\n?/g, '\n')
+const lineEndingOf = (text: string): '\n' | '\r\n' => (text.includes('\r\n') ? '\r\n' : '\n')
+
 function plainParagraphs(text: string): JSONContent[] {
   return text.split('\n').map((line) => (line ? { type: 'paragraph', content: [{ type: 'text', text: line }] } : { type: 'paragraph' }))
 }
@@ -264,7 +268,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const markdownRef = useRef(initialMarkdown)
   const richDirtyRef = useRef(false)
   const flushFrameRef = useRef<number | null>(null)
-  const [source, setSource] = useState(initialMarkdown)
+  /** The line ending the Markdown was given with, written back by Markdown mode's edits. */
+  const lineEndingRef = useRef(lineEndingOf(initialMarkdown))
+  const [source, setSource] = useState(() => normalizeLineEndings(initialMarkdown))
   const sourceRef = useRef(source)
   sourceRef.current = source
   const [preview, setPreview] = useState(false)
@@ -302,6 +308,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     lastEmittedRef.current = markdown
     propsRef.current.onChange?.(markdown, richContent)
   }, [])
+
+  /** Emits a Markdown-mode edit with the stored line ending (Rich mode keeps it when writing). */
+  const emitSource = useCallback((text: string) => {
+    emit(lineEndingRef.current === '\r\n' ? text.replace(/\r?\n/g, '\r\n') : text)
+  }, [emit])
 
   /** Writes out Rich mode's pending change, at most once a frame while typing. */
   const flush = useCallback(() => {
@@ -585,8 +596,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       pendingDocRef.current = doc
       pendingSourceRef.current = result
     }
-    setSource(markdown)
-    sourceRef.current = markdown
+    lineEndingRef.current = lineEndingOf(markdown)
+    setSource(normalizeLineEndings(markdown))
+    sourceRef.current = normalizeLineEndings(markdown)
     richDirtyRef.current = false
     setPasteNotice(null)
     if (emitChange) emit(markdown)
@@ -618,10 +630,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       modeRef.current = 'markdown'
       // Refresh the hidden Rich surface's attributes (its id moves to the textarea).
       if (current && !current.isDestroyed) current.view.dispatch(current.state.tr.setMeta('addToHistory', false))
-      sourceRef.current = markdown
+      sourceRef.current = normalizeLineEndings(markdown)
       // Commit now so focus moves to the visible text box without losing a keystroke.
       flushSync(() => {
-        setSource(markdown)
+        setSource(normalizeLineEndings(markdown))
         setModeState('markdown')
         setPreview(false)
         setPasteNotice(null)
@@ -633,8 +645,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         textarea.setSelectionRange(caret, caret)
       }
     } else {
-      const markdown = sourceRef.current
-      const caret = textareaRef.current?.selectionStart ?? markdown.length
+      const typed = sourceRef.current
+      // The text as stored (its own line endings) when it's the same text, so Rich mode keeps them.
+      const markdown = normalizeLineEndings(markdownRef.current) === typed ? markdownRef.current : typed
+      const caret = textareaRef.current?.selectionStart ?? typed.length
       modeRef.current = 'rich'
       if (current && !current.isDestroyed) {
         const result = markdownToEditorDoc(markdown, { target: targetRef.current })
@@ -642,7 +656,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         // Switching is never an edit: the Markdown stays exactly as typed until Rich mode changes it.
         markdownRef.current = markdown
         richDirtyRef.current = false
-        const blocksBefore = markdown.slice(0, caret).trim() ? (toDoc(markdown.slice(0, caret)).content || []).filter((node) => node.type !== 'paragraph' || node.content).length : 0
+        const blocksBefore = typed.slice(0, caret).trim() ? (toDoc(typed.slice(0, caret)).content || []).filter((node) => node.type !== 'paragraph' || node.content).length : 0
         const doc = current.state.doc
         const index = Math.min(Math.max(blocksBefore - 1, 0), doc.childCount - 1)
         let position = 0
@@ -720,8 +734,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     })
     sourceRef.current = next
     setSourceSelection({ start: edit.selectionStart, end: edit.selectionEnd })
-    emit(next)
-  }, [emit, openLink, preview])
+    emitSource(next)
+  }, [emitSource, openLink, preview])
 
   const applyLink = () => {
     const href = normalizeEditorLink(linkHref)
@@ -751,7 +765,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         sourceRef.current = changed
       })
       sourceRef.current = next
-      emit(next)
+      emitSource(next)
     }
     setLinkOpen(false)
   }
@@ -781,7 +795,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       if (modeRef.current === 'rich') editorRef.current?.commands.focus()
       else textareaRef.current?.focus()
     },
-    getMarkdown: () => (modeRef.current === 'rich' ? flush() : sourceRef.current),
+    getMarkdown: () => (modeRef.current === 'rich' ? flush() : markdownRef.current),
     getRichContent: () => {
       const current = editorRef.current
       if (modeRef.current === 'rich' && current && !current.isDestroyed) return current.getJSON()
@@ -820,7 +834,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         sourceRef.current = changed
       })
       sourceRef.current = next
-      emit(next)
+      emitSource(next)
       propsRef.current.onCaretText?.(next.slice(Math.max(0, start + text.length - 80), start + text.length))
     },
     clear: () => replaceAll('', EMPTY_EDITOR_DOC, true),
@@ -835,7 +849,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const next = sourceRef.current.slice(0, start) + text + sourceRef.current.slice(end)
       setSource(next)
       sourceRef.current = next
-      emit(next)
+      emitSource(next)
       return
     }
     const next = replaceTextareaRange(textarea, { start, end, text, selectionStart: start + text.length, selectionEnd: start + text.length }, (changed) => {
@@ -843,7 +857,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       sourceRef.current = changed
     })
     sourceRef.current = next
-    emit(next)
+    emitSource(next)
   }
 
   const updateSourceCaret = (textarea: HTMLTextAreaElement) => {
@@ -1129,7 +1143,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             const next = event.target.value
             setSource(next)
             sourceRef.current = next
-            emit(next)
+            emitSource(next)
             updateSourceCaret(event.target)
           }}
           onSelect={(event) => updateSourceCaret(event.currentTarget)}

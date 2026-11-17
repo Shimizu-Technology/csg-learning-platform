@@ -10,7 +10,7 @@ import type { EditorPreferences as ServerEditorPreferences } from '../types/api'
  * read when they open: the session's values are written into it at sign-in
  * (`applyServerEditorPreferences`), and a choice made here is kept here and
  * marked pending until the server has it, so a failed save is sent again at
- * the next sign-in instead of being lost.
+ * the next sign-in instead of being lost. Saves from one tab run in order.
  */
 export type EditorMode = 'rich' | 'markdown'
 
@@ -74,25 +74,67 @@ function announceChange(userId: number | null | undefined, preferences: EditorPr
   }
 }
 
-/** Sends choices to the account; each one stops being pending once the server has that same value. */
-function upload(userId: number, values: Partial<EditorPreferences>) {
-  const body = { ...(values.mode ? { mode: values.mode } : {}), ...(values.enterSends !== undefined ? { enter_sends: values.enterSends } : {}) }
-  if (Object.keys(body).length === 0) return
-  let request: ReturnType<typeof api.updateEditorPreferences>
-  try {
-    request = api.updateEditorPreferences(body)
-  } catch {
-    return
-  }
-  Promise.resolve(request).then((response) => {
-    const saved = response?.data?.editor_preferences
-    if (!saved) return
+type AccountValues = ServerEditorPreferences
+
+const accountValue = (saved: AccountValues, field: PreferenceField) => (field === 'mode' ? saved.mode : saved.enter_sends)
+
+function requestBody(values: Partial<EditorPreferences>) {
+  return { ...(values.mode ? { mode: values.mode } : {}), ...(values.enterSends !== undefined ? { enter_sends: values.enterSends } : {}) }
+}
+
+/**
+ * Saves run one at a time in this tab, so a slow answer can never land after
+ * a newer choice and leave the account on the older one. Offline or refused
+ * saves leave their choices pending, to be sent again at the next sign-in.
+ */
+let saves: Promise<void> = Promise.resolve()
+
+function queueSave(job: () => Promise<void>) {
+  saves = saves.then(job).catch(() => undefined)
+}
+
+/**
+ * Sends this browser's pending choices as they are when the save runs (so a
+ * burst of changes sends only the latest). A choice stops being pending only
+ * when the account answers with the value this browser still holds; one
+ * changed meanwhile stays pending for the save queued after it.
+ */
+function savePending(userId: number) {
+  queueSave(async () => {
     const stored = readStored(userId)
-    const done = FIELDS.filter((field) => (field === 'mode' ? saved.mode : saved.enter_sends) === stored[field])
-    if (!stored.pending?.some((field) => done.includes(field))) return
-    writeStored(userId, { ...stored, pending: stored.pending.filter((field) => !done.includes(field)) })
-  }).catch(() => {
-    // Offline or refused: the choice stays pending and is sent again at the next sign-in.
+    const body = requestBody(Object.fromEntries((stored.pending || []).map((field) => [field, stored[field]])))
+    if (Object.keys(body).length === 0) return
+    const saved = (await api.updateEditorPreferences(body))?.data?.editor_preferences
+    if (!saved) return
+    const latest = readStored(userId)
+    const done = FIELDS.filter((field) => latest.pending?.includes(field) && accountValue(saved, field) === latest[field])
+    if (done.length) writeStored(userId, { ...latest, pending: latest.pending!.filter((field) => !done.includes(field)) })
+  })
+}
+
+/**
+ * Uploads a choice this browser remembered from before preferences were on
+ * the account. The server sets each field only if the account still has none
+ * (another device may have chosen since), and this browser then takes
+ * whatever the account has.
+ */
+function initializeAccount(userId: number, values: Partial<EditorPreferences>) {
+  const body = requestBody(values)
+  if (Object.keys(body).length === 0) return
+  queueSave(async () => {
+    const saved = (await api.updateEditorPreferences({ ...body, initialize: true }))?.data?.editor_preferences
+    if (!saved) return
+    const latest = readStored(userId)
+    const next: StoredPreferences = { ...latest }
+    for (const field of FIELDS) {
+      const value = accountValue(saved, field)
+      // A choice made here since stays: it's pending and will be saved after this.
+      if (field in values && value !== null && !latest.pending?.includes(field)) Object.assign(next, { [field]: value })
+    }
+    const before = resolved(latest)
+    const after = resolved(next)
+    writeStored(userId, next)
+    if (before.mode !== after.mode || before.enterSends !== after.enterSends) announceChange(userId, after)
   })
 }
 
@@ -107,34 +149,34 @@ export function writeEditorPreferences(userId: number | null | undefined, change
   writeStored(userId, next)
   const preferences = resolved(next)
   announceChange(userId, preferences)
-  if (userId) upload(userId, change)
+  if (userId) savePending(userId)
   return preferences
 }
 
 /**
  * At sign-in: the account's preferences become this browser's, except a
- * choice made here that the server doesn't have yet. That one, and any
- * choice this browser remembered from before preferences were saved on the
- * account (the server has none yet), is sent up instead.
+ * choice made here that the server doesn't have yet, which is sent up. A
+ * choice this browser remembered from before preferences were on the account
+ * (the account has none yet) is offered once with `initialize`, which never
+ * overwrites a choice another device made in the meantime.
  */
 export function applyServerEditorPreferences(userId: number, server: ServerEditorPreferences | null | undefined) {
   const stored = readStored(userId)
   const next: StoredPreferences = { ...stored }
-  const toUpload: Partial<EditorPreferences> = {}
+  const legacy: Partial<EditorPreferences> = {}
   const fromServer = { mode: server?.mode ?? null, enterSends: server?.enter_sends ?? null }
   for (const field of FIELDS) {
     const local = stored[field]
     const remote = fromServer[field]
-    if (local !== undefined && (stored.pending?.includes(field) || remote === null)) {
-      Object.assign(toUpload, { [field]: local })
-    } else if (remote !== null) {
-      Object.assign(next, { [field]: remote })
-    }
+    if (local !== undefined && stored.pending?.includes(field)) continue
+    if (local !== undefined && remote === null) Object.assign(legacy, { [field]: local })
+    else if (remote !== null) Object.assign(next, { [field]: remote })
   }
-  next.pending = FIELDS.filter((field) => field in toUpload)
+  next.pending = FIELDS.filter((field) => stored.pending?.includes(field) && stored[field] !== undefined)
   const before = resolved(stored)
   const after = resolved(next)
   writeStored(userId, next)
   if (before.mode !== after.mode || before.enterSends !== after.enterSends) announceChange(userId, after)
-  upload(userId, toUpload)
+  initializeAccount(userId, legacy)
+  if (next.pending.length) savePending(userId)
 }

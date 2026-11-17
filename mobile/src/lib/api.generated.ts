@@ -9454,11 +9454,12 @@ export interface components {
             mode: ("rich" | "markdown") | null;
             enter_sends: boolean | null;
         };
-        /** @description Either field alone; a field that isn't sent keeps its value. */
+        /** @description Either field alone; a field that isn't sent keeps its value. With initialize: true each field is set only if the account has no value for it yet, so a browser's one-time upload of a choice it remembered never overwrites a choice made on another device. The response always carries the account's values. */
         EditorPreferencesInput: {
             /** @enum {string} */
             mode?: "rich" | "markdown";
             enter_sends?: boolean;
+            initialize?: boolean;
         };
         EditorPreferencesResponse: {
             editor_preferences: components["schemas"]["EditorPreferences"];

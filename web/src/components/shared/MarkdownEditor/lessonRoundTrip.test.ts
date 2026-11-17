@@ -5,7 +5,7 @@ import { editorJsonToMarkdown } from '../../../lib/messageFormat'
 import { lessonMarkdownStructure } from '../../../lib/writtenMarkdown'
 import preworkBodies from '../../../test/fixtures/prework-lesson-bodies.json'
 import { createRichExtensions } from './extensions'
-import { editorJsonToMarkdownKeepingSource, keySourceSegments, markdownToEditorDoc, RAW_MARKDOWN_NODE } from './markdownToEditorJson'
+import { editorJsonToMarkdownKeepingSource, keySourceSegments, markdownToEditorDoc, RAW_MARKDOWN_NODE, type MarkdownTarget } from './markdownToEditorJson'
 
 /**
  * U-6.8: lesson text and instructions through Rich mode. The bodies are the
@@ -22,9 +22,9 @@ afterEach(() => {
 })
 
 /** Markdown into the real Rich schema, as a lesson block's editor loads it. */
-function load(markdown: string) {
+function load(markdown: string, target: MarkdownTarget = 'lesson') {
   editor?.destroy()
-  const result = markdownToEditorDoc(markdown, { target: 'lesson' })
+  const result = markdownToEditorDoc(markdown, { target })
   editor = new Editor({ extensions: createRichExtensions({ onLink: () => undefined, underlineShortcut: false }), content: result.doc })
   const json = editor.getJSON()
   return { result, json, kept: keySourceSegments(result, json) }
@@ -153,3 +153,38 @@ describe('lesson constructs through Rich mode', () => {
     expect((performance.now() - started) / 20).toBeLessThan(16)
   })
 })
+
+/** Stored text with line endings and outer whitespace Rich mode must keep, and the one paragraph edited. */
+const STORED_WHITESPACE: [string, string, number, string][] = [
+  // [name, stored, paragraph edited (top-level index), expected after typing " Edited." at its end]
+  ['the review repro (CRLF, outer blank lines, trailing spaces)', '\n\nIntro.\r\n\r\nUntouched &nbsp; paragraph.  \r\n\r\nOutro.\r\n\r\n', 0, '\n\nIntro. Edited.\r\n\r\nUntouched &nbsp; paragraph.  \r\n\r\nOutro.\r\n\r\n'],
+  ['CRLF throughout, with code', 'Intro.\r\n\r\nSecond *one*\r\nline two\r\n\r\n```js\r\nconst a = 1\r\n```\r\n\r\nOutro.', 0, 'Intro. Edited.\r\n\r\nSecond *one*\r\nline two\r\n\r\n```js\r\nconst a = 1\r\n```\r\n\r\nOutro.'],
+  ['a CRLF paragraph edited keeps CRLF inside it', 'Intro.\r\n\r\nLine one\r\nline two\r\n\r\nOutro.', 1, 'Intro.\r\n\r\nLine one\r\nline two Edited.\r\n\r\nOutro.'],
+  ['leading and trailing blank lines', '\n\n\nIntro.\n\nMiddle.\n\n\n', 0, '\n\n\nIntro. Edited.\n\nMiddle.\n\n\n'],
+  ['an untouched hard break (two trailing spaces)', 'Intro.\n\nLine one  \nLine two\n\nOutro.', 0, 'Intro. Edited.\n\nLine one  \nLine two\n\nOutro.'],
+  ['a final newline with no blank line after it', 'Intro.\n\nOutro.\n', 0, 'Intro. Edited.\n\nOutro.\n'],
+  ['a final CRLF with no blank line after it', 'Intro.\r\n\r\nOutro.\r\n', 0, 'Intro. Edited.\r\n\r\nOutro.\r\n'],
+  ['the last paragraph edited before trailing blank lines', 'Intro.\r\n\r\nOutro.\r\n\r\n', 1, 'Intro.\r\n\r\nOutro. Edited.\r\n\r\n'],
+]
+
+describe('stored whitespace and line endings through a Rich edit (#304 review)', () => {
+  it.each(STORED_WHITESPACE.flatMap(([name, stored, index, expected]) => (['lesson', 'written', 'message'] as MarkdownTarget[]).map((target) => [name, target, stored, index, expected] as const)))(
+    '%s (%s): only the edited paragraph changes',
+    (_name, target, stored, index, expected) => {
+      const { json, kept } = load(stored, target)
+      expect(kept).not.toBeNull()
+      expect(editorJsonToMarkdownKeepingSource(json, kept, target)).toBe(stored)
+      expect(editorJsonToMarkdownKeepingSource(typeAtEnd(json, index, ' Edited.'), kept, target)).toBe(expected)
+    },
+  )
+
+  it('writes a new block in the stored line ending', () => {
+    const stored = 'Intro.\r\n\r\nOutro.'
+    const { json, kept } = load(stored)
+    const content: JSONContent[] = [...(json.content || [])]
+    content.splice(1, 0, { type: 'paragraph', content: [{ type: 'text', text: 'New' }, { type: 'hardBreak' }, { type: 'text', text: 'lines' }] })
+    const added: JSONContent = { ...json, content }
+    expect(editorJsonToMarkdownKeepingSource(added, kept, 'lesson')).toBe('Intro.\r\n\r\nNew\r\nlines\r\n\r\nOutro.')
+  })
+})
+
