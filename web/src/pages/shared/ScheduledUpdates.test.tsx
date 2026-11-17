@@ -2,7 +2,7 @@ import { TestRouter as MemoryRouter } from '../../test/TestRouter'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Announcement } from '../../types/api'
 
@@ -134,6 +134,55 @@ describe('Scheduled updates (U-3.6)', () => {
     await act(async () => button('Post now')!.click())
     await act(async () => button('Save draft')!.click())
     expect(mocks.update).toHaveBeenCalledWith(21, expect.objectContaining({ status: 'draft', scheduled_for: null }))
+  })
+
+  it('reconciles a replayed scheduled create when the push choice changed after the response was lost', async () => {
+    // The first create committed (scheduled, with push) but its response was lost.
+    mocks.create.mockResolvedValueOnce({ data: null, error: 'Response lost' })
+    mocks.create.mockResolvedValue({ data: { announcement: scheduled }, error: null })
+    await mount('/announcements?scope=manage&audience=cohort&cohort_id=5')
+    await setValue('input[placeholder="Title"]', 'Lab moves')
+    await setValue('textarea', 'Room 2')
+    await act(async () => button('Schedule')!.click())
+    await setValue('input[type="date"]', '2030-01-15')
+    await submit()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Response lost')
+    const push = [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].find((input) => input.closest('label')?.textContent?.includes('Send push'))!
+    await act(async () => push.click())
+    await submit()
+    expect(mocks.create.mock.calls[1][0]).toMatchObject({ send_push: false, client_request_id: mocks.create.mock.calls[0][0].client_request_id })
+    expect(mocks.update).toHaveBeenCalledWith(21, expect.objectContaining({ status: 'draft', scheduled_for: nineAm, send_push: false }))
+  })
+
+  it('a plain draft saved after a lost scheduled create cancels the replayed schedule', async () => {
+    mocks.create.mockResolvedValueOnce({ data: null, error: 'Response lost' })
+    mocks.create.mockResolvedValue({ data: { announcement: scheduled }, error: null })
+    await mount('/announcements?scope=manage&audience=cohort&cohort_id=5')
+    await setValue('input[placeholder="Title"]', 'Lab moves')
+    await setValue('textarea', 'Room 2')
+    await act(async () => button('Schedule')!.click())
+    await setValue('input[type="date"]', '2030-01-15')
+    await submit()
+    await act(async () => button('Post now')!.click())
+    await act(async () => button('Save draft')!.click())
+    expect(mocks.create.mock.calls[1][0]).toMatchObject({ status: 'draft', scheduled_for: null })
+    // The replay came back scheduled, so PATCH clears the send time: the draft won't post later.
+    expect(mocks.update).toHaveBeenCalledWith(21, expect.objectContaining({ status: 'draft', scheduled_for: null }))
+    expect(mocks.toast.success).toHaveBeenCalledWith('Draft saved')
+  })
+
+  it('a slow Cancel schedule for one update never shows its notice on another', async () => {
+    const other = { ...scheduled, id: 31, title: 'Other update' } as Announcement
+    mocks.detail.mockImplementation(async (id: number) => ({ data: { announcement: id === 31 ? other : scheduled }, error: null }))
+    let finish!: (value: unknown) => void
+    mocks.update.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    await act(async () => root.render(<MemoryRouter initialEntries={['/announcements/21?scope=manage']}><Location /><Link to="/announcements/31?scope=manage">Go to other</Link><Routes><Route path="/announcements/:id?" element={<Announcements />} /></Routes></MemoryRouter>))
+    await act(async () => button('Cancel schedule')!.click())
+    await act(async () => [...container.querySelectorAll('a')].find((link) => link.textContent === 'Go to other')!.click())
+    expect(container.textContent).toContain('Other update')
+    await act(async () => finish({ data: { announcement: { ...scheduled, scheduled_for: null, scheduled_send_push: false } }, error: null }))
+    expect(container.textContent).not.toContain('Schedule cancelled')
+    expect(container.querySelector('[data-testid="scheduled-notice"]')).not.toBeNull()
   })
 
   it('shows staff how many of the people it went to have read it, as counts only', async () => {

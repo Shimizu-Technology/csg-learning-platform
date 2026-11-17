@@ -176,7 +176,8 @@ function AnnouncementFeed() {
   const [detail, setDetail] = useState<Announcement | null>(null)
   const [detailError, setDetailError] = useState({ id: 0, message: '' })
   const [detailAttempt, setDetailAttempt] = useState(0)
-  const [detailNotice, setDetailNotice] = useState('')
+  // Keyed to its update, so a slow save or cancel for one never shows on another.
+  const [detailNotice, setDetailNotice] = useState({ id: 0, text: '' })
   const listRequest = useRef(0)
   const [removingId, setRemovingId] = useState<number | null>(null)
   const [pushMessage, setPushMessage] = useState('')
@@ -303,7 +304,7 @@ function AnnouncementFeed() {
   useEffect(() => {
     let active = true
     if (!selectedId) return
-    setDetailNotice('')
+    setDetailNotice({ id: 0, text: '' })
     api.getAnnouncement(selectedId).then((res) => {
       if (!active) return
       setDetailError({ id: selectedId, message: res.error || '' })
@@ -339,7 +340,7 @@ function AnnouncementFeed() {
     setDetail((current) => current && current.id === saved.id ? { ...current, ...saved } : current)
     setEditBaseline(JSON.stringify(formFromUpdate(saved)))
     setEditing(false)
-    setDetailNotice(outcome === 'posted' ? 'Update posted.' : outcome === 'scheduled' ? 'Schedule saved. Nobody is notified until it posts.' : outcome === 'draft' ? 'Draft saved.' : 'Changes saved. Readers see “Edited”; nobody was notified again.')
+    setDetailNotice({ id: saved.id ?? 0, text: outcome === 'posted' ? 'Update posted.' : outcome === 'scheduled' ? 'Schedule saved. Nobody is notified until it posts.' : outcome === 'draft' ? 'Draft saved.' : 'Changes saved. Readers see “Edited”; nobody was notified again.' })
     if (outcome === 'posted') toast.success('Update posted')
     if (outcome === 'scheduled') toast.success('Update scheduled')
     void loadAnnouncements({ background: true })
@@ -359,7 +360,7 @@ function AnnouncementFeed() {
     }
     const saved = res.data.announcement
     setDetail((current) => current && current.id === saved.id ? { ...current, ...saved } : current)
-    setDetailNotice('Schedule cancelled. It’s a draft now, and nobody was notified.')
+    setDetailNotice({ id: saved.id ?? 0, text: 'Schedule cancelled. It’s a draft now, and nobody was notified.' })
     void loadAnnouncements({ background: true })
   }
 
@@ -522,7 +523,7 @@ function AnnouncementFeed() {
             </> : undefined}
             copyPath={`/announcements/${selected.id}`}
           />
-          {detailNotice && <p role="status" className="rounded-xl border border-success-line bg-success-soft px-3 py-2 text-sm text-success-ink">{detailNotice}</p>}
+          {detailNotice.text && detailNotice.id === selected.id && <p role="status" className="rounded-xl border border-success-line bg-success-soft px-3 py-2 text-sm text-success-ink">{detailNotice.text}</p>}
           {isScheduled(selected) ? (
             <div className="flex items-start gap-2 rounded-xl border border-info-line bg-info-soft px-3 py-2 text-sm text-info-ink" data-testid="scheduled-notice">
               <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

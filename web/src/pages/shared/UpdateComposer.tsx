@@ -168,9 +168,14 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
           : await api.createAnnouncement({ ...data, title: data.title!, body: data.body!, audience: data.audience!, client_request_id: clientRequestId.current })
         if (!editing && res.data && !res.error) {
           const saved = res.data.announcement
-          const changed = Object.entries(data).some(([key, value]) => key !== 'send_push' && (key === 'scheduled_for'
-            ? (saved.scheduled_for ? Date.parse(saved.scheduled_for) : null) !== (value ? Date.parse(String(value)) : null)
-            : saved[key as keyof Announcement] !== value))
+          // A scheduled draft keeps its push choice until the tick posts it,
+          // so a replay with a different choice is reconciled too.
+          const scheduledSave = data.status === 'draft' && Boolean(data.scheduled_for)
+          const changed = Object.entries(data).some(([key, value]) => {
+            if (key === 'send_push') return scheduledSave && Boolean(saved.scheduled_send_push) !== Boolean(value)
+            if (key === 'scheduled_for') return (saved.scheduled_for ? Date.parse(saved.scheduled_for) : null) !== (value ? Date.parse(String(value)) : null)
+            return saved[key as keyof Announcement] !== value
+          })
           // A lost response may replay an older draft (or an already posted
           // update). Reconcile before clearing; PATCH posts a draft once and
           // only edits an update that is already posted.
@@ -219,8 +224,9 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     if (inFlight.current) return
     const problem = audienceProblem() || (!form.title.trim() ? 'Give the draft a title so you can find it in Drafts.' : '')
     if (problem) return setError(problem)
-    // Saving a scheduled update as a plain draft cancels its schedule.
-    const data = { ...fields(), status: 'draft', ...(wasScheduled ? { scheduled_for: null } : {}) }
+    // A plain draft has no send time: this cancels an existing schedule, and
+    // reconciles a replayed create that was scheduled before its response was lost.
+    const data = { ...fields(), status: 'draft', scheduled_for: null }
     return run('draft', data, 'draft')
   }
 

@@ -311,14 +311,15 @@ module Api
         Announcement.find_by(author_id: current_user.id, client_request_id: client_request_id)
       end
 
-      # The requested send time: nil when absent or null (cancels a schedule
-      # on update), a Time when valid, or :invalid. It must carry a UTC
-      # offset, so "9:00" can't silently mean the server's zone.
+      # The requested send time: nil when absent, null or "" (cancels a
+      # schedule on update), a Time when valid, or :invalid. It must carry a
+      # UTC offset, so "9:00" can't silently mean the server's zone. Any other
+      # value (false, [], {}, a number) is invalid rather than a cancel.
       def schedule_param
         return @schedule_param if defined?(@schedule_param)
 
         raw = params[:scheduled_for]
-        @schedule_param = if raw.blank?
+        @schedule_param = if raw.nil? || raw == ""
           nil
         elsif raw.is_a?(String) && Iso8601TimeInput.explicit_offset?(raw)
           begin

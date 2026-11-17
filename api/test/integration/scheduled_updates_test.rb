@@ -99,6 +99,20 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
       assert_equal 0, Announcement.where(author: @author).count
     end
 
+    # Only null or "" cancels a schedule; any other non-time value is refused, not taken as a cancel.
+    update = scheduled(at: 1.day.from_now)
+    as_user(@author) do
+      [ false, [], 0, { at: "tomorrow" }, "   " ].each do |value|
+        patch "/api/v1/announcements/#{update.id}", params: { scheduled_for: value }, headers: headers, as: :json
+        assert_response :unprocessable_entity, value.inspect
+        assert_equal [ "Send time must be an ISO 8601 time with a UTC offset" ], response.parsed_body["errors"]
+      end
+      assert update.reload.scheduled?
+      patch "/api/v1/announcements/#{update.id}", params: { scheduled_for: "" }, headers: headers, as: :json
+      assert_response :success
+      assert_nil update.reload.scheduled_for
+    end
+
     posted = Announcement.create!(title: "Posted", body: "Words", author: @author, audience: :cohort, cohort: @cohort, status: :published)
     as_user(@author) do
       patch "/api/v1/announcements/#{posted.id}", params: { scheduled_for: 1.day.from_now.iso8601 }, headers: headers, as: :json

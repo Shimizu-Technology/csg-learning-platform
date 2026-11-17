@@ -40,13 +40,21 @@ when 'tick'
   task = ScheduledTick::TASKS.find { |entry| entry.name == 'scheduled_updates' }
   log = StringIO.new
   logger = ActiveSupport::Logger.new(log)
-  push_jobs = -> { ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job['job_class'] == 'PushNotificationJob' } }
+  target_id = argument && Integer(argument, 10)
+  # Only this update's push jobs (another update's re-requested push may be queued too).
+  push_jobs = lambda do
+    ActiveJob::Base.queue_adapter.enqueued_jobs.count do |job|
+      job['job_class'] == 'PushNotificationJob' && job['arguments'][0] == 'Announcement' && job['arguments'][1] == target_id
+    end
+  end
+  # One instant for all three runs, so the second is in the same hourly slot as the first.
+  now = Time.current
   ScheduledTaskRun.where(name: 'scheduled_updates').delete_all
-  runs = 2.times.map { ScheduledTick.new(now: Time.current, tasks: [ task ], logger: logger, dry_run: false).call }
+  runs = 2.times.map { ScheduledTick.new(now: now, tasks: [ task ], logger: logger, dry_run: false).call }
   # A rerun that isn't held back by the hourly checkpoint still finds nothing to post.
   ScheduledTaskRun.where(name: 'scheduled_updates').delete_all
-  runs << ScheduledTick.new(now: Time.current, tasks: [ task ], logger: logger, dry_run: false).call
-  update = argument && Announcement.find(Integer(argument, 10))
+  runs << ScheduledTick.new(now: now, tasks: [ task ], logger: logger, dry_run: false).call
+  update = target_id && Announcement.find(target_id)
   puts({ runs: runs, summaries: log.string.lines.map { |line| JSON.parse(line[/\{.*\}/]) },
          update: update && { id: update.id, status: update.status, published_at: update.published_at, notifications: Notification.where(notifiable: update).count },
          push_jobs: push_jobs.call }.to_json)
