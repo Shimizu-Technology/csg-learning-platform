@@ -15,7 +15,7 @@ class LearningInsightsProjection
       evidence_scope: {
         kind: "enrollment",
         curriculum_id: cohort.curriculum_id,
-        curriculum_name: cohort.curriculum.name,
+        curriculum_name: CurriculumName.in_cohort(cohort),
         completion_and_watch_time_excluded: true
       },
       cohort: { id: cohort.id, name: cohort.name },

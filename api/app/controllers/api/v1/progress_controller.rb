@@ -296,7 +296,7 @@ module Api
           learning_evidence_scope: {
             kind: "enrollment",
             curriculum_id: curriculum.id,
-            curriculum_name: curriculum.name,
+            curriculum_name: CurriculumName.new(current_user).for(curriculum, in_cohort: cohort),
             enrollment_count: same_curriculum_enrollment_count,
             shared_across_enrollments: false
           },

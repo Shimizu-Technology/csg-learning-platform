@@ -6,7 +6,7 @@ import { applyUrlPatch, urlParsers, useUrlState } from '../../lib/useUrlState'
 import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Archive, ChevronDown, ChevronRight, Eye, Plus, RotateCcw, Upload, MoreHorizontal } from 'lucide-react'
+import { Archive, ChevronDown, ChevronRight, Eye, Layers3, Plus, RotateCcw, Upload, MoreHorizontal } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
@@ -27,7 +27,7 @@ import { RecordLink } from '../../components/shared/RecordLink'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import type { CurriculumSummary, AccessibleCohort } from '../../types/api'
 import { searchDestinationPath } from '../../lib/searchDestination'
-import { lessonEditorPath } from '../../lib/routes'
+import { curriculumPath, lessonEditorPath } from '../../lib/routes'
 import type { LessonEditAccess } from '../../types/api'
 
 const CONTENT_URL = {
@@ -649,11 +649,17 @@ export function ContentManagement() {
                         )}
                         {curriculum.editing?.copy_of && (
                           <span className="inline-flex min-h-6 items-center text-xs font-semibold text-ink-secondary">
-                            <RecordLink record={{ type: 'cohort', id: curriculum.editing.copy_of.cohort.id }} variant="plain">{curriculum.editing.copy_of.cohort.name}</RecordLink>'s copy
+                            {curriculum.editing.copy_of.cohort
+                              ? <><RecordLink record={{ type: 'cohort', id: curriculum.editing.copy_of.cohort.id }} variant="plain">{curriculum.editing.copy_of.cohort.name}</RecordLink>'s copy</>
+                              : 'A cohort’s copy'}
                           </span>
                         )}
                       </div>
                     </div>
+                    {/* The curriculum's record page: cohorts using it, copies, rubrics and objectives (L-3.2). */}
+                    <LinkButton to={curriculumPath(curriculum.id)} state={listLinkState(location, 'Content')} variant="secondary" size="sm" className="shrink-0">
+                      <Layers3 className="h-4 w-4" aria-hidden="true" />Where it's used
+                    </LinkButton>
                     {curriculum.editing && (curriculum.editing.copy_cohorts ?? []).length > 0 && (
                       <CopyForCohortAction
                         variant={canManageModules ? 'secondary' : 'primary'}
@@ -1215,7 +1221,7 @@ function ModuleSection({
                       <div className="min-w-0">
                         <p className="break-words text-sm font-semibold text-ink" title={lesson.title}>
                           <RecordLink
-                            record={{ type: 'lesson', id: lesson.id }}
+                            record={{ type: 'lesson', id: lesson.id, view: 'edit' }}
                             returnLabel="Content"
                             variant="plain"
                             touchTarget

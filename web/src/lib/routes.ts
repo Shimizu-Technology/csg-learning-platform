@@ -15,7 +15,22 @@ export function cohortPath(cohortId: number, tab?: CohortWorkspaceTab) {
   return `/admin/cohorts/${cohortId}${tab && tab !== 'overview' ? `?tab=${tab}` : ''}`
 }
 
-/** The lesson editor itself (admins), e.g. to return to it after an upload. Links to a lesson use `recordPath`. */
+/** A curriculum's staff record page (L-5): modules, cohorts using it, copies, rubrics and objectives. */
+export function curriculumPath(curriculumId: number) {
+  return `/admin/curricula/${curriculumId}`
+}
+
+/** A module's staff record page (L-5), optionally focused on one cohort's schedule. */
+export function moduleRecordPath(moduleId: number, cohortId?: number | null) {
+  return `/admin/modules/${moduleId}${cohortId ? `?cohort_id=${cohortId}` : ''}`
+}
+
+/** A lesson's staff record page (L-5): what it is, where it's used, submissions and help. */
+export function lessonRecordPath(lessonId: number, cohortId?: number | null) {
+  return `/admin/lessons/${lessonId}${cohortId ? `?cohort_id=${cohortId}` : ''}`
+}
+
+/** The lesson editor itself, e.g. to return to it after an upload. Links to a lesson use `recordPath`. */
 export function lessonEditorPath(lessonId: number, options: { preview?: boolean } = {}) {
   return `/admin/lessons/${lessonId}/edit${options.preview ? '?preview=true' : ''}`
 }
@@ -37,6 +52,11 @@ export function cohortWatchProgressPath(cohortId: number) {
 /** Staff preview of the learner view, optionally as one enrolled student. */
 export function cohortStudentViewPath(cohortId: number, studentId?: number | null) {
   return `${cohortPath(cohortId)}/student-view${studentId ? `?student_id=${studentId}` : ''}`
+}
+
+/** One lesson in the staff preview of a cohort's learner view ("View as student"). */
+export function cohortStudentViewLessonPath(cohortId: number, lessonId: number) {
+  return `${cohortPath(cohortId)}/student-view/lessons/${lessonId}`
 }
 
 export function conversationPath(target: { type: 'channel' | 'dm'; id: number }, context: { messageId?: number | null; cohortId?: number | null } = {}) {
@@ -202,12 +222,15 @@ export type RecordRef =
   /** An instructor or admin: their team member page. Only admins have one to open. */
   | { type: 'staff'; id: Id }
   | { type: 'cohort'; id: Id; tab?: CohortWorkspaceTab }
-  /** Curricula are managed inside Content; there is no curriculum page yet. */
+  /** Staff open the curriculum page (L-5); learners have none. */
   | { type: 'curriculum'; id: Id }
-  | { type: 'module'; id: Id; cohortId?: OptionalId }
+  /** Staff open the module page (L-5) unless `view: 'learn'`; learners open the module in Learn. */
+  | { type: 'module'; id: Id; cohortId?: OptionalId; view?: 'learn' }
   /**
-   * Admins open the editor unless `view: 'learn'`; everyone else opens the lesson.
-   * Learner pages pass `view: 'learn'` so admins browsing them stay in the learner view.
+   * Staff open the lesson page (L-5). `view: 'edit'` opens the editor for staff
+   * (it is read only without editing access); `view: 'learn'` opens the learner
+   * view, as learners always do. Learner pages pass `view: 'learn'` so staff
+   * browsing them stay in the learner view.
    * `anchor` (learner view only) scrolls to an element id such as `block-12` or `redo`.
    */
   | { type: 'lesson'; id: Id; cohortId?: OptionalId; view?: 'edit' | 'learn'; anchor?: string }
@@ -256,6 +279,8 @@ export interface RecordRouteInfo {
   /** Query keys the destination reads. */
   contextKeys: readonly string[]
   returnTo: ReturnSupport
+  /** What the staff page honors, where it differs from the learner page (`returnTo`). */
+  staffReturnTo?: ReturnSupport
 }
 
 /**
@@ -268,9 +293,9 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   user: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
   staff: { staff: null, admin: '/admin/team/:id', student: null, contextKeys: [], returnTo: 'none' },
   cohort: { staff: '/admin/cohorts/:id', admin: '/admin/cohorts/:id', student: '/cohorts/:id', contextKeys: ['tab'], returnTo: 'none' },
-  curriculum: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
-  module: { staff: '/modules/:id', admin: '/modules/:id', student: '/modules/:id', contextKeys: ['cohort_id'], returnTo: 'none' },
-  lesson: { staff: '/lessons/:id', admin: '/admin/lessons/:id/edit', student: '/lessons/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'activity' },
+  curriculum: { staff: '/admin/curricula/:id', admin: '/admin/curricula/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
+  module: { staff: '/admin/modules/:id', admin: '/admin/modules/:id', student: '/modules/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'none', staffReturnTo: 'any' },
+  lesson: { staff: '/admin/lessons/:id', admin: '/admin/lessons/:id', student: '/lessons/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'activity', staffReturnTo: 'any' },
   content_block: { staff: '/lessons/:lessonId', admin: '/lessons/:lessonId', student: '/lessons/:lessonId', contextKeys: ['cohort_id'], returnTo: 'none' },
   knowledge_check: { staff: '/lessons/:lessonId', admin: '/lessons/:lessonId', student: '/lessons/:lessonId', contextKeys: ['cohort_id'], returnTo: 'none' },
   submission: { staff: '/admin/submissions/:id', admin: '/admin/submissions/:id', student: '/lessons/:lessonId', contextKeys: ['cohort_id', 'student_id', 'return_to', 'queue', 'queue_cohort_id'], returnTo: 'any' },
@@ -320,7 +345,10 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
   const role = viewerRole(context.viewer)
   if (!role) return null
   const staff = role !== 'student'
-  const routeReturn = (type: RecordType) => acceptedReturn(RECORD_ROUTES[type].returnTo, context.returnTo)
+  const routeReturn = (type: RecordType, staffPage = false) => {
+    const info = RECORD_ROUTES[type]
+    return acceptedReturn(staffPage && info.staffReturnTo ? info.staffReturnTo : info.returnTo, context.returnTo)
+  }
 
   switch (ref.type) {
     case 'student':
@@ -338,11 +366,18 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
       if (!validId(ref.id)) return null
       if (!staff) return learnerCohortPath(ref.id)
       return cohortPath(ref.id, ref.tab)
-    case 'module':
-      return validId(ref.id) ? withQuery(`/modules/${ref.id}`, { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined }) : null
+    case 'curriculum':
+      return staff && validId(ref.id) ? withQuery(curriculumPath(ref.id), { return_to: routeReturn('curriculum') }) : null
+    case 'module': {
+      if (!validId(ref.id)) return null
+      const cohortId = validId(ref.cohortId) ? ref.cohortId : undefined
+      if (staff && ref.view !== 'learn') return withQuery(`/admin/modules/${ref.id}`, { cohort_id: cohortId, return_to: routeReturn('module', true) })
+      return withQuery(`/modules/${ref.id}`, { cohort_id: cohortId })
+    }
     case 'lesson':
       if (!validId(ref.id)) return null
-      if (role === 'admin' && ref.view !== 'learn') return lessonEditorPath(ref.id)
+      if (staff && ref.view === 'edit') return lessonEditorPath(ref.id)
+      if (staff && ref.view !== 'learn') return withQuery(`/admin/lessons/${ref.id}`, { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, return_to: routeReturn('lesson', true) })
       return lessonLearnerPath(ref.id, ref.cohortId, ref.anchor, routeReturn('lesson'))
     case 'content_block':
     case 'knowledge_check':
@@ -372,7 +407,6 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     case 'learning_plan':
       return staff && validId(ref.userId) && validId(ref.cohortId) ? cohortStudentPath(ref.cohortId, ref.userId, 'learning') : null
     case 'user':
-    case 'curriculum':
     case 'private_meeting':
     case 'office_hour':
       return null

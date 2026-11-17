@@ -16,7 +16,7 @@ module Api
           :cohort_module_schedules,
           :cohort_module_submission_windows,
           { office_hours: :created_by },
-          curriculum: :modules
+          curriculum: [ :modules, { cohort_copy: :cohort } ]
         ).order(start_date: :desc)
         render json: {
           cohorts: cohorts.map { |c|
@@ -30,7 +30,7 @@ module Api
       # The switcher list is available to every signed-in role. It is also the
       # source of truth when a saved cohort selection has become unauthorized.
       def accessible
-        cohorts = current_user.accessible_cohorts.includes(:curriculum, :workspace).order(start_date: :desc)
+        cohorts = current_user.accessible_cohorts.includes({ curriculum: { cohort_copy: :cohort } }, :workspace).order(start_date: :desc)
         enrollment_statuses = current_user.student? ? current_user.enrollments.includes(cohort: [ :support_instructor, :workspace ]).where(cohort_id: cohorts.map(&:id)).index_by(&:cohort_id) : {}
         blocked_instructors = UserBlock.related_user_ids(current_user.id, enrollment_statuses.values.map { |enrollment| enrollment.cohort.support_instructor_id }.compact)
         render json: { cohorts: cohorts.map { |cohort|
@@ -41,7 +41,7 @@ module Api
             status: cohort.effective_status,
             cohort_type: cohort.cohort_type,
             features: features,
-            curriculum_name: cohort.curriculum.name,
+            curriculum_name: CurriculumName.in_cohort(cohort),
             curriculum_id: cohort.curriculum_id,
             course_delivery: cohort.course_delivery,
             workspace_id: cohort.workspace&.id,
@@ -413,7 +413,7 @@ module Api
             start_date: cohort.start_date,
             end_date: cohort.end_date,
             features: FeatureSwitches.for(cohort: cohort),
-            curriculum_name: cohort.curriculum.name,
+            curriculum_name: CurriculumName.in_cohort(cohort),
             active_count: active_enrollments.size
           },
           read_only: true,
@@ -703,7 +703,7 @@ module Api
           guided_access_ends_on: cohort.guided_access_ends_on,
           guided_support_ends_on: cohort.guided_support_ends_on,
           curriculum_id: cohort.curriculum_id,
-          curriculum_name: cohort.curriculum.name,
+          curriculum_name: CurriculumName.in_cohort(cohort),
           start_date: cohort.start_date,
           end_date: cohort.end_date,
           github_organization_name: cohort.github_organization_name,

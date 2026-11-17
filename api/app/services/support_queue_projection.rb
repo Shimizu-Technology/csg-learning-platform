@@ -1,9 +1,15 @@
 class SupportQueueProjection
   RECENT_RESOLVED_LIMIT = 20
 
-  def initialize(now: Time.current, cohort_ids: nil)
+  # `lesson_id` / `module_id` narrow the help-request lists and help counts to
+  # requests asked from that lesson (or its exercises), or from any lesson in
+  # that module, still inside `cohort_ids`. A malformed id matches nothing.
+  # The rest of the page (students, follow-up plans) is unchanged.
+  def initialize(now: Time.current, cohort_ids: nil, lesson_id: nil, module_id: nil)
     @now = now
     @cohort_ids = cohort_ids
+    @lesson_filter = lesson_id.present? ? (positive_id(lesson_id) || 0) : nil
+    @module_filter = module_id.present? ? (positive_id(module_id) || 0) : nil
   end
 
   def call
@@ -34,6 +40,7 @@ class SupportQueueProjection
         active_recovery_plan_count: active_recovery_plans.size,
         due_recovery_check_in_count: active_recovery_plans.count { |plan| plan.next_check_in_at <= @now }
       },
+      help_filter: help_filter_json,
       help_requests: active_requests.map { |request| HelpRequestSerializer.as_json(request, include_student: true, blocks: blocks) },
       recently_resolved: resolved.map { |request| HelpRequestSerializer.as_json(request, include_student: true, blocks: blocks) },
       students: students,
@@ -45,6 +52,40 @@ class SupportQueueProjection
   private
 
   def scoped(relation)
-    @cohort_ids ? relation.where(cohort_id: @cohort_ids) : relation
+    relation = relation.where(cohort_id: @cohort_ids) if @cohort_ids
+    lesson_ids = filter_lesson_ids
+    return relation unless lesson_ids
+
+    blocks = ContentBlock.where(lesson_id: lesson_ids).select(:id)
+    relation.where(context_type: :lesson, context_id: lesson_ids).or(relation.where(context_type: :exercise, context_id: blocks))
+  end
+
+  # The lessons the help filter covers, as a subquery, or nil without a filter.
+  def filter_lesson_ids
+    return Lesson.where(id: @lesson_filter).select(:id) if @lesson_filter
+    return Lesson.where(module_id: @module_filter).select(:id) if @module_filter
+
+    nil
+  end
+
+  # The filter's name for the page's chip, only for content on a curriculum one
+  # of the scoped cohorts uses; anything else gets no name (it matches nothing
+  # the viewer can see either).
+  def help_filter_json
+    return nil unless @lesson_filter || @module_filter
+
+    curricula = @cohort_ids ? Cohort.where(id: @cohort_ids).select(:curriculum_id) : Cohort.select(:curriculum_id)
+    if @lesson_filter
+      lesson = Lesson.joins(:curriculum_module).where(modules: { curriculum_id: curricula }).find_by(id: @lesson_filter)
+      { type: "lesson", id: @lesson_filter, name: lesson&.title }
+    else
+      mod = CurriculumModule.where(curriculum_id: curricula).find_by(id: @module_filter)
+      { type: "module", id: @module_filter, name: mod&.name }
+    end
+  end
+
+  def positive_id(value)
+    number = Integer(value.to_s, 10, exception: false)
+    number if number&.positive?
   end
 end

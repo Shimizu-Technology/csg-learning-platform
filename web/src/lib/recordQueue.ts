@@ -113,6 +113,9 @@ export interface SupportFilters {
   cohortId: number | null
   view: 'active' | 'resolved'
   urgentOnly: boolean
+  /** Help asked from one lesson or one module (from content record pages, L-3.2). */
+  lessonId: number | null
+  moduleId: number | null
 }
 
 export function supportFiltersFromSearch(search: string | URLSearchParams): SupportFilters {
@@ -121,6 +124,8 @@ export function supportFiltersFromSearch(search: string | URLSearchParams): Supp
     cohortId: idParam(params.get('cohort_id')),
     view: params.get('view') === 'resolved' ? 'resolved' : 'active',
     urgentOnly: params.get('urgency') === 'urgent',
+    lessonId: idParam(params.get('lesson_id')),
+    moduleId: idParam(params.get('module_id')),
   }
 }
 

@@ -36,7 +36,7 @@ export function LessonRow({
     <tr className="border-b border-line hover:bg-surface-sunken">
       <td className="min-w-0 px-3 py-1">
         <RecordLink
-          record={{ type: 'lesson', id: lesson.id }}
+          record={{ type: 'lesson', id: lesson.id, view: canEdit ? 'edit' : undefined }}
           returnLabel="Content"
           className="flex min-h-11 min-w-0 items-center break-words text-sm font-semibold hover:underline"
         >

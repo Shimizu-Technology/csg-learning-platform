@@ -2,6 +2,7 @@ module Api
   module V1
     # GET /api/v1/records/:type/:id/summary — what a peek card shows (L-0.5).
     # GET /api/v1/records/:type/:id/related — a record page's related panel (L-0.4).
+    # GET /api/v1/records/:type/:id/usage — where content is used (L-3.2, L-5), staff only.
     # Anything the viewer can't open answers 404, the same as a record that
     # doesn't exist, so a peek never confirms another learner or cohort exists.
     class RecordSummariesController < ApplicationController
@@ -26,6 +27,19 @@ module Api
         response.headers["Cache-Control"] = "private, no-store"
         if related
           render json: { related: related }
+        else
+          render json: { error: "Not found" }, status: :not_found
+        end
+      end
+
+      # GET /api/v1/records/:type/:id/usage — the cohorts, schedules, work and
+      # copies a curriculum, module or lesson is used in (RecordUsage). Staff
+      # only; instructors see only the cohorts they teach. Same 404 rule.
+      def usage
+        usage = RecordUsage.for(viewer: current_user, type: params[:type], id: params[:id])
+        response.headers["Cache-Control"] = "private, no-store"
+        if usage
+          render json: { usage: usage }
         else
           render json: { error: "Not found" }, status: :not_found
         end

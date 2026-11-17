@@ -34,6 +34,9 @@ import {
   StaffPrivateMeetings,
   Grading,
   LessonEditor,
+  LessonRecord,
+  CurriculumRecord,
+  ModuleRecord,
   LessonView,
   Materials,
   Messages,
@@ -157,6 +160,9 @@ function AppRoutes() {
             <Route path="/admin/interventions/:id" element={<SuspendedRoute><InterventionDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />
             <Route path="/admin/content" element={<SuspendedRoute><ContentManagement /></SuspendedRoute>} />
+            <Route path="/admin/curricula/:id" element={<SuspendedRoute><CurriculumRecord /></SuspendedRoute>} />
+            <Route path="/admin/modules/:id" element={<SuspendedRoute><ModuleRecord /></SuspendedRoute>} />
+            <Route path="/admin/lessons/:id" element={<SuspendedRoute><LessonRecord /></SuspendedRoute>} />
             <Route path="/admin/lessons/:id/edit" element={<SuspendedRoute><LessonEditor /></SuspendedRoute>} />
           </Route>
 

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Activity, Archive, Layers, Mail, MessageSquareText, PencilLine, RefreshCw, UserRound } from 'lucide-react'
+import { Activity, Archive, ClipboardCheck, Layers, LifeBuoy, Mail, MessageSquareText, PencilLine, RefreshCw, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { directMessagePath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { grantLine } from '../../lib/lessonEditing'
-import { humanize } from '../../lib/glossary'
+import { humanize, TERMS } from '../../lib/glossary'
+import { FOLLOW_UP_STATUS_LABELS } from '../../lib/followUpLabels'
+import { gradingPath, plural, supportPath } from '../../lib/recordUsage'
 import type { RelatedRow } from '../../lib/recordRelated'
 import { useToast } from '../../contexts/ToastContext'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
@@ -77,8 +79,14 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
   const running = member.teaching.filter((row) => row.cohort.status === 'active' || row.cohort.status === 'upcoming')
   const editing = member.teaching.filter((row) => row.can_edit_lessons)
   const firstName = member.first_name || member.full_name
+  const waiting = member.teaching.reduce((sum, row) => sum + row.waiting_review, 0)
+  const workload = member.workload
   const rows: RelatedRow[] = [
     { key: 'cohorts', icon: Layers, label: 'Cohorts they teach', count: member.teaching.length, onSelect: () => scrollToSection('cohorts') },
+    // Grading load (L-3.2): latest attempts waiting for review across the cohorts they teach.
+    { key: 'grading', icon: ClipboardCheck, label: 'Grading load', count: waiting, attention: waiting > 0, ...(member.teaching.length === 1 ? { to: gradingPath({ cohortId: member.teaching[0].cohort.id }) } : { onSelect: () => scrollToSection('cohorts') }) },
+    { key: 'follow_ups', icon: UserRoundCheck, label: `${TERMS.followUpPlans} they own`, count: workload.follow_ups_count, onSelect: () => scrollToSection('follow-ups') },
+    { key: 'owned_help', icon: LifeBuoy, label: 'Help requests they own', count: workload.owned_help_count },
     { key: 'editing', icon: PencilLine, label: 'Lesson editing access', count: editing.length, onSelect: () => scrollToSection('cohorts') },
     { key: 'activity', icon: Activity, label: 'Recent activity', value: 'View', onSelect: () => scrollToSection('activity') },
     ...(member.message_cohort_id ? [{ key: 'message', icon: MessageSquareText, label: `Message ${firstName}`, value: null, onSelect: () => void openMessage() }] : []),
@@ -123,12 +131,39 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
                   <Badge tone={COHORT_TONES[row.cohort.status] || 'neutral'}>{humanize(row.cohort.status)}</Badge>
                 </div>
                 <p className="mt-0.5 text-xs tabular-nums text-ink-muted">{row.cohort.course_delivery === 'self_paced' ? 'Self-paced' : 'Live program'} · starts {formatShortDate(row.cohort.start_date, '')} · assigned {formatShortDate(row.assigned_at, '')}</p>
+                <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs font-semibold tabular-nums">
+                  <Link to={gradingPath({ cohortId: row.cohort.id })} className={`inline-flex min-h-11 items-center hover:underline sm:min-h-0 ${row.waiting_review ? 'text-warning-ink' : 'text-ink-muted'}`}>{row.waiting_review} waiting for review</Link>
+                  <Link to={supportPath(row.cohort.id)} className={`inline-flex min-h-11 items-center hover:underline sm:min-h-0 ${row.open_help ? 'text-warning-ink' : 'text-ink-muted'}`}>{row.open_help} open help</Link>
+                </p>
               </div>
               <div className="flex min-w-0 flex-col items-start gap-0.5 sm:items-end">
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"><PencilLine className="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />{row.can_edit_lessons ? 'Can edit lessons' : 'Lessons read only'}</span>
                 {row.can_edit_lessons && <span className="text-xs text-ink-muted">{grantLine({ granted_by: row.edit_granted_by, granted_at: row.edit_granted_at }, 'them')}</span>}
                 <RecordLink record={{ type: 'cohort', id: row.cohort.id, tab: 'team' }} returnLabel={member.full_name} variant="app" touchTarget peek={false} className="text-xs" aria-label={`Change lesson editing for ${member.full_name} in ${row.cohort.name}`}>Change on Teaching team</RecordLink>
               </div>
+            </li>
+          ))}</ul>}
+        </section>
+
+        <section id="follow-ups" aria-labelledby="team-member-follow-ups" className="app-surface overflow-hidden" tabIndex={-1}>
+          <div className="border-b border-line px-5 py-4 sm:px-6">
+            <h2 id="team-member-follow-ups" className="text-lg font-bold text-ink">{TERMS.followUpPlans} they own</h2>
+            <p className="mt-1 text-sm text-ink-secondary">{workload.follow_ups_count
+              ? `${plural(workload.follow_ups_count, 'active plan')}, soonest follow-up first.${workload.follow_ups_count > workload.follow_ups.length ? ` Showing ${workload.follow_ups.length}.` : ''}`
+              : `${firstName} doesn’t own an active ${TERMS.followUpPlan.toLowerCase()}.`}{workload.owned_help_count ? ` They also own ${plural(workload.owned_help_count, 'open help request')}.` : ''}</p>
+          </div>
+          {workload.follow_ups.length > 0 && <ul className="divide-y divide-line">{workload.follow_ups.map((plan) => (
+            <li key={plan.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 sm:px-6">
+              <UserRoundCheck className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <RecordLink record={{ type: 'intervention', id: plan.id }} variant="plain" touchTarget className="font-semibold">{`${plan.student.name}'s ${TERMS.followUpPlan.toLowerCase()}`}</RecordLink>
+                <p className="text-xs text-ink-muted">
+                  <RecordLink record={{ type: 'student', id: plan.student.id, cohortId: plan.cohort.id }} variant="plain" className="font-normal text-ink-muted">{plan.student.name}</RecordLink>
+                  {' · '}<RecordLink record={{ type: 'cohort', id: plan.cohort.id }} variant="plain" className="font-normal text-ink-muted">{plan.cohort.name}</RecordLink>
+                </p>
+              </div>
+              <Badge tone={plan.severity === 'urgent' ? 'danger' : 'neutral'}>{FOLLOW_UP_STATUS_LABELS[plan.status as keyof typeof FOLLOW_UP_STATUS_LABELS] ?? humanize(plan.status)}</Badge>
+              <span className="text-xs tabular-nums text-ink-muted">{plan.next_follow_up_at ? `Follow up ${formatShortDate(plan.next_follow_up_at, '', { withYear: false })}` : 'No follow-up date'}</span>
             </li>
           ))}</ul>}
         </section>

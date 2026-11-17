@@ -102,7 +102,7 @@ describe('Support', () => {
 
   it('restores view and urgency through Back and ignores a bad cohort id', async () => {
     const router = await render('/admin/support', <SupportQueue />, '/admin/support?view=nonsense&cohort_id=-2')
-    expect(api.getSupportQueue).toHaveBeenCalledWith(undefined)
+    expect(api.getSupportQueue).toHaveBeenCalledWith(undefined, undefined, { lessonId: null, moduleId: null })
     expect(messages()).toEqual(['Message 1', 'Message 2'])
     await act(async () => buttonNamed('Urgent only').click())
     expect(new URLSearchParams(router.state.location.search).get('urgency')).toBe('urgent')
@@ -111,6 +111,23 @@ describe('Support', () => {
     expect(new URLSearchParams(record.getAttribute('href')!.split('?')[1]).get('return_to')).toBe('/admin/support?view=nonsense&cohort_id=-2&urgency=urgent')
     await back(router)
     expect(messages()).toEqual(['Message 1', 'Message 2'])
+  })
+
+  // L-3.2 fix round 1: a content page's "open help" opens help on that lesson only, filtered by the server.
+  it('passes a lesson filter to the server, names it, and removes it', async () => {
+    vi.mocked(api.getSupportQueue).mockImplementation(async (_cohort, _signal, help) => ({ data: { support_queue: {
+      help_requests: [], recently_resolved: [], students: [], interventions: [], recovery_plans: [],
+      summary: { open_help_count: 0, active_intervention_count: 0, due_follow_up_count: 0, due_recovery_check_in_count: 0 },
+      help_filter: help?.lessonId ? { type: 'lesson', id: help.lessonId, name: 'Make decisions' } : null,
+    } }, error: null }) as never)
+    const router = await render('/admin/support', <SupportQueue />, '/admin/support?cohort_id=3&lesson_id=40')
+    expect(api.getSupportQueue).toHaveBeenCalledWith(3, undefined, { lessonId: 40, moduleId: null })
+    const chip = container.querySelector<HTMLButtonElement>('button[data-help-filter="lesson"]')!
+    expect(chip.getAttribute('aria-label')).toBe('Lesson: Make decisions. Remove this filter')
+    expect(chip.textContent).toBe('Lesson: Make decisions')
+    await act(async () => chip.click())
+    expect(router.state.location.search).toBe('?cohort_id=3')
+    expect(api.getSupportQueue).toHaveBeenLastCalledWith(3, undefined, { lessonId: null, moduleId: null })
   })
 })
 

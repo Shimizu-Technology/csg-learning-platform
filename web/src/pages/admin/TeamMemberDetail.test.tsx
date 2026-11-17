@@ -17,9 +17,13 @@ const member = {
   id: 7, email: 'ina@example.invalid', first_name: 'Ina', last_name: 'Teacher', full_name: 'Ina Teacher', role: 'instructor', avatar_url: null, github_username: null,
   last_sign_in_at: '2026-11-15T02:00:00Z', archived_at: null, invite_pending: false, created_at: '2026-09-01T00:00:00Z', is_self: false, message_cohort_id: 4,
   teaching: [
-    { cohort: { id: 4, name: 'Cohort Teal', status: 'active', course_delivery: 'program', start_date: '2026-10-01' }, assigned_at: '2026-09-02T00:00:00Z', can_edit_lessons: true, edit_granted_at: '2026-11-14T02:00:00Z', edit_granted_by: { id: 1, full_name: 'Ada Admin' } },
-    { cohort: { id: 2, name: 'Cohort Coral', status: 'completed', course_delivery: 'program', start_date: '2026-05-01' }, assigned_at: '2026-04-02T00:00:00Z', can_edit_lessons: false, edit_granted_at: null, edit_granted_by: null },
+    { cohort: { id: 4, name: 'Cohort Teal', status: 'active', course_delivery: 'program', start_date: '2026-10-01' }, assigned_at: '2026-09-02T00:00:00Z', can_edit_lessons: true, edit_granted_at: '2026-11-14T02:00:00Z', edit_granted_by: { id: 1, full_name: 'Ada Admin' }, waiting_review: 3, open_help: 1 },
+    { cohort: { id: 2, name: 'Cohort Coral', status: 'completed', course_delivery: 'program', start_date: '2026-05-01' }, assigned_at: '2026-04-02T00:00:00Z', can_edit_lessons: false, edit_granted_at: null, edit_granted_by: null, waiting_review: 0, open_help: 0 },
   ],
+  workload: {
+    follow_ups_count: 1, owned_help_count: 2,
+    follow_ups: [{ id: 61, status: 'contacted', severity: 'normal', next_follow_up_at: '2026-11-20T00:00:00Z', student: { id: 9, name: 'Alex Rivera' }, cohort: { id: 4, name: 'Cohort Teal' } }],
+  },
 }
 
 let container: HTMLDivElement
@@ -57,6 +61,17 @@ it('shows role, the cohorts they teach with read-only editing access, and their 
   expect(container.querySelector('a[aria-label="Change lesson editing for Ina Teacher in Cohort Teal"]')?.getAttribute('href')).toBe('/admin/cohorts/4?tab=team')
   expect(container.querySelector('button[role="switch"]')).toBeNull()
   expect(container.querySelector('[data-activity-user="7"]')).not.toBeNull()
+  // L-3.2: grading load per cohort, and the follow-up plans and help they own.
+  expect(container.querySelector('a[href="/admin/grading?cohort_id=4"]')?.textContent).toBe('3 waiting for review')
+  expect(container.querySelector('a[href="/admin/support?cohort_id=4"]')?.textContent).toBe('1 open help')
+  const plans = container.querySelector('#follow-ups')!
+  expect(plans.textContent).toContain('1 active plan, soonest follow-up first.')
+  expect(plans.textContent).toContain('They also own 2 open help requests.')
+  expect(plans.querySelector('a[data-record-link="intervention"]')?.textContent).toBe("Alex Rivera's follow-up plan")
+  expect(plans.querySelector('a[data-record-link="student"]')?.getAttribute('href')).toMatch(/^\/admin\/cohorts\/4\/students\/9\/overview/)
+  const related = container.querySelector('[data-related-panel]')!
+  expect(related.querySelector('[data-related-row="grading"]')?.textContent).toContain('Grading load3')
+  expect(related.querySelector('[data-related-row="follow_ups"]')?.textContent).toContain('1')
 })
 
 it('messages them through the cohort the API picked, under the existing messaging rules', async () => {

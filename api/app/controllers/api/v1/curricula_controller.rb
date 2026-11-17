@@ -10,6 +10,7 @@ module Api
       # GET /api/v1/curricula
       def index
         curricula = Curriculum.includes(:cohorts).order(:name)
+        curriculum_names.preload(curricula.map(&:id))
         render json: {
           curricula: curricula.map { |c| curriculum_json(c, include_usage: true) }
         }
@@ -62,6 +63,10 @@ module Api
         @curriculum = Curriculum.find(params[:id])
       end
 
+      def curriculum_names
+        @curriculum_names ||= CurriculumName.new(current_user)
+      end
+
       def curriculum_params
         params.permit(:name, :description, :total_weeks, :status)
       end
@@ -69,13 +74,15 @@ module Api
       def curriculum_json(curriculum, include_modules: false, include_usage: false)
         json = {
           id: curriculum.id,
-          name: curriculum.name,
+          # A cohort copy names its cohort only for people who can see it (CurriculumName).
+          name: curriculum_names.for(curriculum),
           description: curriculum.description,
           total_weeks: curriculum.total_weeks,
           status: curriculum.status,
           updated_at: curriculum.updated_at.iso8601(6),
           archive_blocked: curriculum.archive_blockers,
-          live_checkout_offerings: curriculum.cohorts.active.where(public_checkout_enabled: true).order(:name).map { |cohort| { id: cohort.id, name: cohort.name } },
+          # Names the cohorts on sale, for the admin-only status change; instructors get none (they may not teach them).
+          live_checkout_offerings: current_user.admin? ? curriculum.cohorts.active.where(public_checkout_enabled: true).order(:name).map { |cohort| { id: cohort.id, name: cohort.name } } : [],
           active_self_paced_learners: Enrollment.active.joins(:cohort).where(cohorts: { curriculum_id: curriculum.id, course_delivery: "self_paced" }).exists?,
           modules_count: curriculum.modules.size
         }
@@ -89,7 +96,8 @@ module Api
           # Whether this staff member may edit its lessons (LessonEditAccess).
           json[:editing] = LessonEditAccess.for(current_user, curriculum).as_json
           modules = curriculum.modules.includes(all_lessons: :content_blocks).to_a
-          evidence = CurriculumModule.learner_evidence(modules.map(&:id))
+          # Submission counts cover only the cohorts this person may see (L-3.2).
+          evidence = CurriculumModule.learner_evidence(modules.map(&:id), enrollment_ids: StaffCohortScope.new(current_user).enrollment_ids(curriculum.id))
           json[:modules] = modules.map { |m|
             lessons = m.all_lessons
             {

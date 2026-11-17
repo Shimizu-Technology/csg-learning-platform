@@ -3390,6 +3390,47 @@
           }
         }
       }
+    },
+    "/api/v1/records/{type}/{id}/usage": {
+      "parameters": [
+        {
+          "name": "type",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "curriculum",
+              "module",
+              "lesson"
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Where a curriculum, module or lesson is used (staff only; instructors see only the cohorts they teach)",
+        "description": "Cohorts with delivery, release dates and schedules, submission and help counts, copy history, and rubric/objective lesson lists. Students and unknown records get 404. Cache-Control: private, no-store.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordUsageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9506,7 +9547,7 @@
           },
           "used_in": {
             "type": "array",
-            "description": "Cohorts on this lesson's curriculum.",
+            "description": "Cohorts on this lesson’s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
             "items": {
               "type": "object",
               "properties": {
@@ -9542,24 +9583,32 @@
               "additionalProperties": false
             }
           },
+          "other_cohorts_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+          },
           "submissions_count": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Attempts in the cohorts listed in used_in."
           },
           "waiting_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Submissions not graded yet."
+            "description": "Latest attempts without a grade in the cohorts listed in used_in."
           },
           "open_help_count": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Open help on the lesson or its exercises in the cohorts listed in used_in."
           }
         },
         "required": [
           "curriculum",
           "module",
           "used_in",
+          "other_cohorts_count",
           "submissions_count",
           "waiting_count",
           "open_help_count"
@@ -13373,7 +13422,13 @@
                 "name"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "Sharing cohorts the viewer may see by name: every one for admins, the ones they teach for instructors."
+          },
+          "shared_with_others_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_cohorts": {
             "type": "array",
@@ -13412,11 +13467,12 @@
           "message",
           "grants",
           "shared_with",
+          "shared_with_others_count",
           "copy_cohorts",
           "copy_of"
         ],
         "additionalProperties": false,
-        "description": "Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with lists the other cohorts) or no_grant."
+        "description": "Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with names the other cohorts the viewer teaches; shared_with_others_count counts the rest) or no_grant."
       },
       "CohortInstructorAssignment": {
         "type": "object",
@@ -13996,6 +14052,15 @@
                 "type": "null"
               }
             ]
+          },
+          "waiting_review": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Grading load: latest attempts without a grade in this cohort."
+          },
+          "open_help": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -14003,7 +14068,9 @@
           "assigned_at",
           "can_edit_lessons",
           "edit_granted_at",
-          "edit_granted_by"
+          "edit_granted_by",
+          "waiting_review",
+          "open_help"
         ],
         "additionalProperties": false
       },
@@ -14087,6 +14154,9 @@
               "number"
             ],
             "description": "A cohort whose workspace lets the viewer message this person; null when there is none or this is the viewer's own page."
+          },
+          "workload": {
+            "$ref": "#/components/schemas/TeamMemberWorkload"
           }
         },
         "required": [
@@ -14104,7 +14174,8 @@
           "created_at",
           "is_self",
           "teaching",
-          "message_cohort_id"
+          "message_cohort_id",
+          "workload"
         ],
         "additionalProperties": false
       },
@@ -14488,20 +14559,28 @@
         "type": "object",
         "properties": {
           "cohort": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "integer"
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
               },
-              "name": {
-                "type": "string"
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "id",
-              "name"
             ],
-            "additionalProperties": false
+            "description": "Null for an instructor who doesn’t teach that cohort."
           },
           "source_curriculum": {
             "anyOf": [
@@ -14606,7 +14685,12 @@
               ],
               "additionalProperties": false
             },
-            "description": "The other cohorts that keep the shared curriculum."
+            "description": "The other cohorts that keep the shared curriculum and that the viewer may see by name."
+          },
+          "shared_with_others_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "already_copied": {
             "type": "boolean"
@@ -14663,6 +14747,7 @@
           "source_curriculum",
           "copy_name",
           "shared_with",
+          "shared_with_others_count",
           "already_copied",
           "copy_curriculum_id",
           "can_copy",
@@ -16030,6 +16115,1198 @@
         },
         "required": [
           "dismissed"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumUsageCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "active",
+              "completed",
+              "archived"
+            ]
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "program",
+              "guided",
+              "self_paced"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "on_sale": {
+            "type": "boolean",
+            "description": "A self-paced course with public checkout on (an offering)."
+          },
+          "students": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "waiting": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Latest attempts without a grade, as Grading counts them."
+          },
+          "open_help": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Open help requests; null where help requests are switched off."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "course_delivery",
+          "start_date",
+          "end_date",
+          "on_sale",
+          "students",
+          "waiting",
+          "open_help"
+        ],
+        "additionalProperties": false,
+        "description": "A cohort using the curriculum."
+      },
+      "ModuleUsageCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "active",
+              "completed",
+              "archived"
+            ]
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "program",
+              "guided",
+              "self_paced"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "on_sale": {
+            "type": "boolean",
+            "description": "A self-paced course with public checkout on (an offering)."
+          },
+          "assigned": {
+            "type": "boolean",
+            "description": "False when the cohort’s content defaults leave this module out."
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "submissions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Every attempt, as Grading’s All filter counts them."
+          },
+          "waiting": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Latest attempts without a grade, as Grading counts them."
+          },
+          "open_help": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Open help requests; null where help requests are switched off."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "course_delivery",
+          "start_date",
+          "end_date",
+          "on_sale",
+          "assigned",
+          "starts_on",
+          "ends_on",
+          "submissions",
+          "waiting",
+          "open_help"
+        ],
+        "additionalProperties": false,
+        "description": "A cohort’s schedule for the module; dates are null for self-paced cohorts."
+      },
+      "LessonUsageCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "active",
+              "completed",
+              "archived"
+            ]
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "program",
+              "guided",
+              "self_paced"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "on_sale": {
+            "type": "boolean",
+            "description": "A self-paced course with public checkout on (an offering)."
+          },
+          "assigned": {
+            "type": "boolean"
+          },
+          "release_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "When the lesson opens in this cohort; null for self-paced cohorts and archived lessons."
+          },
+          "submissions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Every attempt, as Grading’s All filter counts them."
+          },
+          "waiting": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Latest attempts without a grade, as Grading counts them."
+          },
+          "open_help": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Open help requests; null where help requests are switched off."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "course_delivery",
+          "start_date",
+          "end_date",
+          "on_sale",
+          "assigned",
+          "release_date",
+          "submissions",
+          "waiting",
+          "open_help"
+        ],
+        "additionalProperties": false,
+        "description": "A cohort the lesson is used in."
+      },
+      "UsageLessonRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "archived"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumUsage": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "curriculum"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ]
+          },
+          "total_weeks": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "imported": {
+            "type": "boolean",
+            "description": "Imported from a course package (ZIP)."
+          },
+          "package_revision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_edit": {
+            "type": "boolean",
+            "description": "Whether the viewer may edit its lessons (LessonEditAccess)."
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "module_type": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "integer"
+                },
+                "scheduled_day_names": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "lessons_count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "module_type",
+                "position",
+                "scheduled_day_names",
+                "lessons_count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurriculumUsageCohort"
+            }
+          },
+          "other_cohorts_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+          },
+          "copy_of": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "cohort": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Null when the viewer doesn’t teach the cohort."
+                  },
+                  "source_curriculum": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "created_by": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "created_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "cohort",
+                  "source_curriculum",
+                  "created_by",
+                  "created_at"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when this curriculum is one cohort’s own copy."
+          },
+          "copies": {
+            "type": "array",
+            "description": "Copies made from this curriculum for cohorts the viewer can see, newest first.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "cohort": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "copy_curriculum": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "created_by": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "lessons_count": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "cohort",
+                "copy_curriculum",
+                "created_by",
+                "created_at",
+                "lessons_count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "other_copies_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rubrics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "criteria_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "lessons": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UsageLessonRef"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "active",
+                "criteria_count",
+                "lessons"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "lessons": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UsageLessonRef"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "code",
+                "title",
+                "active",
+                "lessons"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "waiting": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "open_help": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "resources": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "waiting",
+              "open_help",
+              "resources"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "name",
+          "description",
+          "status",
+          "total_weeks",
+          "imported",
+          "package_revision",
+          "can_edit",
+          "modules",
+          "cohorts",
+          "other_cohorts_count",
+          "copy_of",
+          "copies",
+          "other_copies_count",
+          "rubrics",
+          "objectives",
+          "totals"
+        ],
+        "additionalProperties": false,
+        "description": "Where a curriculum is used (staff)."
+      },
+      "ModuleUsage": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "module"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "module_type": {
+            "type": "string"
+          },
+          "scheduled_day_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "week_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "curriculum": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "can_edit": {
+            "type": "boolean"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "lesson_type": {
+                  "type": "string"
+                },
+                "release_day": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "week": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "day_name": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "has_work": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "lesson_type",
+                "release_day",
+                "week",
+                "day_name",
+                "required",
+                "archived",
+                "has_work"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleUsageCohort"
+            }
+          },
+          "other_cohorts_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "submissions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "waiting": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "open_help": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "required": [
+              "submissions",
+              "waiting",
+              "open_help"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "name",
+          "description",
+          "module_type",
+          "scheduled_day_names",
+          "week_count",
+          "curriculum",
+          "can_edit",
+          "lessons",
+          "cohorts",
+          "other_cohorts_count",
+          "totals"
+        ],
+        "additionalProperties": false,
+        "description": "Where a module is used (staff)."
+      },
+      "LessonUsage": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "lesson"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "release_day": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "week": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "day_name": {
+            "type": "string"
+          },
+          "curriculum": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "module": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "can_edit": {
+            "type": "boolean"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "block_type": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "has_work": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "block_type",
+                "title",
+                "has_work"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "code",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonUsageCohort"
+            }
+          },
+          "other_cohorts_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+          },
+          "help_requests": {
+            "type": "array",
+            "description": "The newest open help requests on this lesson, up to five per cohort the viewer can see (no message text), newest first.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "urgency": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "cohort_id": {
+                  "type": "integer"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "student": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "urgency",
+                "category",
+                "cohort_id",
+                "created_at",
+                "student"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "submissions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "waiting": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "open_help": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "required": [
+              "submissions",
+              "waiting",
+              "open_help"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "lesson_type",
+          "required",
+          "archived",
+          "release_day",
+          "week",
+          "day_name",
+          "curriculum",
+          "module",
+          "can_edit",
+          "blocks",
+          "objectives",
+          "cohorts",
+          "other_cohorts_count",
+          "help_requests",
+          "totals"
+        ],
+        "additionalProperties": false,
+        "description": "Where a lesson is used (staff)."
+      },
+      "RecordUsageResponse": {
+        "type": "object",
+        "properties": {
+          "usage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CurriculumUsage"
+              },
+              {
+                "$ref": "#/components/schemas/ModuleUsage"
+              },
+              {
+                "$ref": "#/components/schemas/LessonUsage"
+              }
+            ]
+          }
+        },
+        "required": [
+          "usage"
+        ],
+        "additionalProperties": false
+      },
+      "TeamMemberWorkload": {
+        "type": "object",
+        "properties": {
+          "follow_ups_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Active follow-up plans this person owns."
+          },
+          "follow_ups": {
+            "type": "array",
+            "description": "Up to 10 of them, soonest follow-up first.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "next_follow_up_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "student": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "cohort": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "severity",
+                "next_follow_up_at",
+                "student",
+                "cohort"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "owned_help_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Open or acknowledged help requests this person owns."
+          }
+        },
+        "required": [
+          "follow_ups_count",
+          "follow_ups",
+          "owned_help_count"
         ],
         "additionalProperties": false
       }

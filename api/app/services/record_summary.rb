@@ -190,7 +190,8 @@ class RecordSummary
   end
 
   def lesson_subtitle(lesson)
-    [ lesson.curriculum_module.name, lesson.curriculum_module.curriculum&.name, (lesson.archived? ? "Archived" : nil) ].compact.join(" · ")
+    # A cohort copy names its cohort only for viewers who can see it (CurriculumName).
+    [ lesson.curriculum_module.name, CurriculumName.new(@viewer).for(lesson.curriculum_module.curriculum), (lesson.archived? ? "Archived" : nil) ].compact.join(" · ")
   end
 
   # Grades of each learner's latest attempt on the lesson's gradable work (nil = waiting).
@@ -250,7 +251,7 @@ class RecordSummary
   def cohort_subtitle(cohort)
     week = cohort_week(cohort)
     delivery = cohort.self_paced? ? "Self-paced" : cohort.effective_status.humanize
-    [ cohort.curriculum&.name, delivery, week ].compact.join(" · ")
+    [ CurriculumName.new(@viewer).for(cohort.curriculum), delivery, week ].compact.join(" · ")
   end
 
   def cohort_week(cohort)
