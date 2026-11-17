@@ -31,20 +31,25 @@ motion. Browser resizing establishes responsive web coverage only.
   Existing modules shift in one query. Copied lessons start archived; no alumni
   assignments or learner work are created. Within the same curriculum,
   curriculum-level rubrics/objectives remain shared, as in lesson duplication.
-  Across curricula, definitions are copied and objective codes receive a unique
-  `.COPY-<id>` suffix to avoid collisions.
+  Across curricula, only referenced definitions are copied; retry receipts retain
+  provenance so later module clones reuse those copies. Newly copied objective
+  codes receive a unique `.COPY-<id>` suffix to avoid collisions.
 - Admins can clone a cohort using a future start date and either its current
   curriculum or a new draft curriculum. End/access/support dates, module dates,
-  submission deadlines, office hours and default unlock dates shift by the start
-  date delta. Timed events preserve local wall time across DST. Private meeting
+  submission deadlines, office hours and default unlock dates shift by whole
+  weeks between the Monday anchors of the source and target kickoff weeks.
+  Module starts snap to their configured weekday, including implicit schedules
+  for assigned modules; explicit overrides and breaks stay in the same weeks. Timed events preserve local wall time across DST. Private meeting
   configuration is copied; slots/bookings are not. Checkout starts off and a new
   public slug is allocated. Existing feature values, including absent/null
   inheritance, are preserved verbatim. The success dialog displays each explicit
   or inherited value and its resulting state.
 - Enrollment, purchase, communication, recording and learner-work history stays
   on the source. Legacy announcements/recordings/class-resource history is
-  excluded from cohort settings. Staff assignment/editing grants are not cloned;
-  support/meeting instructors remain configuration references.
+  excluded from cohort settings. The support instructor receives an assignment
+  before being set on the copy; lesson-editing grants are not copied. Other
+  staff assignments are not cloned. Meeting instructors remain configuration
+  references.
 - Each operation and its retry receipt commit in one transaction. An actor-scoped
   advisory lock serializes retries; changed options with a reused request ID
   return 409. Timeouts return a retryable conflict. Video key locks precede row
@@ -54,7 +59,8 @@ motion. Browser resizing establishes responsive web coverage only.
   whereas module cloning restructures curricula and may cross curriculum
   boundaries. This PR does not expand those grants.
 
-Implementation evidence: browser/UI and locking/ordering checks used
+Initial-PR implementation evidence (before the review fix round below):
+browser/UI and locking/ordering checks used
 `b4374f90`; the SQL-sanitizer and hosted-storage regression change is
 `91fb915f`. The final full API gate uses `91fb915f`. Later documentation-only
 commits do not change the tested application.
@@ -155,8 +161,8 @@ files were read directly. No authentication/configuration state was copied.
 ## Lead handoff
 
 Retain `~/work/csg-authoring-clone`, branch `feat/authoring-clone`, base
-`origin/main` at `3a8b3ebf`. Application implementation ends at `91fb915f`;
-subsequent documentation commits only record final evidence. Recheck the PR head,
+`origin/main` at `3a8b3ebf`. Initial application implementation ended at `91fb915f`; the review fix round
+below changes application code at `7d7b109b`. Recheck the PR head,
 current main, checks and independent review before continuing. The worker was
 instructed to open the PR without merging or watching it.
 
@@ -165,3 +171,79 @@ data migration, deployment or feature activation has been performed. No local
 runtime is handed off; the branch, source, QA scripts and ignored evidence are
 retained. The ASUS gate exited successfully through its temporary-container cleanup
 trap. Lifecycle cleanup/status confirmed no unresolved owned resource.
+
+
+## Fix round after independent Opus review of 0337c895
+
+The review confirmed independence, shared S3-key deletion safety, no learner
+copies, exact switch inheritance, authorization/contract/migration behavior,
+and four concurrent submissions producing one clone plus three replays in both
+modes. Those confirmations cover the reviewed head, not this fix head.
+
+`origin/main` remained at `3a8b3ebf`; merging it returned already up to date.
+Fix implementation: `7d7b109b`. Application acceptance for this round:
+
+| Finding | Change and evidence |
+| --- | --- |
+| P1 weekday drift | Week-anchored shifts replace raw day deltas. Monday overrides Nov 9/Nov 30 from a Tuesday Oct 27 source become Monday Jan 18/Feb 8 after Thursday Jan 7 kickoff. The three-week gap remains. Assigned implicit starts are snapped with `next_start_date_on_or_after`; unassigned modules without overrides stay unassigned. Tests call `valid?` on schedules and office hours. Office/live-class times retain weekday and local wall time. |
+| P2 support instructor | Create the new cohort without support, copy the support instructor membership with default (no editing grant) fields, then set support under normal model validation. A self-paced source clone returns 201 and `valid_support_instructor?` passes. |
+| P3 definition over-copying | Gather only rubric, criterion, knowledge-check and alignment dependencies of the copied module. Store source-to-copy IDs with the retry receipt, scoped by destination curriculum, and reuse definitions across subsequent clones without recopying criteria. Unrelated definitions are excluded. |
+| P3 archived curriculum | Retaining an archived curriculum returns a clear 422 telling the admin to choose “Clone the curriculum too”; that choice succeeds with a draft. |
+| P3 unnecessary S3 | A same-curriculum cohort clone skips both video queries and S3 configuration/storage checks. Regression test raises if S3 is inspected and checks captured SQL. |
+| P3 redundant index | Migration `20261118080000` adds definition provenance and drops the standalone `user_id` index; the unique `(user_id, client_request_id)` index retains its prefix lookup. Round-trip tests clear every pooled statement cache and reset model metadata. Timestamp is unique and later than main and the prior clone migration. |
+
+Focused API/migration suite: **13 tests / 167 assertions in each mode**, zero
+failures/errors/skips, prepared and unprepared. Growing QueryCounter fixtures
+still pass; each measured new destination begins without a pre-existing reuse
+map, so growth compares equivalent operations. Separate reuse tests assert that
+repeated copies create no extra objectives, rubrics or criteria.
+
+Web typecheck, lint, all **2,902 tests / 245 files**, build and generated-type
+consistency passed. Impeccable advisory scan returned `[]`. The modal explains
+weekday-preserving week shifts and the support instructor assignment without
+an editing grant. No public API fields changed.
+
+Browser execution used the shared T3 browser against a fresh secret-free harness
+at 1280 and 390 in light and dark. Four cohort copies were created through the
+form, alternating retained and newly cloned curricula. Each opened with zero
+learners and the correct switch states. Settings showed Jan 18 and Feb 8;
+student preview’s All outline showed corresponding Jan 18/Jan 19/Jan 20 lesson
+unlocks; Content labelled release day zero Monday. All four checks had zero
+horizontal overflow. A separate database verification checked valid Monday
+schedules, the break, Thursday office hours, matching `week_and_day_for` labels,
+zero enrollments and unchanged original settings/learner counts.
+
+The PR’s Playwright spec now uses Thursday Jan 7 rather than a same-weekday target,
+checks both displayed module dates and the preview’s saved unlock date, and
+selects All to expose locked future lessons. Its four cases parse/list correctly;
+this fix-round browser execution was through shared preview automation, not a
+second Playwright browser. One initial preview wait missed hidden modules under
+the default To do filter; selecting All exposed them and completed verification.
+Evidence is retained in `.qa-local/authoring-clone-fix-browser.json` and
+`.qa-local/authoring-clone-fix-verify.rb`.
+
+The requested **one full ASUS run** used production prepared-statements-off mode
+with OpenAPI coverage and the unchanged migration subprocess port adapter:
+**2,263 tests / 43,631 assertions, one failure, zero errors, one existing skip**
+(seed 42069, 302.47 seconds). The failure is
+`ScheduledUpdateRacesTest#test_a_claim_released_after_another_job_settled_the_push_is_unsettled_again,_and_the_re-request_sends_only_to_it`,
+line 224: expected one requeued push, got zero. The test, job and publisher are
+unchanged from main. This is a failed full gate, not a green run. The focused ASUS
+recheck of that unchanged class at the same seed **passed: 10 tests / 63
+assertions**, zero failures/errors/skips (2.14 seconds). Full ASUS RuboCop and
+Brakeman then passed: zero security warnings, one existing ignored warning.
+No second full rerun was started; the failed full gate is not replaced by the
+passing isolated retry. The full log is `.qa-local/authoring-clone-fix-asus.log`;
+the isolated/static log is `.qa-local/authoring-clone-fix-race-recheck.log`.
+
+Cleanup: shared-preview tab closed/released; exact owned Rails/Vite PIDs
+17449/17452 stopped and `csg_qa_17397_1794953404` dropped; local
+`csg_authoring_clone_fix_test` dropped. Shared PostgreSQL and protected home
+services remain available. Lifecycle session is
+`manual-20261118-080627-16556-cfa7`. ASUS wrappers own their disposable containers
+through the runner cleanup trap. No production data, including Lance’s Cohort 3,
+was touched. Keep the PR unmerged; the six requested fixes need final-head review,
+and the failed full-suite gate remains visible for the lead.
+
+Both ASUS wrappers exited through their disposable-container cleanup traps.
+Final lifecycle cleanup/status confirmed no unresolved owned resources.
