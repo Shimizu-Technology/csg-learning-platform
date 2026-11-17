@@ -15,7 +15,7 @@ Backlog items L-3.1 (lesson editor context), L-3.2 ("where used" relationships) 
 
 | Gate | Result |
 | --- | --- |
-| API full suite, `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`, default and `?prepared_statements=false` | See the PR for the final-head counts |
+| API full suite, `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`, commit `3206baa3` | Default prepared statements: 1,936 runs / 41,218 assertions, 0 failures/errors/skips, coverage check passed. `?prepared_statements=false`: same counts, 0 failures. |
 | New API tests | `record_usage_test.rb` (8 tests, including query-count growth for all three types and the team page), editor scoping, team workload and offering-name tests. On the old controllers, 17 tests fail. |
 | Query counts | Flat as cohorts, lessons, submissions, rubrics, objectives, copies and follow-ups grow (`endpoint_query_counts_test.rb` and `record_usage_test.rb`) |
 | RuboCop / Brakeman | No offenses / no warnings (one existing ignored) |
