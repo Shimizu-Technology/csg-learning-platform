@@ -183,7 +183,10 @@ for (const theme of ['light', 'dark']) test(`${theme}: staff lesson preview stay
 for (const theme of ['light', 'dark']) test(`${theme}: instructor booking action uses the enabled course`, async ({ page }) => {
   await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
   // The base harness program has meetings On and an instructor-authored class message.
-  await page.goto('/messages/1?cohort_id=1&qa_user=3')
+  const directory = await page.request.get('/api/v1/channels', { headers: { Authorization: 'Bearer test_token_3' } })
+  const channel = (await directory.json()).channels.find((entry: { cohort_id: number; name: string }) => entry.cohort_id === 1 && entry.name === 'qa-class')
+  expect(channel?.id).toBeTruthy()
+  await page.goto(`/messages/${channel.id}?cohort_id=1&qa_user=3`)
   await page.getByRole('button', { name: 'View QA Instructor', exact: true }).first().click()
   const booking = page.getByRole('dialog').getByRole('link', { name: 'Book a meeting', exact: true })
   await expect(booking).toHaveAttribute('href', '/meetings?cohort_id=1&instructor_id=2')
