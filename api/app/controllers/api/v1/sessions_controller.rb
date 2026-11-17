@@ -21,6 +21,7 @@ module Api
                 start_date: e.cohort.start_date,
                 status: e.cohort.effective_status,
                 features: FeatureSwitches.for(cohort: e.cohort),
+                review_response_time: e.cohort.effective_review_response_time,
                 course_delivery: e.cohort.course_delivery
               },
               status: e.status,

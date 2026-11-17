@@ -142,19 +142,24 @@ class ContentBlock < ApplicationRecord
   # Learner work recorded against each block: submissions, progress that moved
   # past "not started" or holds watch time, and retrieval-check attempts.
   # Returns { block_id => { submissions:, progress:, watched:, check_attempts: } }.
-  def self.learner_evidence_for(block_ids)
+  # `enrollment_ids` (an id list or subquery) limits the counts to those
+  # enrollments, for a viewer who may not count other cohorts' work
+  # (StaffCohortScope). Without it, every learner's work counts: the write
+  # paths that protect learner work always use the unscoped counts.
+  def self.learner_evidence_for(block_ids, enrollment_ids: nil)
     ids = Array(block_ids).compact.map(&:to_i).uniq
     return {} if ids.empty?
 
-    progresses = Progress.where(content_block_id: ids)
-    submissions = Submission.where(content_block_id: ids).group(:content_block_id).count
+    scoped = ->(relation) { enrollment_ids.nil? ? relation : relation.where(enrollment_id: enrollment_ids) }
+    progresses = scoped.call(Progress.where(content_block_id: ids))
+    submissions = scoped.call(Submission.where(content_block_id: ids)).group(:content_block_id).count
     progress = progresses.where(
       "progresses.status <> :not_started OR progresses.video_total_watched > 0 OR progresses.video_last_position > 0 OR progresses.watch_credit_at IS NOT NULL",
       not_started: Progress.statuses[:not_started]
     ).group(:content_block_id).count
     watched = progresses.where("progresses.video_total_watched > 0 OR progresses.video_last_position > 0 OR progresses.watch_credit_at IS NOT NULL")
       .group(:content_block_id).count
-    attempts = KnowledgeCheckAttempt.joins(:knowledge_check).where(knowledge_checks: { content_block_id: ids })
+    attempts = scoped.call(KnowledgeCheckAttempt.joins(:knowledge_check).where(knowledge_checks: { content_block_id: ids }))
       .group("knowledge_checks.content_block_id").count
     ids.index_with do |id|
       { submissions: submissions[id].to_i, progress: progress[id].to_i, watched: watched[id].to_i, check_attempts: attempts[id].to_i }

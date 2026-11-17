@@ -376,6 +376,11 @@ body {
   outline-offset: 2px;
 }
 
+/* Workspace links scroll horizontally on desktop; keep their focus indicator inside the viewport. */
+.workspace-sections :focus-visible {
+  outline-offset: -2px;
+}
+
 /* An editor frame shows focus once, on its border (focus-within on
    [data-md-editor]). The typing surfaces inside don't add a second ring. */
 [data-md-editor] .md-editor-surface:focus-visible,
@@ -1321,6 +1326,19 @@ details[open] > :not(summary) {
     opacity: 0;
     transform: translateY(-4px);
   }
+}
+
+/* Lesson continuation remains reachable above the iOS keyboard; reserve space
+   in the article and retain the shared bottom navigation when it is closed. */
+@media (max-width: 1023.98px) {
+  html[data-keyboard='open'] .lesson-action-bar { bottom: var(--keyboard-inset, 0px); }
+}
+.lesson-outline-drawer { animation: lesson-drawer-in 240ms var(--ease-drawer); }
+[data-state='closing'] .lesson-outline-drawer { animation: lesson-drawer-out 180ms var(--ease-drawer) both; }
+@keyframes lesson-drawer-in { from { transform: translateX(100%); } }
+@keyframes lesson-drawer-out { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .lesson-outline-drawer, [data-state='closing'] .lesson-outline-drawer { animation: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

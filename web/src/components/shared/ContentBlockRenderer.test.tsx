@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { MemoryRouter } from 'react-router-dom'
+import { ConfirmProvider } from '../../contexts/ConfirmContext'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -8,7 +10,7 @@ vi.mock('./LazyMarkdownEditor', async () => ({ LazyMarkdownEditor: (await import
 vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
-vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ starterLinks }: { starterLinks?: { lessonReturn: { url: string; label?: string | null }; hint: string; newTab?: boolean } }) => (starterLinks ? <div data-starter-hint={starterLinks.hint} data-starter-return={starterLinks.lessonReturn.url} data-starter-label={starterLinks.lessonReturn.label ?? ''} data-starter-new-tab={String(Boolean(starterLinks.newTab))} /> : null) }))
+vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ starterLinks, content, variant }: { content?: string; variant?: string; starterLinks?: { lessonReturn: { url: string; label?: string | null }; hint: string; newTab?: boolean } }) => (starterLinks ? <div data-starter-hint={starterLinks.hint} data-starter-return={starterLinks.lessonReturn.url} data-starter-label={starterLinks.lessonReturn.label ?? ''} data-starter-new-tab={String(Boolean(starterLinks.newTab))} /> : <div data-markdown-variant={variant}>{content}</div>) }))
 vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, busy, onChange }: { value: string; readOnly?: boolean; busy?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly || busy ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('./FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
 vi.mock('./CodeRunner', () => ({ CodeRunner: () => null }))
@@ -17,6 +19,7 @@ vi.mock('./GradeDisplay', () => ({ GradeDisplay: () => null }))
 
 import { ContentBlockRenderer } from './ContentBlockRenderer'
 import { api } from '../../lib/api'
+import { StudentExperienceProvider } from '../../lib/studentExperience'
 
 function renderExercise(submissionType: string, isStaff: boolean) {
   return renderToStaticMarkup(
@@ -51,6 +54,27 @@ describe('staff lesson preview', () => {
     expect(staffMarkup).not.toContain('Write your solution')
     expect(staffMarkup).not.toContain('>Submit<')
     expect(renderExercise('text_submission', false)).toContain('Write your solution')
+  })
+})
+
+describe('manual exercise completion (S-14)', () => {
+  const manual = { id: 7, block_type: 'exercise', position: 0, title: 'Reflect', body: null, video_url: null, filename: null, submission_type: 'manual_complete', metadata: {} } as const
+  const render = (v2: boolean) => renderToStaticMarkup(<StudentExperienceProvider v2={v2}><ContentBlockRenderer block={manual} cohortId={2} /></StudentExperienceProvider>)
+
+  it('has one completion control with the new student experience on', () => {
+    const html = render(true)
+    expect(html.match(/<button/g)).toHaveLength(1)
+    expect(html.match(/Mark complete/g)).toHaveLength(1)
+    expect(html).toContain('aria-label="Exercise not complete yet"')
+    expect(html).not.toContain('aria-label="Mark exercise complete"')
+    expect(html).not.toMatch(/practice/i)
+  })
+
+  it('keeps both of today’s controls and copy when the switch is off', () => {
+    const html = render(false)
+    expect(html.match(/<button/g)).toHaveLength(2)
+    expect(html).toContain('aria-label="Mark exercise complete"')
+    expect(html).toContain('For practice exercises that don&#x27;t need a submission.')
   })
 })
 
@@ -393,4 +417,61 @@ describe('written text submissions', () => {
     expect(code).toContain('data-editor="editable"')
     expect(code).not.toContain('data-md-editor')
   })
+})
+
+it('promises instructor review and the default response time for waiting work', () => {
+  const html = renderToStaticMarkup(<ContentBlockRenderer cohortId={13} isStaff={false} block={{ id: 9001, block_type: 'exercise', position: 0, title: 'Practice', body: null, video_url: null, filename: null, metadata: {}, submission_type: 'text_submission', submissions: [{ id: 1, text: 'My answer', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-11-17' }] }} />)
+  expect(html).toContain('Your instructor will review it — usually within 2 days')
+})
+
+it('On shows one server-derived success and hides the revision editor behind an action', () => {
+  const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: 'submitted', submissions: [submission()] })} cohortId={2} reviewerName="Audreana" /></StudentExperienceProvider>)
+  expect(html.match(/Waiting for review\./g)).toHaveLength(1)
+  expect(html).toContain('Audreana will review it')
+  expect(html).toContain('View submission #1')
+  expect(html).toContain('Edit and resubmit')
+  expect(html).not.toContain('data-editor="editable"')
+  expect(html).not.toContain('Revise your answer')
+  expect(html).not.toContain('Submitted · waiting')
+})
+it('On keeps redo feedback and exactly one editor while the prior answer is collapsed', () => {
+  const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: 'redo_requested', submissions: [submission({ grade: 'R', feedback: 'Keep this important feedback.' })] })} cohortId={2} /></StudentExperienceProvider>)
+  expect(html.match(/data-editor="editable"/g)).toHaveLength(1)
+  expect(html.match(/Keep this important feedback\./g)).toHaveLength(1)
+  expect(html).toContain('View submission #1')
+  expect(html).not.toContain('<details open')
+})
+
+it('On flushes a fresh draft on pagehide before the debounce or React unmount', async () => {
+  localStorage.clear()
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter><ConfirmProvider><StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint()} cohortId={2} /></StudentExperienceProvider></ConfirmProvider></MemoryRouter>))
+    await act(async () => (host.querySelector('[data-editor="editable"]') as HTMLElement).click())
+    window.dispatchEvent(new Event('pagehide'))
+    expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toContain('# edited')
+  } finally { await act(async () => root.unmount()); localStorage.clear() }
+})
+
+it('renders typed HTML-like written submissions in written mode', () => {
+  const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ filename: 'answer.md', metadata: { language: 'markdown' }, submissions: [submission({ text: '<p>typed source</p>' })], learner_state: 'submitted' })} cohortId={2} /></StudentExperienceProvider>)
+  expect(html).toContain('data-markdown-variant="written"')
+  expect(html).toContain('&lt;p&gt;typed source&lt;/p&gt;')
+})
+it.each([false, true])('reconciles an accepted submission when lesson refresh fails (redo=%s)', async redo => {
+  localStorage.clear()
+  const accepted = { ...submission({ id: 2, num_submissions: redo ? 2 : 1 }), content_block_id: 138 } as never
+  const create = vi.spyOn(api, 'createSubmission').mockResolvedValue({ data: { submission: accepted }, error: null })
+  const reload = vi.fn().mockResolvedValue({ error: 'Offline' })
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter><ConfirmProvider><StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: redo ? 'redo_requested' : 'open', submissions: redo ? [submission({ grade: 'R', feedback: 'Try again' })] : [] })} cohortId={2} onProgressUpdate={reload} /></StudentExperienceProvider></ConfirmProvider></MemoryRouter>))
+    await act(async () => (host.querySelector('[data-editor="editable"]') as HTMLElement).click())
+    await act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === (redo ? 'Resubmit checkpoint' : 'Submit checkpoint'))!.click())
+    expect(create).toHaveBeenCalled()
+    expect(reload).toHaveBeenCalled()
+    expect(host.textContent).toContain('Waiting for review.')
+    expect(host.textContent).not.toContain('Your instructor asked for a redo')
+    expect(host.textContent).not.toContain('Revise and resubmit')
+  } finally { await act(async () => root.unmount()); create.mockRestore(); localStorage.clear() }
 })

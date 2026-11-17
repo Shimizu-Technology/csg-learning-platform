@@ -4,7 +4,7 @@ import { api } from '../../../lib/api'
 import { Modal } from '../../../components/shared/Modal'
 import { Button } from '../../../components/ui/Button'
 import type { CurriculumCopyPreview, CurriculumCopyResponse } from '../../../types/api'
-import { cohortList } from '../../../lib/lessonEditing'
+import { sharingList } from '../../../lib/lessonEditing'
 
 type CohortChoice = { id: number; name: string }
 
@@ -78,7 +78,8 @@ export function CopyForCohortDialog({ open, onClose, curriculumId, cohorts, onCo
 
   const current = preview && preview.cohortId === cohortId && preview.curriculumId === curriculumId ? preview.data : null
   const cohortName = cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort'
-  const others = current ? cohortList(current.shared_with.map((cohort) => cohort.name)) : ''
+  const sharing = current ? sharingList(current.shared_with, current.shared_with_others_count ?? 0) : { text: '', count: 0 }
+  const others = sharing.text
   const lessons = current?.counts.lessons ?? 0
   const lines = current ? copyCountLines(current.counts) : []
 
@@ -128,7 +129,7 @@ export function CopyForCohortDialog({ open, onClose, curriculumId, cohorts, onCo
           <>
             <p>
               {cohortName} switches to its own copy of {current.source_curriculum?.name}{lessons ? ` (${plural(lessons, 'lesson')})` : ''}. Its progress, submissions and release dates stay attached.
-              {others ? ` ${others} ${current.shared_with.length === 1 ? 'keeps' : 'keep'} the shared version.` : ''}
+              {others ? ` ${others} ${sharing.count === 1 ? 'keeps' : 'keep'} the shared version.` : ''}
             </p>
             <p>Later changes to the shared version won't reach {cohortName}'s copy.</p>
             {lines.length > 0 && (

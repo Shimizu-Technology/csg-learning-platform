@@ -17,8 +17,9 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
-vi.mock('../student/Dashboard', () => ({ Dashboard: (props: unknown) => <div data-testid="dashboard-props">{JSON.stringify(props)}</div> }))
+vi.mock('../student/Dashboard', () => ({ Dashboard: (props: unknown) => <><div data-testid="dashboard-props">{JSON.stringify(props)}</div><a href="/lessons/159?cohort_id=4#block-7">Continue learning</a><a href="/modules/9?cohort_id=4">Open module</a></> }))
 vi.mock('../student/Materials', () => ({ Materials: ({ previewLessonPath }: { previewLessonPath: (id: number) => string }) => <a href={previewLessonPath(99)}>Open lesson</a> }))
+vi.mock('../student/CourseOutline', () => ({ CourseOutline: (props: object) => <p data-testid="outline-props">{JSON.stringify(props)}</p> }))
 
 const student = {
   enrollment_id: 21,
@@ -159,9 +160,19 @@ describe('CohortStudentView routing', () => {
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view/materials?student_id=12'] })
     await act(async () => root.render(<RouterProvider router={router} />))
     expect(container.querySelector('a[href="/admin/cohorts/4/student-view/lessons/99?student_id=12"]')).not.toBeNull()
-    const backLinks = Array.from(container.querySelectorAll('a')).filter((link) => link.textContent?.includes('Back to cohort'))
+    const backLinks = Array.from(container.querySelectorAll('a')).filter((link) => link.textContent?.includes('Back to student overview'))
     expect(backLinks).toHaveLength(2)
     expect(backLinks.every((link) => link.getAttribute('href') === '/admin/cohorts/4/students/12/overview')).toBe(true)
+  })
+
+  it('previews a learner in the new student experience when their cohort has it on, and the template as today', async () => {
+    vi.mocked(api.getCohortStudentView).mockResolvedValue({ data: { student_view: { ...studentView, cohort: { ...studentView.cohort, features: { student_experience_v2: true } } } }, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view/materials?student_id=12'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(JSON.parse(container.querySelector('[data-testid="outline-props"]')!.textContent!)).toEqual({ previewStudentId: 12, previewCohortId: 4 })
+    await act(async () => { await router.navigate('/admin/cohorts/4/student-view/materials') })
+    expect(container.querySelector('[data-testid="outline-props"]')).toBeNull()
+    expect(container.textContent).toContain('Open lesson')
   })
 
   it('redirects a legacy alumni recordings URL to Learn and preserves the selected student', async () => {
@@ -199,7 +210,7 @@ describe('CohortStudentView routing', () => {
   it('builds a selected enrollment from actual lesson-only assignments absent from the template', async () => {
     const task = { lesson_id: 42, module_id: 9, title: 'Individual project', required: true, available: true, completed: false }
     const personal = { title: 'My individual path', description: null, target_date: '2026-12-05', next_check_in_on: null, updated_at: '', required_count: 1, completed_count: 0, awaiting_review_count: 0, milestones: [], next_lesson: task, requirement_changes: [] }
-    const actual: StudentProgressResponse = { ...progress, personal_plan: personal, weekly_plan: { enrolled: true, timezone: 'Pacific/Guam', personal_plan: personal }, modules: [{ id: 9, name: 'Individual module', module_type: 'live_class', position: 0, total_blocks: 1, completed_blocks: 0, progress_percentage: 0, lessons: [{ id: 42, title: 'Individual project', lesson_type: 'exercise', position: 0, release_day: 0, required: true, assigned: true, available: true, unlock_date: '2026-10-24', total_blocks: 1, completed_blocks: 0, completed: false, blocks: [], lesson_assignment: { id: 1, unlocked: true, unlock_date_override: null } }] }] }
+    const actual: StudentProgressResponse = { ...progress, continue_lesson: { id: 42, title: 'Individual project' }, personal_plan: personal, weekly_plan: { enrolled: true, timezone: 'Pacific/Guam', personal_plan: personal }, modules: [{ id: 9, name: 'Individual module', module_type: 'live_class', position: 0, total_blocks: 1, completed_blocks: 0, progress_percentage: 0, lessons: [{ id: 42, title: 'Individual project', lesson_type: 'exercise', position: 0, release_day: 0, required: true, assigned: true, available: true, unlock_date: '2026-10-24', total_blocks: 1, completed_blocks: 0, completed: false, blocks: [], lesson_assignment: { id: 1, unlocked: true, unlock_date_override: null } }] }] }
     vi.mocked(api.getStudentProgress).mockResolvedValue({ data: actual, error: null })
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view?student_id=12'] })
     await act(async () => { root.render(<RouterProvider router={router} />) })
@@ -207,6 +218,7 @@ describe('CohortStudentView routing', () => {
     const props = JSON.parse(container.querySelector('[data-testid="dashboard-props"]')!.textContent!)
     expect(props.previewData.modules[0].lessons).toEqual([expect.objectContaining({ id: 42, available: true, required: true })])
     expect(props.previewData.continue_lesson).toEqual({ id: 42, title: 'Individual project' })
+    expect(props.previewData.enrollment_status).toBe('active')
     expect(props.previewWeeklyPlan.personal_plan.title).toBe('My individual path')
   })
 
@@ -250,4 +262,42 @@ describe('previewSectionsForCohort', () => {
   it('preserves the recordings navigation for regular cohorts', () => {
     expect(previewSectionsForCohort('standard')).toContain('recordings')
   })
+})
+
+it('clicks Continue and modules into preview instead of redirecting both to Materials', async () => {
+  const element = document.createElement('div'); document.body.appendChild(element); const view = createRoot(element)
+  vi.mocked(api.getCohortStudentView).mockResolvedValue({ data: { student_view: studentView }, error: null })
+  vi.mocked(api.getCohort).mockResolvedValue({ data: { cohort }, error: null })
+  vi.mocked(api.getStudentProgress).mockResolvedValue({ data: progress, error: null })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view?student_id=12'] })
+  await act(async () => view.render(<RouterProvider router={router} />))
+  await act(async () => (element.querySelector('a[href^="/lessons/"]') as HTMLAnchorElement).click())
+  expect(router.state.location.pathname).toBe('/admin/cohorts/4/student-view/lessons/159')
+  expect(router.state.location.search).toBe('?student_id=12')
+  expect(router.state.location.hash).toBe('#block-7')
+  await act(async () => router.navigate('/admin/cohorts/4/student-view?student_id=12'))
+  await act(async () => (element.querySelector('a[href^="/modules/"]') as HTMLAnchorElement).click())
+  expect(router.state.location.pathname).toBe('/admin/cohorts/4/student-view/modules/9')
+  expect(router.state.location.search).toBe('?student_id=12')
+  expect(element.querySelector('.bg-surface-page')).not.toBeNull()
+  await act(async () => view.unmount()); element.remove()
+})
+
+it('ignores a late previous-cohort preview and retries a failed load', async () => {
+  const element = document.createElement('div'); document.body.appendChild(element); const view = createRoot(element)
+  let resolveOld!: (result: unknown) => void
+  vi.mocked(api.getCohortStudentView).mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve as never })).mockResolvedValue({ data: { student_view: standardStudentView }, error: null })
+  vi.mocked(api.getCohort).mockImplementation(async id => ({ data: { cohort: id === 4 ? cohort : standardCohort }, error: null }))
+  vi.mocked(api.getStudentProgress).mockResolvedValue({ data: progress, error: null })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view'] })
+  await act(async () => view.render(<RouterProvider router={router} />))
+  await act(async () => router.navigate('/admin/cohorts/5/student-view'))
+  await act(async () => resolveOld({ data: { student_view: studentView }, error: null }))
+  expect(element.querySelector('h1')?.textContent).toBe('Standard Cohort')
+  vi.mocked(api.getCohortStudentView).mockRejectedValueOnce(new Error('Offline'))
+  await act(async () => router.navigate('/admin/cohorts/4/student-view'))
+  expect(element.textContent).toContain('Could not load student view')
+  await act(async () => [...element.querySelectorAll('button')].find(button => button.textContent === 'Retry student view')!.click())
+  expect(element.textContent).not.toContain('Could not load student view')
+  await act(async () => view.unmount()); element.remove()
 })

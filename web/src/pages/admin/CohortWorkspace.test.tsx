@@ -158,6 +158,19 @@ describe('cohort evidence request lifecycle', () => {
     vi.spyOn(api, 'getCohortHome').mockResolvedValue({ data: null, error: 'Unavailable', status: 503 })
   })
   afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks() })
+  it('opens objective evidence lessons on the staff record page with its cohort and return path', async () => {
+    vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: { learning_insights: {
+      rule: {}, summary: {}, revision_patterns: [], objectives: [{ id: 1, title: 'Explain a loop', status_counts: { demonstrated: 1, developing: 0, needs_revision: 0, not_evidenced: 0 }, students: [{
+        enrollment_id: 1, user: { id: 10, full_name: 'Joined Alum' }, status: 'demonstrated', evidence: [{
+          id: 1, kind: 'submission', label: 'Graded work', value: 'A', module_id: 9, module_name: 'Loops', lesson_id: 12, lesson_title: 'Counting loops', submission_id: 14,
+        }],
+      }] }],
+    } }, error: null } as never)
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const lesson = container.querySelector('a[data-record-link="lesson"]')!
+    expect(lesson.getAttribute('href')).toBe('/admin/lessons/12?cohort_id=4&return_to=%2Fadmin%2Fcohorts%2F4%3Ftab%3Dinsights')
+  })
   it('keeps empty learning insights collapsed', async () => {
     vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: { learning_insights: { objectives: [], revision_patterns: [] } }, error: null, status: 200 } as never)
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
@@ -192,4 +205,22 @@ describe('cohort evidence request lifecycle', () => {
     expect(container.textContent).not.toContain('A stale evidence')
     expect(insights).toHaveBeenCalledTimes(2)
   })
+})
+
+it('makes module progress and Grade, Lessons and assigned students actionable', async () => {
+  const element = document.createElement('div'); document.body.appendChild(element); const view = createRoot(element)
+  vi.spyOn(api, 'getCohort').mockResolvedValue({ data: { cohort: { ...cohort, modules: [{ id: 9, name: 'First module', module_type: 'prework', position: 0, lessons_count: 3, assigned_count: 1, assigned: true, unlocked_count: 1, accessible_count: 1, module_start_date: '2026-01-01', uses_default_start_date: true, assigned_enrollment_ids: [1], completed_lessons: 2, total_lessons: 3, progress_percentage: 66.7 }] } }, error: null })
+  vi.spyOn(api, 'getCohortGithubAccess').mockResolvedValue({ data: null, error: 'Offline' })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=learning'] })
+  await act(async () => view.render(<RouterProvider router={router} />))
+  expect(element.querySelector('[aria-label="First module"]')?.textContent).toContain('2 of 3 assigned lessons done or submitted · 66.7%')
+  expect(element.querySelector('a[href^="/admin/cohorts/4/modules/9/grading"]')?.textContent).toContain('Grade')
+  expect([...element.querySelectorAll('a')].some(link => link.textContent?.includes('Lessons') && link.getAttribute('href')?.startsWith('/admin/modules/9?cohort_id=4'))).toBe(true)
+  const assigned = element.querySelector<HTMLAnchorElement>('a[href="/admin/cohorts/4?tab=students&module_id=9"]')!
+  expect(assigned.textContent).toBe('1 student assigned')
+  await act(async () => assigned.click())
+  expect(element.textContent).toContain('Joined Alum')
+  expect(element.textContent).not.toContain('Invited Alum')
+  expect([...element.querySelectorAll('a')].filter(link => /student-view/.test(link.getAttribute('href') || ''))).toHaveLength(1)
+  await act(async () => view.unmount()); element.remove(); vi.restoreAllMocks()
 })

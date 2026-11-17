@@ -31,6 +31,8 @@ export function PrivateMeetings() {
   const navigate = useNavigate()
   const destination = useMeetingDestination(loading, cohorts)
 
+  const matchingCohorts = cohorts.filter(entry => (!destination.cohortId || entry.id === destination.cohortId) && (!destination.instructorId || entry.instructor_id === destination.instructorId))
+
   const load = useCallback(async () => {
     setError(null)
     const response = await api.getPrivateMeetings()
@@ -45,7 +47,7 @@ export function PrivateMeetings() {
   // instructor instead of dropping the learner on the general inbox.
   async function messageInstructor(target?: PrivateMeetingCohort) {
     if (openingMessages) return
-    const candidates = cohorts.filter((entry) => entry.instructor_id && (!destination.cohortId || entry.id === destination.cohortId))
+    const candidates = matchingCohorts.filter(entry => entry.instructor_id)
     if (!target && candidates.length > 1) { setChoosingInstructor(true); return }
     const cohort = target ?? candidates[0]
     setChoosingInstructor(false)
@@ -121,17 +123,17 @@ export function PrivateMeetings() {
         eyebrow="Time just for you"
         title="My meetings"
         description={`Choose one meeting for each course week. All times are ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`}
-        actions={<Button variant="secondary" onClick={() => void messageInstructor()} disabled={openingMessages}><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</Button>}
+        actions={(!destination.instructorId || matchingCohorts.length > 0) && <Button variant="secondary" onClick={() => void messageInstructor()} disabled={openingMessages}><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</Button>}
       />
 
       {choosingInstructor && !destination.cohortId && <div role="group" aria-label="Choose your course instructor" className="flex flex-wrap gap-3">{cohorts.filter((cohort) => cohort.instructor_id).map((cohort) => <Button key={cohort.id} variant="secondary" onClick={() => void messageInstructor(cohort)}>{cohort.name} · {cohort.instructor_name}</Button>)}</div>}
-      {destination.cohortId && !cohorts.some((cohort) => cohort.id === destination.cohortId) && <p role="alert" className="text-ink-secondary">This cohort doesn't offer meetings.</p>}
+      {(destination.cohortId || destination.instructorId) && matchingCohorts.length === 0 && <p role="alert" className="text-ink-secondary">{destination.instructorId ? 'This instructor does not offer meetings in this cohort.' : "This cohort doesn't offer meetings."}</p>}
       {destination.bookingId && !cohorts.some((cohort) => cohort.id === destination.cohortId && cohort.bookings.some((booking) => booking.id === destination.bookingId)) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink">{error}</p>}
 
       {cohorts.length === 0 ? (
         <EmptyState icon={CalendarDays} title="No meetings yet" description="When your course is ready for scheduling, its weekly times will appear here." />
-      ) : cohorts.filter((cohort) => !destination.cohortId || cohort.id === destination.cohortId).map((cohort) => (
+      ) : matchingCohorts.map((cohort) => (
         <section key={cohort.id} aria-labelledby={`meeting-cohort-${cohort.id}`} className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
             <div className="min-w-0">
@@ -219,7 +221,7 @@ export function PrivateMeetings() {
           <p className="text-sm leading-relaxed text-ink-secondary">Changes close {cohort.reschedule_cutoff_hours} hours before a meeting. You can reschedule or cancel and rebook up to {cohort.max_student_changes} {cohort.max_student_changes === 1 ? 'time' : 'times'}. You can still cancel after using a change, but ask your instructor to arrange another time.</p>
         </section>
       ))}
-      <p className="text-sm leading-relaxed text-ink-secondary">Need a different time? <TextButton onClick={() => void messageInstructor()} disabled={openingMessages}>Message your instructor</TextButton>.</p>
+      {(!destination.instructorId || matchingCohorts.length > 0) && <p className="text-sm leading-relaxed text-ink-secondary">Need a different time? <TextButton onClick={() => void messageInstructor()} disabled={openingMessages}>Message your instructor</TextButton>.</p>}
     </div>
   )
 }

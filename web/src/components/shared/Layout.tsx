@@ -45,8 +45,9 @@ export function Layout({ children }: LayoutProps) {
   const isMessagesRoute = location.pathname.startsWith('/messages')
   /** The inbox list itself, which carries its own workspace switcher; a phone conversation view hides that list. */
   const isMessagesListRoute = /^\/messages\/?$/.test(location.pathname)
-  // Messages keeps its composer above the iOS keyboard (see index.css `.keyboard-shell`).
-  useKeyboardAwareViewport(isMessagesRoute)
+  const isStaffWorkspaceRoute = /^\/admin\/cohorts\/[1-9]\d*(?:\/|$)/.test(location.pathname)
+  // Messages pins its composer; staff forms hide pinned chrome while iOS pans the visual viewport.
+  useKeyboardAwareViewport(isMessagesRoute || isStaffWorkspaceRoute)
   const { user, enrollments, isLoading, schoolFeatures } = useAuthContext()
   const { selectedCohort, cohorts } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -285,7 +286,7 @@ export function Layout({ children }: LayoutProps) {
     onFocus: () => preloadRoute(path),
     onTouchStart: () => preloadRoute(path),
   })
-  const bottomNav = navItems.filter((item) => (isStaff ? ['/admin', '/admin/grading', '/admin/support', '/messages'] : ['/dashboard', '/materials', '/messages']).includes(item.to.split('?')[0]))
+  const bottomNav = navItems.filter((item) => (isStaff ? ['/admin', '/admin/grading', '/admin/support', '/messages'] : ['/dashboard', '/materials', '/my-work', '/messages']).includes(item.to.split('?')[0]))
   const pageContentClassName = isMessagesRoute
     ? 'h-full p-0 lg:p-4'
     : isStaff

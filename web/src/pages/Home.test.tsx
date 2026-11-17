@@ -28,11 +28,11 @@ describe('HomePage (signed-out landing)', () => {
     expect(html).toContain('Open your invitation email and choose “Accept invitation” to create your account')
   })
 
-  it('links back to the CSG site without advertising the catalog before loading', () => {
+  it('keeps browsing and the school site reachable before course data loads', () => {
     const html = render()
     expect(html).toContain('href="https://codeschoolofguam.com/courses"')
     expect(html).toContain('href="https://codeschoolofguam.com/"')
-    expect(html).not.toContain('href="/courses"')
+    expect(html).not.toContain('Browse courses')
   })
 
   it('uses the CSG brand: logo, Newsreader display heading, cream surface, one product name', () => {
@@ -43,9 +43,10 @@ describe('HomePage (signed-out landing)', () => {
     expect(html).toContain('aria-label="CSG Learn home"')
   })
 
-  it('labels the product illustration honestly and drops the old Rails mockup', () => {
+  it('explains learning without advertising an unlaunched example course', () => {
     const html = render()
-    expect(html).toContain('Illustration with sample course content')
+    expect(html).toContain('How learning works')
+    expect(html).not.toContain('Python Fundamentals')
     expect(html).not.toMatch(/Rails API|Week 4/)
   })
 
@@ -69,13 +70,13 @@ describe('automatic public catalog availability', () => {
   const getOfferings = vi.mocked(api.getCourseOfferings)
   type Result = Awaited<ReturnType<typeof api.getCourseOfferings>>
   const result = (...purchasable: boolean[]): Result => ({ error: null, data: { offerings: purchasable.map((checkout_available, id) => ({
-    id, name: 'Sample course', curriculum_name: 'Foundations', checkout_available,
+    description: 'Public copy', image_url: null, outcomes: null, duration: null, prerequisites: null, preview: null, slug: `course-${id}`, syllabus: [], lesson_count: 0, id, name: 'Sample course', curriculum_name: 'Foundations', checkout_available,
     price_cents: 14900, currency: 'USD', access_months: 12, instructor_message_weeks: 6,
     instructor_response_target: '2 Guam business days', includes_private_meetings: false,
     includes_individual_project_review: false,
   })) } })
   const renderPage = async () => act(async () => root.render(<StrictMode><MemoryRouter><HomePage /></MemoryRouter></StrictMode>))
-  const catalogLink = () => container.querySelector('a[href="/courses"]')
+  const catalogLink = () => [...container.querySelectorAll('a[href="/courses"]')].find(a => a.textContent?.includes('See the course catalog')) || null
   const schoolLink = () => container.querySelector('a[href="https://codeschoolofguam.com/courses"]')
 
   beforeEach(() => {
@@ -130,6 +131,20 @@ describe('automatic public catalog availability', () => {
     expect(schoolLink()).not.toBeNull()
   })
 
+  it.each(['automatic', 'always', 'hidden'] as const)('respects %s with and without courses on sale', async mode => {
+    for (const onSale of [false, true]) {
+      getOfferings.mockResolvedValue({ ...result(onSale), data: { ...result(onSale).data!, public_catalog_mode: mode } })
+      await act(async () => root.render(null))
+      await renderPage()
+      const available = mode === 'always' || (mode === 'automatic' && onSale)
+      const primary = container.querySelector('main a.bg-action-primary')
+      expect(primary?.getAttribute('href')).toBe(available ? '/courses' : '/sign-in')
+      expect(primary?.textContent).toContain(available ? 'Browse courses' : 'Sign in')
+      expect(Boolean(catalogLink())).toBe(available)
+      expect(container.querySelectorAll('article').length).toBe(onSale && mode !== 'hidden' ? 1 : 0)
+    }
+  })
+
   it('ignores a response after unmount', async () => {
     let resolve!: (value: Result) => void
     getOfferings.mockReturnValue(new Promise((done) => { resolve = done }))
@@ -138,4 +153,18 @@ describe('automatic public catalog availability', () => {
     await act(async () => resolve(result(true)))
     expect(container.textContent).toBe('')
   })
+})
+
+it('advertises only on-sale courses with stable links', async () => {
+  auth.value = { isSignedIn: false, user: null }
+  vi.mocked(api.getCourseOfferings).mockResolvedValue({ data: { offerings: [
+    { id: 1, slug: 'course-open', name: 'Open course', checkout_available: true },
+    { id: 2, slug: 'course-closed', name: 'Unlaunched private pilot', checkout_available: false },
+  ] }, error: null } as Awaited<ReturnType<typeof api.getCourseOfferings>>)
+  const container = document.createElement('div'); const root = createRoot(container)
+  await act(async () => root.render(<MemoryRouter><HomePage /></MemoryRouter>))
+  expect(container.querySelector('a[href="/courses/course-open"]')).not.toBeNull()
+  expect(container.textContent).not.toContain('Unlaunched private pilot')
+  expect(container.textContent).not.toContain('Python Fundamentals')
+  await act(async () => root.unmount())
 })

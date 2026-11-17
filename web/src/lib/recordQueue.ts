@@ -110,17 +110,24 @@ export function gradingFiltersFromSearch(search: string | URLSearchParams): Grad
 
 /** The Support page's request filters, from its URL. Shared by the page and the help-request record. */
 export interface SupportFilters {
+  studentId?: number | null
   cohortId: number | null
   view: 'active' | 'resolved'
   urgentOnly: boolean
+  /** Help asked from one lesson or one module (from content record pages, L-3.2). */
+  lessonId: number | null
+  moduleId: number | null
 }
 
 export function supportFiltersFromSearch(search: string | URLSearchParams): SupportFilters {
   const params = typeof search === 'string' ? new URLSearchParams(search) : search
   return {
+    ...(idParam(params.get('student_id')) ? { studentId: idParam(params.get('student_id')) } : {}),
     cohortId: idParam(params.get('cohort_id')),
     view: params.get('view') === 'resolved' ? 'resolved' : 'active',
     urgentOnly: params.get('urgency') === 'urgent',
+    lessonId: idParam(params.get('lesson_id')),
+    moduleId: idParam(params.get('module_id')),
   }
 }
 

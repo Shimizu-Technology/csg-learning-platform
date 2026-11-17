@@ -73,8 +73,10 @@ class LessonEditingGrantsTest < ActionDispatch::IntegrationTest
     get_editor(@instructor)
     access = response.parsed_body["access"]
     assert_equal [ false, "shared" ], [ access["can_edit"], access["reason"] ]
-    assert_equal [ "Cohort 4" ], access["shared_with"].map { |cohort| cohort["name"] }
-    assert_match "Cohort 4", access["message"]
+    # The instructor doesn't teach Cohort 4: it's counted, never named (L-3.2).
+    assert_equal [ [], 1 ], [ access["shared_with"], access["shared_with_others_count"] ]
+    assert_match "1 other cohort", access["message"]
+    refute_includes response.body, "Cohort 4"
 
     put_editor(@instructor, title: "Shared title")
     assert_response :forbidden

@@ -526,7 +526,12 @@ describe('help requests from Support', () => {
     expect(api.getSupportQueue).toHaveBeenCalledTimes(2)
   })
 
-  it('has no counter when opened from anywhere else', async () => {
+  it('keeps the student scope when following an open-support card into a request', async () => {
+    await render('/admin/help-requests/4?return_to=' + encodeURIComponent('/admin/support?cohort_id=1&student_id=6&view=active'))
+    expect(api.getSupportQueue).toHaveBeenCalledWith(1, expect.any(AbortSignal), { studentId: 6, lessonId: null, moduleId: null })
+  })
+
+  it('has no counter when opened from anywhere else' , async () => {
     await render('/admin/help-requests/4')
     expect(container.querySelector('[data-record-queue]')).toBeNull()
     expect(api.getSupportQueue).not.toHaveBeenCalled()

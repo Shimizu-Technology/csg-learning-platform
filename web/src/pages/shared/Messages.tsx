@@ -1,3 +1,5 @@
+import { useStudentExperience } from '../../lib/studentExperience'
+import { InstructorMessageAction } from '../../components/student/InstructorMessageAction'
 import { Hash, Lock, MessageCircle, PanelLeftOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell';
@@ -12,6 +14,7 @@ import { messagesPresentation } from './messages/messagesPresentation';
 import { useMessagesController } from './messages/useMessagesController';
 
 export function Messages() {
+  const { v2 } = useStudentExperience()
   const controller = useMessagesController()
   const { toast, route, conversation, overlays, search, lightbox, directory, alerts, feed, mutations } = controller
   if (directory.loading) return <MessagesLoadingShell />
@@ -77,7 +80,7 @@ export function Messages() {
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-ink-muted">
-              Pick a chat or start a direct message.
+              {v2 && !directory.isStaff ? <div className="space-y-4"><p>Choose a conversation or message your course instructor.</p><InstructorMessageAction /></div> : 'Pick a chat or start a direct message.'}
             </div>
           )}
         </section>

@@ -14,6 +14,8 @@ export function recordRefFromDestination(d: RecordDestination): RecordRef | null
   switch (d.kind) {
     case 'student': return { type: 'student', id }
     case 'cohort': return { type: 'cohort', id }
+    // Staff results open the curriculum page (L-5); learner results keep the wire adapter.
+    case 'curriculum': return d.context?.staff === true ? { type: 'curriculum', id } : null
     case 'module': return { type: 'module', id, cohortId }
     case 'lesson': return { type: 'lesson', id, cohortId, view: 'learn', anchor: d.anchor?.block_id ? `block-${d.anchor.block_id}` : undefined }
     case 'submission': return { type: 'submission', id, cohortId, userId: Number(d.context?.student_id) || undefined }

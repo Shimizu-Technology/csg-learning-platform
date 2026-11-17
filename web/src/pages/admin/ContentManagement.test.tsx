@@ -39,7 +39,7 @@ async function changeSchedule() {
 it('widening MWF keeps exercise days and never renders empty authoring rows', async () => {
   const confirm = mocks.confirm
   await mount(); mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [{ ...module, schedule_days: 'weekdays' }] } } }); await changeSchedule()
-  expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: 'Adds Tuesday/Thursday slots. Existing exercises keep their days.' }))
+  expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: 'Adds Tuesday/Thursday as options for new exercises. Existing exercises keep their saved days; empty days stay hidden.' }))
   expect(mocks.updateModule).toHaveBeenCalledWith(10, { schedule_days: 'weekdays', base_updated_at: '2026-10-22' })
   expect(Array.from(container.querySelectorAll('h4')).map(item => item.textContent)).toEqual(['Day 1 · Monday', 'Day 3 · Wednesday', 'Day 5 · Friday'])
   expect(container.textContent).not.toContain('Show empty days')
@@ -122,15 +122,15 @@ it('shows Edit to an instructor only on curricula an admin gave them editing acc
 
 it("keeps the cohort filter on the copied cohort's curriculum after Make a copy, with the cohort under Used by", async () => {
   session.user = { is_admin: false }
-  const editing = { can_edit: false, reason: 'shared', message: null, grants: [], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
+  const editing = { can_edit: false, reason: 'shared', message: null, grants: [], shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0, copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
   mocks.getAccessibleCohorts.mockResolvedValue({ data: { cohorts: [
     { id: 3, name: 'Cohort 3', curriculum_id: 1, course_delivery: 'live' }, { id: 5, name: 'Cohort 4', curriculum_id: 1, course_delivery: 'live' },
   ] } })
   mocks.getCurriculum.mockImplementation(async (id: number) => ({ data: { curriculum: id === 1
     ? { id: 1, name: 'Python', status: 'active', modules: [module], editing }
-    : { id: 11, name: 'Python (Cohort 3)', status: 'active', modules: [module], editing: { ...editing, can_edit: true, reason: 'granted', shared_with: [], copy_cohorts: [], copy_of: { cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Python' }, created_at: '2026-11-16T00:00:00Z' } } } } }))
+    : { id: 11, name: 'Python (Cohort 3)', status: 'active', modules: [module], editing: { ...editing, can_edit: true, reason: 'granted', shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: { cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Python' }, created_at: '2026-11-16T00:00:00Z' } } } } }))
   mocks.getCurriculumCopyPreview.mockResolvedValue({ data: { curriculum_copy_preview: {
-    cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Python' }, copy_name: 'Python (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }],
+    cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Python' }, copy_name: 'Python (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0,
     already_copied: false, copy_curriculum_id: null, can_copy: true, blockers: [], counts: { lessons: 3 },
   } } })
   mocks.copyCurriculumForCohort.mockImplementation(async () => {

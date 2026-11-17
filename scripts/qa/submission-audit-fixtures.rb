@@ -17,3 +17,14 @@ abort 'Release days moved' unless before == mod.lessons.pluck(:id, :release_day)
   Progress.find_or_create_by!(user_id: 3, enrollment: Enrollment.find_by!(user_id: 3, cohort: Cohort.find_by!(name: 'QA Program')), content_block: block) { |p| p.status = :completed }
 end
 puts({ module_id: mod.id, curriculum_id: mod.curriculum_id, lesson_id: mod.lessons.first.id, cohort_id: Cohort.find_by!(name: 'QA Program').id }.to_json)
+
+cohort = Cohort.find_by!(name: 'QA Program')
+cohort.update!(settings: cohort.settings.deep_merge('features' => { 'student_experience_v2' => false }))
+4.times do |i|
+  mod.lessons.first.content_blocks.find_or_create_by!(title: "Instruction audit #{i}") do |b|
+    b.position = 14 + i
+    b.block_type = :text
+    b.body = 'Upload your file after reading these instructions.'
+    b.submission_type = :manual_complete
+  end
+end

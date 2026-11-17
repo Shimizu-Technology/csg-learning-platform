@@ -21,6 +21,12 @@ module Api
         end
       end
 
+      def dismiss_start_here
+        enrollment = current_user.enrollments.with_read_access.find_by!(cohort_id: params.require(:cohort_id))
+        enrollment.update!(start_here_dismissed_at: enrollment.start_here_dismissed_at || Time.current)
+        render json: { dismissed: true }
+      end
+
       private
 
       def render_student_dashboard
@@ -85,6 +91,7 @@ module Api
                 id: l.id,
                 title: l.title,
                 lesson_type: l.lesson_type,
+                kind: LessonKind.for(l),
                 added_at: l.created_at,
                 release_day: l.release_day,
                 required: entry.required,
@@ -163,41 +170,47 @@ module Api
           .where(notifiable_type: "Announcement", notifiable_id: visible_announcements.map(&:id))
           .index_by(&:notifiable_id)
 
-        render json: {
-          dashboard: {
-            enrolled: true,
-            enrollment_status: enrollment.status,
-            support_instructor_id: EnrollmentCapabilities.for(enrollment)[:support_instructor_id] || enrollment.cohort.instructors.not_archived.order(:id).first&.id,
-            paused_since: enrollment.pause_date,
-            capabilities: EnrollmentCapabilities.for(enrollment),
-            user: user_summary,
-            cohort: {
-              features: FeatureSwitches.for(cohort: cohort),
-              id: cohort.id,
-              name: cohort.name,
-              cohort_type: cohort.cohort_type,
-              start_date: cohort.start_date,
-              status: cohort.effective_status,
-              requires_github: cohort.requires_github && FeatureSwitches.for(cohort: cohort)["github_sync"],
-              announcements: (FeatureSwitches.for(cohort: cohort)["announcements"] ? visible_announcements : []).map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
-              unread_notifications_count: unread_projection.count
-            },
-            course_access: {
-              course_delivery: cohort.course_delivery,
-              access_expires_at: enrollment.access_expires_at,
-              support_expires_at: enrollment.support_expires_at
-            },
-            personal_plan: personal_plan,
-            overall_progress: overall,
-            modules: modules_data,
-            continue_lesson: continue_lesson,
-            action_items: action_items,
-            recently_graded: recently_graded,
-            resources: dashboard_resources_json(cohort, enrollment),
-            private_meetings_enabled: FeatureSwitches.for(cohort: cohort)["private_meetings"] && (cohort.private_meeting_config&.enabled? || false),
-            office_hours: FeatureSwitches.for(cohort: cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3) : []
-          }
+        dashboard = {
+          enrolled: true,
+          start_here: cohort.self_paced? && enrollment.active? && enrollment.start_here_dismissed_at.nil?,
+          review_response_time: cohort.effective_review_response_time,
+          enrollment_status: enrollment.status,
+          support_instructor_id: EnrollmentCapabilities.for(enrollment)[:support_instructor_id] || enrollment.cohort.instructors.not_archived.order(:id).first&.id,
+          paused_since: enrollment.pause_date,
+          capabilities: EnrollmentCapabilities.for(enrollment),
+          user: user_summary,
+          cohort: {
+            features: FeatureSwitches.for(cohort: cohort),
+            id: cohort.id,
+            name: cohort.name,
+            cohort_type: cohort.cohort_type,
+            start_date: cohort.start_date,
+            status: cohort.effective_status,
+            requires_github: cohort.requires_github && FeatureSwitches.for(cohort: cohort)["github_sync"],
+            announcements: (FeatureSwitches.for(cohort: cohort)["announcements"] ? visible_announcements : []).map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
+            unread_notifications_count: unread_projection.count
+          },
+          course_access: {
+            course_delivery: cohort.course_delivery,
+            access_expires_at: enrollment.access_expires_at,
+            support_weeks: enrollment.self_paced_support_weeks || cohort.self_paced_support_weeks,
+            support_expires_at: enrollment.support_expires_at
+          },
+          personal_plan: personal_plan,
+          overall_progress: overall,
+          modules: modules_data,
+          continue_lesson: continue_lesson,
+          action_items: action_items,
+          recently_graded: recently_graded,
+          resources: dashboard_resources_json(cohort, enrollment),
+          private_meetings_enabled: FeatureSwitches.for(cohort: cohort)["private_meetings"] && (cohort.private_meeting_config&.enabled? || false),
+          office_hours: FeatureSwitches.for(cohort: cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3) : []
         }
+        # The redesigned Today (W8 PR 8.2) only for a cohort with the new student
+        # experience explicitly on; every other cohort's payload is unchanged.
+        features = FeatureSwitches.for(cohort: cohort)
+        dashboard[:student_today] = StudentToday.new(enrollment, progress: progress, features: features).call if features["student_experience_v2"] == true
+        render json: { dashboard: dashboard }
       end
 
       def dashboard_resources_json(cohort, enrollment)

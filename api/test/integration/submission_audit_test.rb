@@ -7,7 +7,7 @@ class SubmissionAuditTest < ActionDispatch::IntegrationTest
   setup do
     @admin = User.create!(clerk_id: "audit-admin", email: "audit-admin@example.invalid", role: :admin)
     @student = User.create!(clerk_id: "audit-student", email: "audit-student@example.invalid", role: :student)
-    @curriculum = Curriculum.create!(name: "Audit lab")
+    @curriculum = Curriculum.create!(name: "Audit lab", status: :active)
     @module = @curriculum.modules.create!(name: "MWF", position: 0, schedule_days: "mwf")
     @lesson = @module.lessons.create!(title: "Build a site", position: 0, release_day: 0)
     @block = @lesson.content_blocks.create!(block_type: :exercise, title: "Deploy your site", body: "Create a repo and push your work.", position: 0, submission_type: :manual_complete)
@@ -65,10 +65,11 @@ class SubmissionAuditTest < ActionDispatch::IntegrationTest
     SubmissionAudit.rows
     small = count_queries { SubmissionAudit.rows }
     5.times do |index|
-      curriculum = Curriculum.create!(name: "Other #{index}")
+      curriculum = Curriculum.create!(name: "Other #{index}", status: :active)
       mod = curriculum.modules.create!(name: "Other", position: 0)
       lesson = mod.lessons.create!(title: "Other", position: 0, release_day: 0)
       lesson.content_blocks.create!(block_type: :exercise, position: 0, body: "Submit your work", submission_type: nil)
+      Cohort.create!(name: "Cohort #{index}", curriculum: curriculum, start_date: Date.current)
     end
     assert_equal small, count_queries { SubmissionAudit.rows }
   end
@@ -81,6 +82,54 @@ class SubmissionAuditTest < ActionDispatch::IntegrationTest
     after = @module.lessons.reload.map { |lesson| [ lesson.id, lesson.release_day, @module.start_date_for(cohort) + @module.calendar_offset_for(lesson.release_day) ] }
     assert_equal before, after
     assert_equal [ "Monday", "Wednesday", "Friday" ], @module.lessons.map { |lesson| @module.week_and_day_for(lesson.release_day)[:day_name] }
+  end
+
+  test "instructional blocks offer no submission suggestion while work blocks do" do
+    %w[text video recording].each_with_index do |kind, index|
+      block = @lesson.content_blocks.create!(block_type: kind, position: index + 1, body: "Upload your file", submission_type: :manual_complete)
+      row = SubmissionAudit.rows.find { |item| item[:id] == block.id }
+      assert row
+      assert_nil row[:suggested_type]
+    end
+    %w[exercise code_challenge checkpoint].each do |kind|
+      @block.update!(block_type: kind)
+      assert_equal "repo_and_live_url_submission", SubmissionAudit.rows.find { |row| row[:id] == @block.id }[:suggested_type]
+    end
+  end
+
+  test "cohort github settings exclude fully configured work and expose mixed configurations" do
+    @module.update!(module_type: :live_class)
+    @block.update!(submission_type: nil, filename: "answer.rb")
+    cohort = Cohort.create!(name: "Sync cohort", curriculum: @curriculum, start_date: Date.current,
+      settings: { module_github_config: { @module.id.to_s => { requires_github: true } } })
+    assert_empty SubmissionAudit.rows
+    cohort.update!(settings: cohort.settings.deep_merge("features" => { "github_sync" => false }))
+    assert_empty SubmissionAudit.rows, "sync off resolves to text submission, not manual completion"
+    missing = Cohort.create!(name: "Manual cohort", curriculum: @curriculum, start_date: Date.current)
+    row = SubmissionAudit.rows.sole
+    assert_equal({ cohort.id => "text_submission", missing.id => "manual_complete" }, row[:cohort_submissions].to_h { |item| [ item[:id], item[:submission_type] ] })
+  end
+
+  test "draft and archived curricula are excluded" do
+    @curriculum.update!(status: :draft)
+    assert_empty SubmissionAudit.rows
+    @curriculum.update!(status: :archived)
+    assert_empty SubmissionAudit.rows
+  end
+
+  test "deleting a reviewer retains the practice decision" do
+    review = SubmissionAuditReview.create!(content_block: @block, reviewed_by: @admin, content_digest: SubmissionAudit.digest(@block))
+    @admin.delete
+    assert_nil review.reload.reviewed_by
+    assert review.valid?
+    assert_empty SubmissionAudit.rows
+  end
+
+  test "audit never creates school settings even inside a read-only transaction" do
+    ActiveRecord::Base.transaction(requires_new: true) do
+      ActiveRecord::Base.connection.execute("SET TRANSACTION READ ONLY")
+      assert_equal [ @block.id ], SubmissionAudit.rows.map { |row| row[:id] }
+    end
   end
 
   private

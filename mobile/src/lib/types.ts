@@ -305,11 +305,11 @@ export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningP
 
 export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>[]; recording_catch_up?: Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>[] };
 
-export type StudentDashboardLesson = Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>;
+export type StudentDashboardLesson = Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status' | 'kind'>;
 
 export type StudentDashboardModule = Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: StudentDashboardLesson[] };
 
-export type StudentDashboard = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'office_hours' | 'recently_graded' | 'overall_progress'> & { overall_progress?: Preview<NonNullable<components['schemas']['DashboardData']['overall_progress']>, 'completed_lessons' | 'total_lessons'>; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { cohort_type: string; announcements?: Announcement[] }; modules?: (Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>[] })[]; action_items?: Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>[]; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention } & { resources?: LearningResource[]; office_hours?: OfficeHourOccurrence[] } & { recently_graded?: Preview<NonNullable<components['schemas']['DashboardData']['recently_graded']>[number], 'content_block_id' | 'cohort_id'>[] };
+export type StudentDashboard = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'office_hours' | 'recently_graded' | 'overall_progress'> & { overall_progress?: Preview<NonNullable<components['schemas']['DashboardData']['overall_progress']>, 'completed_lessons' | 'total_lessons'>; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { cohort_type: string; announcements?: Announcement[] }; modules?: (Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status' | 'kind'>[] })[]; action_items?: Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>[]; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention } & { resources?: LearningResource[]; office_hours?: OfficeHourOccurrence[] } & { recently_graded?: Preview<NonNullable<components['schemas']['DashboardData']['recently_graded']>[number], 'content_block_id' | 'cohort_id'>[] };
 
 export type StaffDashboard = {
   today?: components['schemas']['InstructorToday'];
@@ -323,16 +323,21 @@ export type StaffStudentSummary = Omit<Pick<components['schemas']['SupportQueueS
 export type StaffCohortDashboard = Omit<components['schemas']['StaffCohortDashboard'], 'students'> & { students: StaffStudentSummary[] };
 
 export interface StudentProgressDetail {
+  status?: components['schemas']['StudentWorkspaceStatus'] | null;
+  enrollments?: components['schemas']['StudentWorkspaceEnrollment'][];
+  media_summary?: components['schemas']['StudentMediaSummary'];
   enrollment: { id: number; status: string };
   user: { id: number; full_name: string; email: string; github_username: string | null; avatar_url: string | null; last_sign_in_at: string | null; last_seen_at: string | null };
   cohort: { id: number; name: string; start_date: string; status: string };
-  learning_evidence_scope?: { kind: 'curriculum'; curriculum_id: number; curriculum_name: string; enrollment_count: number; shared_across_enrollments: boolean };
-  overall_progress: { completed: number; total: number; percentage: number };
+  learning_evidence_scope?: { kind: 'curriculum' | 'enrollment'; curriculum_id: number; curriculum_name: string; enrollment_count: number; shared_across_enrollments: boolean };
+  overall_progress: { completed: number; total: number; percentage: number; completed_lessons?: number; total_lessons?: number };
   modules: StaffProgressModule[];
   recent_activity: { content_block_id: number; block_title: string | null; block_type: string; completed_at: string | null }[];
 }
 
 export interface StaffProgressModule {
+  completed_lessons?: number;
+  total_lessons?: number;
   id: number;
   name: string;
   module_type: string;

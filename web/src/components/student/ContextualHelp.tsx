@@ -1,4 +1,6 @@
+import { useStudentExperience } from '../../lib/studentExperience'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CheckCircle2, CircleHelp, Clock3, Send, ShieldAlert, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { captureProductEvent } from '../../lib/analytics'
@@ -28,6 +30,7 @@ interface ContextualHelpProps {
   contextSource?: HelpContextSource
   contextId: number
   contextLabel: string
+  contexts?: Array<{ type: HelpContextType; id: number; label: string }>
   compact?: boolean
   requests?: HelpRequest[]
   requestsLoading?: boolean
@@ -35,8 +38,15 @@ interface ContextualHelpProps {
   onRequestsRefresh?: () => void | Promise<void>
 }
 
-export function ContextualHelp({ capabilities, contextPath, cohortId, contextType, contextSource = 'primary', contextId, contextLabel, compact = false, requests: controlledRequests, requestsLoading, onRequestsChange, onRequestsRefresh }: ContextualHelpProps) {
+export function ContextualHelp({ capabilities, contextPath, cohortId, contextType, contextSource = 'primary', contextId, contextLabel, contexts, compact = false, requests: controlledRequests, requestsLoading, onRequestsChange, onRequestsRefresh }: ContextualHelpProps) {
+  const { v2 } = useStudentExperience()
   const toast = useToast()
+  const [chosenContext, setChosenContext] = useState('')
+  const choices = v2 ? contexts : undefined
+  const choice = choices?.find(item => `${item.type}:${item.id}` === chosenContext)
+  const requestType = choice?.type ?? contextType
+  const requestId = choice?.id ?? contextId
+  const needsChoice = Boolean(choices && choices.length > 1 && !choice)
   const [open, setOpen] = useState(false)
   const [localRequests, setLocalRequests] = useState<HelpRequest[]>([])
   const [localLoading, setLocalLoading] = useState(true)
@@ -71,22 +81,50 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const relevantRequests = useMemo(() => requests.filter((request) =>
     request.cohort.id === cohortId && request.context_type === contextType && request.context_id === contextId && request.context_source === contextSource
   ), [cohortId, contextType, contextId, contextSource, requests])
-  const activeRequest = relevantRequests.find((request) => request.status === 'open' || request.status === 'acknowledged')
-  const latestResolved = relevantRequests.find((request) => request.status === 'resolved')
+  const history = choices ? requests.filter(request => request.cohort.id === cohortId && request.context_source === contextSource && choices.some(item => item.type === request.context_type && item.id === request.context_id)) : relevantRequests
+  const selectedRequests = choices ? history.filter(request => !needsChoice && request.context_type === requestType && request.context_id === requestId) : relevantRequests
+  const activeRequest = selectedRequests.find((request) => request.status === 'open' || request.status === 'acknowledged')
+  const latestResolved = selectedRequests.find((request) => request.status === 'resolved')
 
   const canRequest = capabilities?.support_mode === 'guided_help'
+
+  // New student experience (L-1.3): a link with ?help_request=:id (the learner's
+  // notification, Today) opens that request's dialog, once, when it belongs here.
+  const location = useLocation()
+  const linkedRequestId = v2 ? Number(new URLSearchParams(location.search).get('help_request')) || null : null
+  const autoOpened = useRef<number | null>(null)
+  // The linked request is the one shown, even when a newer one was resolved on this lesson.
+  const linkedRequest = linkedRequestId ? history.find((request) => request.id === linkedRequestId) : undefined
+  const shownResolved = linkedRequest?.status === 'resolved' ? linkedRequest : latestResolved
+  // A new link on a lesson that is already open (the page didn't remount) fetches the requests again,
+  // so a reply sent since the page loaded is there. The first link is covered by the page's own load.
+  const refreshedFor = useRef(linkedRequestId)
+  useEffect(() => {
+    if (!linkedRequestId || refreshedFor.current === linkedRequestId) return
+    refreshedFor.current = linkedRequestId
+    if (onRequestsRefresh) void onRequestsRefresh()
+    else void loadRequests().catch(() => {})
+  }, [linkedRequestId, loadRequests, onRequestsRefresh])
+  useEffect(() => {
+    if (!linkedRequestId || loading || autoOpened.current === linkedRequestId || !linkedRequest) return
+    autoOpened.current = linkedRequestId
+    // With several contexts (the lesson and its exercises), open on the linked request's own one, so its reply shows.
+    const linkedChoice = choices?.find(item => item.type === linkedRequest.context_type && item.id === linkedRequest.context_id)
+    if (linkedChoice) setChosenContext(`${linkedChoice.type}:${linkedChoice.id}`)
+    setOpen(true)
+  }, [linkedRequestId, loading, linkedRequest, choices])
 
   async function submitRequest(event: React.FormEvent) {
     event.preventDefault()
     const cleanMessage = message.trim()
-    if (!canRequest || !cleanMessage) return
+    if (!canRequest || needsChoice || !cleanMessage) return
     const generation = requestGeneration.current
     setSaving(true)
     const response = await api.createHelpRequest({
       cohort_id: cohortId,
-      context_type: contextType,
+      context_type: requestType,
       context_source: contextSource,
-      context_id: contextId,
+      context_id: requestId,
       category,
       urgency,
       message: cleanMessage,
@@ -122,7 +160,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     toast.success('Help request canceled.')
   }
 
-  const replied = Boolean(activeRequest?.replies?.length)
+  const replied = Boolean(activeRequest?.replies?.length || (v2 && activeRequest?.staff_response))
   const statusLabel = replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
 
   if (capabilities?.features?.help_requests === false) return null
@@ -130,11 +168,12 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   return (
     <>
       {!canRequest && <CourseSupport capabilities={capabilities} cohortId={cohortId} contextLabel={contextLabel} contextPath={contextPath} />}
-      {(canRequest || relevantRequests.length > 0) && <Button
+      {(canRequest || history.length > 0) && <Button
         variant="secondary"
-        size="sm"
+        size={v2 ? "md" : "sm"}
         fullWidth={compact}
         onClick={() => {
+          if (choices && !message.trim()) setChosenContext('')
           setOpen(true)
           if (onRequestsRefresh) void onRequestsRefresh()
           else void loadRequests()
@@ -142,7 +181,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         className={activeRequest ? 'border-line! bg-surface-sunken! text-ink-secondary!' : 'text-ink-secondary!'}
       >
         {activeRequest ? <Clock3 className="h-4 w-4" aria-hidden="true" /> : <CircleHelp className="h-4 w-4" aria-hidden="true" />}
-        {!canRequest ? 'View previous help' : activeRequest ? statusLabel : 'Ask for help'}
+        {!canRequest ? 'View previous help' : v2 && history.some(request => request.replies?.length || request.staff_response) ? 'View response' : activeRequest ? statusLabel : 'Ask for help'}
       </Button>}
 
       <Modal
@@ -154,14 +193,25 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         size="md"
       >
         <div className="space-y-4">
-          {!loading && latestResolved && (
+          {choices && canRequest && <label className="block space-y-2 text-sm font-semibold text-ink">What is your question about?
+            <select aria-label="What is your question about?" disabled={saving} className="min-h-11 w-full rounded-xl border border-line bg-surface-raised px-3" value={chosenContext} onChange={event => setChosenContext(event.target.value)}>
+              {choices.length > 1 && <option value="">Choose the lesson or an exercise</option>}
+              {choices.map(item => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}
+            </select>
+          </label>}
+          {choices && history.filter(request => request.id !== activeRequest?.id && request.id !== shownResolved?.id).map(request => <details key={request.id} className="rounded-xl border border-line bg-surface-sunken p-3">
+            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">{choices.find(item => item.type === request.context_type && item.id === request.context_id)?.label} · {formatShortDateTime(request.created_at)}</summary>
+            <p className="my-3 whitespace-pre-wrap text-sm text-ink [overflow-wrap:anywhere]">{request.message}</p>
+            <dl className="space-y-3 text-sm"><HelpReplies request={request} /></dl>
+          </details>)}
+          {!loading && shownResolved && (
             <div className="rounded-2xl border border-success-line bg-success-soft p-4">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-ink" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-success-ink">{(latestResolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</p>
+                  <p className="font-semibold text-success-ink">{(shownResolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</p>
                   {/* Every reply, not only the last one, so a hint sent before resolving isn't lost. */}
-                  <dl className="mt-1 space-y-3 text-sm"><HelpReplies request={latestResolved} /></dl>
+                  <dl className="mt-1 space-y-3 text-sm"><HelpReplies request={shownResolved} /></dl>
                   {canRequest && <p className="mt-2 text-xs font-medium text-success-ink">You can send a new request if you still need help.</p>}
                 </div>
               </div>
@@ -200,7 +250,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                 <XCircle className="h-4 w-4" /> Cancel request
               </Button>}
             </div>
-          ) : canRequest ? (
+          ) : canRequest && !needsChoice ? (
             <form className="space-y-5" onSubmit={submitRequest}>
               <fieldset>
                 <legend className="text-sm font-semibold text-ink">What kind of help do you need?</legend>

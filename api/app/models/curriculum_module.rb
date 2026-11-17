@@ -38,11 +38,15 @@ class CurriculumModule < ApplicationRecord
 
   scope :ordered, -> { order(:position) }
 
-  def self.learner_evidence(ids)
+  # `enrollment_ids` limits the submission counts to those enrollments, for a
+  # viewer who may not count other cohorts' work (StaffCohortScope). Whether a
+  # module is blocked from deletion always looks at every learner.
+  def self.learner_evidence(ids, enrollment_ids: nil)
     lessons = Lesson.where(module_id: ids).select(:id)
     blocks = ContentBlock.where(lesson_id: lessons).select(:id)
-    submissions = Submission.joins(content_block: :lesson).where(content_block_id: blocks).group("lessons.module_id").count
-    blocked = submissions.keys +
+    all_submissions = Submission.joins(content_block: :lesson).where(content_block_id: blocks)
+    submissions = (enrollment_ids.nil? ? all_submissions : all_submissions.where(enrollment_id: enrollment_ids)).group("lessons.module_id").count
+    blocked = (enrollment_ids.nil? ? submissions.keys : all_submissions.distinct.pluck("lessons.module_id")) +
       ModuleAssignment.where(module_id: ids).distinct.pluck(:module_id) +
       LessonAssignment.joins(:lesson).where(lesson_id: lessons).distinct.pluck("lessons.module_id") +
       Progress.joins(content_block: :lesson).where(content_block_id: blocks).distinct.pluck("lessons.module_id") +
@@ -63,8 +67,9 @@ class CurriculumModule < ApplicationRecord
     KnowledgeCheck.where(content_block_id: block_ids).order(:id).lock.load
   end
 
-  def submissions_count
-    Submission.where(content_block_id: ContentBlock.where(lesson_id: all_lessons.select(:id)).select(:id)).count
+  def submissions_count(enrollment_ids: nil)
+    scope = Submission.where(content_block_id: ContentBlock.where(lesson_id: all_lessons.select(:id)).select(:id))
+    (enrollment_ids.nil? ? scope : scope.where(enrollment_id: enrollment_ids)).count
   end
 
   def learner_data?

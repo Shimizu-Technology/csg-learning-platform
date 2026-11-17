@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -200,8 +200,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_220000) do
     t.string "public_title"
     t.text "public_description"
     t.string "public_image_url"
+    t.string "public_slug"
+    t.text "public_outcomes"
+    t.string "public_duration"
+    t.text "public_prerequisites"
+    t.text "public_preview"
+    t.string "review_response_time"
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
+    t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
     t.index ["status"], name: "index_cohorts_on_status"
     t.index ["support_instructor_id"], name: "index_cohorts_on_support_instructor_id"
     t.check_constraint "course_delivery::text = ANY (ARRAY['program'::character varying::text, 'guided'::character varying::text, 'self_paced'::character varying::text])", name: "cohort_course_delivery_valid"
@@ -417,6 +424,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_220000) do
     t.datetime "paused_at"
     t.datetime "read_cutoff_at"
     t.datetime "content_moved_at"
+    t.datetime "start_here_dismissed_at"
     t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
@@ -440,7 +448,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_220000) do
   end
 
   create_table "feature_switch_changes", force: :cascade do |t|
-    t.bigint "actor_id", null: false
+    t.bigint "actor_id"
     t.bigint "cohort_id"
     t.jsonb "before", null: false
     t.jsonb "after", null: false
@@ -1056,11 +1064,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_220000) do
     t.index ["curriculum_id"], name: "index_rubrics_on_curriculum_id"
   end
 
+  create_table "scheduled_notification_attempts", force: :cascade do |t|
+    t.string "key", null: false
+    t.datetime "created_at", null: false
+    t.index ["key"], name: "index_scheduled_notification_attempts_on_key", unique: true
+  end
+
+  create_table "scheduled_task_runs", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "last_succeeded_at"
+    t.date "last_school_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "last_attempted_at"
+    t.jsonb "last_result", default: {}, null: false
+    t.index ["name"], name: "index_scheduled_task_runs_on_name", unique: true
+  end
+
   create_table "school_settings", force: :cascade do |t|
     t.jsonb "features", default: {}, null: false
     t.string "public_catalog_mode", default: "automatic", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "review_response_time", default: "usually reviewed within 2 days", null: false
     t.check_constraint "id = 1", name: "school_settings_singleton"
   end
 
@@ -1187,7 +1213,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_220000) do
 
   create_table "submission_audit_reviews", force: :cascade do |t|
     t.bigint "content_block_id", null: false
-    t.bigint "reviewed_by_id", null: false
+    t.bigint "reviewed_by_id"
     t.string "content_digest", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1464,7 +1490,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_220000) do
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "submission_audit_reviews", "content_blocks"
-  add_foreign_key "submission_audit_reviews", "users", column: "reviewed_by_id"
+  add_foreign_key "submission_audit_reviews", "users", column: "reviewed_by_id", on_delete: :nullify
   add_foreign_key "submission_criterion_results", "rubric_criteria", column: "rubric_criterion_id"
   add_foreign_key "submission_criterion_results", "submissions"
   add_foreign_key "submissions", "content_blocks"

@@ -62,7 +62,7 @@ export function StudentCohortHome() {
         <p className="mt-6 text-3xl font-bold tabular-nums tracking-tight text-ink" data-testid="cohort-progress-percentage">{progress}%</p>
         <div className="mt-3"><ProgressBar value={progress} size="sm" showPercentage={false} /></div>
         <p className="mt-3 text-sm text-ink-secondary">Pick up where you left off in the curriculum.</p>
-        <LinkButton to="/materials" className="mt-4">Go to Learn <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+        <LinkButton to={`/materials?cohort_id=${cohortId}`} className="mt-4">Go to Learn <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
       </section>
       <section className="app-surface p-5 sm:p-6">
         <p className="text-xs font-semibold text-ink-muted">Class community</p>

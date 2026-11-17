@@ -1,3 +1,5 @@
+import { useBackLink } from '../../lib/recordOrigin'
+import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { schoolTimeLabel } from '../../lib/schoolTime'
 import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useEffect, useState } from 'react'
@@ -50,6 +52,9 @@ const lessonTypeIcons: Record<string, React.ReactNode> = {
 export function ModuleView() {
   const { id } = useParams<{ id: string }>()
   const { selectedCohortId } = useCohortContext()
+  // Learn in this module's cohort, so Back never depends on the last cohort viewed (L-1.10).
+  const learnPath = selectedCohortId ? `/materials?cohort_id=${selectedCohortId}` : '/materials'
+  const back = useBackLink({ returnTo: learnPath, returnLabel: 'Learn' })
   const { user } = useAuthContext()
   const paths = useLearnerPaths(selectedCohortId)
   const [mod, setMod] = useState<ModuleData | null>(null)
@@ -105,7 +110,7 @@ export function ModuleView() {
   }, [id, selectedCohortId, user?.is_staff])
 
   if (loading) return <LoadingSpinner message="Loading module..." />
-  if (!mod) return <EmptyState icon={BookOpen} title={!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'} action={<LinkButton to="/materials" variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Learn</LinkButton>} />
+  if (!mod) return <EmptyState icon={BookOpen} title={!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'} action={<LinkButton to={learnPath} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Learn</LinkButton>} />
 
   const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -129,9 +134,9 @@ export function ModuleView() {
     <ReturnOrigin label={mod.name}><div className="app-page max-w-5xl">
       {/* Header */}
       <div>
-        <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
+        <Link to={back.to} state={RESTORE_LIST_STATE} className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to Learn
+          {back.label}
         </Link>
         <div className="app-surface p-6">
           <p className="app-eyebrow">Learning path</p>

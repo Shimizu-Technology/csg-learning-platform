@@ -116,7 +116,7 @@ module Api
         enrollment = if params[:cohort_id].present?
           enrollments.find_by(cohort_id: params[:cohort_id])
         else
-          enrollments.active.first
+          enrollments.active.where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).first
         end
 
         unless enrollment
@@ -128,7 +128,7 @@ module Api
         cohort = enrollment.cohort
         return unless require_cohort_access!(cohort, teacher: true)
         curriculum = cohort.curriculum
-        same_curriculum_enrollment_count = user.enrollments.joins(:cohort)
+        same_curriculum_enrollment_count = user.enrollments.where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).joins(:cohort)
           .where(cohorts: { curriculum_id: curriculum.id })
           .count
         # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
@@ -249,8 +249,16 @@ module Api
             reasons: attention[:reasons].map { |reason| reason.slice(:code, :label, :since) },
             ungraded_count: attention[:ungraded_count],
             redo_count: attention[:redo_count],
-            help_request_count: attention[:help_request_count]
+            help_request_count: attention[:help_request_count],
+            next_review_submission_id: attention[:next_review_submission_id],
+            active_intervention_count: attention[:active_intervention_count],
+            active_intervention_id: attention[:active_intervention_id]
           },
+          enrollments: user.enrollments.where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).includes(:cohort).order(:id).map { |item|
+            { id: item.id, cohort_id: item.cohort_id, cohort_name: item.cohort.name, status: item.status }
+          },
+          can_message: !current_user.blocked_relationship_with?(user),
+          media_summary: StudentMediaProgress.new(enrollment: enrollment, progress: learner_progress).call,
           weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false, progress: learner_progress).call,
           enrollment: {
             id: enrollment.id,
@@ -296,7 +304,7 @@ module Api
           learning_evidence_scope: {
             kind: "enrollment",
             curriculum_id: curriculum.id,
-            curriculum_name: curriculum.name,
+            curriculum_name: CurriculumName.new(current_user).for(curriculum, in_cohort: cohort),
             enrollment_count: same_curriculum_enrollment_count,
             shared_across_enrollments: false
           },
@@ -304,6 +312,12 @@ module Api
           modules: modules_data,
           recent_activity: recent_activity
         }
+      end
+
+      private
+
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
       end
     end
   end

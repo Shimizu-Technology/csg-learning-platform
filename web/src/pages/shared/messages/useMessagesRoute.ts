@@ -44,6 +44,8 @@ export function useMessagesRoute() {
     routedAnchorOffset,
     routedDestinationKey,
     requestedWorkspaceId,
+    requestedCohortId: Number(searchParams.get('cohort_id')) || undefined,
+    requestedStudentId: Number(searchParams.get('student_id')) || undefined,
     sourceRecord,
     sourceRecordPath,
     setSourceContextHidden,

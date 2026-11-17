@@ -1,3 +1,5 @@
+import { useStudentExperience } from '../../lib/studentExperience'
+import { InstructorMessageAction } from '../../components/student/InstructorMessageAction'
 import { schoolTimeDescription } from '../../lib/schoolTime'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -68,6 +70,7 @@ function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
 }
 
 export function Materials({ previewData, disableStaffRedirect = false, previewLessonPath }: MaterialsProps = {}) {
+  const { v2 } = useStudentExperience()
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   const paths = useLearnerPaths(selectedCohortId)
@@ -375,7 +378,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
             {data.action_items.map((item) => (
               <Link
                 key={item.submission_id}
-                to={previewLessonPath ? previewLessonPath(item.lesson_id) : paths.lesson(item.lesson_id, `block-${item.content_block_id}`)}
+                to={previewLessonPath ? `${previewLessonPath(item.lesson_id)}#block-${item.content_block_id}` : paths.lesson(item.lesson_id, `block-${item.content_block_id}`)}
                 className="pressable min-w-0 rounded-xl border border-warning-line bg-surface-raised p-4 hover:border-warning-line"
               >
                 <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.content_block_title}</p>
@@ -398,14 +401,14 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
           icon={Hourglass}
           title="Your course isn’t open yet"
           description="Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor."
-          action={<LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
+          action={v2 ? <InstructorMessageAction /> : <LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
         />
       ) : derived.noLessonsYet ? (
         <EmptyState
           icon={BookOpen}
           title="No lessons published yet"
           description="Your course is set up, but its lessons haven’t been published. Check back soon, or message your instructor if you expected to start."
-          action={<LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
+          action={v2 ? <InstructorMessageAction /> : <LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
         />
       ) : derived.visibleModules.length === 0 ? (
         <EmptyState

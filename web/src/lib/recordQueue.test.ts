@@ -48,11 +48,14 @@ describe('moduleQueueSource', () => {
 describe('support queue', () => {
   it('reads the Support filters and walks the same list', () => {
     const source = supportQueueSource('/admin/support?cohort_id=3&urgency=urgent')
-    expect(source).toEqual({ cohortId: 3, view: 'active', urgentOnly: true })
+    expect(source).toEqual({ cohortId: 3, view: 'active', urgentOnly: true, lessonId: null, moduleId: null })
     const queue = { help_requests: [{ id: 1, urgency: 'urgent' }, { id: 2, urgency: 'normal' }], recently_resolved: [{ id: 3, urgency: 'normal' }] }
     expect(filterSupportRequests(queue, source!).map((item) => item.id)).toEqual([1])
     expect(filterSupportRequests(queue, { view: 'resolved', urgentOnly: false }).map((item) => item.id)).toEqual([3])
-    expect(supportQueueSource('/admin/support?cohort_id=abc&view=weird')).toEqual({ cohortId: null, view: 'active', urgentOnly: false })
+    expect(supportQueueSource('/admin/support?cohort_id=abc&view=weird')).toEqual({ cohortId: null, view: 'active', urgentOnly: false, lessonId: null, moduleId: null })
+    // Help on one lesson or module, from a content page's count (L-3.2).
+    expect(supportQueueSource('/admin/support?cohort_id=3&lesson_id=40')).toMatchObject({ cohortId: 3, lessonId: 40, moduleId: null })
+    expect(supportQueueSource('/admin/support?module_id=7&lesson_id=-1')).toMatchObject({ lessonId: null, moduleId: 7 })
     expect(supportQueueSource('/admin/grading')).toBeNull()
   })
 

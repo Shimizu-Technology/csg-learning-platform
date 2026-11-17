@@ -28,7 +28,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
 
     Progress.create!(user: @student, enrollment: @enrollment, content_block: @monday.content_blocks.first, status: :completed)
-    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, grade: :R, feedback: "Try the layout again.", graded_at: @now - 1.hour)
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, grade: :R, feedback: "Try the layout again.", created_at: @now - 2.hours, graded_at: @now - 1.hour)
     @cohort.office_hours.create!(
       title: "Live class",
       starts_at: Time.utc(2030, 7, 10, 4),
@@ -196,7 +196,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_equal({ module_count: 1, lesson_count: 4, recording_count: 1 }, plan[:library_summary])
     assert_nil plan[:week_number]
 
-    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, text: "Revised work")
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, text: "Revised work", created_at: @now)
     assert_empty WeeklyPlanProjection.new(@student, now: @now).call[:redos]
   end
 
@@ -211,7 +211,9 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_equal @wednesday.id, plan.dig(:course_overview, :next_lesson, :lesson_id)
     assert_equal [ @wednesday.id ], plan[:redos].map { |item| item[:lesson_id] }
 
-    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, text: "Second try")
+    # Attempt order is part of the fixture, independent of wall-clock adjustments.
+    revision = Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, text: "Second try", created_at: @now)
+    assert_equal revision.id, @enrollment.submissions.latest_attempts.sole.id
     plan = WeeklyPlanProjection.new(@student, now: @now).call
     assert_nil plan.dig(:course_overview, :next_lesson)
     assert_empty plan[:redos]

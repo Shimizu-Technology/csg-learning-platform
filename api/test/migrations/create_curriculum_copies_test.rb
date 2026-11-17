@@ -31,6 +31,7 @@ class CreateCurriculumCopiesTest < ActiveSupport::TestCase
     end
   ensure
     migration&.migrate(:up)
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
     [ Enrollment, CurriculumResource, CurriculumCopy, ContentRedirect ].each(&:reset_column_information)
   end
 end

@@ -30,15 +30,15 @@ import {
   CohortStudentView,
   CohortWatchProgress,
   ContentManagement,
-  Dashboard,
   PrivateMeetings,
   StaffPrivateMeetings,
   Grading,
   LessonEditor,
+  LessonRecord,
+  CurriculumRecord,
+  ModuleRecord,
   LessonView,
-  Materials,
   Messages,
-  ModuleView,
   Profile,
   Recordings,
   Resources,
@@ -56,7 +56,7 @@ import {
   TeamMemberDetail,
 } from './lib/routePreload'
 import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
-import { StudentCohortHome } from './pages/student/StudentCohortHome'
+import { CohortHomeRoute, LearnRoute, ModuleRoute, MyWorkRoute, TodayRoute } from './pages/student/StudentExperienceRoutes'
 import { CourseCatalog } from './pages/CourseCatalog'
 
 export function RouteLoadingFallback() {
@@ -110,6 +110,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<HomeRoute />} />
         <Route path="/courses" element={<CourseCatalog />} />
+        <Route path="/courses/:slug" element={<CourseCatalog />} />
         <Route path="/sign-in" element={<SuspendedRoute><SignInPage /></SuspendedRoute>} />
         <Route path="/sign-up" element={<SuspendedRoute><SignUpPage /></SuspendedRoute>} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
@@ -123,11 +124,12 @@ function AppRoutes() {
         {/* Authenticated routes with shared layout */}
         <Route element={<Layout />}>
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<SuspendedRoute><Dashboard /></SuspendedRoute>} />
-            <Route path="/cohorts/:id" element={<StudentCohortHome />} />
+            <Route path="/dashboard" element={<SuspendedRoute><TodayRoute /></SuspendedRoute>} />
+            <Route path="/my-work" element={<SuspendedRoute><MyWorkRoute /></SuspendedRoute>} />
+            <Route path="/cohorts/:id" element={<CohortHomeRoute />} />
             <Route path="/meetings" element={<SuspendedRoute><PrivateMeetings /></SuspendedRoute>} />
-            <Route path="/materials" element={<SuspendedRoute><Materials /></SuspendedRoute>} />
-            <Route path="/modules/:id" element={<SuspendedRoute><ModuleView /></SuspendedRoute>} />
+            <Route path="/materials" element={<SuspendedRoute><LearnRoute /></SuspendedRoute>} />
+            <Route path="/modules/:id" element={<SuspendedRoute><ModuleRoute /></SuspendedRoute>} />
             <Route path="/lessons/:id" element={<SuspendedRoute><LessonView /></SuspendedRoute>} />
             <Route path="/profile" element={<SuspendedRoute><Profile /></SuspendedRoute>} />
             <Route path="/recordings" element={<SuspendedRoute><Recordings /></SuspendedRoute>} />
@@ -157,6 +159,9 @@ function AppRoutes() {
             <Route path="/admin/interventions/:id" element={<SuspendedRoute><InterventionDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />
             <Route path="/admin/content" element={<SuspendedRoute><ContentManagement /></SuspendedRoute>} />
+            <Route path="/admin/curricula/:id" element={<SuspendedRoute><CurriculumRecord /></SuspendedRoute>} />
+            <Route path="/admin/modules/:id" element={<SuspendedRoute><ModuleRecord /></SuspendedRoute>} />
+            <Route path="/admin/lessons/:id" element={<SuspendedRoute><LessonRecord /></SuspendedRoute>} />
             <Route path="/admin/lessons/:id/edit" element={<SuspendedRoute><LessonEditor /></SuspendedRoute>} />
           </Route>
 

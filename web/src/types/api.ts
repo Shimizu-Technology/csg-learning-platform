@@ -196,6 +196,8 @@ export interface SupportQueue {
   students: SupportQueueStudent[];
   interventions: Intervention[];
   recovery_plans: RecoveryPlan[];
+  /** The lesson or module the help lists are narrowed to (`lesson_id` / `module_id`); name is null outside the viewer's cohorts. */
+  help_filter?: { type: 'lesson' | 'module'; id: number; name: string | null } | null;
 }
 
 export type ModuleSummary = components['schemas']['ModuleSummary'];
@@ -375,6 +377,7 @@ export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningP
 export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>>; recording_catch_up?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>> };
 
 export interface CohortSummary extends Partial<CourseOfferingTerms> {
+  review_response_time?: string;
   course_delivery?: 'program' | 'guided' | 'self_paced';
   id: number;
   name: string;
@@ -430,6 +433,10 @@ export interface GithubAccessResponse {
 }
 
 export interface CohortModule {
+  assigned_enrollment_ids?: components['schemas']['CohortModuleLearning']['assigned_enrollment_ids'];
+  completed_lessons?: number;
+  total_lessons?: number;
+  progress_percentage?: number;
   id: number;
   name: string;
   module_type: string;
@@ -459,6 +466,11 @@ export interface CohortDetail extends CohortSummary {
 }
 
 export interface CourseOfferingTerms {
+  public_slug?: string | null;
+  public_outcomes?: string | null;
+  public_duration?: string | null;
+  public_prerequisites?: string | null;
+  public_preview?: string | null;
   public_title?: string | null;
   public_description?: string | null;
   public_image_url?: string | null;
@@ -471,7 +483,7 @@ export interface CourseOfferingTerms {
   offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
 }
 
-export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'overall_progress'> & { overall_progress?: OverallProgress; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
+export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'overall_progress'> & { overall_progress?: OverallProgress; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status' | 'kind'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
 
 export interface CohortStudentViewLesson {
   id: number;
@@ -515,6 +527,8 @@ export interface CohortStudentView {
     end_date: string | null;
     curriculum_name: string;
     active_count: number;
+    /** The cohort's resolved feature switches. */
+    features?: Record<string, boolean>;
   };
   read_only: boolean;
   generated_at: string;
@@ -794,20 +808,19 @@ export interface StudentProgressModule {
   lessons: StudentProgressLesson[];
 }
 
+export type StudentCommunication = components['schemas']['StudentCommunicationResponse']['communication'];
+
+/** Compatibility view model; the complete current wire contract is StudentWorkspaceProgressResponse. */
 export interface StudentProgressResponse {
+  can_message?: boolean
   weekly_plan?: WeeklyPlan | null;
   personal_plan?: PersonalLearningPlan | null;
   /** The server's one next step (LearnerProgress). */
   continue_lesson?: { id: number; title: string } | null;
   /** The status staff see for this learner on the Students list, Today and peek cards. */
-  status?: {
-    label: string;
-    needs_attention: boolean;
-    reasons: Array<Pick<AttentionReason, 'code' | 'label' | 'since'>>;
-    ungraded_count: number;
-    redo_count: number;
-    help_request_count: number;
-  } | null;
+  status?: components['schemas']['StudentWorkspaceStatus'] | null;
+  enrollments?: components['schemas']['StudentWorkspaceEnrollment'][];
+  media_summary?: components['schemas']['StudentMediaSummary'];
   enrollment: {
     restart_version?: string | null;
     first_opened_at?: string | null;
@@ -838,7 +851,7 @@ export interface StudentProgressResponse {
   };
   cohort: { id: number; name: string; start_date: string; status: string; course_delivery?: 'program' | 'guided' | 'self_paced' };
   learning_evidence_scope?: {
-    kind: 'curriculum';
+    kind: 'curriculum' | 'enrollment';
     curriculum_id: number;
     curriculum_name: string;
     enrollment_count: number;
@@ -857,6 +870,8 @@ export interface StudentProgressResponse {
 export type LearningEvidenceStatus = 'demonstrated' | 'developing' | 'needs_revision' | 'not_evidenced';
 
 export interface LearningEvidenceItem {
+  lesson_title?: string;
+  module_name?: string;
   id: string;
   kind: 'rubric_criterion' | 'aligned_submission' | 'knowledge_check';
   state: string;
@@ -919,7 +934,7 @@ export interface LearningRevisionPattern {
 
 export interface LearningInsights {
   generated_at: string;
-  evidence_scope: { kind: 'curriculum'; curriculum_id: number; curriculum_name: string; completion_and_watch_time_excluded: boolean };
+  evidence_scope: { kind: 'curriculum' | 'enrollment'; curriculum_id: number; curriculum_name: string; completion_and_watch_time_excluded: boolean };
   cohort: { id: number; name: string };
   summary: {
     objective_count: number;
@@ -953,6 +968,17 @@ export type SessionResponse = components['schemas']['SessionResponse'];
 export type DashboardResponse = { dashboard: DashboardData };
 
 export type WeeklyPlanResponse = components['schemas']['WeeklyPlanResponse'];
+export type CourseOutline = components['schemas']['CourseOutline'];
+export type CourseOutlineGroup = components['schemas']['CourseOutlineGroup'];
+export type CourseOutlineLesson = components['schemas']['CourseOutlineLesson'];
+export type CourseOutlineResponse = components['schemas']['CourseOutlineResponse'];
+export type LessonKind = components['schemas']['LessonKind'];
+/** The redesigned student Today (W8 PR 8.2), sent only when the cohort's new student experience is on. */
+export type StudentToday = components['schemas']['StudentToday'];
+export type StudentTodayNeedsYou = StudentToday['needs_you']['items'][number];
+export type MyWork = components['schemas']['MyWork'];
+export type MyWorkItem = components['schemas']['MyWorkItem'];
+export type MyWorkResponse = components['schemas']['MyWorkResponse'];
 
 export type ProfileResponse = components['schemas']['ProfileResponse'];
 
@@ -966,6 +992,17 @@ export type LessonBlockEditorInput = components['schemas']['LessonBlockEditorInp
 export type LessonBlockInput = components['schemas']['LessonBlockInput'];
 export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity'];
 export type LessonEditorContext = components['schemas']['LessonEditorContext'];
+
+/** Where a curriculum, module or lesson is used (staff record pages, L-3.2 / L-5). */
+export type RecordUsageResponse = components['schemas']['RecordUsageResponse'];
+export type CurriculumUsage = components['schemas']['CurriculumUsage'];
+export type ModuleUsage = components['schemas']['ModuleUsage'];
+export type LessonUsage = components['schemas']['LessonUsage'];
+export type CurriculumUsageCohort = components['schemas']['CurriculumUsageCohort'];
+export type ModuleUsageCohort = components['schemas']['ModuleUsageCohort'];
+export type LessonUsageCohort = components['schemas']['LessonUsageCohort'];
+export type UsageLessonRef = components['schemas']['UsageLessonRef'];
+export type TeamMemberWorkload = components['schemas']['TeamMemberWorkload'];
 export type LessonEditAccess = components['schemas']['LessonEditAccess'];
 export type LessonEditGrant = components['schemas']['LessonEditGrant'];
 export type CurriculumCopyPreview = components['schemas']['CurriculumCopyPreview'];
@@ -1036,6 +1073,7 @@ export interface CohortResponse {
 
 export interface AccessibleCohort {
   curriculum_id?: number;
+  review_response_time?: string;
   course_delivery?: 'program' | 'guided' | 'self_paced';
   capabilities?: LearnerCapabilities;
   features?: Record<string, boolean>;

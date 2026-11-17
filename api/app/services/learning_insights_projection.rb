@@ -15,7 +15,7 @@ class LearningInsightsProjection
       evidence_scope: {
         kind: "enrollment",
         curriculum_id: cohort.curriculum_id,
-        curriculum_name: cohort.curriculum.name,
+        curriculum_name: CurriculumName.in_cohort(cohort),
         completion_and_watch_time_excluded: true
       },
       cohort: { id: cohort.id, name: cohort.name },
@@ -183,7 +183,10 @@ class LearningInsightsProjection
         status: evidence_status(evidence),
         evidence_count: evidence.size,
         last_evidence_at: evidence.first&.dig(:occurred_at),
-        evidence: evidence
+        evidence: evidence.map { |item|
+          block = @blocks_by_id.fetch(item[:content_block_id])
+          item.merge(lesson_title: block.lesson.title, module_name: block.lesson.curriculum_module.name)
+        }
       }
     end
     counts = students.group_by { |student| student[:status] }

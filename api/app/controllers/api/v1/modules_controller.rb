@@ -144,7 +144,8 @@ module Api
           lessons_count: lessons.count { |lesson| !lesson.archived? }
         }
 
-        json.merge!(submissions_count: mod.submissions_count, deletion_blocked: mod.learner_data?) if current_user.staff?
+        # Submission counts cover only the cohorts this person may see (L-3.2).
+        json.merge!(submissions_count: mod.submissions_count(enrollment_ids: (@cohort_scope ||= StaffCohortScope.new(current_user)).enrollment_ids(mod.curriculum_id)), deletion_blocked: mod.learner_data?) if current_user.staff?
         json[:archived_lessons_count] = lessons.count(&:archived?) if current_user.staff?
 
         if include_lessons

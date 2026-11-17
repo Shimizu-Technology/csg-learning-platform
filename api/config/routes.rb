@@ -27,6 +27,7 @@ Rails.application.routes.draw do
 
       # Auth
       post "sessions", to: "sessions#create"
+      get "course_offerings/:slug", to: "course_offerings#show"
       get "course_offerings", to: "course_offerings#index"
       get "course_checkouts", to: "course_checkouts#index"
       get "course_checkouts/:id/status", to: "course_checkouts#status"
@@ -51,6 +52,7 @@ Rails.application.routes.draw do
       resources :data_deletion_requests, only: [ :index, :show, :create, :update ]
 
       # Dashboard / student hubs
+      patch "dashboard/start_here", to: "dashboard#dismiss_start_here"
       get "dashboard", to: "dashboard#show"
       resources :private_meetings, only: [ :index, :create, :update, :destroy ]
       get "staff/private_meetings", to: "staff_private_meetings#index"
@@ -59,6 +61,8 @@ Rails.application.routes.draw do
       post "staff/private_meeting_slots", to: "staff_private_meeting_slots#create"
       delete "staff/private_meeting_slots/:id", to: "staff_private_meeting_slots#destroy"
       get "weekly_plan", to: "weekly_plans#show"
+      get "course_outline", to: "course_outlines#show"
+      get "my_work", to: "my_works#show"
       get "support_queue", to: "support_queue#show"
       get "recordings", to: "student_recordings#index"
       get "resources", to: "resources#index"
@@ -99,6 +103,7 @@ Rails.application.routes.draw do
       # Peek cards (L-0.5)
       get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
       get "records/:type/:id/related", to: "record_summaries#related", as: :record_related
+      get "records/:type/:id/usage", to: "record_summaries#usage", as: :record_usage
       resources :workspaces, only: [ :index, :show, :create, :update ] do
         resources :memberships, only: [ :create, :destroy ], controller: "workspace_memberships"
       end
@@ -264,6 +269,7 @@ Rails.application.routes.draw do
       get "progress", to: "progress#index"
       patch "progress", to: "progress#update"
       get "progress/student/:user_id", to: "progress#student"
+      get "progress/student/:user_id/communication", to: "student_communications#show"
 
       # Submissions
       get "grading_queue", to: "grading_queue#index"

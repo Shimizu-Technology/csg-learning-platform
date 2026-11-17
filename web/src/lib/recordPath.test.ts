@@ -40,9 +40,10 @@ const expected: Record<RecordType, Record<ViewerRole, string | null>> = {
   user: { admin: null, instructor: null, student: null },
   staff: { admin: '/admin/team/3', instructor: null, student: null },
   cohort: { admin: '/admin/cohorts/7', instructor: '/admin/cohorts/7', student: '/cohorts/7' },
-  curriculum: { admin: null, instructor: null, student: null },
-  module: { admin: '/modules/31?cohort_id=7', instructor: '/modules/31?cohort_id=7', student: '/modules/31?cohort_id=7' },
-  lesson: { admin: '/admin/lessons/42/edit', instructor: '/lessons/42?cohort_id=7', student: '/lessons/42?cohort_id=7' },
+  // L-5: staff open the content record pages; learners keep Learn.
+  curriculum: { admin: '/admin/curricula/2', instructor: '/admin/curricula/2', student: null },
+  module: { admin: '/admin/modules/31?cohort_id=7', instructor: '/admin/modules/31?cohort_id=7', student: '/modules/31?cohort_id=7' },
+  lesson: { admin: '/admin/lessons/42?cohort_id=7', instructor: '/admin/lessons/42?cohort_id=7', student: '/lessons/42?cohort_id=7' },
   content_block: { admin: '/lessons/42?cohort_id=7#block-99', instructor: '/lessons/42?cohort_id=7#block-99', student: '/lessons/42?cohort_id=7#block-99' },
   knowledge_check: { admin: '/lessons/42#block-98', instructor: '/lessons/42#block-98', student: '/lessons/42#block-98' },
   submission: { admin: '/admin/submissions/812?cohort_id=7&student_id=12', instructor: '/admin/submissions/812?cohort_id=7&student_id=12', student: '/lessons/42?cohort_id=7#block-99' },
@@ -83,16 +84,22 @@ describe('recordPath', () => {
     expect(recordPath(refs.announcement, admin)).toBe('/announcements/5?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
     expect(recordPath({ type: 'announcement', id: 5, cohortId: 7 }, { viewer: viewers.student, returnTo: '/dashboard' })).toBe('/announcements/5?cohort_id=7&return_to=%2Fdashboard')
     expect(recordPath(refs.intervention, admin)).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
+    // The content record pages say where they were opened from (L-5).
+    expect(recordPath(refs.lesson, { viewer: viewers.instructor, returnTo })).toBe('/admin/lessons/42?cohort_id=7&return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
+    expect(recordPath(refs.module, admin)).toBe('/admin/modules/31?cohort_id=7&return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
+    expect(recordPath(refs.curriculum, admin)).toBe('/admin/curricula/2?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
     // These destinations ignore return_to (or honor Activity only), so the URL stays clean.
     expect(recordPath(refs.cohort, admin)).toBe('/admin/cohorts/7')
     expect(recordPath(refs.student, admin)).toBe('/admin/cohorts/7/students/12/work')
-    expect(recordPath(refs.lesson, { viewer: viewers.instructor, returnTo })).toBe('/lessons/42?cohort_id=7')
+    expect(recordPath({ type: 'lesson', id: 42, cohortId: 7, view: 'learn' }, { viewer: viewers.instructor, returnTo })).toBe('/lessons/42?cohort_id=7')
+    expect(recordPath({ type: 'module', id: 31, cohortId: 7, view: 'learn' }, admin)).toBe('/modules/31?cohort_id=7')
   })
 
   it('carries an Activity return path to destinations that offer Back to Activity', () => {
     const fromActivity = { viewer: viewers.instructor, returnTo: '/admin/cohorts/7?tab=activity' }
     expect(recordPath(refs.student, fromActivity)).toBe('/admin/cohorts/7/students/12/work?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
-    expect(recordPath(refs.lesson, fromActivity)).toBe('/lessons/42?cohort_id=7&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
+    expect(recordPath(refs.lesson, fromActivity)).toBe('/admin/lessons/42?cohort_id=7&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
+    expect(recordPath({ type: 'lesson', id: 42, cohortId: 7, view: 'learn' }, fromActivity)).toBe('/lessons/42?cohort_id=7&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
     expect(recordPath(refs.recording, fromActivity)).toBe('/recordings?cohort_id=7&recording=21&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
   })
 
@@ -105,6 +112,10 @@ describe('recordPath', () => {
   it('handles optional context', () => {
     expect(recordPath({ type: 'student', id: 12 }, { viewer: viewers.instructor })).toBe('/admin/students/12')
     expect(recordPath({ type: 'lesson', id: 42, view: 'learn' }, { viewer: viewers.admin })).toBe('/lessons/42')
+    // `view: 'edit'` opens the editor for every staff member (read only without editing access).
+    expect(recordPath({ type: 'lesson', id: 42, view: 'edit' }, { viewer: viewers.admin })).toBe('/admin/lessons/42/edit')
+    expect(recordPath({ type: 'lesson', id: 42, view: 'edit' }, { viewer: viewers.instructor })).toBe('/admin/lessons/42/edit')
+    expect(recordPath({ type: 'lesson', id: 42, view: 'edit' }, { viewer: viewers.student })).toBe('/lessons/42')
     expect(recordPath({ type: 'cohort', id: 7, tab: 'students' }, { viewer: viewers.admin })).toBe('/admin/cohorts/7?tab=students')
     expect(recordPath({ type: 'cohort', id: 7, tab: 'students' }, { viewer: viewers.student })).toBe('/cohorts/7')
     expect(recordPath({ type: 'submission', id: 812 }, { viewer: viewers.student })).toBeNull()

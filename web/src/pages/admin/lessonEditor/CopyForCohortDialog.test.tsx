@@ -13,7 +13,7 @@ type PreviewAnswer = { data: CurriculumCopyPreviewResponse | null; error: string
 function previewFor(cohortId: number, curriculumId: number, overrides: Partial<CurriculumCopyPreview> = {}): PreviewAnswer {
   return { error: null, data: { curriculum_copy_preview: {
     cohort: { id: cohortId, name: `Cohort ${cohortId}` }, source_curriculum: { id: curriculumId, name: `Lab ${curriculumId}` }, copy_name: `Lab ${curriculumId} (Cohort ${cohortId})`,
-    shared_with: [{ id: 99, name: 'Cohort 99' }], already_copied: false, copy_curriculum_id: null, can_copy: true, blockers: [], counts: { lessons: 2 },
+    shared_with: [{ id: 99, name: 'Cohort 99' }], shared_with_others_count: 0, already_copied: false, copy_curriculum_id: null, can_copy: true, blockers: [], counts: { lessons: 2 },
     ...overrides,
   } } }
 }

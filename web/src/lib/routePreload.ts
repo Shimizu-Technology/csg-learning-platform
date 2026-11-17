@@ -16,6 +16,9 @@ const dashboardLoader = () => import('../pages/student/Dashboard').then((module)
 const privateMeetingsLoader = () => import('../pages/student/PrivateMeetings').then((module) => ({ default: module.PrivateMeetings }))
 const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.MaterialsRoute }))
 const moduleViewLoader = () => import('../pages/student/ModuleView').then((module) => ({ default: module.ModuleView }))
+const studentTodayLoader = () => import('../pages/student/Today').then((module) => ({ default: module.StudentTodayPage }))
+const myWorkLoader = () => import('../pages/student/MyWork').then((module) => ({ default: module.MyWorkPage }))
+const courseOutlineLoader = () => import('../pages/student/CourseOutline').then((module) => ({ default: module.CourseOutlineRoute }))
 const lessonViewLoader = () => import('../pages/student/LessonView').then((module) => ({ default: module.LessonView }))
 const recordingsLoader = () => import('../pages/student/Recordings').then((module) => ({ default: module.Recordings }))
 const resourcesLoader = () => import('../pages/student/Resources').then((module) => ({ default: module.Resources }))
@@ -37,6 +40,7 @@ const cohortWorkspaceLoader = () => import('../pages/admin/CohortWorkspace').the
 const cohortStudentViewLoader = () => import('../pages/admin/CohortStudentView').then((module) => ({ default: module.CohortStudentView }))
 const contentManagementLoader = () => import('../pages/admin/ContentManagement').then((module) => ({ default: module.ContentManagement }))
 const lessonEditorLoader = () => import('../pages/admin/LessonEditor').then((module) => ({ default: module.LessonEditor }))
+const contentRecordLoader = () => import('../pages/admin/ContentRecord')
 const gradingLoader = () => import('../pages/admin/Grading').then((module) => ({ default: module.Grading }))
 const cohortModuleGradingLoader = () => import('../pages/admin/CohortModuleGrading').then((module) => ({ default: module.CohortModuleGrading }))
 const cohortWatchProgressLoader = () => import('../pages/admin/CohortWatchProgress').then((module) => ({ default: module.CohortWatchProgress }))
@@ -49,6 +53,9 @@ export const Dashboard = lazyWithPreload(dashboardLoader)
 export const PrivateMeetings = lazyWithPreload(privateMeetingsLoader)
 export const Materials = lazyWithPreload(materialsLoader)
 export const ModuleView = lazyWithPreload(moduleViewLoader)
+export const CourseOutline = lazyWithPreload(courseOutlineLoader)
+export const StudentToday = lazyWithPreload(studentTodayLoader)
+export const MyWork = lazyWithPreload(myWorkLoader)
 export const LessonView = lazyWithPreload(lessonViewLoader)
 export const Recordings = lazyWithPreload(recordingsLoader)
 export const Resources = lazyWithPreload(resourcesLoader)
@@ -71,6 +78,9 @@ export const CohortWorkspace = lazyWithPreload(cohortWorkspaceLoader)
 export const CohortStudentView = lazyWithPreload(cohortStudentViewLoader)
 export const ContentManagement = lazyWithPreload(contentManagementLoader)
 export const LessonEditor = lazyWithPreload(lessonEditorLoader)
+export const CurriculumRecord = lazyWithPreload(() => contentRecordLoader().then((module) => ({ default: module.CurriculumRecord })))
+export const ModuleRecord = lazyWithPreload(() => contentRecordLoader().then((module) => ({ default: module.ModuleRecord })))
+export const LessonRecord = lazyWithPreload(() => contentRecordLoader().then((module) => ({ default: module.LessonRecord })))
 export const Grading = lazyWithPreload(gradingLoader)
 export const CohortModuleGrading = lazyWithPreload(cohortModuleGradingLoader)
 export const CohortWatchProgress = lazyWithPreload(cohortWatchProgressLoader)
@@ -80,9 +90,10 @@ export const SignInPage = lazyWithPreload(signInLoader)
 export const SignUpPage = lazyWithPreload(signUpLoader)
 
 const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
-  '/dashboard': [dashboardLoader],
+  '/dashboard': [dashboardLoader, studentTodayLoader],
+  '/my-work': [myWorkLoader, lessonViewLoader],
   '/meetings': [privateMeetingsLoader],
-  '/materials': [materialsLoader, moduleViewLoader, lessonViewLoader],
+  '/materials': [materialsLoader, courseOutlineLoader, moduleViewLoader, lessonViewLoader],
   '/recordings': [recordingsLoader],
   '/resources': [resourcesLoader],
   '/profile': [profileLoader],
@@ -96,7 +107,10 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/admin/interventions': [interventionDetailLoader],
   '/admin/students': [studentManagementLoader, studentDetailLoader, studentWorkspaceLoader],
   '/admin/cohorts': [cohortManagementLoader, cohortStudentViewLoader, cohortWatchProgressLoader, studentWorkspaceLoader],
-  '/admin/content': [contentManagementLoader, lessonEditorLoader],
+  '/admin/content': [contentManagementLoader, lessonEditorLoader, contentRecordLoader],
+  '/admin/curricula': [contentRecordLoader],
+  '/admin/modules': [contentRecordLoader],
+  '/admin/lessons': [contentRecordLoader, lessonEditorLoader],
   '/admin/grading': [gradingLoader, cohortModuleGradingLoader, submissionDetailLoader],
   '/admin/submissions': [submissionDetailLoader],
   '/admin/team': [teamManagementLoader, teamMemberDetailLoader],

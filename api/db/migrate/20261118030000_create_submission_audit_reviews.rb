@@ -6,7 +6,7 @@ class CreateSubmissionAuditReviews < ActiveRecord::Migration[8.1]
       execute "SET LOCAL lock_timeout = '5s'"
       create_table :submission_audit_reviews do |t|
         t.references :content_block, null: false, foreign_key: true, index: { unique: true }
-        t.references :reviewed_by, null: false, foreign_key: { to_table: :users }
+        t.references :reviewed_by, null: true, foreign_key: { to_table: :users, on_delete: :nullify }
         t.string :content_digest, null: false
         t.timestamps
       end

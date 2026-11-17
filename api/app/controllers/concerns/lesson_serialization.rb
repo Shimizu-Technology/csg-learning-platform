@@ -48,6 +48,8 @@ module LessonSerialization
     json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
 
     if include_content
+      # Staff see attempt counts from the cohorts they may see (StaffCohortScope); nil counts every attempt.
+      @staff_attempt_enrollments = current_user.staff? ? cohort_scope.enrollment_ids(lesson.curriculum_module.curriculum_id)&.pluck(:id)&.to_set : nil
       completion_block_ids = lesson.completion_block_ids.to_set
       json[:content_blocks] = lesson.content_blocks.map { |cb|
         submission_type = cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
@@ -145,6 +147,17 @@ module LessonSerialization
           json[:total_blocks] = current_progress&.total_blocks
           next_step = progress.next_lesson
           json[:next_step] = next_step && { id: next_step.id, title: next_step.title, module_id: next_step.module_id }
+          if json.dig(:capabilities, :features, "student_experience_v2") == true
+            json[:learning_navigation] = progress.lesson_navigation(current) if current
+            json[:content_blocks].each do |block|
+              source = current&.content_blocks&.find { |item| item.id == block[:id] }
+              block[:learner_state] = progress.block_state(source) if source
+            end
+            json[:outline] = CourseOutline.new(@lesson_enrollment, progress: progress).call
+            instructor = @lesson_enrollment.cohort.support_instructor || @lesson_enrollment.cohort.instructors.not_archived.order(:id).first
+            instructor = nil if instructor && UserBlock.between(current_user.id, [ instructor.id ]).exists?
+            json[:instructor] = instructor && { id: instructor.id, full_name: instructor.full_name, role: instructor.role, avatar_url: instructor.avatar_url }
+          end
         else
           prev_lesson = nil
           next_lesson = nil
@@ -203,6 +216,17 @@ module LessonSerialization
     }
   end
 
+  # The cohorts this staff member may see on a curriculum (L-3.2): others are never counted.
+  def cohort_scope
+    @cohort_scope ||= StaffCohortScope.new(current_user)
+  end
+
+  def staff_attempt_count(check)
+    return check.attempts.size if @staff_attempt_enrollments.nil?
+
+    check.attempts.count { |attempt| @staff_attempt_enrollments.include?(attempt.enrollment_id) }
+  end
+
   def knowledge_check_json(check, attempt_map)
     return nil unless check
 
@@ -213,7 +237,7 @@ module LessonSerialization
       prompt: check.prompt,
       options: check.options,
       objective_code: check.learning_objective&.code,
-      attempt_count: current_user.staff? ? check.attempts.size : attempt_info[:count].to_i,
+      attempt_count: current_user.staff? ? staff_attempt_count(check) : attempt_info[:count].to_i,
       latest_attempt: attempt ? {
         id: attempt.id,
         selected_option: attempt.selected_option,

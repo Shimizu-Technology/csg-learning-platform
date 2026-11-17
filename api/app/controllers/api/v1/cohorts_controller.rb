@@ -16,7 +16,7 @@ module Api
           :cohort_module_schedules,
           :cohort_module_submission_windows,
           { office_hours: :created_by },
-          curriculum: :modules
+          curriculum: [ :modules, { cohort_copy: :cohort } ]
         ).order(start_date: :desc)
         render json: {
           cohorts: cohorts.map { |c|
@@ -30,7 +30,7 @@ module Api
       # The switcher list is available to every signed-in role. It is also the
       # source of truth when a saved cohort selection has become unauthorized.
       def accessible
-        cohorts = current_user.accessible_cohorts.includes(:curriculum, :workspace).order(start_date: :desc)
+        cohorts = current_user.accessible_cohorts.includes({ curriculum: { cohort_copy: :cohort } }, :workspace).order(start_date: :desc)
         enrollment_statuses = current_user.student? ? current_user.enrollments.includes(cohort: [ :support_instructor, :workspace ]).where(cohort_id: cohorts.map(&:id)).index_by(&:cohort_id) : {}
         blocked_instructors = UserBlock.related_user_ids(current_user.id, enrollment_statuses.values.map { |enrollment| enrollment.cohort.support_instructor_id }.compact)
         render json: { cohorts: cohorts.map { |cohort|
@@ -41,7 +41,7 @@ module Api
             status: cohort.effective_status,
             cohort_type: cohort.cohort_type,
             features: features,
-            curriculum_name: cohort.curriculum.name,
+            curriculum_name: CurriculumName.in_cohort(cohort),
             curriculum_id: cohort.curriculum_id,
             course_delivery: cohort.course_delivery,
             workspace_id: cohort.workspace&.id,
@@ -257,8 +257,12 @@ module Api
 
       private
 
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
+      end
+
       def authorize_staff_cohort!
-        return if current_user.can_teach_cohort?(@cohort)
+        return if staff_cohort_scope.visible?(@cohort.id)
 
         render_forbidden("Cannot access this cohort")
       end
@@ -318,7 +322,7 @@ module Api
       def cohort_params
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status,
-                       :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
+                       :public_outcomes, :public_duration, :public_prerequisites, :public_preview, :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
                        :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on)
       end
 
@@ -413,7 +417,7 @@ module Api
             start_date: cohort.start_date,
             end_date: cohort.end_date,
             features: FeatureSwitches.for(cohort: cohort),
-            curriculum_name: cohort.curriculum.name,
+            curriculum_name: CurriculumName.in_cohort(cohort),
             active_count: active_enrollments.size
           },
           read_only: true,
@@ -687,6 +691,11 @@ module Api
           public_checkout_enabled: cohort.public_checkout_enabled?,
           offering_readiness: cohort.offering_readiness,
           instructor_assigned: cohort.instructors.not_archived.exists?,
+          public_slug: cohort.public_slug,
+          public_outcomes: cohort.public_outcomes,
+          public_duration: cohort.public_duration,
+          public_prerequisites: cohort.public_prerequisites,
+          public_preview: cohort.public_preview,
           public_title: cohort.public_title,
           public_description: cohort.public_description,
           public_image_url: cohort.public_image_url,
@@ -698,7 +707,7 @@ module Api
           guided_access_ends_on: cohort.guided_access_ends_on,
           guided_support_ends_on: cohort.guided_support_ends_on,
           curriculum_id: cohort.curriculum_id,
-          curriculum_name: cohort.curriculum.name,
+          curriculum_name: CurriculumName.in_cohort(cohort),
           start_date: cohort.start_date,
           end_date: cohort.end_date,
           github_organization_name: cohort.github_organization_name,
@@ -758,7 +767,8 @@ module Api
         end
 
         if include_modules
-          active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module)
+          learning = CohortLearningProjection.new(cohort: cohort).call
+          active_enrollments = cohort.enrollments.active.joins(:user).merge(User.not_archived).includes(module_assignments: :curriculum_module)
           assignment_index = active_enrollments.each_with_object(Hash.new { |h, k| h[k] = [] }) do |enrollment, hash|
             enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
           end
@@ -787,7 +797,7 @@ module Api
               repository_name: mod_gh["repository_name"].presence || cohort.repository_name,
               week_count: mod.week_count,
               submission_windows: module_submission_windows_json(cohort, mod, module_start_date)
-            }
+            }.merge(learning.fetch(mod.id))
           end
         end
 
