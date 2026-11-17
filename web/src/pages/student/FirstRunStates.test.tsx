@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-const state = vi.hoisted(() => ({ v2: true, receipt: vi.fn(), profile: vi.fn(), auth: { isSignedIn: true, user: { id: 1, role: 'student', is_staff: false } as { id: number; role: string; is_staff: boolean } | null, enrollments: [] } }))
+const state = vi.hoisted(() => ({ v2: true, receipt: vi.fn(), profile: vi.fn(), auth: { isLoading: false, isSignedIn: true, user: { id: 1, role: 'student', is_staff: false } as { id: number; role: string; is_staff: boolean } | null, enrollments: [] } }))
 vi.mock('../../lib/studentExperience', () => ({ useStudentExperience: () => ({ ready: true, v2: state.v2 }) }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
@@ -20,6 +20,7 @@ let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
   state.v2 = true
+  state.auth.isLoading = false
   state.auth.isSignedIn = true
   state.auth.user = { id: 1, role: 'student', is_staff: false }
   state.profile.mockResolvedValue({ data: { user: { id: 1, full_name: 'Eli Santos', email: 'eli@example.invalid', role: 'student' }, enrollments: [{ id: 1, cohort_id: 2, cohort_name: 'Python', curriculum_name: 'Python', can_open: true, enrolled_at: '2026-11-18', status: 'active', purchase_id: 3, access_expires_at: '2027-05-18' }] } })
@@ -117,4 +118,17 @@ it('authenticated legal loading does not flash a guest or On-only recovery link'
   await render(<PrivacyPolicyPage />)
   expect(container.querySelector('main a[href="/"]')).toBeNull()
   expect(container.querySelector('main a[href="/dashboard"]')).toBeNull()
+})
+
+it.each([false, true])('legal recovery waits for auth to settle (signed in: %s)', async (signedIn) => {
+  state.auth.isLoading = true
+  state.auth.isSignedIn = signedIn
+  if (!signedIn) state.auth.user = null
+  await render(<PrivacyPolicyPage />)
+  expect(container.querySelector('main h1')?.textContent).toBe('Privacy policy')
+  expect(container.querySelector('main a[href="/"]')).toBeNull()
+  expect(container.querySelector('main a[href="/dashboard"]')).toBeNull()
+  state.auth.isLoading = false
+  await render(<PrivacyPolicyPage />)
+  expect(container.querySelector(`main a[href="${signedIn ? '/dashboard' : '/'}"]`)?.textContent).toBe(signedIn ? 'Back to Today' : 'Back to home')
 })

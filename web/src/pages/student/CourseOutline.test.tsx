@@ -200,3 +200,18 @@ it('collapsing a hinted week preserves the other expanded week', async () => {
   expect(button('Week 1').getAttribute('aria-expanded')).toBe('false')
   expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
 })
+
+it('a module-relative week hint opens every matching group and each can stay collapsed', async () => {
+  const outline = program()
+  Object.assign(outline.modules[1].groups[0], { label: 'Week 1', week: 1 })
+  await render(outline, '/materials?cohort_id=3&week=1')
+  const weeks = Array.from(container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')).filter(item => item.textContent?.trim().startsWith('Week 1'))
+  expect(weeks).toHaveLength(2)
+  expect(weeks.map(item => item.getAttribute('aria-expanded'))).toEqual(['true', 'true'])
+  await act(async () => weeks[0].click())
+  expect(weeks.map(item => item.getAttribute('aria-expanded'))).toEqual(['false', 'true'])
+})
+it('an unmatched week hint retains the current-group fallback', async () => {
+  await render(program(), '/materials?cohort_id=3&week=99')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
+})

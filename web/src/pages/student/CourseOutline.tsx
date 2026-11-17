@@ -109,9 +109,10 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
     const initialLoad = initializedOutline.current?.outline !== outline
     const newWeekHint = weekNumber && initializedOutline.current?.week !== weekNumber
     initializedOutline.current = { outline, week: weekNumber }
-    const requestedWeek = weekNumber ? groups.find((group) => group.week === weekNumber) : undefined
-    const fallback = requestedWeek?.key ?? outline.current_group_key ?? groups.find((group) => group.this_week)?.key ?? (outline.mode === 'library' ? groups[0]?.key : undefined)
-    if ((initialLoad || newWeekHint) && fallback) initial.add(fallback)
+    const requestedGroups = weekNumber ? groups.filter((group) => group.week === weekNumber) : []
+    const fallback = outline.current_group_key ?? groups.find((group) => group.this_week)?.key ?? (outline.mode === 'library' ? groups[0]?.key : undefined)
+    if ((initialLoad || newWeekHint) && requestedGroups.length) requestedGroups.forEach((group) => initial.add(group.key))
+    else if ((initialLoad || newWeekHint) && fallback) initial.add(fallback)
     if (open && groups.some((group) => group.key === open)) initial.add(open)
     const linkedModule = moduleId ? outline.modules.find((mod) => mod.id === moduleId) : undefined
     if (linkedModule?.groups.length) initial.add((linkedModule.groups.find((group) => group.current) ?? linkedModule.groups[0]).key)

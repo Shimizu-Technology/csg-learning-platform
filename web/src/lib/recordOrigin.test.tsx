@@ -103,6 +103,14 @@ describe('useBackLink', () => {
     expect(render({ pathname: '/admin/submissions/8', search: '?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo', state: { returnTo: '/admin/grading?filter=redo', returnLabel: 'Grading · Redo' } }).label).toBe('Back to Grading · Redo')
   })
 
+  it('prefers valid router state over a query naming a different destination', () => {
+    expect(render({ pathname: '/lessons/8', search: '?return_to=%2Fdashboard%3Fcohort_id%3D9', state: { returnTo: '/materials?cohort_id=3', returnLabel: 'Learn' } })).toEqual({ to: '/materials?cohort_id=3', label: 'Back to Learn', fallback: false })
+  })
+
+  it('uses the validated query when conflicting router state is unsafe', () => {
+    expect(render({ pathname: '/lessons/8', search: '?return_to=%2Fdashboard%3Fcohort_id%3D9', state: { returnTo: '//evil.example', returnLabel: 'Learn' } })).toEqual({ to: '/dashboard?cohort_id=9', label: 'Back to Today', fallback: false })
+  })
+
   it.each([
     ['%2Fadmin', 'Back to Today'],
     ['%2Fadmin%2Fgrading%3Ffilter%3Dredo', 'Back to Grading · Redo'],

@@ -31,7 +31,7 @@ export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss 
       <Step number={2} title="Your instructor reviews your exercises">
         {today.reviewer?.full_name ?? 'Your instructor'} reviews your exercises, {reviewTiming(data.review_response_time)}.
         {today.support.mode !== 'none' && ' Stuck? Use Ask for help on the lesson.'}
-        {today.support.ends_on && <> Support until <strong>{formatShortDate(today.support.ends_on)}</strong>.</>}
+        {today.support.ends_on && <> {today.support.ended ? 'Support ended on' : 'Support until'} <strong>{formatShortDate(today.support.ends_on)}</strong>.</>}
       </Step>
       <Step number={3} title={next ? `Start with ${next.title}` : 'Explore Learn'}>Get to know lessons, submitting work, and getting help.</Step>
     </ol>

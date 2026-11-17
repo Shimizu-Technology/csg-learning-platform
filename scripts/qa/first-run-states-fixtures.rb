@@ -44,5 +44,8 @@ catalog_other = Cohort.create!(name: "QA Ruby basics", curriculum: solo.curricul
   settings: { "features" => { "student_experience_v2" => true } })
 catalog_other.instructors << User.find(2)
 catalog_other.update!(support_instructor: User.find(2))
-File.write(Rails.root.join("..", ".qa-local", "first-run.json"), JSON.pretty_generate({ program: program.id, program_workspace: program.workspace.id, solo: solo.id, alumni: alumni.id, off: off.id, first: first.id, solo_first: solo_first.id, new_program: new_program.id, program_user: first_day.id }))
+# A week-only recording link must expose both module-relative Week 1 groups.
+program.curriculum.modules.order(:position).second.update!(day_offset: 0)
+week_recording = program.recordings.create!(title: "Week-one replay", source_kind: "external", source_url: "https://example.invalid/week-one", status: :published, position: 99, recorded_date: LearningCalendar.today)
+File.write(Rails.root.join("..", ".qa-local", "first-run.json"), JSON.pretty_generate({ program: program.id, program_workspace: program.workspace.id, solo: solo.id, alumni: alumni.id, off: off.id, first: first.id, solo_first: solo_first.id, new_program: new_program.id, program_user: first_day.id, week_recording: week_recording.id }))
 puts "First run fixtures ready"

@@ -126,7 +126,7 @@ export function legacyInboxReturnContext(state: unknown): ReturnContext | null {
 export function backLinkOrigin(state: unknown, search: string, options: { accept?: 'any' | 'activity'; legacyInbox?: boolean } = {}): ReturnContext | null {
   const fromState = readReturnContext(state) || (options.legacyInbox ? legacyInboxReturnContext(state) : null)
   const fromParams = originFromParams(search, options.accept)
-  return fromState && (!fromParams || fromParams.returnTo === fromState.returnTo) ? fromState : fromParams
+  return fromState || fromParams
 }
 
 export function useBackLink(fallback: ReturnContext, options: { scope?: string; accept?: 'any' | 'activity'; legacyInbox?: boolean } = {}): BackLink {

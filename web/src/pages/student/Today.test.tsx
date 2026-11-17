@@ -382,3 +382,12 @@ it('a late dismissal cannot dismiss the next enrollment’s welcome', async () =
   expect(text()).toContain('Here’s how your course works')
   expect(container.querySelector('[data-region="next-action"]')?.textContent).toContain('Dismiss welcome')
 })
+
+it.each([false, true])('first-run support date describes whether support ended (%s)', async (ended) => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ first_run: true, mode: 'self_paced', support: { mode: ended ? 'none' : 'course_question', ends_on: '2026-12-26', ended } })) } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  const welcome = container.querySelector('[aria-labelledby="welcome-title"]')!
+  expect(welcome.textContent).toContain(ended ? 'Support ended on Dec 26, 2026.' : 'Support until Dec 26, 2026.')
+  expect(welcome.textContent).not.toContain(ended ? 'Support until' : 'Support ended on')
+})

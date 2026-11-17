@@ -12,9 +12,9 @@ const updatedAt = 'August 17, 2026'
 const privacyEmail = brand.privacyEmail
 
 function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; title: string; intro: string; children: ReactNode }) {
-  const { user, isSignedIn } = useAuthContext()
+  const { user, isSignedIn, isLoading } = useAuthContext()
   const { v2 } = useStudentExperience()
-  const returnToToday = Boolean(isSignedIn && user && (user.is_staff || v2))
+  const returnToToday = Boolean(!isLoading && isSignedIn && user && (user.is_staff || v2))
   return (
     <div className="flex min-h-svh flex-col bg-brand-cream text-ink">
       <PublicHeader
@@ -28,7 +28,7 @@ function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; titl
       />
       <main className="safe-px mx-auto w-full max-w-4xl flex-1 py-10 lg:py-14">
         {returnToToday && <Link to="/dashboard" className="app-link mb-4 inline-flex min-h-11 items-center">Back to Today</Link>}
-        {isSignedIn === false && <Link to="/" className="app-link mb-4 inline-flex min-h-11 items-center">Back to home</Link>}
+        {!isLoading && isSignedIn === false && <Link to="/" className="app-link mb-4 inline-flex min-h-11 items-center">Back to home</Link>}
         <header className="border-b border-brand-line pb-8">
           <p className="brand-eyebrow">{eyebrow}</p>
           <h1 className="mt-4 font-display text-4xl font-medium leading-tight tracking-[-0.02em] sm:text-5xl">{title}</h1>

@@ -13,6 +13,9 @@ const results: unknown[] = []
 function resetWelcome() {
   execFileSync('bundle', ['exec', 'rails', 'runner', `Enrollment.where(user_id: [7, ${ids.program_user}]).update_all(start_here_dismissed_at: nil)`], { cwd: new URL('../../api/', import.meta.url).pathname, env: { ...process.env, RAILS_ENV: 'test', DATABASE_URL: `postgresql://localhost/${state.database}` }, stdio: 'pipe' })
 }
+function runRails(code: string) {
+  return execFileSync('bundle', ['exec', 'rails', 'runner', code], { cwd: new URL('../../api/', import.meta.url).pathname, env: { ...process.env, RAILS_ENV: 'test', DATABASE_URL: `postgresql://localhost/${state.database}` }, encoding: 'utf8', stdio: 'pipe' }).trim()
+}
 test.beforeEach(async ({ page }, info) => {
   const id = `first-run-${info.project.name}-${info.title.replace(/[^a-z0-9]+/gi, '-')}`.slice(0,120)
   checkedLifecycle(session, 'claim', id); ownership.set(page, id)
@@ -177,6 +180,7 @@ for (const theme of ['light','dark']) {
     results.push({ persona: 'legal-signed-out', theme, width: info.project.use.viewport!.width, passed: true })
   })
   test(`Off legal recovery ${theme}`, async ({ page }, info) => {
+    await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
     await page.goto(`/dashboard?cohort_id=${ids.off}&qa_user=3`)
     await expect(page.getByRole('heading', { name: /Welcome back, Lance/ })).toBeVisible()
     await page.goto('/privacy')
@@ -186,9 +190,11 @@ for (const theme of ['light','dark']) {
     results.push({ persona: 'legal-off', theme, width: info.project.use.viewport!.width, passed: true })
   })
   test(`admin activity empty states ${theme}`, async ({ page }, info) => {
+    await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
     await page.goto(`/admin/cohorts/${ids.program}/students/${ids.program_user}/activity?qa_user=1&cohort_id=${ids.program}`)
     await expect(page.getByRole('heading', { name: 'Activity history', exact: true })).toBeVisible()
     const timeline = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Activity history', exact: true }) })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await timeline.getByRole('button', { name: 'Work', exact: true }).click()
     await expect(timeline).toContainText('No work activity recorded yet.')
     await expect(timeline).toContainText('Earlier activity was not backfilled.')
@@ -199,6 +205,42 @@ for (const theme of ['light','dark']) {
     await expect(page.getByText('No work activity recorded yet.', { exact: false })).toBeVisible()
     await expect(page.getByText('Your activity will appear here as you learn.', { exact: true })).toHaveCount(0)
     results.push({ persona: 'admin-activity', theme, width: info.project.use.viewport!.width, passed: true })
+  })
+  test(`recording week opens both modules ${theme}`, async ({ page }, info) => {
+    await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
+    await page.goto(`/recordings?cohort_id=${ids.program}&recording=${ids.week_recording}&qa_user=4`)
+    await expect(page.getByRole('heading', { name: 'Week-one replay', exact: true })).toBeVisible()
+    await page.getByRole('link', { name: 'Open Week 1', exact: true }).click()
+    await expect(page).toHaveURL(url => url.pathname === '/materials' && url.searchParams.get('week') === '1')
+    const weeks = page.getByRole('button', { name: /^Week 1/ })
+    await expect(weeks).toHaveCount(2)
+    await expect(weeks.nth(0)).toHaveAttribute('aria-expanded', 'true')
+    await expect(weeks.nth(1)).toHaveAttribute('aria-expanded', 'true')
+    await page.screenshot({ path: new URL(`recording-week-${info.project.use.viewport!.width}-${theme}.png`, shots).pathname, fullPage: true })
+    await weeks.nth(0).click()
+    await expect(weeks.nth(0)).toHaveAttribute('aria-expanded', 'false')
+    await expect(weeks.nth(1)).toHaveAttribute('aria-expanded', 'true')
+    results.push({ persona: 'recording-week', theme, width: info.project.use.viewport!.width, passed: true })
+  })
+  test(`welcome after support ends ${theme}`, async ({ page }, info) => {
+    test.setTimeout(60_000)
+    const enrollment = `Enrollment.find_by!(user_id: 7, cohort_id: ${ids.solo})`
+    const before = runRails(`puts ${enrollment}.attributes.slice("first_opened_at", "support_expires_at", "start_here_dismissed_at").to_json`)
+    try {
+      runRails(`${enrollment}.update_columns(first_opened_at: 8.weeks.ago, support_expires_at: 1.day.ago, start_here_dismissed_at: nil)`)
+      await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
+      await page.goto(`/dashboard?cohort_id=${ids.solo}&qa_user=7`)
+      const welcome = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Here’s how your course works', exact: true }) })
+      await expect(welcome).toContainText(/Support ended on [A-Z][a-z]{2} \d{1,2}, 2026\./)
+      await expect(welcome).not.toContainText('Support until')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+      await page.screenshot({ path: new URL(`support-ended-${info.project.use.viewport!.width}-${theme}.png`, shots).pathname, fullPage: true })
+      await welcome.getByRole('link', { name: 'Start Orientation', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'Orientation', exact: true })).toBeVisible()
+      results.push({ persona: 'support-ended', theme, width: info.project.use.viewport!.width, passed: true })
+    } finally {
+      runRails(`${enrollment}.update_columns(JSON.parse(${JSON.stringify(before)}))`)
+    }
   })
   test(`query-selected catalog recovery ${theme}`, async ({ page }, info) => {
     await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
