@@ -32,9 +32,11 @@ The `course_purchase_terms_positive` and `enrollment_support_weeks_positive` che
 
 ## Public course pages and review times
 
-An offering's public course address is `/courses/:slug`. Existing cohorts receive
-`course-<id>` addresses; newly created cohorts receive unique opaque addresses.
-Changing a public title keeps its address. Existing `/courses?offering_id=` links
+An offering's public course address is `/courses/:slug`. The migration and new
+cohorts use the public catalog title, transliterated to lowercase ASCII, such as
+`python-fundamentals`. Collisions receive `-2`, `-3`, and so on. Empty titles and
+reserved route names use `course-<id>`. An address is assigned once; changing a
+public title keeps its address. Existing `/courses?offering_id=` links
 continue to select the course. Unlisted, inactive, empty, or draft-curriculum
 courses are unavailable through the public detail endpoint.
 

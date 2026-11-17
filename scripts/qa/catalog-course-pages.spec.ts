@@ -22,9 +22,38 @@ async function check(page: Page, name: string, theme: string, width: number, scr
 for (const theme of ['light', 'dark']) {
   test.describe(theme, () => {
     test.use({ colorScheme: theme as 'light' | 'dark' })
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ page, request }) => {
+      await request.patch('/api/v1/feature_settings', { headers: { Authorization: 'Bearer test_token_1' }, data: { public_catalog_mode: 'automatic' } })
+      await request.patch('/api/v1/cohorts/2', { headers: { Authorization: 'Bearer test_token_1' }, data: { public_price_cents: 14900 } })
       await page.route('**/*', async route => ['127.0.0.1','localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort())
       await page.addInitScript(theme => localStorage.setItem('csg-learn:theme', theme), theme)
+    })
+    test('R1 landing follows all three school catalog modes with and without a sale', async ({ page, request }, info) => {
+      test.setTimeout(60000)
+      const headers = { Authorization: 'Bearer test_token_1' }
+      for (const mode of ['automatic', 'always', 'hidden']) {
+        for (const sale of [false, true]) {
+          expect((await request.patch('/api/v1/feature_settings', { headers, data: { public_catalog_mode: mode } })).ok()).toBe(true)
+          expect((await request.patch('/api/v1/cohorts/2', { headers, data: { public_price_cents: sale ? 14900 : null } })).ok()).toBe(true)
+          const loaded = page.waitForResponse(response => response.url().endsWith('/api/v1/course_offerings'))
+          await page.goto('/')
+          await loaded
+          await expect(page.getByRole('heading', { name: 'Build a skill. Put it to work.' })).toBeVisible()
+          // Wait for the public request, rather than accepting the initial Sign in state.
+          await expect.poll(async () => page.locator('main article').count()).toBe(sale && mode !== 'hidden' ? 1 : 0)
+          const available = mode === 'always' || (mode === 'automatic' && sale)
+          await expect(page.locator('main a.bg-action-primary').first()).toHaveText(available ? /Browse courses/ : /Sign in/)
+          await expect(page.getByRole('link', { name: 'See the course catalog', exact: true })).toHaveCount(available ? 1 : 0)
+          await check(page, `landing-${mode}-${sale ? 'sale' : 'empty'}`, theme, info.project.use.viewport!.width, true)
+        }
+      }
+      await page.goto('/courses/course-guided-private')
+      await expect(page.getByRole('heading', { name: 'This course isn’t available' })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Browse courses', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(page).toHaveTitle('Course unavailable · CSG Learn')
+      await check(page, 'unlisted-hidden', theme, info.project.use.viewport!.width, true)
     })
     test('C1–C3 public landing, catalog, detail, legacy and unlisted course', async ({ page }, info) => {
       const width = info.project.use.viewport!.width
@@ -39,13 +68,14 @@ for (const theme of ['light', 'dark']) {
       await page.getByRole('link', { name: 'View course', exact: true }).click()
       await expect(page.getByRole('heading', { name: 'Build a garden counter', exact: true })).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Syllabus', exact: true })).toBeVisible()
+      await expect(page).toHaveTitle('Build a garden counter · CSG Learn')
       await expect(page.getByText('18 lessons · 4–6 hours')).toBeVisible()
       await check(page, 'course', theme, width, true)
       await page.goto('/courses?offering_id=2')
       await expect(page.getByRole('link', { name: 'Create an account to enroll' })).toHaveAttribute('href', '/sign-up?offering_id=2')
       await check(page, 'legacy-link', theme, width)
       await page.goto('/courses/course-guided-private')
-      await expect(page.getByText('This course is not currently listed.', { exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'This course isn’t available', exact: true })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Create an account to enroll' })).toHaveCount(0)
       await check(page, 'unlisted', theme, width)
     })
@@ -86,11 +116,11 @@ for (const theme of ['light', 'dark']) {
       const width = info.project.use.viewport!.width
       for (const [user, cohort, lesson] of [[6,2,23],[3,1,5]]) {
         await page.goto(`/lessons/${lesson}?cohort_id=${cohort}&qa_user=${user}`)
-        await expect(page.getByText(/Your instructor will review it and reply here. Typical response time: usually reviewed within 2 days/)).toBeVisible()
+        await expect(page.getByText(/Your instructor will review it — usually within 2 days/)).toBeVisible()
         await check(page, `review-${user}`, theme, width)
       }
       await page.goto('/admin/grading?qa_user=2')
-      await expect(page.getByText('Self-paced', { exact: true }).first()).toBeVisible()
+      await expect(page.getByText(/ · self-paced/).first()).toBeVisible()
       await check(page, 'grading', theme, width)
     })
     test('C7 admin marketing and response settings preserve checkout', async ({ page }, info) => {
@@ -109,17 +139,17 @@ for (const theme of ['light', 'dark']) {
       await page.getByRole('button', { name: 'Save settings', exact: true }).click()
       await expect(page.getByRole('main').getByText('Cohort settings saved', { exact: true })).toBeVisible()
       await page.getByLabel('Typical response time', { exact: true }).fill('usually reviewed within 3 days')
-      await page.getByRole('button', { name: 'Save response time', exact: true }).click()
-      await expect(page.getByText('Response time saved.', { exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Save settings', exact: true }).click()
+      await expect(page.getByRole('main').getByText('Cohort settings saved', { exact: true })).toBeVisible()
       await page.reload()
       await expect(page.getByLabel('Typical response time', { exact: true })).toHaveValue('usually reviewed within 3 days')
       await expect(checkout).toBeChecked()
       await page.goto('/lessons/23?cohort_id=2&qa_user=6')
-      await expect(page.getByText(/Your instructor will review it and reply here. Typical response time: usually reviewed within 3 days/)).toBeVisible()
+      await expect(page.getByText(/Your instructor will review it — usually within 3 days/)).toBeVisible()
       await page.goto('/admin/cohorts/2?tab=settings&qa_user=1')
       await page.getByLabel('Typical response time', { exact: true }).fill('')
-      await page.getByRole('button', { name: 'Save response time', exact: true }).click()
-      await expect(page.getByText('Response time saved.', { exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Save settings', exact: true }).click()
+      await expect(page.getByRole('main').getByText('Cohort settings saved', { exact: true })).toBeVisible()
       await check(page, 'admin-settings', theme, width)
     })
   })

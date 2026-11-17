@@ -1,8 +1,8 @@
 # Catalog and course pages — W6 PR 6.3
 
 Agent-executed affected-flow QA. Base: main `51b0d7ce`, 2026-11-17.
-Tested implementation: `8a765faafd020fa4822eebe2614d1e6ca5b0ba2f`. The follow-up QA-record commit changes
-documentation only. Chromium local harness on macOS; Ruby 3.3.7 and PostgreSQL 16
+Initial implementation: `8a765faafd020fa4822eebe2614d1e6ca5b0ba2f`. Fix-round results
+below supersede the initial gate and screenshots where indicated. Chromium local harness on macOS; Ruby 3.3.7 and PostgreSQL 16
 on the ASUS runner for the full API suite.
 
 ## Context and acceptance
@@ -39,7 +39,10 @@ coverage. Checkout is simulated unless local sandbox keys can be verified.
 | C6 | Self-paced and guided: inspect submitted waiting work | Instructor review promise and configured response time; staff queue includes delivery badge | passed |
 | C7 | Admin edits public marketing and school/cohort review time | Values persist; inherited default works; checkout visibility unchanged | passed |
 
-## Verification and evidence
+## Initial verification and evidence
+
+These pre-review results are historical; the Fix round 1 section records the
+merged implementation and current acceptance.
 
 Browser: all seven required cases passed at all four viewport/theme combinations.
 The main matrix passed 19/20, then C6 passed all four dimensions after waiting for
@@ -83,16 +86,19 @@ offenses. Brakeman: zero errors and zero security warnings (one existing ignored
 warning). The final full run used the runner-only port adapter and
 `prepared_statements=false`; no repository tests were skipped or filtered.
 
-## Runtime notes
+## Initial runtime notes
 
 The first full API run had 1,848 runs, zero assertion failures and three runner
 errors: existing `MigrationDatabaseProcessTest` cases connect directly to port
 5432, while `asus-test` publishes its disposable PostgreSQL on 55432. A runner-only
 port adapter is used for the final full pass; repository test source is unchanged.
 The second API run reached 1,848 runs with zero assertion failures and one
-pre-existing concurrency error (`cached plan must not change result type`) after
-schema-rewriting migration fixtures. The final run disables prepared statements
-on the disposable test connection, as the project's transaction-pooler gate does.
+cached-plan error (`cached plan must not change result type`) after schema-rewriting
+migration fixtures. The initial assessment that this was unrelated was wrong:
+adding the orientation column exposed a migration fixture that reordered enrollment
+columns without clearing every pooled connection. Disabling prepared statements
+made that initial run pass but did not prove the fix. Fix round 1 repairs cache
+invalidation and runs both connection modes, including default seed 26023.
 The ASUS build also needs a temporary Git index for `git ls-files -- brand-public`,
 because `asus-test` intentionally omits `.git` from its secret-free source copy.
 
@@ -125,7 +131,7 @@ Start here: [desktop light](catalog-course-pages-2026-11-17/start-here-1280-ligh
 
 Migration `20261117090000` is later than every migration on the requested main.
 It adds marketing/response/orientation fields and the unique slug index, backfills
-opaque ID-based slugs without touching checkout, and preserves purchase snapshots.
+readable public-title slugs (with collision suffixes and safe ID fallbacks) without touching checkout, and preserves purchase snapshots.
 Deploy the API migration before clients depend on the new public fields. No sales
 flags, provider configuration, prices or production data were changed by this task.
 PR is to remain unmerged; deployed availability is not claimed.
@@ -141,18 +147,73 @@ exit. No shared service, simulator, unrelated tab or worktree was stopped.
 
 ## Fix round 1 — acceptance and execution
 
-Review refresh: merged main (#281 / ac28c0b9) with the server-paged Grading
-workbench. The queue's existing delivery label and payload replace the old badge.
-The earlier prepared-statements workaround was insufficient: the migration test
-changed enrollment column order and left pooled prepared plans stale. This round
-clears every pooled connection after structural migration rehearsals, and requires
-seed 26023 to pass with prepared statements enabled as well as disabled.
+Tested application code: `e7b22fa1` (fixes in `12aec257`, merged main through
+`c62eb42a`, including #281 grading workbench and #279 Updates composer). The
+follow-up commit adds the browser regression, refreshed screenshots and this
+record. The server-paged queue's existing delivery label replaces the old badge.
+OpenAPI was merged and both clients regenerated after each main merge.
 
-Acceptance: three catalog-link modes with and without a sale; readable immutable
-slugs with transliteration/collisions/reserved routes and matching migration
-backfill; constant-cost missing-slug lookup; cohort-scoped async dismissal;
-readiness from current copy; response-time draft saved and guarded with cohort
-settings; grammatical review copy; proper unavailable-course recovery and title.
-Agent-executed browser checks at 1280/390, light/dark, using isolated fixtures.
-Results are pending the fix-round run; earlier screenshots/results describe the
-previous head and are not evidence for the changed behavior.
+The migration fixture now clears every pooled connection after restoring
+`enrollments.content_moved_at`. Other structural down/up fixtures received the
+same cleanup. The gate asserts the actual connection mode before each full run;
+the default run must retain prepared statements. The runner-only port adapter
+remains necessary for `MigrationDatabaseProcessTest` and changes no checked-in
+source.
+
+| Fix-round acceptance | Evidence | Result |
+| --- | --- | --- |
+| Automatic / Always / Hidden, with and without a sale | Home unit matrix and six actual API-backed browser states per dimension | passed |
+| Course page, old offering link and unavailable course | Public navigation, page title, no retry on 404, Hidden recovery to Sign in | passed |
+| One-time Start here, including an A-to-B dismissal race | Paid return/dismiss/reload browser flow and deferred-response component test | passed |
+| Readable immutable addresses | API regressions for transliteration, collision suffixes, blank/reserved fallback and migration parity | passed in both full modes |
+| Flat missing-slug lookup | QueryCounter before/after 20 added candidates | passed in both full modes |
+| Readiness uses unsaved public copy | Offering form regression | passed |
+| Response-time draft participates in Save settings and navigation guard | Cohort form regressions plus edit/save/reload and learner-visible override in browser | passed |
+| Natural review copy and self-paced queue context | Phrase regressions, guided/self-paced browser lessons and merged grading queue | passed |
+
+Browser rerun: **24/24 Playwright tests passed** on local Chromium, 1280 and
+390 CSS pixels, light and dark. Every dimension covered all six landing-policy
+conditions, public navigation, course/unlisted pages, simulated checkout, paid
+Today/Start here, both review modes, grading context, and saved admin marketing
+and response-time edits. Stable-state axe scans found no serious/critical WCAG
+2.1 AA violations and no horizontal overflow. These checks do not establish
+Safari, native-device, real Clerk signup, real Stripe transport or deployment
+coverage. The hosted checkout remains explicitly stubbed because no local sandbox
+keys were available. No payment or provider session was created.
+
+Focused web regressions after merging #279: 7 files / 53 tests passed. Focused API:
+10 runs / 78 assertions passed. Both full API runs on ASUS used seed 26023 and
+`OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`: **1,899 tests / 40,910 assertions each,
+zero failures/errors/skips**, first with prepared statements enabled, then with
+`?prepared_statements=false`. RuboCop: 684 files, no offenses. Brakeman: zero
+errors and zero security warnings (one existing ignored warning). The first full web run stopped at one obsolete Dashboard sentence assertion
+(2,406 other tests passed). `04fd20eb` updates that assertion and checks both
+default and configured response phrases; its focused Dashboard suite passed
+25/25 tests. No application code changed after the browser run. The complete web rerun passed on ASUS: typecheck, ESLint, Vitest
+(208 files / 2,408 tests), build, `test:bundle` and `api:check`. Both generated
+clients match OpenAPI. Mobile on Node 22.22.3: typecheck and lint passed (74 warnings, zero errors);
+Jest passed 136 suites / 1,428 tests. The ASUS command exited successfully. Impeccable advisory scan: `[]`.
+
+Updated course and Start-here screenshots above come from this round. Landing
+policy evidence (each also has 390px and dark variants alongside it):
+
+| Policy and sale state | Light | Dark |
+| --- | --- | --- |
+| Automatic, empty | [desktop](catalog-course-pages-2026-11-17/landing-automatic-empty-1280-light.png) | [desktop](catalog-course-pages-2026-11-17/landing-automatic-empty-1280-dark.png) |
+| Automatic, on sale | [desktop](catalog-course-pages-2026-11-17/landing-automatic-sale-1280-light.png) | [desktop](catalog-course-pages-2026-11-17/landing-automatic-sale-1280-dark.png) |
+| Always, empty | [desktop](catalog-course-pages-2026-11-17/landing-always-empty-1280-light.png) | [desktop](catalog-course-pages-2026-11-17/landing-always-empty-1280-dark.png) |
+| Always, on sale | [desktop](catalog-course-pages-2026-11-17/landing-always-sale-1280-light.png) | [desktop](catalog-course-pages-2026-11-17/landing-always-sale-1280-dark.png) |
+| Hidden, empty | [desktop](catalog-course-pages-2026-11-17/landing-hidden-empty-1280-light.png) | [desktop](catalog-course-pages-2026-11-17/landing-hidden-empty-1280-dark.png) |
+| Hidden, on sale | [desktop](catalog-course-pages-2026-11-17/landing-hidden-sale-1280-light.png) | [desktop](catalog-course-pages-2026-11-17/landing-hidden-sale-1280-dark.png) |
+| Unavailable, catalog hidden | [desktop](catalog-course-pages-2026-11-17/unlisted-hidden-1280-light.png) | [desktop](catalog-course-pages-2026-11-17/unlisted-hidden-1280-dark.png) |
+
+Fix-round cleanup: both harness databases (`csg_qa_87149_1794873335` and
+`csg_qa_19116_1794873657`) and targeted API database
+`csg_qa_catalog_r1_targeted_test` were dropped. Exact task-owned Rails/Vite PIDs,
+Playwright processes and the preview tab were stopped/closed; lifecycle status
+reports no active owned browser/server resources. ASUS verification completed successfully; its wrapper removed the disposable
+PostgreSQL container and test databases and terminated its WSL instance at exit.
+The exact client-gate process has exited. No runtime resource is handed off.
+
+Follow-ups outside this round: show review time on My work when it arrives in W8;
+mobile Start-here card and review time.
