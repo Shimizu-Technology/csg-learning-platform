@@ -1,0 +1,24 @@
+[
+  {
+    "pattern": "^/staff/student/([1-9][0-9]*)$",
+    "replacement": "/admin/students/$1"
+  },
+  {
+    "pattern": "^/admin/cohorts/([1-9][0-9]*)/students/([1-9][0-9]*)(?:/overview)?$",
+    "replacement": "/admin/students/$2?cohort_id=$1"
+  },
+  {
+    "pattern": "^/admin/cohorts/([1-9][0-9]*)$",
+    "replacement": "/cohorts/$1",
+    "context": {
+      "staff": true
+    }
+  },
+  {
+    "pattern": "^/staff/curriculum/([1-9][0-9]*)$",
+    "replacement": "/admin/content#curriculum-$1",
+    "context": {
+      "staff": true
+    }
+  }
+]

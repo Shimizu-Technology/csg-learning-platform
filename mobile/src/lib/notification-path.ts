@@ -1,6 +1,6 @@
-import { fromWebPath, toNativeHref, type RecordDestination } from './record-destination';
+import { fromWebPath, toNativeHref, toWebPath, type RecordDestination } from './record-destination';
 
-const SIMPLE = new Set(['/', '/meetings', '/learn', '/resources', '/recordings', '/updates', '/staff/grading', '/staff/support']);
+const SIMPLE = new Set(['/', '/meetings', '/learn', '/resources', '/recordings', '/updates', '/messages', '/staff/grading', '/staff/support']);
 export function descriptorFromPath(value: string): RecordDestination | null {
   if (/[\s\\]/.test(value) || value.startsWith('//') || value.split('?').length > 2 || value.split('#').length > 2) return null;
   const web = fromWebPath(value);
@@ -27,6 +27,8 @@ export function descriptorFromPath(value: string): RecordDestination | null {
 
 export function isAllowedNotificationPath(value: unknown): value is string {
   if (typeof value !== 'string') return false;
+  if (value === '/link-unavailable' || /^\/thread\/[1-9]\d*$/.test(value) || /^\/cohort\/[1-9]\d*\/schedule$/.test(value)) return true;
+  if (value.startsWith('/link-unavailable?path=')) return webFallbackPath(new URLSearchParams(value.split('?')[1]).get('path')) === value;
   if (SIMPLE.has(value) || /^\/staff\/student\/[1-9]\d*$/.test(value) || /^\/recording\/(?:recording|uploaded)-[1-9]\d*$/.test(value)) return true;
   const canonical = toNativeHref(descriptorFromPath(value)) ?? legacyNativePath(value);
   return canonical === value || canonical === value.replace('?messageId=', '?message_id=');
@@ -36,16 +38,24 @@ export function isAllowedNotificationPath(value: unknown): value is string {
 export function mobileNotificationPath(value: unknown, messageId?: unknown, legacyPath?: unknown): string {
   const descriptor = typeof value === 'string' ? descriptorFromPath(value) : value;
   let canonical = toNativeHref(descriptor);
+  if (!canonical && toWebPath(descriptor)) return webFallbackPath(toWebPath(descriptor));
   if (!canonical && legacyPath !== undefined) return mobileNotificationPath(legacyPath, messageId);
   if (canonical && descriptor && typeof descriptor === 'object' && 'kind' in descriptor && ['dm', 'channel'].includes(String(descriptor.kind)) && !/[?&]message_id=/.test(canonical) && /^[1-9]\d*$/.test(String(messageId))) canonical += `${canonical.includes('?') ? '&' : '?'}message_id=${messageId}`;
   if (canonical) return canonical;
   const legacy = legacyNativePath(value);
   if (legacy) return legacy;
   if (isAllowedNotificationPath(value)) return value;
+  if (typeof value === 'string' && /^\/thread\/[1-9]\d*$/.test(value)) return value;
+  if (typeof value === 'string' && /^\/cohort\/[1-9]\d*\/schedule$/.test(value)) return value;
+  if (value === '/staff/curriculum') return '/learn';
+  if (typeof value === 'string' && /^\/admin\/cohorts\/[1-9]\d*\/schedule$/.test(value)) return value.replace('/admin/cohorts/', '/cohort/');
+  if (value === '/materials') return '/learn';
+  if (value === '/admin/content') return '/learn';
   if (value === '/dashboard') return '/';
   if (value === '/admin/grading') return '/staff/grading';
   if (value === '/admin/support') return '/staff/support';
-  return '/updates';
+  const webPath = typeof value === 'string' ? value : toWebPath(value);
+  return webFallbackPath(webPath);
 }
 
 /**
@@ -73,4 +83,13 @@ function legacyNativePath(value: unknown): string | null {
     }
   }
   return null;
+}
+
+export function webFallbackPath(path: unknown): string {
+  return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') && !/[\s\\]/.test(path) && !path.startsWith('/link-unavailable')
+    ? `/link-unavailable?path=${encodeURIComponent(path)}` : '/link-unavailable';
+}
+export function requiresStaff(path: string): boolean {
+  const source = path.startsWith('/link-unavailable?') ? new URLSearchParams(path.split('?')[1]).get('path') || '' : path;
+  return /^\/(staff|admin)(\/|$)/.test(source);
 }

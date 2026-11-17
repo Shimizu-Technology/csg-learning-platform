@@ -1,9 +1,10 @@
+import { peekIncomingLink, takeIncomingLink, subscribeIncomingLink } from '@/lib/incoming-link';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useNavigationContainerRef, useRootNavigationState } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { isAllowedNotificationPath, mobileNotificationPath } from '@/lib/notification-path';
+import { isAllowedNotificationPath, mobileNotificationPath, requiresStaff } from '@/lib/notification-path';
 import { applicationNavigator, notificationArrived, notificationStack } from '@/lib/notification-navigation';
 import { fromWebPath, toWebPath, toNativeHref } from '@/lib/record-destination';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -23,6 +24,8 @@ export function NotificationObserver() {
   const session = useSession();
   const ready = auth.loaded && auth.signedIn && !session.loading && !session.accessDenied && !!session.user && (!session.user.community_policy || session.user.community_policy.accepted);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [link, setLink] = useState<string | null>(peekIncomingLink);
+  useEffect(() => { const receive = () => { setLink(peekIncomingLink()); }; receive(); return subscribeIncomingLink(receive); }, []);
   const handled = useRef<string | null>(null);
   const inFlight = useRef<string | null>(null);
   const currentUserId = session.user?.id ?? null;
@@ -96,21 +99,34 @@ export function NotificationObserver() {
       finish(pending.id);
       return;
     }
+    const path = !session.user?.is_staff && requiresStaff(pending.path) ? '/link-unavailable' : pending.path;
     const current = navigation.getRootState();
     // Wait for the auth redirect and policy gate to mount the app navigator.
     const navigator = applicationNavigator(current);
     if (!navigator || navigator.routes[navigator.index ?? 0]?.name !== '(app)') return;
     const appStackKey = navigator.routes[navigator.index ?? 0]?.state?.key;
     if (!appStackKey) return;
-    if (inFlight.current === pending.id && notificationArrived(current, pending.path)) {
+    if (inFlight.current === pending.id && notificationArrived(current, path)) {
       finish(pending.id);
       return;
     }
     if (inFlight.current === pending.id) return;
     inFlight.current = pending.id;
     try {
-      navigation.dispatch({ type: 'RESET', target: appStackKey, payload: { ...navigator.routes[navigator.index ?? 0].state, ...notificationStack(pending.path, navigator.routes[navigator.index ?? 0].state) } });
+      navigation.dispatch({ type: 'RESET', target: appStackKey, payload: { ...navigator.routes[navigator.index ?? 0].state, ...notificationStack(path, navigator.routes[navigator.index ?? 0].state) } });
     } catch { inFlight.current = null; }
-  }, [navigation, pending, ready, auth.subject, state, navigationTick, session.user?.id, finish]);
+  }, [navigation, pending, ready, auth.subject, state, navigationTick, session.user?.id, session.user?.is_staff, finish]);
+  useEffect(() => {
+    if (!link || !ready) return;
+    const navigator = applicationNavigator(navigation.getRootState());
+    const app = navigator?.routes[navigator.index ?? 0];
+    if (app?.name !== '(app)' || !app.state?.key) return;
+    const path = !session.user?.is_staff && requiresStaff(link) ? '/link-unavailable' : link;
+    navigation.dispatch({ type: 'RESET', target: app.state.key, payload: { ...app.state, ...notificationStack(path, app.state) } });
+    takeIncomingLink();
+    // Navigation is synchronized with an external native URL event.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLink(null);
+  }, [link, ready, navigation, state, navigationTick, session.user?.is_staff]);
   return null;
 }

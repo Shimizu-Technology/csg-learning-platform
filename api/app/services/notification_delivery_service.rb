@@ -1,4 +1,8 @@
 class NotificationDeliveryService
+  def self.system_notice(record, notifications)
+    PushNotificationJob.perform_later(record.class.name, record.id, notifications.map(&:id)) if notifications.any?
+  end
+
   def self.announcement_published(announcement, push: false)
     new.announcement_published(announcement, push: push)
   end

@@ -18,7 +18,11 @@ export async function openAuthenticatedWebLesson(api: CsgApi, lessonId: number, 
   await openAuthenticatedWebPage(api, `/lessons/${lessonId}${cohortId ? `?cohort_id=${cohortId}` : ''}${blockId ? `#block-${blockId}` : ''}`);
 }
 
+const handoffClosed = new Set<() => void>();
+export function onWebHandoffClosed(listener: () => void) { handoffClosed.add(listener); return () => { handoffClosed.delete(listener); }; }
+
 export async function openAuthenticatedWebPage(api: CsgApi, destination: string) {
   const result = await api.webHandoff(destination);
   await openExternalPage(result.url);
+  handoffClosed.forEach(listener => listener());
 }

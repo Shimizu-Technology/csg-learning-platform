@@ -49,6 +49,15 @@ assert_status 0 "backend-only changes skip the frontend build" \
   env CACHED_COMMIT_REF="$initial_commit" COMMIT_REF="$backend_commit" \
   bash -c "cd '$fixture_directory/web' && bash scripts/netlify-ignore-build.sh"
 
+mkdir -p "$fixture_directory/api/config"
+echo '[]' > "$fixture_directory/api/config/record_destination_aliases.json"
+git -C "$fixture_directory" add api/config/record_destination_aliases.json
+git -C "$fixture_directory" commit -qm "shared routing contract"
+alias_commit="$(git -C "$fixture_directory" rev-parse HEAD)"
+assert_status 1 "shared destination aliases run the frontend build" \
+  env CACHED_COMMIT_REF="$backend_commit" COMMIT_REF="$alias_commit" \
+  bash -c "cd '$fixture_directory/web' && bash scripts/netlify-ignore-build.sh"
+
 echo 'frontend change' >> "$fixture_directory/web/app.txt"
 git -C "$fixture_directory" add web/app.txt
 git -C "$fixture_directory" commit -qm "frontend"
