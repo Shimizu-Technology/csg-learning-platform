@@ -16,7 +16,7 @@ module Api
         end
 
         cohort_ids = cohort ? [ cohort.id ] : current_user.accessible_cohorts.select(:id)
-        render json: { support_queue: SupportQueueProjection.new(cohort_ids: cohort_ids).call }
+        render json: { support_queue: SupportQueueProjection.new(cohort_ids: cohort_ids, student_id: params[:student_id].presence).call }
       end
     end
   end

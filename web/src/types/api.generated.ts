@@ -1000,7 +1000,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    cohort_id?: number;
+                    student_id?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4504,7 +4507,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    cohort_id?: number;
+                    student_id?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4565,6 +4571,42 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support_queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    cohort_id?: number;
+                    student_id?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Scoped staff support queue */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7222,6 +7264,7 @@ export interface components {
                 block_type: string;
                 completed_at: string | null;
             }[];
+            can_message: boolean;
         };
         CohortModuleLearning: {
             id: number;
@@ -7351,6 +7394,8 @@ export interface components {
             channel_id: number | null;
             parent_message_id: number | null;
             channel_name?: string;
+            blocked: boolean;
+            can_open: boolean;
         };
         StudentCommunicationMeeting: {
             id: number;
@@ -7364,6 +7409,11 @@ export interface components {
                 messages: components["schemas"]["StudentCommunicationMessage"][];
                 channel_activity: components["schemas"]["StudentCommunicationMessage"][];
                 meetings: components["schemas"]["StudentCommunicationMeeting"][];
+                can_message: boolean;
+                channels: {
+                    id: number;
+                    name: string;
+                }[];
             };
         };
         LearningInsightEvidenceContext: {

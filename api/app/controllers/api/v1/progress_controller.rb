@@ -257,6 +257,7 @@ module Api
           enrollments: user.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).includes(:cohort).order(:id).map { |item|
             { id: item.id, cohort_id: item.cohort_id, cohort_name: item.cohort.name, status: item.status }
           },
+          can_message: !current_user.blocked_relationship_with?(user),
           media_summary: StudentMediaProgress.new(enrollment: enrollment, progress: learner_progress).call,
           weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false, progress: learner_progress).call,
           enrollment: {

@@ -462,3 +462,12 @@ it('preserves the message anchor through StrictMode mount replay', async () => {
   expect(container.textContent).not.toContain('Switching conversation')
   expect(anchorScroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
 })
+
+it('keeps student and cohort filters on initial and refreshed full-message lists', async () => {
+  await open('/messages/2?cohort_id=1&student_id=3')
+  expect(fixture.calls).toHaveBeenCalledWith('getDirectConversations', { cohort_id: 1, student_id: 3 })
+  fixture.calls.mockClear()
+  await act(async () => window.dispatchEvent(new Event('focus')))
+  await act(async () => new Promise(resolve => setTimeout(resolve, 350)))
+  expect(fixture.calls).toHaveBeenCalledWith('getDirectConversations', { cohort_id: 1, student_id: 3 })
+})

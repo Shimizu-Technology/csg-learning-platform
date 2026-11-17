@@ -23,6 +23,7 @@ cd api || exit 1
 run bundle bundle install --quiet
 run schema bundle exec rails db:schema:load
 run api bundle exec rails test
+run api-unprepared env DATABASE_URL="${DATABASE_URL}?prepared_statements=false" bundle exec rails test
 run rubocop bundle exec rubocop
 run brakeman bundle exec brakeman --no-pager
 cd ../web || exit 1

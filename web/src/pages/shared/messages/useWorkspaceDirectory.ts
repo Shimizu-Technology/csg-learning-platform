@@ -22,10 +22,11 @@ type DirectoryConversation = Pick<ConversationState, 'selectedTarget' | 'setSele
 export function useWorkspaceDirectory(
   user: User | null,
   toast: Toast,
-  { loading: cohortsLoading, selectedCohortId, setSelectedCohort }: Cohorts,
-  { channelId, dmId, navigate, requestedWorkspaceId }: Pick<MessagesRoute, 'channelId' | 'dmId' | 'navigate' | 'requestedWorkspaceId'>,
+  { loading: cohortsLoading, selectedCohortId: contextCohortId, setSelectedCohort }: Cohorts,
+  { channelId, dmId, navigate, requestedWorkspaceId, requestedCohortId, requestedStudentId }: Pick<MessagesRoute, 'channelId' | 'dmId' | 'navigate' | 'requestedWorkspaceId' | 'requestedCohortId' | 'requestedStudentId'>,
   { selectedTarget, setSelectedTarget, setMessages, selectTarget, clearConversation }: DirectoryConversation,
 ) {
+  const selectedCohortId = requestedCohortId ?? contextCohortId
   const isStaff = Boolean(user?.is_staff)
   const isAdmin = Boolean(user?.is_admin)
   const summaryFreshness = useRef(new ConversationSummaryFreshness()).current
@@ -157,7 +158,7 @@ export function useWorkspaceDirectory(
 
   const loadLists = async () => {
     const started = summaryFreshness.startRequest()
-    const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), api.getDirectConversations()])
+    const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), (requestedStudentId ? api.getDirectConversations({ cohort_id: requestedCohortId, student_id: requestedStudentId }) : api.getDirectConversations())])
     const loadedWorkspaces = workspaceRes.data?.workspaces || []
     if (workspaceRes.data) setWorkspaces(loadedWorkspaces)
     if (channelRes.data) setChannels((current) => summaryFreshness.reconcileList('channel', current, channelRes.data!.channels, started))
@@ -176,10 +177,10 @@ export function useWorkspaceDirectory(
       workspaces: loadedWorkspaces,
       routedWorkspaceId,
       requestedWorkspaceId,
-      cohortWorkspaceId: workspaceIdForCohort(loadedWorkspaces, selectedCohortId),
+      cohortWorkspaceId: workspaceIdForCohort(loadedWorkspaces, requestedCohortId ?? selectedCohortId),
     })
     const initialTarget = initialMessageTarget(
-      loadedChannels.filter((channel) => channel.workspace_id === initialWorkspaceId),
+      requestedStudentId ? [] : loadedChannels.filter((channel) => channel.workspace_id === initialWorkspaceId),
       loadedDirectConversations.filter((conversation) => conversation.workspace_id === initialWorkspaceId),
     )
 
@@ -196,7 +197,7 @@ export function useWorkspaceDirectory(
     const refresh = async () => {
       const request = ++generation
       const started = summaryFreshness.startRequest()
-      const [channelRes, dmRes] = await Promise.all([api.getChannels(), api.getDirectConversations()])
+      const [channelRes, dmRes] = await Promise.all([api.getChannels(), (requestedStudentId ? api.getDirectConversations({ cohort_id: requestedCohortId, student_id: requestedStudentId }) : api.getDirectConversations())])
       if (!active || request !== generation) return
       if (channelRes.data) setChannels((current) => summaryFreshness.reconcileList('channel', current, channelRes.data!.channels, started))
       if (dmRes.data) setDirectConversations((current) => summaryFreshness.reconcileList('dm', current, dmRes.data!.direct_conversations, started))
@@ -204,7 +205,7 @@ export function useWorkspaceDirectory(
     }
     const unsubscribe = subscribeUnreadRefresh(() => { void refresh() })
     return () => { active = false; unsubscribe() }
-  }, [userId, summaryFreshness])
+  }, [userId, summaryFreshness, requestedCohortId, requestedStudentId])
 
   useEffect(() => {
     if (!requestedWorkspaceId || !workspaces.some((workspace) => workspace.id === requestedWorkspaceId) || channelId || dmId) return
@@ -248,7 +249,7 @@ export function useWorkspaceDirectory(
   const loadInitialLists = useEffectEvent(() => { loadLists() })
   useEffect(() => {
     loadInitialLists()
-  }, [])
+  }, [requestedCohortId, requestedStudentId])
 
   useEffect(() => {
     if (!channelForm.workspace_id && workspaces.length > 0) {

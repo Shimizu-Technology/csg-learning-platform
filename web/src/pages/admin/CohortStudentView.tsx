@@ -215,7 +215,7 @@ function PreviewShell({
             className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
           >
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-            Back to cohort
+            {selectedStudent ? "Back to student Overview" : "Back to cohort"}
           </Link>
         </div>
         <div className="border-t border-line p-4">
@@ -283,7 +283,7 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
             {selectedStudent ? `${selectedStudent.full_name || selectedStudent.email} · actual learning progress and access, with private messages hidden` : `Shared student template for ${data.cohort.curriculum_name} · not a specific student's account`} · generated {formatDate(data.generated_at)}
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="app-control w-full font-semibold"><option value="">Cohort template</option>{students.map((student) => <option key={student.user_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><LinkButton to={selectedStudent ? cohortStudentPath(data.cohort.id, selectedStudent.user_id) : cohortPath(data.cohort.id)} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to cohort</LinkButton></div>
+        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="app-control w-full font-semibold"><option value="">Cohort template</option>{students.map((student) => <option key={student.user_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><LinkButton to={selectedStudent ? cohortStudentPath(data.cohort.id, selectedStudent.user_id) : cohortPath(data.cohort.id)} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />{selectedStudent ? "Back to student Overview" : "Back to cohort"}</LinkButton></div>
       </div>
       </div>
     </div>

@@ -694,7 +694,25 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       },
       "post": {
         "responses": {
@@ -3419,7 +3437,25 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       }
     },
     "/api/v1/help_requests/{help_request_id}/replies": {
@@ -3443,6 +3479,33 @@
             "name": "help_request_id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/support_queue": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Scoped staff support queue"
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "integer"
             }
@@ -16104,6 +16167,9 @@
               ],
               "additionalProperties": false
             }
+          },
+          "can_message": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -16119,7 +16185,8 @@
           "learning_evidence_scope",
           "overall_progress",
           "modules",
-          "recent_activity"
+          "recent_activity",
+          "can_message"
         ],
         "additionalProperties": false
       },
@@ -16865,6 +16932,12 @@
           },
           "channel_name": {
             "type": "string"
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "can_open": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -16874,7 +16947,9 @@
           "author_name",
           "direct_conversation_id",
           "channel_id",
-          "parent_message_id"
+          "parent_message_id",
+          "blocked",
+          "can_open"
         ],
         "additionalProperties": false
       },
@@ -16929,12 +17004,36 @@
                 "items": {
                   "$ref": "#/components/schemas/StudentCommunicationMeeting"
                 }
+              },
+              "can_message": {
+                "type": "boolean"
+              },
+              "channels": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
               "messages",
               "channel_activity",
-              "meetings"
+              "meetings",
+              "can_message",
+              "channels"
             ],
             "additionalProperties": false
           }

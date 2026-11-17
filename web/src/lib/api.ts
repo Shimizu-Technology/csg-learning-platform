@@ -634,8 +634,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  getDirectConversations: () =>
-    fetchUnreadList<DirectConversationsResponse>('/api/v1/direct_conversations'),
+  getDirectConversations: (params?: { cohort_id?: number; student_id?: number }) =>
+    fetchUnreadList<DirectConversationsResponse>(`/api/v1/direct_conversations${queryString(params || {})}`),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
   getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>
@@ -788,7 +788,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reply: data }),
     }),
-  getSupportQueue: (cohortId?: number, signal?: AbortSignal) => fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`, signal ? { signal } : {}),
+  getSupportQueue: (cohortId?: number, signal?: AbortSignal, studentId?: number) => fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId, student_id: studentId })}`, signal ? { signal } : {}),
   getInterventions: (params: { enrollment_id?: number; owner_id?: number; status?: InterventionStatus; due?: boolean } = {}) =>
     fetchApi<InterventionsResponse>(`/api/v1/interventions${queryString(params)}`),
   getIntervention: (id: number) => fetchApi<InterventionResponse>(`/api/v1/interventions/${id}`),
@@ -1030,8 +1030,8 @@ export const api = {
     fetchApi<unknown>(`/api/v1/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify({ slot_id: slotId }) }),
   cancelPrivateMeeting: (bookingId: number) =>
     fetchApi<unknown>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' }),
-  getStaffPrivateMeetings: () =>
-    fetchApi<StaffPrivateMeetingsResponse>('/api/v1/staff/private_meetings'),
+  getStaffPrivateMeetings: (params?: { cohort_id?: number; student_id?: number }) =>
+    fetchApi<StaffPrivateMeetingsResponse>(`/api/v1/staff/private_meetings${queryString(params || {})}`),
   configurePrivateMeetings: (cohortId: number, instructorId: number) =>
     fetchApi<unknown>('/api/v1/staff/private_meeting_configs', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, instructor_id: instructorId }) }),
   createPrivateMeetingSlot: (cohortId: number, startsAt: string, repeatWeeks: number) =>

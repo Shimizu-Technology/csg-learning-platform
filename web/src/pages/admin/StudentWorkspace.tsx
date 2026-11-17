@@ -283,7 +283,7 @@ function Workspace() {
           {'last_active_at' in progress.user && <><span aria-hidden="true">·</span><span className="tabular-nums">{progress.user.last_active_at ? `Last active ${formatShortDateTime(progress.user.last_active_at)}` : 'No learning activity yet'}</span></>}
         </>}
         actions={<>
-          <Button size="sm" onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{openingMessage ? 'Opening…' : 'Message'}</Button>
+          <Button size="sm" onClick={() => void openDirectMessage()} disabled={openingMessage || progress.can_message === false}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{openingMessage ? 'Opening…' : 'Message'}</Button>
           {nextReview && <LinkButton size="sm" to={`/admin/grading?${new URLSearchParams({ cohort_id: String(cohortId), student_id: String(studentId), submission: String(nextReview), return_to: currentPath })}`} variant="secondary"><FileCheck2 className="h-4 w-4" aria-hidden="true" />Grade next ({ungraded})</LinkButton>}
           <StartFollowUpPlan activePlanId={progress.status?.active_intervention_id} enrollmentId={progress.enrollment.id} studentName={progress.user.full_name} returnTo={currentPath} />
         </>}
@@ -334,13 +334,16 @@ function OverviewTab({ aside, sections, progress, submissions, helpRequests, coh
   const openHelp = progress.status?.help_request_count
   const learningPath = cohortStudentPath(cohortId, studentId, 'learning')
   const workPath = cohortStudentPath(cohortId, studentId, 'work')
-  const supportPath = cohortStudentPath(cohortId, studentId, 'support')
+  const location = useLocation()
+  const currentPath = `${location.pathname}${location.search}`
+  const queueParams = new URLSearchParams({ cohort_id: String(cohortId), student_id: String(studentId), return_to: currentPath })
+  const supportPath = `/admin/support?${queueParams}&view=active`
   const media = progress.media_summary
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         <MetricCard to={learningPath} icon={GraduationCap} label="Learning progress" value={`${progress.overall_progress.percentage}%`} detail={lessonsLabel(progress.overall_progress)} tone="neutral" />
-        <MetricCard to={`${workPath}?filter=ungraded`} icon={FileCheck2} label="Work waiting" value={ungraded === undefined ? 'Unavailable' : String(ungraded)} detail="Waiting for review" tone={ungraded ? 'pending' : 'neutral'} />
+        <MetricCard to={`/admin/grading?${queueParams}&filter=ungraded`} icon={FileCheck2} label="Work waiting" value={ungraded === undefined ? 'Unavailable' : String(ungraded)} detail="Waiting for review" tone={ungraded ? 'pending' : 'neutral'} />
         <MetricCard to={`${workPath}?filter=redo`} icon={RotateCcw} label="Redo open" value={redo === undefined ? 'Unavailable' : String(redo)} detail={redo ? 'Redo requested' : 'No redo requests'} tone={redo ? 'warning' : 'neutral'} />
         <MetricCard to={supportPath} icon={CircleHelp} label="Open support" value={openHelp === undefined ? 'Unavailable' : String(openHelp)} detail="Help requests" tone={openHelp ? 'warning' : 'neutral'} />
         <SectionBoundary section={sections.recordings} label="Recordings"><MetricCard to={`${learningPath}#recordings`} icon={Video} label="Recordings completed" value={media ? `${media.recordings_completed}/${media.recordings_total}` : 'Unavailable'} detail="Class recordings" tone="neutral" /></SectionBoundary>

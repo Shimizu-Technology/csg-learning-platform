@@ -73,6 +73,11 @@ describe('staff meetings order', () => {
     vi.useRealTimers()
   })
 
+  it('asks the server for the selected student and cohort full meeting list', async () => {
+    await act(async () => root.render(<MemoryRouter initialEntries={['/admin/meetings?cohort_id=2&student_id=41']}><StaffPrivateMeetings /></MemoryRouter>))
+    expect(state.meetings).toHaveBeenCalledWith({ cohort_id: 2, student_id: 41 })
+  })
+
   it('opens the exact past booking and links its learner with a return context', async () => {
     Element.prototype.scrollIntoView = vi.fn()
     await act(async () => root.render(<MemoryRouter initialEntries={['/admin/meetings?cohort_id=2&booking_id=1&week=1']}><StaffPrivateMeetings /></MemoryRouter>))

@@ -159,7 +159,7 @@ describe('CohortStudentView routing', () => {
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view/materials?student_id=12'] })
     await act(async () => root.render(<RouterProvider router={router} />))
     expect(container.querySelector('a[href="/admin/cohorts/4/student-view/lessons/99?student_id=12"]')).not.toBeNull()
-    const backLinks = Array.from(container.querySelectorAll('a')).filter((link) => link.textContent?.includes('Back to cohort'))
+    const backLinks = Array.from(container.querySelectorAll('a')).filter((link) => link.textContent?.includes('Back to student Overview'))
     expect(backLinks).toHaveLength(2)
     expect(backLinks.every((link) => link.getAttribute('href') === '/admin/cohorts/4/students/12/overview')).toBe(true)
   })

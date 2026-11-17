@@ -43,8 +43,9 @@ export function SupportQueue() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const cohortId = supportFiltersFromSearch(searchParams).cohortId ?? undefined
-  const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(String(cohortId), async () => {
-    const result = await api.getSupportQueue(cohortId)
+  const studentId = supportFiltersFromSearch(searchParams).studentId ?? undefined
+  const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(`${cohortId}:${studentId}`, async () => {
+    const result = studentId ? await api.getSupportQueue(cohortId, undefined, studentId) : await api.getSupportQueue(cohortId)
     return { data: result.data?.support_queue, error: result.error, fromCache: result.fromCache }
   })
   // Back from a help request returns to this list at the same scroll position.

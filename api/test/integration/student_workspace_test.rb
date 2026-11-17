@@ -64,7 +64,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     unassigned = @curriculum.modules.create!(name: "Unassigned", position: 2)
     other_lesson = unassigned.lessons.create!(title: "Other lesson", position: 0)
     other_lesson.content_blocks.create!(title: "Other clip", block_type: :video, position: 0).update_column(:s3_video_key, "qa/unassigned.mp4")
-    recording = @cohort.recordings.create!(title: "Class clip", source_kind: "external", source_url: "https://example.invalid/clip")
+    recording = @cohort.recordings.create!(title: "Class clip", source_kind: "external", source_url: "https://example.invalid/clip", status: :published)
     WatchProgress.create!(user: @student, recording: recording, total_watched_seconds: 90, duration_seconds: 100)
     get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
     assert_response :success
@@ -125,19 +125,29 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "communication hides blocked authors in either direction without hiding the viewer's own replies" do
+  test "communication retains blocked previews in both directions and disables unavailable DM actions" do
     own = conversation(@teacher)
-    own.messages.create!(author: @student, body: "Blocked private body")
+    hidden = own.messages.create!(author: @student, body: "Blocked private body")
     reply = own.messages.create!(author: @teacher, body: "My permitted reply")
     channel = @cohort.workspace.channels.create!(name: "blocked-activity", position: 5)
-    channel.messages.create!(author: @student, body: "Blocked class body")
+    activity = channel.messages.create!(author: @student, body: "Blocked class body")
     [ [ @teacher, @student ], [ @student, @teacher ] ].each do |blocker, blocked|
       block = UserBlock.create!(blocker: blocker, blocked_user: blocked)
       get communication_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
       assert_response :success
-      assert_equal [ reply.id ], response.parsed_body.dig("communication", "messages").pluck("id")
-      assert_empty response.parsed_body.dig("communication", "channel_activity")
-      refute_includes response.body, "Blocked private body"
+      body = response.parsed_body.fetch("communication")
+      assert_equal [ reply.id, hidden.id ], body.fetch("messages").pluck("id")
+      assert_equal "Message hidden", body.fetch("messages").find { |row| row["id"] == hidden.id }.fetch("body")
+      assert_equal "My permitted reply", body.fetch("messages").find { |row| row["id"] == reply.id }.fetch("body")
+      assert body.fetch("messages").none? { |row| row.fetch("can_open") }
+      assert_equal false, body.fetch("can_message")
+      get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+      assert_equal false, response.parsed_body.fetch("can_message")
+      assert_equal [ activity.id ], body.fetch("channel_activity").pluck("id")
+      assert_equal "Message hidden", body.fetch("channel_activity").sole.fetch("body")
+      assert body.fetch("channel_activity").sole.fetch("can_open")
+      get "/api/v1/channels/#{channel.id}", headers: headers(@teacher)
+      assert_response :success
       refute_includes response.body, "Blocked class body"
       block.destroy!
     end
@@ -216,6 +226,123 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
         end
       end
     end
+  end
+
+  %w[unassigned personal_plan lesson_only].each do |mode|
+    test "lesson video card and list share assignments and completion in #{mode}" do
+      clip = @lesson.content_blocks.create!(title: "Assigned clip", block_type: :video, position: 1)
+      clip.update_column(:s3_video_key, "qa/assigned.mp4")
+      Progress.create!(user: @student, enrollment: @enrollment, content_block: clip, status: :completed)
+      other = @curriculum.modules.create!(name: "Unassigned videos", position: 2)
+      lesson = other.lessons.create!(title: "Outside assignment", position: 0)
+      lesson.content_blocks.create!(title: "Outside clip", block_type: :video, position: 0).update_column(:s3_video_key, "qa/outside.mp4")
+      if mode == "lesson_only"
+        @enrollment.module_assignments.destroy_all
+        @enrollment.lesson_assignments.create!(lesson: @lesson, unlocked: true)
+      elsif mode == "personal_plan"
+        @enrollment.create_learning_plan!(active: true, title: "Personal", milestones: [ { title: "Next", due_on: "2026-12-01", lesson_ids: [ @lesson.id ] } ])
+      end
+      get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+      assert_response :success
+      summary = response.parsed_body.fetch("media_summary")
+      get "/api/v1/watch_progress/student/#{@student.id}/lesson_videos", params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+      assert_response :success
+      videos = response.parsed_body.fetch("lesson_videos")
+      assert_equal [ clip.id ], videos.pluck("content_block_id")
+      assert_equal summary.fetch("lesson_videos_total"), videos.size
+      assert_equal summary.fetch("lesson_videos_completed"), videos.count { |row| row["completed"] }
+    end
+  end
+
+  test "recording card and staff list exclude completed draft recordings" do
+    [ :draft, :published ].each do |status|
+      recording = @cohort.recordings.create!(title: status.to_s, source_kind: "external", source_url: "https://example.invalid/clip", status: status)
+      WatchProgress.create!(user: @student, recording: recording, total_watched_seconds: 90, duration_seconds: 100)
+    end
+    get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+    summary = response.parsed_body.fetch("media_summary")
+    get "/api/v1/watch_progress/student/#{@student.id}", params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+    assert_response :success
+    rows = response.parsed_body.fetch("watch_progresses")
+    assert_equal [ "published" ], rows.pluck("recording_title")
+    assert_equal 1, summary.fetch("recordings_total")
+    assert_equal summary.fetch("recordings_total"), rows.size
+    assert_equal summary.fetch("recordings_completed"), rows.count { |row| row["completed"] }
+  end
+
+  test "waiting review metric equals the scoped server queue including retained attempts" do
+    Submission.create!(enrollment: @enrollment, user: @student, content_block: @block, text: "Earlier", grade: "A")
+    Submission.create!(enrollment: @enrollment, user: @student, content_block: @block, text: "Latest waiting")
+    @enrollment.module_assignments.destroy_all
+    get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+    count = response.parsed_body.dig("status", "ungraded_count")
+    get "/api/v1/grading_queue", params: { cohort_id: @cohort.id, student_id: @student.id, filter: "ungraded" }, headers: headers(@teacher)
+    assert_response :success
+    assert_equal 1, count
+    assert_equal count, response.parsed_body.dig("meta", "total_count")
+  end
+
+  test "open support metric equals the server student active-request scope" do
+    other = person("other_help", :student)
+    Enrollment.create!(cohort: @cohort, user: other)
+    [ [ @student, :open ], [ @student, :acknowledged ], [ @student, :resolved ], [ other, :open ] ].each_with_index do |(student, status), index|
+      context = @module.lessons.create!(title: "Help context #{index}", position: index + 3)
+      HelpRequest.create!(student: student, cohort: @cohort, context_type: :lesson, context_id: context.id, context_label: context.title, context_path: "/lessons/#{context.id}", category: :concept, urgency: :normal, message: "Support example", status: status, owner: @teacher, acknowledged_at: Time.current, staff_response: "Reply", resolved_at: Time.current)
+    end
+    get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+    count = response.parsed_body.dig("status", "help_request_count")
+    get "/api/v1/support_queue", params: { cohort_id: @cohort.id, student_id: @student.id }, headers: headers(@teacher)
+    assert_response :success
+    rows = response.parsed_body.dig("support_queue", "help_requests")
+    assert_equal 2, count
+    assert_equal count, rows.size
+    assert_equal [ @student.id ], rows.map { |row| row.dig("student", "id") }.uniq
+  end
+
+  test "module percentage uses the same whole-lesson basis as its label" do
+    Progress.create!(user: @student, enrollment: @enrollment, content_block: @block, status: :completed)
+    second = @module.lessons.create!(title: "Many steps", position: 1)
+    3.times { |index| second.content_blocks.create!(title: "Step #{index}", block_type: :text, position: index) }
+    get "/api/v1/cohorts/#{@cohort.id}", headers: headers(@teacher)
+    assert_response :success
+    mod = response.parsed_body.dig("cohort", "modules").find { |row| row["id"] == @module.id }
+    assert_equal [ 1, 2, 50.0 ], mod.values_at("completed_lessons", "total_lessons", "progress_percentage")
+  end
+
+  test "filtered full communication lists and media lists keep flat query counts" do
+    conversation(@teacher).messages.create!(author: @student, body: "Scoped message")
+    outsider = person("another_learner", :student)
+    Enrollment.create!(cohort: @cohort, user: outsider)
+    DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @teacher, outsider ])
+    book(@teacher, 1)
+    paths = [ [ "/api/v1/direct_conversations", { cohort_id: @cohort.id, student_id: @student.id } ],
+      [ "/api/v1/staff/private_meetings", { cohort_id: @cohort.id, student_id: @student.id } ],
+      [ "/api/v1/support_queue", { cohort_id: @cohort.id, student_id: @student.id } ],
+      [ "/api/v1/watch_progress/student/#{@student.id}", { cohort_id: @cohort.id } ],
+      [ "/api/v1/watch_progress/student/#{@student.id}/lesson_videos", { cohort_id: @cohort.id } ] ]
+    counts = [ 1, 4 ].map do |size|
+      size.times do |index|
+        member = person("group_#{size}_#{index}", :student)
+        Enrollment.create!(cohort: @cohort, user: member)
+        DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @teacher, @student, member ])
+        lesson = @module.lessons.create!(title: "Video #{size}:#{index}", position: size + index)
+        lesson.content_blocks.create!(title: "Clip", block_type: :video, position: 0).update_column(:s3_video_key, "qa/flat#{size}:#{index}.mp4")
+        @cohort.recordings.create!(title: "Published", source_kind: "external", source_url: "https://example.invalid/clip", status: :published)
+        book(@teacher, 10 + size + index, status: :canceled)
+        HelpRequest.create!(student: @student, cohort: @cohort, context_type: :lesson, context_id: lesson.id, context_label: lesson.title, context_path: "/lessons/#{lesson.id}", category: :concept, message: "Help")
+      end
+      paths.map do |path, params|
+        get path, params: params, headers: headers(@teacher)
+        count_queries { get path, params: params, headers: headers(@teacher); assert_response :success }
+      end
+    end
+    assert_equal counts.first, counts.last, counts.inspect
+    get paths[0][0], params: paths[0][1], headers: headers(@teacher)
+    assert_equal DirectConversationMember.where(user_id: @student.id).pluck(:direct_conversation_id).sort, response.parsed_body.fetch("direct_conversations").pluck("id").sort
+    own = book(@teacher, 28, status: :canceled)
+    own.update!(student: outsider, enrollment: outsider.enrollments.find_by!(cohort: @cohort))
+    get paths[1][0], params: paths[1][1], headers: headers(@teacher)
+    refute_includes response.parsed_body.fetch("cohorts").flat_map { |row| row["bookings"] }.pluck("id"), own.id
   end
 
   private

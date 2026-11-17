@@ -15,10 +15,13 @@ module Api
       def index
         configs = PrivateMeetingConfig.includes(:cohort, :instructor).order(created_at: :desc)
         configs = configs.where(instructor_id: current_user.id, cohort_id: current_user.accessible_cohorts.select(:id)) unless current_user.admin?
+        configs = configs.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
         configs = configs.to_a
         cohort_ids = configs.map(&:cohort_id)
         slots = PrivateMeetingSlot.active.where(private_meeting_config_id: configs.map(&:id)).includes(:instructor).order(:starts_at).to_a.group_by(&:private_meeting_config_id)
-        bookings = PrivateMeetingBooking.where(cohort_id: cohort_ids).includes(:instructor, :student).order(:starts_at).to_a.group_by(&:cohort_id)
+        booking_scope = PrivateMeetingBooking.where(cohort_id: cohort_ids)
+        booking_scope = booking_scope.where(student_id: params[:student_id]) if params[:student_id].present?
+        bookings = booking_scope.includes(:instructor, :student).order(:starts_at).to_a.group_by(&:cohort_id)
         render json: {
           cohorts: configs.map do |config|
             cohort_bookings = bookings.fetch(config.cohort_id, [])

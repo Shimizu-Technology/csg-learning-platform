@@ -36,6 +36,8 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
   const location = useLocation()
+  const studentFilter = Number(new URLSearchParams(location.search).get('student_id')) || undefined
+  const cohortFilter = Number(new URLSearchParams(location.search).get('cohort_id')) || undefined
   const toast = useToast()
   const confirm = useConfirm()
   const [cohorts, setCohorts] = useState<StaffPrivateMeetingCohort[]>([])
@@ -63,7 +65,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
     // Only admins enable meetings and choose hosts, so only they need the cohort and staff lists.
     const isAdmin = Boolean(user?.is_admin)
     const [meetingsResult, cohortResult, adminResult, instructorResult] = await Promise.all([
-      api.getStaffPrivateMeetings(),
+      studentFilter ? api.getStaffPrivateMeetings({ cohort_id: cohortFilter, student_id: studentFilter }) : api.getStaffPrivateMeetings(),
       isAdmin ? api.getCohorts() : Promise.resolve(null),
       isAdmin ? api.getUsers({ role: 'admin' }) : Promise.resolve(null),
       isAdmin ? api.getUsers({ role: 'instructor' }) : Promise.resolve(null),
@@ -78,7 +80,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
     const staff = [...(adminResult?.data?.users || []), ...(instructorResult?.data?.users || [])]
     setInstructors(Array.from(new Map(staff.map((person) => [person.id, person])).values()).filter((person) => !person.archived_at))
     setLoading(false)
-  }, [cohortId, user?.is_admin])
+  }, [cohortId, user?.is_admin, studentFilter, cohortFilter])
 
   useEffect(() => { void load() }, [load])
   // Move meetings that end while the page is open into the read-only past list.
@@ -169,7 +171,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   if (loading) return <LoadingSpinner message="Loading meetings..." />
   if (error && cohorts.length === 0) return <EmptyState icon={WifiOff} title="Could not load meetings" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
 
-  const activeBookings = selected ? selected.bookings.filter((booking) => (!['canceled', 'cancelled'].includes(booking.status) || booking.id === destination.bookingId)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)) : []
+  const activeBookings = selected ? selected.bookings.filter((booking) => (studentFilter || !['canceled', 'cancelled'].includes(booking.status) || booking.id === destination.bookingId)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)) : []
   const upcomingBookings = activeBookings.filter((booking) => Date.parse(booking.ends_at) > now)
   const pastBookings = activeBookings.filter((booking) => Date.parse(booking.ends_at) <= now).reverse()
   const weekGroups = selected ? partitionMeetingWeeks(selected.start_date, selected.weeks, now, selected.timezone) : { current: [], past: [] }

@@ -362,9 +362,9 @@ it('uses shared counts and next review even when history differs; every metric i
   expect(new URL(grade.getAttribute('href')!, 'https://local').searchParams.get('return_to')).toBe('/admin/cohorts/1/students/6/overview')
   const metric = (label: string) => [...container.querySelectorAll('a')].find(link => [...link.querySelectorAll('p')].some(p => p.textContent === label))!
   expect(metric('Work waiting').textContent).toContain('7')
-  expect(metric('Work waiting').getAttribute('href')).toBe('/admin/cohorts/1/students/6/work?filter=ungraded')
+  expect(metric('Work waiting').getAttribute('href')).toBe('/admin/grading?cohort_id=1&student_id=6&return_to=%2Fadmin%2Fcohorts%2F1%2Fstudents%2F6%2Foverview&filter=ungraded')
   expect(metric('Redo open').getAttribute('href')).toBe('/admin/cohorts/1/students/6/work?filter=redo')
-  expect(metric('Open support').getAttribute('href')).toBe('/admin/cohorts/1/students/6/support')
+  expect(metric('Open support').getAttribute('href')).toBe('/admin/support?cohort_id=1&student_id=6&return_to=%2Fadmin%2Fcohorts%2F1%2Fstudents%2F6%2Foverview&view=active')
   expect(metric('Learning progress').getAttribute('href')).toBe('/admin/cohorts/1/students/6/learning')
   expect(metric('Recordings completed').getAttribute('href')).toContain('/learning#recordings')
   expect(metric('Lesson videos completed').getAttribute('href')).toContain('/learning#lesson-videos')
@@ -471,4 +471,15 @@ it('does not redirect to an old student plan when a save finishes after changing
   await act(async () => finish())
   expect(router.state.location.pathname).toBe('/admin/cohorts/1/students/9/overview')
   expect(container.querySelector('h1')?.textContent).toBe('Learner 9')
+})
+
+it('disables the profile Message action when the server reports a block', async () => {
+  const original = vi.mocked(api.getStudentProgress).getMockImplementation()!
+  vi.mocked(api.getStudentProgress).mockImplementation(async (...args) => {
+    const result = await original(...args)
+    return { ...result, data: result.data ? { ...result.data, can_message: false } : null }
+  })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Message')?.disabled).toBe(true)
 })

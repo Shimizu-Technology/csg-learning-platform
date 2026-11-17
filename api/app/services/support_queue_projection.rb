@@ -1,23 +1,26 @@
 class SupportQueueProjection
   RECENT_RESOLVED_LIMIT = 20
 
-  def initialize(now: Time.current, cohort_ids: nil)
+  def initialize(now: Time.current, cohort_ids: nil, student_id: nil)
     @now = now
     @cohort_ids = cohort_ids
+    @student_id = student_id
   end
 
   def call
     active_requests = scoped(HelpRequest.active_queue).includes(:cohort, :student, :owner, replies: :author).queue_order.to_a
     resolved = scoped(HelpRequest.status_resolved).includes(:cohort, :student, :owner, replies: :author).order(resolved_at: :desc).limit(RECENT_RESOLVED_LIMIT).to_a
     blocks = LearningDestination.help_request_blocks(active_requests + resolved)
-    attention = AttentionProjection.new(now: @now, cohort_ids: @cohort_ids).call
+    attention = AttentionProjection.new(now: @now, cohort_ids: @cohort_ids, enrollment_scope: @student_id ? Enrollment.where(user_id: @student_id) : nil).call
     students = attention[:students]
     intervention_scope = Intervention.active
     intervention_scope = intervention_scope.joins(:enrollment).where(enrollments: { cohort_id: @cohort_ids }) if @cohort_ids
+    intervention_scope = intervention_scope.joins(:enrollment).where(enrollments: { user_id: @student_id }) if @student_id
     active_interventions = intervention_scope.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], recovery_plan: []).recent_first.to_a
     due_interventions = active_interventions.count { |intervention| intervention.next_follow_up_at.present? && intervention.next_follow_up_at <= @now }
     recovery_scope = RecoveryPlan.status_active
     recovery_scope = recovery_scope.joins(:enrollment).where(enrollments: { cohort_id: @cohort_ids }) if @cohort_ids
+    recovery_scope = recovery_scope.joins(:enrollment).where(enrollments: { user_id: @student_id }) if @student_id
     active_recovery_plans = recovery_scope.includes(enrollment: [ :user, :cohort ], owner: [], created_by: []).to_a
     # Each plan reports whether its owner can still teach the cohort (owner_valid).
     User.preload_assigned_cohort_ids(active_interventions.map(&:owner) + active_recovery_plans.map(&:owner))
@@ -45,6 +48,7 @@ class SupportQueueProjection
   private
 
   def scoped(relation)
-    @cohort_ids ? relation.where(cohort_id: @cohort_ids) : relation
+    relation = relation.where(cohort_id: @cohort_ids) if @cohort_ids
+    @student_id ? relation.where(student_id: @student_id) : relation
   end
 end
