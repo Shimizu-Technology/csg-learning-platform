@@ -34,9 +34,12 @@ The `course_purchase_terms_positive` and `enrollment_support_weeks_positive` che
 
 An offering's public course address is `/courses/:slug`. The migration and new
 cohorts use the public catalog title, transliterated to lowercase ASCII, such as
-`python-fundamentals`. Collisions receive `-2`, `-3`, and so on. Empty titles and
-reserved route names use `course-<id>`. An address is assigned once; changing a
-public title keeps its address. Existing `/courses?offering_id=` links
+`python-fundamentals`. Collisions receive `-2`, `-3`, and so on. Cohorts without a
+public title keep a NULL slug and stay out of the public catalog. The first save
+with a public title assigns the address, including the wizard's later copy step.
+Reserved names and titles without usable ASCII characters use `course-<id>`.
+An address is assigned once; changing a public title keeps its address. The
+migration backfills titled cohorts and leaves untitled cohorts NULL. Existing `/courses?offering_id=` links
 continue to select the course. Unlisted, inactive, empty, or draft-curriculum
 courses are unavailable through the public detail endpoint.
 

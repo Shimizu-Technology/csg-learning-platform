@@ -19,6 +19,8 @@ class AddCourseMarketingAndOrientation < ActiveRecord::Migration[8.1]
   def backfill_public_slugs
     reserved = %w[new edit checkout return canceled success status]
     select_all("SELECT id, public_title FROM cohorts WHERE public_slug IS NULL ORDER BY id").each do |row|
+      next if row["public_title"].blank?
+
       base = row["public_title"].to_s.parameterize
       base = "course-#{row['id']}" if base.blank? || reserved.include?(base)
       candidate = base

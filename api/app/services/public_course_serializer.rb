@@ -1,6 +1,8 @@
 # An explicit allowlist. Never serialize a cohort/curriculum or lesson body publicly.
 class PublicCourseSerializer
   def self.call(cohort)
+    raise ActiveRecord::RecordNotFound if cohort.public_slug.blank?
+
     selected_ids = cohort.content_defaults&.filter_map { |id, value| id if value["assigned"] }
     modules = cohort.curriculum.modules.ordered
     modules = modules.where(id: selected_ids) if selected_ids

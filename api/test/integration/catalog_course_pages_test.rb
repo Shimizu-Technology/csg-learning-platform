@@ -155,22 +155,61 @@ class CatalogCoursePagesTest < ActionDispatch::IntegrationTest
     assert_equal %w[python-fundamentals python-fundamentals-2 python-fundamentals-3], records.map(&:public_slug)
     blank = Cohort.create!(name: "Internal draft", curriculum: @curriculum, start_date: LearningCalendar.today)
     reserved = Cohort.create!(name: "Internal", public_title: "Checkout", curriculum: @curriculum, start_date: LearningCalendar.today)
-    assert_equal "course-#{blank.id}", blank.public_slug
+    assert_nil blank.public_slug
     assert_equal "course-#{reserved.id}", reserved.public_slug
     blank.update!(public_title: "New public name")
-    assert_equal "course-#{blank.id}", blank.reload.public_slug
+    assert_equal "new-public-name", blank.reload.public_slug
     records.first.update!(public_title: "Renamed")
     assert_equal "python-fundamentals", records.first.reload.public_slug
   end
 
+  test "late public titles share the readable collision suffix sequence" do
+    rows = 2.times.map do
+      Cohort.create!(name: "Internal draft", curriculum: @curriculum, start_date: LearningCalendar.today)
+    end
+    rows.each { |row| assert_nil row.public_slug }
+    rows.each { |row| row.update!(public_title: "Python fundamentals") }
+    assert_equal %w[python-fundamentals python-fundamentals-2], rows.map { |row| row.reload.public_slug }
+  end
+
+  test "a reserved title assigned after creation receives a stable ID fallback" do
+    row = Cohort.create!(name: "Internal draft", curriculum: @curriculum, start_date: LearningCalendar.today)
+    assert_nil row.public_slug
+    row.update!(public_title: "Checkout")
+    assert_equal "course-#{row.id}", row.reload.public_slug
+    row.update!(public_title: "Another title")
+    assert_equal "course-#{row.id}", row.reload.public_slug
+  end
+
+  test "courses awaiting a first slug are not listed reachable or serializable" do
+    untitled = Cohort.create!(name: "Internal draft", curriculum: @curriculum, start_date: LearningCalendar.today,
+      course_delivery: "self_paced", public_checkout_enabled: true)
+    # A rolling migration can also leave a titled row awaiting its first save.
+    Cohort.where(id: [ untitled.id, @cohort.id ]).update_all(public_slug: nil)
+    get "/api/v1/course_offerings"
+    assert_response :success
+    assert_empty response.parsed_body.fetch("offerings")
+    get "/api/v1/course_offerings/course-#{untitled.id}"
+    assert_response :not_found
+  end
+
+  test "public serializer rejects a course awaiting its first slug" do
+    @cohort.public_slug = nil
+    assert_raises(ActiveRecord::RecordNotFound) { PublicCourseSerializer.call(@cohort) }
+  end
+
   test "migration backfill uses public titles with the same transliteration collision and reserved-route rules" do
-    rows = [ "Café studio", "Cafe studio", "Cafe studio", nil, "Checkout" ].map do |title|
+    rows = [ "Café studio", "Cafe studio", "Cafe studio", nil, " \t\n", "Checkout" ].map do |title|
       Cohort.create!(name: "Internal label", public_title: title, curriculum: @curriculum, start_date: LearningCalendar.today)
     end
-    expected = rows.map(&:public_slug)
+    expected = [ "cafe-studio", "cafe-studio-2", "cafe-studio-3", nil, nil, "course-#{rows.last.id}" ]
     Cohort.where(id: rows.map(&:id)).update_all(public_slug: nil)
     AddCourseMarketingAndOrientation.new.send(:backfill_public_slugs)
     assert_equal expected, rows.map { |row| row.reload.public_slug }
+    rows[3].update!(public_title: "Python fundamentals")
+    assert_equal "python-fundamentals", rows[3].reload.public_slug
+  ensure
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
   end
 
   private

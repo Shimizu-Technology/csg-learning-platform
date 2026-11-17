@@ -16,6 +16,7 @@ module Api
 
       def offerings
         Cohort.active.where(course_delivery: "self_paced", public_checkout_enabled: true)
+          .where.not(public_slug: nil)
           .joins(:curriculum).merge(Curriculum.active).includes(:curriculum, :support_instructor).order(:id)
       end
     end

@@ -87,7 +87,7 @@ class Cohort < ApplicationRecord
   before_validation :default_status_by_start_date, on: :create
   validates :public_image_url, format: { with: /\Ahttps:\/\/[^\s]+\z/ }, allow_blank: true
 
-  before_create :assign_public_slug
+  before_save :assign_public_slug
   validates :public_slug, uniqueness: true, format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/ }, allow_nil: true
   validate :public_slug_is_stable
   validates :public_duration, :review_response_time, length: { maximum: 200 }
@@ -101,7 +101,7 @@ class Cohort < ApplicationRecord
   validates :public_slug, exclusion: { in: RESERVED_PUBLIC_SLUGS }, allow_nil: true
 
   def assign_public_slug
-    return if public_slug.present?
+    return unless public_slug.nil? && public_title.present?
 
     base = public_title.to_s.parameterize
     if base.blank? || RESERVED_PUBLIC_SLUGS.include?(base)
