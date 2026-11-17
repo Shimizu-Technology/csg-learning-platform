@@ -1,7 +1,7 @@
 # Synthetic fixtures and controls for staff-home-scheduled-updates.spec.ts (W6.4 + L-5.1). From api/, with the
 # exact owned harness database:
 #   DATABASE_URL=postgresql://localhost/<csg_qa_ database> RAILS_ENV=test bundle exec ruby ../scripts/qa/staff-home-scheduled-updates-fixtures.rb setup
-# setup  - posts "QA read count update" to QA Program through the real fan-out and marks persona 3's copy read,
+# setup  - posts "QA read count update" (pinned) to QA Program through the real fan-out and marks persona 3's copy read,
 #          and writes the ids the spec needs to .qa-local/staff-home-scheduled.json.
 # due ID - moves scheduled update ID's send time to a minute ago, as if its hour had come (the tick would
 #          refuse a past time set through the API, so this is the one backend shortcut).
@@ -24,6 +24,8 @@ when 'setup'
     NotificationDeliveryService.announcement_published(posted)
     posted
   end
+  # Pinned, so it stays on the first page of Manage while QA runs post more updates to the cohort.
+  update.update_columns(pinned: true)
   Notification.where(notifiable: update, user_id: 3).update_all(read_at: Time.current)
   submission = Submission.joins(:enrollment).where(user_id: 3, enrollments: { cohort_id: program.id }).where.not(grade: nil).order(:id).first!
   File.write(STATE, JSON.pretty_generate(program_cohort_id: program.id, read_update_id: update.id, submission_id: submission.id,
