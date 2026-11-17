@@ -55,3 +55,9 @@ it('meetings link targets an enabled course even when the selected course has me
   const nav = shellNavigation({ staff: false, admin: false, cohort: cohort(false, { private_meetings: false }), cohorts: [available] })
   expect(nav.more.find(item => item.label === 'My meetings')?.to).toBe('/meetings?cohort_id=9')
 })
+
+it('My work follows only the cohort’s own switch, never the school default (fix round)', () => {
+  const bare = { id: 1, workspace_id: 2 } as AccessibleCohort
+  expect(labels(shellNavigation({ staff: false, admin: false, cohort: bare, schoolFeatures: { student_experience_v2: true } }))).not.toContain('My work')
+  expect(labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: true }), schoolFeatures: { student_experience_v2: false } }))).toContain('My work')
+})

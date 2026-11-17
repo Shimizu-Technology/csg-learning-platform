@@ -45,6 +45,8 @@ export function MyWorkPage() {
 
   const load = useCallback(() => {
     const current = ++request.current
+    // Another cohort's rows are never shown, or actionable, while this one loads.
+    setWork(null)
     setLoading(true)
     setError(null)
     setNotEnrolled(false)
@@ -118,7 +120,8 @@ function WorkList({ work, tab }: { work: MyWork; tab: Tab }) {
 function WorkRow({ item, work }: { item: MyWorkItem; work: MyWork }) {
   const paths = useLearnerPaths(item.cohort_id)
   const messenger = useMessageInstructor(item.cohort_id)
-  const asked = item.grader ?? work.reviewer
+  // The server names who can be asked now (the grader while reachable, else the cohort's contact); nobody, no action.
+  const asked = item.ask_to
   const blockPath = paths.redo(item.lesson_id, item.content_block_id)
   const where = [item.module_name, item.week ? `Week ${item.week}` : null].filter(Boolean).join(' · ')
   const submitted = `submitted ${formatShortDate(item.submitted_at, '', { withYear: false })}`

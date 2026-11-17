@@ -84,6 +84,18 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const location = useLocation()
   const linkedRequestId = v2 ? Number(new URLSearchParams(location.search).get('help_request')) || null : null
   const autoOpened = useRef<number | null>(null)
+  // The linked request is the one shown, even when a newer one was resolved on this lesson.
+  const linkedRequest = linkedRequestId ? relevantRequests.find((request) => request.id === linkedRequestId) : undefined
+  const shownResolved = linkedRequest?.status === 'resolved' ? linkedRequest : latestResolved
+  // A new link on a lesson that is already open (the page didn't remount) fetches the requests again,
+  // so a reply sent since the page loaded is there. The first link is covered by the page's own load.
+  const refreshedFor = useRef(linkedRequestId)
+  useEffect(() => {
+    if (!linkedRequestId || refreshedFor.current === linkedRequestId) return
+    refreshedFor.current = linkedRequestId
+    if (onRequestsRefresh) void onRequestsRefresh()
+    else void loadRequests().catch(() => {})
+  }, [linkedRequestId, loadRequests, onRequestsRefresh])
   useEffect(() => {
     if (!linkedRequestId || loading || autoOpened.current === linkedRequestId) return
     if (!relevantRequests.some((request) => request.id === linkedRequestId)) return
@@ -140,7 +152,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const replied = Boolean(activeRequest?.replies?.length)
   const statusLabel = replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
   // After a reply the button reads "View response" in the new student experience (glossary, L-1.3).
-  const answered = replied || Boolean(activeRequest?.staff_response) || (!activeRequest && Boolean(latestResolved))
+  const answered = replied || Boolean(activeRequest?.staff_response) || (!activeRequest && Boolean(shownResolved))
   const buttonLabel = v2 && answered ? 'View response' : !canRequest ? 'View previous help' : activeRequest ? statusLabel : 'Ask for help'
 
   if (capabilities?.features?.help_requests === false) return null
@@ -172,14 +184,14 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         size="md"
       >
         <div className="space-y-4">
-          {!loading && latestResolved && (
+          {!loading && shownResolved && (
             <div className="rounded-2xl border border-success-line bg-success-soft p-4">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-ink" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-success-ink">{(latestResolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</p>
+                  <p className="font-semibold text-success-ink">{(shownResolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</p>
                   {/* Every reply, not only the last one, so a hint sent before resolving isn't lost. */}
-                  <dl className="mt-1 space-y-3 text-sm"><HelpReplies request={latestResolved} /></dl>
+                  <dl className="mt-1 space-y-3 text-sm"><HelpReplies request={shownResolved} /></dl>
                   {canRequest && <p className="mt-2 text-xs font-medium text-success-ink">You can send a new request if you still need help.</p>}
                 </div>
               </div>

@@ -219,6 +219,87 @@ class StudentTodayTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # Fix round: message actions go only to staff the learner can reach (review P2 2, 3).
+  test "Ask about this feedback and Message go only to staff the learner can message now" do
+    former = person("former", :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: former)
+    by_former = submit(@weeks[3].first, grade: "B", feedback: "Fine.", grader: former)
+    by_teacher = submit(@weeks[3].second, grade: "A", feedback: "Great.")
+    @cohort.cohort_instructor_assignments.find_by!(user: former).destroy!
+
+    work = fetch_work
+    row = ->(id) { work["graded"].find { |item| item["submission_id"] == id } }
+    assert_equal "Former Synthetic", row.call(by_former.id).dig("grader", "full_name"), "the grader is still named"
+    assert_equal @teacher.id, row.call(by_former.id).dig("ask_to", "id"), "a former instructor's row asks a current one"
+    assert_equal @teacher.id, row.call(by_teacher.id).dig("ask_to", "id")
+    assert_equal @teacher.id, work.dig("contact", "id")
+    assert_equal true, fetch_today["can_ask_for_plan"]
+
+    UserBlock.create!(blocker: @student, blocked_user: @teacher)
+    work = fetch_work
+    assert_nil row.call(by_teacher.id)["ask_to"], "nobody reachable: no action"
+    assert_nil work["contact"]
+    today = fetch_today
+    assert_equal [ nil, false ], today.values_at("contact", "can_ask_for_plan")
+    assert_equal "Audreana Synthetic", today.dig("reviewer", "full_name"), "the reviewer is still named"
+
+    # Someone else who teaches the cohort becomes the contact.
+    other = person("other", :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: other)
+    assert_equal other.id, fetch_work.dig("graded", 0, "ask_to", "id")
+    get "/api/v1/my_work", params: { cohort_id: @cohort.id }, headers: headers(@student)
+    post "/api/v1/direct_conversations", params: { cohort_id: @cohort.id, user_ids: [ other.id ] }, headers: headers(@student), as: :json
+    assert_response :created, "the offered contact really can be messaged"
+  end
+
+  test "asking for a catch-up plan needs learning plans on and someone to ask (review P2 7)" do
+    assert_equal true, fetch_today["can_ask_for_plan"]
+    @cohort.update!(settings: { "features" => { "student_experience_v2" => true, "learning_plans" => false } })
+    assert_equal false, fetch_today["can_ask_for_plan"]
+  end
+
+  test "every waiting question is sent, so the count is reachable (review P2 6)" do
+    6.times do |index|
+      lesson = @weeks[4 + index / 3][index % 3]
+      HelpRequest.create!(student: @student, cohort: @cohort, context_type: :lesson, context_id: lesson.id, context_label: lesson.title,
+        context_path: "/lessons/#{lesson.id}", category: :concept, message: "Question #{index}")
+    end
+    questions = fetch_today["questions"]
+    assert_equal 6, questions["count"]
+    assert_equal 6, questions["items"].size
+  end
+
+  test "a busy conversation doesn't hide other unread conversations" do
+    other = person("other", :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: other)
+    quiet = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ other, @student ])
+    Message.create!(direct_conversation: quiet, author: other, body: "One note")
+    travel 1.minute
+    busy = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @teacher, @student ])
+    15.times { |index| Message.create!(direct_conversation: busy, author: @teacher, body: "Busy #{index}") }
+    messages = fetch_today.dig("needs_you", "items").select { |item| item["kind"] == "message" }
+    assert_equal [ busy.id, quiet.id ], messages.map { |item| item["direct_conversation_id"] }
+    assert_equal "Busy 14", messages.first["excerpt"]
+  end
+
+  test "lessons with no steps are left out of the pace and this week" do
+    # Two empty lessons a week in weeks 1-4 would make the typical week 5 lessons, not 3.
+    (0..3).each { |week| 2.times { |index| @course.lessons.create!(title: "Week #{week + 1} notice #{index}", position: 90 + index, release_day: week * 7 + 3, lesson_type: :exercise, required: true) } }
+    @course.lessons.create!(title: "Week 7 notice", position: 99, release_day: 44, lesson_type: :exercise, required: true)
+    today = fetch_today
+    assert_equal({ "behind" => true, "weeks_behind" => 3, "overdue_count" => 9 }, today["pace"])
+    assert_equal 3, today.dig("this_week", "total")
+  end
+
+  test "a redo on a lesson that is locked again stays in Needs you without a resubmit action" do
+    locked = lesson("Week 9 lesson", 8 * 7)
+    submit(locked, grade: "R", feedback: "Try again later.")
+    item = fetch_work["needs_you"].find { |row| row["lesson_id"] == locked.id }
+    assert_equal false, item["can_resubmit"]
+    open_redo = submit(@weeks[4].first, grade: "R", feedback: "Again.")
+    assert_equal true, fetch_work["needs_you"].find { |row| row["submission_id"] == open_redo.id }["can_resubmit"]
+  end
+
   test "Today and My work cost the same queries however much work there is" do
     today = -> { count_queries { fetch_today } }
     work = -> { count_queries { get("/api/v1/my_work", params: { cohort_id: @cohort.id }, headers: headers(@student)).tap { assert_response :success } } }
@@ -236,6 +317,12 @@ class StudentTodayTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def fetch_work
+    get "/api/v1/my_work", params: { cohort_id: @cohort.id }, headers: headers(@student)
+    assert_response :success
+    response.parsed_body["my_work"]
+  end
 
   def fetch_today
     get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: headers(@student)

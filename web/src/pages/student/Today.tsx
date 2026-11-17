@@ -4,6 +4,7 @@ import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
+import { takeDashboardRequest } from '../../lib/dashboardRequest'
 import { brand, SUPPORT_EMAIL } from '../../lib/brand'
 import { formatHeaderDate, formatShortDate, formatTime } from '../../lib/format'
 import { shortAgo } from '../../lib/recordRelated'
@@ -50,9 +51,12 @@ export function StudentTodayPage() {
 
   const load = useCallback(() => {
     const current = ++request.current
+    // A new cohort's load never shows the last cohort's Today, even if it fails.
+    setData(null)
+    setSaved(false)
     setLoading(true)
     setError(null)
-    api.getDashboard(selectedCohortId ?? undefined).then((result) => {
+    takeDashboardRequest(selectedCohortId).then((result) => {
       if (current !== request.current) return
       if (result.data) {
         setData(result.data.dashboard)
@@ -156,7 +160,8 @@ type Messenger = ReturnType<typeof useMessageInstructor>
 
 /** The one next action (S-11): a single primary button, whatever the learner's state. */
 function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: DashboardData; today: StudentToday; paths: Paths; learnPath: string; myWorkPath: (tab?: string) => string; messenger: Messenger }) {
-  const instructor = today.reviewer
+  // Messages go to someone the learner can reach now (the server's contact); nobody, no button.
+  const contact = today.contact
   const next = today.next_lesson
   const counts = today.counts
   const progress = counts && counts.total_lessons > 0 ? <span className="tabular-nums">{counts.completed_lessons} of {counts.total_lessons} lessons</span> : null
@@ -178,7 +183,9 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
         {today.paused && <p className="mt-2 text-sm leading-6 text-ink-secondary">To resume, message the {brand.schoolAbbreviation} team. We’ll pick a restart week with you.</p>}
         <div className="mt-4 flex flex-wrap gap-2">
           {today.paused
-            ? <Button onClick={() => void messenger.open(data.support_instructor_id)} disabled={messenger.opening}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message {brand.schoolAbbreviation} staff</Button>
+            ? contact
+              ? <Button onClick={() => void messenger.open(contact.id)} disabled={messenger.opening}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message {brand.schoolAbbreviation} staff</Button>
+              : <AnchorButton variant="primary" href={`mailto:${SUPPORT_EMAIL}`}><MessageCircle className="h-4 w-4" aria-hidden="true" />Contact {brand.schoolAbbreviation}</AnchorButton>
             : <LinkButton to={learnPath}>Open Learn<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
           <LinkButton variant="secondary" to={myWorkPath('graded')}>View your past work</LinkButton>
         </div>
@@ -215,11 +222,13 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
 
   const plan = today.catch_up_plan
   const behind = today.pace?.behind ? today.pace.weeks_behind : 0
-  const instructorName = instructor?.full_name.split(' ')[0]
+  const contactName = contact?.full_name.split(' ')[0]
   const behindLine = behind > 0 ? `You’re about ${behind} ${behind === 1 ? 'week' : 'weeks'} behind.` : null
 
   if (plan && plan.items.length > 0) {
-    const first = plan.items.find((item) => item.available) ?? null
+    // Continue goes to the server's next step (LearnerProgress#next_lesson, in plan
+    // order): open work the learner can act on, never a redo in a closed week.
+    const continueTo = next
     const agreed = plan.agreed_by ? `${plan.agreed_by.full_name.split(' ')[0]} agreed this plan with you on ${formatShortDate(plan.agreed_at, '', { withYear: false, weekday: true })}.` : `Agreed with your instructor on ${formatShortDate(plan.agreed_at, '', { withYear: false, weekday: true })}.`
     return (
       <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="today-hero">
@@ -230,8 +239,8 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
         <p className="mt-1 text-sm text-ink-secondary">Required lessons only; optional ones can wait. {agreed}</p>
         <PlanList plan={plan} paths={paths} />
         <div className="mt-4 flex flex-wrap gap-2">
-          {first && <LinkButton to={paths.lesson(first.lesson_id)} aria-label={`Start with ${first.title}`}>Continue your plan<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
-          {instructor && <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(instructor.id, { label: `My catch-up plan: ${plan.title}`, path: learnPath })}>Ask {instructorName} to change it</Button>}
+          {continueTo && <LinkButton to={paths.lesson(continueTo.id)} aria-label={`Continue with ${continueTo.title}`}>Continue your plan<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+          {contact && !today.read_only && <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(contact.id, { label: `My catch-up plan: ${plan.title}`, path: learnPath })}>Ask {contactName} to change it</Button>}
         </div>
       </article>
     )
@@ -243,11 +252,11 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
         {behindLine ? <Badge tone="warning" icon={<Clock className="h-3.5 w-3.5" aria-hidden="true" />}>{behindLine}</Badge> : <p className="text-xs font-semibold text-ink-muted">Next up</p>}
         <h2 id="today-hero" className="mt-2 text-xl font-bold leading-7 text-ink [overflow-wrap:anywhere] sm:text-2xl">{next.title}</h2>
         <p className="mt-1 text-sm text-ink-secondary">{lessonPlace(next)}{progress && <> · {progress}</>}</p>
-        {behindLine && <p className="mt-2 text-sm leading-6 text-ink-secondary">{next.status === 'redo' ? 'Start with your redo, then' : 'Start here, then'} keep going with the required lessons in Learn. {instructorName ? `${instructorName} can agree a catch-up plan with you.` : 'Your instructor can agree a catch-up plan with you.'}</p>}
+        {behindLine && <p className="mt-2 text-sm leading-6 text-ink-secondary">{next.status === 'redo' ? 'Start with your redo, then' : 'Start here, then'} keep going with the required lessons in Learn.{today.can_ask_for_plan && contactName ? ` ${contactName} can agree a catch-up plan with you.` : ''}</p>}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <LinkButton to={paths.lesson(next.id)} size="lg">Continue<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
-          {behindLine && instructor
-            ? <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(instructor.id, { label: 'A catch-up plan', path: learnPath })}>Ask {instructorName} for a catch-up plan</Button>
+          {behindLine && today.can_ask_for_plan && contact
+            ? <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(contact.id, { label: 'A catch-up plan', path: learnPath })}>Ask {contactName} for a catch-up plan</Button>
             : <Link to={learnPath} className="app-link inline-flex min-h-11 items-center px-2 text-sm">See the course outline</Link>}
         </div>
       </article>
@@ -443,9 +452,10 @@ function NextSession({ session }: { session: NonNullable<StudentToday['next_sess
 /** One support message for the course (U-5.5): who to ask, or that support has ended and who to contact instead. */
 function Support({ data, today, messenger }: { data: DashboardData; today: StudentToday; messenger: Messenger }) {
   const instructor = today.reviewer
+  const contact = today.contact
   if (today.mode === 'library') return null
   const ended = today.support.ended
-  const canMessage = Boolean(instructor) && !ended && !today.read_only
+  const canMessage = Boolean(contact) && !ended && !today.read_only
   return (
     <section className="app-surface p-5" aria-labelledby="today-instructor">
       <h2 id="today-instructor" className="text-base font-semibold text-ink">Your instructor</h2>
@@ -466,7 +476,7 @@ function Support({ data, today, messenger }: { data: DashboardData; today: Stude
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {canMessage
-          ? <Button variant="secondary" size="sm" disabled={messenger.opening} onClick={() => void messenger.open(instructor!.id)}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message {instructor!.full_name.split(' ')[0]}</Button>
+          ? <Button variant="secondary" size="sm" disabled={messenger.opening} onClick={() => void messenger.open(contact!.id)}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message {contact!.full_name.split(' ')[0]}</Button>
           : <AnchorButton variant="secondary" size="sm" href={`mailto:${SUPPORT_EMAIL}`}>Contact {brand.schoolAbbreviation}</AnchorButton>}
       </div>
     </section>

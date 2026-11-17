@@ -2,7 +2,7 @@
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /*
@@ -33,10 +33,11 @@ const item = (submission_id: number, status: 'redo' | 'waiting' | 'graded') => (
   module_name: 'JavaScript Foundations', week: 8, attempt: 1, grade: status === 'redo' ? 'R' : status === 'graded' ? 'A' : null,
   feedback: status === 'waiting' ? null : `Feedback for ${submission_id}: return the string.`, submitted_at: '2026-11-11T00:00:00Z', graded_at: status === 'waiting' ? null : '2026-11-16T00:00:00Z',
   grader: status === 'waiting' ? null : person(status === 'graded' && submission_id % 2 ? 6 : 2, status === 'graded' && submission_id % 2 ? 'Leon Shimizu' : 'Audreana Synthetic'),
+  ask_to: status === 'waiting' ? null : person(2, 'Audreana Synthetic'),
   submission_type: 'text_submission', submissions_closed: false, can_resubmit: status === 'redo',
 })
 const myWork = (graded = 3) => ({
-  cohort: { id: 9, name: 'Cohort 4' }, read_only: false, review_response_time: 'usually reviewed within 2 days', reviewer: person(2, 'Audreana Synthetic'),
+  cohort: { id: 9, name: 'Cohort 4' }, read_only: false, review_response_time: 'usually reviewed within 2 days', reviewer: person(2, 'Audreana Synthetic'), contact: person(2, 'Audreana Synthetic'),
   counts: { needs_you: 1, waiting: 2, graded },
   needs_you: [item(1, 'redo')], waiting: [item(2, 'waiting'), item(3, 'waiting')], graded: Array.from({ length: graded }, (_, index) => item(10 + index, 'graded')),
 })
@@ -102,6 +103,61 @@ describe('My work', () => {
 
 const capabilities: LearnerCapabilities = { live_support: true, features: {}, can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 2 }
 const request = (overrides: Partial<HelpRequest> = {}): HelpRequest => ({ destination: null, context_destination: null, id: 31, cohort: { id: 9, name: 'Cohort 4' }, context_type: 'lesson', context_source: 'primary', context_id: 42, context_label: 'Loops', context_path: '/lessons/42', category: 'concept', urgency: 'normal', status: 'acknowledged', message: 'My loop never stops', staff_response: 'Check the condition.', acknowledged_at: '2026-11-17T00:00:00Z', resolved_at: null, canceled_at: null, created_at: '2026-11-17T00:00:00Z', updated_at: '2026-11-17T00:00:00Z', owner: person(2, 'Audreana Synthetic'), replies: [{ id: 1, body: 'Check the condition.', resolved_request: false, author: person(2, 'Audreana Synthetic'), created_at: '2026-11-17T01:00:00Z' }], ...overrides })
+describe('who Ask about this feedback reaches (fix round)', () => {
+  it('asks the server-chosen person, keeps the grader named, and offers nothing when nobody is reachable', async () => {
+    const rows = [{ ...item(10, 'graded'), grader: person(7, 'Former Instructor'), ask_to: person(2, 'Audreana Synthetic') }, { ...item(11, 'graded'), grader: person(8, 'Blocked Grader'), ask_to: null }]
+    vi.mocked(api.getMyWork).mockResolvedValue({ data: { my_work: { ...myWork(0), counts: { needs_you: 0, waiting: 0, graded: 2 }, needs_you: [], waiting: [], graded: rows } } as never, error: null })
+    vi.mocked(api.createDirectConversation).mockResolvedValue({ data: { direct_conversation: { id: 45, cohort_id: 9 } } as never, error: null })
+    await render(<MyWorkPage />, '/my-work?cohort_id=9&tab=graded', '/my-work')
+    const [former, blocked] = Array.from(container.querySelectorAll('[data-work-status="graded"]'))
+    expect(former.textContent).toContain('reviewed by Former Instructor')
+    expect(blocked.textContent).toContain('reviewed by Blocked Grader')
+    expect(blocked.textContent).not.toContain('Ask about this feedback')
+    await act(async () => { Array.from(former.querySelectorAll('button')).find((element) => element.textContent?.includes('Ask about this feedback'))!.click() })
+    await act(async () => { await Promise.resolve() })
+    expect(api.createDirectConversation).toHaveBeenCalledWith({ cohort_id: 9, user_ids: [2] })
+  })
+
+  it('another cohort’s rows go away while its work loads', async () => {
+    let finish!: (value: unknown) => void
+    vi.mocked(api.getMyWork).mockResolvedValueOnce({ data: { my_work: myWork() } as never, error: null }).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }) as never)
+    await render(<MyWorkPage />, '/my-work?cohort_id=9', '/my-work')
+    expect(container.querySelectorAll('[data-work-status]').length).toBeGreaterThan(0)
+    state.cohortId = 10
+    await act(async () => { root.render(<MemoryRouter key={renders} initialEntries={['/my-work?cohort_id=10']}><Routes><Route path="/my-work" element={<MyWorkPage />} /></Routes></MemoryRouter>) })
+    expect(container.querySelectorAll('[data-work-status]')).toHaveLength(0)
+    expect(container.textContent).toContain('Loading My work')
+    await act(async () => { finish({ data: null, error: 'Offline' }) })
+    expect(container.textContent).toContain('Could not load your work')
+    state.cohortId = 9
+  })
+
+  it('a rejected request opens the support email, and a result after leaving the page does nothing', async () => {
+    const original = window.location
+    Object.defineProperty(window, 'location', { configurable: true, value: { href: 'http://localhost/my-work', origin: 'http://localhost' } })
+    try {
+      vi.mocked(api.getMyWork).mockResolvedValue({ data: { my_work: myWork() } as never, error: null })
+      vi.mocked(api.createDirectConversation).mockRejectedValueOnce(new Error('No session token'))
+      await render(<MyWorkPage />, '/my-work?cohort_id=9&tab=graded', '/my-work')
+      await act(async () => { button('Ask about this feedback')!.click() })
+      await act(async () => { await Promise.resolve() })
+      expect(window.location.href).toMatch(/^mailto:/)
+
+      window.location.href = 'http://localhost/my-work'
+      let settle!: (value: unknown) => void
+      vi.mocked(api.createDirectConversation).mockReturnValueOnce(new Promise((resolve) => { settle = resolve }) as never)
+      await render(<MyWorkPage />, '/my-work?cohort_id=9&tab=graded', '/my-work')
+      await act(async () => { button('Ask about this feedback')!.click() })
+      await act(async () => { root.render(<MemoryRouter><Destination /></MemoryRouter>) })
+      await act(async () => { settle({ data: { direct_conversation: { id: 46, cohort_id: 9 } }, error: null }) })
+      expect(container.querySelector('[data-destination]')?.textContent).toBe('/')
+      expect(window.location.href).toBe('http://localhost/my-work')
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original })
+    }
+  })
+})
+
 const help = (v2: boolean, requests: HelpRequest[]) => <StudentExperienceProvider v2={v2}><ContextualHelp capabilities={capabilities} cohortId={9} contextType="lesson" contextId={42} contextLabel="Loops" requests={requests} requestsLoading={false} /></StudentExperienceProvider>
 
 describe('help answers (L-1.3)', () => {
@@ -113,6 +169,29 @@ describe('help answers (L-1.3)', () => {
     await render(help(true, [request({ status: 'resolved', resolved_at: '2026-11-17T02:00:00Z' })]), '/lessons/42?cohort_id=9&help_request=99', '/lessons/:id')
     expect(container.querySelector('[role="dialog"]')).toBeNull()
     expect(button('View response')).toBeTruthy()
+  })
+
+  it('on: a link to an older answer shows that answer, not the newest one (fix round)', async () => {
+    const older = request({ id: 30, status: 'resolved', resolved_at: '2026-11-10T00:00:00Z', staff_response: 'Older answer.', replies: [{ id: 3, body: 'Older answer.', resolved_request: true, author: person(2, 'Audreana Synthetic'), created_at: '2026-11-10T00:00:00Z' }] })
+    const newer = request({ id: 31, status: 'resolved', resolved_at: '2026-11-17T02:00:00Z', staff_response: 'Newer answer.', replies: [{ id: 4, body: 'Newer answer.', resolved_request: true, author: person(2, 'Audreana Synthetic'), created_at: '2026-11-17T02:00:00Z' }] })
+    await render(help(true, [newer, older]), '/lessons/42?cohort_id=9&help_request=30', '/lessons/:id')
+    const dialog = container.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Older answer.')
+    expect(dialog.textContent).not.toContain('Newer answer.')
+  })
+
+  it('on: a new link on a lesson that is already open fetches the requests again (fix round)', async () => {
+    const refresh = vi.fn()
+    function Lesson() {
+      const location = useLocation()
+      return <><StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={9} contextType="lesson" contextId={42} contextLabel="Loops" requests={[request()]} requestsLoading={false} onRequestsRefresh={refresh} /></StudentExperienceProvider><a href="#" data-to="next" onClick={(event) => { event.preventDefault() }}>{location.search}</a></>
+    }
+    let go!: (path: string) => void
+    function Nav() { const navigate = useNavigate(); go = navigate; return null }
+    await act(async () => { root.render(<MemoryRouter key={++renders} initialEntries={['/lessons/42?cohort_id=9&help_request=31']}><Nav /><Routes><Route path="/lessons/:id" element={<Lesson />} /></Routes></MemoryRouter>) })
+    expect(refresh).not.toHaveBeenCalled()
+    await act(async () => { go('/lessons/42?cohort_id=9&help_request=32') })
+    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
   it('off: the dialog stays closed and the labels are today’s', async () => {

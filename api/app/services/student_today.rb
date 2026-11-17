@@ -26,7 +26,6 @@
 class StudentToday
   LIST_LIMIT = 5
   RECENTLY_GRADED_LIMIT = 3
-  MESSAGE_LIMIT = 3
   HELP_ANSWER_WINDOW = 14.days
 
   def initialize(enrollment, progress:, features:, now: Time.current)
@@ -63,7 +62,11 @@ class StudentToday
       reviews_count: @progress.graded_submissions.size + redos.size,
       questions: questions_json(requests),
       next_session: next_session,
-      reviewer: @work.reviewer && { id: @work.reviewer.id, full_name: @work.reviewer.full_name },
+      reviewer: @work.person_json(@work.reviewer),
+      # Someone the learner can message now (StaffContact); nil hides every message action.
+      contact: @work.person_json(@work.contact),
+      # "Ask for a catch-up plan" only where plans exist and someone can be asked.
+      can_ask_for_plan: program_active? && @features["learning_plans"] == true && @work.contact.present?,
       review_response_time: @cohort.effective_review_response_time,
       support: support_json,
       recently_added: library? ? recently_added : []
@@ -188,12 +191,13 @@ class StudentToday
   end
 
   # Requests still waiting for a first reply (L-1.3): "Your question is waiting".
+  # Every one is sent, so the count is what Today can show (five, then Show all).
   def questions_json(requests)
     waiting = requests.select { |request| (request.status_open? || request.status_acknowledged?) && request.replies.empty? && request.staff_response.blank? }
     blocks = LearningDestination.help_request_blocks(waiting)
     {
       count: waiting.size,
-      items: waiting.first(LIST_LIMIT).map do |request|
+      items: waiting.map do |request|
         {
           id: request.id,
           status: request.status,
@@ -211,8 +215,11 @@ class StudentToday
     LearningDestination.help_request(request, blocks: blocks, open: true)
   end
 
-  # Unread messages from staff in the learner's conversations for this
-  # cohort, newest conversation first. Blocked people's messages are left out.
+  # The newest unread message from staff in each of the learner's
+  # conversations for this cohort, newest first. One row per conversation
+  # (picked in SQL before ordering), so a busy conversation can't hide the
+  # others; every conversation with something unread is listed. Blocked
+  # people's messages are left out.
   def unread_messages
     member_join = ApplicationRecord.sanitize_sql_array([
       "INNER JOIN direct_conversation_members current_members ON current_members.direct_conversation_id = messages.direct_conversation_id AND current_members.user_id = ?",
@@ -224,9 +231,10 @@ class StudentToday
       .where(author_id: User.where(role: %i[instructor admin]).select(:id))
       .joins(member_join)
     MessageReadCursor.after_joined(scope, "current_members")
-      .includes(:author, :message_attachments)
-      .order(created_at: :desc, id: :desc).limit(MESSAGE_LIMIT * 4).to_a
-      .uniq(&:direct_conversation_id).first(MESSAGE_LIMIT).map do |message|
+      .select("DISTINCT ON (messages.direct_conversation_id) messages.*")
+      .order(Arel.sql("messages.direct_conversation_id, messages.created_at DESC, messages.id DESC"))
+      .includes(:author, :message_attachments).to_a
+      .sort_by { |message| [ message.created_at, message.id ] }.reverse.map do |message|
         {
           kind: "message",
           message_id: message.id,

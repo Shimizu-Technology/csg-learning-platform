@@ -42,7 +42,7 @@ const lanceDashboard = {
 
 const person = (id: number, full_name: string) => ({ id, full_name })
 const work = (submission_id: number, status: 'redo' | 'waiting' | 'graded', extra: Record<string, unknown> = {}) => ({
-  submission_id, status, cohort_id: 9, lesson_id: 100 + submission_id, content_block_id: 700 + submission_id, lesson_title: `Lesson ${submission_id}`, block_title: `Lesson ${submission_id}`,
+  submission_id, status, ask_to: status === 'waiting' ? null : person(2, 'Audreana Synthetic'), cohort_id: 9, lesson_id: 100 + submission_id, content_block_id: 700 + submission_id, lesson_title: `Lesson ${submission_id}`, block_title: `Lesson ${submission_id}`,
   module_name: 'JavaScript Foundations', week: 8, attempt: 1, grade: status === 'redo' ? 'R' : status === 'graded' ? 'A' : null, feedback: status === 'waiting' ? null : 'Return the string instead, then **resubmit**.',
   submitted_at: '2026-11-15T00:00:00Z', graded_at: status === 'waiting' ? null : '2026-11-17T00:00:00Z', grader: status === 'waiting' ? null : person(2, 'Audreana Synthetic'),
   submission_type: 'text_submission', submissions_closed: false, can_resubmit: status === 'redo', ...extra,
@@ -61,7 +61,7 @@ function studentToday(overrides: Record<string, unknown> = {}) {
     recently_graded: [work(4, 'graded')], reviews_count: 39,
     questions: { count: 0, items: [] },
     next_session: { office_hour_id: 1, title: 'Week 11: Loops in practice', description: null, starts_at: '2026-11-21T23:00:00Z', ends_at: '2026-11-22T00:00:00Z', meeting_url: 'https://zoom.example.com/j/1', timezone: 'Pacific/Guam', recurrence: 'weekly', event_kind: 'live_class' },
-    reviewer: person(2, 'Audreana Synthetic'), review_response_time: 'usually reviewed within 2 days',
+    reviewer: person(2, 'Audreana Synthetic'), contact: person(2, 'Audreana Synthetic'), can_ask_for_plan: true, review_response_time: 'usually reviewed within 2 days',
     support: { mode: 'guided_help', live_support: true, ends_on: null, ended: false }, recently_added: [],
     ...overrides,
   }
@@ -201,7 +201,7 @@ it('an agreed plan shows who agreed it, five of its lessons, Show all in place a
   await act(async () => { showAll.click() })
   expect(showAll.getAttribute('aria-expanded')).toBe('true')
   expect(hero.querySelectorAll('ol li')).toHaveLength(14)
-  expect(hero.querySelector('a[aria-label="Start with Plan lesson 1"]')?.getAttribute('href')).toBe('/lessons/500?cohort_id=9')
+  expect(hero.querySelector('a[aria-label="Continue with Loops and Iteration"]')?.getAttribute('href')).toBe('/lessons/404?cohort_id=9')
   expect(hero.textContent).toContain('Ask Audreana to change it')
 })
 
@@ -245,4 +245,81 @@ it('My work is only in the new experience; off, its address goes to Today', asyn
   state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
   await render('/my-work?cohort_id=9', <MyWorkRoute />, '/my-work')
   expect(container.querySelector('[data-testid="my-work"]')).not.toBeNull()
+})
+
+// Fix round (review P2s and CodeRabbit).
+async function renderStable(path: string, element: ReactNode) {
+  await act(async () => {
+    root.render(<MemoryRouter key="stable" initialEntries={[path]}><Suspense fallback={null}><Routes><Route path="/dashboard" element={element} /><Route path="*" element={<Where />} /></Routes></Suspense></MemoryRouter>)
+  })
+  await act(async () => { await Promise.resolve() })
+  await act(async () => { await Promise.resolve() })
+}
+
+it.each([false, true])('requests the dashboard at once while the switch is unknown, then reuses it (switch %s)', async (v2) => {
+  state.cohort = { ready: false, selectedCohort: null, selectedCohortId: v2 ? 9 : 3, error: null }
+  if (v2) mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard() } })
+  await renderStable(`/dashboard?cohort_id=${v2 ? 9 : 3}`, <TodayRoute />)
+  expect(mocks.getDashboard).toHaveBeenCalledTimes(1)
+  expect(mocks.getDashboard).toHaveBeenCalledWith(v2 ? 9 : 3)
+  // Until the switch is known: the loading state only, never either view.
+  expect(container.querySelector('[data-today="v2"]')).toBeNull()
+  expect(text()).not.toContain('Welcome back')
+  state.cohort = { ready: true, selectedCohort: cohort(v2 ? 9 : 3, v2), selectedCohortId: v2 ? 9 : 3, error: null }
+  await renderStable(`/dashboard?cohort_id=${v2 ? 9 : 3}`, <TodayRoute />)
+  expect(container.querySelector('[data-today="v2"]') !== null).toBe(v2)
+  if (!v2) expect(text()).toContain('Welcome back, Lance')
+  expect(mocks.getDashboard).toHaveBeenCalledTimes(1)
+})
+
+it('a failed load for another cohort shows the error, not the last cohort’s Today', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  mocks.getDashboard.mockResolvedValueOnce({ data: { dashboard: onDashboard() } }).mockResolvedValueOnce({ data: null, error: 'You are offline.' })
+  await renderStable('/dashboard?cohort_id=9', <TodayRoute />)
+  expect(text()).toContain('Needs you')
+  state.cohort = { ready: true, selectedCohort: cohort(11, true), selectedCohortId: 11, error: null }
+  await renderStable('/dashboard?cohort_id=11', <TodayRoute />)
+  expect(text()).toContain('Could not load Today')
+  expect(text()).not.toContain('Needs you')
+})
+
+it('the plan’s Continue goes to the server’s next step, not a closed redo at the top of the plan', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  const items = [
+    { lesson_id: 600, title: 'Closed redo', kind: 'exercise', due_on: '2026-11-20', available: true, status: 'redo' },
+    { lesson_id: 404, title: 'Loops and Iteration', kind: 'exercise', due_on: '2026-11-21', available: true, status: 'open' },
+  ]
+  const plan = { title: 'Catch up', target_date: '2026-11-28', agreed_at: '2026-11-12T00:00:00Z', agreed_by: person(2, 'Audreana Synthetic'), remaining_count: 2, items }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ catch_up_plan: plan, contact: person(2, 'Audreana Synthetic'), can_ask_for_plan: true })) } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  const hero = container.querySelector('[data-region="next-action"]')!
+  const continueLink = [...hero.querySelectorAll('a')].find((link) => link.textContent?.startsWith('Continue your plan'))!
+  expect(continueLink.getAttribute('href')).toBe('/lessons/404?cohort_id=9')
+})
+
+it('no catch-up ask without learning plans, and no message actions without anyone reachable', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ pace: { behind: true, weeks_behind: 3, overdue_count: 9 }, contact: person(2, 'Audreana Synthetic'), can_ask_for_plan: false })) } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  expect(text()).toContain('You’re about 3 weeks behind.')
+  expect(text()).not.toContain('catch-up plan')
+  expect(text()).toContain('Message Audreana')
+
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ pace: { behind: true, weeks_behind: 3, overdue_count: 9 }, contact: null, can_ask_for_plan: false })) } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  expect(text()).not.toContain('Message Audreana')
+  expect(container.querySelector('a[href^="mailto:"]')?.textContent).toContain('Contact')
+  expect(text()).toContain('Audreana Synthetic')
+})
+
+it('six waiting questions: five shown, then Show all 6', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  const items = Array.from({ length: 6 }, (_, index) => ({ id: 40 + index, status: 'open', context_label: `Lesson ${index}`, message: `Question ${index}`, created_at: '2026-11-17T00:00:00Z', path: `/lessons/${index + 1}?cohort_id=9&help_request=${40 + index}` }))
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ questions: { count: 6, items } })) } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  const section = container.querySelector('[data-region="today-questions"]')!
+  expect(section.querySelectorAll('li')).toHaveLength(5)
+  const showAll = [...section.querySelectorAll('button')].find((button) => button.textContent === 'Show all 6')!
+  await act(async () => { showAll.click() })
+  expect(section.querySelectorAll('li')).toHaveLength(6)
 })

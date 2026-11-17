@@ -1,8 +1,10 @@
+import { useMemo } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { StudentExperienceSwitch } from '../../lib/studentExperience'
+import { startDashboardRequest } from '../../lib/dashboardRequest'
 import { CourseOutline, Dashboard, Materials, ModuleView, MyWork, StudentToday } from '../../lib/routePreload'
 import { StudentCohortHome } from './StudentCohortHome'
 
@@ -41,10 +43,20 @@ export function CohortHomeRoute() {
   return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading your cohort…" />} on={<Navigate replace to={learnPath(Number(id))} />} off={<StudentCohortHome />} />
 }
 
-/** Today: the redesigned student Today when on (W8 PR 8.2), today's Today otherwise. Staff go to their own Today. */
+/**
+ * Today: the redesigned student Today when on (W8 PR 8.2), today's Today
+ * otherwise. Staff go to their own Today. The dashboard request starts now,
+ * while the switch is still being resolved, and the view that renders takes
+ * it, so Today never waits on the cohort list for its data. Until the switch
+ * is known only the loading state shows: Off never flashes the new view.
+ */
 export function TodayRoute() {
   const { user } = useAuthContext()
-  if (user?.is_staff) return <Dashboard />
+  const { selectedCohortId } = useCohortContext()
+  const staff = Boolean(user?.is_staff)
+  // During render, not in an effect: the chosen view's own effect runs first and takes it.
+  useMemo(() => { if (user && !staff) startDashboardRequest(selectedCohortId) }, [selectedCohortId, staff, user])
+  if (staff) return <Dashboard />
   return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading Today…" />} on={<StudentToday />} off={<Dashboard />} />
 }
 

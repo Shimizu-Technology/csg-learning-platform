@@ -5,8 +5,13 @@
 # Learn and the lesson page agree on every status, and each count is its list's
 # length. Rows name who graded the work; nothing else about staff is returned.
 #
-# Queries: LearnerProgress's fixed set plus one for the graders and one for
-# the reviewer, however many submissions there are.
+# "Ask about this feedback" goes to someone the learner can message now
+# (StaffContact): the grader while they still teach the cohort and nobody has
+# blocked anyone, otherwise the cohort's contact. A row with no one to ask
+# offers no action; the grader is still named.
+#
+# Queries: LearnerProgress's fixed set, plus the graders, the reviewer and
+# the cohort's message contacts in a fixed few, however many submissions.
 class MyWork
   def initialize(enrollment, progress: nil)
     @enrollment = enrollment
@@ -24,6 +29,7 @@ class MyWork
       read_only: !@enrollment.active?,
       review_response_time: @cohort.effective_review_response_time,
       reviewer: reviewer_json,
+      contact: person_json(contact),
       counts: { needs_you: needs_you.size, waiting: waiting.size, graded: graded.size },
       needs_you: needs_you,
       waiting: waiting,
@@ -50,10 +56,32 @@ class MyWork
     @reviewer = self.class.reviewer_for(@cohort)
   end
 
+  # The person this learner can message about the course now: the reviewer if
+  # eligible, else another current instructor. Nil when nobody is reachable.
+  def contact
+    return @contact if defined?(@contact)
+
+    candidates = [ reviewer, *instructors ].compact.uniq
+    @contact = candidates.find { |person| eligible.include?(person.id) }
+  end
+
+  def person_json(person)
+    person && { id: person.id, full_name: person.full_name }
+  end
+
   private
 
   def reviewer_json
-    reviewer && { id: reviewer.id, full_name: reviewer.full_name }
+    person_json(reviewer)
+  end
+
+  # Graders, the reviewer and the cohort's instructors this learner can message now.
+  def eligible
+    @eligible ||= StaffContact.eligible_ids(@enrollment, [ *graders.keys, reviewer&.id, *instructors.map(&:id) ]).to_set
+  end
+
+  def instructors
+    @instructors ||= @cohort.instructors.not_archived.order(:id).to_a
   end
 
   def graders
@@ -67,7 +95,8 @@ class MyWork
     block = submission.content_block
     lesson = block.lesson
     mod = @modules[lesson.module_id]
-    window = @progress.lesson_progress(lesson).submission_window
+    entry = @progress.lesson_progress(lesson)
+    window = entry.submission_window
     submission_type = block.submission_type_for(@enrollment)
     grader = graders[submission.graded_by_id]
     {
@@ -85,10 +114,11 @@ class MyWork
       feedback: status == "waiting" ? nil : submission.feedback,
       submitted_at: submission.created_at,
       graded_at: submission.graded_at,
-      grader: grader && { id: grader.id, full_name: grader.full_name },
+      grader: person_json(grader),
+      ask_to: status == "waiting" ? nil : person_json(grader && eligible.include?(grader.id) ? grader : contact),
       submission_type: submission_type,
       submissions_closed: window[:submissions_closed],
-      can_resubmit: status == "redo" && @enrollment.active? && !window[:submissions_closed] && !%w[manual_complete prework_github_sync].include?(submission_type)
+      can_resubmit: status == "redo" && @enrollment.active? && entry.available && !window[:submissions_closed] && !%w[manual_complete prework_github_sync].include?(submission_type)
     }
   end
 end

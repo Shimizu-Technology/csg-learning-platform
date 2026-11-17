@@ -20430,7 +20430,18 @@
           },
           "can_resubmit": {
             "type": "boolean",
-            "description": "A redo the learner can resubmit here now (active enrollment, open window, a submission form)."
+            "description": "A redo the learner can resubmit here now: active enrollment, the lesson open to them, an open window and a submission form."
+          },
+          "ask_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action."
           }
         },
         "required": [
@@ -20451,7 +20462,8 @@
           "grader",
           "submission_type",
           "submissions_closed",
-          "can_resubmit"
+          "can_resubmit",
+          "ask_to"
         ],
         "additionalProperties": false,
         "description": "One latest attempt in My work, from LearnerProgress (redo_submissions, awaiting_review_submissions, graded_submissions)."
@@ -20529,6 +20541,17 @@
             "items": {
               "$ref": "#/components/schemas/MyWorkItem"
             }
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Someone the learner can message about the course now (StaffContact): the reviewer if reachable, else another current instructor. Null hides message actions."
           }
         },
         "required": [
@@ -20539,7 +20562,8 @@
           "counts",
           "needs_you",
           "waiting",
-          "graded"
+          "graded",
+          "contact"
         ],
         "additionalProperties": false,
         "description": "A learner's submitted work in one cohort (MyWork): redos, work waiting for review, and graded work."
@@ -20672,6 +20696,17 @@
           },
           "kind": {
             "const": "redo"
+          },
+          "ask_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action."
           }
         },
         "required": [
@@ -20693,7 +20728,8 @@
           "submission_type",
           "submissions_closed",
           "can_resubmit",
-          "kind"
+          "kind",
+          "ask_to"
         ],
         "additionalProperties": false,
         "description": "A redo with its feedback (MyWorkItem plus kind)."
@@ -21083,7 +21119,8 @@
               "count",
               "items"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Every redo, unread help answer and conversation with an unread staff message; count equals items."
           },
           "waiting": {
             "type": "object",
@@ -21161,7 +21198,7 @@
               "items"
             ],
             "additionalProperties": false,
-            "description": "The learner's help requests still waiting for a first reply. Empty when help requests are off."
+            "description": "Every help request still waiting for a first reply (count equals items). Empty when help requests are off."
           },
           "next_session": {
             "anyOf": [
@@ -21244,6 +21281,21 @@
               ],
               "additionalProperties": false
             }
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Someone the learner can message now (StaffContact). Null hides every message action."
+          },
+          "can_ask_for_plan": {
+            "type": "boolean",
+            "description": "Offer Ask for a catch-up plan: an active program enrollment, learning plans on and a reachable contact."
           }
         },
         "required": [
@@ -21265,7 +21317,9 @@
           "reviewer",
           "review_response_time",
           "support",
-          "recently_added"
+          "recently_added",
+          "contact",
+          "can_ask_for_plan"
         ],
         "additionalProperties": false,
         "description": "The redesigned student Today (StudentToday). Every status, count and next step comes from LearnerProgress."

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from './api'
 import { SUPPORT_EMAIL } from './brand'
@@ -24,20 +24,29 @@ export function useMessageInstructor(cohortId: number | null | undefined) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
   const [opening, setOpening] = useState(false)
+  // A result that arrives after the page is gone is ignored: no navigation, no state.
+  const active = useRef(true)
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false }
+  }, [])
   const open = useCallback(async (instructorId: number | null | undefined, topic?: MessageTopic) => {
     if (opening) return
-    if (!user || !cohortId || !instructorId) { window.location.href = `mailto:${SUPPORT_EMAIL}`; return }
+    const email = () => { if (active.current) window.location.href = `mailto:${SUPPORT_EMAIL}` }
+    if (!user || !cohortId || !instructorId) { email(); return }
     setOpening(true)
     try {
-      const result = await api.createDirectConversation({ cohort_id: cohortId, user_ids: [instructorId] })
-      const conversation = result.data?.direct_conversation
-      if (!conversation || result.fromCache) { window.location.href = `mailto:${SUPPORT_EMAIL}`; return }
+      // A rejected request (no session token, offline) falls back the same way a refused one does.
+      const result = await Promise.resolve().then(() => api.createDirectConversation({ cohort_id: cohortId, user_ids: [instructorId] })).catch(() => null)
+      if (!active.current) return
+      const conversation = result?.data?.direct_conversation
+      if (!conversation || result?.fromCache) { email(); return }
       if (topic) {
         try { prefillCourseQuestion(user.id, conversation.id, topic.label, `${window.location.origin}${topic.path}`, window.localStorage) } catch { /* The conversation still opens without the link. */ }
       }
       navigate(conversationPath({ type: 'dm', id: conversation.id }, { cohortId }))
     } finally {
-      setOpening(false)
+      if (active.current) setOpening(false)
     }
   }, [cohortId, navigate, opening, user])
   return { open, opening }

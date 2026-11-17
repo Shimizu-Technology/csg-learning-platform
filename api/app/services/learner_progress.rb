@@ -294,13 +294,15 @@ class LearnerProgress
     return @pace = nil if @cohort.self_paced? || @cohort.alumni? || !@enrollment.active?
 
     week_start = @today.beginning_of_week(:monday)
-    scheduled = @lessons.select { |lesson| required?(lesson) }.filter_map do |lesson|
+    # A lesson with no steps has nothing to finish (lesson_counts), so it is in
+    # neither the overdue work nor the scheduled weeks it is measured against.
+    scheduled = @lessons.select { |lesson| required?(lesson) && lesson_progress(lesson).total_blocks.positive? }.filter_map do |lesson|
       on = scheduled_on(lesson)
       [ lesson, on ] if on
     end
     overdue = scheduled.filter_map do |lesson, on|
       entry = lesson_progress(lesson)
-      lesson if on < week_start && entry.available && !entry.completed && entry.total_blocks.positive?
+      lesson if on < week_start && entry.available && !entry.completed
     end
     per_week = scheduled.group_by { |_, on| on.beginning_of_week(:monday) }.values.map(&:size).sort
     typical = per_week.empty? ? 1 : [ per_week[(per_week.size - 1) / 2], 1 ].max

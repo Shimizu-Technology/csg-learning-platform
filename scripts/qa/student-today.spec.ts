@@ -70,7 +70,8 @@ function measure(page: Page) {
     const box = first?.getBoundingClientRect()
     const small = Array.from(document.querySelectorAll('main a, main button')).filter((element) => {
       const rect = element.getBoundingClientRect()
-      return rect.width > 0 && rect.height > 0 && rect.height < 44 && !element.closest('p') && getComputedStyle(element).display !== 'inline'
+      // Both dimensions: a 44px-tall sliver is as hard to hit as a short button.
+      return rect.width > 0 && rect.height > 0 && (rect.height < 44 || rect.width < 44) && !element.closest('p') && getComputedStyle(element).display !== 'inline'
     }).map((element) => `${element.tagName.toLowerCase()}:${(element.textContent || element.getAttribute('aria-label') || '').trim().slice(0, 30)}`)
     return {
       firstAction: first ? (first.textContent || '').trim().slice(0, 60) : null,
@@ -159,56 +160,59 @@ if (mode === 'on') {
     const main = page.getByRole('main')
     const journey: Record<string, unknown> = { width }
 
-    // L-1.3: View response opens the lesson with the request's dialog showing the reply.
-    await main.getByRole('link', { name: 'View response' }).click()
-    await expect(page).toHaveURL(new RegExp(`/lessons/${ids.answered_lesson}\\?cohort_id=${ids.program}&help_request=${ids.answered_help_request}`))
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toContainText('it never becomes false', { timeout: 15_000 })
-    await page.screenshot({ path: new URL(`journey-view-response-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'View response' })).toBeVisible()
-    await page.goBack()
-    await expect(page.locator('[data-today="v2"]')).toBeVisible()
-    // The answer has been read, so it leaves Needs you on the next load.
-    await page.reload()
-    await expect(page.locator('[data-region="next-action"]')).toBeVisible({ timeout: 20_000 })
-    await expect(main.locator('[data-needs-you="help_answer"]')).toHaveCount(0)
+    try {
+      // L-1.3: View response opens the lesson with the request's dialog showing the reply.
+      await main.getByRole('link', { name: 'View response' }).click()
+      await expect(page).toHaveURL(new RegExp(`/lessons/${ids.answered_lesson}\\?cohort_id=${ids.program}&help_request=${ids.answered_help_request}`))
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toContainText('it never becomes false', { timeout: 15_000 })
+      await page.screenshot({ path: new URL(`journey-view-response-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('button', { name: 'View response' })).toBeVisible()
+      await page.goBack()
+      await expect(page.locator('[data-today="v2"]')).toBeVisible()
+      // The answer has been read, so it leaves Needs you on the next load.
+      await page.reload()
+      await expect(page.locator('[data-region="next-action"]')).toBeVisible({ timeout: 20_000 })
+      await expect(main.locator('[data-needs-you="help_answer"]')).toHaveCount(0)
 
-    markAnswerUnread()
+      // U-5.2: the redo link lands with the feedback at the top of the block.
+      // (This canonical exercise syncs from GitHub, so the row reads "Read feedback", not resubmit.)
+      await main.getByRole('link', { name: /^(Open feedback and resubmit|Read feedback)/ }).first().click()
+      await expect(page).toHaveURL(/#block-\d+$/)
+      const feedback = page.getByRole('region', { name: 'Instructor feedback: redo requested' })
+      await expect(feedback).toBeVisible({ timeout: 15_000 })
+      await page.waitForTimeout(600)
+      const feedbackTop = await feedback.evaluate((element) => Math.round(element.getBoundingClientRect().top))
+      journey.redoFeedbackTop = feedbackTop
+      expect(feedbackTop, 'the feedback is on the first screen after the jump').toBeLessThan(500)
+      await expect(feedback).toContainText(/QA asked for a redo/)
+      await page.screenshot({ path: new URL(`journey-redo-landing-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
+      await page.goBack()
 
-    // U-5.2: the redo link lands with the feedback at the top of the block.
-    // (This canonical exercise syncs from GitHub, so the row reads "Read feedback", not resubmit.)
-    await main.getByRole('link', { name: /^(Open feedback and resubmit|Read feedback)/ }).first().click()
-    await expect(page).toHaveURL(/#block-\d+$/)
-    const feedback = page.getByRole('region', { name: 'Instructor feedback: redo requested' })
-    await expect(feedback).toBeVisible({ timeout: 15_000 })
-    await page.waitForTimeout(600)
-    const feedbackTop = await feedback.evaluate((element) => Math.round(element.getBoundingClientRect().top))
-    journey.redoFeedbackTop = feedbackTop
-    expect(feedbackTop, 'the feedback is on the first screen after the jump').toBeLessThan(500)
-    await expect(feedback).toContainText(/QA asked for a redo/)
-    await page.screenshot({ path: new URL(`journey-redo-landing-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
-    await page.goBack()
-
-    // L-1.2: My work, counts equal their lists, the grader named, Ask about this feedback.
-    await expect(page.locator('[data-today="v2"]')).toBeVisible({ timeout: 20_000 })
-    await main.getByRole('link', { name: 'My work' }).first().click()
-    await expect(page).toHaveURL(/\/my-work\?cohort_id=\d+&tab=waiting/)
-    for (const tab of ['Needs you', 'Waiting for review', 'Graded']) {
-      const button = page.getByRole('tab', { name: new RegExp(`^${tab}`) })
-      await button.click()
-      const count = Number((await button.textContent())!.replace(tab, '').trim())
-      await expect(page.locator('[data-work-status]')).toHaveCount(count)
-      journey[`myWork:${tab}`] = count
+      // L-1.2: My work, counts equal their lists, the grader named, Ask about this feedback.
+      await expect(page.locator('[data-today="v2"]')).toBeVisible({ timeout: 20_000 })
+      await main.getByRole('link', { name: 'My work' }).first().click()
+      await expect(page).toHaveURL(/\/my-work\?cohort_id=\d+&tab=waiting/)
+      for (const tab of ['Needs you', 'Waiting for review', 'Graded']) {
+        const button = page.getByRole('tab', { name: new RegExp(`^${tab}`) })
+        await button.click()
+        const count = Number((await button.textContent())!.replace(tab, '').trim())
+        await expect(page.locator('[data-work-status]')).toHaveCount(count)
+        journey[`myWork:${tab}`] = count
+      }
+      await expect(page.getByRole('main')).toContainText('reviewed by QA Instructor')
+      expect((await measure(page)).overflowX).toBeLessThanOrEqual(0)
+      await page.screenshot({ path: new URL(`journey-my-work-graded-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
+      await page.getByRole('button', { name: 'Ask about this feedback' }).first().click()
+      await expect(page).toHaveURL(/\/messages\/dm\/\d+/)
+      await expect(page.getByRole('main')).toContainText('Question about:', { timeout: 15_000 })
+      const metrics = await measure(page)
+      expect(metrics.overflowX).toBeLessThanOrEqual(0)
+    } finally {
+      // Even when an assertion fails, the next pass sees persona 3's answer unread.
+      markAnswerUnread()
     }
-    await expect(page.getByRole('main')).toContainText('reviewed by QA Instructor')
-    expect((await measure(page)).overflowX).toBeLessThanOrEqual(0)
-    await page.screenshot({ path: new URL(`journey-my-work-graded-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
-    await page.getByRole('button', { name: 'Ask about this feedback' }).first().click()
-    await expect(page).toHaveURL(/\/messages\/dm\/\d+/)
-    await expect(page.getByRole('main')).toContainText('Question about:', { timeout: 15_000 })
-    const metrics = await measure(page)
-    expect(metrics.overflowX).toBeLessThanOrEqual(0)
     results.push({ mode, journey })
   })
 

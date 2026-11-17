@@ -8333,8 +8333,10 @@ export interface components {
             grader: components["schemas"]["PersonName"] | null;
             submission_type: string | null;
             submissions_closed: boolean;
-            /** @description A redo the learner can resubmit here now (active enrollment, open window, a submission form). */
+            /** @description A redo the learner can resubmit here now: active enrollment, the lesson open to them, an open window and a submission form. */
             can_resubmit: boolean;
+            /** @description Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action. */
+            ask_to: components["schemas"]["PersonName"] | null;
         };
         /** @description A learner's submitted work in one cohort (MyWork): redos, work waiting for review, and graded work. */
         MyWork: {
@@ -8354,6 +8356,8 @@ export interface components {
             needs_you: components["schemas"]["MyWorkItem"][];
             waiting: components["schemas"]["MyWorkItem"][];
             graded: components["schemas"]["MyWorkItem"][];
+            /** @description Someone the learner can message about the course now (StaffContact): the reviewer if reachable, else another current instructor. Null hides message actions. */
+            contact: components["schemas"]["PersonName"] | null;
         };
         MyWorkResponse: {
             my_work: components["schemas"]["MyWork"];
@@ -8384,6 +8388,8 @@ export interface components {
             can_resubmit: boolean;
             /** @constant */
             kind: "redo";
+            /** @description Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action. */
+            ask_to: components["schemas"]["PersonName"] | null;
         };
         /** @description A staff reply to the learner's help request whose notification is unread. */
         StudentTodayHelpAnswer: {
@@ -8458,6 +8464,7 @@ export interface components {
                 remaining_count: number;
                 items: components["schemas"]["StudentTodayLesson"][];
             } | null;
+            /** @description Every redo, unread help answer and conversation with an unread staff message; count equals items. */
             needs_you: {
                 count: number;
                 items: (components["schemas"]["StudentTodayRedo"] | components["schemas"]["StudentTodayHelpAnswer"] | components["schemas"]["StudentTodayMessage"])[];
@@ -8469,7 +8476,7 @@ export interface components {
             };
             recently_graded: components["schemas"]["MyWorkItem"][];
             reviews_count: number;
-            /** @description The learner's help requests still waiting for a first reply. Empty when help requests are off. */
+            /** @description Every help request still waiting for a first reply (count equals items). Empty when help requests are off. */
             questions: {
                 count: number;
                 items: {
@@ -8496,6 +8503,10 @@ export interface components {
                 title: string;
                 kind: components["schemas"]["LessonKind"];
             }[];
+            /** @description Someone the learner can message now (StaffContact). Null hides every message action. */
+            contact: components["schemas"]["PersonName"] | null;
+            /** @description Offer Ask for a catch-up plan: an active program enrollment, learning plans on and a reachable contact. */
+            can_ask_for_plan: boolean;
         };
     };
     responses: {
