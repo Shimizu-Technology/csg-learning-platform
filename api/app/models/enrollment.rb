@@ -25,6 +25,12 @@ class Enrollment < ApplicationRecord
   has_one :learning_plan, dependent: :destroy
 
   def lesson_available_for_read?(lesson, assignment, lesson_assignment, on: LearningCalendar.today)
+    # A paused library is the set readable at pause, independent of later
+    # cohort/module/lesson date edits. Authorization and assignment containment
+    # remain the caller's responsibility; archived lessons stay hidden.
+    if paused? && paused_lesson_ids && paused_library_cutoff_at == (paused_at || read_cutoff_at)
+      return !lesson.archived? && paused_lesson_ids.include?(lesson.id)
+    end
     return false unless lesson.available?(cohort, assignment, lesson_assignment, on: on)
     return true unless paused?
 
@@ -67,6 +73,26 @@ class Enrollment < ApplicationRecord
     self.paused_at = paused? ? Time.current : nil if will_save_change_to_status?
   end
 
+  # Also used once by the additive migration for existing paused enrollments.
+  # Read-side projections use the stored array and add no per-lesson queries.
+  def snapshot_paused_lessons
+    self.paused_lesson_ids = nil
+    content = AssignedLearningContent.new(self)
+    self.paused_library_cutoff_at = paused_at || read_cutoff_at
+    self.paused_lesson_ids = content.modules.flat_map { |mod| content.lessons_for(mod).map(&:id) }.uniq
+  end
+
+  def record_paused_library
+    return unless will_save_change_to_status?
+
+    if paused?
+      snapshot_paused_lessons
+    else
+      self.paused_lesson_ids = nil
+      self.paused_library_cutoff_at = nil
+    end
+  end
+
   def learning_plan_enabled?
     learning_plan&.active? && FeatureSwitches.for(cohort: cohort)["learning_plans"]
   end
@@ -81,6 +107,7 @@ class Enrollment < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 
+  before_save :record_paused_library
   before_validation :record_pause_date
   before_validation :snapshot_self_paced_support
   before_create :set_guided_access_terms

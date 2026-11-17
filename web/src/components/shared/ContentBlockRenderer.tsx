@@ -104,7 +104,7 @@ export function ContentBlockRenderer(props: ContentBlockRendererProps) {
 
         <KnowledgeCheckBlock {...props} controller={controller} />
 
-        {block.filename && (
+        {block.filename && !(studentExperience.v2 && controller.usesManualExerciseCompletion) && (
           <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-lg bg-surface-sunken px-3 py-1.5 text-sm text-ink-secondary [overflow-wrap:anywhere]">
             <Code className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="font-mono">{block.filename}</span>

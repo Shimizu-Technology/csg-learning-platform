@@ -53,6 +53,27 @@ describe('Updates reader', () => {
     expect(element, text).toBeTruthy()
     await act(async () => element!.click())
   }
+  it('guards Cancel and browser unload while editing an update on the same path', async () => {
+    mocks.user.is_staff = true
+    const editable = { ...announcement, can_edit: true }
+    mocks.detail.mockResolvedValue({ data: { announcement: editable }, error: null })
+    await mount('/announcements/8?edit=1')
+    const input = container.querySelector<HTMLInputElement>('input[name="title"], input')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Unsaved title')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const unloading = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(unloading)
+    expect(unloading.defaultPrevented).toBe(true)
+    await click('Cancel')
+    expect(document.body.textContent).toContain('Leave without saving?')
+    const keep = [...document.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === 'Keep editing')!
+    await act(async () => keep.click())
+    expect(input.value).toBe('Unsaved title')
+    expect(container.querySelector('output')?.textContent).toContain('edit=1')
+  })
+
   it('links the update cohort, and the author to their team page for admins only (L-2.9)', async () => {
     mocks.user.is_staff = true
     const scoped = { ...announcement, cohort_id: 4, cohort_name: 'Python', audience: 'cohort', author: { id: 9, full_name: 'QA Author', email: 'author@example.invalid' } }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_060000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -70,6 +70,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_050000) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.jsonb "web_push_attempted_notification_ids", default: [], null: false
+    t.string "schedule_failure"
     t.index "to_tsvector('simple'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(body, ''::text)))", name: "index_announcements_search_document", using: :gin
     t.index ["audience", "cohort_id"], name: "index_announcements_on_audience_and_cohort_id"
     t.index ["author_id", "client_request_id"], name: "index_announcements_on_author_and_client_request_id", unique: true, where: "(client_request_id IS NOT NULL)"
@@ -434,6 +435,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_050000) do
     t.datetime "read_cutoff_at"
     t.datetime "content_moved_at"
     t.datetime "start_here_dismissed_at"
+    t.bigint "paused_lesson_ids", array: true
+    t.datetime "paused_library_cutoff_at"
     t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true

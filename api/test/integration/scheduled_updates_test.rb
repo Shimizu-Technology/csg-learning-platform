@@ -191,17 +191,58 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
     assert update.reload.published?
   end
 
-  test "an update whose scheduler can no longer post there goes back to an unscheduled draft and tells nobody" do
+  test "an update whose scheduler can no longer post there goes back to an unscheduled draft and tells its author once" do
     update = scheduled(at: Time.utc(2026, 11, 18, 23))
-    @author.cohort_instructor_assignments.destroy_all
+    @author.reload.cohort_instructor_assignments.destroy_all
     travel_to Time.utc(2026, 11, 18, 23, 1) do
       assert_no_enqueued_jobs { assert tick(Time.current) }
     end
     update.reload
     assert update.draft?
     assert_nil update.scheduled_for
-    assert_equal 0, Notification.where(notifiable: update).count
+    notice = Notification.find_by!(notifiable: update)
+    assert_equal @author.id, notice.user_id
+    assert_equal "system", notice.notification_type
+    assert_equal "Not sent: the scheduler no longer teaches #{@cohort.name}.", update.schedule_failure
+    assert_equal update.schedule_failure, notice.title
     assert_equal 1, ScheduledTaskRun.find_by!(name: "scheduled_updates").last_result["refused"]
+    assert tick(Time.utc(2026, 11, 19, 1))
+    assert_equal 1, Notification.where(notifiable: update).count
+    as_user(@author) do
+      get "/api/v1/announcements", params: { scope: "manage", status: "draft" }, headers: headers
+      assert_response :success
+      assert_includes ids, update.id
+      assert_equal update.schedule_failure, response.parsed_body["announcements"].find { |row| row["id"] == update.id }["schedule_failure"]
+    end
+    as_user(@student) do
+      get "/api/v1/announcements/#{update.id}", headers: headers
+      assert_response :not_found
+    end
+  end
+
+  test "a refused update can be scheduled again and refused again without duplicate notices" do
+    update = scheduled(at: 1.hour.ago)
+    @author.reload.cohort_instructor_assignments.destroy_all
+    publisher = ScheduledAnnouncementPublisher.new
+    assert_equal 1, publisher.call(now: Time.current)[:refused]
+    @cohort.cohort_instructor_assignments.create!(user: @author)
+    as_user(@author) do
+      patch "/api/v1/announcements/#{update.id}", params: { scheduled_for: 1.hour.from_now.iso8601 }, headers: headers, as: :json
+      assert_response :success
+    end
+    assert_nil update.reload.schedule_failure
+    assert_empty Notification.where(notifiable: update)
+    @author.reload.cohort_instructor_assignments.destroy_all
+    assert_equal 1, publisher.call(now: 2.hours.from_now)[:refused]
+    assert_equal 1, Notification.where(notifiable: update).count
+    @cohort.cohort_instructor_assignments.create!(user: @author)
+    as_user(@author) do
+      patch "/api/v1/announcements/#{update.id}", params: { status: "published" }, headers: headers, as: :json
+      assert_response :success
+    end
+    assert_nil update.reload.schedule_failure
+    assert_empty Notification.where(notifiable: update, notification_type: :system)
+    assert_equal [ @student.id ], Notification.where(notifiable: update).pluck(:user_id)
   end
 
   test "an admin who schedules an instructor's draft to everyone is the one checked when it posts" do
@@ -386,7 +427,7 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
     # author once their assignment is gone (the review's repro).
     as_user(@colleague) { [ update, draft ].each { |item| expect_missing.call(item, "colleague, #{item.title}") } }
     as_user(@outsider) { [ update, draft ].each { |item| expect_missing.call(item, "outsider, #{item.title}") } }
-    @author.cohort_instructor_assignments.destroy_all
+    @author.reload.cohort_instructor_assignments.destroy_all
     as_user(@author) { [ update, draft ].each { |item| expect_missing.call(item, "removed author, #{item.title}") } }
     assert update.reload.scheduled?
     assert draft.reload.draft?

@@ -33,6 +33,16 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     end
   end
 
+  test "copy preserves and remaps the paused library" do
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    enrollment.update!(status: :paused)
+    before = enrollment.reload.paused_lesson_ids
+    assert before.any?
+    result = copy!(@f.instructor)
+    assert_equal before.map { |id| result.lesson_ids.fetch(id.to_s, id) }, enrollment.reload.paused_lesson_ids
+    assert enrollment.paused?
+  end
+
   test "practice reviews stay with original blocks and copies require a fresh review" do
     original = @f.blocks.fetch(:read)
     review = SubmissionAuditReview.create!(content_block: original, reviewed_by: @f.admin, content_digest: SubmissionAudit.digest(original))

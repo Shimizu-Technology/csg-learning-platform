@@ -72,6 +72,7 @@ function EditedMarker({ announcement }: { announcement: Announcement }) {
 
 /** When it went out, or for a draft when it was last saved. */
 function WhenLabel({ announcement }: { announcement: Announcement }) {
+  if (announcement.status === 'draft' && announcement.schedule_failure) return <span className="text-danger-ink">{announcement.schedule_failure}</span>
   if (isScheduled(announcement)) return <span className="tabular-nums">{sendsAboutLabel(announcement.scheduled_for!, announcement.schedule_time_zone)}</span>
   if (announcement.status === 'draft') return <>Draft · saved <span className="tabular-nums">{formatShortDateTime(announcement.updated_at, 'just now')}</span></>
   return <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
@@ -449,7 +450,7 @@ function AnnouncementFeed() {
     <div className="app-page">
       {/* The new update survives switching between Updates and Manage; leaving the page still asks first. */}
       <UnsavedChangesGuard dirty={isStaff && Boolean(form.title.trim() || form.body.trim())} onDiscard={resetComposer} />
-      <UnsavedChangesGuard dirty={editDirty} />
+      <UnsavedChangesGuard dirty={editDirty} pathnameOnly={false} />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>

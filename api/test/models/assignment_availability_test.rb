@@ -132,6 +132,23 @@ class AssignmentAvailabilityTest < ActiveSupport::TestCase
     end
   end
 
+  test "a module date edit cannot hide an earlier paused lesson while releasing a later one" do
+    later = @mod.lessons.create!(title: "Later", position: 1, release_day: 10, created_at: Time.utc(2026, 11, 1))
+    travel_to Time.utc(2026, 11, 10) do
+      @assignment = create_assignment(:module, unlock_date_override: Date.new(2026, 11, 10))
+      @enrollment.update!(status: :paused)
+    end
+    travel_to Time.utc(2026, 11, 15) do
+      assert readable?(:module)
+      @assignment.update!(unlock_date_override: Date.new(2026, 11, 1))
+      assert readable?(:module), "an earlier lesson must survive the module-wide timestamp bump"
+      refute @enrollment.lesson_available_for_read?(later, @assignment, nil)
+      @cohort.update!(start_date: Date.new(2026, 12, 1))
+      @assignment.update!(unlock_date_override: nil, unlocked: false)
+      assert readable?(:module), "cohort and module postponements must preserve the paused library"
+    end
+  end
+
   private
 
   def create_assignment(kind, **attributes)

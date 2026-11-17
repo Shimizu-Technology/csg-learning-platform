@@ -83,7 +83,9 @@ export function LeaveGuardProvider({ children }: { children: ReactNode }) {
     return () => {
       current = false
     }
-  }, [blocker.state])
+  // Two attempts can both be "blocked" when reset and the next navigation
+  // land in one render. Each blocker instance still needs its own question.
+  }, [blocker])
   const registry = useRef<Registry>({
     register: (guard) => {
       guards.current.add(guard)

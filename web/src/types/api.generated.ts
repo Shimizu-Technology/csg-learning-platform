@@ -7336,6 +7336,8 @@ export interface components {
             } | null;
             created_at: string;
             updated_at: string;
+            /** @description Reason a scheduled send was refused; null when no refusal is recorded. */
+            schedule_failure: string | null;
         };
         AnnouncementsResponse: {
             announcements: components["schemas"]["Announcement"][];

@@ -26,7 +26,7 @@ class LessonReadAccess
   LOOKUP_COLUMNS = {
     lesson: %w[id module_id archived_at release_day created_at],
     module: %w[id curriculum_id day_offset schedule_days],
-    enrollment: %w[id user_id cohort_id status paused_at read_cutoff_at],
+    enrollment: %w[id user_id cohort_id status paused_at read_cutoff_at paused_lesson_ids paused_library_cutoff_at],
     cohort: %w[id course_delivery start_date],
     module_assignment: %w[id enrollment_id module_id unlocked unlock_date_override availability_changed_at created_at updated_at],
     lesson_assignment: %w[id enrollment_id lesson_id unlocked unlock_date_override availability_changed_at created_at updated_at],
@@ -76,7 +76,7 @@ class LessonReadAccess
   # is assigned on its own, and the lesson is released for them on `on`.
   def self.readable?(enrollment, lesson, assignment, lesson_assignment, on: LearningCalendar.today)
     return false if lesson.archived?
-    return false unless assignment&.accessible?(enrollment.cohort, on: on) || lesson_assignment.present?
+    return false unless (enrollment.paused? ? assignment.present? : assignment&.accessible?(enrollment.cohort, on: on)) || lesson_assignment.present?
 
     enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignment, on: on)
   end
@@ -127,7 +127,7 @@ class LessonReadAccess
   end
 
   def decide(enrollment, assignment, lesson_assignment)
-    return denied(enrollment) unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?
+    return denied(enrollment) unless (enrollment.paused? ? assignment.present? : assignment&.accessible?(enrollment.cohort)) || lesson_assignment.present?
     return Result.new(enrollment: enrollment, error: nil) if self.class.readable?(enrollment, @lesson, assignment, lesson_assignment)
 
     Result.new(enrollment: enrollment, error: NOT_UNLOCKED)

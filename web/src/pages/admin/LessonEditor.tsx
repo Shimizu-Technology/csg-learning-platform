@@ -22,7 +22,8 @@ import type { CurriculumCopyResponse } from '../../types/api'
 import { MoveLessonDialog } from './lessonEditor/MoveLessonDialog'
 import { AddBlockMenu } from './lessonEditor/AddBlockMenu'
 import { BlockCard } from './lessonEditor/BlockCard'
-import { Inspector, type InspectorTab } from './lessonEditor/Inspector'
+import { Inspector, type InspectorTab, type RubricDraft } from './lessonEditor/Inspector'
+import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { LessonLeaveGuard } from './lessonEditor/LessonLeaveGuard'
 import {
   BLOCK_LABELS, MAX_BLOCKS, applySavedIds, blockFromServer, blockTitle, draftFromLesson, draftPayload, draftProblems, draftSignature,
@@ -124,6 +125,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
 
   const [objectives, setObjectives] = useState<LearningObjective[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
+  const [rubricDrafts, setRubricDrafts] = useState<Record<string, RubricDraft>>({})
   const auditBlockId = Number(searchParams.get('block'))
   const auditRequest = useRef({ blockId: auditBlockId, companion: searchParams.get('add_companion') === '1' })
   const [suggestedSubmission, setSuggestedSubmission] = useState(searchParams.get('suggest_submission'))
@@ -542,6 +544,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       lessonId={lessonId}
       objectives={objectives}
       onObjectiveCreated={(objective) => setObjectives((current) => [...current, objective])}
+      rubricDrafts={rubricDrafts}
+      setRubricDrafts={setRubricDrafts}
       rubrics={rubrics}
       onRubricCreated={(rubric) => setRubrics((current) => [...current, rubric])}
     />
@@ -550,6 +554,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   return (
     <div className="-mx-4 -mt-4 flex flex-col sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
       {suggestedSubmission && selectedBlock?.id === auditBlockId && <p role="status" className="border-b border-line bg-surface-sunken p-4 text-sm text-ink">Suggested submission: {({ text_submission: 'Text submission', repo_url_submission: 'Repository link', repo_and_live_url_submission: 'Repository and live links' } as Record<string, string>)[suggestedSubmission] || 'Choose a submission type'}. Review the block settings and save your decision. Opening this suggestion does not change the block.</p>}
+      <UnsavedChangesGuard dirty={Object.values(rubricDrafts).some((item) => Boolean(item.title.trim() || item.criteria.some((criterion) => criterion.trim())))} />
       <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} onDiscard={() => clearLocalDraft(backupKey)} problem={firstProblem} />
       <p aria-live="polite" className="sr-only">{announcement}</p>
 

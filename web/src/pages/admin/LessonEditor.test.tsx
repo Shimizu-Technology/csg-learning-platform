@@ -479,6 +479,24 @@ describe('block lesson editor', () => {
     expect(router.state.location.search).toBe('?preview=true')
   })
 
+  it('keeps a new rubric through inspector tabs and warns before leaving', async () => {
+    await mount()
+    await act(async () => cards()[2].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+    await settle()
+    const title = container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!
+    await type(title, 'Unfinished rubric')
+    const unloading = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(unloading)
+    expect(unloading.defaultPrevented).toBe(true)
+    await click(button('Lesson'))
+    await click(button('Exercise block'))
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!.value).toBe('Unfinished rubric')
+    await click(container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]'))
+    expect(document.body.textContent).toContain('Leave without saving?')
+    await click(button('Keep editing'))
+    expect(router.state.location.pathname).toBe('/admin/lessons/2/edit')
+  })
+
   it('asks before leaving with unsaved edits and can save and leave', async () => {
     await mount()
     await type(cards()[2].querySelector('input')!, 'Changed title')

@@ -242,6 +242,8 @@ module Api
       # Management detail: posted and archived updates for their audience's
       # staff; drafts only for their author and admins.
       def can_manage_view?(announcement)
+        return true if current_user.staff? && !current_user.archived? && announcement.draft? && announcement.schedule_failure.present? && announcement.author_id == current_user.id
+
         can_manage?(announcement) && (!announcement.draft? || announcement.editable_by?(current_user))
       end
 
@@ -380,6 +382,7 @@ module Api
       def base_announcements_scope
         scope = if current_user.staff? && params[:scope] == "manage"
           managed = current_user.admin? ? Announcement.all : Announcement.where(audience: :cohort, cohort_id: current_user.cohort_instructor_assignments.select(:cohort_id))
+          managed = managed.or(Announcement.draft.where(author_id: current_user.id).where.not(schedule_failure: nil)) unless current_user.admin?
           managed.drafts_visible_to(current_user)
         else
           Announcement.visible_for(current_user)
@@ -503,6 +506,7 @@ module Api
           scheduled_for: announcement.draft? ? announcement.scheduled_for : nil,
           scheduled_send_push: announcement.scheduled? && announcement.scheduled_send_push,
           schedule_time_zone: Announcement.schedule_time_zone,
+          schedule_failure: announcement.draft? ? announcement.schedule_failure : nil,
           read_summary: read_summary,
           created_at: announcement.created_at,
           updated_at: announcement.updated_at
