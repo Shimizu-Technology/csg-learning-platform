@@ -77,9 +77,14 @@ class Enrollment < ApplicationRecord
   # Read-side projections use the stored array and add no per-lesson queries.
   def snapshot_paused_lessons
     self.paused_lesson_ids = nil
-    content = AssignedLearningContent.new(self)
+    cohort.cohort_module_schedules.load
+    modules = cohort.curriculum.modules.includes(lessons: :curriculum_module)
+    assigned_modules = module_assignments.includes(:curriculum_module).index_by(&:module_id)
+    assigned_lessons = lesson_assignments.index_by(&:lesson_id)
     self.paused_library_cutoff_at = paused_at || read_cutoff_at
-    self.paused_lesson_ids = content.modules.flat_map { |mod| content.lessons_for(mod).map(&:id) }.uniq
+    self.paused_lesson_ids = modules.flat_map(&:lessons).select do |lesson|
+      LessonReadAccess.readable?(self, lesson, assigned_modules[lesson.module_id], assigned_lessons[lesson.id])
+    end.map(&:id).uniq
   end
 
   def record_paused_library

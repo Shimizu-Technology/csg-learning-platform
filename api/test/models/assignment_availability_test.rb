@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class AssignmentAvailabilityTest < ActiveSupport::TestCase
+  include QueryCounter
   setup do
     @curriculum = Curriculum.create!(name: "Availability history")
     @mod = @curriculum.modules.create!(name: "Past module", position: 0, schedule_days: "daily")
@@ -147,6 +149,23 @@ class AssignmentAvailabilityTest < ActiveSupport::TestCase
       @assignment.update!(unlock_date_override: nil, unlocked: false)
       assert readable?(:module), "cohort and module postponements must preserve the paused library"
     end
+  end
+
+  test "capturing a paused library keeps query counts flat as modules and lessons grow" do
+    create_assignment(:module, unlocked: true)
+    counts = [ 1, 5 ].map do |size|
+      (size - @curriculum.modules.count).times do |index|
+        mod = @curriculum.modules.create!(name: "Extra #{index}", position: index + 1, schedule_days: "daily")
+        4.times { |position| mod.lessons.create!(title: "Extra lesson #{position}", position: position, release_day: 0) }
+        @enrollment.module_assignments.create!(curriculum_module: mod, unlocked: true)
+      end
+      @enrollment.reload
+      count = count_queries { @enrollment.update!(status: :paused) }
+      assert @enrollment.paused_lesson_ids.any?
+      @enrollment.update!(status: :active)
+      count
+    end
+    assert_equal counts.first, counts.last
   end
 
   private

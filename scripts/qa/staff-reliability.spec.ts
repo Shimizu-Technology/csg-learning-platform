@@ -40,10 +40,19 @@ test('lesson instructions survive every exit question and a reload backup', asyn
   await page.goBack()
   await expect(question).toBeVisible()
   await question.getByRole('button', { name: 'Keep editing' }).click()
-  // A content record link has the same protection, including on phones.
-  await page.locator('header nav a').first().evaluate((el: HTMLElement) => el.click())
+  // Use the visible record link in the phone inspector, and the desktop breadcrumb.
+  const phone = info.project.name.endsWith('390')
+  if (phone) {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+    await settings.getByRole('tab', { name: 'Lesson', exact: true }).click()
+    await settings.getByRole('link', { name: 'Open the lesson page', exact: true }).click()
+  } else {
+    await page.locator('header nav a').first().click()
+  }
   await expect(question).toBeVisible()
   await question.getByRole('button', { name: 'Keep editing' }).click()
+  if (phone) await page.keyboard.press('Escape')
   expect(await page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented })).toBe(true)
   let closeAsked = false
   page.once('dialog', async dialog => { closeAsked = dialog.type() === 'beforeunload'; await dialog.dismiss() })
@@ -117,10 +126,14 @@ test('resolving help retains inactivity in attention, staff home, student and co
     await page.goto(`${path}${path.includes('?') ? '&' : '?'}qa_user=2`)
     await expect(page.getByText(/Inactive|No learning activity|Not active/i).filter({ visible: true }).first()).toBeVisible()
   }
+  await page.screenshot({ path: `.qa-local/staff-reliability/help-${info.project.name}.png`, fullPage: true })
+  await page.goto('/admin?qa_user=2')
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Staff summary' }).getByRole('link', { name: /Help requests/ })).toHaveCount(0)
   const home = await request.get(`${API}/dashboard`, { headers: headers(2) })
   const row = (await home.json()).dashboard.attention.students.find((s: { user_id: number }) => s.user_id === 4)
   expect(row.reasons.map((r: { code: string }) => r.code)).toContain('inactivity')
-  await page.screenshot({ path: `.qa-local/staff-reliability/help-${info.project.name}.png`, fullPage: true })
+  expect(row.reasons.map((r: { code: string }) => r.code)).not.toContain('help_response')
 })
 
 test('update Cancel warns on its query-string exit and preserves the saved draft', async ({ page, request }, info) => {

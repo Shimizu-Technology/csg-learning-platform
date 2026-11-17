@@ -30,6 +30,7 @@ result["refused"] = { id: update.id, cohort: refused_cohort.id, reason: update.r
 # Backdate enrollment participation; asking for help must not refresh it.
 e = Enrollment.find_by!(user_id: 4, cohort_id: 1)
 e.update_columns(joined_at: 20.days.ago, enrolled_at: 20.days.ago)
+HelpRequest.where(student_id: 4, cohort_id: 1).destroy_all
 ActivityEvent.where(subject_user_id: 4, cohort_id: 1).delete_all
 Submission.where(enrollment: e).delete_all
 KnowledgeCheckAttempt.where(enrollment: e).delete_all
