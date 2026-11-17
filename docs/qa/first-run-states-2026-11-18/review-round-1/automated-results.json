@@ -1,0 +1,91 @@
+{
+  "fix_commit": "c81adb9cabcd942db15e21df3a5026172cd3b3c5",
+  "merged_runtime": "989d988ad5cc3a42522a3ed31fde42f4d69fa38d",
+  "main": "d68e0b38",
+  "premerge_full_asus": {
+    "api_prepared": {
+      "tests": 2122,
+      "assertions": 42685,
+      "failures": 0
+    },
+    "api_unprepared_first_attempt": {
+      "tests": 2122,
+      "assertions": 42670,
+      "failures": 1,
+      "test": "LearnerCapabilitiesTest#test_self-paced_support_expiry_or_missing_assigned_instructor_never_advertises_course_questions"
+    },
+    "api_unprepared_unchanged_full_rerun": {
+      "tests": 2122,
+      "assertions": 42685,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "web": {
+      "files": 237,
+      "tests": 2732
+    },
+    "mobile": {
+      "suites": 141,
+      "tests": 1544
+    },
+    "stage_exit_codes": {
+      "qa-ownership": 0,
+      "brand-index": 0,
+      "bundle": 0,
+      "schema": 0,
+      "api": 0,
+      "api-unprepared": 1,
+      "rubocop": 0,
+      "brakeman": 0,
+      "web-install": 0,
+      "web-typecheck": 0,
+      "web-lint": 0,
+      "web-vitest": 0,
+      "web-build": 0,
+      "web-bundle": 0,
+      "api-check": 0,
+      "mobile-install": 0,
+      "mobile-typecheck": 0,
+      "mobile-lint": 0,
+      "mobile-jest": 0,
+      "cross-stack": 1,
+      "web-routing": 0,
+      "mobile-brand": 0,
+      "mobile-uri": 0,
+      "mobile-release": 0
+    }
+  },
+  "postmerge": {
+    "api_runner": "ASUS",
+    "parallel_workers": 1,
+    "migration_process_port": 55432,
+    "api_each_mode": {
+      "tests": 121,
+      "assertions": 595,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "response_schema_validation": true,
+    "web": {
+      "files": 11,
+      "tests": 169
+    },
+    "typecheck": true,
+    "lint": true,
+    "build": true,
+    "bundle": true,
+    "api_check": true,
+    "mobile_typecheck": true,
+    "api_generate_no_diff": true,
+    "app_and_preload_exact_main": true,
+    "book_helper_exact_main": true,
+    "browser_passed": 44
+  },
+  "local_entitlement_recheck_each_mode": {
+    "tests": 11,
+    "assertions": 130,
+    "failures": 0
+  }
+}

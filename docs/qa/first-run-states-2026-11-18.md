@@ -1,6 +1,7 @@
 # First run, empty states and recovery — W8 PR 8.4
 
 Implementation branch `feat/first-run-states`, based on `main` at `c290e00a`.
+Latest evidence: [review fix round](#review-fix-round). Original acceptance follows.
 Agent-executed browser QA on Leon's MacBook. The final full gate passed on the
 ASUS through `asus-test --postgres csg_learning_platform_test <repo-root> -- bash
 scripts/qa/first-run-states-gate.sh`, after the MacBook returned to home Wi-Fi.
@@ -148,7 +149,7 @@ The public routes and their AASA exclusions are unchanged.
 - Public legal pages expose deletion on phones and link back to Today. Their
   route placement and AASA exclusions are unchanged. No migrations are needed.
 
-## Automated gate
+## Original automated gate
 
 The final ASUS gate on `242b0de3` runs one stage at a time, with
 `PARALLEL_WORKERS=1`, the 55432 migration subprocess adapter and both API
@@ -209,3 +210,96 @@ Postgres container. The local gate database `csg_first_run_gate_20261118` and fo
 `csg_first_run_fixture_gate_20261118` are removed. Final lifecycle
 status shows no active owned resources after the final ASUS job. Shared services and borrowed simulators
 are left unchanged.
+
+
+## Review fix round
+
+Fix commit `c81adb9c` addresses the findings on `dc29e735`. Main advanced to
+`d68e0b38` (#288), merged as `989d988a`. The combined OpenAPI schema preserves
+both sides and both type files were regenerated. App.tsx and routePreload.ts
+match main, including the lazy SubmissionAudit route; the `book` helper matches
+main exactly. The original evidence above remains
+available; this round's [44 screenshots and structured results](first-run-states-2026-11-18/review-round-1/browser-results.json)
+and [runtime hashes](first-run-states-2026-11-18/review-round-1/source-sha256.json)
+are separate.
+
+Changes and acceptance:
+
+- Legal recovery is Today only for authenticated On learners or staff, home for
+  signed-out visitors, and absent for Off learners and authenticated profile
+  loading. Phone deletion stays visible. The shared public header wraps, grows
+  beyond 72px when needed and fits both brand lines at 390px.
+- Activity's learner empty copy applies only to the learner's own On view.
+  Staff retain the backfill caveat. Empty category filters name sign-ins,
+  learning or work; Off learner copy remains unchanged.
+- Conversation Back visibility and destination use the same validated origin.
+  Desktop shows one link; phone Back keeps a query-only origin and workspace.
+  Recordings upgrades only a validated legacy inbox origin before URL updates.
+- Learn consumes week/module expansion hints when the user changes expansion,
+  so closing either the current or another hinted week sticks. Recording links
+  share Learn's curriculum-week and scheduled-opening computations, including
+  module overrides and breaks. Schedules and assignments are batch-loaded. Collapsing a hinted week also
+  preserves other expanded weeks.
+- Receipt URL parsing failures return 404. Profile receipt/access-date rows
+  use each enrollment's server fields, including when an Off course is selected.
+  The profile controller and #287 CurriculumName queries are untouched.
+- Welcome says "Follow the class schedule". The QA solo fixture reloads before
+  saving media settings, with an explicit On assertion and an Off school default
+  to expose a lost cohort override.
+
+| Verification | Result |
+| --- | --- |
+| Focused API, prepared On | 36 tests / 264 assertions passed |
+| Focused API, prepared Off | 36 tests / 264 assertions passed |
+| Post-merge affected web tests | 11 files / 169 tests passed, including Off snapshots and SubmissionAudit |
+| Web typecheck, lint, build, API transport check | Passed |
+| `api:generate` | No diff in either generated type file or OpenAPI |
+| Changed Ruby lint | Five files clean |
+| Advisory Impeccable 4.6 | No findings |
+| Browser matrix | 44/44 passed in 1.8 minutes, 390/1280 and light/dark |
+| Post-merge API, prepared On | ASUS: 121 tests / 595 assertions passed |
+| Post-merge API, prepared Off | ASUS: 121 tests / 595 assertions passed |
+| Full ASUS gate before main integration | Prepared: 2,122 / 42,685 passed; unprepared initially failed one support-expiry test, then the unchanged full rerun passed 2,122 / 42,685 |
+| Other full ASUS stages before main integration | Web: 237 files / 2,732 tests; native: 141 suites / 1,544 tests; lint/security/build/bundle/routing/brand/release all passed |
+
+The new schedule query regression initially exposed 19 versus 23 queries as
+recordings and assigned cohorts grew. Preloading the assignments' module
+association fixed it; the final fixtures grow from one to five scheduled
+recordings with flat queries. Both focused API modes passed afterward.
+
+Browser acceptance includes signed-out Privacy → home with the exact home
+heading, On deletion → Today with Eli's heading, Off Privacy without a Today
+link, full phone brand text, admin student and team activity filters, a single
+Notifications Back in the desktop conversation, and the original welcome,
+Alumni, switching, profile and recovery journeys. Receipt transport and external
+media remain simulated; actual Safari/iPhone and native visual checks are not
+claimed. The fixes add no migrations or contract changes; main integration includes
+#288’s migration and contract. AASA is unchanged. Post-merge web typecheck, lint,
+build, bundle/API checks and mobile typecheck passed; another api:generate
+produced no diff.
+
+Cleanup: the isolated browser servers and database are removed. The focused
+local database `csg296_review_test` was removed by its test wrapper. The ASUS
+helper removed its temporary test database/container after each completed job.
+The post-merge browser phase passed 44/44 and its servers/database are removed.
+Final lifecycle status reports no active owned resources. See the
+[structured verification results](first-run-states-2026-11-18/review-round-1/automated-results.json).
+
+
+The complete pre-merge ASUS run encountered one failure in the untouched
+`LearnerCapabilitiesTest#test_self-paced_support_expiry_or_missing_assigned_instructor_never_advertises_course_questions`:
+expired support advertised `course_question` instead of `none`. The full
+unprepared rerun on a fresh ASUS database passed without application/assertion
+changes. The isolated entitlement suite also passed locally in each mode
+(11 tests / 130 assertions). The cause was not established; retain this as an
+intermittent test failure for follow-up, not a claimed entitlement fix.
+
+Post-merge API coverage includes the first-run, outline, Today, student-workspace,
+submission-audit integration/recheck/service and audit migration tests. The first
+focused wrapper inherited the full-suite OpenAPI completeness flag and stopped
+after the passing prepared subset because unrelated routes were not exercised.
+The corrected focused wrapper keeps per-response schema validation, omits only
+that whole-suite completeness audit, and passed both modes. Both prepared-mode
+guards remain intact. Before the earlier full run’s web stage, the final
+CourseOutline client/test files were synced and all 33 runtime hashes verified;
+API sources were unchanged during that run.
