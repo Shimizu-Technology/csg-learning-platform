@@ -45,8 +45,9 @@ export function Layout({ children }: LayoutProps) {
   const isMessagesRoute = location.pathname.startsWith('/messages')
   /** The inbox list itself, which carries its own workspace switcher; a phone conversation view hides that list. */
   const isMessagesListRoute = /^\/messages\/?$/.test(location.pathname)
-  // Messages keeps its composer above the iOS keyboard (see index.css `.keyboard-shell`).
-  useKeyboardAwareViewport(isMessagesRoute)
+  const isStaffWorkspaceRoute = /^\/admin\/cohorts\/[1-9]\d*(?:\/|$)/.test(location.pathname)
+  // Messages pins its composer; staff forms hide pinned chrome while iOS pans the visual viewport.
+  useKeyboardAwareViewport(isMessagesRoute || isStaffWorkspaceRoute)
   const { user, enrollments, isLoading, schoolFeatures } = useAuthContext()
   const { selectedCohort, cohorts } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)

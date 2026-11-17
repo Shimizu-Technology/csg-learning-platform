@@ -172,9 +172,9 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={`app-modal w-full ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] shadow-overlay outline-none sm:max-h-[84dvh] sm:rounded-2xl sm:pb-0`}
+        className={`app-modal flex w-full flex-col ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] shadow-overlay outline-none sm:max-h-[84dvh] sm:rounded-2xl sm:pb-0`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
             {icon}
             <div className="min-w-0">
@@ -188,13 +188,13 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         </div>
 
         {children && (
-          <div className={`overflow-y-auto px-5 py-4 sm:px-6 ${fixedHeight ? 'h-[70dvh] flex flex-col sm:h-[64vh]' : 'max-h-[68dvh] sm:max-h-[60vh]'}`}>
+          <div className={`min-h-0 overflow-y-auto px-5 py-4 sm:px-6 ${fixedHeight ? 'h-[70dvh] flex flex-col sm:h-[64vh]' : 'max-h-[68dvh] sm:max-h-[60vh]'}`}>
             {children}
           </div>
         )}
 
         {footer && (
-          <div className="border-t border-line px-5 py-4 sm:px-6">
+          <div className="shrink-0 border-t border-line px-5 py-4 sm:px-6">
             {footer}
           </div>
         )}
