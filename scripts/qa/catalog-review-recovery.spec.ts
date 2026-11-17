@@ -84,7 +84,7 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.getByText(/Course copy can still be saved/)).toBeVisible()
       await expect(page.getByLabel('Show checkout in the course catalog')).toBeChecked()
       await check(page)
-      await page.locator('section[aria-labelledby="course-offering-heading"]').screenshot({ path: `${root}docs/qa/catalog-course-pages-2026-11-17/admin-instructor-load-error-${info.project.use.viewport!.width}-${theme}.png` })
+      await page.locator('section[aria-labelledby="course-offering-heading"]').screenshot({ path: `${root}.qa-local/admin-instructor-load-error-${info.project.use.viewport!.width}-${theme}.png` })
       await preview.fill(originalPreview)
       await page.getByRole('button', { name: 'Save settings', exact: true }).click()
       await expect(page.locator('main').getByText('Cohort settings saved', { exact: true })).toBeVisible()

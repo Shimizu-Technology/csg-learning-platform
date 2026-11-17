@@ -1,6 +1,9 @@
 # Catalog and course pages — W6 PR 6.3
 
 Agent-executed affected-flow QA. Base: main `51b0d7ce`, 2026-11-17.
+Latest integrated application/test source: `5c96144a` (main `aa0cf1b4` plus the
+six review fixes). Both full API modes and all client gates passed; see the final
+sections for current results and retained failed-run observations.
 Initial implementation: `8a765faafd020fa4822eebe2614d1e6ca5b0ba2f`. Fix-round results
 below supersede the initial gate and screenshots where indicated. Chromium local harness on macOS; Ruby 3.3.7 and PostgreSQL 16
 on the ASUS runner for the full API suite.
@@ -279,3 +282,125 @@ successfully and terminated WSL. Its temporary Git index was removed. Exact
 owned runner processes have exited and lifecycle cleanup reports no active owned
 resources. No resource is handed off; the clean branch/worktree stays available
 for lead review. No merge, watch or review dismissal was performed.
+
+
+## Main #285 integration
+
+Main moved again after the deferred-slug push. `560b8edb` merges `3ec803d7`
+(learning-plan editor and instructor meetings). No migrations were added; the
+slug migration remains last. OpenAPI's independent schema additions were merged
+and both generated type files regenerated with `npm run api:generate`.
+The deferred-slug implementation and mobile cache-timer cleanup are unchanged.
+
+Affected gates are rerunning on ASUS against this merged tree: six red regression
+checks and focused API, full API with seed 26023 in both prepared-statement modes
+and OpenAPI coverage, RuboCop, Brakeman, and full web/mobile gates. The same
+runner-only port adapter is used; the default run keeps prepared statements on.
+Six expected regression failures were reproduced on the previous behavior; the
+fixed focused suite passed 78 tests / 443 assertions, zero failures/errors/skips.
+That full run was stopped when six further review findings were added. The
+complete follow-up verification below supersedes it; no local UI runtime was
+started during that merge-only phase.
+
+
+## CodeRabbit review 5931009778 follow-up
+
+Implementation under test: `df5e8e62`, on merged main `3ec803d7` (`560b8edb`).
+This continues the same round. Sources: Leon's six accepted findings on
+`6ebc59f`, the model allocator, fetchApi cache contract, and the unified cohort
+settings draft/save flow. Public, learner and admin layouts retain their existing
+brand tokens, labels and quiet interaction; no motion was added.
+
+| Finding / required acceptance | Regression and saved outcome | Result |
+| --- | --- | --- |
+| A stale cohort instance must retain the first slug | Two instances load NULL before either save; Python then Ruby keeps `python` while the public title changes | old code failed; fixed focused API passed |
+| A title equal to another title's suffix must not race | Two connections and distinct curricula; hold `python-2` allocation before insert and verify `Python 2` waits, then receives `python-2-2` | old code failed; fixed focused API passed |
+| Dismissed Start here must not reappear offline | Confirmed PATCH invalidates only the current learner's dashboard cache keys; other users and unrelated caches stay intact | unit and browser passed |
+| Accepted review-time PATCH must update the draft baseline even when refresh fails | Real child/parent integration returns to the original phrase and sends another PATCH; acknowledgement changes only the baseline, preserving later edits | unit and browser passed |
+| Header Sign in must retain slug-selected course and existing query | Loaded course ID is added to the header continuation alongside `ref=school` | unit and browser passed |
+| Marketing drafts must survive instructor-list failure | Error and rejection regressions stage public copy; actual Save/reload retains it with instructor/checkout controls disabled | unit and browser passed |
+
+Slug allocation now uses one transaction-scoped advisory lock for all bases and
+re-reads an existing row's stored slug without the query cache while holding it.
+The stale instance adopts an already assigned slug. The collision fixture uses
+different curricula to avoid an unrelated curriculum row lock serializing the
+old code; its test-only hold fires once, allowing after-create saves to finish.
+The first fixture attempt timed out before this refinement and is not counted as
+red/green proof.
+
+Dashboard invalidation lives in fetchApi's confirmed dismissal success path. It
+does not call `invalidateUnreadCache`, clear notifications/messages/resources,
+notify unread subscribers, or clear another learner's cache. API transport tests
+cover confirmed and unconfirmed dismissals plus a later offline read.
+
+Focused web: 6 files / 38 tests passed. Agent-executed browser recovery checks:
+**8/8 passed**, Chromium at 1280/390 in light/dark. They exercise retained Sign in
+intent; dismissal followed by a failing offline Today load; accepted response
+PATCH followed by a simulated refresh outage, then clearing back to inheritance;
+and real marketing PATCH/save/reload with a simulated instructor-list outage.
+They verify persisted backend outcomes and unchanged checkout visibility.
+The first browser attempt stopped at a textarea label locator; the final run
+uses its textbox role and resets the response fixture before every case.
+Stable-state axe checks found no serious/critical WCAG 2.1 AA violations or
+horizontal overflow. Impeccable advisory: `[]`.
+
+Failure-state element captures remain in ignored `.qa-local` diagnostics. They
+include fixed application chrome from the capture method; public course/landing
+screenshots above remain the published visual evidence. Desktop light and phone
+dark error states were visually inspected; no changed layout or motion was added.
+
+ASUS old-code proof: both API regressions failed (two failures, no errors); seven
+web regressions failed across five files, with the remaining 31 tests passing.
+After restoring the fixes, focused API passed 80 tests / 452 assertions. The full
+default prepared-statements run passed seed 26023 with `OPENAPI_COVERAGE=1`:
+**1,938 tests / 41,173 assertions**, zero failures/errors/skips. The disabled-mode
+API and complete client gates are still running. Earlier full results above are
+historical and do not substitute for this merged-head gate.
+The local recovery harness database `csg_qa_61975_1794879613` and race-debug
+database `csg_qa_slug_race_01a1e659` were dropped; exact Rails/Vite PIDs and the
+preview tab were stopped/closed and released after the browser phase. The
+headless test workers exited. No provider keys, payments, production data or
+external delivery were used. Native/Safari/real-device flows were not rehearsed.
+
+
+## Main #286 integration and final gate
+
+`b1ed468c` merges main `aa0cf1b4` (mobile deep links and AASA), and both type
+files were regenerated again. No migrations were added. `5c96144a` strengthens
+`aasa.test.ts` to require the public `/courses/:slug` route in its route scan and
+explicitly check `/courses` and `/courses/python-fundamentals` stay in Safari.
+The existing AASA allowlist already excludes them; no broad native claim was
+added. Focused AASA: 8 tests passed.
+
+The prior disabled-statements full run reached 1,938 tests / 41,173 assertions
+with one failure in the synthetic public bootstrap limiter's time-travel reset
+assertion (`ApiRateLimitsTest`, line 68), and no errors. That probe does not use
+the slug allocator or the changed web code. Its cause is not established. The
+rate-limit source and test were not changed or skipped. Five focused repeats
+and both full modes are queued on the latest merged tree, followed by the
+complete client gate. No failing run is counted as a passing gate.
+
+
+Final latest-main API evidence (`5c96144a`): the default prepared-statements full
+run and a standalone disabled-statements run each passed **1,950 tests / 41,246
+assertions**, zero failures/errors/skips, seed 26023 and `OPENAPI_COVERAGE=1`.
+Each mode's configuration was asserted by a Rails runner. The disabled mode used
+a fresh disposable database, matching an independent CI job. Its five focused
+search-formatting repeats also passed (two assertions each); failure-only search
+response logging was added only to the runner copy, produced no output, and was
+removed before lint. No application source, assertions or rate-limit/deadline
+settings were relaxed. The earlier limiter reset and missing search-group
+observations did not reproduce; their causes remain unestablished.
+RuboCop: 698 files, no offenses. Brakeman: zero errors/security warnings (one
+existing ignored warning). Complete client gate passed on ASUS: web typecheck, ESLint, Vitest (215 files /
+2,455 tests), production build, `test:bundle` and `api:check`; mobile typecheck,
+lint (74 warnings, zero errors) and Jest (139 suites / 1,506 tests). Both
+generated clients match OpenAPI. The command exited successfully.
+
+
+Final cleanup: the standalone ASUS gate removed its disposable test PostgreSQL
+container/databases and terminated WSL at exit. Lifecycle cleanup reports no
+active owned resources. The local servers, headless workers, preview tab and
+all named local test databases are gone. Diagnostic files are retained under
+ignored `.qa-local`; no runtime resource is handed off. The clean held worktree
+and branch remain available. No merge, watch or review dismissal was performed.
