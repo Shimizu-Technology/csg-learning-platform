@@ -1,0 +1,246 @@
+{
+  "passed": 36,
+  "skipped": 12,
+  "tests": [
+    {
+      "title": "phone light: keyboard viewport hides pinned chrome and textarea sizing",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "phone dark: keyboard viewport hides pinned chrome and textarea sizing",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "phone: offering textareas do not trigger iOS input zoom",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "desktop: section-link focus outline fits inside the scrolling navigation",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "fractional width: staff and lesson navigation meet exactly at lg",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "phone light: module footer and editor labels on a short screen",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "phone light: roster targets and named support counts",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "staff light: Learning cards retain the filtered-list return target",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "phone dark: module footer and editor labels on a short screen",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "phone dark: roster targets and named support counts",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "staff dark: Learning cards retain the filtered-list return target",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "cohort updates distinguish loading, error, retry and a successful empty result",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "a pending direct-message request cannot replace a newly selected student",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "phone light: keyboard disclosure commits one destination and respects a draft",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "phone dark: keyboard disclosure commits one destination and respects a draft",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "phone: modified-click opens the chosen section in a separate tab",
+      "project": "chromium-1280",
+      "status": "skipped"
+    },
+    {
+      "title": "phone light: keyboard viewport hides pinned chrome and textarea sizing",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone dark: keyboard viewport hides pinned chrome and textarea sizing",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone: offering textareas do not trigger iOS input zoom",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "desktop: section-link focus outline fits inside the scrolling navigation",
+      "project": "chromium-390",
+      "status": "skipped"
+    },
+    {
+      "title": "fractional width: staff and lesson navigation meet exactly at lg",
+      "project": "chromium-390",
+      "status": "skipped"
+    },
+    {
+      "title": "phone light: module footer and editor labels on a short screen",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone light: roster targets and named support counts",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff light: Learning cards retain the filtered-list return target",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone dark: module footer and editor labels on a short screen",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone dark: roster targets and named support counts",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff dark: Learning cards retain the filtered-list return target",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "cohort updates distinguish loading, error, retry and a successful empty result",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "a pending direct-message request cannot replace a newly selected student",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone light: keyboard disclosure commits one destination and respects a draft",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone dark: keyboard disclosure commits one destination and respects a draft",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "phone: modified-click opens the chosen section in a separate tab",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff 1 light: every cohort and student section",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "staff 2 light: every cohort and student section",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "staff 1 dark: every cohort and student section",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "staff 2 dark: every cohort and student section",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "admin light: settings targets, sticky save, draft guard, retry and persistence",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "admin dark: settings targets, sticky save, draft guard, retry and persistence",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "staff 1: keyboard, Back and return context",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "staff 2: keyboard, Back and return context",
+      "project": "chromium-1280",
+      "status": "passed"
+    },
+    {
+      "title": "staff 1 light: every cohort and student section",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff 2 light: every cohort and student section",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff 1 dark: every cohort and student section",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff 2 dark: every cohort and student section",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "admin light: settings targets, sticky save, draft guard, retry and persistence",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "admin dark: settings targets, sticky save, draft guard, retry and persistence",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff 1: keyboard, Back and return context",
+      "project": "chromium-390",
+      "status": "passed"
+    },
+    {
+      "title": "staff 2: keyboard, Back and return context",
+      "project": "chromium-390",
+      "status": "passed"
+    }
+  ]
+}
