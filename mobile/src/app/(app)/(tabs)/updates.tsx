@@ -329,7 +329,8 @@ function EditorToggle({ label, value, onValueChange, disabled = false }: { label
 function unreadUpdatesLabel(count: number) { return count > 0 ? `${count} unread ${count === 1 ? 'update' : 'updates'}` : 'You’re all caught up'; }
 function editedLabel(value: string) { return `Edited ${formatCourseDateTime(value, { withYear: true, fallback: 'recently' })}`; }
 /** When it went out, or for a scheduled draft when it will (U-3.6). */
-function updateWhen(item: Announcement) { return isScheduledUpdate(item) ? sendsAboutLabel(item.scheduled_for!) : formatDate(item.published_at || item.updated_at); }
+function updateWhen(item: Announcement) {
+  if (item.status === 'draft' && item.schedule_failure) return item.schedule_failure; return isScheduledUpdate(item) ? sendsAboutLabel(item.scheduled_for!) : formatDate(item.published_at || item.updated_at); }
 function formatDate(value: string | null) { return value ? formatCourseDate(value, { withYear: true, fallback: 'Recently' }) : 'Recently'; }
 function formatRelative(value: string) { const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60_000)); if (minutes < 1) return 'Now'; if (minutes < 60) return `${minutes}m ago`; if (minutes < 1_440) return `${Math.floor(minutes / 60)}h ago`; return formatDate(value); }
 

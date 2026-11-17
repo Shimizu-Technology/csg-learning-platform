@@ -197,3 +197,18 @@ it('makes no request when a learner opens an update already read', async () => {
   expect(view.queryByTestId('announcement-read-summary')).toBeNull();
   view.unmount();
 });
+
+
+it('shows a refused scheduled send on the draft card and its detail', async () => {
+  Object.assign(mockUser, { id: 7, is_staff: true, role: 'instructor', is_admin: false });
+  const failed = { ...notices[1], id: 99, title: 'Unsent notice', status: 'draft' as const, published_at: null, unread: false, can_edit: false, schedule_failure: 'Not sent: the scheduler no longer teaches QA cohort.' };
+  mockApi.announcements.mockResolvedValue({ announcements: [failed], unread_count: 0, meta: { ...meta(1), total_count: 1, total_pages: 1, has_next_page: false } });
+  mockApi.announcement.mockResolvedValue({ announcement: failed });
+  const view = screen();
+  await view.findByLabelText('Open update: Unsent notice');
+  expect(view.getByText(/Not sent: the scheduler no longer teaches QA cohort/)).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Open update: Unsent notice'));
+  await waitFor(() => expect(view.getAllByText(/Not sent: the scheduler no longer teaches QA cohort/).length).toBeGreaterThan(1));
+  expect(view.queryByText('Edit')).toBeNull();
+  view.unmount();
+});

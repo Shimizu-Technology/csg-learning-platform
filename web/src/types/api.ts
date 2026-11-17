@@ -235,8 +235,9 @@ export interface Announcement {
   /** The viewer may archive this posted update: an admin, or staff on its cohort. */
   can_archive?: boolean;
   /** A scheduled draft's send time; the hourly tick posts it at the first run at or after it (U-3.6). */
-  schedule_failure?: string | null;
   scheduled_for?: string | null;
+  /** Why a scheduled send returned to Drafts. */
+  schedule_failure?: string | null;
   scheduled_send_push?: boolean;
   /** The zone send times are chosen and shown in (the school's). */
   schedule_time_zone?: string;
