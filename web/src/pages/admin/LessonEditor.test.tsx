@@ -43,7 +43,7 @@ const blocks = [
   { ...base, id: 6, block_type: 'recording', position: 5, title: 'Class recording', video_url: 'https://example.invalid/class' },
 ]
 
-const adminAccess: LessonBlockEditorResponse['access'] = { can_edit: true, reason: 'admin', message: null, grants: [], shared_with: [], copy_cohorts: [], copy_of: null }
+const adminAccess: LessonBlockEditorResponse['access'] = { can_edit: true, reason: 'admin', message: null, grants: [], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
 const leonGrant = { cohort: { id: 4, name: 'Cohort 3' }, granted_by: { id: 9, full_name: 'Leon Tester' }, granted_at: '2026-11-14T02:00:00Z' }
 let access: LessonBlockEditorResponse['access'] = adminAccess
 
@@ -339,7 +339,7 @@ describe('block lesson editor', () => {
     expect(aside.querySelector('a[href="/admin/cohorts/4/student-view/lessons/2"]')?.textContent).toContain('View as student')
     expect(aside.querySelector('a[href="/admin/grading?cohort_id=4&lesson_id=2&filter=all"]')?.textContent).toBe('5 submissions')
     expect(aside.querySelector('a[href="/admin/grading?cohort_id=4&lesson_id=2"]')?.textContent).toBe('2 waiting')
-    expect(aside.querySelector('a[href="/admin/support?cohort_id=4"]')?.textContent).toBe('1 open help')
+    expect(aside.querySelector('a[href="/admin/support?cohort_id=4&lesson_id=2"]')?.textContent).toBe('1 open help')
 
     await act(async () => cards()[2].dispatchEvent(new Event('pointerdown', { bubbles: true })))
     await settle()
@@ -434,7 +434,7 @@ describe('lesson editing access', () => {
 
   it('shows an instructor without editing access the lesson read only, with who can edit', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'no_grant', message: 'Only admins can edit lessons.', grants: [], shared_with: [], copy_cohorts: [], copy_of: null }
+    access = { can_edit: false, reason: 'no_grant', message: 'Only admins can edit lessons.', grants: [], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain('Read only.')
@@ -446,7 +446,7 @@ describe('lesson editing access', () => {
 
   it('names the other cohorts when a shared curriculum keeps a granted instructor read only', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [], copy_of: null }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain('Read only: Cohort 4 shares this curriculum')
@@ -455,9 +455,9 @@ describe('lesson editing access', () => {
 
   it('lets a granted instructor on a shared curriculum make a copy for their cohort, then opens the lesson in the copy', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0, copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
     const preview = vi.spyOn(api, 'getCurriculumCopyPreview').mockResolvedValue({ data: { curriculum_copy_preview: {
-      cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Web Lab' }, copy_name: 'Web Lab (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }],
+      cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Web Lab' }, copy_name: 'Web Lab (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0,
       already_copied: false, copy_curriculum_id: null, can_copy: true, blockers: [],
       counts: { lessons: 4, progresses: 12, submissions: 3, module_assignments: 4, cohort_module_schedules: 1, knowledge_check_attempts: 0 },
     } }, error: null })
@@ -527,7 +527,7 @@ describe('lesson editing access', () => {
 
   it('lets a granted instructor edit and save, says who gave the access, and keeps lesson structure for admins', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], copy_cohorts: [], copy_of: null }
+    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain("You can edit Cohort 3's lessons.")
@@ -764,7 +764,7 @@ describe('local backups without editing access', () => {
         blocks: [{ key: 'b1', id: 1, block_type: 'text', title: 'Why', body: 'Typed before access changed', solution: '', filename: '', video_url: '', s3_video_key: null, s3_video_content_type: null, s3_video_size: null, submission_type: null, submission_config: {}, rubric_id: null, video_segments: [], metadata: {}, check: null, check_locked: false }] },
     }
     window.localStorage.setItem(key, JSON.stringify(kept))
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [], copy_of: null }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
     await settle()
 
@@ -776,7 +776,7 @@ describe('local backups without editing access', () => {
     // Access comes back: the same backup is offered to restore.
     await act(async () => root.unmount())
     root = createRoot(container)
-    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], copy_cohorts: [], copy_of: null }
+    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
     expect(container.textContent).toContain('This browser kept changes you didn\'t save')
     expect(button('Restore changes')).toBeTruthy()

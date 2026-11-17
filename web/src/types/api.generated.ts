@@ -6547,17 +6547,20 @@ export interface components {
             };
             granted_at: string | null;
         };
-        /** @description Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with lists the other cohorts) or no_grant. */
+        /** @description Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with names the other cohorts the viewer teaches; shared_with_others_count counts the rest) or no_grant. */
         LessonEditAccess: {
             can_edit: boolean;
             /** @enum {string} */
             reason: "admin" | "granted" | "shared" | "no_grant" | "not_staff";
             message: string | null;
             grants: components["schemas"]["LessonEditGrant"][];
+            /** @description Sharing cohorts the viewer may see by name: every one for admins, the ones they teach for instructors. */
             shared_with: {
                 id: number;
                 name: string;
             }[];
+            /** @description Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
+            shared_with_others_count: number;
             /** @description Cohorts this staff member can make their own copy for (Make a copy for this cohort): an instructor's granted cohorts when reason is shared; for an admin, every cohort on a curriculum that two or more cohorts use. Empty otherwise. */
             copy_cohorts: {
                 id: number;
@@ -6813,10 +6816,11 @@ export interface components {
         };
         /** @description Set when this curriculum is one cohort's own copy: the cohort, the curriculum it was copied from (null once that is deleted) and when. */
         CurriculumCopyOrigin: {
+            /** @description Null for an instructor who doesn’t teach that cohort. */
             cohort: {
                 id: number;
                 name: string;
-            };
+            } | null;
             source_curriculum: null | {
                 id: number;
                 name: string;
@@ -6836,11 +6840,13 @@ export interface components {
             };
             /** @description The copy's name, e.g. "Web Development Bootcamp (Cohort 3)". */
             copy_name: string | null;
-            /** @description The other cohorts that keep the shared curriculum. */
+            /** @description The other cohorts that keep the shared curriculum and that the viewer may see by name. */
             shared_with: {
                 id: number;
                 name: string;
             }[];
+            /** @description Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
+            shared_with_others_count: number;
             already_copied: boolean;
             /** @description The cohort's copy when already_copied. */
             copy_curriculum_id: number | null;

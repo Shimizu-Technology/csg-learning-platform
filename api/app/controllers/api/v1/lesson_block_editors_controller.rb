@@ -76,21 +76,26 @@ module Api
         }
       end
 
+      # Counted in the cohorts this person may see (StaffCohortScope). Anyone
+      # who may edit sees every cohort on the curriculum, so the counts that
+      # guard a delete or a video swap are never narrowed for them; the save
+      # itself always checks every learner's work (LessonBlockEditor).
       def block_activity_json
-        ContentBlock.learner_evidence_for(@lesson.content_blocks.map(&:id)).map do |id, counts|
+        curriculum_id = @lesson.curriculum_module.curriculum_id
+        evidence = ContentBlock.learner_evidence_for(@lesson.content_blocks.map(&:id), enrollment_ids: cohort_scope.enrollment_ids(curriculum_id))
+        evidence.map do |id, counts|
           { content_block_id: id, **counts }
         end
       end
 
       # Cohorts and counts are limited to the cohorts this staff member can
-      # see (RecordUsage's rule): admins see all, instructors only the cohorts
+      # see (StaffCohortScope, the rule RecordUsage follows): admins see all, instructors only the cohorts
       # they teach, with the rest as a number for the shared-curriculum notice.
       def context_json
         mod = @lesson.curriculum_module
         curriculum = mod.curriculum
         block_ids = @lesson.content_blocks.map(&:id)
-        all_cohort_ids = Cohort.where(curriculum_id: curriculum.id).pluck(:id)
-        visible_ids = current_user.admin? ? all_cohort_ids : all_cohort_ids & current_user.cohort_instructor_assignments.pluck(:cohort_id)
+        visible_ids = cohort_scope.visible_ids(curriculum.id)
         submissions = Submission.where(content_block_id: block_ids, enrollment_id: Enrollment.where(cohort_id: visible_ids).select(:id))
         weeks = [ mod.week_count, @lesson.release_day / 7 + 1 ].max + 1
         {
@@ -108,7 +113,7 @@ module Api
           used_in: Cohort.where(id: visible_ids).order(:start_date, :id).map do |cohort|
             { id: cohort.id, name: cohort.name, status: cohort.effective_status, start_date: cohort.start_date&.iso8601 }
           end,
-          other_cohorts_count: all_cohort_ids.size - visible_ids.size,
+          other_cohorts_count: cohort_scope.other_count(curriculum.id),
           submissions_count: submissions.count,
           # Latest attempts without a grade, as Grading counts them.
           waiting_count: submissions.latest_attempts.where(grade: nil).count,

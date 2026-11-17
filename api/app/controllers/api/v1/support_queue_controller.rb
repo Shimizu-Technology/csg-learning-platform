@@ -16,7 +16,8 @@ module Api
         end
 
         cohort_ids = cohort ? [ cohort.id ] : current_user.accessible_cohorts.select(:id)
-        render json: { support_queue: SupportQueueProjection.new(cohort_ids: cohort_ids).call }
+        # Help on one lesson or one module (L-3.2): the "open help" counts on content pages link here.
+        render json: { support_queue: SupportQueueProjection.new(cohort_ids: cohort_ids, lesson_id: params[:lesson_id], module_id: params[:module_id]).call }
       end
     end
   end

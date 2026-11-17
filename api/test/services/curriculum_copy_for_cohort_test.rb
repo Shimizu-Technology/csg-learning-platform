@@ -125,7 +125,8 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
 
     assert_equal everything, before
     assert preview[:can_copy]
-    assert_equal [ @f.other_cohort.id ], preview[:shared_with].map { |cohort| cohort[:id] }
+    assert_equal [ [], 1 ], preview.values_at(:shared_with, :shared_with_others_count), "The instructor doesn't teach the other cohort (L-3.2)"
+    assert_equal [ @f.other_cohort.id ], service(@f.admin).preview[:shared_with].map { |cohort| cohort[:id] }
     result = copy!(@f.instructor)
     assert_equal result.counts, preview[:counts]
   end

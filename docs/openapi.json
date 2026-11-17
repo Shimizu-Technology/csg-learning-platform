@@ -13337,7 +13337,13 @@
                 "name"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "Sharing cohorts the viewer may see by name: every one for admins, the ones they teach for instructors."
+          },
+          "shared_with_others_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_cohorts": {
             "type": "array",
@@ -13376,11 +13382,12 @@
           "message",
           "grants",
           "shared_with",
+          "shared_with_others_count",
           "copy_cohorts",
           "copy_of"
         ],
         "additionalProperties": false,
-        "description": "Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with lists the other cohorts) or no_grant."
+        "description": "Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with names the other cohorts the viewer teaches; shared_with_others_count counts the rest) or no_grant."
       },
       "CohortInstructorAssignment": {
         "type": "object",
@@ -14533,20 +14540,28 @@
         "type": "object",
         "properties": {
           "cohort": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "integer"
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
               },
-              "name": {
-                "type": "string"
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "id",
-              "name"
             ],
-            "additionalProperties": false
+            "description": "Null for an instructor who doesn’t teach that cohort."
           },
           "source_curriculum": {
             "anyOf": [
@@ -14651,7 +14666,12 @@
               ],
               "additionalProperties": false
             },
-            "description": "The other cohorts that keep the shared curriculum."
+            "description": "The other cohorts that keep the shared curriculum and that the viewer may see by name."
+          },
+          "shared_with_others_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "already_copied": {
             "type": "boolean"
@@ -14708,6 +14728,7 @@
           "source_curriculum",
           "copy_name",
           "shared_with",
+          "shared_with_others_count",
           "already_copied",
           "copy_curriculum_id",
           "can_copy",

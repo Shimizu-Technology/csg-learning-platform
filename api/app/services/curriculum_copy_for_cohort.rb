@@ -188,7 +188,7 @@ class CurriculumCopyForCohort
         cohort: { id: cohort.id, name: cohort.name },
         source_curriculum: source && { id: source.id, name: source.name },
         copy_name: source && copy_name(source, cohort),
-        shared_with: source ? Cohort.where(curriculum_id: source.id).where.not(id: cohort.id).order(:start_date, :id).map { |other| { id: other.id, name: other.name } } : [],
+        **shared_with(source, cohort),
         already_copied: existing.present?,
         copy_curriculum_id: existing&.copy_curriculum_id,
         can_copy: existing.nil? && blockers.empty?,
@@ -213,6 +213,17 @@ class CurriculumCopyForCohort
   end
 
   private
+
+  # The other cohorts that keep the shared version: named when the person may
+  # see them (admins, or instructors who teach them), the rest as a number (L-3.2).
+  def shared_with(source, cohort)
+    return { shared_with: [], shared_with_others_count: 0 } unless source
+
+    others = Cohort.where(curriculum_id: source.id).where.not(id: cohort.id).order(:start_date, :id).to_a
+    scope = StaffCohortScope.new(@user)
+    named = others.select { |other| scope.visible?(other.id) }
+    { shared_with: named.map { |other| { id: other.id, name: other.name } }, shared_with_others_count: others.size - named.size }
+  end
 
   # --- The copy ---------------------------------------------------------------
 

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 const OUT = fileURLToPath(new URL('../../.qa-local/where-used/', import.meta.url))
 const state = JSON.parse(readFileSync(new URL('../../.qa-local/state.json', import.meta.url), 'utf8'))
 const ids = JSON.parse(readFileSync(new URL('../../.qa-local/where-used.json', import.meta.url), 'utf8')) as {
-  shared_curriculum_id: number; module_id: number; lesson_id: number; second_cohort_id: number; copy_curriculum_id: number; program_cohort_id: number
+  shared_curriculum_id: number; module_id: number; lesson_id: number; second_cohort_id: number; copy_curriculum_id: number; program_cohort_id: number; other_lesson_id: number
 }
 const API = `http://127.0.0.1:${state.api_port}`
 const as = (user: number) => ({ Authorization: `Bearer test_token_${user}` })
@@ -168,6 +168,46 @@ for (const theme of ['light', 'dark'] as const) {
       if (!phone) await expect(page.locator('nav[aria-label="Breadcrumb"] a').nth(2)).toHaveAttribute('href', `/admin/lessons/${ids.lesson_id}`)
       for (const secret of SECRET) await expect(page.locator('body')).not.toContainText(secret)
       await record(page, 'instructor-editor', theme, info.project.name)
+      expect(errors).toEqual([])
+    })
+
+    // Fix round 1: an instructor with editing access to QA Program (A), which shares its curriculum with QA Program 2 (B).
+    test('instructor of A: the shared lesson editor and every payload name only A; counts equal the lists they open', async ({ page, request }, info) => {
+      const errors: string[] = []
+      page.on('pageerror', (error) => errors.push(error.message))
+      const editorBody = await (await request.get(`${API}/api/v1/lessons/${ids.lesson_id}/block_editor`, { headers: as(2) })).json()
+      expect(editorBody.access.reason).toBe('shared')
+      expect(editorBody.access.shared_with).toEqual([])
+      expect(editorBody.access.shared_with_others_count).toBe(1)
+      for (const path of [`/api/v1/lessons/${ids.lesson_id}/block_editor`, `/api/v1/curricula/${ids.shared_curriculum_id}`, `/api/v1/modules/${ids.module_id}`, `/api/v1/lessons/${ids.lesson_id}`,
+        `/api/v1/cohorts/${ids.program_cohort_id}/curriculum_copy?source_curriculum_id=${ids.shared_curriculum_id}`, `/api/v1/support_queue?lesson_id=${ids.lesson_id}`]) {
+        const body = await (await request.get(`${API}${path}`, { headers: as(2) })).text()
+        for (const secret of SECRET) expect(body, path).not.toContain(secret)
+      }
+      // Activity counts only A's work: the instructor's own Grading count for the lesson.
+      const queue = await (await request.get(`${API}/api/v1/grading_queue?lesson_id=${ids.lesson_id}&filter=all`, { headers: as(2) })).json()
+      const editorSubmissions = editorBody.block_activity.reduce((sum: number, row: { submissions: number }) => sum + row.submissions, 0)
+      expect(editorSubmissions).toBe(queue.counts.all)
+
+      await open(page, `/admin/lessons/${ids.lesson_id}/edit`, 2, theme)
+      await expect(page.getByText('Read only: 1 other cohort shares this curriculum')).toBeVisible()
+      await expect(page.getByText(/without affecting 1 other cohort/)).toBeVisible()
+      await expect(page.getByRole('button', { name: /Make a copy for/ })).toBeVisible()
+      for (const secret of SECRET) await expect(page.locator('body')).not.toContainText(secret)
+      await record(page, 'instructor-a-shared-editor', theme, info.project.name)
+
+      // Focused on A: the lesson page's counts are A's and open A's lists.
+      await open(page, `/admin/lessons/${ids.lesson_id}?cohort_id=${ids.program_cohort_id}`, 2, theme)
+      const focused = await (await request.get(`${API}/api/v1/grading_queue?cohort_id=${ids.program_cohort_id}&lesson_id=${ids.lesson_id}&filter=all`, { headers: as(2) })).json()
+      await expect(page.locator('[data-related-row="submissions"] [data-related-count]')).toHaveText(String(focused.counts.all))
+      await expect(page.locator('[data-related-row="waiting"] [data-related-count]')).toHaveText(String(focused.counts.ungraded))
+      const helpCount = await page.locator('[data-related-row="help"] [data-related-count]').textContent()
+      await page.locator('[data-related-row="help"] a').click()
+      await expect(page).toHaveURL(new RegExp(`/admin/support\\?cohort_id=${ids.program_cohort_id}&lesson_id=${ids.lesson_id}`))
+      await expect(page.locator('button[data-help-filter="lesson"]')).toBeVisible()
+      await expect(page.locator('article a[href^="/admin/help-requests/"]').filter({ hasText: 'Open request' })).toHaveCount(Number(helpCount))
+      await expect(page.locator('main')).not.toContainText('Synthetic question on another lesson')
+      await record(page, 'instructor-a-support-lesson', theme, info.project.name)
       expect(errors).toEqual([])
     })
 

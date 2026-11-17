@@ -196,6 +196,8 @@ export interface SupportQueue {
   students: SupportQueueStudent[];
   interventions: Intervention[];
   recovery_plans: RecoveryPlan[];
+  /** The lesson or module the help lists are narrowed to (`lesson_id` / `module_id`); name is null outside the viewer's cohorts. */
+  help_filter?: { type: 'lesson' | 'module'; id: number; name: string | null } | null;
 }
 
 export type ModuleSummary = components['schemas']['ModuleSummary'];

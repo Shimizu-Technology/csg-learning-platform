@@ -90,7 +90,8 @@ module Api
           # Whether this staff member may edit its lessons (LessonEditAccess).
           json[:editing] = LessonEditAccess.for(current_user, curriculum).as_json
           modules = curriculum.modules.includes(all_lessons: :content_blocks).to_a
-          evidence = CurriculumModule.learner_evidence(modules.map(&:id))
+          # Submission counts cover only the cohorts this person may see (L-3.2).
+          evidence = CurriculumModule.learner_evidence(modules.map(&:id), enrollment_ids: StaffCohortScope.new(current_user).enrollment_ids(curriculum.id))
           json[:modules] = modules.map { |m|
             lessons = m.all_lessons
             {

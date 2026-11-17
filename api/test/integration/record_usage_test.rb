@@ -149,6 +149,33 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
     assert_equal "Usage curriculum", hidden.dig("copy_of", "source_curriculum", "name")
   end
 
+  # Fix round 1 (P3): "1 open help" on a lesson or module opens exactly that help in Support.
+  test "Support narrows help to one lesson or one module, inside the viewer's cohorts" do
+    on_lesson = help(@student, @cohort)
+    on_exercise = help(@student, @cohort, context_type: :exercise, context_id: @exercise.id)
+    on_other_lesson = help(@student, @cohort, context_id: @second_lesson.id)
+    elsewhere = Lesson.create!(curriculum_module: @later_module, title: "Functions intro", position: 0, release_day: 0)
+    in_other_module = help(@student, @cohort, context_id: elsewhere.id)
+    coral = help(@coral_student, @other_cohort)
+
+    queue = support(@instructor, lesson_id: @lesson.id)
+    assert_equal [ on_lesson.id, on_exercise.id ].sort, queue["help_requests"].map { |request| request["id"] }.sort,
+      "Not the other lesson's question, and not Cohort Coral's"
+    assert_equal({ "type" => "lesson", "id" => @lesson.id, "name" => "Make decisions" }, queue["help_filter"])
+    assert_equal 2, queue.dig("summary", "open_help_count")
+
+    module_queue = support(@instructor, module_id: @module.id, cohort_id: @cohort.id)
+    assert_equal [ on_lesson.id, on_exercise.id, on_other_lesson.id ].sort, module_queue["help_requests"].map { |request| request["id"] }.sort
+    refute_includes module_queue["help_requests"].map { |request| request["id"] }, in_other_module.id
+
+    assert_includes support(@admin, lesson_id: @lesson.id)["help_requests"].map { |request| request["id"] }, coral.id
+    assert_empty support(@instructor, lesson_id: "abc")["help_requests"], "A malformed id matches nothing"
+    foreign = Lesson.create!(curriculum_module: CurriculumModule.create!(curriculum: Curriculum.create!(name: "Elsewhere"), name: "M", position: 0, day_offset: 0, schedule_days: "daily"), title: "Secret title", position: 0, release_day: 0)
+    filtered = support(@instructor, lesson_id: foreign.id)
+    assert_nil filtered.dig("help_filter", "name"), "A lesson outside the viewer's cohorts is never named"
+    refute_includes response.body, "Secret title"
+  end
+
   test "help counts are left out where help requests are switched off" do
     @cohort.update!(settings: { features: { help_requests: false } })
     help(@student, @cohort)
@@ -158,24 +185,30 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
     assert_empty usage["help_requests"]
   end
 
-  test "usage pages keep the same query count as cohorts, lessons and work grow" do
-    paths = { "lesson" => @lesson.id, "module" => @module.id, "curriculum" => @curriculum.id }
-    [ @admin, @instructor ].each do |viewer|
-      paths.each do |type, id|
-        counts = [ 1, 4 ].map do |size|
-          grow(size)
-          fetch(viewer, type, id)
-          assert_response :success
-          count_queries { fetch(viewer, type, id) }
-        end
-        assert_equal counts.first, counts.last, "#{viewer.role} #{type} usage sent #{counts.join(' then ')} queries"
+  # Each viewer and type measures its own growth: the fixtures are rebuilt for
+  # every combination, so each one compares one of everything with four.
+  [ :admin, :instructor ].product(%w[lesson module curriculum]).each do |role, type|
+    test "#{type} usage for #{role} keeps the same query count as cohorts, lessons and work grow" do
+      viewer = role == :admin ? @admin : @instructor
+      id = { "lesson" => @lesson.id, "module" => @module.id, "curriculum" => @curriculum.id }.fetch(type)
+      sizes = []
+      counts = [ 1, 4 ].map do |size|
+        grow(size)
+        sizes << [ Cohort.where(curriculum: @curriculum).count, Submission.count, Lesson.count, Rubric.count, CurriculumCopy.count ]
+        fetch(viewer, type, id)
+        assert_response :success
+        count_queries { fetch(viewer, type, id) }
       end
+      assert_operator sizes.last.zip(sizes.first).map { |after, before| after - before }.min, :>=, 3, "Every kind of record grew by three: #{sizes.inspect}"
+      assert_equal counts.first, counts.last, "#{role} #{type} usage sent #{counts.join(' then ')} queries"
     end
   end
 
   test "a team member page stays flat as cohorts taught, waiting work and owned follow-ups grow" do
+    sizes = []
     counts = [ 1, 4 ].map do |size|
       grow(size)
+      sizes << @instructor.cohort_instructor_assignments.count
       while Intervention.where(owner: @instructor).count < size
         enrollment = Enrollment.where.not(cohort_id: @other_cohort.id).where.not(id: Intervention.select(:enrollment_id)).first
         Intervention.create!(enrollment: enrollment, owner: @instructor, created_by: @admin, trigger_type: :manual, action_summary: "Synthetic", next_follow_up_at: 1.day.from_now)
@@ -184,6 +217,7 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
       assert_response :success
       count_queries { get_team_member(@instructor) }
     end
+    assert_equal 3, sizes.last - sizes.first, "Cohorts taught grew between the measurements"
     assert_equal counts.first, counts.last, "team member page sent #{counts.join(' then ')} queries"
     assert_equal 4, response.parsed_body.dig("team_member", "workload", "follow_ups_count")
   end
@@ -244,6 +278,17 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
   def help(student, cohort, context_type: :lesson, context_id: @lesson.id)
     HelpRequest.create!(student: student, cohort: cohort, category: :concept, context_type: context_type, context_id: context_id, status: :open,
       context_label: "Make decisions", context_path: "/lessons/#{@lesson.id}", message: "Synthetic question")
+  end
+
+  def support(user, **params)
+    payload = { "sub" => user.clerk_id, "email" => user.email, "first_name" => user.first_name, "last_name" => user.last_name }
+    original = ClerkAuth.method(:verify)
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+    get "/api/v1/support_queue", params: params, headers: { "Authorization" => "Bearer test_token" }
+    assert_response :success
+    response.parsed_body["support_queue"]
+  ensure
+    ClerkAuth.define_singleton_method(:verify, original)
   end
 
   def fetch(user, type, id)

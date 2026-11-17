@@ -62,9 +62,17 @@ export function gradingPath(filters: { cohortId?: number | null; moduleId?: numb
   return `/admin/grading${query ? `?${query}` : ''}`
 }
 
-/** Support, scoped to one cohort. */
-export function supportPath(cohortId?: number | null) {
-  return `/admin/support${cohortId ? `?cohort_id=${cohortId}` : ''}`
+/**
+ * Support, scoped to one cohort and, optionally, to help asked from one lesson
+ * or module, so the list it opens is exactly the help a count describes.
+ */
+export function supportPath(cohortId?: number | null, help: { lessonId?: number | null; moduleId?: number | null } = {}) {
+  const params = new URLSearchParams()
+  if (cohortId) params.set('cohort_id', String(cohortId))
+  if (help.lessonId) params.set('lesson_id', String(help.lessonId))
+  else if (help.moduleId) params.set('module_id', String(help.moduleId))
+  const query = params.toString()
+  return `/admin/support${query ? `?${query}` : ''}`
 }
 
 export const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`

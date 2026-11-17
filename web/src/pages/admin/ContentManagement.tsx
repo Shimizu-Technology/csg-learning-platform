@@ -649,7 +649,9 @@ export function ContentManagement() {
                         )}
                         {curriculum.editing?.copy_of && (
                           <span className="inline-flex min-h-6 items-center text-xs font-semibold text-ink-secondary">
-                            <RecordLink record={{ type: 'cohort', id: curriculum.editing.copy_of.cohort.id }} variant="plain">{curriculum.editing.copy_of.cohort.name}</RecordLink>'s copy
+                            {curriculum.editing.copy_of.cohort
+                              ? <><RecordLink record={{ type: 'cohort', id: curriculum.editing.copy_of.cohort.id }} variant="plain">{curriculum.editing.copy_of.cohort.name}</RecordLink>'s copy</>
+                              : 'A cohort’s copy'}
                           </span>
                         )}
                       </div>

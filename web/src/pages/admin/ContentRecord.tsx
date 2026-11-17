@@ -70,8 +70,22 @@ function studioPath(curriculumId: number, moduleId?: number) {
   return `/admin/content?curriculum=${curriculumId}&pane=detail${moduleId ? `&open=${moduleId}` : ''}`
 }
 
-/** Grading for everything the viewer can see on this record: one cohort when the page is focused on it. */
-const scopedCohort = (cohortId: number | null, cohorts: { id: number }[]) => (cohortId && cohorts.some((cohort) => cohort.id === cohortId) ? cohortId : cohorts.length === 1 ? cohorts[0].id : null)
+/**
+ * The counts a page shows and the scope its links open, so every number equals
+ * the list it leads to. Focused on one cohort (`?cohort_id=`, one the viewer can
+ * see): that cohort's counts and lists. Otherwise: the totals across the
+ * cohorts listed, and links without a cohort, which cover exactly those.
+ */
+function focusScope<C extends { id: number; name: string; submissions: number; waiting: number; open_help: number | null }>(
+  focusId: number | null, cohorts: C[], totals: { submissions: number; waiting: number; open_help: number | null },
+) {
+  const focused = focusId ? cohorts.find((cohort) => cohort.id === focusId) ?? null : null
+  return focused
+    ? { cohortId: focused.id, name: focused.name, counts: { submissions: focused.submissions, waiting: focused.waiting, open_help: focused.open_help } }
+    : { cohortId: null, name: null, counts: totals }
+}
+
+const inCohort = (label: string, name: string | null) => (name ? `${label} in ${name}` : label)
 
 /* -------------------------------------------------------------------------- */
 /* Lesson                                                                     */
@@ -87,16 +101,17 @@ function LessonPage({ usage }: { usage: LessonUsage }) {
   const [params] = useSearchParams()
   const focusId = Number(params.get('cohort_id')) || null
   const back = useBackLink({ returnTo: moduleRecordPath(usage.module.id), returnLabel: usage.module.name })
-  const cohortId = scopedCohort(focusId, usage.cohorts)
+  const { cohortId, name: focusName, counts } = focusScope(focusId, usage.cohorts, usage.totals)
   const previewCohort = usage.cohorts.find((cohort) => cohort.id === focusId && cohort.assigned) || usage.cohorts.find((cohort) => cohort.assigned) || usage.cohorts[0]
   const label = `Lesson · ${usage.title}`
   const work = usage.blocks.filter((block) => block.has_work).length
-  const help = usage.totals.open_help
+  const help = counts.open_help
+  const helpRequests = cohortId ? usage.help_requests.filter((request) => request.cohort_id === cohortId) : usage.help_requests
   const rows: RelatedRow[] = [
     { key: 'used_in', icon: Layers3, label: 'Used in cohorts', count: usage.cohorts.length, onSelect: () => scrollToSection('used-in') },
-    { key: 'submissions', icon: Files, label: 'Submissions', count: usage.totals.submissions, to: gradingPath({ cohortId, lessonId: usage.id, all: true }) },
-    { key: 'waiting', icon: ClipboardCheck, label: TERMS.waitingForReview, count: usage.totals.waiting, attention: usage.totals.waiting > 0, to: gradingPath({ cohortId, lessonId: usage.id }) },
-    ...(typeof help === 'number' ? [{ key: 'help', icon: LifeBuoy, label: 'Open help requests', count: help, attention: help > 0, to: supportPath(cohortId) }] : []),
+    { key: 'submissions', icon: Files, label: inCohort('Submissions', focusName), count: counts.submissions, to: gradingPath({ cohortId, lessonId: usage.id, all: true }) },
+    { key: 'waiting', icon: ClipboardCheck, label: inCohort(TERMS.waitingForReview, focusName), count: counts.waiting, attention: counts.waiting > 0, to: gradingPath({ cohortId, lessonId: usage.id }) },
+    ...(typeof help === 'number' ? [{ key: 'help', icon: LifeBuoy, label: inCohort('Open help requests', focusName), count: help, attention: help > 0, to: supportPath(cohortId, { lessonId: usage.id }) }] : []),
     { key: 'module', icon: Layers, label: 'Module', value: usage.module.name, to: moduleRecordPath(usage.module.id, cohortId) },
     { key: 'curriculum', icon: LibraryBig, label: 'Curriculum', value: usage.curriculum.name, to: curriculumPath(usage.curriculum.id) },
   ]
@@ -164,10 +179,10 @@ function LessonPage({ usage }: { usage: LessonUsage }) {
         />
 
         {typeof help === 'number' && (
-          <Section id="help" title="Open help requests" count={String(help)} action={<LinkButton to={supportPath(cohortId)} variant="quiet" size="sm">Open {TERMS.support}</LinkButton>}>
-            {usage.help_requests.length ? (
+          <Section id="help" title={inCohort('Open help requests', focusName)} count={String(help)} action={<LinkButton to={supportPath(cohortId, { lessonId: usage.id })} variant="quiet" size="sm">{help > helpRequests.length ? `See all ${help} in ${TERMS.support}` : `Open in ${TERMS.support}`}</LinkButton>}>
+            {helpRequests.length ? (
               <ul className="divide-y divide-line">
-                {usage.help_requests.map((request) => {
+                {helpRequests.map((request) => {
                   const cohort = usage.cohorts.find((item) => item.id === request.cohort_id)
                   return (
                     <li key={request.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 sm:px-5">
@@ -210,17 +225,17 @@ function ModulePage({ usage }: { usage: ModuleUsage }) {
   const [params] = useSearchParams()
   const focusId = Number(params.get('cohort_id')) || null
   const back = useBackLink({ returnTo: curriculumPath(usage.curriculum.id), returnLabel: usage.curriculum.name })
-  const cohortId = scopedCohort(focusId, usage.cohorts)
+  const { cohortId, name: focusName, counts } = focusScope(focusId, usage.cohorts, usage.totals)
   const label = `Module · ${usage.name}`
   const active = usage.lessons.filter((lesson) => !lesson.archived)
   const weeks = [...new Set(usage.lessons.map((lesson) => lesson.week))].sort((a, b) => a - b)
-  const help = usage.totals.open_help
+  const help = counts.open_help
   const rows: RelatedRow[] = [
     { key: 'lessons', icon: BookOpen, label: 'Lessons', count: active.length, onSelect: () => scrollToSection('lessons') },
     { key: 'used_in', icon: Layers3, label: 'Used in cohorts', count: usage.cohorts.length, onSelect: () => scrollToSection('used-in') },
-    { key: 'submissions', icon: Files, label: 'Submissions', count: usage.totals.submissions, to: gradingPath({ cohortId, moduleId: usage.id, all: true }) },
-    { key: 'waiting', icon: ClipboardCheck, label: TERMS.waitingForReview, count: usage.totals.waiting, attention: usage.totals.waiting > 0, to: gradingPath({ cohortId, moduleId: usage.id }) },
-    ...(typeof help === 'number' ? [{ key: 'help', icon: LifeBuoy, label: 'Open help requests', count: help, attention: help > 0, to: supportPath(cohortId) }] : []),
+    { key: 'submissions', icon: Files, label: inCohort('Submissions', focusName), count: counts.submissions, to: gradingPath({ cohortId, moduleId: usage.id, all: true }) },
+    { key: 'waiting', icon: ClipboardCheck, label: inCohort(TERMS.waitingForReview, focusName), count: counts.waiting, attention: counts.waiting > 0, to: gradingPath({ cohortId, moduleId: usage.id }) },
+    ...(typeof help === 'number' ? [{ key: 'help', icon: LifeBuoy, label: inCohort('Open help requests', focusName), count: help, attention: help > 0, to: supportPath(cohortId, { moduleId: usage.id }) }] : []),
     { key: 'curriculum', icon: LibraryBig, label: 'Curriculum', value: usage.curriculum.name, to: curriculumPath(usage.curriculum.id) },
   ]
   const days = usage.scheduled_day_names.length === 7 ? 'Every day' : usage.scheduled_day_names.map((name) => name.slice(0, 3)).join(', ')

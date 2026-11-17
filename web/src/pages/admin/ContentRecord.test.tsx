@@ -176,3 +176,54 @@ it('a curriculum page lists cohorts with delivery, modules, copy history, rubric
   expect(row('files')?.querySelector('a')?.getAttribute('href')).toBe('/admin/content?curriculum=1&pane=files')
   expect(row('copies')?.textContent).toContain('1')
 })
+
+// Fix round 1 (P2/P3): every count equals the list it opens. Two visible cohorts hold 2 and 3 submissions.
+const oak = { id: 5, name: 'Cohort Oak', status: 'active' as const, course_delivery: 'program' as const, start_date: '2026-11-10', end_date: null, on_sale: false }
+const twoCohortLesson: LessonUsage = {
+  ...lesson, other_cohorts_count: 0,
+  cohorts: [
+    { ...teal, assigned: true, release_date: '2026-11-12', submissions: 2, waiting: 1, open_help: 1 },
+    { ...oak, assigned: true, release_date: '2026-11-12', submissions: 3, waiting: 2, open_help: 0 },
+  ],
+  help_requests: [{ id: 55, status: 'open', urgency: 'normal', category: 'concept', cohort_id: 4, created_at: '2026-11-16T09:00:00Z', student: { id: 9, name: 'Alex Rivera' } }],
+  totals: { submissions: 5, waiting: 3, open_help: 1 },
+}
+const twoCohortModule: ModuleUsage = {
+  ...mod,
+  cohorts: [
+    { ...teal, assigned: true, starts_on: '2026-11-10', ends_on: '2026-11-17', submissions: 2, waiting: 1, open_help: 1 },
+    { ...oak, assigned: true, starts_on: '2026-11-10', ends_on: '2026-11-17', submissions: 3, waiting: 2, open_help: 0 },
+  ],
+  totals: { submissions: 5, waiting: 3, open_help: 1 },
+}
+const countAndLink = (key: string) => [row(key)?.querySelector('[data-related-count]')?.textContent, row(key)?.querySelector('a')?.getAttribute('href')]
+
+it.each([
+  ['lesson', '/admin/lessons/40', 'lesson_id=40'],
+  ['module', '/admin/modules/7', 'module_id=7'],
+] as const)('a %s page focused on one cohort shows that cohort and links to its lists; unfocused, it shows totals and the whole scope', async (type, path, scope) => {
+  const usage = type === 'lesson' ? twoCohortLesson : twoCohortModule
+  mocks.getRecordUsage.mockResolvedValue({ data: { usage }, error: null, status: 200 })
+  await mount(`${path}?cohort_id=4`)
+  expect(countAndLink('submissions')).toEqual(['2', `/admin/grading?cohort_id=4&${scope}&filter=all`])
+  expect(countAndLink('waiting')).toEqual(['1', `/admin/grading?cohort_id=4&${scope}`])
+  expect(countAndLink('help')).toEqual(['1', `/admin/support?cohort_id=4&${scope}`])
+  expect(row('submissions')?.textContent).toContain('Submissions in Cohort Teal')
+
+  act(() => root.unmount()); root = createRoot(container)
+  await mount(path)
+  expect(countAndLink('submissions')).toEqual(['5', `/admin/grading?${scope}&filter=all`])
+  expect(countAndLink('waiting')).toEqual(['3', `/admin/grading?${scope}`])
+  expect(countAndLink('help')).toEqual(['1', `/admin/support?${scope}`])
+  // Each cohort row's help count opens that cohort's help on this lesson or module only.
+  expect(container.querySelector('[data-used-in-cohort="5"] a[href^="/admin/support"]')?.getAttribute('href')).toBe(`/admin/support?cohort_id=5&${scope}`)
+})
+
+it('a focused lesson lists only that cohort’s open help, and its Support link opens the same set', async () => {
+  mocks.getRecordUsage.mockResolvedValue({ data: { usage: twoCohortLesson }, error: null, status: 200 })
+  await mount('/admin/lessons/40?cohort_id=5')
+  const help = container.querySelector('#help')!
+  expect(help.querySelector('h2')?.textContent).toBe('Open help requests in Cohort Oak')
+  expect(help.textContent).toContain('No open help requests on this lesson.')
+  expect(help.querySelector('a[href="/admin/support?cohort_id=5&lesson_id=40"]')).not.toBeNull()
+})

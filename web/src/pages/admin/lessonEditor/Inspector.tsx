@@ -228,7 +228,7 @@ function LessonUsedIn({ lessonId, context }: { lessonId: number; context: Lesson
       {(!usage || usage.cohorts.length !== 1) && <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm tabular-nums">
         <Link to={gradingPath({ cohortId: single, lessonId, all: true })} className="app-link inline-flex min-h-11 items-center sm:min-h-0">{plural(totals.submissions, 'submission')}</Link>
         <Link to={gradingPath({ cohortId: single, lessonId })} className="app-link inline-flex min-h-11 items-center sm:min-h-0">{totals.waiting} waiting</Link>
-        {typeof totals.open_help === 'number' && <Link to={supportPath(single)} className="app-link inline-flex min-h-11 items-center sm:min-h-0">{totals.open_help} open help</Link>}
+        {typeof totals.open_help === 'number' && <Link to={supportPath(single, { lessonId })} className="app-link inline-flex min-h-11 items-center sm:min-h-0">{totals.open_help} open help</Link>}
       </p>}
       <Link to={lessonRecordPath(lessonId)} className="app-link inline-flex min-h-11 items-center text-sm sm:min-h-0">Open the lesson page</Link>
     </>

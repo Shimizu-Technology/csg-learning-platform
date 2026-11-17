@@ -137,6 +137,12 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, -> { "/api/v1/cohorts/#{@cohort.id}/modules/#{@module.id}/submissions" })
   end
 
+  # L-3.2: help on one lesson or one module, linked from the content pages' counts.
+  test "support queue filtered to a lesson and to a module" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/support_queue?lesson_id=#{@lessons.first.id}" })
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/support_queue?module_id=#{@module.id}&cohort_id=#{@cohort.id}" })
+  end
+
   test "support queue" do
     assert_flat_queries(@instructor, :get, "/api/v1/support_queue")
   end

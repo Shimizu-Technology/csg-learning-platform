@@ -22,6 +22,11 @@
 #   save that starts after it sees the access gone.
 # Only then are the grants and the cohorts sharing the curriculum read, past
 # the query cache (the early check ran the same queries in this request).
+#
+# Privacy (L-3.2): an instructor sees by name only the sharing cohorts they
+# teach. The others are a number (`shared_with_others_count`), in the JSON and
+# in the refusal message, so "copy before you edit" still says the curriculum
+# is shared without naming a cohort they don't teach. Admins see every name.
 class LessonEditAccess
   class Denied < StandardError
     attr_reader :code
@@ -107,8 +112,10 @@ class LessonEditAccess
     record = CurriculumCopy.includes(:cohort, :source_curriculum).find_by(copy_curriculum_id: curriculum.id)
     return nil unless record
 
+    # The copy's cohort by name only for admins and the instructors who teach it.
+    visible = user&.admin? || user&.cohort_instructor_assignments&.exists?(cohort_id: record.cohort_id)
     {
-      cohort: { id: record.cohort.id, name: record.cohort.name },
+      cohort: visible ? { id: record.cohort.id, name: record.cohort.name } : nil,
       source_curriculum: record.source_curriculum && { id: record.source_curriculum.id, name: record.source_curriculum.name },
       created_at: record.created_at.iso8601
     }
@@ -122,10 +129,33 @@ class LessonEditAccess
     end
   end
 
+  # The sharing cohorts this person may see by name: all of them for admins,
+  # only the ones they teach for instructors.
+  def visible_sharing_cohorts
+    return sharing_cohorts if user&.admin?
+
+    @visible_sharing_cohorts ||= begin
+      taught = sharing_cohorts.empty? ? [] : user.cohort_instructor_assignments.where(cohort_id: sharing_cohorts.map(&:id)).pluck(:cohort_id)
+      sharing_cohorts.select { |cohort| taught.include?(cohort.id) }
+    end
+  end
+
+  def hidden_sharing_count
+    sharing_cohorts.size - visible_sharing_cohorts.size
+  end
+
+  # "Cohort 4 and 1 other cohort": named cohorts the viewer may see, the rest as a number.
+  def sharing_label
+    names = visible_sharing_cohorts.map(&:name)
+    hidden = hidden_sharing_count
+    names << "#{hidden} other #{hidden == 1 ? 'cohort' : 'cohorts'}" if hidden.positive?
+    names.to_sentence
+  end
+
   def refusal_message
     case reason
     when "shared"
-      "Other cohorts use this curriculum too (#{sharing_cohorts.map(&:name).to_sentence}). Make a copy for #{grants.map { |grant| grant.cohort.name }.to_sentence(two_words_connector: ' or ', last_word_connector: ', or ')} in Content to change it for that cohort only."
+      "Other cohorts use this curriculum too (#{sharing_label}). Make a copy for #{grants.map { |grant| grant.cohort.name }.to_sentence(two_words_connector: ' or ', last_word_connector: ', or ')} in Content to change it for that cohort only."
     when "no_grant"
       "Only admins can edit lessons. Ask an admin to give you editing access for your cohort."
     else
@@ -145,7 +175,8 @@ class LessonEditAccess
           granted_at: grant.granted_at&.iso8601
         }
       end,
-      shared_with: sharing_cohorts.map { |cohort| { id: cohort.id, name: cohort.name } },
+      shared_with: visible_sharing_cohorts.map { |cohort| { id: cohort.id, name: cohort.name } },
+      shared_with_others_count: hidden_sharing_count,
       copy_cohorts: copy_cohorts.map { |cohort| { id: cohort.id, name: cohort.name } },
       copy_of: copy_of
     }

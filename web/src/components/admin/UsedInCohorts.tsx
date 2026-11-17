@@ -60,7 +60,9 @@ function RowActions({ row }: { row: Row }) {
     links.push(<CountLink key="waiting" to={gradingPath({ cohortId: cohort.id, ...scope })} count={row.cohort.waiting} label={`${row.cohort.waiting} waiting`} attention />)
   }
   const help = row.cohort.open_help
-  if (typeof help === 'number') links.push(<CountLink key="help" to={supportPath(cohort.id)} count={help} label={`${help} open help`} attention />)
+  // Help on this module or lesson in this cohort; a curriculum row counts all of the cohort's help.
+  const helpScope = row.kind === 'lesson' ? { lessonId: row.lessonId } : row.kind === 'module' ? { moduleId: row.moduleId } : {}
+  if (typeof help === 'number') links.push(<CountLink key="help" to={supportPath(cohort.id, helpScope)} count={help} label={`${help} open help`} attention />)
   if (row.kind === 'module') {
     links.push(
       <PreviewLink key="grid" to={cohortModuleGradingPath(cohort.id, row.moduleId)} className="app-link inline-flex min-h-11 items-center gap-1 px-2 text-xs sm:min-h-8">

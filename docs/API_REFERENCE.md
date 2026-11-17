@@ -191,7 +191,22 @@ objectives or copies. Sent with `Cache-Control: private, no-store`.
 `GET /api/v1/lessons/:id/block_editor` applies the same cohort rule to its
 `context`: `used_in` lists only cohorts the viewer can see, `other_cohorts_count`
 counts the rest, and `submissions_count`, `waiting_count` and `open_help_count`
-cover only the listed cohorts. `GET /api/v1/team_members/:id` adds each
+cover only the listed cohorts. The same rule (`StaffCohortScope`) applies to
+the editor's `access` (`shared_with` names only cohorts the instructor teaches;
+`shared_with_others_count` counts the rest, and `message` and a refused save's
+error say "1 other cohort" instead of a name; `copy_of.cohort` is null for a
+cohort they don't teach), `block_activity` and knowledge-check
+`attempt_count`, the copy preview's `shared_with`, and module
+`submissions_count` in `curricula#show` and `modules#show`. Anyone who may edit
+the curriculum teaches every cohort on it, so their counts are never narrowed.
+
+`GET /api/v1/support_queue` takes `lesson_id` or `module_id` to narrow the
+help lists and help counts to requests asked from that lesson (or its
+exercises), or from any lesson in that module, still inside the viewer's
+cohorts (and `cohort_id`). The response's `help_filter` names the lesson or
+module only when one of those cohorts uses it.
+
+`GET /api/v1/team_members/:id` adds each
 cohort's `waiting_review` and `open_help`, and a `workload` with the active
 follow-up plans the person owns and their owned open help requests.
 

@@ -791,7 +791,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reply: data }),
     }),
-  getSupportQueue: (cohortId?: number, signal?: AbortSignal) => fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`, signal ? { signal } : {}),
+  /** `lessonId` / `moduleId` narrow the help lists to that lesson or module (L-3.2). */
+  getSupportQueue: (cohortId?: number, signal?: AbortSignal, help: { lessonId?: number | null; moduleId?: number | null } = {}) =>
+    fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId, lesson_id: help.lessonId, module_id: help.moduleId })}`, signal ? { signal } : {}),
   getInterventions: (params: { enrollment_id?: number; owner_id?: number; status?: InterventionStatus; due?: boolean } = {}) =>
     fetchApi<InterventionsResponse>(`/api/v1/interventions${queryString(params)}`),
   getIntervention: (id: number) => fetchApi<InterventionResponse>(`/api/v1/interventions/${id}`),
