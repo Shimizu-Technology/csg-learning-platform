@@ -16,7 +16,8 @@ it.each([true, false])('staff management remains reachable with school off, admi
   for (const label of ['Support', 'Updates', 'Meetings', 'Recordings']) expect(items).toContain(label)
 })
 it.each([true, false])('learner live-support capability controls cohort/recording/meeting nav, live=%s', live => {
-  const nav = shellNavigation({ staff: false, admin: false, cohort: cohort(live) })
+  // With the new student experience off, the nav is exactly what it was.
+  const nav = shellNavigation({ staff: false, admin: false, cohort: cohort(live, { student_experience_v2: false }) })
   expect(labels(nav).includes('My cohort')).toBe(live)
   expect(labels(nav).includes('Recordings')).toBe(live)
   expect(labels(nav).includes('My meetings')).toBe(live)
@@ -27,6 +28,16 @@ it('learner resolved switches override school defaults and hide optional feature
   expect(labels(nav)).not.toContain('Updates')
   expect(labels(nav)).not.toContain('Recordings')
   expect(labels(nav)).not.toContain('My meetings')
+})
+
+it('the new student experience folds My cohort into Learn and keeps everything else', () => {
+  const before = labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: false }) }))
+  const after = labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: true }) }))
+  expect(before).toContain('My cohort')
+  expect(after).toEqual(before.filter(label => label !== 'My cohort'))
+  // A cached or older payload without the key keeps today's nav.
+  expect(labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, {}), schoolFeatures: { student_experience_v2: true } }))).toEqual(before)
+  expect(labels(shellNavigation({ staff: true, admin: true, cohort: cohort(true, { student_experience_v2: false }) }))).toEqual(labels(shellNavigation({ staff: true, admin: true, cohort: cohort(true) })))
 })
 
 it('staff retain all management links with school and cohort all off', () => {

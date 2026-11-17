@@ -11,13 +11,15 @@ interface CohortContextValue {
   selectedCohortId: number | null
   loading: boolean
   error: string | null
+  /** The signed-in viewer's cohort list has loaded (or failed), so `selectedCohort` is final. */
+  ready?: boolean
   setSelectedCohort: (id: number | null, options?: { searchParams?: URLSearchParams }) => void
   selectCohort: (id: number | null) => void
   refreshCohorts: () => Promise<void>
 }
 
 const CohortContext = createContext<CohortContextValue>({
-  cohorts: [], selectedCohort: null, selectedCohortId: null, loading: false, error: null,
+  cohorts: [], selectedCohort: null, selectedCohortId: null, loading: false, error: null, ready: true,
   setSelectedCohort: () => {}, selectCohort: () => {}, refreshCohorts: async () => {},
 })
 
@@ -159,7 +161,8 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     navigate(recordPath({ type: 'cohort', id: cohort.id }, { viewer: user }) || '/dashboard')
   }, [visibleCohorts, isStaff, navigate, setSelectedCohort, user])
 
-  const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts }),
-    [visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts])
+  const ready = !userId || cohortsOwnerId === userId || Boolean(error)
+  const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, ready, setSelectedCohort, selectCohort, refreshCohorts }),
+    [visibleCohorts, selectedCohort, selectedCohortId, loading, error, ready, setSelectedCohort, selectCohort, refreshCohorts])
   return <CohortContext.Provider value={value}>{children}{switchNotice && <div role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-xl border border-line bg-surface-raised px-4 py-3 text-sm text-ink shadow-lg">{switchNotice}</div>}</CohortContext.Provider>
 }

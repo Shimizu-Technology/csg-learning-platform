@@ -184,3 +184,21 @@ The web-only ASUS gate is
 `asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/staff-mobile-layout-gate.sh`.
 It leaves the existing cross-stack gate and migration-process port adapter intact.
 See `docs/qa/staff-mobile-layout-2026-11-17.md` for evidence and limits.
+### Course outline (W8 PR 8.1)
+
+After `start`, load the course outline fixture once from `api/` (the canonical
+production-authored prework in three synthetic cohorts, with personas part-way through it):
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/course-outline-fixtures.rb setup`.
+Then run one pass per state of the "New student experience" switch, from the repo root:
+
+```sh
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch off)
+QA_OUTLINE=off QA_SPEC=course-outline.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch on)
+QA_OUTLINE=on QA_SPEC=course-outline.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+Off is today's Learn (the "before", and Lance's shape); On is the outline. Each pass
+measures the first lesson's position and the page height for eight persona setups at
+1280/390 in light/dark, and writes captures to `docs/qa/course-outline-2026-11-17/`.
+See `docs/qa/course-outline-2026-11-17.md`.

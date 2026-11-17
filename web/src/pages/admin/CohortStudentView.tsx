@@ -24,6 +24,8 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { Dashboard } from '../student/Dashboard'
 import { Materials } from '../student/Materials'
+import { CourseOutline } from '../student/CourseOutline'
+import { StudentExperienceProvider, studentExperienceOn } from '../../lib/studentExperience'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { formatShortDate } from '../../lib/format'
 import { Avatar } from '../../components/ui/Avatar'
@@ -363,6 +365,12 @@ function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; 
   }
 
   if (activeSection === 'materials') {
+    // A learner's preview shows their cohort's experience; the cohort template keeps today's Learn
+    // until the template has its own outline (follow-up to W8 PR 8.1).
+    const studentId = Number(new URLSearchParams(location.search).get('student_id')) || null
+    if (studentId && data.cohort.features && studentExperienceOn(data.cohort.features)) {
+      return <StudentExperienceProvider v2><CourseOutline previewStudentId={studentId} previewCohortId={data.cohort.id} /></StudentExperienceProvider>
+    }
     return (
       <Materials
         previewData={data.dashboard}

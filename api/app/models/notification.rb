@@ -64,7 +64,11 @@ class Notification < ApplicationRecord
       booking = notifiable.private_meeting_booking
       return "#{legacy_path}?cohort_id=#{booking.cohort_id}&booking_id=#{booking.id}&week=#{booking.week_number}"
     end
-    return "/announcements/#{notifiable_id}" if notification_type == "announcement"
+    # The update's cohort travels with it, so the page doesn't fall back to the last cohort viewed (L-1.10).
+    if notification_type == "announcement"
+      cohort_id = notifiable.try(:cohort_id)
+      return cohort_id ? "/announcements/#{notifiable_id}?cohort_id=#{cohort_id}" : "/announcements/#{notifiable_id}"
+    end
 
     path
   end

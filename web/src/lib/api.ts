@@ -8,6 +8,7 @@ import {
   unreadRefreshVersion,
 } from './unread'
 import type {
+  CourseOutlineResponse,
   MessageDestination,
   ThreadWindowOptions,
   ActivityEventsResponse,
@@ -519,6 +520,9 @@ export const api = {
     fetchApi<DashboardResponse>(`/api/v1/dashboard${queryString({ cohort_id: cohortId })}`),
   getWeeklyPlan: (cohortId?: number) =>
     fetchApi<WeeklyPlanResponse>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`),
+  /** Learn's course outline (redesigned student experience). Staff pass `studentId` to view one enrolled learner's. */
+  getCourseOutline: (cohortId?: number | null, studentId?: number | null) =>
+    fetchApi<CourseOutlineResponse>(`/api/v1/course_outline${queryString({ cohort_id: cohortId, student_id: studentId })}`),
   getRecordings: (cohortId?: number) =>
     fetchApi<RecordingsResponse>(`/api/v1/recordings${queryString({ cohort_id: cohortId })}`),
   getResources: (cohortId?: number) =>

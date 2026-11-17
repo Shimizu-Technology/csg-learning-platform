@@ -17,6 +17,7 @@ vi.mock('./GradeDisplay', () => ({ GradeDisplay: () => null }))
 
 import { ContentBlockRenderer } from './ContentBlockRenderer'
 import { api } from '../../lib/api'
+import { StudentExperienceProvider } from '../../lib/studentExperience'
 
 function renderExercise(submissionType: string, isStaff: boolean) {
   return renderToStaticMarkup(
@@ -51,6 +52,27 @@ describe('staff lesson preview', () => {
     expect(staffMarkup).not.toContain('Write your solution')
     expect(staffMarkup).not.toContain('>Submit<')
     expect(renderExercise('text_submission', false)).toContain('Write your solution')
+  })
+})
+
+describe('manual exercise completion (S-14)', () => {
+  const manual = { id: 7, block_type: 'exercise', position: 0, title: 'Reflect', body: null, video_url: null, filename: null, submission_type: 'manual_complete', metadata: {} } as const
+  const render = (v2: boolean) => renderToStaticMarkup(<StudentExperienceProvider v2={v2}><ContentBlockRenderer block={manual} cohortId={2} /></StudentExperienceProvider>)
+
+  it('has one completion control with the new student experience on', () => {
+    const html = render(true)
+    expect(html.match(/<button/g)).toHaveLength(1)
+    expect(html.match(/Mark complete/g)).toHaveLength(1)
+    expect(html).toContain('aria-label="Exercise not complete yet"')
+    expect(html).not.toContain('aria-label="Mark exercise complete"')
+    expect(html).not.toMatch(/practice/i)
+  })
+
+  it('keeps both of today’s controls and copy when the switch is off', () => {
+    const html = render(false)
+    expect(html.match(/<button/g)).toHaveLength(2)
+    expect(html).toContain('aria-label="Mark exercise complete"')
+    expect(html).toContain('For practice exercises that don&#x27;t need a submission.')
   })
 })
 

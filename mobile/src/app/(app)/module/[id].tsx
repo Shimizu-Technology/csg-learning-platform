@@ -18,6 +18,7 @@ import { lessonStatus } from '@/lib/learning-status';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useCohort } from '@/providers/cohort-provider';
+import { lessonTypeLabel, studentExperienceV2 } from '@/lib/student-experience';
 
 export default function ModuleScreen() {
   const styles = useStyles();
@@ -30,6 +31,7 @@ export default function ModuleScreen() {
   const { cohorts, selectedCohortId, loading: cohortLoading, error: cohortError, stale: cohortStale, refresh } = useCohort();
   const cohortId = routeCohortId ? Number(routeCohortId) : selectedCohortId;
   const validCohort = cohortId != null && Number.isInteger(cohortId) && cohortId > 0 && cohorts.some(cohort => cohort.id === cohortId);
+  const studentV2 = studentExperienceV2(cohorts.find(cohort => cohort.id === cohortId)?.features);
   const query = useQuery({ queryKey: learningKeys.dashboard(user?.id || 0, cohortId), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal, cohortId), enabled: Boolean(user && !cohortLoading && validCohort) });
   const dashboard = query.data?.dashboard;
   const module = dashboard && isStudentDashboard(dashboard) ? dashboard.modules?.find((item) => item.id === id) : undefined;
@@ -54,7 +56,7 @@ export default function ModuleScreen() {
       const locked = !lesson.available;
       const status = lessonStatus(lesson);
       const finished = status === 'done';
-      return <LearningCard key={lesson.id} onPress={locked ? undefined : () => router.push({ pathname: '/lesson/[id]', params: { id: String(lesson.id), cohort_id: String(cohortId) } })} label={locked ? `${lesson.title} is locked` : `Open ${lesson.title}`}><View style={styles.lessonRow}><View style={[styles.number, finished && styles.numberDone, locked && styles.numberLocked]}>{finished ? <CheckCircle2 color={c.status.success.fg} size={18} /> : locked ? <Lock color={c.text.body} size={16} /> : status === 'awaiting_review' || status === 'redo' ? <StatusIcon status={status} size={18} color={status === 'redo' ? c.status.warning.fg : undefined} /> : <Text style={styles.numberText}>{index + 1}</Text>}</View><View style={styles.flex}><Text style={styles.lessonType}>{lesson.lesson_type} · {lesson.required === false ? 'Optional' : 'Required'}</Text><Text style={styles.lessonTitle}>{lesson.title}</Text><Text style={styles.lessonMeta}>{lesson.unlock_date && locked ? `Opens ${formatCourseDate(lesson.unlock_date, { weekday: true })}` : `${lesson.completed_blocks} of ${lesson.total_blocks} steps handed in`}</Text>{status !== 'open' && <View style={styles.lessonStatus}><StatusBadge status={status} short /></View>}</View>{!locked && !finished && <ArrowRight color={c.text.body} size={18} />}</View></LearningCard>;
+      return <LearningCard key={lesson.id} onPress={locked ? undefined : () => router.push({ pathname: '/lesson/[id]', params: { id: String(lesson.id), cohort_id: String(cohortId) } })} label={locked ? `${lesson.title} is locked` : `Open ${lesson.title}`}><View style={styles.lessonRow}><View style={[styles.number, finished && styles.numberDone, locked && styles.numberLocked]}>{finished ? <CheckCircle2 color={c.status.success.fg} size={18} /> : locked ? <Lock color={c.text.body} size={16} /> : status === 'awaiting_review' || status === 'redo' ? <StatusIcon status={status} size={18} color={status === 'redo' ? c.status.warning.fg : undefined} /> : <Text style={styles.numberText}>{index + 1}</Text>}</View><View style={styles.flex}><Text style={styles.lessonType}>{lessonTypeLabel(lesson, studentV2)} · {lesson.required === false ? 'Optional' : 'Required'}</Text><Text style={styles.lessonTitle}>{lesson.title}</Text><Text style={styles.lessonMeta}>{lesson.unlock_date && locked ? `Opens ${formatCourseDate(lesson.unlock_date, { weekday: true })}` : `${lesson.completed_blocks} of ${lesson.total_blocks} steps handed in`}</Text>{status !== 'open' && <View style={styles.lessonStatus}><StatusBadge status={status} short /></View>}</View>{!locked && !finished && <ArrowRight color={c.text.body} size={18} />}</View></LearningCard>;
     })}</View>
     {!module.lessons.length && <View style={styles.empty}><BookOpen color={c.text.body} size={28} /><Text style={styles.emptyTitle}>Lessons are being prepared</Text></View>}
   </ScrollView></SafeAreaView>;

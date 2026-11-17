@@ -91,6 +91,7 @@ module Api
                 id: l.id,
                 title: l.title,
                 lesson_type: l.lesson_type,
+                kind: LessonKind.for(l),
                 added_at: l.created_at,
                 release_day: l.release_day,
                 required: entry.required,

@@ -23,4 +23,14 @@ class NotificationTest < ModelCoverageTestCase
     row.path = "/channels/1?message_id=5"
     assert_equal row.path, row.legacy_path
   end
+
+  test "an update notification opens the update in its own cohort (L-1.10)" do
+    update = Announcement.create!(cohort: course, author: staff, title: "Week 3", body: "Bring laptops", audience: :cohort, status: :published)
+    row = Notification.create!(user: student, notifiable: update, notification_type: :announcement, title: "Week 3", path: "/announcements/#{update.id}")
+    assert_equal "/announcements/#{update.id}?cohort_id=#{course.id}", row.destination_path
+    assert_equal({ kind: "announcement", id: update.id.to_s, context: { "cohort_id" => course.id.to_s }, anchor: {} }, row.destination)
+    assert_equal "/updates?cohort_id=#{course.id}&announcement_id=#{update.id}", RecordDestination.to_native_href(row.destination)
+    school_wide = Announcement.create!(author: staff, title: "Holiday", body: "Closed Friday", audience: :global, status: :published)
+    assert_equal "/announcements/#{school_wide.id}", Notification.new(user: student, notifiable: school_wide, notification_type: :announcement, title: "Holiday", path: "/x").destination_path
+  end
 end
