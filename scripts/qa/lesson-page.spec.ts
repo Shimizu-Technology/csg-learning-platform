@@ -197,3 +197,23 @@ for (const theme of ['light', 'dark']) test(`${theme}: instructor booking action
   await expect(page).toHaveURL(/\/meetings\?cohort_id=1&instructor_id=2/)
   await expect(page.getByRole('heading', { name: 'My meetings', exact: true })).toBeVisible()
 })
+
+test('client On with a missing server navigation keeps legacy redo and completion controls', async ({ page }) => {
+  reset()
+  await page.route('**/api/v1/lessons/*', async route => {
+    const response = await route.fetch()
+    const body = await response.json()
+    if (body.lesson) {
+      delete body.lesson.learning_navigation
+      for (const block of body.lesson.content_blocks) delete block.learner_state
+      body.lesson.capabilities.features.student_experience_v2 = false
+    }
+    await route.fulfill({ response, json: body })
+  })
+  await open(page, ids.redo)
+  await expect(page.getByTestId('lesson-experience')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Resubmit', exact: true })).toBeVisible()
+  await open(page, ids.manual)
+  await expect(page.getByRole('button', { name: 'Mark exercise complete', exact: true })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(1)
+})
