@@ -1,3 +1,5 @@
+import { useBackLink } from '../../lib/recordOrigin'
+import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useSearchParams } from 'react-router-dom'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, List } from 'lucide-react'
@@ -37,6 +39,8 @@ export function LessonExperience({
   setHelpRequests: (requests: HelpRequest[]) => void
   refreshHelp: () => Promise<void>
 }) {
+  const back = useBackLink({ returnTo: `/materials?cohort_id=${lesson.cohort_id}`, returnLabel: 'Learn' })
+  const backState = { returnTo: back.to, returnLabel: back.label }
   const lessonKey = `${lesson.cohort_id}:${lesson.id}`
   const currentLesson = useRef(lessonKey)
   currentLesson.current = lessonKey
@@ -137,9 +141,9 @@ export function LessonExperience({
       )}
       <header className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <LinkButton to={`/materials?cohort_id=${lesson.cohort_id}`} variant="quiet">
+          <LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="quiet">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to Learn
+            {back.label}
           </LinkButton>
           <Button variant="secondary" onClick={() => setOutlineOpen(true)}>
             <List className="h-4 w-4" aria-hidden="true" />
@@ -196,7 +200,7 @@ export function LessonExperience({
           </p>
         )}
         {navigation?.previous && (
-          <LinkButton variant="quiet" to={paths.lesson(navigation.previous.id)} className="mr-auto">
+          <LinkButton variant="quiet" state={backState} to={paths.lesson(navigation.previous.id)} className="mr-auto">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="sr-only lg:not-sr-only">Previous: {navigation.previous.title}</span>
           </LinkButton>
@@ -208,6 +212,7 @@ export function LessonExperience({
         )}
         {next && (
           <LinkButton
+            state={backState}
             to={paths.lesson(next.id)}
             variant="primary"
             aria-disabled={saving}
