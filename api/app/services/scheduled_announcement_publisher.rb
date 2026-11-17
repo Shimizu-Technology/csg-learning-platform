@@ -28,7 +28,7 @@
 #
 # Before posting it checks that whoever scheduled the update can still post
 # to its audience (an instructor still teaching the cohort, or an admin). If
-# not, the update goes back to being an unscheduled draft and nobody is told.
+# not, the update returns to drafts with a reason and an author notification.
 #
 # It drains everything due in batches of BATCH_SIZE until nothing is left or
 # the time budget runs out. Running out raises BacklogRemaining, so the tick
@@ -114,7 +114,11 @@ class ScheduledAnnouncementPublisher
 
       scheduler = announcement.scheduled_by
       unless scheduler && announcement.editable_by?(scheduler) && announcement.postable_by?(scheduler)
-        announcement.update!(scheduled_for: nil, scheduled_by: nil, scheduled_send_push: false)
+        reason = announcement.cohort? ? "Not sent: the scheduler no longer teaches #{announcement.cohort.name}." : "Not sent: the scheduler no longer has access to this audience."
+        announcement.update!(scheduled_for: nil, scheduled_by: nil, scheduled_send_push: false, schedule_failure: reason)
+        notice = Notification.find_or_initialize_by(user_id: announcement.author_id, notifiable: announcement)
+        notice.update!(notification_type: :system, read_at: nil,
+          title: reason, body: announcement.title, path: "/announcements?scope=manage&status=draft")
         @logger.warn("[ScheduledAnnouncementPublisher] announcement_id=#{id} unscheduled: scheduler can no longer post to its audience")
         next :refused
       end

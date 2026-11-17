@@ -300,6 +300,27 @@ can't see it, then calls the fixture's `due` and `tick` commands. These run the 
 check it posts once. It also covers the staff home links, School activity, the update page and the
 submission page. See `docs/qa/staff-home-scheduled-updates-2026-11-18.md`.
 
+### Staff reliability (U-0.6, U-0.7, U-0.12, U-0.14, #299)
+
+From the repo root, start a fresh owned harness:
+
+```sh
+QA_STAFF_RELIABILITY=1 scripts/qa/run start
+```
+
+The flag must be on **start**, so the API process enables the synthetic video
+signing override. Then from `api/` run
+`DATABASE_URL=postgresql://localhost/<owned csg_qa_ database> bundle exec ruby ../scripts/qa/staff-reliability-fixtures.rb`.
+Run `QA_SPEC=staff-reliability.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`
+from the repo root, with `dev-lifecycle` on PATH. The one-worker Chromium matrix
+covers 1280/390: lesson Back, record links, browser Back, tab-close/reload prompts,
+backup restoration and lesson switching; update and plan Cancel; unfinished rubric
+state across inspector tabs/phone closure; resolving help across staff surfaces;
+On/Off manual-complete filename copy; a paused learner after module/cohort date
+changes; and refused scheduled-update notifications and drafts. API writes and
+fixtures are synthetic and local. Screenshots/traces stay in `.qa-local/`;
+selected evidence and limitations are in `docs/qa/staff-reliability-2026-11-18.md`.
+
 ### Connected records, finish (L-5.2, L-3.2, L-2.9)
 
 After `start`, load the fixture once from `api/`:

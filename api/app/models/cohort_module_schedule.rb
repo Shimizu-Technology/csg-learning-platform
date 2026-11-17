@@ -1,4 +1,12 @@
 class CohortModuleSchedule < ApplicationRecord
+  before_save :preserve_missing_paused_libraries
+
+  def preserve_missing_paused_libraries
+    return unless will_save_change_to_start_date?
+
+    Enrollment.capture_missing_paused_libraries!(Enrollment.where(cohort_id: cohort_id))
+  end
+
   belongs_to :cohort
   belongs_to :curriculum_module, foreign_key: :module_id
 

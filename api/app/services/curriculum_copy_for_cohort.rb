@@ -382,6 +382,14 @@ class CurriculumCopyForCohort
   end
 
   def remap_learner_data!
+    # A frozen paused library refers to lesson ids too. Move every snapshot
+    # in one statement under the enrollment locks already held by the copy.
+    if @lesson_map.any?
+      Enrollment.where(id: @enrollment_ids).where.not(paused_lesson_ids: nil).update_all([
+        "paused_lesson_ids = ARRAY(SELECT COALESCE((?::jsonb ->> value::text)::bigint, value) FROM unnest(paused_lesson_ids) WITH ORDINALITY AS frozen(value, position) ORDER BY position)",
+        @lesson_map.to_json
+      ])
+    end
     @counts["module_assignments"] = remap_column(ModuleAssignment.where(enrollment_id: @enrollment_ids), :module_id, @module_map)
     @counts["lesson_assignments"] = remap_column(LessonAssignment.where(enrollment_id: @enrollment_ids), :lesson_id, @lesson_map)
     progresses = learner_rows(Progress)

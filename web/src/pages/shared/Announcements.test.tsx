@@ -53,6 +53,67 @@ describe('Updates reader', () => {
     expect(element, text).toBeTruthy()
     await act(async () => element!.click())
   }
+  it('guards Cancel and browser unload while editing an update on the same path', async () => {
+    mocks.user.is_staff = true
+    const editable = { ...announcement, can_edit: true }
+    mocks.detail.mockResolvedValue({ data: { announcement: editable }, error: null })
+    await mount('/announcements/8?edit=1')
+    const input = container.querySelector<HTMLInputElement>('input[name="title"], input')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Unsaved title')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const unloading = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(unloading)
+    expect(unloading.defaultPrevented).toBe(true)
+    await click('Cancel')
+    expect(document.body.textContent).toContain('Leave without saving?')
+    const keep = [...document.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === 'Keep editing')!
+    await act(async () => keep.click())
+    expect(input.value).toBe('Unsaved title')
+    expect(container.querySelector('output')?.textContent).toContain('edit=1')
+  })
+
+  it('leaves a successful edit without a discard prompt, then guards later Back and Cancel edits', async () => {
+    mocks.user.is_staff = true
+    const editable = { ...announcement, can_edit: true }
+    mocks.detail.mockResolvedValue({ data: { announcement: editable }, error: null })
+    mocks.update.mockResolvedValue({ data: { announcement: { ...editable, title: 'Saved title' } }, error: null })
+    await mount('/announcements/8?edit=1')
+    const typeTitle = async (value: string) => act(async () => {
+      const input = container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    // The composer trims submitted titles; the saved baseline differs from the typed form.
+    await typeTitle('  Saved title  ')
+    await click('Save changes')
+    expect(container.querySelector('output')?.textContent).not.toContain('edit=1')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.querySelector('form')).toBeNull()
+    await click('Edit')
+    await typeTitle('Later unsaved title')
+    for (const exit of ['Back to the update', 'Cancel']) {
+      await click(exit)
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Leave without saving?')
+      const keep = [...document.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === 'Keep editing')!
+      await act(async () => keep.click())
+      expect(container.querySelector('output')?.textContent).toContain('edit=1')
+      expect(container.querySelector<HTMLInputElement>('input[placeholder="Title"]')?.value).toBe('Later unsaved title')
+    }
+  })
+
+  it('lets the removed author delete their refused draft without offering edit', async () => {
+    mocks.user.is_staff = true
+    const failed = { ...announcement, status: 'draft', schedule_failure: 'Not sent: no longer teaching.', author: { id: 1, full_name: 'Author', email: 'author@example.invalid' }, can_edit: false, can_archive: false }
+    mocks.list.mockResolvedValue({ data: { announcements: [failed], unread_count: 0, meta }, error: null })
+    mocks.archive.mockResolvedValue({ data: { announcement: failed }, error: null })
+    await mount('/announcements?scope=manage&status=draft')
+    expect([...container.querySelectorAll('a')].some((item) => item.textContent?.trim() === 'Edit')).toBe(false)
+    await click('Delete')
+    expect(mocks.archive).toHaveBeenCalledWith(8)
+  })
+
   it('links the update cohort, and the author to their team page for admins only (L-2.9)', async () => {
     mocks.user.is_staff = true
     const scoped = { ...announcement, cohort_id: 4, cohort_name: 'Python', audience: 'cohort', author: { id: 9, full_name: 'QA Author', email: 'author@example.invalid' } }

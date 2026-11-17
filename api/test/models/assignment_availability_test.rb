@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class AssignmentAvailabilityTest < ActiveSupport::TestCase
+  include QueryCounter
   setup do
     @curriculum = Curriculum.create!(name: "Availability history")
     @mod = @curriculum.modules.create!(name: "Past module", position: 0, schedule_days: "daily")
@@ -130,6 +132,40 @@ class AssignmentAvailabilityTest < ActiveSupport::TestCase
       assert_equal Time.current, @assignment.reload.availability_changed_at
       refute @enrollment.lesson_available_for_read?(later, @assignment, nil)
     end
+  end
+
+  test "a module date edit cannot hide an earlier paused lesson while releasing a later one" do
+    later = @mod.lessons.create!(title: "Later", position: 1, release_day: 10, created_at: Time.utc(2026, 11, 1))
+    travel_to Time.utc(2026, 11, 10) do
+      @assignment = create_assignment(:module, unlock_date_override: Date.new(2026, 11, 10))
+      @enrollment.update!(status: :paused)
+    end
+    travel_to Time.utc(2026, 11, 15) do
+      assert readable?(:module)
+      @assignment.update!(unlock_date_override: Date.new(2026, 11, 1))
+      assert readable?(:module), "an earlier lesson must survive the module-wide timestamp bump"
+      refute @enrollment.lesson_available_for_read?(later, @assignment, nil)
+      @cohort.update!(start_date: Date.new(2026, 12, 1))
+      @assignment.update!(unlock_date_override: nil, unlocked: false)
+      assert readable?(:module), "cohort and module postponements must preserve the paused library"
+    end
+  end
+
+  test "capturing a paused library keeps query counts flat as modules and lessons grow" do
+    create_assignment(:module, unlocked: true)
+    counts = [ 1, 5 ].map do |size|
+      (size - @curriculum.modules.count).times do |index|
+        mod = @curriculum.modules.create!(name: "Extra #{index}", position: index + 1, schedule_days: "daily")
+        4.times { |position| mod.lessons.create!(title: "Extra lesson #{position}", position: position, release_day: 0) }
+        @enrollment.module_assignments.create!(curriculum_module: mod, unlocked: true)
+      end
+      @enrollment.reload
+      count = count_queries { @enrollment.update!(status: :paused) }
+      assert @enrollment.paused_lesson_ids.any?
+      @enrollment.update!(status: :active)
+      count
+    end
+    assert_equal counts.first, counts.last
   end
 
   private

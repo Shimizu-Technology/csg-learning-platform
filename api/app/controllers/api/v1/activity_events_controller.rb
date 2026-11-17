@@ -213,6 +213,7 @@ module Api
         end
         enrollment = @read_enrollments[cohort.id] unless current_user.staff?
         return unless current_user.staff? || enrollment
+        enrollment.association(:cohort).target = cohort if enrollment
 
         context = { cohort_id: cohort.id, student_id: event.subject_user_id }
         case record
@@ -235,8 +236,8 @@ module Api
         unless current_user.staff?
           assignment = @module_assignments[cohort.id][lesson.module_id]
           lesson_assignment = @lesson_assignments[cohort.id][lesson.id]
-          return unless assignment&.accessible?(cohort) || lesson_assignment
-          return unless lesson.available?(cohort, assignment, lesson_assignment)
+          return unless enrollment.module_reachable_for_read?(assignment) || lesson_assignment
+          return unless enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignment)
         end
         context.merge(RecordDestination.build(kind: "lesson", id: lesson.id, context: context, anchor: { block_id: block.id })).merge(lesson_id: lesson.id, content_block_id: block.id,
           destination_path: LearningDestination.lesson(lesson_id: lesson.id, cohort_id: cohort.id, block_id: block.id))

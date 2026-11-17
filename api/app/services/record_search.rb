@@ -194,7 +194,7 @@ class RecordSearch
         next false unless e.cohort.curriculum_id == r.curriculum_id
 
         assignment = e.module_assignments.find { |a| a.module_id == r.id }
-        assigned = assignment&.accessible?(e.cohort) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? }
+        assigned = e.module_reachable_for_read?(assignment) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? }
         lessons = module_lessons.fetch(r.id, [])
         assigned && (lessons.empty? || lessons.any? do |lesson|
           check_deadline!

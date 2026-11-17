@@ -27,6 +27,16 @@ class Announcement < ApplicationRecord
   validate :schedule_only_while_draft
   validate :schedule_ahead, if: -> { scheduled_for.present? && will_save_change_to_scheduled_for? }
 
+  before_save :clear_schedule_failure
+
+  def clear_schedule_failure
+    return unless schedule_failure.present? && (published? || (scheduled_for.present? && will_save_change_to_scheduled_for?))
+
+    # The unique source key must not swallow a later publication alert.
+    notifications.where(notification_type: :system).delete_all if persisted?
+    self.schedule_failure = nil
+  end
+
   before_validation :set_published_at, if: :published?
   before_validation { self.body = "" if body.nil? }
 

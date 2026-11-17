@@ -37,3 +37,10 @@ if ENV['QA_INVITE_DELAY']
     true
   end
 end
+
+# Staff reliability authorization QA: sign only synthetic local video URLs.
+# This certifies access checks, not storage-provider playback.
+if ENV["QA_STAFF_RELIABILITY"] == "1"
+  S3Service.define_singleton_method(:configured?) { true }
+  S3Service.define_singleton_method(:generate_presigned_url) { |*args, **kwargs| "http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/synthetic-video.mp4" }
+end

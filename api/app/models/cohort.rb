@@ -1,4 +1,12 @@
 class Cohort < ApplicationRecord
+  before_update :preserve_missing_paused_libraries
+
+  def preserve_missing_paused_libraries
+    return unless will_save_change_to_start_date?
+
+    Enrollment.capture_missing_paused_libraries!(enrollments)
+  end
+
   has_many :feature_switch_changes, dependent: :nullify
   ALUMNI_GITHUB_ORGANIZATION = "Code-School-of-Guam-Alumni".freeze
   # A staff save that named one of this cohort's modules (or lessons) refused

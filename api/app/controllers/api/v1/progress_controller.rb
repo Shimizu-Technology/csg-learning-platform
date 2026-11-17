@@ -279,7 +279,7 @@ module Api
                 module_type: assignment.curriculum_module.module_type,
                 unlocked: assignment.unlocked,
                 unlock_date_override: assignment.unlock_date_override,
-                available: assignment.available_for?(cohort),
+                available: enrollment.paused? ? (loaded_module && learner_progress.module_progress(loaded_module).lessons.any?(&:available)) || false : assignment.available_for?(cohort),
                 next_unlock_date: assignment.next_unlock_date(cohort)
               }
             end

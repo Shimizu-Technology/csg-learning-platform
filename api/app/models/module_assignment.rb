@@ -1,4 +1,12 @@
 class ModuleAssignment < ApplicationRecord
+  before_update :preserve_missing_paused_libraries
+
+  def preserve_missing_paused_libraries
+    return unless will_save_change_to_unlocked? || will_save_change_to_unlock_date_override?
+
+    Enrollment.capture_missing_paused_libraries!(Enrollment.where(id: enrollment_id))
+  end
+
   belongs_to :enrollment
   belongs_to :curriculum_module, foreign_key: :module_id
 

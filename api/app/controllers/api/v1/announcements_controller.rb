@@ -194,6 +194,9 @@ module Api
           refresh_management_authorization!
           if hidden_draft?(@announcement)
             :not_found
+          elsif own_refused_draft?(@announcement)
+            @announcement.destroy!
+            nil
           elsif !can_manage?(@announcement)
             "Cannot manage this announcement"
           elsif !@announcement.draft?
@@ -217,6 +220,7 @@ module Api
       def authorize_announcement_management!
         announcement = @announcement || Announcement.new(announcement_params)
         return if can_manage?(announcement)
+        return if action_name == "destroy" && own_refused_draft?(announcement)
 
         render_forbidden("Cannot manage this announcement")
       end
@@ -241,7 +245,13 @@ module Api
 
       # Management detail: posted and archived updates for their audience's
       # staff; drafts only for their author and admins.
+      def own_refused_draft?(announcement)
+        current_user.staff? && !current_user.archived? && announcement.draft? && announcement.schedule_failure.present? && announcement.author_id == current_user.id
+      end
+
       def can_manage_view?(announcement)
+        return true if own_refused_draft?(announcement)
+
         can_manage?(announcement) && (!announcement.draft? || announcement.editable_by?(current_user))
       end
 
@@ -380,6 +390,7 @@ module Api
       def base_announcements_scope
         scope = if current_user.staff? && params[:scope] == "manage"
           managed = current_user.admin? ? Announcement.all : Announcement.where(audience: :cohort, cohort_id: current_user.cohort_instructor_assignments.select(:cohort_id))
+          managed = managed.or(Announcement.draft.where(author_id: current_user.id).where.not(schedule_failure: nil)) unless current_user.admin?
           managed.drafts_visible_to(current_user)
         else
           Announcement.visible_for(current_user)
@@ -503,6 +514,7 @@ module Api
           scheduled_for: announcement.draft? ? announcement.scheduled_for : nil,
           scheduled_send_push: announcement.scheduled? && announcement.scheduled_send_push,
           schedule_time_zone: Announcement.schedule_time_zone,
+          schedule_failure: announcement.draft? ? announcement.schedule_failure : nil,
           read_summary: read_summary,
           created_at: announcement.created_at,
           updated_at: announcement.updated_at

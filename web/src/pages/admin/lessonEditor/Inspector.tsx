@@ -17,6 +17,9 @@ import { hasLearnerWork, learnerWorkSummary } from './BlockCard'
 import { BLOCK_LABELS, blockTitle, type BlockDraft, type LessonDraft } from './blockDraft'
 import { SUBMISSION_TYPE_OPTIONS, submissionTypeHint } from './submissionTypes'
 
+export type RubricDraft = { title: string; criteria: string[] }
+const emptyRubric = (): RubricDraft => ({ title: '', criteria: ['', ''] })
+
 export type InspectorTab = 'lesson' | 'block'
 
 interface InspectorProps {
@@ -34,6 +37,8 @@ interface InspectorProps {
   onObjectiveCreated: (objective: LearningObjective) => void
   rubrics: Rubric[]
   onRubricCreated: (rubric: Rubric) => void
+  rubricDrafts: Record<string, RubricDraft>
+  setRubricDrafts: React.Dispatch<React.SetStateAction<Record<string, RubricDraft>>>
   readOnly?: boolean
 }
 
@@ -49,6 +54,11 @@ function Section({ title, icon, children }: { title: string; icon?: ReactNode; c
 export function Inspector(props: InspectorProps) {
   const { tab, onTab, block } = props
   const tabId = useId()
+  // Keep unfinished rubrics when the inspector changes tabs or blocks.
+  const { rubricDrafts, setRubricDrafts } = props
+  const rubricKey = block?.key ?? ''
+  const rubricDraft = rubricDrafts[rubricKey] ?? emptyRubric()
+  const setRubricDraft = (update: RubricDraft | ((value: RubricDraft) => RubricDraft)) => setRubricDrafts((drafts) => ({ ...drafts, [rubricKey]: typeof update === 'function' ? update(drafts[rubricKey] ?? emptyRubric()) : update }))
   const blockTab = block ? `${BLOCK_LABELS[block.block_type]} block` : 'Block'
   return (
     <div className="flex min-h-0 flex-col">
@@ -79,7 +89,7 @@ export function Inspector(props: InspectorProps) {
         ))}
       </div>
       <div role="tabpanel" id={`${tabId}-${tab}-panel`} aria-labelledby={`${tabId}-${tab}`} className="min-h-0 flex-1">
-        {tab === 'lesson' || !block ? <LessonSettings {...props} /> : <BlockSettings {...props} block={block} />}
+        {tab === 'lesson' || !block ? <LessonSettings {...props} /> : <BlockSettings {...props} block={block} rubricDraft={rubricDraft} setRubricDraft={setRubricDraft} />}
       </div>
     </div>
   )
@@ -235,7 +245,7 @@ function LessonUsedIn({ lessonId, context }: { lessonId: number; context: Lesson
   )
 }
 
-function BlockSettings({ block, onBlock, activity, objectives, rubrics, onRubricCreated, curriculumId, readOnly }: InspectorProps & { block: BlockDraft }) {
+function BlockSettings({ block, onBlock, activity, objectives, rubrics, onRubricCreated, curriculumId, readOnly, rubricDraft, setRubricDraft }: InspectorProps & { block: BlockDraft; rubricDraft: RubricDraft; setRubricDraft: (update: RubricDraft | ((value: RubricDraft) => RubricDraft)) => void }) {
   const id = useId()
   const toast = useToast()
   const blockActivity = block.id ? activity.get(block.id) : undefined
@@ -244,7 +254,6 @@ function BlockSettings({ block, onBlock, activity, objectives, rubrics, onRubric
   const isExercise = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   const runner = normalizeCodeRunnerConfig(block.submission_config, codeRunnerLanguageFromEditor(detectLanguage(block.filename)) || 'ruby')
   const rubric = rubrics.find((item) => item.id === block.rubric_id)
-  const [rubricDraft, setRubricDraft] = useState({ title: '', criteria: ['', ''] })
   const [creatingRubric, setCreatingRubric] = useState(false)
 
   const createRubric = async () => {
@@ -262,7 +271,7 @@ function BlockSettings({ block, onBlock, activity, objectives, rubrics, onRubric
     }
     onRubricCreated(response.data.rubric)
     onBlock({ rubric_id: response.data.rubric.id })
-    setRubricDraft({ title: '', criteria: ['', ''] })
+    setRubricDraft((current) => JSON.stringify(current) === JSON.stringify(rubricDraft) ? { title: '', criteria: ['', ''] } : current)
   }
 
   return (

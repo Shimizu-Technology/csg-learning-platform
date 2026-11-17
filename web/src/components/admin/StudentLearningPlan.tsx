@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEven
 import { CalendarDays, ListPlus, Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
-import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
+import { leavesPathOrParam, useLeaveGuard } from '../../lib/useLeaveGuard'
 import { lessonCountLabel } from '../../lib/learningPlanLessons'
 import { Button } from '../ui/Button'
 import { Modal } from '../shared/Modal'
@@ -187,7 +187,7 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
       </fieldset>
       <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] z-20 -mx-2 space-y-2 rounded-2xl border border-line bg-surface-overlay p-3 shadow-overlay sm:-mx-3 lg:bottom-4" data-testid="plan-save-bar">
         {(problems.length > 0 || error) && <div role="alert" className="space-y-1 text-sm text-danger-ink">{error && <p>{error}</p>}{problems.map((problem) => <p key={problem}>{problem}</p>)}{error && <Button type="button" variant="secondary" size="sm" onClick={() => void load()} disabled={saving}>Reload latest plan</Button>}{error && <p className="text-xs">Reloading replaces this draft with the saved plan.</p>}</div>}
-        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-secondary" aria-live="polite">{saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'No changes yet'}</p><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setError(null); setProblems([]) }}>Cancel</Button><Button type="submit" disabled={saving}><Save className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save personal plan'}</Button></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-secondary" aria-live="polite">{saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'No changes yet'}</p><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={saving} onClick={() => { void leave.confirmLeave().then((confirmed) => { if (confirmed) { setEditing(false); setError(null); setProblems([]) } }) }}>Cancel</Button><Button type="submit" disabled={saving}><Save className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save personal plan'}</Button></div></div>
       </div>
     </form>}
     {data && pickerProps && <LessonPicker open lessons={data.lessons} {...pickerProps} onAdd={addLessons} onClose={() => setPicker(null)} />}
@@ -209,9 +209,9 @@ function useLeaveDialog(dirty: boolean, saveDraft: () => Promise<boolean>) {
     answer.current = null
     setAsking(false)
   }
-  useLeaveGuard({
+  const guard = useLeaveGuard({
     dirty,
-    blocks: leavesPath,
+    blocks: leavesPathOrParam('tab'),
     confirm: () => new Promise<boolean>((resolve) => {
       answer.current?.(false)
       answer.current = resolve
@@ -231,5 +231,5 @@ function useLeaveDialog(dirty: boolean, saveDraft: () => Promise<boolean>) {
     <Button variant="danger" disabled={saving} onClick={() => finish(true)}>Discard changes</Button>
     <Button disabled={saving} onClick={() => void saveAndLeave()}><Save className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save and leave'}</Button>
   </div>} />
-  return { dialog }
+  return { dialog, confirmLeave: guard.confirmLeave }
 }

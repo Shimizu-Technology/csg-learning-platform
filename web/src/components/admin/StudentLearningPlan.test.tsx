@@ -183,6 +183,19 @@ it('says what blocks saving in the save bar without calling the server', async (
   expect(container.querySelector('[data-testid="plan-save-bar"] [role="alert"]')?.textContent).toContain('Milestone 1 needs at least one lesson.')
 })
 
+it('asks before Cancel discards a personal-plan draft', async () => {
+  getPlan.mockResolvedValue({ data: course })
+  await mount(); await click('Customize plan'); await title('Catch-up plan')
+  await click('Cancel')
+  expect(dialog()?.textContent).toContain('Leave without saving?')
+  await click('Keep editing')
+  expect(container.querySelector<HTMLInputElement>('input')?.value).toBe('Catch-up plan')
+  await click('Cancel')
+  await click('Discard changes')
+  expect(container.textContent).toContain('Customize plan')
+  expect(savePlan).not.toHaveBeenCalled()
+})
+
 it('asks before leaving with unsaved edits and can save and leave', async () => {
   getPlan.mockResolvedValue({ data: course })
   savePlan.mockImplementation(async (_id, value) => ({ data: { ...course, learning_plan: { ...value, id: 9, lock_version: 0, updated_at: '2026-11-17T00:00:00Z' } } }))

@@ -15025,6 +15025,17 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "schedule_failure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reason a scheduled send was refused; null when no refusal is recorded."
           }
         },
         "required": [
@@ -15050,7 +15061,8 @@
           "schedule_time_zone",
           "read_summary",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "schedule_failure"
         ],
         "additionalProperties": false
       },

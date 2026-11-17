@@ -1,6 +1,6 @@
 import { RecordLink } from '../../components/shared/RecordLink'
 import { brand } from '../../lib/brand'
-import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
+import { UnsavedChangesGuard, useUnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
 import { markdownExcerpt } from '../../lib/plainText'
@@ -72,6 +72,7 @@ function EditedMarker({ announcement }: { announcement: Announcement }) {
 
 /** When it went out, or for a draft when it was last saved. */
 function WhenLabel({ announcement }: { announcement: Announcement }) {
+  if (announcement.status === 'draft' && announcement.schedule_failure) return <span className="text-danger-ink">{announcement.schedule_failure}</span>
   if (isScheduled(announcement)) return <span className="tabular-nums">{sendsAboutLabel(announcement.scheduled_for!, announcement.schedule_time_zone)}</span>
   if (announcement.status === 'draft') return <>Draft · saved <span className="tabular-nums">{formatShortDateTime(announcement.updated_at, 'just now')}</span></>
   return <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
@@ -202,6 +203,8 @@ function AnnouncementFeed() {
   const audienceFilter = audienceFilterFrom(searchParams)
 
   const selected = detail?.id === selectedId ? detail : null
+  const editDirty = editing && Boolean(selected?.can_edit) && JSON.stringify(editForm) !== editBaseline
+  const editGuard = useUnsavedChangesGuard({ dirty: editDirty, pathnameOnly: false })
   const contextCohort = cohortFilter === 'all' ? null : cohorts.find((cohort) => String(cohort.id) === cohortFilter) || null
 
   const updateQuery = useCallback((patch: Record<string, string | null | undefined>) => {
@@ -339,6 +342,7 @@ function AnnouncementFeed() {
   const handleEditSaved = async (saved: Announcement, outcome: UpdateSaveOutcome) => {
     setDetail((current) => current && current.id === saved.id ? { ...current, ...saved } : current)
     setEditBaseline(JSON.stringify(formFromUpdate(saved)))
+    editGuard.release()
     setEditing(false)
     setDetailNotice({ id: saved.id ?? 0, text: outcome === 'posted' ? 'Update posted.' : outcome === 'scheduled' ? 'Schedule saved. Nobody is notified until it posts.' : outcome === 'draft' ? 'Draft saved.' : 'Changes saved. Readers see “Edited”; nobody was notified again.' })
     if (outcome === 'posted') toast.success('Update posted')
@@ -442,14 +446,14 @@ function AnnouncementFeed() {
 
   if (loading && !selectedId) return <LoadingSpinner message="Loading updates…" />
 
-  const editDirty = editing && Boolean(selected?.can_edit) && JSON.stringify(editForm) !== editBaseline
+  const canDeleteRefused = (announcement: Announcement) => isStaff && announcement.status === 'draft' && Boolean(announcement.schedule_failure) && announcement.author?.id === user?.id
   const unreadLabel = unreadCount > 0 ? `${unreadCount} unread ${unreadCount === 1 ? 'update' : 'updates'}` : 'You’re all caught up'
 
   return (
     <div className="app-page">
       {/* The new update survives switching between Updates and Manage; leaving the page still asks first. */}
       <UnsavedChangesGuard dirty={isStaff && Boolean(form.title.trim() || form.body.trim())} onDiscard={resetComposer} />
-      <UnsavedChangesGuard dirty={editDirty} />
+      {editGuard.dialog}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>
@@ -642,7 +646,7 @@ function AnnouncementFeed() {
                     {announcement.edited_at && <> · <EditedMarker announcement={announcement} /></>}
                   </p>
                 </div>
-                {manageMode && (announcement.can_edit || announcement.can_archive) && (
+                {manageMode && (announcement.can_edit || announcement.can_archive || canDeleteRefused(announcement)) && (
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {announcement.can_edit && announcement.status !== 'archived' && (
                       <LinkButton variant="secondary" size="sm" to={`/announcements/${announcement.id}${feedSearch(location.search) ? `${feedSearch(location.search)}&edit=1` : '?edit=1'}`} state={listLinkState(location, 'Updates')}>
@@ -650,7 +654,7 @@ function AnnouncementFeed() {
                         Edit
                       </LinkButton>
                     )}
-                    {(announcement.can_archive || (announcement.status === 'draft' && announcement.can_edit)) && (
+                    {(announcement.can_archive || (announcement.status === 'draft' && announcement.can_edit) || canDeleteRefused(announcement)) && (
                       <Button variant="danger" size="sm" onClick={() => handleRemove(announcement)} disabled={isRemoving}>
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         {announcement.status === 'draft' ? (isRemoving ? 'Deleting…' : 'Delete') : isRemoving ? 'Archiving…' : 'Archive'}

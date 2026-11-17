@@ -51,8 +51,9 @@ ActiveRecord::Base.transaction do
              name == 'alumni' ? 'alumni' : 'program'
     end
     cohort = cohorts.fetch(kind)
-    enrollment = Enrollment.create!(user: user, cohort: cohort, status: name == 'paused' ? :paused : :active)
+    enrollment = Enrollment.create!(user: user, cohort: cohort, status: :active)
     enrollment.assign_cohort_content_defaults! unless kind == 'alumni'
+    enrollment.update!(status: :paused) if name == 'paused'
     if %w[program self_paced].include?(name)
       blocks = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: cohort.curriculum_id },
                                                                     block_type: :exercise, submission_type: :text_submission).order(:id).first(3)

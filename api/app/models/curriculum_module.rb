@@ -1,4 +1,12 @@
 class CurriculumModule < ApplicationRecord
+  before_update :preserve_missing_paused_libraries
+
+  def preserve_missing_paused_libraries
+    return unless will_save_change_to_day_offset? || will_save_change_to_schedule_days?
+
+    Enrollment.capture_missing_paused_libraries!(Enrollment.joins(:cohort).where(cohorts: { curriculum_id: curriculum_id }))
+  end
+
   self.table_name = "modules"
 
   SCHEDULE_PATTERNS = {
