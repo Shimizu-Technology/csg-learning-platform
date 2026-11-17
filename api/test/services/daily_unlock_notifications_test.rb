@@ -83,7 +83,7 @@ class DailyUnlockNotificationsTest < ActiveSupport::TestCase
       raise "connection lost after acceptance"
     end
     assert_raises(DailyUnlockNotifications::DeliveryFailed) { DailyUnlockNotifications.new.call }
-    assert_equal 1, ScheduledNotificationAttempt.count
+    assert_equal 2, ScheduledNotificationAttempt.count
     DailyUnlockNotifications.new.call
     travel 1.day
     DailyUnlockNotifications.new.call(last_date: LearningCalendar.today - 2)
@@ -175,7 +175,7 @@ class DailyUnlockNotificationsTest
       metrics = {}
       assert_raises(DailyUnlockNotifications::DeliveryFailed) { DailyUnlockNotifications.new.call(metrics: metrics) }
       retryable = [ 422, 429 ].include?(status)
-      assert_equal(retryable ? 0 : 1, ScheduledNotificationAttempt.count)
+      assert_equal(retryable ? 0 : 2, ScheduledNotificationAttempt.count)
       assert_equal 1, metrics[:failed]
       Resend::Emails.define_singleton_method(:send) { |*, **| attempts += 1; { id: "success" } }
       DailyUnlockNotifications.new.call
@@ -183,6 +183,30 @@ class DailyUnlockNotificationsTest
     ensure
       Resend::Emails.define_singleton_method(:send, original) if original
     end
+  end
+
+  test "partial failure retries cannot send a second same-day digest after a late release" do
+    other = enroll("partial_retry")
+    accepted = []
+    first = @enrollment.user.email
+    Resend::Emails.define_singleton_method(:send) do |params, **|
+      raise Resend::Error::RateLimitExceededError.new("reject", 429) unless params[:to] == first
+
+      accepted << params
+      { id: "accepted" }
+    end
+    assert_raises(DailyUnlockNotifications::DeliveryFailed) { DailyUnlockNotifications.new.call }
+    late = @mod.lessons.create!(title: "Late release", position: 10, release_day: 0)
+    Resend::Emails.define_singleton_method(:send) { |params, **| accepted << params; { id: "accepted" } }
+    DailyUnlockNotifications.new.call
+    assert_equal 1, accepted.count { |params| params[:to] == first }
+    assert_equal 1, accepted.count { |params| params[:to] == other.user.email }
+    travel 1.day
+    DailyUnlockNotifications.new.call
+    first_later = accepted.select { |params| params[:to] == first }.last
+    assert_includes first_later[:html], late.title
+    assert_equal 2, accepted.count { |params| params[:to] == first }
+    assert_equal 1, accepted.count { |params| params[:to] == other.user.email }
   end
 
   test "dry preview reports only unclaimed recipients and lessons with no writes or sends" do

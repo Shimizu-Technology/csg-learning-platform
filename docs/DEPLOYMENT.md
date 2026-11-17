@@ -241,7 +241,9 @@ The digest scans a rolling **three-school-day cap**, even when a successful
 checkpoint exists. This includes content released/assigned after yesterday's
 digest on the next day's run, provided its release date is still in that window.
 Content whose release date has moved outside the window is not emailed. A long
-outage never sends an unbounded historical digest. Durable per-enrollment/lesson
+outage never sends an unbounded historical digest. An atomic per-enrollment/school-day reservation also prevents a partial-failure
+retry from sending a second digest to a successful recipient when late content
+arrives. Definite rejections release that reservation too. Durable per-lesson
 claims prevent an already-attempted release from reappearing after catch-up,
 checkpoint failure or date edits.
 
@@ -389,8 +391,8 @@ If Solid Queue is intentionally restored, first follow the queue inspection,
 source/environment and broadcast-transport recovery requirements above. Deploy
 this version of `config/recurring.yml`: its hourly **`ScheduledTickJob` calls the
 same registry**, including daily unlocks at the configured school hour,
-follow-ups and receipts. Suspend the Render cron and wait for any active run to
-finish before activating the worker's recurring scheduler; confirm that scheduler
+follow-ups and receipts. Wait for any active Render cron run to finish, then suspend its future schedule
+before activating the worker's recurring scheduler; confirm that scheduler
 registers `scheduled_tick` and verify `scheduled:status` across 07:00/08:00.
 There is no gap in daily-unlock ownership: the worker takes over the same saved
 checkpoints at its next hourly run. Never enable both schedulers. Historical

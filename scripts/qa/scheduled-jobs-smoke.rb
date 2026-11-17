@@ -31,7 +31,7 @@ push_count = 0
 receipt_count = 0
 Resend::Emails.define_singleton_method(:send) do |*, **|
   committed = ScheduledTaskLockRecord.connection.select_value("SELECT COUNT(*) FROM scheduled_notification_attempts").to_i
-  raise "Email claim was not committed before send" unless committed == 1
+  raise "Email claim was not committed before send" unless committed == 2
 
   email_count += 1
   { id: "simulated-scheduled-smoke" }

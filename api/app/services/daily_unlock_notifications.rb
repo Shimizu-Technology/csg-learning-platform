@@ -15,12 +15,26 @@ class DailyUnlockNotifications
     deliveries = candidates(now)
     return if deliveries.empty?
 
-    claims = ScheduledNotificationAttempt.insert_all(
-      deliveries.flat_map { |delivery| delivery[:lessons].map { |lesson| { key: claim_key(delivery[:enrollment], lesson), created_at: now } } },
-      unique_by: :index_scheduled_notification_attempts_on_key, returning: %w[key]
-    ).rows.flatten.to_set
+    # Reserve a recipient/day and its lesson identities in one short primary
+    # transaction. A partial task retry must not send newly released content to
+    # somebody who already received (or ambiguously attempted) today's digest.
+    today = LearningCalendar.today(at: now)
+    claims = ScheduledNotificationAttempt.transaction do
+      days = ScheduledNotificationAttempt.insert_all(
+        deliveries.map { |delivery| { key: digest_key(delivery[:enrollment], today), created_at: now } },
+        unique_by: :index_scheduled_notification_attempts_on_key, returning: %w[key]
+      ).rows.flatten.to_set
+      deliveries.select! { |delivery| days.include?(digest_key(delivery[:enrollment], today)) }
+      next Set.new if deliveries.empty?
+
+      ScheduledNotificationAttempt.insert_all(
+        deliveries.flat_map { |delivery| delivery[:lessons].map { |lesson| { key: claim_key(delivery[:enrollment], lesson), created_at: now } } },
+        unique_by: :index_scheduled_notification_attempts_on_key, returning: %w[key]
+      ).rows.flatten.to_set
+    end
     metrics[:claimed] = claims.size
     released = []
+    released_lessons = 0
     deliveries.each do |delivery|
       enrollment = delivery[:enrollment]
       lessons = delivery[:lessons].select { |lesson| claims.include?(claim_key(enrollment, lesson)) }
@@ -33,11 +47,13 @@ class DailyUnlockNotifications
         # A definite provider rejection never reached a learner. Release only
         # this invocation's claims, in one bulk statement after all recipients.
         released.concat(lessons.map { |lesson| claim_key(enrollment, lesson) })
+        released << digest_key(enrollment, today)
+        released_lessons += lessons.size
         metrics[:failed] += 1
       end
     end
     ScheduledNotificationAttempt.where(key: released).delete_all if released.any?
-    metrics[:released] = released.size
+    metrics[:released] = released_lessons
     raise DeliveryFailed, "Daily unlock email attempt failed" if metrics[:failed].positive?
   end
 
@@ -62,11 +78,19 @@ class DailyUnlockNotifications
 
       { enrollment: enrollment, lessons: lessons }
     end
-    keys = deliveries.flat_map { |delivery| delivery[:lessons].map { |lesson| claim_key(delivery[:enrollment], lesson) } }
+    keys = deliveries.flat_map { |delivery| delivery[:lessons].map { |lesson| claim_key(delivery[:enrollment], lesson) } + [ digest_key(delivery[:enrollment], today) ] }
     claimed = ScheduledNotificationAttempt.where(key: keys).pluck(:key).to_set
-    deliveries.each { |delivery| delivery[:lessons].reject! { |lesson| claimed.include?(claim_key(delivery[:enrollment], lesson)) } }
+    deliveries.each do |delivery|
+      if claimed.include?(digest_key(delivery[:enrollment], today))
+        delivery[:lessons].clear
+      else
+        delivery[:lessons].reject! { |lesson| claimed.include?(claim_key(delivery[:enrollment], lesson)) }
+      end
+    end
     deliveries.reject { |delivery| delivery[:lessons].empty? }
   end
+
+  def digest_key(enrollment, today) = "daily_unlock_digest/#{enrollment.id}/#{today.iso8601}"
 
   def claim_key(enrollment, lesson) = "daily_unlock/#{enrollment.id}/#{lesson.id}"
 end

@@ -163,7 +163,9 @@ optional lessons included when no active enabled personal plan exists. Dry previ
 reports follow-up backlog/older-than-seven-days and unlock recipients/lessons
 without writes. Real results persist claimed/sent/failed metrics. Definite Resend
 4xx rejections (except 408) release only rejected claims for retry; ambiguous
-5xx/timeouts retain claims. Supplied time controls cohort start and expiry.
+5xx/timeouts retain claims. An atomic per-enrollment/day reservation prevents
+a second digest during partial-task retry when late content arrives; its own
+regression verifies next-day catch-up for that late content. Supplied time controls cohort start and expiry.
 
 The runbook now plans first real activation at 06:45–06:50 Guam (or an approved
 07:45–07:50), requires waiting for prior Render completion, avoids top-of-hour
@@ -184,7 +186,7 @@ including daily unlocks; the legacy separate schedules cannot drop the digest.
 | Additive result-column migration round trip and all-pool cache cleanup | Passed |
 | Existing after-commit, recipient query budgets, receipt leases/backoff | Passed |
 
-Focused run: **106 tests / 591 assertions**, zero failures/errors/skips.
+Focused run: **107 tests / 598 assertions**, zero failures/errors/skips.
 RuboCop: **723 files, no offenses**. Initial fixture errors (missing trigger type,
 unique active-trigger collision, wrong expected descriptor vocabulary) were
 corrected and retested; none required a production behavior workaround.
@@ -196,10 +198,10 @@ before the provider stubs. This is runner/persistence evidence, not live email o
 physical-device delivery. New observed summaries:
 
 ```text
-[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":true,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"follow_ups_due":1,"older_than_7_days":0,"would_claim":1,"duration_ms":17},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"recipients":1,"lessons":1,"would_claim":1,"catch_up_days":3,"duration_ms":50},{"name":"expo_push_receipts","status":"would_run","claimed":0,"sent":0,"failed":0,"would_claim":1,"duration_ms":3}],"duration_ms":105}
-[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":1},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":10}],"duration_ms":17}
-[ScheduledTick] {"at":"2030-01-16T21:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"run","claimed":1,"sent":1,"failed":0,"catch_up_days":3,"released":0,"duration_ms":22},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":2}],"duration_ms":26}
-[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":19},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":10}],"duration_ms":36}
+[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":true,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"follow_ups_due":1,"older_than_7_days":0,"would_claim":1,"duration_ms":10},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"recipients":1,"lessons":1,"would_claim":1,"catch_up_days":3,"duration_ms":74},{"name":"expo_push_receipts","status":"would_run","claimed":0,"sent":0,"failed":0,"would_claim":1,"duration_ms":4}],"duration_ms":107}
+[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":6}],"duration_ms":12}
+[ScheduledTick] {"at":"2030-01-16T21:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"run","claimed":1,"sent":1,"failed":0,"catch_up_days":3,"released":0,"duration_ms":26},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":2}],"duration_ms":32}
+[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":37},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":3},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":16}],"duration_ms":66}
 [ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0}],"duration_ms":2}
 SMOKE passed: dry preview has no writes/sends; 06:50 receipts only; 07:00 digest; 08:00 follow-up; repeat skipped; email=1 push_providers=2 receipts=1
 ```
