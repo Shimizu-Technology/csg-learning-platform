@@ -94,7 +94,7 @@ export function CourseCatalog() {
         <p className="brand-eyebrow">Focused courses</p>
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">{slug ? offerings[0]?.name || 'Course' : 'Learn one useful skill at a time.'}</h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, practice what you learn, and get feedback from a real instructor.</p>
-        {slug && <LinkButton to="/courses" variant="quiet" className="mt-4">Back to courses</LinkButton>}
+        {(slug || selectedId) && <LinkButton to="/courses" variant="quiet" className="mt-4">Back to courses</LinkButton>}
         {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} />}
         {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is not currently listed. Contact {brand.schoolAbbreviation} if you need help enrolling.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">Checkout not completed. Review your course below to continue checkout.</p>}

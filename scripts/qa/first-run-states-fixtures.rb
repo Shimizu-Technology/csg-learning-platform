@@ -32,5 +32,12 @@ first.completion_blocks.each do |block|
     Submission.create!(enrollment: e, user_id: 3, content_block: block, text: "Synthetic ongoing learner work", grade: "A", graded_by_id: 2, graded_at: Time.current)
   end
 end
+# Two real public offerings exercise recovery from the query-filtered catalog.
+solo.update!(public_checkout_enabled: true, public_title: "QA Self paced", public_description: "Synthetic course for first-run recovery.", public_price_cents: 14900, stripe_price_id: "price_qa_first_run")
+catalog_other = Cohort.create!(name: "QA Ruby basics", curriculum: solo.curriculum, course_delivery: "self_paced", status: :active,
+  public_title: "QA Ruby basics", public_description: "A second synthetic public offering.", public_checkout_enabled: true, public_price_cents: 14900, stripe_price_id: "price_qa_other",
+  settings: { "features" => { "student_experience_v2" => true } })
+catalog_other.instructors << User.find(2)
+catalog_other.update!(support_instructor: User.find(2))
 File.write(Rails.root.join("..", ".qa-local", "first-run.json"), JSON.pretty_generate({ program: program.id, program_workspace: program.workspace.id, solo: solo.id, alumni: alumni.id, off: off.id, first: first.id, solo_first: solo_first.id, new_program: new_program.id, program_user: first_day.id }))
 puts "First run fixtures ready"

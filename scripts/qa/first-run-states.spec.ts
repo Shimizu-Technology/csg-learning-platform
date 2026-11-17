@@ -136,4 +136,21 @@ for (const theme of ['light','dark']) {
     await expect(page).toHaveURL(/\/dashboard/)
     await expect(page.locator('main h1')).toBeVisible()
   })
+  test(`query-selected catalog recovery ${theme}`, async ({ page }, info) => {
+    await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
+    await page.goto(`/courses?offering_id=${ids.solo}&qa_user=7`)
+    await expect(page.locator('article')).toHaveCount(1)
+    const back = page.getByRole('link', { name: 'Back to courses', exact: true })
+    await expect(back).toBeVisible()
+    const screenshot = `catalog-${info.project.use.viewport!.width}-${theme}.png`
+    await page.screenshot({ path: new URL(screenshot, shots).pathname, fullPage: true })
+    await back.click()
+    await expect(page).toHaveURL(/\/courses$/)
+    await expect(page.locator('article')).toHaveCount(2)
+    await expect(page.getByRole('heading', { name: 'QA Ruby basics', exact: true })).toBeVisible()
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)
+    expect(overflow).toBe(false)
+    results.push({ persona: 'catalog-recovery', theme, width: info.project.use.viewport!.width, overflow, passed: true, screenshot })
+  })
+
 }

@@ -25,6 +25,16 @@ it('carries the selected server-listed offering into signup', async () => {
   expect(container.textContent).not.toContain('Ruby')
   expect(state.startCourseCheckout).not.toHaveBeenCalled()
 })
+it('lets a learner leave a query-selected course and browse every offering', async () => {
+  await render('/courses?offering_id=13')
+  expect(container.textContent).not.toContain('Ruby')
+  const allCourses = Array.from(container.querySelectorAll('a')).find(link => link.textContent === 'Back to courses')
+  expect(allCourses?.getAttribute('href')).toBe('/courses')
+  await act(async () => allCourses!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })))
+  expect(container.textContent).toContain('Python')
+  expect(container.textContent).toContain('Ruby')
+  expect(state.startCourseCheckout).not.toHaveBeenCalled()
+})
 it('validates a stale or forged course id against the server listing', async () => {
   await render('/courses?offering_id=999')
   expect(container.textContent).toContain('not currently listed')
