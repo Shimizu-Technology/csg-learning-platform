@@ -51,6 +51,30 @@ class AuthoringClonesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "hosted video references use one bulk key lock and roll back if storage is missing" do
+    3.times do |index|
+      @f.lessons.fetch(:intro).content_blocks.create!(block_type: :video, position: index + 10, title: "Hosted #{index}",
+        s3_video_key: "content_videos/#{SecureRandom.uuid}/synthetic.mp4")
+    end
+    configured = S3Service.method(:configured?)
+    exists = S3Service.method(:object_exists?)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:object_exists?) { |_key| false }
+    assert_no_difference "Curriculum.count" do
+      assert_raises(AuthoringCloneService::Invalid) { service("curriculum", @f.curriculum.id).call }
+    end
+    assert_equal 0, AuthoringClone.count
+    S3Service.define_singleton_method(:object_exists?) { |_key| true }
+    queries = capture_queries { @video_clone = service("curriculum", @f.curriculum.id).call.record }
+    assert_equal 1, queries.count { |sql| sql.include?("pg_advisory_xact_lock(hashtextextended(key, 0))") }
+    original_keys = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: @f.curriculum.id }).where.not(s3_video_key: nil).pluck(:s3_video_key).sort
+    copied_keys = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: @video_clone.id }).where.not(s3_video_key: nil).pluck(:s3_video_key).sort
+    assert_equal original_keys, copied_keys
+  ensure
+    S3Service.define_singleton_method(:configured?, configured) if configured
+    S3Service.define_singleton_method(:object_exists?, exists) if exists
+  end
+
   test "module clones at position into same or other curriculum without learner callbacks or definition collisions" do
     before = learner_counts
     destination = Curriculum.create!(name: "Destination")

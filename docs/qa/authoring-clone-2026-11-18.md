@@ -101,7 +101,7 @@ the bundled Chromium harness. No passed result relies on the interrupted runs.
 
 ## Engineering checks
 
-- Focused API cloning tests: **7 tests / 121 assertions, zero failures/errors**.
+- Focused API cloning tests: **8 tests / 127 assertions, zero failures/errors**.
   Migration round trip also passed; it clears all pooled connection statement
   caches and resets model column information. Migration timestamp
   `20261118070000` is later than main's `20261118060000`.
@@ -111,11 +111,17 @@ the bundled Chromium harness. No passed result relies on the interrupted runs.
   permits at most two additional queries, with bulk queries per entity type.
 - Web typecheck, ESLint, **245 Vitest files / 2,902 tests**, build and generated API
   consistency passed. Both web and mobile types were regenerated from OpenAPI.
+- Hosted video tests stub storage only: missing objects roll back; verified
+  objects reuse their keys and acquire one bulk advisory-lock query.
 - Changed Ruby files passed RuboCop. Impeccable's advisory scan returned `[]`.
 - ASUS full prepared/unprepared API gate: **pending**. Uses the existing
   `scheduled-jobs-gate.sh`, including `MIGRATION_PROCESS_TEST_DATABASE_URL` port
   adapter, OpenAPI coverage, RuboCop and Brakeman. Exit-75 lock contention was
-  respected; only one runner job was launched at a time.
+  respected; only one runner job was launched at a time. An earlier snapshot
+  passed both API modes (2,257 tests / 43,583 assertions each), but Brakeman
+  flagged its quoted video-key array. Rails SQL sanitization replaced that array;
+  local Brakeman then reported zero warnings (one existing ignored warning).
+  The final source rerun remains the acceptance gate.
 
 ## Limits and cleanup
 

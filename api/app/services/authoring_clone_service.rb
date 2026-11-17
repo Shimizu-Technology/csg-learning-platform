@@ -37,7 +37,10 @@ class AuthoringCloneService
       # locks all distinct keys; object checks are storage requests, not SQL.
       keys = video_keys(curriculum_id)
       if keys.any? && S3Service.configured?
-        connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(key, 0)) FROM unnest(ARRAY[#{keys.map { |key| connection.quote(key) }.join(',')} ]::text[]) AS keys(key) ORDER BY key")
+        sql = ApplicationRecord.sanitize_sql_array([
+          "SELECT pg_advisory_xact_lock(hashtextextended(key, 0)) FROM unnest(ARRAY[?]::text[]) AS keys(key) ORDER BY key", keys
+        ])
+        connection.execute(sql)
         keys.each do |key|
           raise Invalid, "A hosted video could not be verified in storage" unless S3ObjectCleanup.managed_key?(key) && S3Service.object_exists?(key)
         end
