@@ -383,10 +383,9 @@ broadcasts cannot reach web sockets through process-local Action Cable. Hourly
 cadence changes latency, not those safety limits. Pending-state message delivery
 and shared broadcast transport remain separate work.
 
-Announcement in-app inserts stay atomic under the publish lock. Push remains
-after commit in the request: safe runner deferral needs a durable publish intent,
-provider claims, current-recipient checks and uncertain-send recovery semantics.
-The tick never scans/replays old announcement notifications.
+Announcement delivery uses the fan-out and push outboxes described below.
+The tick only recovers explicit pending intents; it never scans/replays old
+announcement notifications.
 
 If Solid Queue is intentionally restored, first follow the queue inspection,
 source/environment and broadcast-transport recovery requirements above. Deploy
@@ -1164,3 +1163,38 @@ After deployment:
 
 No production dashboard/env change is performed by this PR. Replace the
 process-local limiter store before increasing Puma processes or instances.
+
+### Announcement fan-out outbox (R-2)
+
+Migration `20261118150000` adds a nullable fan-out intent, completion time,
+recipient snapshot and cursor. Existing publications have no intent and are
+never fanned out by the new recovery path. Its DDL uses explicit transactions
+with `SET LOCAL lock_timeout`, including through the transaction pooler.
+
+Posting records the active recipient IDs and intent in the publication
+transaction. Up to 50 recipients retain the atomic inline path. Larger audiences
+use `AnnouncementFanoutJob` with its own in-process async adapter, even when the
+ordinary adapter is inline. The request creates no Notification rows for those
+audiences. No worker service or queue database is needed. The async enqueue is
+only an optimization: after five minutes, the hourly tick recovers unfinished
+intents on its own process after releasing its transaction locks. A lost web
+process can therefore delay notifications until the next eligible tick.
+
+Fan-out inserts at most 100 recipients per transaction under the announcement
+row lock, advancing the cursor in the same commit. The unique source/user index
+preserves existing notifications and read state on retries. The stored audience
+is fixed at publication; deleted or archived accounts are skipped during delivery.
+Edits serialize with inserts and update existing notification copy. Archive stops
+remaining batches and push; deletion removes notification rows. Push cannot send
+or settle before fan-out finishes, and retains the existing per-provider claims.
+The existing 24-hour push expiry still applies after fan-out is complete.
+
+Message delivery deliberately retains its in-lock timing and checkpoints.
+Deferring it needs separate durable recovery semantics; R-2 does not change it.
+
+Fan-out recovery failures are logged per callback and back off for one hour;
+they do not cancel other callbacks in the same tick. The existing intent timestamp
+also records that retry timing. Push expiry after 24 hours is independent of
+fan-out completion, so a poisoned fan-out cannot retain an alert indefinitely.
+Settled fan-outs clear their stored recipient IDs. Archived updates stay archived;
+post a new update rather than restoring an interrupted archived publication.

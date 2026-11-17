@@ -3,8 +3,8 @@ class NotificationDeliveryService
     PushNotificationJob.perform_later(record.class.name, record.id, notifications.map(&:id)) if notifications.any?
   end
 
-  def self.announcement_published(announcement, push: false)
-    new.announcement_published(announcement, push: push)
+  def self.announcement_published(announcement, push: false, async: true)
+    new.announcement_published(announcement, push: push, async: async)
   end
 
   def self.message_created(message, push: false)
@@ -52,26 +52,37 @@ class NotificationDeliveryService
     new.intervention_follow_up_due(intervention, push: push)
   end
 
-  # Rows per INSERT when an update fans out to its audience.
-  ANNOUNCEMENT_BATCH_SIZE = 500
+  ANNOUNCEMENT_BATCH_SIZE = 100
+  ANNOUNCEMENT_INLINE_LIMIT = 50
 
-  # Writes one in-app notification per recipient and returns their ids.
-  # Callers run this inside the publish transaction, under the
-  # announcement's row lock, so the statement count matters: recipients
-  # come from one query and the rows go in with one INSERT per batch. The
-  # unique source-per-user index skips anyone already notified (their
-  # existing row is reused, as find_or_create_by! did). Push is enqueued
-  # for after the commit.
-  def announcement_published(announcement, push: false)
+  # Persist the intent in the caller's publish transaction. Only a bounded
+  # small audience is written here; larger audiences run on the async adapter
+  # even when ordinary jobs use inline. The tick recovers a lost async enqueue.
+  def announcement_published(announcement, push: false, async: true)
     return [] unless announcement.published?
 
-    recipient_ids = announcement.recipients.reorder(nil).pluck(:id)
-    notification_ids = recipient_ids.each_slice(ANNOUNCEMENT_BATCH_SIZE).flat_map do |user_ids|
-      insert_announcement_notifications(announcement, user_ids)
+    ids = announcement.recipients.reorder(:id).pluck(:id)
+    announcement.update_columns(fanout_requested_at: announcement.fanout_requested_at || Time.current, fanout_recipient_ids: ids)
+    if ids.size > ANNOUNCEMENT_INLINE_LIMIT
+      if async
+        AnnouncementFanoutJob.perform_later(announcement.id)
+      else
+        ScheduledAnnouncementPublisher.fanout_after_commit(announcement.id)
+      end
+      return []
     end
 
-    PushNotificationJob.perform_later("Announcement", announcement.id, notification_ids) if push && notification_ids.any?
+    notification_ids = ids.empty? ? [] : insert_announcement_notifications(announcement, ids)
+    announcement.update_columns(fanout_settled_at: Time.current, fanout_recipient_ids: [])
+    PushNotificationJob.perform_later("Announcement", announcement.id, notification_ids) if push
     notification_ids
+  end
+
+  # Called only under a short announcement lock by AnnouncementFanoutJob.
+  # An INSERT and its cursor commit together; retrying either side of a crash
+  # cannot skip a recipient or reset an existing notification's read state.
+  def announcement_batch(announcement, ids)
+    insert_announcement_notifications(announcement, ids) if ids.any?
   end
 
   def message_created(message, push: false)

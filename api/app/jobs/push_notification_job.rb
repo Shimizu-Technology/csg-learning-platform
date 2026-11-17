@@ -10,6 +10,13 @@ class PushNotificationJob < ApplicationJob
     notifications = Notification.where(id: notification_ids)
     case notifiable
     when Announcement
+      unless notifiable.published?
+        notifiable.with_lock do
+          notifiable.update_columns(push_settled_at: Time.current) unless notifiable.published?
+        end
+        return
+      end
+      return if notifiable.fanout_requested_at && !notifiable.fanout_settled_at
       # The push outbox (ScheduledAnnouncementPublisher): each recipient is
       # claimed per provider under the update's row lock before it is sent,
       # so a re-request after a crash, a retry, or two jobs at once push each
@@ -70,7 +77,7 @@ class PushNotificationJob < ApplicationJob
   # job; that job settles it when it finishes.
   def settle_announcement_push(announcement)
     announcement.with_lock do
-      next if announcement.push_settled_at
+      next if announcement.push_settled_at || (announcement.fanout_requested_at && !announcement.fanout_settled_at)
 
       ids = Notification.where(notifiable: announcement).pluck(:id)
       claimed = %i[web_push_attempted_notification_ids expo_push_attempted_notification_ids].all? do |attribute|
@@ -88,6 +95,7 @@ class PushNotificationJob < ApplicationJob
     # The one exception is a notification whose requests the provider never
     # started (PushDeliveryNotStarted), released below.
     claimed_ids = record.with_lock do
+      next [] if record.is_a?(Announcement) && !record.published?
       next [] if record.is_a?(Message) && record.deleted?
 
       attempted_ids = Array(record.public_send(attempted_attribute)).map(&:to_i)

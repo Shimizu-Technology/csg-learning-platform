@@ -11,6 +11,10 @@ class Announcement < ApplicationRecord
   # it posts, that they can still post to the update's audience.
   belongs_to :scheduled_by, class_name: "User", optional: true
   has_many :notifications, as: :notifiable, dependent: :destroy
+  # Cohort deletion also destroys announcements. Lock before dependent cleanup
+  # can read notifications, or a concurrent batch could commit after that read
+  # and leave orphan rows behind when the parent DELETE finally gets its lock.
+  before_destroy :lock_before_notification_cleanup, prepend: true
 
   normalizes :body, with: ->(body) { MarkdownText.normalize(body) }
 
@@ -24,6 +28,7 @@ class Announcement < ApplicationRecord
   validate :cohort_only_for_cohort_audience
   validate :audience_fixed_once_posted, on: :update
   validate :posted_updates_stay_posted, on: :update
+  validate :archived_updates_stay_archived, on: :update
   validate :schedule_only_while_draft
   validate :schedule_ahead, if: -> { scheduled_for.present? && will_save_change_to_scheduled_for? }
 
@@ -49,6 +54,7 @@ class Announcement < ApplicationRecord
   scope :unscheduled_drafts, -> { draft.where(scheduled_for: nil) }
   # Posted with push, and not every recipient has been claimed by both push
   # providers yet (the push outbox; see PushNotificationJob).
+  scope :fanout_pending, -> { where.not(fanout_requested_at: nil).where(fanout_settled_at: nil) }
   scope :push_pending, -> { where.not(push_requested_at: nil).where(push_settled_at: nil) }
   # Drafts belong to their author until they are posted; admins see every
   # draft. Nobody else, staff included, sees one in a list, detail or search.
@@ -128,6 +134,10 @@ class Announcement < ApplicationRecord
 
   private
 
+  def lock_before_notification_cleanup
+    self.class.where(id: id).lock.pick(:id)
+  end
+
   # Posting a draft stamps the time it was posted, not when it was drafted.
   def set_published_at
     posting_draft = persisted? && will_save_change_to_status? && status_in_database == "draft"
@@ -164,6 +174,12 @@ class Announcement < ApplicationRecord
     elsif scheduled_for > SCHEDULE_HORIZON.from_now
       errors.add(:base, "Choose a send time within a year")
     end
+  end
+
+  def archived_updates_stay_archived
+    return unless status_in_database == "archived" && will_save_change_to_status?
+
+    errors.add(:status, "can't change after an update is archived. Post a new update instead")
   end
 
   def posted_updates_stay_posted

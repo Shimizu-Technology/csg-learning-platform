@@ -1,10 +1,9 @@
 require "test_helper"
 require_relative "../support/after_commit_helpers"
 
-# With inline jobs, publishing an announcement sends every push inside the
-# request. Web push is one HTTP call per subscription; Expo takes 100 devices
-# per call. This drives a 200-recipient announcement through the API with each
-# provider call stubbed to take PUSH_LATENCY.
+# Large publications return before fan-out even with ordinary jobs inline.
+# Drain the captured fan-out explicitly, then verify bounded provider concurrency
+# with each external call stubbed to take PUSH_LATENCY.
 class AnnouncementFanOutTimingTest < ActionDispatch::IntegrationTest
   include AfterCommitHelpers
 
@@ -84,6 +83,8 @@ class AnnouncementFanOutTimingTest < ActionDispatch::IntegrationTest
           post "/api/v1/announcements", params: { title: "Campus closed", body: "Storm day.", audience: "staff", status: "published", send_push: true }, headers: auth_headers, as: :json
         end
         elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+        assert_equal 0, Notification.where(notifiable_type: "Announcement").count
+        AnnouncementFanoutJob.perform_now(response.parsed_body.dig("announcement", "id"))
       end
     end
 
