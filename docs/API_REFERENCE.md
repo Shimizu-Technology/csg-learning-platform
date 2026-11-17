@@ -181,8 +181,15 @@ and the lesson editor's "Used in" panel (L-3.1). Staff only. `type` is
 - **Curriculum extras:** modules with lesson counts, copy history
   (`copy_of`, `copies` for visible cohorts plus `other_copies_count`), each
   rubric and objective with the lessons that use it, and the learner-file count.
-- **Lesson extras:** blocks, aligned objectives and the five newest open help
-  requests in visible cohorts (no message text).
+- **Lesson extras:** blocks, aligned objectives, the five newest open help
+  requests in visible cohorts (no message text), and `activity`: learner
+  activity on the lesson's blocks and exercises in visible cohorts (`count`
+  and the ten newest events). An event counts only when it passes the event
+  page's own check: its learner is enrolled in the event's cohort, its actor
+  is that learner, an admin or one of the cohort's people, and a submission
+  is that learner's in that cohort.
+- **Curriculum `package_key`:** the course package it was imported from, or
+  `null`.
 
 Students, archived accounts, unknown types and missing records get `404`.
 The query count does not grow with cohorts, lessons, submissions, rubrics,
@@ -207,17 +214,32 @@ cohorts (and `cohort_id`). The response's `help_filter` names the lesson or
 module only when one of those cohorts uses it.
 
 `GET /api/v1/team_members/:id` adds each
-cohort's `waiting_review` and `open_help`, and a `workload` with the active
-follow-up plans the person owns and their owned open help requests.
+cohort's `waiting_review` and `open_help`, a `workload` with the active
+follow-up plans the person owns and their owned open help requests, and
+`safety` (`PersonSafety`): reports about them (`reports_about`,
+`open_reports_about`), reports they filed, people they blocked and people who
+blocked them, as counts.
+
+`GET /api/v1/records/student/:id/related` adds a `safety` item for admins
+only, with the same counts (its `count` is the open reports about the
+learner). A self-paced cohort's related panel adds `purchases` (paid
+purchases) for admins only.
+
+`GET /api/v1/content_reports` and `GET /api/v1/safety/user_blocks` take
+`user_id` to list only that person's reports (by or about them) or blocks
+(made or received), and then add `person: { id, full_name }`. An id that
+names nobody lists nothing.
 
 ### `GET /api/v1/records/:type/:id/detail`
 
 The staff record pages added in L-5.2, one request per page. Staff only.
 `type` is `recording`, `office_hour`, `private_meeting`, `learning_plan`,
-`channel`, `rubric` or `activity_event`. Returns `{ detail: RecordingDetail | … }`
-(see `docs/openapi.json`). Web pages: `/admin/recordings/:id`,
-`/admin/office-hours/:id`, `/admin/meetings/:id`, `/admin/learning-plans/:id`,
-`/admin/channels/:id`, `/admin/rubrics/:id`, `/admin/activity/:id`.
+`channel`, `rubric`, `activity_event`, `recovery_plan`, `content_report` or
+`offering`. Returns `{ detail: RecordingDetail | … }` (see `docs/openapi.json`).
+Web pages: `/admin/recordings/:id`, `/admin/office-hours/:id`,
+`/admin/meetings/:id`, `/admin/learning-plans/:id`, `/admin/channels/:id`,
+`/admin/rubrics/:id`, `/admin/activity/:id`, `/admin/recovery-plans/:id`,
+`/admin/moderation/reports/:id` and `/admin/offerings/:id`.
 
 - **Who opens what:** admins open every record. Instructors open records in
   cohorts they teach (`StaffCohortScope`), a booking only when they host it
@@ -250,6 +272,22 @@ The staff record pages added in L-5.2, one request per page. Staff only.
   record when it belongs to the event's cohort and learner (a submission also
   on an exercise of the cohort's curriculum). Otherwise `record` and
   `record_label` are both `null`: no title, lesson or block id.
+- **Return plan** (`recovery_plan`, staff in its cohort): owner (with
+  `valid` false when they no longer teach the cohort), pace, scope, cadence,
+  next and last check-in, outcome, the follow-up plan or restart it came from,
+  and the newest 20 check-ins with `check_ins_count`. Editing stays on the
+  student page's Support tab.
+- **Community report** (`content_report`, admins only): reason, details,
+  status, reporter and reported person, who resolved it, the message quoted as
+  Safety quotes it (500 characters) with where it was posted (a link only when
+  the admin can open that conversation), the newest five other reports about
+  the same person, blocks between the two, and each person's `PersonSafety`.
+- **Offering** (`offering`, admins only; the id is a self-paced cohort's):
+  price and terms, purchase counts by status, `paid_cents`, `enrolled_count`,
+  and purchases 25 at a time, newest first, each with its buyer and their
+  enrollment in the cohort. Pass `purchases_next_before` back as
+  `purchases_before` for the next ones; the id order never changes, so a
+  checkout that changes status between pages is listed once.
 
 Students, archived accounts, unknown types and records the viewer can't open
 get `404`. Query counts do not grow with any of the page's lists. Sent with
@@ -1016,7 +1054,7 @@ middleware responses are outside the shared JSON error validation.
 
 ## Course packages
 
-Admin-only `POST /api/v1/course_packages/preview` and `POST /api/v1/course_packages` accept `{ "package": <schema-v1 object> }` for reusable recording curricula. Preview writes nothing; import creates an unassigned draft or safely revises an untouched, unassigned draft. Private keys stay in block solutions; recordings use the existing upload flow. See [Course packages](COURSE_PACKAGES.md) for the schema, limits and revision rules.
+Admin-only `POST /api/v1/course_packages/preview` and `POST /api/v1/course_packages` accept `{ "package": <schema-v1 object> }` for reusable recording curricula. Preview writes nothing, and names the curriculum the package already updates (`curriculum`, or `null`) and the cohorts using it (`cohorts`, each with `on_sale`); import creates an unassigned draft or safely revises an untouched, unassigned draft. Private keys stay in block solutions; recordings use the existing upload flow. See [Course packages](COURSE_PACKAGES.md) for the schema, limits and revision rules.
 
 ## Protected curriculum learner ZIPs
 
