@@ -222,7 +222,7 @@ this PR makes no Render changes.
 | Digest hour | `SCHEDULED_DAILY_UNLOCK_HOUR=7` (integer 0..23, defaults to 7) |
 
 The web build remains `bundle install && bundle exec rails db:prepare` and owns
-migrations, including `20261118000100` and `20261118000200`. Do not migrate from
+migrations, including `20261118000100`, `20261118000200` and `20261118040000` (scheduled updates). Do not migrate from
 the cron build. Contradictory queue flags still fail production boot. Set the
 same `SCHOOL_TIME_ZONE` (default `Pacific/Guam`) and digest hour on every runner.
 The hourly schedule gives about 24 wakes/day rather than 96 quarter-hour wakes.
@@ -233,6 +233,7 @@ Verify actual compute usage during rollout; no persistent polling daemon exists.
 
 | Task | Due rule |
 | --- | --- |
+| `scheduled_updates` | Once per UTC hour slot. Posts scheduled updates whose time has passed, once each, under the row lock; push runs after the commit. A refused scheduler (no longer able to post there) returns the update to an unscheduled draft (`refused` in the result). A post that raises rolls back, stays scheduled and fails the task, so the next hour retries it. Dry run reports `would_publish`. |
 | `intervention_follow_ups` | Once daily at/after 08:00 school time; processes all currently overdue, unnotified valid-owner follow-ups, including old dates. Inspect and baseline backlog before activation. |
 | `daily_unlocks` | Once daily at/after `SCHEDULED_DAILY_UNLOCK_HOUR` (07:00 Guam by default). One coalesced digest per enrollment covering unclaimed releases in **today and the previous two school dates**, including activation. |
 | `expo_push_receipts` | Once per UTC hour slot. Drains due receipts directly, without delayed inline enqueues. The existing 15-minute minimum backoff, lookup limit and 24-hour age bound remain; the next cron opportunity is hourly. |
