@@ -158,6 +158,19 @@ describe('cohort evidence request lifecycle', () => {
     vi.spyOn(api, 'getCohortHome').mockResolvedValue({ data: null, error: 'Unavailable', status: 503 })
   })
   afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks() })
+  it('opens objective evidence lessons on the staff record page with its cohort and return path', async () => {
+    vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: { learning_insights: {
+      rule: {}, summary: {}, revision_patterns: [], objectives: [{ id: 1, title: 'Explain a loop', status_counts: { demonstrated: 1, developing: 0, needs_revision: 0, not_evidenced: 0 }, students: [{
+        enrollment_id: 1, user: { id: 10, full_name: 'Joined Alum' }, status: 'demonstrated', evidence: [{
+          id: 1, kind: 'submission', label: 'Graded work', value: 'A', module_id: 9, module_name: 'Loops', lesson_id: 12, lesson_title: 'Counting loops', submission_id: 14,
+        }],
+      }] }],
+    } }, error: null } as never)
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const lesson = container.querySelector('a[data-record-link="lesson"]')!
+    expect(lesson.getAttribute('href')).toBe('/admin/lessons/12?cohort_id=4&return_to=%2Fadmin%2Fcohorts%2F4%3Ftab%3Dinsights')
+  })
   it('keeps empty learning insights collapsed', async () => {
     vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: { learning_insights: { objectives: [], revision_patterns: [] } }, error: null, status: 200 } as never)
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
