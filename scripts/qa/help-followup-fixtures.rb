@@ -22,6 +22,13 @@ redo_plan = Intervention.create!(enrollment: enrollment, owner: instructor, crea
 RecoveryPlan.create!(enrollment: enrollment, intervention: redo_plan, owner: instructor, created_by: instructor, source: :manual,
   target_pace: 'Two synthetic lessons a week', required_scope: 'Finish the required synthetic labs.', next_check_in_at: 7.days.from_now)
 
+# A plan whose saved source request and lesson no longer resolve (fix round 1):
+# the page shows the saved ids as plain text instead of dropping them.
+behind_enrollment = behind.enrollments.first
+Intervention.create!(enrollment: behind_enrollment, owner: instructor, created_by: admin, trigger_type: :manual, severity: :normal,
+  evidence_snapshot: { 'help_request_id' => 987_654, 'context_type' => 'lesson', 'context_id' => 987_653, 'category' => 'concept' },
+  action_summary: 'Synthetic plan with a missing source.', next_follow_up_at: 3.days.from_now)
+
 # A second open request, so Reply & resolve can move on in Support.
 lesson = enrollment.cohort.curriculum.modules.first.lessons.second || enrollment.cohort.curriculum.modules.first.lessons.first
 HelpRequest.create!(student: program, cohort: enrollment.cohort, category: :technical, context_type: :lesson, context_id: lesson.id,

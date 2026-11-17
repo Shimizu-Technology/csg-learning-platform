@@ -26,7 +26,7 @@ async function open(page: Page, path: string, user: number, theme: 'light' | 'da
     try {
       if (choice) localStorage.setItem('csg-learn:theme', choice); else localStorage.removeItem('csg-learn:theme')
       // Markdown mode: a plain textarea the test can type into.
-      for (const id of ['1', '2']) localStorage.setItem(`csg-editor-preferences:${id}`, JSON.stringify({ mode: 'markdown', enterSends: true }))
+      for (const id of ['1', '2', '3']) localStorage.setItem(`csg-editor-preferences:${id}`, JSON.stringify({ mode: 'markdown', enterSends: true }))
     } catch { /* ignore */ }
   }, theme === 'light' ? 'light' : '')
   await page.goto(`${path}${path.includes('?') ? '&' : '?'}qa_user=${user}`)
@@ -68,7 +68,7 @@ async function freshRequest(request: APIRequestContext, message: string) {
 async function plans(request: APIRequestContext) {
   const list = await (await request.get(`${API}/api/v1/interventions`, { headers: as(1) })).json()
   const byTrigger = (trigger: string) => list.interventions.find((item: { trigger_type: string; status: string }) => item.trigger_type === trigger && item.status !== 'resolved')
-  return { help: byTrigger('help_request') as { id: number; help_request_id: number; enrollment: { student: { full_name: string } } }, redo: byTrigger('redo') as { id: number; evidence_snapshot: { submission_ids: number[] } } }
+  return { missing: list.interventions.find((item: { action_summary: string | null }) => item.action_summary === 'Synthetic plan with a missing source.') as { id: number }, help: byTrigger('help_request') as { id: number; help_request_id: number; enrollment: { student: { full_name: string } } }, redo: byTrigger('redo') as { id: number; evidence_snapshot: { submission_ids: number[] } } }
 }
 
 async function type(page: Page, scope: ReturnType<Page['locator']>, text: string) {
@@ -161,6 +161,67 @@ for (const theme of ['light', 'dark'] as const) {
       await record(page, 'message-with-source', theme, info.project.name)
       await chip.click()
       await expect(page).toHaveURL(new RegExp(`/admin/interventions/${redo.id}`))
+      expect(errors).toEqual([])
+    })
+
+    test('instructor: a lost reply response retried once saves one reply (fix round 1)', async ({ page, request }, info) => {
+      const errors: string[] = []
+      page.on('pageerror', (error) => errors.push(error.message))
+      const help = await freshRequest(request, `Synthetic retry ${theme} ${info.project.name}`)
+      const before = (await (await request.get(`${API}/api/v1/help_requests/${help.id}`, { headers: as(2) })).json()).help_request.replies.length
+      await open(page, `/admin/help-requests/${help.id}`, 2, theme)
+      const sent: string[] = []
+      let dropped = false
+      await page.route('**/api/v1/help_requests/*/replies', async (route) => {
+        sent.push(JSON.parse(route.request().postData() || '{}').reply.client_request_id)
+        if (dropped) return route.continue()
+        dropped = true
+        await route.fetch() // the server saves the reply...
+        return route.abort('connectionreset') // ...and the response never arrives.
+      })
+      await type(page, page.locator('section[aria-label="Reply"]'), 'A synthetic hint whose response was lost.')
+      await page.getByRole('button', { name: 'Send reply' }).click()
+      await expect(page.getByRole('button', { name: 'Send reply' })).toBeEnabled()
+      await page.getByRole('button', { name: 'Send reply' }).click()
+      await expect(page.getByText('Reply sent. The request stays open.')).toBeVisible()
+      expect(sent).toHaveLength(2)
+      expect(sent[1]).toBe(sent[0])
+      const after = (await (await request.get(`${API}/api/v1/help_requests/${help.id}`, { headers: as(2) })).json()).help_request.replies
+      expect(after.length).toBe(before + 1)
+      await expect(page.getByText('A synthetic hint whose response was lost.')).toHaveCount(1)
+      await record(page, 'request-after-retry', theme, info.project.name)
+      expect(errors).toEqual([])
+    })
+
+    test('learner: a resolved request shows every reply (fix round 1)', async ({ page, request }, info) => {
+      const errors: string[] = []
+      page.on('pageerror', (error) => errors.push(error.message))
+      const help = await freshRequest(request, `Synthetic learner ${theme} ${info.project.name}`)
+      const first = `First hint ${theme} ${info.project.name}`
+      const last = `Final answer ${theme} ${info.project.name}`
+      expect((await request.post(`${API}/api/v1/help_requests/${help.id}/replies`, { headers: as(2), data: { reply: { body: first, resolve: false } } })).ok()).toBeTruthy()
+      expect((await request.post(`${API}/api/v1/help_requests/${help.id}/replies`, { headers: as(1), data: { reply: { body: last, resolve: true } } })).ok()).toBeTruthy()
+      const record_ = (await (await request.get(`${API}/api/v1/help_requests/${help.id}`, { headers: as(3) })).json()).help_request
+      await open(page, `/lessons/${record_.context_id}?cohort_id=${record_.cohort.id}`, 3, theme)
+      await page.getByRole('button', { name: /Ask for help|View previous help/ }).first().click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog.getByText('Previous replies')).toBeVisible()
+      await expect(dialog.getByText(first)).toBeVisible()
+      await expect(dialog.getByText(last)).toBeVisible()
+      await record(page, 'learner-resolved-thread', theme, info.project.name)
+      expect(errors).toEqual([])
+    })
+
+    test('admin: a source that no longer resolves stays as text on the follow-up page (fix round 1)', async ({ page, request }, info) => {
+      const errors: string[] = []
+      page.on('pageerror', (error) => errors.push(error.message))
+      const { missing } = await plans(request)
+      await open(page, `/admin/interventions/${missing.id}`, 1, theme)
+      const evidence = page.locator('#evidence')
+      await expect(evidence.getByText('Help request #987654')).toBeVisible()
+      await expect(evidence.getByText('Lesson #987653')).toBeVisible()
+      await expect(evidence.getByRole('link', { name: /987654/ })).toHaveCount(0)
+      await record(page, 'follow-up-unresolved-source', theme, info.project.name)
       expect(errors).toEqual([])
     })
   })

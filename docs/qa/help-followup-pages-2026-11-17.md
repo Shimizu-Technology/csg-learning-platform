@@ -37,6 +37,26 @@ Environment: the local QA harness (`scripts/qa/run start`) with synthetic data o
 - Push and email delivery: not exercised. The harness queues jobs without running them. The API suite checks one push per reply, sent after commit, with the inline adapter.
 - The harness's synthetic student and cohort are both named "QA Program", so that name appears twice in the follow-up page's breadcrumb. This is fixture naming, not a bug.
 
+## Fix round 1 re-test
+
+Agent-executed on 2026-11-17 against the fix-round-1 code (commit 3040b842 plus its QA fixture and spec changes), after merging origin/main at c62eb42a (#279 Updates composer, #281 grading workbench). Same harness, Chromium, 1280 and 390, light and dark.
+
+**Result: 24 of 24 runs passed.** That is six journeys × two widths × two themes: the three journeys above, re-run after the merge, plus three new ones below. None of the 36 recorded screens had sideways scroll, a serious axe violation or a contrast finding.
+
+| Journey | Persona | 1280 light | 1280 dark | 390 light | 390 dark |
+| --- | --- | --- | --- | --- | --- |
+| Lost response, retried: one reply saved | Instructor | Pass | Pass | Pass | Pass |
+| Resolved request shows every reply | Learner | Pass | Pass | Pass | Pass |
+| Source that no longer resolves stays as text | Admin | Pass | Pass | Pass | Pass |
+
+**Retry path.** The request page's first "Send reply" reached the server and was saved, but the browser dropped the response (Playwright `route.fetch()` then `abort('connectionreset')`). The draft stayed in the box. Pressing "Send reply" again sent the same `client_request_id`. The server returned the saved reply, the API showed exactly one new reply, and the page showed it once.
+
+**Learner thread.** An instructor replied with Reply, then an admin used Reply & resolve. As the learner, opening help on that lesson showed "Previous replies" with both replies. Before this fix, only the final reply showed.
+
+**Unresolved source.** For a plan whose saved help request and lesson ids no longer exist, the "Why this plan started" section shows "Help request #987654" and "Lesson #987653" as plain text, not links. Before this fix, both ids disappeared.
+
+Push and email delivery for a replayed reply are not exercised in the browser. The API tests cover them: a sequential retry and two concurrent copies each notify the learner once.
+
 ## Cleanup
 
-The harness servers were stopped and the harness database dropped (`scripts/qa/run clean`). The temporary origin/main worktree used to confirm the new tests fail on main was removed, along with its database.
+After each pass, the harness servers were stopped and the harness database dropped (`scripts/qa/run clean`). The temporary worktrees used to confirm the new tests fail on the old code were removed, along with their databases.
