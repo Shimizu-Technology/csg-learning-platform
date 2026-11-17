@@ -3,10 +3,11 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
+import { api } from '../../lib/api'
 import { PersonActions } from './PersonActions'
 import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
 const create = vi.hoisted(() => vi.fn())
-vi.mock('../../lib/api', () => ({ api: { createDirectConversation: create } }))
+vi.mock('../../lib/api', () => ({ api: { createDirectConversation: create, getAvailableDirectUsersForCohort: vi.fn().mockResolvedValue({ data: { users: [{ id: 9 }, { id: 10 }] } }) } }))
 function Location() {
   const location = useLocation()
   return (
@@ -75,5 +76,22 @@ it('ignores a late conversation response after the displayed person changes', as
     expect(host.querySelector('button')?.disabled).toBe(false)
     await act(async () => resolve({ data: { direct_conversation: { id: 99, cohort_id: 3 } } }))
     expect(host.querySelector('output')?.textContent).toBe('/')
+  } finally { await act(async () => root.unmount()) }
+})
+
+it('hides both actions when either direction of block removes the person from the permitted directory', async () => {
+  vi.mocked(api.getAvailableDirectUsersForCohort).mockResolvedValueOnce({ data: { users: [] }, error: null })
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter><PersonActions person={{ id: 9, full_name: 'Blocked Teacher', role: 'instructor' }} cohortId={3} meetings /></MemoryRouter>))
+    expect(host.querySelector('button,a')).toBeNull()
+  } finally { await act(async () => root.unmount()) }
+})
+it('never offers meeting booking for an admin author', async () => {
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter><PersonActions person={{ id: 9, full_name: 'Admin', role: 'admin' }} cohortId={3} meetings /></MemoryRouter>))
+    expect(host.textContent).toContain('Message Admin')
+    expect(host.querySelector('a')).toBeNull()
   } finally { await act(async () => root.unmount()) }
 })

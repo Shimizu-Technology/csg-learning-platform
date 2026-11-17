@@ -4,6 +4,7 @@ import { StudentExperienceProvider } from '../../lib/studentExperience'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { api } from '../../lib/api'
 import { MessageAuthorContext } from './MessageAuthorContext'
 import type { MessageView as ChannelMessage } from '../../types/api'
 
@@ -11,7 +12,7 @@ import type { MessageView as ChannelMessage } from '../../types/api'
 const features = vi.hoisted(() => ({ private_meetings: false }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: { id: 1, features } }) }))
 const getUser = vi.hoisted(() => vi.fn())
-vi.mock('../../lib/api', () => ({ api: { getUser } }))
+vi.mock('../../lib/api', () => ({ api: { getUser, getAvailableDirectUsersForCohort: vi.fn().mockResolvedValue({ data: { users: [{ id: 7 }] } }) } }))
 vi.mock('../admin/StudentContextDrawer', () => ({ StudentContextDrawer: ({ cohortId, studentId, onClose }: { cohortId: number; studentId: number; onClose: () => void }) => <div role="dialog">Student {studentId}, cohort {cohortId}<button onClick={onClose}>Close context</button></div> }))
 const author: ChannelMessage['author'] = { id: 7, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', avatar_url: null }
 const enrollments = [{ id: 11, cohort_id: 1, cohort_name: 'Python', status: 'active' }, { id: 12, cohort_id: 2, cohort_name: 'Web', status: 'completed' }]
@@ -63,4 +64,14 @@ it('adds actions only On and respects the resolved private-meetings switch', asy
   await act(async () => root.render(tree(true)))
   expect(document.querySelector('a[href="/meetings?cohort_id=1&instructor_id=7"]')).not.toBeNull()
   features.private_meetings = false
+})
+
+it('hides Message and Book a meeting for blocked people in the author popover', async () => {
+  features.private_meetings = true
+  vi.mocked(api.getAvailableDirectUsersForCohort).mockResolvedValueOnce({ data: { users: [] }, error: null })
+  try {
+    await act(async () => root.render(<MemoryRouter><StudentExperienceProvider v2><MessageAuthorContext author={{ ...author, role: 'instructor' }} staff={false} cohortId={1} onClose={() => {}} /></StudentExperienceProvider></MemoryRouter>))
+    expect(document.body.textContent).not.toContain('Message Maya')
+    expect(document.body.textContent).not.toContain('Book a meeting')
+  } finally { features.private_meetings = false }
 })

@@ -3,12 +3,12 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
-const state = vi.hoisted(() => ({ getLesson: vi.fn(), cohort: 2 }))
+const state = vi.hoisted(() => ({ getLesson: vi.fn(), cohort: 2, ready: true, v2: false }))
 vi.mock('../../lib/api', () => ({ api: { getLesson: state.getLesson, getHelpRequests: vi.fn().mockResolvedValue({ data: { help_requests: [] } }) } }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 } }) }))
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: state.cohort }) }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: state.cohort, ready: state.ready, selectedCohort: state.ready ? { id: state.cohort, features: { student_experience_v2: state.v2 } } : null }) }))
 vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => false }))
-vi.mock('../../components/shared/ContentBlockRenderer', () => ({ ContentBlockRenderer: () => <p>Exercise feedback</p> }))
+vi.mock('../../components/shared/ContentBlockRenderer', () => ({ ContentBlockRenderer: ({ completionInFooter }: { completionInFooter?: boolean }) => <p data-footer={String(Boolean(completionInFooter))}>Exercise feedback</p> }))
 vi.mock('../../components/shared/RubricPanel', () => ({ RubricPanel: () => null }))
 vi.mock('../../components/student/ContextualHelp', () => ({ ContextualHelp: () => null }))
 vi.mock('../../components/shared/LearningObjectivesPanel', () => ({ LearningObjectivesPanel: () => null }))
@@ -116,4 +116,34 @@ it("moves an old lesson link to the cohort's copy, keeping the block it pointed 
     expect(router.state.location.pathname + router.state.location.search + router.state.location.hash).toBe('/lessons/142?cohort_id=2#block-108')
     expect(container.querySelector('#block-108')?.className).toContain('ring-2')
   } finally { act(() => root.unmount()); container.remove() }
+})
+
+it('starts the lesson fetch while cohort settings are unresolved and never flashes On', async () => {
+  state.getLesson.mockClear()
+  state.ready = false
+  state.v2 = false
+  state.getLesson.mockResolvedValue({ data: { lesson: { id: 42, cohort_id: 2, title: 'Parallel lesson', module_id: 1, lesson_type: 'reading', content_blocks: [], objectives: [], learning_navigation: { number: 1, total: 1, manual_block_ids: [] } } } })
+  const host = document.createElement('div'); const root = createRoot(host)
+  const tree = <MemoryRouter initialEntries={['/lessons/42?cohort_id=2']}><Routes><Route path="/lessons/:id" element={<LessonView />} /></Routes></MemoryRouter>
+  try {
+    await act(async () => root.render(tree))
+    expect(state.getLesson).toHaveBeenCalledWith(42, 2)
+    expect(host.textContent).toContain('Loading lesson')
+    expect(host.querySelector('[data-testid="lesson-experience"]')).toBeNull()
+    state.ready = true
+    await act(async () => root.render(<MemoryRouter initialEntries={['/lessons/42?cohort_id=2']}><Routes><Route path="/lessons/:id" element={<LessonView />} /></Routes></MemoryRouter>))
+    expect(host.textContent).toContain('Parallel lesson')
+    expect(host.querySelector('[data-testid="lesson-experience"]')).toBeNull()
+    expect(state.getLesson).toHaveBeenCalledTimes(1)
+  } finally { await act(async () => root.unmount()); state.ready = true }
+})
+it('falls back to inline completion when client On has no server navigation', async () => {
+  state.v2 = true
+  state.getLesson.mockResolvedValue({ data: { lesson: { id: 42, cohort_id: 2, title: 'Missing navigation', module_id: 1, lesson_type: 'reading', content_blocks: [{ id: 8, position: 0, block_type: 'text' }], objectives: [] } } })
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter initialEntries={['/lessons/42?cohort_id=2']}><Routes><Route path="/lessons/:id" element={<LessonView />} /></Routes></MemoryRouter>))
+    expect(host.querySelector('[data-testid="lesson-experience"]')).toBeNull()
+    expect(host.querySelector('[data-footer="false"]')).not.toBeNull()
+  } finally { await act(async () => root.unmount()); state.v2 = false }
 })

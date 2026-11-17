@@ -10,7 +10,7 @@ vi.mock('./LazyMarkdownEditor', async () => ({ LazyMarkdownEditor: (await import
 vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
-vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ starterLinks }: { starterLinks?: { lessonReturn: { url: string; label?: string | null }; hint: string; newTab?: boolean } }) => (starterLinks ? <div data-starter-hint={starterLinks.hint} data-starter-return={starterLinks.lessonReturn.url} data-starter-label={starterLinks.lessonReturn.label ?? ''} data-starter-new-tab={String(Boolean(starterLinks.newTab))} /> : null) }))
+vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ starterLinks, content, variant }: { content?: string; variant?: string; starterLinks?: { lessonReturn: { url: string; label?: string | null }; hint: string; newTab?: boolean } }) => (starterLinks ? <div data-starter-hint={starterLinks.hint} data-starter-return={starterLinks.lessonReturn.url} data-starter-label={starterLinks.lessonReturn.label ?? ''} data-starter-new-tab={String(Boolean(starterLinks.newTab))} /> : <div data-markdown-variant={variant}>{content}</div>) }))
 vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, busy, onChange }: { value: string; readOnly?: boolean; busy?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly || busy ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('./FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
 vi.mock('./CodeRunner', () => ({ CodeRunner: () => null }))
@@ -451,4 +451,27 @@ it('On flushes a fresh draft on pagehide before the debounce or React unmount', 
     window.dispatchEvent(new Event('pagehide'))
     expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toContain('# edited')
   } finally { await act(async () => root.unmount()); localStorage.clear() }
+})
+
+it('renders typed HTML-like written submissions in written mode', () => {
+  const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ filename: 'answer.md', metadata: { language: 'markdown' }, submissions: [submission({ text: '<p>typed source</p>' })], learner_state: 'submitted' })} cohortId={2} /></StudentExperienceProvider>)
+  expect(html).toContain('data-markdown-variant="written"')
+  expect(html).toContain('&lt;p&gt;typed source&lt;/p&gt;')
+})
+it.each([false, true])('reconciles an accepted submission when lesson refresh fails (redo=%s)', async redo => {
+  localStorage.clear()
+  const accepted = { ...submission({ id: 2, num_submissions: redo ? 2 : 1 }), content_block_id: 138 } as never
+  const create = vi.spyOn(api, 'createSubmission').mockResolvedValue({ data: { submission: accepted }, error: null })
+  const reload = vi.fn().mockResolvedValue({ error: 'Offline' })
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter><ConfirmProvider><StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: redo ? 'redo_requested' : 'open', submissions: redo ? [submission({ grade: 'R', feedback: 'Try again' })] : [] })} cohortId={2} onProgressUpdate={reload} /></StudentExperienceProvider></ConfirmProvider></MemoryRouter>))
+    await act(async () => (host.querySelector('[data-editor="editable"]') as HTMLElement).click())
+    await act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === (redo ? 'Resubmit checkpoint' : 'Submit checkpoint'))!.click())
+    expect(create).toHaveBeenCalled()
+    expect(reload).toHaveBeenCalled()
+    expect(host.textContent).toContain('Waiting for review.')
+    expect(host.textContent).not.toContain('Your instructor asked for a redo')
+    expect(host.textContent).not.toContain('Revise and resubmit')
+  } finally { await act(async () => root.unmount()); create.mockRestore(); localStorage.clear() }
 })

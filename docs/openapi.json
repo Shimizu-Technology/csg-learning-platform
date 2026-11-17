@@ -20381,6 +20381,9 @@
             "items": {
               "type": "integer"
             }
+          },
+          "next_redo": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -20391,7 +20394,8 @@
           "next_module",
           "course_complete",
           "counts",
-          "manual_block_ids"
+          "manual_block_ids",
+          "next_redo"
         ],
         "additionalProperties": false,
         "description": "LearnerProgress continuation, completion and course reading order for the new student experience."

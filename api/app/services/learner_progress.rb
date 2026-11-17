@@ -286,8 +286,11 @@ class LearnerProgress
     readable = entries.select(&:available).map(&:lesson)
     reading_index = readable.index { |item| item.id == lesson.id }
     following = reading_index && readable[reading_index + 1]
-    target = current.completed ? next_lesson : following
-    target = nil unless @enrollment.active? && !@cohort.alumni?
+    target = if @enrollment.active? && !@cohort.alumni?
+      current.completed ? next_lesson : following
+    else
+      following # Browsing available lessons never changes progress.
+    end
     ref = ->(item) { item && { id: item.id, title: item.title, module_id: item.module_id } }
     counts = overall.slice(:completed_lessons, :total_lessons)
     {
@@ -295,13 +298,15 @@ class LearnerProgress
       total: @lessons.size,
       previous: ref.call(reading_index && reading_index.positive? ? readable[reading_index - 1] : nil),
       next: ref.call(target),
-      next_module: target.present? && target.module_id != lesson.module_id,
+      next_module: target.present? && @course_index.fetch(target.id) > index && target.module_id != lesson.module_id,
+      next_redo: target.present? && lesson_progress(target).status == Status::REDO,
       course_complete: !@cohort.alumni? && counts[:total_lessons].positive? && counts[:completed_lessons] == counts[:total_lessons],
       counts: counts,
       # Completion controls use the same evidence as the status, including
       # feature fallbacks. Reviewed submissions and checks keep their own UI.
       manual_block_ids: manual_completion_blocks(lesson).reject { |block|
-        block_state(block) == BlockState::COMPLETE || (block.gradable_work_block? && @latest_submissions.key?(block.id))
+        (current.submission_window[:submissions_closed] && block.student_work_block?) ||
+          block_state(block) == BlockState::COMPLETE || (block.gradable_work_block? && @latest_submissions.key?(block.id))
       }.map(&:id)
     }
   end

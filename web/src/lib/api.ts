@@ -656,6 +656,8 @@ export const api = {
     }),
   getDirectConversations: (params?: { cohort_id?: number; student_id?: number }) =>
     fetchUnreadList<DirectConversationsResponse>(`/api/v1/direct_conversations${queryString(params || {})}`),
+  getAvailableDirectUsersForCohort: (cohortId: number) =>
+    fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?cohort_id=${cohortId}`),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
   getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>

@@ -42,7 +42,7 @@ self_enrollment = Enrollment.create!(user_id: 7, cohort: self_paced, status: :ac
 [ first, last ].each { |mod| self_enrollment.module_assignments.create!(curriculum_module: mod) }
 conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [User.find(2), User.find(3)])
 Message.create!(direct_conversation: conversation, author: User.find(2), body: 'Welcome, Alex. Ask me about your lesson here.')
-ids = { cohort: cohort.id, off_cohort: off.id, self_paced_cohort: self_paced.id, reading: reading.id, video: video.id, exercise: exercise.id, redo: redo_lesson.id, manual: manual.id, final: final.id, conversation: conversation.id }
+ids = { cohort: cohort.id, off_cohort: off.id, self_paced_cohort: self_paced.id, reading: reading.id, video: video.id, exercise: exercise.id, exercise_block: exercise.content_blocks.sole.id, redo: redo_lesson.id, manual: manual.id, final: final.id, conversation: conversation.id }
 path.write(JSON.pretty_generate(ids))
 puts ids.to_json
 

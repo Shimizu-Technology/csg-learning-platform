@@ -20,6 +20,15 @@ function ScopedPersonActions({
 }) {
   const navigate = useNavigate()
   const preview = useContext(PreviewNavigationContext)
+  const [allowed, setAllowed] = useState(false)
+  useEffect(() => {
+    if (preview) return
+    let active = true
+    void api.getAvailableDirectUsersForCohort(cohortId).then(response => {
+      if (active) setAllowed(!response.fromCache && Boolean(response.data?.users.some(user => user.id === person.id)))
+    }).catch(() => {})
+    return () => { active = false }
+  }, [cohortId, person.id, preview])
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const key = `${cohortId}:${person.id}`
@@ -32,7 +41,7 @@ function ScopedPersonActions({
     }
   }, [key])
   async function message() {
-    if (opening || preview) return
+    if (!allowed || opening || preview) return
     const openingKey = key
     setOpening(true)
     setError(null)
@@ -52,6 +61,7 @@ function ScopedPersonActions({
     }
   }
   if (preview) return <p className="text-sm text-ink-muted">Messaging is unavailable in View as student.</p>
+  if (!allowed) return null
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
@@ -59,7 +69,7 @@ function ScopedPersonActions({
           <MessageCircle className="h-4 w-4" aria-hidden="true" />
           {opening ? 'Opening conversation…' : `Message ${person.full_name}`}
         </Button>
-        {meetings && (person.role === 'instructor' || person.role === 'admin') && (
+        {meetings && person.role === 'instructor' && (
           <LinkButton
             variant="secondary"
             to={`/meetings?cohort_id=${cohortId}&instructor_id=${person.id}`}

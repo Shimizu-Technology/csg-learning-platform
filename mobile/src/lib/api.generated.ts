@@ -8297,6 +8297,7 @@ export interface components {
                 total_lessons: number;
             };
             manual_block_ids: number[];
+            next_redo: boolean;
         };
     };
     responses: {

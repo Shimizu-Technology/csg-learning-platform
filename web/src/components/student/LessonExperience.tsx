@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, List } from 'lucide-react'
 import { api } from '../../lib/api'
 import { learnerPaths } from '../../lib/routes'
@@ -37,6 +37,11 @@ export function LessonExperience({
   setHelpRequests: (requests: HelpRequest[]) => void
   refreshHelp: () => Promise<void>
 }) {
+  const ownership = useRef(0)
+  useEffect(() => {
+    ownership.current += 1
+    return () => { ownership.current += 1 }
+  }, [lesson.id, lesson.cohort_id])
   const [outlineOpen, setOutlineOpen] = useState(false)
   const [search, setSearch] = useSearchParams()
   const [saving, setSaving] = useState(false)
@@ -50,37 +55,36 @@ export function LessonExperience({
   const next = navigation?.next
   const isLibrary = outline?.mode === 'library'
   const section = outline?.mode === 'program' ? group?.label : module ? `Section ${module.number}` : undefined
-  const nextLabel = navigation?.next_module ? `Start next module: ${next?.title}` : `Next: ${next?.title}`
+  const nextLabel = navigation?.next_redo ? `Redo: ${next?.title}` : navigation?.next_module ? `Start next module: ${next?.title}` : `Next: ${next?.title}`
   async function markComplete() {
     if (saving || readOnly || !navigation) return
+    const request = ownership.current
+    const ownsRequest = () => ownership.current === request
     setSaving(true)
     setSaveError(null)
     try {
       for (const id of navigation.manual_block_ids) {
         const result = await api.updateProgress(id, 'completed', lesson.cohort_id)
+        if (!ownsRequest()) return
         if (result.error || !result.data || result.fromCache)
           throw new Error(result.error || 'Couldn’t save your progress. Try again.')
       }
-      await reload()
+      if (ownsRequest()) await reload()
     } catch (failure) {
+      if (!ownsRequest()) return
       setSaveError(failure instanceof Error ? failure.message : 'Couldn’t save your progress. Try again.')
       await reload()
     } finally {
-      setSaving(false)
+      if (ownsRequest()) setSaving(false)
     }
   }
-  const existingHelp = helpRequests.find(
-    (request) =>
-      request.cohort.id === lesson.cohort_id &&
-      ((request.context_type === 'lesson' && request.context_id === lesson.id) ||
-        (request.context_type === 'exercise' && lesson.content_blocks.some((block) => block.id === request.context_id)))
-  )
   const help = lesson.cohort_id && !savedData && (
     <ContextualHelp
       capabilities={lesson.capabilities}
       cohortId={lesson.cohort_id}
-      contextType={existingHelp?.context_type || 'lesson'}
-      contextId={existingHelp?.context_id || lesson.id}
+      contextType="lesson"
+      contextId={lesson.id}
+      contexts={[{ type: 'lesson', id: lesson.id, label: lesson.title }, ...lesson.content_blocks.filter(block => ['exercise', 'project', 'checkpoint'].includes(block.block_type)).map(block => ({ type: 'exercise' as const, id: block.id, label: block.title || `Exercise ${block.position + 1}` }))]}
       contextLabel={lesson.title}
       contextPath={`${window.location.origin}${paths.lesson(lesson.id)}`}
       requests={helpRequests}
@@ -101,11 +105,7 @@ export function LessonExperience({
             {navigation?.counts.completed_lessons} of {navigation?.counts.total_lessons} lessons finished. Any work
             waiting for review will still receive instructor feedback.
           </p>
-          <p className="text-sm text-ink-muted">
-            Finishing the lessons does not issue a certificate. Your instructor will confirm the final project review
-            and certificate eligibility.
-          </p>
-          {lesson.instructor && lesson.cohort_id && (
+          {lesson.instructor && lesson.cohort_id && lesson.capabilities?.support_mode === 'guided_help' && lesson.capabilities?.features?.help_requests === true && (
             <PersonActions person={lesson.instructor} cohortId={lesson.cohort_id} />
           )}
           <LinkButton to={`/materials?cohort_id=${lesson.cohort_id}`} variant="secondary">
@@ -161,7 +161,7 @@ export function LessonExperience({
           </p>
         </div>
         <div id="help" className="flex flex-wrap items-center justify-between gap-3">
-          {lesson.instructor && lesson.cohort_id && (
+          {lesson.instructor && lesson.cohort_id && lesson.capabilities?.support_mode === 'guided_help' && lesson.capabilities?.features?.help_requests === true && (
             <PersonActions person={lesson.instructor} cohortId={lesson.cohort_id} />
           )}
           {help}
@@ -198,7 +198,7 @@ export function LessonExperience({
             <span className="sr-only lg:not-sr-only">Previous: {navigation.previous.title}</span>
           </LinkButton>
         )}
-        {!readOnly && !lesson.submission_window?.submissions_closed && Boolean(navigation?.manual_block_ids.length) && (
+        {!readOnly && Boolean(navigation?.manual_block_ids.length) && (
           <Button variant={next ? 'secondary' : 'primary'} onClick={() => void markComplete()} disabled={saving}>
             {saving ? 'Saving…' : 'Mark complete'}
           </Button>

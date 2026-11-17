@@ -17,7 +17,7 @@ vi.mock('../../components/shared/VideoPlayer', () => ({ VideoPlayer: ({ title, t
 vi.mock('../../components/shared/Modal', () => ({ Modal: ({ open, children }: { open: boolean; children: ReactNode }) => open ? <div role="dialog">{children}</div> : null }))
 vi.mock('../../lib/api', () => ({ api: {
   getLesson: vi.fn(), getProfile: vi.fn(), getHelpRequests: vi.fn(), getPushConfig: vi.fn(), getBlockedUsers: vi.fn(),
-  getRecordings: vi.fn(), getDashboard: vi.fn(), getWeeklyPlan: vi.fn(), createDirectConversation: vi.fn(), updateHelpRequest: vi.fn(),
+  getRecordings: vi.fn(), getDashboard: vi.fn(), getWeeklyPlan: vi.fn(), createHelpRequest: vi.fn(), createDirectConversation: vi.fn(), updateHelpRequest: vi.fn(),
 } }))
 
 import { api } from '../../lib/api'
@@ -26,6 +26,7 @@ import { Profile } from './Profile'
 import { Recordings } from './Recordings'
 import { Dashboard } from './Dashboard'
 import { Materials } from './Materials'
+import { StudentExperienceProvider } from '../../lib/studentExperience'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { CourseSupport } from '../../components/student/CourseSupport'
 import type { HelpRequest, LearnerCapabilities } from '../../types/api'
@@ -230,3 +231,28 @@ describe('paused learning library', () => {
     expect(container.querySelector('a[href="/lessons/42?cohort_id=4"]')).not.toBeNull();
   });
 });
+
+it('On calls an active legacy staff_response answered without replies', async () => {
+  await render(<StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ staff_response: 'Use an index.', replies: undefined })]} requestsLoading={false} /></StudentExperienceProvider>)
+  expect(container.textContent).toContain('View response')
+  await click('View response')
+  expect(container.textContent).toContain('Your instructor replied')
+  expect(container.textContent).toContain('Use an index.')
+})
+it('On asks which exercise new help concerns and keeps every older response reachable', async () => {
+  const requests = [request({ id: 11, context_type: 'exercise', context_id: 51, staff_response: 'First response' }), request({ id: 12, context_type: 'exercise', context_id: 52, status: 'resolved', staff_response: 'Second response' }), request({ id: 13, status: 'resolved', staff_response: 'Lesson response' })]
+  vi.mocked(api.createHelpRequest).mockResolvedValue({ data: { created: true, help_request: request({ id: 14 }) }, error: null })
+  await render(<StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" contexts={[{ type: 'lesson', id: 42, label: 'Lists' }, { type: 'exercise', id: 51, label: 'First exercise' }, { type: 'exercise', id: 52, label: 'Second exercise' }]} requests={requests} requestsLoading={false} /></StudentExperienceProvider>)
+  await click('View response')
+  expect(container.textContent).toContain('First response')
+  expect(container.textContent).toContain('Second response')
+  expect(container.textContent).toContain('Lesson response')
+  const select = container.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement
+  expect(select.value).toBe('')
+  expect(container.querySelector('form')).toBeNull()
+  await act(async () => { select.value = 'exercise:52'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  const textarea = container.querySelector('textarea')!
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'New question about the second exercise'); textarea.dispatchEvent(new Event('input', { bubbles: true })) })
+  await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+  expect(api.createHelpRequest).toHaveBeenCalledWith(expect.objectContaining({ context_type: 'exercise', context_id: 52, message: 'New question about the second exercise' }))
+})

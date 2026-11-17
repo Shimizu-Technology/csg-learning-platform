@@ -7,6 +7,7 @@ import { LessonExperience } from './LessonExperience'
 import type { LessonDetail } from '../../types/api'
 const update = vi.hoisted(() => vi.fn().mockResolvedValue({ data: { progress: { status: 'completed' } } }))
 vi.mock('../../lib/api', () => ({ api: { updateProgress: update } }))
+vi.mock('./PersonActions', () => ({ PersonActions: () => <button>Message Tia</button> }))
 vi.mock('./ContextualHelp', () => ({ ContextualHelp: () => <button>Ask for help</button> }))
 vi.mock('../shared/LearningObjectivesPanel', () => ({ LearningObjectivesPanel: () => null }))
 const lesson = {
@@ -103,7 +104,7 @@ it('renders a refreshable real completion screen only when LearnerProgress confi
   const page = await render(value, '/lessons/2?cohort_id=1&complete=1')
   try {
     expect(page.host.querySelector('[data-testid="course-complete"]')).not.toBeNull()
-    expect(page.host.textContent).toContain('does not issue a certificate')
+    expect(page.host.textContent).not.toMatch(/certificate/i)
     expect(page.host.textContent).not.toContain('Lesson content')
     expect(page.host.querySelector('a[href="/materials?cohort_id=1"]')).not.toBeNull()
   } finally {
@@ -123,4 +124,37 @@ it('does not offer completion to read-only learners', async () => {
   } finally {
     await page.close()
   }
+})
+
+it('labels a redo separately from a forward module transition', async () => {
+  const page = await render({ ...lesson, learning_navigation: { ...lesson.learning_navigation!, next_module: false, next_redo: true, next: { id: 1, module_id: 1, title: 'First' } } })
+  try {
+    expect(page.host.textContent).toContain('Redo: First')
+    expect(page.host.textContent).not.toContain('Start next module')
+  } finally { await page.close() }
+})
+it('keeps reading completion after submissions close', async () => {
+  const page = await render({ ...lesson, submission_window: { submissions_closed: true } } as LessonDetail)
+  try {
+    const complete = [...page.host.querySelectorAll('button')].find(node => node.textContent === 'Mark complete')!
+    expect(complete).toBeTruthy()
+    await act(async () => complete.click())
+    expect(page.reload).toHaveBeenCalledOnce()
+  } finally { await page.close() }
+})
+it('ignores a completion response after navigating away, including failures', async () => {
+  for (const failure of [false, true]) {
+    let resolve!: (value: unknown) => void
+    update.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    const page = await render()
+    await act(async () => [...page.host.querySelectorAll('button')].find(node => node.textContent === 'Mark complete')!.click())
+    await page.close()
+    await act(async () => resolve(failure ? { error: 'Offline' } : { data: { progress: {} } }))
+    expect(page.reload).not.toHaveBeenCalled()
+  }
+})
+
+it.each(['course_question', 'none', 'expired', 'help off'])('does not duplicate or contradict the single support entry for %s', async mode => {
+  const page = await render({ ...lesson, instructor: { id: 9, full_name: 'Tia', role: 'instructor', avatar_url: null }, capabilities: { live_support: true, can_submit: true, read_only: false, support_expires_at: null, access_expires_at: null, support_instructor_id: 9, support_mode: mode === 'help off' ? 'guided_help' : mode === 'course_question' ? 'course_question' : 'none', features: { help_requests: mode !== 'help off' } } } as LessonDetail)
+  try { expect(page.host.textContent).not.toContain('Message Tia') } finally { await page.close() }
 })

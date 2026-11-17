@@ -110,7 +110,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const { user, enrollments } = useAuthContext()
   const studentExperience = useStudentExperience()
   const v2 = studentExperience.v2
-  const touch = useMediaQuery('(any-pointer: coarse)')
+  const touch = useMediaQuery('(pointer: coarse)')
   const [revisionOpen, setRevisionOpen] = useState(false)
   const reviewResponseTime = enrollments?.find(entry => entry.cohort.id === cohortId)?.cohort.review_response_time || 'usually reviewed within 2 days'
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
@@ -120,13 +120,13 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const serverLatest = serverSubmissions[0]
   // A successful PATCH keeps its ID. Hold its response until the parent refresh
   // catches up, so clearing the draft cannot restore the old saved content.
-  const pendingSavedAttempt = savedAttempt?.key === draftKey && (!serverLatest ||
+  const pendingSavedAttempt = savedAttempt?.key === draftKey && (!serverLatest || savedAttempt.value.id > serverLatest.id ||
     Date.parse(savedAttempt.value.updated_at || savedAttempt.value.created_at) > Date.parse(serverLatest.updated_at || serverLatest.created_at))
   const submissions = pendingSavedAttempt
     ? [savedAttempt.value, ...serverSubmissions.filter((submission) => submission.id !== savedAttempt.value.id)]
     : serverSubmissions
   const latestSubmission = submissions[0] || null
-  const hasRedoRequest = v2 ? block.learner_state === 'redo_requested' : latestSubmission?.grade === 'R'
+  const hasRedoRequest = v2 && !pendingSavedAttempt ? block.learner_state === 'redo_requested' : latestSubmission?.grade === 'R'
   const canEditSubmission = !latestSubmission?.grade || hasRedoRequest
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
@@ -206,7 +206,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     () => (lessonReturnUrl ? { lessonReturn: { url: lessonReturnUrl, label: lessonReturnLabel }, hint: starterHint, newTab: starterOpensNewTab } : undefined),
     [lessonReturnUrl, lessonReturnLabel, starterHint, starterOpensNewTab],
   )
-  const latestStatus = v2 ? ({ submitted: 'awaiting_review', redo_requested: 'redo', complete: 'done' } as const)[block.learner_state as 'submitted' | 'redo_requested' | 'complete'] : submissionStatus(latestSubmission)
+  const latestStatus = v2 && !pendingSavedAttempt ? ({ submitted: 'awaiting_review', redo_requested: 'redo', complete: 'done' } as const)[block.learner_state as 'submitted' | 'redo_requested' | 'complete'] : submissionStatus(latestSubmission)
   const editAnswer = !v2 || !latestSubmission || hasRedoRequest || revisionOpen || hasEditedSubmissionDraft
   const lockCopy = readOnly ? 'Review only' : submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])
@@ -997,7 +997,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             )}
             {v2 && submissions.length > 0 && <div className="min-w-0 space-y-2">{submissions.map((sub, index) => <details key={sub.id} className="min-w-0 rounded-xl border border-line bg-surface-raised">
               <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-ink">View submission #{sub.num_submissions}</summary>
-              <div className="min-w-0 space-y-3 px-4 pb-4">{sub.text && (writtenSubmission ? <MarkdownRenderer content={sub.text} /> : <CodeBlock code={sub.text} language={detectedLang} surface="submission" lineNumbers className="my-0" />)}{submissionArtifacts(sub)}{index > 0 && sub.feedback && <FeedbackBody feedback={sub.feedback} />}</div>
+              <div className="min-w-0 space-y-3 px-4 pb-4">{sub.text && (writtenSubmission ? <MarkdownRenderer content={sub.text} variant="written" /> : <CodeBlock code={sub.text} language={detectedLang} surface="submission" lineNumbers className="my-0" />)}{submissionArtifacts(sub)}{index > 0 && sub.feedback && <FeedbackBody feedback={sub.feedback} />}</div>
             </details>)}{canEditSubmission && !workLocked && !editAnswer && (usesTextSubmission || usesRepoArtifactSubmission) && <Button variant="secondary" onClick={() => setRevisionOpen(true)}>Edit and resubmit</Button>}</div>}
             {!v2 && block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (
               <div className="space-y-3">

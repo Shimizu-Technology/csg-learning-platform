@@ -155,6 +155,7 @@ module LessonSerialization
             end
             json[:outline] = CourseOutline.new(@lesson_enrollment, progress: progress).call
             instructor = @lesson_enrollment.cohort.support_instructor || @lesson_enrollment.cohort.instructors.not_archived.order(:id).first
+            instructor = nil if instructor && UserBlock.between(current_user.id, [ instructor.id ]).exists?
             json[:instructor] = instructor && { id: instructor.id, full_name: instructor.full_name, role: instructor.role, avatar_url: instructor.avatar_url }
           end
         else
