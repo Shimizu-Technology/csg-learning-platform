@@ -57,7 +57,7 @@ const plan: LearningPlanDetail = {
     { id: 41, title: 'Loops', module_id: null, module_name: null, status: null, completed: false, assigned: false },
   ] }],
   revisions_count: 2,
-  revisions: [{ id: 2, author: person(1, 'Ada Admin'), created_at: '2026-11-16T00:00:00Z', changes: ['description', 'next check-in'] },
+  revisions: [{ id: 2, author: person(1, 'Ada Admin'), created_at: '2026-11-16T00:00:00Z', changes: ['description', 'next follow-up'] },
     { id: 1, author: person(2, 'Ivy Instructor'), created_at: '2026-11-15T00:00:00Z', changes: ['created'] }],
 }
 const channel: ChannelDetail = {
@@ -153,7 +153,7 @@ it('a learning plan shows milestones with each lesson status, revisions, and the
   expect(backLink().textContent).toBe('Back to Alex Rivera')
   expect(container.textContent).toContain('1 of 2 done')
   expect(container.textContent).toContain('No longer assigned')
-  expect(container.textContent).toContain('Changed the description, next check-in')
+  expect(container.textContent).toContain('Changed the description, next follow-up')
   expect(container.textContent).toContain('Started the plan')
   expect(hrefs()).toContain('/admin/cohorts/4/students/9/learning#learning-plan')
   expect(hrefs().some((href) => href.startsWith('/admin/modules/7?cohort_id=4'))).toBe(true)

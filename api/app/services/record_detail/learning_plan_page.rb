@@ -9,7 +9,7 @@ class RecordDetail
     # The parts of a revision staff recognize, in the order the editor shows them.
     FIELD_LABELS = {
       "title" => "title", "description" => "description", "active" => "on or off", "target_date" => "target date",
-      "next_check_in_on" => "next check-in", "milestones" => "milestones", "lesson_overrides" => "lesson exceptions"
+      "next_check_in_on" => "next follow-up", "milestones" => "milestones", "lesson_overrides" => "lesson exceptions"
     }.freeze
 
     private

@@ -122,7 +122,7 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     milestone = detail["milestones"].sole
     assert_equal [ "Basics", "2026-12-01", 1 ], milestone.values_at("title", "due_on", "completed_count")
     assert_equal [ [ @lesson.id, true ], [ @second_lesson.id, false ] ], milestone["lessons"].map { |row| row.values_at("id", "completed") }
-    assert_equal [ [ @admin.id, [ "description", "next check-in" ] ], [ @instructor.id, [ "created" ] ] ],
+    assert_equal [ [ @admin.id, [ "description", "next follow-up" ] ], [ @instructor.id, [ "created" ] ] ],
       detail["revisions"].map { |row| [ row.dig("author", "id"), row["changes"] ] }
   end
 

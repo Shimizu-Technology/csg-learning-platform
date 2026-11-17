@@ -76,7 +76,7 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
                 {row.lesson.archived && <Badge>Archived</Badge>}
                 <span className="text-xs text-ink-muted">
                   <RecordLink record={{ type: 'module', id: row.module.id, cohortId: cohort.id }} variant="plain" className="font-normal text-ink-muted">{row.module.name}</RecordLink>
-                  {row.week ? ` · Week ${row.week}` : ''}{row.block.title ? ` · ${row.block.title}` : ''}
+                  {row.block.title ? ` · ${row.block.title}` : ''}
                 </span>
               </div>
               {row.sections.length ? <ol className="grid gap-1 sm:grid-cols-2" aria-label={`Sections in ${row.lesson.title}`}>
