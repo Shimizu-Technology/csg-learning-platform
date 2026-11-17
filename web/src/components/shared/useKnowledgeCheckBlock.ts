@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { captureProductEvent } from '../../lib/analytics'
 import { api } from '../../lib/api'
 import type { ContentBlock, ContentBlockRendererProps } from './contentBlockTypes'
-export function useKnowledgeCheckBlock({ block, cohortId, isStaff, readOnly, onProgressUpdate, setIsCompleted }: ContentBlockRendererProps & { isCompleted: boolean; setIsCompleted: React.Dispatch<React.SetStateAction<boolean>> }) {
+
+export function useKnowledgeCheckBlock({ block, cohortId, isStaff, readOnly, onProgressUpdate, setIsCompleted }: ContentBlockRendererProps & { setIsCompleted: React.Dispatch<React.SetStateAction<boolean>> }) {
   const [knowledgeCheckDraft, setKnowledgeCheckDraft] = useState<{ blockId: number; value: NonNullable<ContentBlock['knowledge_check']> } | null>(null)
   const knowledgeCheck = knowledgeCheckDraft?.blockId === block.id ? knowledgeCheckDraft.value : block.knowledge_check || null
   const [selectedCheckOption, setSelectedCheckOption] = useState<number | null>(null)
@@ -50,5 +51,5 @@ export function useKnowledgeCheckBlock({ block, cohortId, isStaff, readOnly, onP
     }
     setCheckingAnswer(false)
   }
- return { knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError, handleKnowledgeCheck }
+  return { knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError, handleKnowledgeCheck }
 }

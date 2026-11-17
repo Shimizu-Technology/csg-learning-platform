@@ -359,10 +359,10 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
             {derived.hasActiveSearch ? ' · search results expanded' : ''}
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={expandAllModules}>
+            <Button variant="secondary" size="sm" className="lg:min-h-11" onClick={expandAllModules}>
               Expand all
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => collapseAllModules(derived.visibleModules.map((mod) => mod.id))}>
+            <Button variant="secondary" size="sm" className="lg:min-h-11" onClick={() => collapseAllModules(derived.visibleModules.map((mod) => mod.id))}>
               Collapse all
             </Button>
           </div>

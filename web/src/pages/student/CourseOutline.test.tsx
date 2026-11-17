@@ -215,3 +215,13 @@ it('an unmatched week hint retains the current-group fallback', async () => {
   await render(program(), '/materials?cohort_id=3&week=99')
   expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
 })
+
+it.each(['999999', 'missing'])('shows a recoverable missing module notice for %s', async (id) => {
+  await render(program(), `/materials?cohort_id=3&module=${id}`)
+  expect(container.querySelector('h1')?.textContent).toBe('Module not found')
+  const back = container.querySelector<HTMLAnchorElement>('a[href="/materials?cohort_id=3"]')!
+  expect(back.textContent).toBe('Back to Learn')
+  await act(async () => back.click())
+  expect(container.querySelector('h1')?.textContent).toBe('Web Development Bootcamp')
+  expect(mocks.getCourseOutline).toHaveBeenCalledTimes(1)
+})

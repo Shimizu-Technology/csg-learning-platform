@@ -31,7 +31,7 @@ export function ModuleRoute() {
   const { selectedCohortId } = useCohortContext()
   const location = useLocation()
   const cohortId = Number(new URLSearchParams(location.search).get('cohort_id')) || selectedCohortId
-  const target = learnPath(cohortId, id && /^[1-9]\d*$/.test(id) ? { module: id } : {})
+  const target = learnPath(cohortId, id ? { module: id } : {})
   return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading module..." />} on={<Navigate replace to={target} />} off={<ModuleView />} />
 }
 

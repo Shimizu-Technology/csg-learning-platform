@@ -1,21 +1,11 @@
-import Player,{ type VimeoUrl } from '@vimeo/player'
+import { getYouTubeId, getVimeoEmbed } from '../../lib/videoUrls'
+import Player, { type VimeoUrl } from '@vimeo/player'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { captureProductEvent } from '../../lib/analytics'
 import { api } from '../../lib/api'
 import { isVideoSegmentSeekPosition, normalizeVideoSegments, playbackStart, type VideoSegment } from '../../lib/videoSegments'
 import type { ContentBlockRendererProps } from './contentBlockTypes'
-import { type VideoPlayerHandle } from './VideoPlayer'
-function getYouTubeId(url: string): string | null {
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/)
-  return match ? match[1] : null
-}
-
-function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
-  const match = url.match(/vimeo\.com\/(\d+)(?:\/([a-zA-Z0-9]+))?/) 
-  if (!match) return null
-  return { id: match[1], hash: match[2] }
-}
-
+import type { VideoPlayerHandle } from './VideoPlayer'
 
 export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsContext, onProgressUpdate, isCompleted, setIsCompleted }: ContentBlockRendererProps & { isCompleted: boolean; setIsCompleted: React.Dispatch<React.SetStateAction<boolean>> }) {
   const [activeVideoSegment, setActiveVideoSegment] = useState<VideoSegment | null>(null)

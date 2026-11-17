@@ -6,6 +6,7 @@ import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
+import { learnerLearnPath } from '../../lib/routes'
 import { brand } from '../../lib/brand'
 import { formatShortDate } from '../../lib/format'
 import { LEARNER_STATUS } from '../../lib/learningStatus'
@@ -160,6 +161,11 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
   }
   if (notEnrolled || !outline || !visible) {
     return <EmptyState headingLevel={1} icon={BookOpen} title="No lessons yet" description="Your modules and lessons will appear here once you are enrolled in a course." action={<Link to="/courses" className="app-link inline-flex min-h-11 items-center">Browse courses</Link>} />
+  }
+
+  const requestedModule = new URLSearchParams(location.search).get('module')
+  if (!loading && requestedModule && !outline.modules.some((mod) => mod.id === moduleId)) {
+    return <EmptyState headingLevel={1} icon={BookOpen} title="Module not found" description="This module is not available in your course." action={<LinkButton to={learnerLearnPath(cohortId)} variant="secondary">Back to Learn</LinkButton>} />
   }
 
   const library = outline.mode === 'library'

@@ -5,6 +5,11 @@ export function announcementPath(announcementId: number) {
   return `/announcements/${announcementId}`
 }
 
+/** A learner's course outline, scoped to the same cohort. */
+export function learnerLearnPath(cohortId?: number | null) {
+  return withQuery('/materials', { cohort_id: cohortId })
+}
+
 /** A learner's cohort home. */
 export function learnerCohortPath(cohortId: number) {
   return `/cohorts/${cohortId}`
