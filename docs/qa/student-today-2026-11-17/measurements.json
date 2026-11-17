@@ -849,15 +849,15 @@
  ],
  "journeys": [
   {
-   "width": 390,
-   "redoFeedbackTop": 200,
+   "width": 1280,
+   "redoFeedbackTop": 153,
    "myWork:Needs you": 1,
    "myWork:Waiting for review": 1,
    "myWork:Graded": 1
   },
   {
-   "width": 1280,
-   "redoFeedbackTop": 153,
+   "width": 390,
+   "redoFeedbackTop": 200,
    "myWork:Needs you": 1,
    "myWork:Waiting for review": 1,
    "myWork:Graded": 1
