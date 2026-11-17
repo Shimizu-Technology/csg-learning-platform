@@ -36,6 +36,26 @@ The Impeccable advisory scan of `MarkdownEditor.tsx`, `BlockCard.tsx` and `NewEx
 - Local: web typecheck, ESLint and the full Vitest suite (3,282 tests before the final additions); the editor, lesson round-trip, preference and lib suites (1,701 tests after them); mobile typecheck; API RuboCop on the changed files; and the new API and migration tests plus every session and OpenAPI contract test (178 tests), all passing.
 - Full ASUS gate (API with prepared statements on and off, RuboCop, Brakeman, web, mobile): see the PR for the final-head result.
 
+## Fix round 1 (#304 independent review, three P2s)
+
+1. **A Rich edit changed bytes outside the edited paragraph.** Storing `\n\nIntro.\r\n\r\nUntouched &nbsp; paragraph.  \r\n\r\nOutro.\r\n\r\n` and editing only "Intro." dropped the outer blank lines and turned every CRLF into LF.
+   - **Rich mode:** untouched blocks, the text between them, and the whitespace before the first and after the last block now come from the stored text. Edited and new blocks are written in the stored line ending.
+   - **Markdown mode:** the browser's text box always reads LF, so edits there are written back with the stored line ending too. A text that mixes CRLF and LF comes out all CRLF after a Markdown-mode edit.
+   - **Tests:** 25 new round-trip cases (the repro, CRLF, leading and trailing blank lines, a hard break, a final newline with no blank line after it, and a new block), each with a one-paragraph edit, across the lesson, written and message targets. Two editor component tests cover the same paths through the real editor.
+2. **A delayed legacy upload overwrote a newer server preference.** `PATCH /api/v1/editor_preferences` now takes `initialize: true`: one conditional `UPDATE … WHERE column IS NULL` per field, with the account's values returned either way. The browser adopts them. API tests cover the cross-device race; a web test holds the upload while another device saves Rich.
+3. **Out-of-order saves could persist an older choice.** Saves from one tab now run one at a time, and each sends the pending choices as they are when it runs. Pending clears only when the server answers with the value the browser still holds. Web tests cover held responses in order and three quick choices (only the latest is sent).
+
+Checks, on `4676b256` plus the CRLF browser case:
+- Web: typecheck, lint, build, `api:check`, and the full Vitest suite (3,315), including 399 round-trip cases. The 3,315 run was before one test-only type fix; the round-trip file was re-run after it (399 passed).
+- API: the focused tests plus all session and contract tests, 181 runs each with prepared statements on and off, all passing. RuboCop clean.
+- Mobile: typecheck, lint (0 errors) and Jest (1,552 tests in 142 suites).
+
+Browser, on a fresh owned harness (`csg_qa_55455_1794953867`):
+- **CRLF case:** passed at 1280 and 390. The repro is stored in a text block, edited in Rich mode and saved, then edited in Markdown mode and saved. The stored bytes were checked through the API after each save (`shared-editor-finish-2026-11-18/crlf-chromium-1280-light.png`).
+- **Preference cases:** passed again at both widths in light and dark, including the one-time upload through `initialize`.
+
+The harness was stopped and its database dropped afterwards.
+
 ## Residuals
 
 - **Mobile Rich mode: not built.** The native composer keeps Markdown mode. Rich mode needs Tiptap, which is DOM-only, so the plan is: build the web editor's Tiptap extensions and the shared converters (`markdownToEditorDoc`, `editorJsonToMarkdownKeepingSource`, `editorJsonToMarkdown`) into one self-contained HTML page, load it in `react-native-webview` (already shipped, so no new native build or EAS quota), and bridge `setMarkdown`, Markdown changes, toolbar state and mode over `postMessage`. Read `editor_preferences` from the session for the starting mode. Test it on real iOS and Android keyboards. The app doesn't read `editor_preferences` yet.

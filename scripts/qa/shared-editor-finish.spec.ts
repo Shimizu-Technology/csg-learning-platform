@@ -273,3 +273,51 @@ for (const theme of ['light', 'dark']) {
     if (person.id === 1) await request.patch(`${API}/editor_preferences`, { headers: headers(1), data: { mode: 'rich', enter_sends: true } })
   })
 }
+
+// #304 review: stored CRLF and outer blank lines survive a one-paragraph edit, in Rich and in Markdown mode.
+const CRLF_STORED = '\n\nIntro.\r\n\r\nUntouched &nbsp; paragraph.  \r\n\r\nOutro.\r\n\r\n'
+const CRLF_LESSON: Record<string, number> = { 'chromium-1280': 2, 'chromium-390': 3 }
+
+test('CRLF lesson text keeps its line endings and outer blank lines through Rich and Markdown edits', async ({ browser, request }, info) => {
+  test.setTimeout(90_000)
+  const lessonId = CRLF_LESSON[info.project.name]
+  const textBlock = async () => {
+    const data = await (await request.get(`${API}/lessons/${lessonId}/block_editor`, { headers: headers(1) })).json() as { lesson: { content_blocks: { id: number; block_type: string; body: string }[] } }
+    return data.lesson.content_blocks.find(block => block.block_type === 'text')!
+  }
+  // Fixture: store the review's repro in this lesson's text block (owned harness database only).
+  if (!/^csg_qa_/.test(state.database)) throw new Error(`Refusing to write ${state.database}`)
+  const block = await textBlock()
+  // psql expands :'body' (quoted as a literal) only in input it reads, not in -c.
+  const set = spawnSync('psql', ['-v', 'ON_ERROR_STOP=1', '-d', state.database, '-v', `body=${CRLF_STORED}`, '-v', `id=${block.id}`], { encoding: 'utf8', input: "UPDATE content_blocks SET body = :'body' WHERE id = :id;\n" })
+  if (set.status !== 0) throw new Error(set.stderr)
+  expect((await textBlock()).body).toBe(CRLF_STORED)
+  await request.patch(`${API}/editor_preferences`, { headers: headers(1), data: { mode: 'rich' } })
+
+  const page = await themedPage(browser, 'light', `shared-editor-crlf-${info.project.name}`, info.project.use.viewport!)
+  await page.goto(`/admin/lessons/${lessonId}/edit?qa_user=1`)
+  const editor = page.locator('[data-md-editor]').first()
+  await expect(editor).toHaveAttribute('data-mode', 'rich')
+  await caretAfterParagraph(page, 'Intro.')
+  await page.keyboard.type(' Edited in Rich.')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  const afterRich = CRLF_STORED.replace('Intro.', 'Intro. Edited in Rich.')
+  await expect.poll(async () => JSON.stringify((await textBlock()).body)).toBe(JSON.stringify(afterRich))
+
+  await setMode(editor, 'Markdown')
+  const textarea = page.getByRole('textbox', { name: /Text block 1, Markdown$/ })
+  await textarea.focus()
+  const at = (await textarea.inputValue()).indexOf('Outro.') + 'Outro.'.length
+  await textarea.evaluate((element: HTMLTextAreaElement, position: number) => element.setSelectionRange(position, position), at)
+  await page.keyboard.type(' Edited in Markdown.')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  // Markdown mode writes the stored CRLF back; the leading LF blank lines become CRLF there (documented).
+  const afterMarkdown = afterRich.replace('Outro.', 'Outro. Edited in Markdown.').replace(/\r?\n/g, '\r\n')
+  await expect.poll(async () => JSON.stringify((await textBlock()).body)).toBe(JSON.stringify(afterMarkdown))
+  await page.screenshot({ path: `${shots}/crlf-${info.project.name}.png`, fullPage: false })
+  await setMode(page.locator('[data-md-editor]').first(), 'Rich')
+  await release(page)
+  await page.context().close()
+})
