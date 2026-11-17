@@ -97,9 +97,11 @@ The implementation uses one app-lifetime `expo-audio` recorder for foreground-on
 The native lesson editor and New lesson prompt use a monospace Markdown input,
 with a preview through the same `LessonMarkdown` renderer learners use. Opening
 or previewing does not generate HTML. Saves retain authored source exactly,
-including surrounding whitespace; validation does not normalize the body.
-Existing HTML bodies and device drafts remain unchanged source, without an
-automatic repair. Learner display is unchanged.
+including surrounding whitespace. Whitespace-only instructions save as null;
+validation does not normalize any other body.
+Existing HTML bodies remain unchanged source, without an automatic repair.
+Recovering an HTML device draft over saved Markdown requires an explicit choice
+to keep the saved Markdown instructions or use the draft anyway. Learner display is unchanged.
 
 Bundling the shared web Rich editor into the existing WebView remains a
 follow-up. The N-6 corpus checks, runtime comparison, device limits, and

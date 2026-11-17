@@ -1,6 +1,6 @@
 import type { LearningObjective, LessonContentBlock, LessonDetail, LessonEditorInput, LessonObjective, LessonSubmissionType, Rubric } from './types';
 import { codeRunnerLanguageForFilename, normalizeCodeRunnerConfig, submissionConfigWithRunner, type CodeRunnerConfig } from './code-runner';
-import { richTextHtmlHasVisibleContent } from './rich-text-editor';
+import { authoredContentHasVisibleContent } from './authored-content';
 
 export interface ObjectiveAlignmentField {
   learning_objective_id: number;
@@ -123,8 +123,8 @@ export function lessonEditorValidation(fields: LessonEditorFields) {
       return 'Video link must be a valid http or https URL.';
     }
   }
-  if (fields.solution.trim() && !richTextHtmlHasVisibleContent(instructions) && !fields.filename.trim()) return 'Add instructions or a filename before adding an instructor solution.';
-  if (fields.rubric_id && !richTextHtmlHasVisibleContent(instructions) && !fields.filename.trim()) return 'Add exercise instructions or a filename before attaching a rubric.';
+  if (fields.solution.trim() && !authoredContentHasVisibleContent(instructions) && !fields.filename.trim()) return 'Add instructions or a filename before adding an instructor solution.';
+  if (fields.rubric_id && !authoredContentHasVisibleContent(instructions) && !fields.filename.trim()) return 'Add exercise instructions or a filename before attaching a rubric.';
   if (fields.retrieval_check.enabled) {
     const check = fields.retrieval_check;
     const options = check.options.map((option) => option.trim());
@@ -139,7 +139,7 @@ export function lessonEditorValidation(fields: LessonEditorFields) {
 export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFields, baseUpdatedAt: string): LessonEditorInput {
   const title = fields.title.trim();
   // Preserve authored source; rendering and validation must never rewrite it.
-  const instructions = fields.instructions;
+  const instructions = fields.instructions.trim() ? fields.instructions : '';
   const video = editorBlock(lesson, ['video', 'recording']);
   const exercise = editorBlock(lesson, ['exercise', 'code_challenge']);
   const check = fields.retrieval_check;
@@ -229,7 +229,7 @@ function previewObjectives(lesson: LessonDetail, fields: LessonEditorFields, obj
 }
 
 export function lessonPreviewForFields(lesson: LessonDetail, fields: LessonEditorFields, objectiveCatalog: LearningObjective[] = [], rubricCatalog: Rubric[] = []): LessonDetail {
-  const instructions = fields.instructions;
+  const instructions = fields.instructions.trim() ? fields.instructions : '';
   const rubric = resolveRubric(lesson, fields.rubric_id, rubricCatalog);
   const video = editorBlock(lesson, ['video', 'recording']);
   const exercise = editorBlock(lesson, ['exercise', 'code_challenge']);

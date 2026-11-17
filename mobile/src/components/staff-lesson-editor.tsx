@@ -20,6 +20,8 @@ import { StaffLearningDesignEditor } from '@/components/staff-learning-design-ed
 import { StaffMarkdownEditor } from '@/components/staff-markdown-editor';
 import { StaffVideoSourceEditor } from '@/components/staff-video-source-editor';
 import { fonts, monoFont } from '@/constants/csg-theme';
+import { authoredContentSource } from '@/lib/authored-content';
+import { webLessonUrl } from '@/lib/hafa-starter-links';
 import { ApiError } from '@/lib/api';
 import { clearLessonEditorDraft, loadLessonEditorDraft, saveLessonEditorDraft } from '@/lib/curriculum-draft-storage';
 import { fieldsForLesson, lessonEditorFieldsMatch, lessonEditorInput, lessonEditorValidation, lessonPreviewForFields, lessonSubmissionOptions, type LessonEditorFields } from '@/lib/lesson-editor';
@@ -89,6 +91,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState<DraftStatus>('loading');
   const [recovered, setRecovered] = useState(false);
+  const [legacyHtmlDraft, setLegacyHtmlDraft] = useState(false);
   const [staleDraft, setStaleDraft] = useState(false);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
@@ -125,6 +128,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
           retrieval_check: retrievalCheckForDraft(initialFields.retrieval_check, draft.retrieval_check),
         } : null;
       if (draft && restoredFields && !lessonEditorFieldsMatch(restoredFields, initialFields)) {
+        setLegacyHtmlDraft(authoredContentSource(initialFields.instructions).format === 'markdown' && authoredContentSource(restoredFields.instructions).format === 'html');
         setFields(restoredFields);
         setBaseUpdatedAt(draft.base_updated_at);
         setRecovered(true);
@@ -199,6 +203,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
   };
 
   const save = async () => {
+    if (legacyHtmlDraft) { setError('Choose whether to keep saved Markdown or use the HTML draft before saving.'); return; }
     if (videoUploading) { setError('Wait for the video upload to finish before saving.'); return; }
     const validation = lessonEditorValidation(fields);
     if (validation) { setError(validation); setMode('edit'); return; }
@@ -208,7 +213,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
       const saved = await onSave(lessonEditorInput(sourceLesson, fields, baseUpdatedAt));
       const nextFields = fieldsForLesson(saved);
       setSourceLesson(saved); setFields(nextFields); setBaseUpdatedAt(saved.updated_at || '');
-      setConflict(false); setRecovered(false); setStaleDraft(false); setNotice('Lesson saved. View as student now uses this version.');
+      setConflict(false); setRecovered(false); setStaleDraft(false); setLegacyHtmlDraft(false); setNotice('Lesson saved. View as student now uses this version.');
       await clearLessonEditorDraft(userId, lesson.id);
       setDraftStatus('saved');
     } catch (saveError) {
@@ -248,7 +253,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
         if (stagedVideoKey) await onScheduleVideoCleanup(stagedVideoKey);
         await clearLessonEditorDraft(userId, lesson.id);
         setSourceLesson(latest); setFields(fieldsForLesson(latest)); setBaseUpdatedAt(latest.updated_at || '');
-        setConflict(false); setRecovered(false); setStaleDraft(false); setNotice('Draft discarded. You are editing the latest saved lesson.');
+        setConflict(false); setRecovered(false); setStaleDraft(false); setLegacyHtmlDraft(false); setNotice('Draft discarded. You are editing the latest saved lesson.');
         setDraftStatus('saved');
         if (stagedVideoKey) void onRetryVideoCleanups().catch(() => undefined);
       } catch (reloadError) {
@@ -258,10 +263,16 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
   ]);
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
-    <View style={styles.header}><BackButton style={styles.headerButton} onPress={leave} /><View style={styles.headerCopy}><Text style={styles.headerKicker}>CURRICULUM EDITOR</Text><Text numberOfLines={1} style={styles.headerTitle}>{fields.title || 'Untitled lesson'}</Text></View><Button variant="primary" accessibilityRole="button" accessibilityLabel="Save lesson" disabled={!dirty || saving || videoUploading || !draftReady} onPress={() => void save()} style={[styles.saveHeader, (!dirty || saving || videoUploading || !draftReady) && styles.disabled]}><Save color={c.text.strong} size={17} /><Text style={styles.saveHeaderText}>{videoUploading ? 'Uploading' : saving ? 'Saving' : 'Save'}</Text></Button></View>
+    <View style={styles.header}><BackButton style={styles.headerButton} onPress={leave} /><View style={styles.headerCopy}><Text style={styles.headerKicker}>CURRICULUM EDITOR</Text><Text numberOfLines={1} style={styles.headerTitle}>{fields.title || 'Untitled lesson'}</Text></View><Button variant="primary" accessibilityRole="button" accessibilityLabel="Save lesson" disabled={!dirty || saving || videoUploading || !draftReady || legacyHtmlDraft} onPress={() => void save()} style={[styles.saveHeader, (!dirty || saving || videoUploading || !draftReady || legacyHtmlDraft) && styles.disabled]}><Save color={c.text.strong} size={17} /><Text style={styles.saveHeaderText}>{videoUploading ? 'Uploading' : saving ? 'Saving' : 'Save'}</Text></Button></View>
     <View style={styles.modeBar}><Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'edit' }} onPress={() => showMode('edit')} style={[styles.modeButton, mode === 'edit' && styles.modeButtonActive]}><Pencil color={mode === 'edit' ? c.selection.indicator : c.text.body} size={17} /><Text style={[styles.modeText, mode === 'edit' && styles.modeTextActive]}>Edit</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'preview' }} disabled={videoUploading} onPress={() => showMode('preview')} style={[styles.modeButton, mode === 'preview' && styles.modeButtonActive, videoUploading && styles.disabled]}><Eye color={mode === 'preview' ? c.selection.indicator : c.text.body} size={17} /><Text style={[styles.modeText, mode === 'preview' && styles.modeTextActive]}>Preview draft</Text></Pressable><Text style={styles.draftStatus}>{draftStatus === 'loading' ? 'Loading draft…' : draftStatus === 'saving' ? 'Saving draft…' : draftStatus === 'error' ? 'Draft not saved' : dirty ? 'Saved on device' : 'Up to date'}</Text></View>
     <ScrollView ref={scrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       {recovered && <Notice icon={<Cloud color={c.text.body} size={18} />} tone="ruby" title="Draft recovered" copy={staleDraft ? 'This draft began before the latest server update. Refresh its base before saving.' : 'Your unsaved edits were restored from this device.'} />}
+      {legacyHtmlDraft && <View style={styles.conflict} accessibilityRole="alert"><View style={styles.flex}>
+        <Text style={styles.conflictTitle}>This draft came from an older app version and is in HTML.</Text>
+        <Text style={styles.conflictCopy}>The saved lesson is Markdown. Choose which instructions to keep before saving. Your other draft edits stay intact.</Text>
+        <Button variant="secondary" label="Keep saved Markdown" onPress={() => { update('instructions', serverFields.instructions); setLegacyHtmlDraft(false); }} />
+        <Button variant="secondary" label="Use draft anyway" onPress={() => setLegacyHtmlDraft(false)} />
+      </View></View>}
       {conflict && <View accessibilityRole="alert" style={styles.conflict}><AlertCircle color={c.status.warning.fg} size={21} /><View style={styles.flex}><Text style={styles.conflictTitle}>Someone else updated this lesson</Text><Text style={styles.conflictCopy}>Load the latest version underneath your draft. Fields in your draft will win when you save again.</Text><Pressable accessibilityRole="button" disabled={saving} onPress={() => void rebase()} style={styles.conflictAction}><RefreshCw color={c.status.warning.fg} size={16} /><Text style={styles.conflictActionText}>Refresh base and keep draft</Text></Pressable></View></View>}
       {error && <Notice icon={<AlertCircle color={c.status.danger.fg} size={18} />} tone="danger" title="Something needs attention" copy={error} />}
       {notice && <Notice icon={<Check color={c.status.success.fg} size={18} />} tone="success" title="Ready" copy={notice} />}
@@ -284,7 +295,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
           />
         </EditorSection>
         <EditorSection eyebrow="3 · BUILD" title="Exercise and submission" copy="Write the student-facing task first, then keep the answer in the instructor-only solution.">
-          <Field label="INSTRUCTIONS"><StaffMarkdownEditor value={fields.instructions} onChange={(value) => update('instructions', value)} /></Field>
+          <Field label="INSTRUCTIONS"><StaffMarkdownEditor starterLinks={{ lessonReturn: { url: webLessonUrl(sourceLesson.id, sourceLesson.cohort_id), label: fields.title }, hint: 'practice' }} value={fields.instructions} onChange={(value) => update('instructions', value)} /></Field>
           <Field label="FILENAME"><View style={styles.inputWithIcon}><FileCode2 color={c.text.muted} size={17} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Exercise filename" autoCapitalize="none" autoCorrect={false} value={fields.filename} onChangeText={(value) => update('filename', value)} placeholder="e.g. 111.rb or styles.css" placeholderTextColor={c.text.body} style={styles.inlineInput} /></View></Field>
           <Field label="SUBMISSION"><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{lessonSubmissionOptions.map((option) => <Pressable key={option.value} accessibilityRole="button" accessibilityState={{ selected: fields.submission_type === option.value }} onPress={() => updateSubmissionType(option.value)} style={[styles.chip, fields.submission_type === option.value && styles.chipActive]}><Text style={[styles.chipText, fields.submission_type === option.value && styles.chipTextActive]}>{option.label}</Text></Pressable>)}</ScrollView><Text style={styles.helper}>{selectedSubmission.description}</Text></Field>
           {fields.submission_type === 'text_submission' && <StaffCodeRunnerSettings value={fields.runner} onChange={(runner) => update('runner', runner)} />}
@@ -309,7 +320,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
             return onCreateRubric(input);
           }}
         />
-        <View style={styles.actions}><Button variant="primary" accessibilityRole="button" accessibilityLabel="Save lesson changes" disabled={!dirty || saving || videoUploading || !draftReady} onPress={() => void save()} style={[styles.primary, (!dirty || saving || videoUploading || !draftReady) && styles.disabled]}><Save color={c.text.strong} size={19} /><Text style={styles.primaryText}>{videoUploading ? 'Uploading video…' : saving ? 'Saving lesson…' : dirty ? 'Save lesson changes' : 'Everything is saved'}</Text></Button>{dirty && <Pressable accessibilityRole="button" disabled={saving || videoUploading} onPress={discard} style={styles.discard}><Trash2 color={c.text.body} size={17} /><Text style={styles.discardText}>Discard device draft</Text></Pressable>}</View>
+        <View style={styles.actions}><Button variant="primary" accessibilityRole="button" accessibilityLabel="Save lesson changes" disabled={!dirty || saving || videoUploading || !draftReady || legacyHtmlDraft} onPress={() => void save()} style={[styles.primary, (!dirty || saving || videoUploading || !draftReady || legacyHtmlDraft) && styles.disabled]}><Save color={c.text.strong} size={19} /><Text style={styles.primaryText}>{videoUploading ? 'Uploading video…' : saving ? 'Saving lesson…' : dirty ? 'Save lesson changes' : 'Everything is saved'}</Text></Button>{dirty && <Pressable accessibilityRole="button" disabled={saving || videoUploading} onPress={discard} style={styles.discard}><Trash2 color={c.text.body} size={17} /><Text style={styles.discardText}>Discard device draft</Text></Pressable>}</View>
       </>}
     </ScrollView>
   </KeyboardAvoidingView></SafeAreaView>;

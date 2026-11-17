@@ -97,3 +97,12 @@ it('preselects the expanded empty day in the exercise editor', () => {
   fireEvent(screen.UNSAFE_getByType(Modal), 'show');
   expect(screen.getByRole('radio', { name: 'Friday', checked: true })).toBeTruthy();
 });
+
+it('creates a lesson whose instructions are only a Markdown autolink', async () => {
+  const onSave = jest.fn(async () => undefined);
+  const screen = render(<ExerciseEditorModal visible module={demoStaffCurriculum.modules[0]} defaultWeek={2} onClose={jest.fn()} onSave={onSave} />);
+  fireEvent.changeText(screen.getByLabelText('New lesson title'), 'Read the link');
+  fireEvent.changeText(screen.getByLabelText('New lesson instructions'), '<https://example.com>');
+  fireEvent.press(screen.getByLabelText('Create and continue'));
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ instructions: '<https://example.com>' })));
+});

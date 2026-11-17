@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '@/components/ui/button';
+import type { StarterLinkContext } from '@/components/authored-content';
 import { LessonMarkdown } from '@/components/lesson-markdown';
 import { fonts, monoFont } from '@/constants/csg-theme';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 
 /** Source is never parsed or serialized on the editing path. */
-export function StaffMarkdownEditor({ value, onChange, accessibilityLabel = 'Exercise instructions' }: {
+export function StaffMarkdownEditor({ value, onChange, accessibilityLabel = 'Exercise instructions', starterLinks }: {
   value: string;
   onChange: (value: string) => void;
   accessibilityLabel?: string;
+  starterLinks?: StarterLinkContext;
 }) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
@@ -19,7 +21,7 @@ export function StaffMarkdownEditor({ value, onChange, accessibilityLabel = 'Exe
       <Text style={styles.helper}>Markdown</Text>
       <Button variant="secondary" label={preview ? 'Edit Markdown' : 'Preview instructions'} accessibilityLabel={`${preview ? 'Edit' : 'Preview'} ${accessibilityLabel}`} onPress={() => setPreview(!preview)} />
     </View>
-    {preview ? <View style={styles.preview}><LessonMarkdown body={value} /></View> : <TextInput
+    {preview ? <View style={styles.preview}><LessonMarkdown body={value} starterLinks={starterLinks} /></View> : <TextInput
       keyboardAppearance={scheme}
       accessibilityLabel={accessibilityLabel}
       autoCapitalize="none"

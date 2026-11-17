@@ -122,3 +122,9 @@ describe('lesson editor helpers', () => {
     expect(lessonEditorInput(lesson, fields, lesson.updated_at!)).not.toHaveProperty('retrieval_check');
   });
 });
+
+it('accepts Markdown autolinks as instructions when a solution or rubric is present', () => {
+  const fields = { ...fieldsForLesson(lesson), instructions: '<https://example.com>', filename: '', solution: 'Answer', rubric_id: 12 };
+  expect(lessonEditorValidation(fields)).toBeNull();
+  expect(lessonEditorInput(lesson, fields, lesson.updated_at!).exercise?.body).toBe(fields.instructions);
+});

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fonts } from '@/constants/csg-theme';
 import { StaffMarkdownEditor } from '@/components/staff-markdown-editor';
 import { curriculumDayNames, curriculumModuleTypes, curriculumReleaseDay, curriculumSchedulePatterns, curriculumWeekFor, scheduledDayIndices } from '@/lib/curriculum';
-import { richTextHtmlHasVisibleContent } from '@/lib/rich-text-editor';
+import { authoredContentHasVisibleContent } from '@/lib/authored-content';
 import type { CurriculumModuleInput, ExerciseCreateInput, LessonDetail, StaffCurriculumModule } from '@/lib/types';
 
 type ModuleEditorProps = {
@@ -107,7 +107,7 @@ function AdminExerciseEditorModal({ visible, module, defaultWeek, defaultDayInde
 
   const submit = async () => {
     if (!title.trim()) { setError('Give this lesson a clear title.'); return; }
-    if (!richTextHtmlHasVisibleContent(instructions)) { setError('Add a starting prompt so the new lesson is useful immediately.'); return; }
+    if (!authoredContentHasVisibleContent(instructions)) { setError('Add a starting prompt so the new lesson is useful immediately.'); return; }
     setSaving(true); setError(null);
     try {
       await onSave({ title: title.trim(), instructions, release_day: curriculumReleaseDay(week, weekdayIndex), required, submission_type: 'manual_complete' });
