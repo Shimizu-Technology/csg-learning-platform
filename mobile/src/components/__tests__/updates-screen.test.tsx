@@ -151,3 +151,49 @@ it('shows readers Edited with the time on the card and in the detail', async () 
   expect(view.queryByText('Edit')).toBeNull();
   view.unmount();
 });
+
+it('shows staff a scheduled update as Scheduled with when it sends, and a posted one with its read counts (U-3.6, L-5.1)', async () => {
+  mockUser.is_staff = true;
+  // Jan 15, 2030, 9:00 AM in Guam.
+  const scheduled = { ...notices[1], id: 90, title: 'Scheduled notice', status: 'draft' as const, published_at: null, unread: false, can_edit: true, scheduled_for: '2030-01-14T23:00:00.000Z', scheduled_send_push: true, schedule_time_zone: 'Pacific/Guam' };
+  const posted = { ...notices[2], id: 91, title: 'Posted notice', read_summary: { notified: 4, read: 3 } };
+  mockApi.announcements.mockResolvedValue({ announcements: [scheduled, posted], unread_count: 0, meta: { ...meta(1), total_count: 2, total_pages: 1, has_next_page: false } });
+  mockApi.announcement.mockImplementation(async (id) => ({ announcement: id === 90 ? scheduled : { ...posted, read_at: 'now', unread: false } }));
+  const view = screen();
+  await view.findByLabelText('Open update: Scheduled notice');
+  expect(view.getByText('Scheduled')).toBeTruthy();
+  expect(view.getAllByText(/Sends about Jan 15, 2030, 9:00 AM ChST/).length).toBeGreaterThan(0);
+  fireEvent.press(view.getByLabelText('Open update: Posted notice'));
+  expect((await view.findByTestId('announcement-read-summary')).props.children).toBe('3 of 4 people it went to have read it');
+  view.unmount();
+});
+
+it('fetches read counts for staff when an already-read update is opened or long-pressed', async () => {
+  const read = { ...notices[2], id: 92, title: 'Read notice', read_at: '2026-10-22T01:00:00Z', unread: false, can_archive: true };
+  mockApi.announcements.mockResolvedValue({ announcements: [read], unread_count: 0, meta: { ...meta(1), total_count: 1, total_pages: 1, has_next_page: false } });
+  mockApi.announcement.mockResolvedValue({ announcement: { ...read, read_summary: { notified: 5, read: 2 } } });
+  mockUser.is_staff = true;
+  let view = screen();
+  fireEvent.press(await view.findByLabelText('Open update: Read notice'));
+  expect((await view.findByTestId('announcement-read-summary')).props.children).toBe('2 of 5 people it went to have read it');
+  expect(mockApi.announcement).toHaveBeenCalledWith(92);
+  view.unmount();
+
+  mockApi.announcement.mockClear();
+  view = screen();
+  fireEvent(await view.findByLabelText('Open update: Read notice'), 'longPress');
+  expect(await view.findByTestId('announcement-read-summary')).toBeTruthy();
+  expect(mockApi.announcement).toHaveBeenCalledWith(92);
+  view.unmount();
+}, 15_000);
+
+it('makes no request when a learner opens an update already read', async () => {
+  const read = { ...notices[2], id: 92, title: 'Read notice', read_at: '2026-10-22T01:00:00Z', unread: false };
+  mockApi.announcements.mockResolvedValue({ announcements: [read], unread_count: 0, meta: { ...meta(1), total_count: 1, total_pages: 1, has_next_page: false } });
+  const view = screen();
+  fireEvent.press(await view.findByLabelText('Open update: Read notice'));
+  expect(await view.findByText(/Shared by/)).toBeTruthy();
+  expect(mockApi.announcement).not.toHaveBeenCalled();
+  expect(view.queryByTestId('announcement-read-summary')).toBeNull();
+  view.unmount();
+});

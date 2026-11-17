@@ -44,7 +44,7 @@ module Api
 
         notification = current_user.notifications.find_by(notifiable: @announcement)
         notification&.mark_read!
-        render json: { announcement: announcement_json(@announcement, notification) }
+        render json: { announcement: announcement_json(@announcement, notification, read_summary: read_summary(@announcement)) }
       end
 
       # POST /api/v1/announcements
@@ -54,6 +54,11 @@ module Api
       # `client_request_id` (8-64 letters, digits, "-" or "_"); a retry or a
       # second click with the same id returns the update the first request
       # made instead of posting, and notifying everyone, twice.
+      #
+      # A draft with `scheduled_for` (ISO 8601 with a UTC offset) is a
+      # scheduled update: the hourly tick posts it at the first run at or
+      # after that time (ScheduledAnnouncementPublisher). Until then it is a
+      # draft, seen only by its author and admins.
       def create
         announcement = Announcement.new(announcement_params)
         announcement.author = current_user
@@ -61,6 +66,14 @@ module Api
         unless announcement.draft? || announcement.published?
           render json: { errors: [ "A new update is posted or saved as a draft" ] }, status: :unprocessable_entity
           return
+        end
+        return if schedule_invalid?
+        if schedule_param.present?
+          unless announcement.draft?
+            render json: { errors: [ "Post an update now or schedule it as a draft, not both" ] }, status: :unprocessable_entity
+            return
+          end
+          schedule(announcement)
         end
         if params[:client_request_id].present? && client_request_id.nil?
           render json: { errors: [ "Client request id must be 8 to 64 letters, digits, dashes or underscores" ] }, status: :unprocessable_entity
@@ -73,7 +86,10 @@ module Api
 
         # The in-app notifications are written in the same transaction as the
         # update, so it is posted with every recipient's notification or not
-        # at all. Push is requested here and runs after the commit (#258).
+        # at all. Push is requested here and runs after the commit (#258); its
+        # intent (push_requested_at) commits with the post, so the tick can
+        # re-request it if this process dies before the push runs.
+        announcement.push_requested_at = Time.current if announcement.published? && send_push?
         saved = Announcement.transaction do
           next false unless announcement.save
 
@@ -107,17 +123,40 @@ module Api
       # so they carry the words that were posted and an edit waiting on the
       # lock updates them afterwards. Push runs after the commit (#258).
       # Edits after posting notify nobody again; the audience is fixed.
+      #
+      # On a draft, `scheduled_for` schedules it, moves its time, or (null)
+      # cancels the schedule so it is an ordinary draft again. Posting a
+      # scheduled draft now clears its schedule. Once the tick has posted it,
+      # a schedule change is refused (422): the update has gone out.
       def update
+        return if schedule_invalid?
+
         outcome = Announcement.transaction do
           @announcement.lock!
           refresh_management_authorization!
+          # A draft or scheduled update in a cohort these staff can no longer
+          # act on (their assignment went, or it moved to a cohort they don't
+          # teach) is the same 404 as a missing id. Everything else keeps 403.
+          next :not_found if hidden_draft?(@announcement)
           next :not_editor unless @announcement.editable_by?(current_user)
           next :cannot_manage unless can_manage?(@announcement)
 
           never_posted = @announcement.draft? || @announcement.published_at.nil?
+          # The tick may have posted it while this request waited for the lock.
+          next :already_posted if params.key?(:scheduled_for) && !@announcement.draft?
+
           @announcement.assign_attributes(announcement_params)
           # The audience it would have after this request.
           next :cannot_manage unless can_manage?(@announcement)
+
+          if never_posted && @announcement.published?
+            # Posted now, not at the scheduled time. The push intent is saved
+            # in the same UPDATE that posts it.
+            @announcement.assign_attributes(scheduled_for: nil, scheduled_by: nil, scheduled_send_push: false)
+            @announcement.push_requested_at = Time.current if send_push?
+          elsif params.key?(:scheduled_for)
+            schedule(@announcement)
+          end
 
           @announcement.record_edit(current_user)
           copy_changed = !@announcement.draft? && (@announcement.will_save_change_to_title? || @announcement.will_save_change_to_body?)
@@ -134,8 +173,10 @@ module Api
 
         case outcome
         when :saved then render json: { announcement: announcement_json(@announcement) }
+        when :not_found then render_not_found
         when :not_editor then render_forbidden("Only the author or an admin can change this update")
         when :cannot_manage then render_forbidden("Cannot manage this announcement")
+        when :already_posted then render json: { errors: [ "This update has already been posted, so its schedule can't change" ] }, status: :unprocessable_entity
         else render json: { errors: @announcement.errors.full_messages }, status: :unprocessable_entity
         end
       end
@@ -151,7 +192,9 @@ module Api
         refusal = Announcement.transaction do
           @announcement.lock!
           refresh_management_authorization!
-          if !can_manage?(@announcement)
+          if hidden_draft?(@announcement)
+            :not_found
+          elsif !can_manage?(@announcement)
             "Cannot manage this announcement"
           elsif !@announcement.draft?
             @announcement.update!(status: :archived, archived_at: Time.current)
@@ -163,6 +206,7 @@ module Api
             "Only the author or an admin can delete this draft"
           end
         end
+        return render_not_found if refusal == :not_found
         return render_forbidden(refusal) if refusal
 
         render json: { announcement: announcement_json(@announcement) }
@@ -177,12 +221,22 @@ module Api
         render_forbidden("Cannot manage this announcement")
       end
 
-      # Can post to this audience: admins anywhere, instructors in their cohorts.
+      # Can post to this audience: admins anywhere, instructors in the
+      # cohorts they teach (StaffCohortScope).
       def can_manage?(announcement)
         return false unless current_user.staff? && !current_user.archived?
-        return true if current_user.admin?
+        return true if staff_scope.admin?
 
-        announcement.cohort? && teachable_cohort_ids.include?(announcement.cohort_id)
+        announcement.cohort? && announcement.cohort_id.present? && staff_scope.visible?(announcement.cohort_id)
+      end
+
+      # A draft or scheduled update that active staff can't act on: its cohort
+      # isn't one they teach (StaffCohortScope), or it isn't theirs. Show,
+      # edit, post, reschedule, cancel and delete answer it with the same 404
+      # as a missing id. Posted updates and every learner read keep 403 (the
+      # course-access contract the clients show as "access ended").
+      def hidden_draft?(announcement)
+        announcement.draft? && current_user.staff? && !current_user.archived? && !can_manage_view?(announcement)
       end
 
       # Management detail: posted and archived updates for their audience's
@@ -201,8 +255,8 @@ module Api
         announcement.published? && can_manage?(announcement)
       end
 
-      def teachable_cohort_ids
-        @teachable_cohort_ids ||= current_user.cohort_instructor_assignments.pluck(:cohort_id).to_set
+      def staff_scope
+        @staff_scope ||= StaffCohortScope.new(current_user)
       end
 
       def refresh_management_authorization!
@@ -213,7 +267,7 @@ module Api
           User.eager_load(cohort_instructor_assignments: :cohort).where(id: current_user.id).load.first!
         end
         assignments = current_user.cohort_instructor_assignments
-        @teachable_cohort_ids = assignments.map(&:cohort_id).to_set
+        @staff_scope = StaffCohortScope.new(current_user, taught_cohort_ids: assignments.map(&:cohort_id))
         # Reuse the cohort loaded by the fresh check for validation and
         # fan-out, keeping publishing at five statements under the row lock.
         if (assignment = assignments.find { |item| item.cohort_id == @announcement.cohort_id })
@@ -227,14 +281,21 @@ module Api
       # requested through PushNotificationJob, which ApplicationJob defers
       # until the commit, so a push failure never undoes the notifications.
       def announce(announcement)
-        NotificationDeliveryService.announcement_published(announcement, push: send_push?)
+        NotificationDeliveryService.announcement_published(announcement, push: announcement.push_requested_at.present?)
       end
 
       # A draft someone may not see is "not found", exactly as a missing id
-      # is, so the response doesn't reveal that it exists.
+      # is, so the response doesn't reveal it exists: another author's draft
+      # for anyone, and for staff any draft or scheduled update in a cohort
+      # they can't act on.
       def set_announcement
         @announcement = Announcement.drafts_visible_to(current_user).find_by(id: params[:id])
-        render json: { error: "Update not found" }, status: :not_found unless @announcement
+        @announcement = nil if @announcement && hidden_draft?(@announcement)
+        render_not_found unless @announcement
+      end
+
+      def render_not_found
+        render json: { error: "Update not found" }, status: :not_found
       end
 
       CLIENT_REQUEST_ID = /\A[A-Za-z0-9_-]{8,64}\z/
@@ -250,8 +311,58 @@ module Api
         Announcement.find_by(author_id: current_user.id, client_request_id: client_request_id)
       end
 
-      # No published_at: posting time is when the update is posted. Scheduled
-      # posting waits for a job runner (AS-6).
+      # The requested send time: nil when absent, null or "" (cancels a
+      # schedule on update), a Time when valid, or :invalid. It must carry a
+      # UTC offset, so "9:00" can't silently mean the server's zone. Any other
+      # value (false, [], {}, a number) is invalid rather than a cancel.
+      def schedule_param
+        return @schedule_param if defined?(@schedule_param)
+
+        raw = params[:scheduled_for]
+        @schedule_param = if raw.nil? || raw == ""
+          nil
+        elsif raw.is_a?(String) && Iso8601TimeInput.explicit_offset?(raw)
+          begin
+            Time.iso8601(raw.strip)
+          rescue ArgumentError
+            :invalid
+          end
+        else
+          :invalid
+        end
+      end
+
+      def schedule_invalid?
+        return false unless schedule_param == :invalid
+
+        render json: { errors: [ "Send time must be an ISO 8601 time with a UTC offset" ] }, status: :unprocessable_entity
+        true
+      end
+
+      # Applies `scheduled_for` (or its removal) and records who scheduled it;
+      # the tick checks that person can still post there when it posts.
+      def schedule(announcement)
+        if schedule_param
+          announcement.scheduled_for = schedule_param
+          announcement.scheduled_by = current_user
+          announcement.scheduled_send_push = send_push? if params.key?(:send_push) || announcement.new_record?
+        else
+          announcement.assign_attributes(scheduled_for: nil, scheduled_by: nil, scheduled_send_push: false)
+        end
+      end
+
+      # Staff who manage a posted update see how many of the people it was
+      # sent to have read it (L-5.1): two counts in one query, never a list of
+      # who. Admins see it for every update; instructors for their cohorts'.
+      def read_summary(announcement)
+        return nil if announcement.draft? || !can_manage_view?(announcement)
+
+        notified, read = Notification.where(notifiable: announcement).pick(Arel.sql("COUNT(*)"), Arel.sql("COUNT(read_at)"))
+        { notified: notified.to_i, read: read.to_i }
+      end
+
+      # No published_at: posting time is when the update is posted, or the
+      # tick posts a scheduled draft (`scheduled_for`, handled by `schedule`).
       def announcement_params
         permitted = params.permit(:title, :body, :audience, :cohort_id, :status, :pinned)
         permitted[:cohort_id] = nil if permitted.key?(:audience) && permitted[:audience] != "cohort"
@@ -282,7 +393,13 @@ module Api
         scoped = scoped.where(audience: params[:audience]) if Announcement.audiences.key?(params[:audience].to_s)
 
         if current_user.staff? && params[:scope] == "manage"
-          scoped = scoped.where(status: params[:status]) if Announcement.statuses.key?(params[:status].to_s)
+          # Drafts and Scheduled are separate lists: a scheduled update is a
+          # draft with a send time.
+          case params[:status].to_s
+          when "scheduled" then scoped = scoped.scheduled
+          when "draft" then scoped = scoped.unscheduled_drafts
+          else scoped = scoped.where(status: params[:status]) if Announcement.statuses.key?(params[:status].to_s)
+          end
         else
           scoped = scoped.where.not(status: :archived)
         end
@@ -323,6 +440,9 @@ module Api
           scope.order(updated_at: :desc)
         when "updated_asc"
           scope.order(updated_at: :asc)
+        when "scheduled_asc"
+          # Scheduled: the next to go out first.
+          scope.order(scheduled_for: :asc, id: :asc)
         else
           scope.ordered
         end
@@ -353,7 +473,7 @@ module Api
         Announcement.visible_for(current_user).where(id: announcement.id).exists?
       end
 
-      def announcement_json(announcement, notification = nil)
+      def announcement_json(announcement, notification = nil, read_summary: nil)
         {
           id: announcement.id,
           title: announcement.title,
@@ -379,6 +499,11 @@ module Api
           },
           can_edit: can_edit?(announcement),
           can_archive: can_archive?(announcement),
+          # Only while it waits: once posted, published_at says when it went out.
+          scheduled_for: announcement.draft? ? announcement.scheduled_for : nil,
+          scheduled_send_push: announcement.scheduled? && announcement.scheduled_send_push,
+          schedule_time_zone: Announcement.schedule_time_zone,
+          read_summary: read_summary,
           created_at: announcement.created_at,
           updated_at: announcement.updated_at
         }

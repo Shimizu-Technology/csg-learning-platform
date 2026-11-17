@@ -138,6 +138,7 @@ class UpdatesTest < ActionDispatch::IntegrationTest
       as_user(@student) do
         [ own, colleague, other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
+          # Learners keep the course-access contract for posted updates (403); drafts don't exist for them.
           assert_response status == :draft ? :not_found : :forbidden
         end
       end

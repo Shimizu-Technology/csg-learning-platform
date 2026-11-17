@@ -285,6 +285,11 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
         status={submission ? <SubmissionStatus grade={submission.grade} /> : null}
         context={submission ? <>
           <RecordLink record={{ type: 'student', id: submission.user_id, cohortId }} variant="plain" touchTarget onClick={(event, path) => void guardedNavigate(event, path)}>{submission.user_name}</RecordLink>
+          {/* Who, where and what (L-5.1): the cohort stays visible on phones, where the breadcrumb hides. */}
+          {cohortId && cohortName && <>
+            <span aria-hidden="true">·</span>
+            <RecordLink record={{ type: 'cohort', id: cohortId }} variant="plain" touchTarget onClick={(event, path) => void guardedNavigate(event, path)}>{cohortName}</RecordLink>
+          </>}
           <span aria-hidden="true">·</span>
           <span>{submission.content_block_title}</span>
           <span aria-hidden="true">·</span>

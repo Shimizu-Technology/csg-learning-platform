@@ -234,6 +234,13 @@ export interface Announcement {
   can_edit?: boolean;
   /** The viewer may archive this posted update: an admin, or staff on its cohort. */
   can_archive?: boolean;
+  /** A scheduled draft's send time; the hourly tick posts it at the first run at or after it (U-3.6). */
+  scheduled_for?: string | null;
+  scheduled_send_push?: boolean;
+  /** The zone send times are chosen and shown in (the school's). */
+  schedule_time_zone?: string;
+  /** Update page only, for staff who manage a posted update: how many of the people it went to have read it. */
+  read_summary?: { notified: number; read: number } | null;
   created_at?: string;
   updated_at?: string;
 }

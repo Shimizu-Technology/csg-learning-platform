@@ -265,7 +265,9 @@ class CurriculumCopyForCohort
       verify!(learners_before, windows_before)
       stage!(:verified)
       # Last statement: writes that started before this point read the old ids.
-      Enrollment.where(id: @enrollment_ids).update_all("content_moved_at = clock_timestamp()") if @enrollment_ids.any?
+      # Compare against the request's Ruby clock, as with learning_state_reset_at;
+      # the database clock can be ahead or behind the application server.
+      Enrollment.where(id: @enrollment_ids).update_all(content_moved_at: Time.current) if @enrollment_ids.any?
 
       Result.new(copy: record, already_copied: false, counts: @counts, lesson_ids: @lesson_map.transform_keys(&:to_s))
     end

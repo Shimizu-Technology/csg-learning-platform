@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -39,6 +41,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
@@ -60,6 +64,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
@@ -105,6 +111,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
@@ -122,7 +130,15 @@ jobs:
         run: bin/rails test
 
   test_pooler:
-    name: API / transaction pooler
+    name: API / transaction pooler (${{ matrix.prepared }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - prepared: false
+            max_prepared: 0
+          - prepared: true
+            max_prepared: 100
     timeout-minutes: 15
     # Ruby 3.3.7 has a prebuilt toolchain on this pinned runner image.
     runs-on: ubuntu-24.04
@@ -145,11 +161,17 @@ jobs:
       RAILS_ENV: test
       # Avoid Rails parallel database creation/schema preparation via the pooler.
       PARALLEL_WORKERS: 1
-      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:16432/csg_learning_platform_test?prepared_statements=false
+      POOLER_CANARY: "1"
+      POOLER_DIRECT_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/csg_learning_platform_test
+      EXPECTED_PREPARED_STATEMENTS: ${{ matrix.prepared }}
+      EXPECTED_MAX_PREPARED: ${{ matrix.max_prepared }}
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:16432/csg_learning_platform_test?prepared_statements=${{ matrix.prepared }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
@@ -167,6 +189,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y pgbouncer
           sed "s|auth_file = .*|auth_file = $GITHUB_WORKSPACE/.github/pgbouncer/userlist.txt|" ../.github/pgbouncer/pgbouncer.ini > /tmp/csg-ci-pgbouncer.ini
+          echo "max_prepared_statements = ${{ matrix.max_prepared }}" >> /tmp/csg-ci-pgbouncer.ini
           pgbouncer -d /tmp/csg-ci-pgbouncer.ini
           for attempt in {1..30}; do
             if [ -s /tmp/csg-ci-pgbouncer.pid ] && pg_isready -h 127.0.0.1 -p 16432 -U postgres -d csg_learning_platform_test; then
@@ -174,14 +197,22 @@ jobs:
             fi
             sleep 1
           done
-          cat /tmp/csg-ci-pgbouncer.log
+          { grep -v 'command issued' /tmp/csg-ci-pgbouncer.log || true; } | tail -n 80
           exit 1
 
       - name: Verify pooled connection and run full API suite
         run: |
           bundle exec ruby ../.github/pgbouncer/verify.rb
-          bin/rails runner 'config = ActiveRecord::Base.connection_db_config; abort "tests must use PgBouncer" unless config.configuration_hash[:port] == 16432; abort "prepared statements must be disabled" if ActiveRecord::Base.connection.prepared_statements'
+          bin/rails runner 'config = ActiveRecord::Base.connection_db_config; abort "tests must use PgBouncer" unless config.configuration_hash[:port] == 16432; abort "wrong prepared statement mode" unless ActiveRecord::Base.connection.prepared_statements == (ENV.fetch("EXPECTED_PREPARED_STATEMENTS") == "true")'
+          bin/rails test test/config/transaction_pooler_canary_test.rb
           time bin/rails test
+          if [ "$EXPECTED_PREPARED_STATEMENTS" = "false" ]; then
+            if grep -Ei 'command issued: (RECONNECT|WAIT_CLOSE)' /tmp/csg-ci-pgbouncer.log; then
+              echo "::error::Unprepared migration tests must remain on the pooler"
+              exit 1
+            fi
+            echo "Verified unprepared migrations stayed pooled without direct-connection resets"
+          fi
 
       - name: Pooler diagnostics and cleanup
         if: always()
@@ -190,7 +221,7 @@ jobs:
             kill "$(cat /tmp/csg-ci-pgbouncer.pid)"
           fi
           if [ -f /tmp/csg-ci-pgbouncer.log ]; then
-            cat /tmp/csg-ci-pgbouncer.log
+            { grep -v 'command issued' /tmp/csg-ci-pgbouncer.log || true; } | tail -n 80
           fi
 
   frontend:
@@ -202,6 +233,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -245,6 +278,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6

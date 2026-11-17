@@ -22,14 +22,14 @@ class ProductionDatabaseTest < ActiveSupport::TestCase
     end
   end
 
-  test "pooler CI matches the explicit production prepared statement policy" do
+  test "pooler CI exercises its matrix mode while production keeps its explicit policy" do
     # Do not let the CI URL's query string mask the YAML policy. Rails keeps
     # URL boolean options as strings until the adapter casts them.
     with_env("DATABASE_URL" => "postgresql://runtime-pooler.example.test/app") do
       assert_equal false, production_config[:prepared_statements]
     end
     if ActiveRecord::Base.connection_db_config.configuration_hash[:port] == 16432
-      refute ActiveRecord::Base.connection.prepared_statements
+      assert_equal ENV.fetch("EXPECTED_PREPARED_STATEMENTS") == "true", ActiveRecord::Base.connection.prepared_statements
     end
   end
 

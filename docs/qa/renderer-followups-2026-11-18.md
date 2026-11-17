@@ -60,3 +60,19 @@ worktree for PR review; do not merge or watch.
 Residual: narrow `useContentBlockController` and its view-specific prop contracts
 in a separate task, as requested. CI and independent review are separate from
 these completed local checks.
+
+## Main integration refresh
+
+Merged `origin/main` at `22740b9f` (#297, #299 and #301) after the lead review of
+`3344f54e`. The only conflict was competing appended sections in
+`scripts/qa/README.md`; both the renderer and scheduled-updates instructions are
+retained. The reviewed renderer implementation is unchanged. Web/mobile audit
+exception files match main exactly.
+
+On the resolved merge tree, typecheck, lint, 184 affected web tests across 11
+files, production build and bundle check passed. Coverage includes the renderer
+parity/extraction/URL/outline/route tests and incoming scheduled-update,
+StaffActivityFeed and RelatedPanel tests. The web dependency audit also passed,
+acknowledging main's picomatch exception with no unacknowledged high/critical
+findings. No development servers, browser tabs or databases were started for
+this integration check. PR remains open for review; do not merge.

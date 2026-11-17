@@ -20,6 +20,8 @@ class ScheduledTick
   end
 
   TASKS = [
+    # Hourly: scheduled updates go out at the first tick at or after their time (U-3.6).
+    Task.new(name: "scheduled_updates", daily_hour: nil, call: ->(now, _last_date, metrics) { ScheduledAnnouncementPublisher.new.call(now: now, metrics: metrics) }),
     Task.new(name: "intervention_follow_ups", daily_hour: 8, call: ->(now, _last_date, metrics) { InterventionFollowUpJob.perform_now(now, metrics: metrics) }),
     Task.new(name: "daily_unlocks", daily_hour: daily_unlock_hour, call: ->(now, last_date, metrics) { DailyUnlockNotifications.new.call(now: now, last_date: last_date, metrics: metrics) }),
     Task.new(name: "expo_push_receipts", daily_hour: nil, call: ->(_now, _last_date, metrics) { ExpoPushReceiptJob.new.drain_due(metrics: metrics) })
@@ -92,6 +94,7 @@ class ScheduledTick
     case task.name
     when "intervention_follow_ups" then InterventionFollowUpJob.preview(@now)
     when "daily_unlocks" then DailyUnlockNotifications.new.preview(now: @now, last_date: state&.last_school_date)
+    when "scheduled_updates" then ScheduledAnnouncementPublisher.preview(@now)
     when "expo_push_receipts" then { would_claim: ExpoPushReceipt.due.limit(ExpoPushReceiptJob::BATCH_SIZE).count }
     else {}
     end

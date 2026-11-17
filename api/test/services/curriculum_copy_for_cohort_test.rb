@@ -13,6 +13,26 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
 
   teardown { CurriculumCopyForCohort.stage_hook = nil }
 
+  { ahead: 1.day, behind: -1.day }.each do |direction, offset|
+    test "copy write guard uses the request clock when Ruby is #{direction} of PostgreSQL" do
+      database_now = Time.zone.parse(ActiveRecord::Base.connection.select_value("SELECT clock_timestamp()").to_s)
+      travel_to(database_now + offset) do
+        request_started_at = Time.current - 1.second
+        copy!(@f.instructor)
+        enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+
+        [ request_started_at, Time.current ].each do |started_at|
+          error = assert_raises(Enrollment::StaleLearningWrite) do
+            enrollment.with_learning_write_guard(request_started_at: started_at) { flunk "old content must not be written" }
+          end
+          assert_equal "content_moved", error.code
+        end
+        assert_equal :saved, enrollment.with_learning_write_guard(request_started_at: Time.current + 1.second) { :saved }
+        assert_equal Time.current, enrollment.reload.content_moved_at
+      end
+    end
+  end
+
   test "practice reviews stay with original blocks and copies require a fresh review" do
     original = @f.blocks.fetch(:read)
     review = SubmissionAuditReview.create!(content_block: original, reviewed_by: @f.admin, content_digest: SubmissionAudit.digest(original))

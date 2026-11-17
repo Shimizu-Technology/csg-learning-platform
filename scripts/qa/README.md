@@ -286,3 +286,16 @@ load only `first-run-states-fixtures.rb`, then run
 `QA_SPEC=renderer-followups.spec.ts` with the lifecycle session. It checks legacy
 Expand/Collapse sizing and the On missing-module recovery at both widths/themes.
 Captures and measured sizes go to ignored `.qa-local/renderer-followups/`.
+
+### Staff home, scheduled updates and record pages (W6.4 + L-5.1)
+
+After `start`, load the fixture from `api/` with the exact owned database:
+`DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/staff-home-scheduled-updates-fixtures.rb setup`.
+It posts a pinned, partly read update to QA Program and writes ids to `.qa-local/staff-home-scheduled.json`.
+Then run from the repo root:
+`QA_SPEC=staff-home-scheduled-updates.spec.ts node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
+The spec schedules, reschedules, cancels and reschedules an update in the browser, checks the student
+can't see it, then calls the fixture's `due` and `tick` commands. These run the real `ScheduledTick`
+(only its `scheduled_updates` task) against the harness database, with push on the test adapter, and
+check it posts once. It also covers the staff home links, School activity, the update page and the
+submission page. See `docs/qa/staff-home-scheduled-updates-2026-11-18.md`.

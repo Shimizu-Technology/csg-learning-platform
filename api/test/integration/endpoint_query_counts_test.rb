@@ -47,6 +47,31 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, -> { "/api/v1/users/#{@student.id}" })
   end
 
+  test "profile stays flat from one to six enrollments including distinct curriculum copies" do
+    source = Curriculum.create!(name: "Original private lab")
+    CurriculumCopy.create!(cohort: @cohort, source_curriculum: source, copy_curriculum: @curriculum, created_by: @admin)
+    counts = [ 1, 6 ].map do |size|
+      while @student.enrollments.count < size
+        index = @student.enrollments.count
+        curriculum = Curriculum.create!(name: "Private lab #{index} (copy)")
+        cohort = Cohort.create!(curriculum: curriculum, name: "Copy cohort #{index}", start_date: LearningCalendar.today, status: :active)
+        CurriculumCopy.create!(cohort: cohort, source_curriculum: @curriculum, copy_curriculum: curriculum, created_by: @admin)
+        Enrollment.create!(user: @student, cohort: cohort)
+      end
+      request_as(@student, :get, "/api/v1/profile", {})
+      count = count_queries { request_as(@student, :get, "/api/v1/profile", {}) }
+      assert_response :success
+      rows = response.parsed_body.fetch("enrollments")
+      assert_equal size, rows.size
+      rows.reject { |row| row.fetch("cohort_id") == @cohort.id }.each do |row|
+        assert_equal "Private lab #{row.fetch('cohort_name').split.last} (#{row.fetch('cohort_name')})", row.fetch("curriculum_name")
+      end
+      count
+    end
+    puts "Profile 1 -> 6: #{counts.join(' -> ')}" if ENV["QUERY_COUNT_REPORT"]
+    assert_equal counts.first, counts.last
+  end
+
   test "session bootstrap" do
     assert_flat_queries(@student, :post, "/api/v1/sessions")
   end
