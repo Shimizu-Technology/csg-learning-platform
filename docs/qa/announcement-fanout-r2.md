@@ -170,3 +170,21 @@ No migration or wire-type change. Optional async retry_on was not added: the
 existing durable tick recovery now supplies bounded retry cadence and independent
 push expiry. Local focused regression: 36 tests / 290 assertions, zero failures,
 errors or skips; changed-file RuboCop clean. Final ASUS gates pending.
+
+P3 round final acceptance, implementation `9e804a2316e65d7b5f5d1cd009009f6e9c1c6c8e`:
+
+- Focused API tests through real PgBouncer, prepared off: 117 tests / 966
+  assertions, zero failures/errors/skips (18.501 seconds).
+- Full ASUS API suite once, prepared off: 2270 tests / 43559 assertions, zero
+  failures/errors/skips (337.943 seconds).
+- Focused API tests through real PgBouncer, prepared on: 117 tests / 966
+  assertions, zero failures/errors/skips (19.281 seconds).
+- RuboCop: 783 files clean. Brakeman: zero active warnings, one existing ignored
+  warning. Bundler-audit also passed. One serial ASUS job; port adapter retained.
+- `origin/main` remained `3a8b3ebf`; merging it reported already up to date.
+
+Only this evidence record changed after those gates. The prior Opus readiness
+review covered `1fa3e259`; no independent re-review of these follow-up changes is
+claimed. The PR remains held, with no merge or watch. The owned local test DB was
+dropped and the ASUS wrapper/gate cleaned its runtime resources normally. Lifecycle
+session: `manual-20261118-082544-25979-d537`.
