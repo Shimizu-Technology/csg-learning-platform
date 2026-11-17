@@ -12,6 +12,11 @@ module Api
         assignments = member.cohort_instructor_assignments.includes(:cohort, :edit_granted_by)
           .sort_by { |assignment| [ cohort_rank(assignment.cohort), -assignment.cohort.start_date.jd, assignment.cohort_id ] }
 
+        cohort_ids = assignments.map(&:cohort_id)
+        @waiting = cohort_ids.empty? ? {} : Submission.joins(:enrollment).where(enrollments: { cohort_id: cohort_ids })
+          .latest_attempts.where(grade: nil).group("enrollments.cohort_id").count
+        @open_help = cohort_ids.empty? ? {} : HelpRequest.active_queue.where(cohort_id: cohort_ids).group(:cohort_id).count
+
         render json: {
           team_member: {
             id: member.id,
@@ -29,7 +34,8 @@ module Api
             is_self: member.id == current_user.id,
             # Read-only here; editing access is changed on the cohort's Teaching team tab.
             teaching: assignments.map { |assignment| teaching_json(assignment) },
-            message_cohort_id: message_cohort_id(member, assignments)
+            message_cohort_id: message_cohort_id(member, assignments),
+            workload: workload_json(member)
           }
         }
       end
@@ -47,8 +53,30 @@ module Api
           cohort: { id: cohort.id, name: cohort.name, status: cohort.status, course_delivery: cohort.course_delivery, start_date: cohort.start_date },
           assigned_at: assignment.created_at,
           can_edit_lessons: assignment.can_edit_lessons,
+          # Grading load (latest attempts without a grade, as Grading counts them) and open help.
+          waiting_review: @waiting.fetch(cohort.id, 0),
+          open_help: @open_help.fetch(cohort.id, 0),
           edit_granted_at: assignment.edit_granted_at,
           edit_granted_by: assignment.edit_granted_by && { id: assignment.edit_granted_by.id, full_name: assignment.edit_granted_by.full_name }
+        }
+      end
+
+      FOLLOW_UP_LIMIT = 10
+
+      # What this person owns (L-3.2): active follow-up plans, soonest
+      # follow-up first, and help requests they have picked up and not closed.
+      def workload_json(member)
+        plans = Intervention.active.where(owner_id: member.id)
+        {
+          follow_ups_count: plans.count,
+          follow_ups: plans.includes(enrollment: [ :user, :cohort ])
+            .order(Arel.sql("interventions.next_follow_up_at ASC NULLS LAST"), :id).limit(FOLLOW_UP_LIMIT).map do |plan|
+              enrollment = plan.enrollment
+              { id: plan.id, status: plan.status, severity: plan.severity, next_follow_up_at: plan.next_follow_up_at&.iso8601,
+                student: { id: enrollment.user.id, name: enrollment.user.full_name },
+                cohort: { id: enrollment.cohort.id, name: enrollment.cohort.name } }
+            end,
+          owned_help_count: HelpRequest.active_queue.where(owner_id: member.id).count
         }
       end
 

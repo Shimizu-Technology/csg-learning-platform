@@ -14,7 +14,7 @@ module Api
       # another host's slots, bookings or students.
       def index
         configs = PrivateMeetingConfig.includes(:cohort, :instructor).order(created_at: :desc)
-        configs = configs.where(instructor_id: current_user.id, cohort_id: current_user.accessible_cohorts.select(:id)) unless current_user.admin?
+        configs = configs.where(instructor_id: current_user.id, cohort_id: staff_cohort_scope.visible_cohorts.select(:id)) unless current_user.admin?
         configs = configs.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
         configs = configs.to_a
         cohort_ids = configs.map(&:cohort_id)
@@ -54,7 +54,7 @@ module Api
 
       def update
         booking = PrivateMeetingBooking.includes(cohort: :private_meeting_config).find(params[:id])
-        unless current_user.admin? || (booking.instructor_id == current_user.id && current_user.can_teach_cohort?(booking.cohort))
+        unless current_user.admin? || (booking.instructor_id == current_user.id && staff_cohort_scope.visible?(booking.cohort_id))
           render_forbidden("This meeting belongs to another instructor")
           return
         end
@@ -79,13 +79,17 @@ module Api
 
       private
 
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
+      end
+
       # Running cohorts this instructor teaches with meetings switched on that
       # they don't host. Self-paced courses have no meetings.
       def other_cohorts(hosted_cohort_ids)
         return [] if current_user.admin?
 
         school = FeatureSwitches.school
-        current_user.accessible_cohorts.where(status: %i[upcoming active]).where.not(id: hosted_cohort_ids)
+        staff_cohort_scope.visible_cohorts.where(status: %i[upcoming active]).where.not(id: hosted_cohort_ids)
           .includes(private_meeting_config: :instructor).order(:start_date, :id).to_a
           .reject { |cohort| cohort.self_paced? || !FeatureSwitches.for(cohort: cohort, school: school)["private_meetings"] }
           .map do |cohort|

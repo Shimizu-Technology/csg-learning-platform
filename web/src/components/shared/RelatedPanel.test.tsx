@@ -28,8 +28,8 @@ describe('related rows per record type', () => {
       item('conversation', { direct_conversation_id: null, cohort_id: 3, user_id: 9 }),
     ] }
     const rows = byKey(related, options({ actions: { message, scrollTo } }))
-    // Lesson Back destinations survive copying the related link into another tab.
-    expect(rows.lesson).toMatchObject({ label: 'Lesson', value: 'Open', to: '/lessons/40?cohort_id=3&return_to=%2Fadmin%2Fsubmissions%2F812' })
+    // Staff without editing access open the lesson page (L-5), which says where they came from.
+    expect(rows.lesson).toMatchObject({ label: 'Lesson', value: 'Open', to: `/admin/lessons/40?cohort_id=3&return_to=${back}` })
     expect(byKey(related, options({ viewer: admin })).lesson).toMatchObject({ value: 'Edit', to: '/admin/lessons/40/edit' })
     expect(rows.module_grid).toMatchObject({ label: 'Week 10 grading', to: '/admin/cohorts/3/modules/7/grading' })
     expect(rows.rubric).toMatchObject({ label: 'Rubric', value: '3 criteria' })

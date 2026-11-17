@@ -48,6 +48,8 @@ module LessonSerialization
     json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
 
     if include_content
+      # Staff see attempt counts from the cohorts they may see (StaffCohortScope); nil counts every attempt.
+      @staff_attempt_enrollments = current_user.staff? ? cohort_scope.enrollment_ids(lesson.curriculum_module.curriculum_id)&.pluck(:id)&.to_set : nil
       completion_block_ids = lesson.completion_block_ids.to_set
       json[:content_blocks] = lesson.content_blocks.map { |cb|
         submission_type = cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
@@ -203,6 +205,17 @@ module LessonSerialization
     }
   end
 
+  # The cohorts this staff member may see on a curriculum (L-3.2): others are never counted.
+  def cohort_scope
+    @cohort_scope ||= StaffCohortScope.new(current_user)
+  end
+
+  def staff_attempt_count(check)
+    return check.attempts.size if @staff_attempt_enrollments.nil?
+
+    check.attempts.count { |attempt| @staff_attempt_enrollments.include?(attempt.enrollment_id) }
+  end
+
   def knowledge_check_json(check, attempt_map)
     return nil unless check
 
@@ -213,7 +226,7 @@ module LessonSerialization
       prompt: check.prompt,
       options: check.options,
       objective_code: check.learning_objective&.code,
-      attempt_count: current_user.staff? ? check.attempts.size : attempt_info[:count].to_i,
+      attempt_count: current_user.staff? ? staff_attempt_count(check) : attempt_info[:count].to_i,
       latest_attempt: attempt ? {
         id: attempt.id,
         selected_option: attempt.selected_option,

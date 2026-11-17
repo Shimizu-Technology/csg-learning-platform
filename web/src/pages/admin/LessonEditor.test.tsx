@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { withLeaveGuard } from '../../test/TestRouter'
-import type { LessonBlockEditorResponse } from '../../types/api'
+import type { LessonBlockEditorResponse, LessonUsage } from '../../types/api'
 import { LessonEditor } from './LessonEditor'
 
 const session = vi.hoisted(() => ({ user: { id: 1, role: 'admin', is_staff: true, is_admin: true } }))
@@ -43,7 +43,7 @@ const blocks = [
   { ...base, id: 6, block_type: 'recording', position: 5, title: 'Class recording', video_url: 'https://example.invalid/class' },
 ]
 
-const adminAccess: LessonBlockEditorResponse['access'] = { can_edit: true, reason: 'admin', message: null, grants: [], shared_with: [], copy_cohorts: [], copy_of: null }
+const adminAccess: LessonBlockEditorResponse['access'] = { can_edit: true, reason: 'admin', message: null, grants: [], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
 const leonGrant = { cohort: { id: 4, name: 'Cohort 3' }, granted_by: { id: 9, full_name: 'Leon Tester' }, granted_at: '2026-11-14T02:00:00Z' }
 let access: LessonBlockEditorResponse['access'] = adminAccess
 
@@ -60,7 +60,7 @@ function response(overrides: Partial<LessonBlockEditorResponse['lesson']> = {}):
       curriculum: { id: 1, name: 'Synthetic Web Lab' },
       module: { id: 3, name: 'JavaScript basics', release_days: [{ release_day: 0, week: 1, day_name: 'Monday' }, { release_day: 1, week: 1, day_name: 'Tuesday' }, { release_day: 7, week: 2, day_name: 'Monday' }] },
       used_in: [{ id: 4, name: 'Cohort 3', status: 'active', start_date: '2026-11-10' }],
-      submissions_count: 5, waiting_count: 2, open_help_count: 1,
+      other_cohorts_count: 0, submissions_count: 5, waiting_count: 2, open_help_count: 1,
     },
   }
 }
@@ -84,6 +84,7 @@ beforeEach(() => {
   vi.spyOn(api, 'getLessonBlockEditor').mockImplementation(async () => ({ data: response(), error: null }))
   vi.spyOn(api, 'getLearningObjectives').mockResolvedValue({ data: { learning_objectives: [] }, error: null })
   vi.spyOn(api, 'getRubrics').mockResolvedValue({ data: { rubrics: [] }, error: null })
+  vi.spyOn(api, 'getRecordUsage').mockResolvedValue({ data: { usage: lessonUsage() }, error: null, status: 200 })
   save = vi.fn(async (_id: number, lesson: { title?: string }) => ({ data: response({ title: lesson.title, updated_at: '2026-11-16T00:00:05.000000Z' }), error: null }))
   vi.spyOn(api, 'saveLessonBlockEditor').mockImplementation(save as never)
 })
@@ -97,11 +98,24 @@ afterEach(async () => {
 
 const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
 
-async function mount(path = '/admin/lessons/2/edit') {
+/** Opened from Content by default, as the Content studio links do (router state names the origin). */
+const fromContent = { returnTo: '/admin/content', returnLabel: 'Content' }
+
+function lessonUsage(): LessonUsage {
+  return {
+    type: 'lesson', id: 2, title: 'Make decisions', lesson_type: 'lesson', required: true, archived: false, release_day: 0, week: 1, day_name: 'Monday',
+    curriculum: { id: 1, name: 'Synthetic Web Lab' }, module: { id: 3, name: 'JavaScript basics' }, can_edit: true, blocks: [], objectives: [],
+    cohorts: [{ id: 4, name: 'Cohort 3', status: 'active', course_delivery: 'program', start_date: '2026-11-10', end_date: null, on_sale: false, assigned: true, release_date: '2026-11-10', submissions: 5, waiting: 2, open_help: 1 }],
+    other_cohorts_count: 0, help_requests: [], totals: { submissions: 5, waiting: 2, open_help: 1 },
+  }
+}
+
+async function mount(path = '/admin/lessons/2/edit', state: unknown = fromContent) {
   router = createMemoryRouter(withLeaveGuard([
     { path: '/admin/lessons/:id/edit', element: <LessonEditor /> },
+    { path: '/admin/lessons/:id', element: <p>Lesson page</p> },
     { path: '/admin/content', element: <p>Content library</p> },
-  ]), { initialEntries: [path] })
+  ]), { initialEntries: [{ pathname: path.split('?')[0], search: path.includes('?') ? `?${path.split('?')[1]}` : '', state }] })
   await act(async () => root.render(<RouterProvider router={router} />))
   await settle()
   await settle()
@@ -295,13 +309,37 @@ describe('block lesson editor', () => {
     expect(window.localStorage.getItem('csg:lesson-editor-draft:v1:1:2')).toBeNull()
   })
 
+  // L-3.1: the header names the lesson's place and Back goes where the editor was opened from.
+  it('links the breadcrumb to the curriculum, module and lesson pages, and Back falls back to the lesson page', async () => {
+    // The origin is remembered per tab; this tab has none.
+    window.sessionStorage.clear()
+    await mount('/admin/lessons/2/edit', null)
+    const crumbs = Array.from(container.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Breadcrumb"] a')).map((link) => [link.textContent, link.getAttribute('href')])
+    expect(crumbs).toEqual([['Synthetic Web Lab', '/admin/curricula/1'], ['JavaScript basics', '/admin/modules/3'], ['Make decisions', '/admin/lessons/2']])
+    const back = container.querySelector<HTMLAnchorElement>('header a[data-back-link]')!
+    expect(back.getAttribute('aria-label')).toBe('Back to lesson')
+    await click(back)
+    expect(router.state.location.pathname).toBe('/admin/lessons/2')
+  })
+
+  it('goes Back to Grading when opened from Grading', async () => {
+    window.sessionStorage.clear()
+    await mount('/admin/lessons/2/edit?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dall', null)
+    expect(container.querySelector('header a[data-back-link]')!.getAttribute('aria-label')).toBe('Back to Grading · All submissions')
+  })
+
   it('shows the inspector for the lesson and for the selected block', async () => {
     await mount()
     const aside = container.querySelector('aside[aria-label="Settings"]')!
     expect(aside.textContent).toContain('Schedule')
     expect(aside.textContent).toContain('Objectives')
     expect(aside.textContent).toContain('Cohort 3')
-    expect(aside.textContent).toContain('5 submissions · 2 waiting · 1 open help request')
+    // "Used in" (L-3.1): the cohort, when the lesson opens there, View as student, and its work and help.
+    expect(aside.textContent).toContain('Live program · Opened Tue, Nov 10')
+    expect(aside.querySelector('a[href="/admin/cohorts/4/student-view/lessons/2"]')?.textContent).toContain('View as student')
+    expect(aside.querySelector('a[href="/admin/grading?cohort_id=4&lesson_id=2&filter=all"]')?.textContent).toBe('5 submissions')
+    expect(aside.querySelector('a[href="/admin/grading?cohort_id=4&lesson_id=2"]')?.textContent).toBe('2 waiting')
+    expect(aside.querySelector('a[href="/admin/support?cohort_id=4&lesson_id=2"]')?.textContent).toBe('1 open help')
 
     await act(async () => cards()[2].dispatchEvent(new Event('pointerdown', { bubbles: true })))
     await settle()
@@ -396,7 +434,7 @@ describe('lesson editing access', () => {
 
   it('shows an instructor without editing access the lesson read only, with who can edit', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'no_grant', message: 'Only admins can edit lessons.', grants: [], shared_with: [], copy_cohorts: [], copy_of: null }
+    access = { can_edit: false, reason: 'no_grant', message: 'Only admins can edit lessons.', grants: [], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain('Read only.')
@@ -408,7 +446,7 @@ describe('lesson editing access', () => {
 
   it('names the other cohorts when a shared curriculum keeps a granted instructor read only', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [], copy_of: null }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain('Read only: Cohort 4 shares this curriculum')
@@ -417,9 +455,9 @@ describe('lesson editing access', () => {
 
   it('lets a granted instructor on a shared curriculum make a copy for their cohort, then opens the lesson in the copy', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0, copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
     const preview = vi.spyOn(api, 'getCurriculumCopyPreview').mockResolvedValue({ data: { curriculum_copy_preview: {
-      cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Web Lab' }, copy_name: 'Web Lab (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }],
+      cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Web Lab' }, copy_name: 'Web Lab (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0,
       already_copied: false, copy_curriculum_id: null, can_copy: true, blockers: [],
       counts: { lessons: 4, progresses: 12, submissions: 3, module_assignments: 4, cohort_module_schedules: 1, knowledge_check_attempts: 0 },
     } }, error: null })
@@ -489,7 +527,7 @@ describe('lesson editing access', () => {
 
   it('lets a granted instructor edit and save, says who gave the access, and keeps lesson structure for admins', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], copy_cohorts: [], copy_of: null }
+    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain("You can edit Cohort 3's lessons.")
@@ -726,7 +764,7 @@ describe('local backups without editing access', () => {
         blocks: [{ key: 'b1', id: 1, block_type: 'text', title: 'Why', body: 'Typed before access changed', solution: '', filename: '', video_url: '', s3_video_key: null, s3_video_content_type: null, s3_video_size: null, submission_type: null, submission_config: {}, rubric_id: null, video_segments: [], metadata: {}, check: null, check_locked: false }] },
     }
     window.localStorage.setItem(key, JSON.stringify(kept))
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [], copy_of: null }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
     await settle()
 
@@ -738,7 +776,7 @@ describe('local backups without editing access', () => {
     // Access comes back: the same backup is offered to restore.
     await act(async () => root.unmount())
     root = createRoot(container)
-    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], copy_cohorts: [], copy_of: null }
+    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], shared_with_others_count: 0, copy_cohorts: [], copy_of: null }
     await mount()
     expect(container.textContent).toContain('This browser kept changes you didn\'t save')
     expect(button('Restore changes')).toBeTruthy()

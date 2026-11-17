@@ -79,7 +79,7 @@ module Api
         else
           user.enrollments.where(status: :active).pluck(:cohort_id)
         end
-        cohort_ids &= current_user.accessible_cohorts.pluck(:id)
+        cohort_ids &= staff_cohort_scope.visible_cohorts.pluck(:id)
         if params[:cohort_id].present? && cohort_ids.empty?
           render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
           return
@@ -116,11 +116,10 @@ module Api
 
         user = User.find(params[:user_id])
         enrollments = if params[:cohort_id].present?
-          user.enrollments.where(cohort_id: params[:cohort_id]).includes(:cohort)
+          user.enrollments.where(cohort_id: params[:cohort_id]).where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).includes(:cohort)
         else
-          user.enrollments.where(status: :active).includes(:cohort)
+          user.enrollments.where(status: :active, cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).includes(:cohort)
         end.to_a
-        enrollments.select! { |enrollment| current_user.can_teach_cohort?(enrollment.cohort) }
         if params[:cohort_id].present? && enrollments.empty?
           render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
           return
@@ -313,6 +312,10 @@ module Api
           stored: progress.total_watched_seconds, reported: params[:total_watched_seconds], version: params[:watch_credit_version], duration: progress.duration_seconds)
         progress.last_watched_at = Time.current
         progress
+      end
+
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
       end
     end
   end

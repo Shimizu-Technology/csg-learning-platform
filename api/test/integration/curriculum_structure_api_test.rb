@@ -385,6 +385,16 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     as_user(@admin) do
       get "/api/v1/curricula/#{@curriculum.id}", headers: auth_headers
       assert_equal [ { "id" => offering.id, "name" => offering.name } ], response.parsed_body.dig("curriculum", "live_checkout_offerings")
+    end
+    # Instructors can't change the status, and may not teach the cohort on sale: no names (L-3.2).
+    as_user(@instructor) do
+      get "/api/v1/curricula/#{@curriculum.id}", headers: auth_headers
+      assert_response :success
+      assert_equal [], response.parsed_body.dig("curriculum", "live_checkout_offerings")
+      get "/api/v1/curricula", headers: auth_headers
+      refute_includes response.body, "Live checkout"
+    end
+    as_user(@admin) do
       offering.update!(status: :completed, public_checkout_enabled: false)
       @curriculum.update!(status: :archived)
       post "/api/v1/cohorts", params: { name: "New", curriculum_id: @curriculum.id, start_date: Date.current }, headers: auth_headers, as: :json

@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { ClipboardCheck, Layers, Plus, Target, X } from 'lucide-react'
 import { api } from '../../../lib/api'
 import { useToast } from '../../../contexts/ToastContext'
@@ -8,6 +9,9 @@ import { detectLanguage } from '../../../components/shared/CodeEditor'
 import { Button, IconButton } from '../../../components/ui/Button'
 import { buildSubmissionConfigWithRunner, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../../lib/codeRunner'
 import { formatShortDate } from '../../../lib/format'
+import { gradingPath, plural, supportPath, useRecordUsage } from '../../../lib/recordUsage'
+import { lessonRecordPath } from '../../../lib/routes'
+import { UsedInCohorts } from '../../../components/admin/UsedInCohorts'
 import type { BlockLearnerActivity, LearningObjective, LessonEditorContext, Rubric } from '../../../types/api'
 import { hasLearnerWork, learnerWorkSummary } from './BlockCard'
 import { BLOCK_LABELS, blockTitle, type BlockDraft, type LessonDraft } from './blockDraft'
@@ -188,21 +192,46 @@ function LessonSettings({ draft, onLesson, context, objectives, onObjectiveCreat
       </Section>
 
       <Section title="Used in" icon={<Layers className="h-3.5 w-3.5" aria-hidden="true" />}>
-        {context.used_in.length === 0 ? <p className="text-sm text-ink-muted">No cohort uses this curriculum yet.</p> : (
-          <ul className="grid gap-1.5">
-            {context.used_in.map((cohort) => (
-              <li key={cohort.id} className="flex items-baseline gap-2 text-sm">
-                <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" truncate className="min-w-0 flex-1 text-ink">{cohort.name}</RecordLink>
-                <span className="shrink-0 text-xs text-ink-muted">{cohort.status === 'upcoming' ? 'starts' : 'started'} {cohort.start_date ? formatShortDate(cohort.start_date) : 'unscheduled'}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="text-sm text-ink-secondary tabular-nums">
-          {context.submissions_count} {context.submissions_count === 1 ? 'submission' : 'submissions'} · {context.waiting_count} waiting · {context.open_help_count} open help {context.open_help_count === 1 ? 'request' : 'requests'}
-        </p>
+        <LessonUsedIn lessonId={lessonId} context={context} />
       </Section>
     </div>
+  )
+}
+
+/**
+ * Where this lesson is used (L-3.1): the cohorts you can see, when it opens in
+ * each, a View as student link, and its submissions and help. Counts come from
+ * the editor's context until the lesson's usage loads.
+ */
+function LessonUsedIn({ lessonId, context }: { lessonId: number; context: LessonEditorContext }) {
+  const { usage, error, reload } = useRecordUsage('lesson', lessonId)
+  const totals = usage?.totals ?? { submissions: context.submissions_count, waiting: context.waiting_count, open_help: context.open_help_count }
+  const single = usage && usage.cohorts.length === 1 ? usage.cohorts[0].id : null
+  return (
+    <>
+      {usage ? (
+        <UsedInCohorts compact id="editor-used-in" rows={usage.cohorts.map((cohort) => ({ kind: 'lesson' as const, cohort, lessonId, moduleId: usage.module.id }))} otherCount={usage.other_cohorts_count} />
+      ) : error ? (
+        <p className="text-sm text-ink-muted">Couldn't load where this lesson is used. <button type="button" className="app-link" onClick={() => void reload()}>Retry</button></p>
+      ) : (
+        <ul className="grid gap-1.5" aria-busy="true">
+          {context.used_in.map((cohort) => (
+            <li key={cohort.id} className="flex items-baseline gap-2 text-sm">
+              <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" truncate className="min-w-0 flex-1 text-ink">{cohort.name}</RecordLink>
+              <span className="shrink-0 text-xs text-ink-muted">{cohort.status === 'upcoming' ? 'starts' : 'started'} {cohort.start_date ? formatShortDate(cohort.start_date) : 'unscheduled'}</span>
+            </li>
+          ))}
+          {!context.used_in.length && <li className="text-sm text-ink-muted">{context.other_cohorts_count ? 'None of the cohorts you teach use it.' : 'No cohort uses this curriculum yet.'}</li>}
+        </ul>
+      )}
+      {/* One cohort already shows its own counts; the totals cover several, or wait for the list. */}
+      {(!usage || usage.cohorts.length !== 1) && <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm tabular-nums">
+        <Link to={gradingPath({ cohortId: single, lessonId, all: true })} className="app-link inline-flex min-h-11 items-center sm:min-h-0">{plural(totals.submissions, 'submission')}</Link>
+        <Link to={gradingPath({ cohortId: single, lessonId })} className="app-link inline-flex min-h-11 items-center sm:min-h-0">{totals.waiting} waiting</Link>
+        {typeof totals.open_help === 'number' && <Link to={supportPath(single, { lessonId })} className="app-link inline-flex min-h-11 items-center sm:min-h-0">{totals.open_help} open help</Link>}
+      </p>}
+      <Link to={lessonRecordPath(lessonId)} className="app-link inline-flex min-h-11 items-center text-sm sm:min-h-0">Open the lesson page</Link>
+    </>
   )
 }
 

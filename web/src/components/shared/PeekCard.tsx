@@ -463,17 +463,15 @@ function PeekActions({ summary, role, record, onNavigate }: { summary: RecordSum
     }
   } else if (summary.type === 'lesson') {
     const cohortId = summary.cohort_id || (record.type === 'lesson' ? record.cohortId : null)
+    // Staff open the lesson page (L-5), where it's used and its work; learners open the lesson.
+    const lesson = recordPath({ type: 'lesson', id: summary.id, cohortId, view: role === 'student' ? 'learn' : undefined }, { viewer })
+    if (lesson) actions.push({ key: 'open', label: 'Open lesson', to: lesson })
     if (role === 'admin') {
       actions.push({ key: 'edit', label: 'Edit', to: lessonEditorPath(summary.id) })
-      actions.push({ key: 'preview', label: 'Preview', to: lessonEditorPath(summary.id, { preview: true }) })
-    } else {
-      const lesson = recordPath({ type: 'lesson', id: summary.id, cohortId, view: 'learn' }, { viewer })
-      if (lesson) actions.push({ key: 'open', label: 'Open lesson', to: lesson })
-      if (role === 'instructor') {
-        actions.push(cohortId && summary.module_id
-          ? { key: 'grade', label: 'Grade module', to: cohortModuleGradingPath(cohortId, summary.module_id) }
-          : { key: 'grade', label: 'Grading', to: '/admin/grading' })
-      }
+    } else if (role === 'instructor') {
+      actions.push(cohortId && summary.module_id
+        ? { key: 'grade', label: 'Grade module', to: cohortModuleGradingPath(cohortId, summary.module_id) }
+        : { key: 'grade', label: 'Grading', to: '/admin/grading' })
     }
   } else if (summary.type === 'cohort') {
     actions.push({ key: 'open', label: 'Open cohort', to: cohortPath(summary.id) })

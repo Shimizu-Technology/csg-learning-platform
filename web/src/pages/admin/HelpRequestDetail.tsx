@@ -59,8 +59,8 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   const sourceKey = supportSource ? JSON.stringify(supportSource) : ''
   // Shared by viewer and cohort and briefly remembered, so Previous/Next fetch it once; leaving aborts
   // a request in flight, and resolving invalidates it (recordQueueCache). Fetched with this viewer's access.
-  const queueLoad = useRecordQueue<SupportQueueResponse['support_queue']>(supportSource ? `support:${supportSource.cohortId ?? ''}${supportSource.studentId ? `:${supportSource.studentId}` : ''}` : null, async (signal) => {
-    const result = supportSource?.studentId ? await api.getSupportQueue(supportSource.cohortId ?? undefined, signal, supportSource.studentId) : await api.getSupportQueue(supportSource?.cohortId ?? undefined, signal)
+  const queueLoad = useRecordQueue<SupportQueueResponse['support_queue']>(supportSource ? `support:${supportSource.cohortId ?? ''}:${supportSource.lessonId ?? ''}:${supportSource.moduleId ?? ''}${supportSource.studentId ? `:${supportSource.studentId}` : ''}` : null, async (signal) => {
+    const result = await api.getSupportQueue(supportSource?.cohortId ?? undefined, signal, { lessonId: supportSource?.lessonId, moduleId: supportSource?.moduleId, ...(supportSource?.studentId ? { studentId: supportSource.studentId } : {}) })
     return result.data && !result.error && !result.fromCache ? { status: 'ready', items: result.data.support_queue } : { status: 'error', error: result.error || 'Queue unavailable.' }
   }, {
     // Resolved (or reopened) elsewhere since the queue was fetched: fetch it again.

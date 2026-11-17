@@ -273,6 +273,18 @@ describe('peek cards on record links', () => {
     expect(Array.from(card()!.querySelectorAll('a')).map((item) => item.textContent)).toEqual(['Open lesson'])
   })
 
+  // L-5: staff peek cards open the lesson page; admins also get Edit.
+  it.each([
+    [{ id: 1, is_staff: true, is_admin: false }, [['Open lesson', '/admin/lessons/7?cohort_id=4'], ['Grade module', '/admin/cohorts/4/modules/2/grading']]],
+    [{ id: 2, is_staff: true, is_admin: true }, [['Open lesson', '/admin/lessons/7?cohort_id=4'], ['Edit', '/admin/lessons/7/edit']]],
+  ])('a lesson peek for staff opens the lesson page (%o)', async (user, expected) => {
+    auth.user = user
+    render(<RecordLink record={{ type: 'lesson', id: 7, cohortId: 4 }}>Make decisions</RecordLink>)
+    pointer(links()[0], 'pointerover')
+    await advance(300)
+    expect(Array.from(card()!.querySelectorAll('a')).map((item) => [item.textContent, item.getAttribute('href')])).toEqual(expected)
+  })
+
   it('never shows one account the summary loaded for another', async () => {
     const forViewer = (name: string): RecordSummary => ({ ...lesson, facts: [{ key: 'review', label: 'your work', value: `${name} work`, kind: 'text', attention: false }] })
     summarySpy.mockResolvedValueOnce({ data: { summary: forViewer('Viewer A') }, error: null, status: 200 })

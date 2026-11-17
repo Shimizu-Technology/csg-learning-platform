@@ -67,7 +67,7 @@ class WeeklyPlanProjection
     library_plan.merge(
       plan_kind: "self_paced",
       course_overview: {
-        course_name: @cohort.curriculum.name,
+        course_name: CurriculumName.in_cohort(@cohort),
         next_lesson: @personal_plan ? @personal_plan[:next_lesson] : next_lesson && { lesson_id: next_lesson.id, title: next_lesson.title, module_id: next_lesson.module_id }
       },
       redos: redo_items

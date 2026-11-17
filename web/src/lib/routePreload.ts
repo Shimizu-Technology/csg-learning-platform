@@ -37,6 +37,7 @@ const cohortWorkspaceLoader = () => import('../pages/admin/CohortWorkspace').the
 const cohortStudentViewLoader = () => import('../pages/admin/CohortStudentView').then((module) => ({ default: module.CohortStudentView }))
 const contentManagementLoader = () => import('../pages/admin/ContentManagement').then((module) => ({ default: module.ContentManagement }))
 const lessonEditorLoader = () => import('../pages/admin/LessonEditor').then((module) => ({ default: module.LessonEditor }))
+const contentRecordLoader = () => import('../pages/admin/ContentRecord')
 const gradingLoader = () => import('../pages/admin/Grading').then((module) => ({ default: module.Grading }))
 const cohortModuleGradingLoader = () => import('../pages/admin/CohortModuleGrading').then((module) => ({ default: module.CohortModuleGrading }))
 const cohortWatchProgressLoader = () => import('../pages/admin/CohortWatchProgress').then((module) => ({ default: module.CohortWatchProgress }))
@@ -71,6 +72,9 @@ export const CohortWorkspace = lazyWithPreload(cohortWorkspaceLoader)
 export const CohortStudentView = lazyWithPreload(cohortStudentViewLoader)
 export const ContentManagement = lazyWithPreload(contentManagementLoader)
 export const LessonEditor = lazyWithPreload(lessonEditorLoader)
+export const CurriculumRecord = lazyWithPreload(() => contentRecordLoader().then((module) => ({ default: module.CurriculumRecord })))
+export const ModuleRecord = lazyWithPreload(() => contentRecordLoader().then((module) => ({ default: module.ModuleRecord })))
+export const LessonRecord = lazyWithPreload(() => contentRecordLoader().then((module) => ({ default: module.LessonRecord })))
 export const Grading = lazyWithPreload(gradingLoader)
 export const CohortModuleGrading = lazyWithPreload(cohortModuleGradingLoader)
 export const CohortWatchProgress = lazyWithPreload(cohortWatchProgressLoader)
@@ -96,7 +100,10 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/admin/interventions': [interventionDetailLoader],
   '/admin/students': [studentManagementLoader, studentDetailLoader, studentWorkspaceLoader],
   '/admin/cohorts': [cohortManagementLoader, cohortStudentViewLoader, cohortWatchProgressLoader, studentWorkspaceLoader],
-  '/admin/content': [contentManagementLoader, lessonEditorLoader],
+  '/admin/content': [contentManagementLoader, lessonEditorLoader, contentRecordLoader],
+  '/admin/curricula': [contentRecordLoader],
+  '/admin/modules': [contentRecordLoader],
+  '/admin/lessons': [contentRecordLoader, lessonEditorLoader],
   '/admin/grading': [gradingLoader, cohortModuleGradingLoader, submissionDetailLoader],
   '/admin/submissions': [submissionDetailLoader],
   '/admin/team': [teamManagementLoader, teamMemberDetailLoader],

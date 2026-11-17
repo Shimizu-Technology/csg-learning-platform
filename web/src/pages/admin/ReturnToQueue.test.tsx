@@ -528,7 +528,7 @@ describe('help requests from Support', () => {
 
   it('keeps the student scope when following an open-support card into a request', async () => {
     await render('/admin/help-requests/4?return_to=' + encodeURIComponent('/admin/support?cohort_id=1&student_id=6&view=active'))
-    expect(api.getSupportQueue).toHaveBeenCalledWith(1, expect.any(AbortSignal), 6)
+    expect(api.getSupportQueue).toHaveBeenCalledWith(1, expect.any(AbortSignal), { studentId: 6, lessonId: null, moduleId: null })
   })
 
   it('has no counter when opened from anywhere else' , async () => {

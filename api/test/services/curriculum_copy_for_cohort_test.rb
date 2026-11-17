@@ -24,7 +24,9 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     cohort = @f.cohort.reload
     refute result.already_copied
     assert_equal copy.id, cohort.curriculum_id
-    assert_equal "#{@f.curriculum.name} (#{cohort.name})", copy.name
+    # Stored without the cohort's name; CurriculumName adds it for viewers who can see the cohort.
+    assert_equal "#{@f.curriculum.name} (copy)", copy.name
+    assert_equal "#{@f.curriculum.name} (#{cohort.name})", CurriculumName.new(@f.admin).for(copy)
     assert_nil copy.course_package_key, "the package key stays with the shared curriculum"
     assert_equal [ "rev-7", @f.curriculum.course_package_digest, "active" ], [ copy.course_package_revision, copy.course_package_digest, copy.status ]
 
@@ -125,7 +127,8 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
 
     assert_equal everything, before
     assert preview[:can_copy]
-    assert_equal [ @f.other_cohort.id ], preview[:shared_with].map { |cohort| cohort[:id] }
+    assert_equal [ [], 1 ], preview.values_at(:shared_with, :shared_with_others_count), "The instructor doesn't teach the other cohort (L-3.2)"
+    assert_equal [ @f.other_cohort.id ], service(@f.admin).preview[:shared_with].map { |cohort| cohort[:id] }
     result = copy!(@f.instructor)
     assert_equal result.counts, preview[:counts]
   end

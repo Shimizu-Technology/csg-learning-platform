@@ -4,7 +4,7 @@ import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, MessageSquareReply, RefreshCw, ShieldAlert, UserRoundCheck } from 'lucide-react'
+import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, MessageSquareReply, RefreshCw, ShieldAlert, UserRoundCheck, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { useStaffResource } from '../../lib/useStaffResource'
@@ -42,10 +42,12 @@ export function SupportQueue() {
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const cohortId = supportFiltersFromSearch(searchParams).cohortId ?? undefined
-  const studentId = supportFiltersFromSearch(searchParams).studentId ?? undefined
-  const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(`${cohortId}:${studentId}`, async () => {
-    const result = studentId ? await api.getSupportQueue(cohortId, undefined, studentId) : await api.getSupportQueue(cohortId)
+  const scopeFilters = supportFiltersFromSearch(searchParams)
+  const cohortId = scopeFilters.cohortId ?? undefined
+  // Help on one lesson or module, from a content page's "open help" count (L-3.2).
+  const help = { lessonId: scopeFilters.lessonId, moduleId: scopeFilters.lessonId ? null : scopeFilters.moduleId, ...(scopeFilters.studentId ? { studentId: scopeFilters.studentId } : {}) }
+  const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(`${cohortId ?? ''}|${help.lessonId ?? ''}|${help.moduleId ?? ''}|${help.studentId ?? ''}`, async () => {
+    const result = await api.getSupportQueue(cohortId, undefined, help)
     return { data: result.data?.support_queue, error: result.error, fromCache: result.fromCache }
   })
   // Back from a help request returns to this list at the same scroll position.
@@ -181,7 +183,7 @@ export function SupportQueue() {
       <section aria-labelledby="requests-heading" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div><p className="text-xs font-semibold text-ink-muted">Direct requests</p><h2 id="requests-heading" className="mt-1 text-lg font-bold text-ink">{view === 'active' ? 'Students who asked for help' : 'Recently resolved requests'}</h2></div>
-          <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Support filters"><SegmentedControl label="Request status">{(['active', 'resolved'] as const).map((value) => <SegmentButton key={value} selected={view === value} onClick={() => setFilter('view', value)} >{value === 'active' ? 'Active' : 'Resolved'}</SegmentButton>)}</SegmentedControl><FilterChip selected={urgentOnly} onClick={() => setFilter('urgency', urgentOnly ? 'all' : 'urgent')}><ShieldAlert className="h-4 w-4" aria-hidden="true" />Urgent only</FilterChip></div>
+          <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Support filters"><SegmentedControl label="Request status">{(['active', 'resolved'] as const).map((value) => <SegmentButton key={value} selected={view === value} onClick={() => setFilter('view', value)} >{value === 'active' ? 'Active' : 'Resolved'}</SegmentButton>)}</SegmentedControl><FilterChip selected={urgentOnly} onClick={() => setFilter('urgency', urgentOnly ? 'all' : 'urgent')}><ShieldAlert className="h-4 w-4" aria-hidden="true" />Urgent only</FilterChip>{queue.help_filter && <Button variant="secondary" size="sm" className="max-w-full" data-help-filter={queue.help_filter.type} onClick={() => { const next = new URLSearchParams(searchParams); next.delete('lesson_id'); next.delete('module_id'); setSearchParams(next, { preventScrollReset: true }) }} aria-label={`${queue.help_filter.type === 'lesson' ? 'Lesson' : 'Module'}: ${queue.help_filter.name || 'not in your cohorts'}. Remove this filter`}><span className="truncate">{queue.help_filter.type === 'lesson' ? 'Lesson' : 'Module'}: {queue.help_filter.name || 'not in your cohorts'}</span><X className="h-4 w-4 shrink-0" aria-hidden="true" /></Button>}</div>
         </div>
         {filteredRequests.length === 0 ? (
           <div className="app-surface flex items-center gap-4 p-5">

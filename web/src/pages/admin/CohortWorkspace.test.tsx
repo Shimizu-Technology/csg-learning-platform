@@ -202,7 +202,7 @@ it('makes module progress and Grade, Lessons and assigned students actionable', 
   await act(async () => view.render(<RouterProvider router={router} />))
   expect(element.querySelector('[aria-label="First module"]')?.textContent).toContain('2 of 3 assigned lessons done or submitted · 66.7%')
   expect(element.querySelector('a[href^="/admin/cohorts/4/modules/9/grading"]')?.textContent).toContain('Grade')
-  expect([...element.querySelectorAll('a')].some(link => link.textContent?.includes('Lessons') && link.getAttribute('href')?.startsWith('/modules/9?cohort_id=4'))).toBe(true)
+  expect([...element.querySelectorAll('a')].some(link => link.textContent?.includes('Lessons') && link.getAttribute('href')?.startsWith('/admin/modules/9?cohort_id=4'))).toBe(true)
   const assigned = element.querySelector<HTMLAnchorElement>('a[href="/admin/cohorts/4?tab=students&module_id=9"]')!
   expect(assigned.textContent).toBe('1 student assigned')
   await act(async () => assigned.click())

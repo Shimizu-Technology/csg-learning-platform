@@ -6,7 +6,7 @@ module Api
       before_action :require_staff!
 
       def show
-        enrollment = Enrollment.where(cohort_id: current_user.accessible_cohorts.select(:id))
+        enrollment = Enrollment.where(cohort_id: StaffCohortScope.new(current_user).visible_cohorts.select(:id))
           .find_by!(user_id: params[:user_id], cohort_id: params.require(:cohort_id))
         render json: { communication: StudentCommunicationProjection.new(enrollment: enrollment, viewer: current_user).call }
       end

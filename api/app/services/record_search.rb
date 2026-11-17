@@ -50,7 +50,9 @@ class RecordSearch
     people
     add("cohort", matched(Cohort.where(id: @cohort_ids), "name")) { |r| row(r, r.name, "cohort", context: { staff: @viewer.staff? }) }
     curricula = @viewer.admin? ? Curriculum.all : Curriculum.where(id: @curriculum_ids)
-    add("curriculum", matched(curricula, "name")) { |r| row(r, r.name, "curriculum", context: { staff: @viewer.staff?, cohort_id: @cohorts.find { |c| c.curriculum_id == r.id }&.id }) }
+    # A cohort copy names its cohort only for viewers who can see it (CurriculumName).
+    names = CurriculumName.new(@viewer)
+    add("curriculum", matched(curricula, "name"), prepare: ->(batch) { names.preload(batch.map(&:id)) }) { |r| row(r, names.for(r), "curriculum", context: { staff: @viewer.staff?, cohort_id: @cohorts.find { |c| c.curriculum_id == r.id }&.id }) }
     learning
     work
     conversations

@@ -116,7 +116,7 @@ module Api
         enrollment = if params[:cohort_id].present?
           enrollments.find_by(cohort_id: params[:cohort_id])
         else
-          enrollments.active.where(cohort_id: current_user.accessible_cohorts.select(:id)).first
+          enrollments.active.where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).first
         end
 
         unless enrollment
@@ -128,7 +128,7 @@ module Api
         cohort = enrollment.cohort
         return unless require_cohort_access!(cohort, teacher: true)
         curriculum = cohort.curriculum
-        same_curriculum_enrollment_count = user.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).joins(:cohort)
+        same_curriculum_enrollment_count = user.enrollments.where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).joins(:cohort)
           .where(cohorts: { curriculum_id: curriculum.id })
           .count
         # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
@@ -254,7 +254,7 @@ module Api
             active_intervention_count: attention[:active_intervention_count],
             active_intervention_id: attention[:active_intervention_id]
           },
-          enrollments: user.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).includes(:cohort).order(:id).map { |item|
+          enrollments: user.enrollments.where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).includes(:cohort).order(:id).map { |item|
             { id: item.id, cohort_id: item.cohort_id, cohort_name: item.cohort.name, status: item.status }
           },
           can_message: !current_user.blocked_relationship_with?(user),
@@ -304,7 +304,7 @@ module Api
           learning_evidence_scope: {
             kind: "enrollment",
             curriculum_id: curriculum.id,
-            curriculum_name: curriculum.name,
+            curriculum_name: CurriculumName.new(current_user).for(curriculum, in_cohort: cohort),
             enrollment_count: same_curriculum_enrollment_count,
             shared_across_enrollments: false
           },
@@ -312,6 +312,12 @@ module Api
           modules: modules_data,
           recent_activity: recent_activity
         }
+      end
+
+      private
+
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
       end
     end
   end

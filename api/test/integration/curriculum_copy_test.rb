@@ -44,7 +44,8 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     preview = response.parsed_body["curriculum_copy_preview"]
     assert preview["can_copy"]
     assert_equal "#{@f.curriculum.name} (#{@f.cohort.name})", preview["copy_name"]
-    assert_equal [ @f.other_cohort.id ], preview["shared_with"].map { |cohort| cohort["id"] }
+    # The instructor doesn't teach the other cohort: counted, never named (L-3.2).
+    assert_equal [ [], 1 ], preview.values_at("shared_with", "shared_with_others_count")
     assert_equal 2, preview.dig("counts", "submissions")
 
     copy_request!(@f.instructor)

@@ -31,6 +31,7 @@ vi.mock('./lib/routePreload', () => ({
   StudentWorkspace: () => null, SubmissionDetail: () => null, StudentManagement: () => null,
   SupportQueue: () => null, Moderation: () => <p>Private safety review</p>, InterventionDetail: () => null,
   HelpRequestDetail: () => null, TeamManagement: () => null, TeamMemberDetail: () => <p>Team member record</p>,
+  CurriculumRecord: () => <p>Curriculum record</p>, ModuleRecord: () => <p>Module record</p>, LessonRecord: () => <p>Lesson record</p>,
 }))
 import App from './App'
 
@@ -68,6 +69,27 @@ it('team member pages are admin-only, like Team', async () => {
   await act(async () => root.render(<App />))
   expect(window.location.pathname).toBe('/admin/team/7')
   expect(container.textContent).toContain('Team member record')
+})
+
+// L-5: content record pages are staff pages. Students get No access before anything loads.
+it.each([
+  ['/admin/curricula/3', 'Curriculum record'],
+  ['/admin/modules/5', 'Module record'],
+  ['/admin/lessons/7', 'Lesson record'],
+])('%s opens for staff and refuses students', async (path, text) => {
+  window.history.replaceState({}, '', path)
+  state.role = 'student'
+  await act(async () => root.render(<App />))
+  expect(window.location.pathname).toBe(path)
+  expect(container.textContent).toContain('No access')
+  expect(container.textContent).not.toContain(text)
+  for (const role of ['instructor', 'admin']) {
+    act(() => root.unmount())
+    root = createRoot(container)
+    state.role = role
+    await act(async () => root.render(<App />))
+    expect(container.textContent, role).toContain(text)
+  }
 })
 
 it.each(['/admin/activity'])('blocks instructor direct access to %s', async (path) => {

@@ -209,6 +209,6 @@ it('links milestone lessons with enrollment and return context instead of joinin
   await act(async () => root.render(<TestRouter initialEntries={['/admin/cohorts/4/students/6/learning']}><StudentLearningPlan enrollmentId={8} cohortId={4} onSaved={vi.fn()} /></TestRouter>))
   const link = [...container.querySelectorAll('a')].find(link => link.textContent === 'Backend project')!
   expect(link).toBeTruthy()
-  expect(link.getAttribute('href')).toContain('/lessons/12?cohort_id=4')
+  expect(link.getAttribute('href')).toContain('/admin/lessons/12?cohort_id=4')
   expect(link.getAttribute('href')).toContain('return_to=')
 })

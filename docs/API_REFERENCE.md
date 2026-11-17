@@ -160,6 +160,56 @@ as for summaries. Sent with `Cache-Control: private, no-store`.
 
 ## Dashboard
 
+
+### `GET /api/v1/records/:type/:id/usage`
+
+Where a piece of content is used (L-3.2), for the staff curriculum, module and
+lesson pages (`/admin/curricula/:id`, `/admin/modules/:id`, `/admin/lessons/:id`)
+and the lesson editor's "Used in" panel (L-3.1). Staff only. `type` is
+`curriculum`, `module` or `lesson`. Returns `{ usage: CurriculumUsage | ModuleUsage | LessonUsage }`
+(see `docs/openapi.json`).
+
+- **Cohorts:** admins see every cohort on the curriculum; instructors see only
+  the cohorts they teach. The rest are `other_cohorts_count`, a number that is
+  never named and never added to any count. Each cohort row has its delivery,
+  status and, per type, active students (curriculum), the module's run dates
+  and whether the cohort assigns it (module), or the lesson's release date
+  (lesson; `null` for self-paced cohorts).
+- **Counts** match Grading for the same scope: `submissions` is every attempt
+  (Grading's All), `waiting` is latest attempts without a grade. `open_help` is
+  `null` where help requests are switched off.
+- **Curriculum extras:** modules with lesson counts, copy history
+  (`copy_of`, `copies` for visible cohorts plus `other_copies_count`), each
+  rubric and objective with the lessons that use it, and the learner-file count.
+- **Lesson extras:** blocks, aligned objectives and the five newest open help
+  requests in visible cohorts (no message text).
+
+Students, archived accounts, unknown types and missing records get `404`.
+The query count does not grow with cohorts, lessons, submissions, rubrics,
+objectives or copies. Sent with `Cache-Control: private, no-store`.
+
+`GET /api/v1/lessons/:id/block_editor` applies the same cohort rule to its
+`context`: `used_in` lists only cohorts the viewer can see, `other_cohorts_count`
+counts the rest, and `submissions_count`, `waiting_count` and `open_help_count`
+cover only the listed cohorts. The same rule (`StaffCohortScope`) applies to
+the editor's `access` (`shared_with` names only cohorts the instructor teaches;
+`shared_with_others_count` counts the rest, and `message` and a refused save's
+error say "1 other cohort" instead of a name; `copy_of.cohort` is null for a
+cohort they don't teach), `block_activity` and knowledge-check
+`attempt_count`, the copy preview's `shared_with`, and module
+`submissions_count` in `curricula#show` and `modules#show`. Anyone who may edit
+the curriculum teaches every cohort on it, so their counts are never narrowed.
+
+`GET /api/v1/support_queue` takes `lesson_id` or `module_id` to narrow the
+help lists and help counts to requests asked from that lesson (or its
+exercises), or from any lesson in that module, still inside the viewer's
+cohorts (and `cohort_id`). The response's `help_filter` names the lesson or
+module only when one of those cohorts uses it.
+
+`GET /api/v1/team_members/:id` adds each
+cohort's `waiting_review` and `open_help`, and a `workload` with the active
+follow-up plans the person owns and their owned open help requests.
+
 ### `GET /api/v1/dashboard`
 
 Returns role-appropriate dashboard data.

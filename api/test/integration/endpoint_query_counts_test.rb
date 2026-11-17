@@ -137,6 +137,16 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, -> { "/api/v1/cohorts/#{@cohort.id}/modules/#{@module.id}/submissions" })
   end
 
+  # L-3.2: help on one lesson or one module, linked from the content pages' counts.
+  # One test each, so each measures its own growth from one record to five.
+  test "support queue filtered to a lesson" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/support_queue?lesson_id=#{@lessons.first.id}" })
+  end
+
+  test "support queue filtered to a module in one cohort" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/support_queue?module_id=#{@module.id}&cohort_id=#{@cohort.id}" })
+  end
+
   test "support queue" do
     assert_flat_queries(@instructor, :get, "/api/v1/support_queue")
   end
@@ -215,6 +225,31 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, -> { "/api/v1/records/lesson/#{@lessons.first.id}/related" })
   end
 
+  # L-3.2 / L-5: where content is used, for the curriculum, module and lesson pages and the editor.
+  test "curriculum usage for an instructor" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/records/curriculum/#{@curriculum.id}/usage" })
+  end
+
+  test "curriculum usage for an admin" do
+    assert_flat_queries(@admin, :get, -> { "/api/v1/records/curriculum/#{@curriculum.id}/usage" })
+  end
+
+  test "module usage" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/records/module/#{@module.id}/usage" })
+  end
+
+  test "lesson usage" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/records/lesson/#{@lessons.first.id}/usage" })
+  end
+
+  test "lesson block editor context" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/lessons/#{@lessons.first.id}/block_editor" })
+  end
+
+  test "team member page with grading load and owned follow-ups" do
+    assert_flat_queries(@admin, :get, -> { "/api/v1/team_members/#{@instructor.id}" })
+  end
+
   test "cohort related panel" do
     assert_flat_queries(@instructor, :get, -> { "/api/v1/records/cohort/#{@cohort.id}/related" })
   end
@@ -230,6 +265,9 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
   private
 
   def assert_flat_queries(user, verb, path, params = {})
+    # Each measurement must see a bigger world than the last: a second call in
+    # one test would compare five records with five.
+    assert_equal 0, @size, "assert_flat_queries grows the fixtures itself; call it once per test"
     counts = [ 1, 5 ].map do |size|
       grow_to(size)
       resolved = path.respond_to?(:call) ? path.call : path

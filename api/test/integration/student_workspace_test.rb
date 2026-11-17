@@ -359,6 +359,60 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal false, slots.find { |row| row["id"] == own.private_meeting_slot_id }.fetch("available"), "filtering the student must not free another learner's booked slot"
   end
 
+  test "workspace curriculum names redact a hidden copy owner and enrollment counts use staff scope" do
+    copy = Curriculum.create!(name: "Shared lab (Hidden birch cohort)")
+    hidden = Cohort.create!(name: "Hidden birch cohort", curriculum: copy, start_date: Date.current, status: :active)
+    CurriculumCopy.create!(cohort: hidden, source_curriculum: @curriculum, copy_curriculum: copy, created_by: @admin)
+    # Legacy/shared copies can have more than one cohort; this is the privacy boundary.
+    @cohort.update_column(:curriculum_id, copy.id)
+    Enrollment.create!(user: @student, cohort: hidden)
+    get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+    assert_response :success
+    refute_includes response.body, hidden.name
+    assert_equal "Shared lab (copy)", response.parsed_body.dig("learning_evidence_scope", "curriculum_name")
+    assert_equal 1, response.parsed_body.dig("learning_evidence_scope", "enrollment_count")
+    assert_equal [ @cohort.id ], response.parsed_body.fetch("enrollments").pluck("cohort_id")
+    get "/api/v1/cohorts/#{@cohort.id}", headers: headers(@teacher)
+    assert_response :success
+    assert_equal "Shared lab (copy)", response.parsed_body.dig("cohort", "curriculum_name")
+    refute_includes response.body, hidden.name
+    get "/api/v1/records/curriculum/#{copy.id}/usage", headers: headers(@teacher)
+    assert_response :success
+    refute_includes response.body, hidden.name
+    assert_equal 1, response.parsed_body.dig("usage", "other_cohorts_count")
+    get profile_path, params: { cohort_id: @cohort.id }, headers: headers(@admin)
+    assert_response :success
+    assert_equal "Shared lab (Hidden birch cohort)", response.parsed_body.dig("learning_evidence_scope", "curriculum_name")
+    assert_equal 2, response.parsed_body.dig("learning_evidence_scope", "enrollment_count")
+  end
+
+  test "student support scope composes with the shared lesson and module filters" do
+    other = person("filtered_help", :student)
+    Enrollment.create!(user: other, cohort: @cohort)
+    extra = @module.lessons.create!(title: "Other lesson", position: 4)
+    [ [ @student, @lesson ], [ other, @lesson ], [ @student, extra ] ].each do |student, lesson|
+      HelpRequest.create!(student: student, cohort: @cohort, context_type: :lesson, context_id: lesson.id,
+        context_label: lesson.title, context_path: "/lessons/#{lesson.id}", category: :concept, message: "Filtered help")
+    end
+    [ { lesson_id: @lesson.id }, { module_id: @module.id } ].each do |filter|
+      get "/api/v1/support_queue", params: { cohort_id: @cohort.id, student_id: @student.id, **filter }, headers: headers(@teacher)
+      assert_response :success
+      rows = response.parsed_body.dig("support_queue", "help_requests")
+      assert_equal(filter[:lesson_id] ? 1 : 2, rows.size)
+      assert_equal [ @student.id ], rows.map { |row| row.dig("student", "id") }.uniq
+      assert_equal(filter[:lesson_id] ? "lesson" : "module", response.parsed_body.dig("support_queue", "help_filter", "type"))
+    end
+  end
+
+  test "staff cohort scope exposes only taught cohorts as a relation and hidden cohorts only as a count" do
+    hidden = Cohort.create!(name: "Unseen cohort", curriculum: @curriculum, start_date: Date.current)
+    teacher = StaffCohortScope.new(@teacher)
+    assert_equal [ @cohort.id ], teacher.visible_cohorts.pluck(:id)
+    assert_equal 1, teacher.other_count(@curriculum.id)
+    assert_equal [ @cohort.id ], teacher.visible_ids(@curriculum.id)
+    assert_includes StaffCohortScope.new(@admin).visible_cohorts.pluck(:id), hidden.id
+  end
+
   private
 
   def person(name, role)

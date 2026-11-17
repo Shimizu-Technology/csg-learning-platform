@@ -68,6 +68,14 @@ because Reply & resolve closes a request: after `start`, run
 (from `api/`), then `QA_SPEC=help-followup.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts`
 (from `web/`). It can be re-run against the same database; each run asks a fresh synthetic question.
 
+"Where used" and the content record pages (W5 PR 5.4) need an extra fixture: a second cohort sharing QA Program Lab
+that the QA instructor doesn't teach, and a third cohort on its own copy. Load it once after startup, from `api/`:
+`DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/where-used-fixtures.rb`, then
+`QA_SPEC=where-used.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts` (from `web/`). It reads
+the ids the fixture writes to `.qa-local/where-used.json`. See `docs/qa/where-used-2026-11-17.md`. Then run
+`QA_SPEC=where-used-copy.spec.ts` once: it makes QA Program 2's own copy as the admin (a lasting change to the fixture),
+and checks that QA Program's instructor never sees that cohort's name in the copy's name.
+
 Use `PARALLEL_WORKERS=1` for separate Rails tests on the mini, with a separate
 test database. In zsh, do not name a variable `path` (it changes PATH).
 Smoke covers four roles at 1280 and 390 using Chromium. It does not establish
