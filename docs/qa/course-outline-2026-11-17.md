@@ -74,10 +74,19 @@ The canonical course has 127 lessons. With the switch On, Learn now names 103 ex
 Focused local runs:
 
 - API: 13 new tests (course outline, lesson kinds, migration, notification) plus adjacent suites, all passing on the owned local database.
-- Web: 2,528+ vitest tests across the suite, plus typecheck and lint.
+- Web: the full vitest suite, plus typecheck and lint.
 - Mobile: typecheck, lint (0 errors) and the new jest test.
 
-The advisory `impeccable detect` returned `[]`. ASUS results are under [Full gate](#full-gate).
+The advisory `impeccable detect` returned `[]`.
+
+### Full gate
+
+- `asus-test --postgres csg_learning_platform_test <repo> -- bash scripts/qa/student-workspace-gate.sh` passed with **0 failed stages** on `9c847b01`, which is this branch merged with `origin/main` at `ca370b52`.
+  - API with prepared statements on and off: **2,016 runs, 41,909 assertions** each, with 0 failures, errors or skips. The ASUS port adapter was kept, and the OpenAPI coverage inventory passed.
+  - RuboCop: 715 files, no offenses. Brakeman: 0 warnings.
+  - Web: typecheck, lint, vitest (227 files), build, `test:bundle` and `api:check` passed.
+  - Mobile: typecheck, lint (0 errors) and jest (140 suites, 1,510 tests) passed.
+- An earlier gate run on `5b8f8241` failed one API test: an OpenAPI description said "read-only", which the role-wording guard reads as "only". I fixed it in `7305e03d`; every other stage in that run passed.
 
 ## Execution notes
 
