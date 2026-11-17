@@ -70,3 +70,29 @@ Deployment requires the new migration before the updated API; no production acti
 Local resource cleanup: all owned harness servers and synthetic databases were removed; the preview tab and every Playwright page were closed. Lifecycle reports no active owned resources or runtime handoffs. The protected local PostgreSQL service was borrowed and remains running. The final ASUS wrapper exited successfully after its exact temporary-container cleanup and released the runner lock; no remote runtime handoff remains.
 
 Setup: the requested `~/work/csg-backend-hardening` worktree was absent; no unrelated worktree or shared checkout was removed or changed.
+
+
+## PR #302 review fix round
+
+Source: `7f53729d`, on merged main `53c5ddcb` (merge `309e0d0e`). Independent Opus review covered the earlier `ae63c92a`; it is not approval of this fix commit. No production access or changes were made.
+
+- Reproduced the dated paused-module regression with the reviewer’s integration test. One shared module-read gate now serves module show, video, lesson access, search and activity destinations. Dashboard/progress metadata agree. Frozen lesson membership still excludes archives, expired enrollments and assignments created after the pause; active release dates remain unchanged. The other `accessible?` callers are calendar calculations, staff counts or active-only writes/help requests.
+- Rows paused by an older API without a snapshot capture it under the enrollment lock on first read. Calendar-changing model callbacks capture missing snapshots from persisted dates before editing them, including cohort start dates and new module overrides. This closes the rollout gap without a second migration or changing release dates. Historical content already hidden by old-API edits cannot be reconstructed from current dates; the separate production investigation remains with Leon.
+- Pause updates reload under the existing learning-write guard before computing the snapshot. An HTTP race regression performs a cohort copy after request start, receives 409, then verifies a fresh pause stores only copied lesson IDs.
+- Deleting/replacing blocks prunes rubric drafts; dirty checks consider existing blocks. Save clears the deleted block warning while remaining drafts stay protected. Rubric-create responses preserve text typed after the request started. A combined lesson/rubric departure uses one dialog.
+- Authors can delete their own refused drafts on web/mobile and through the API; editing, posting and rescheduling remain denied. Tests cover detail access, denied mutations, colleague denial and author deletion. The publisher and exactly-once transaction remain unchanged.
+- Manual-complete On copy contains the filename once and one upload/completion explanation. Off UI stays unchanged. Enrolled-student privacy now has a published control. Fixture dates restore in `finally`; attention actions are checked at 390 and 700px.
+
+Final focused API: **99 tests / 821 assertions passed in each statement mode**, plus the earlier expanded **150 / 1,340** in each mode. The final focused set includes the #303 move-cutoff and activity-cardinality tests. The first full ASUS run exposed both interactions; the fixes retain assignment creation cutoffs and reuse the activity feed’s already-preloaded cohort schedules. An initial local parallel test launch hit the Mac pg/fork crash; it was stopped and the tests reran with one worker.
+
+Web: ESLint, typecheck, **244 files / 2,896 tests**, contract checks, Netlify/service-worker checks, production build and bundle gate passed. Mobile: full `npm run check`, **142 suites / 1,552 tests** passed; lint has the existing warnings. `api:generate` regenerated both type files without a diff. Impeccable 4.6.0 advisory returned `[]`.
+
+Browser: Chromium, local synthetic fixtures and stub auth; 390×844 and 1280×844. The 20-run matrix passed after waiting for save settlement before sampling beforeunload. It covers dated (`unlocked: false`) paused modules on both On and Off: module page, lesson and video authorization after module/cohort postponement, with later lessons denied and dates restored. Deleted-block save removes its warning and remaining rubric drafts still prompt. The sm action test runs at 390 and 700; its 1280 project entry is intentionally a no-op. A final-source rerun and full ASUS result are recorded below.
+
+Video QA checks authorization and a synthetic presigned URL; it does not certify S3 playback. Native devices, Safari/WebKit, live Clerk/push and production deployment remain not run. Basic backups/blockers and shared attention projection were already present as recorded above; this round keeps them and fixes the review findings.
+
+Final-source Chromium rerun: **20/20 entries passed in 53.5s** at the required dimensions, including the additional 700px action check. Owned QA servers and database were removed; the shared preview tab was closed. The obsolete ASUS run completed its prepared pass with the two #303 interactions above, then was stopped during unprepared mode after both had passed focused retests; its interrupted results are not acceptance.
+
+Final source ASUS prepared mode: **2,250 tests / 43,449 assertions; 0 failures, 0 errors, 1 existing pooler-canary skip**. The migration subprocess port adapter is unchanged.
+
+Final source ASUS unprepared mode: **2,250 tests / 43,449 assertions; 0 failures, 0 errors, 1 existing pooler-canary skip**. **778 RuboCop files clean; Brakeman 0 warnings; gate exit 0**. Both full runs used `7f53729d`, one job at a time. The wrapper removed its disposable Postgres and stopped WSL. The local test database was dropped; lifecycle cleanup/status reports **no active owned resources**. Borrowed local Postgres remains untouched. All eight CodeRabbit inline threads received replies citing the fix commit; the outside-diff Inspector finding received a separate PR comment. New-head review is not claimed complete.

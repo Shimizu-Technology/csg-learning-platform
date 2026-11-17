@@ -302,7 +302,8 @@ submission page. See `docs/qa/staff-home-scheduled-updates-2026-11-18.md`.
 
 ### Staff reliability (U-0.6, U-0.7, U-0.12, U-0.14, #299)
 
-Start a fresh owned harness, then from `api/` run
+Start a fresh owned harness with `QA_STAFF_RELIABILITY=1 scripts/qa/run start`
+(the video authorization check uses a synthetic loopback presigned URL), then from `api/` run
 `DATABASE_URL=postgresql://localhost/<owned csg_qa_ database> bundle exec ruby ../scripts/qa/staff-reliability-fixtures.rb`.
 Run `QA_SPEC=staff-reliability.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`
 from the repo root, with `dev-lifecycle` on PATH. The one-worker Chromium matrix
