@@ -73,7 +73,7 @@ export function StudentTodayPage() {
   if (data?.cohort && selectedCohortId && data.cohort.id !== selectedCohortId) return <LoadingSpinner message="Loading Today…" />
   if (loading && !data) return <LoadingSpinner message="Loading Today…" />
   if (error && !data) {
-    return <EmptyState icon={WifiOff} title="Could not load Today" description={error}
+    return <EmptyState headingLevel={1} icon={WifiOff} title="Could not load Today" description={error}
       action={<Button variant="secondary" onClick={load}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
   }
   // Not enrolled, a pending purchase, or a payload from before the redesign: today's page handles it.

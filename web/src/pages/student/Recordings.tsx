@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/ui/PageHeader'
 import { activityReturnPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
@@ -307,12 +308,12 @@ export function Recordings() {
 
   const activityBack = activityReturn ? <Link to={activityReturn} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center">Back to Activity</Link> : todayBack
 
-  if (requestedRecording && !selectedItem && !loadError) return <EmptyState action={activityBack} icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
+  if (requestedRecording && !selectedItem && !loadError) return <EmptyState headingLevel={1} action={activityBack} icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
 
   const totalCount = s3Recordings.length + legacyRecordings.length
   if (loadError && totalCount === 0) {
     return (
-      <EmptyState
+      <EmptyState headingLevel={1}
         icon={WifiOff}
         title="Could not load recordings"
         description={loadError}
@@ -328,7 +329,7 @@ export function Recordings() {
 
   if (totalCount === 0) {
     return (
-      <EmptyState
+      <EmptyState headingLevel={1}
         icon={PlayCircle}
         action={activityBack}
         title="No recordings yet"
@@ -343,6 +344,7 @@ export function Recordings() {
     legacyRecordings.some((recording) => recording.source === 'external'),
   ].filter(Boolean).length
   const showTabs = sourceGroupCount > 1
+  const Header = v2 ? 'div' : 'header'
 
   return (
     <div className="app-page">
@@ -352,18 +354,20 @@ export function Recordings() {
           Showing saved recordings while your connection catches up.
         </div>
       )}
-      <header>
+      <Header>
         <Link to={activityReturn || backTo} state={activityReturn ? RESTORE_LIST_STATE : undefined} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {activityReturn ? 'Back to activity' : backLabel}
         </Link>
+        {v2 ? <PageHeader eyebrow="Replay and review" title="Class recordings" description={<>{totalCount} recording{totalCount !== 1 ? 's' : ''} available{` · ${[...s3Recordings, ...legacyRecordings].filter(r => r.watch_progress?.completed).length} watched`}</>} /> : <>
         <p className="app-eyebrow">Replay and review</p>
         <h1 className="app-title mt-2">Class recordings</h1>
         <p className="app-description mt-2 tabular-nums">
           {totalCount} recording{totalCount !== 1 ? 's' : ''} available
           {` · ${[...s3Recordings, ...legacyRecordings].filter(r => r.watch_progress?.completed).length} watched`}
         </p>
-      </header>
+        </>}
+      </Header>
 
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Player area */}

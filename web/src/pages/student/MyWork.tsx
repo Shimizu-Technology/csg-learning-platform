@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, ClipboardCheck, Clock, MessageCircle, RefreshCw, RotateCcw, WifiOff } from 'lucide-react'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
@@ -63,9 +64,9 @@ export function MyWorkPage() {
   useEffect(() => { load() }, [load])
 
   if (loading && !work) return <LoadingSpinner message="Loading My work…" />
-  if (notEnrolled) return <EmptyState icon={ClipboardCheck} title="No course yet" description="Work you hand in will appear here once you’re enrolled in a course." />
+  if (notEnrolled) return <EmptyState headingLevel={1} icon={ClipboardCheck} title="No course yet" description="Work you hand in will appear here once you’re enrolled in a course." />
   if (error || !work) {
-    return <EmptyState icon={WifiOff} title="Could not load your work" description={error || 'Unable to load My work right now.'}
+    return <EmptyState headingLevel={1} icon={WifiOff} title="Could not load your work" description={error || 'Unable to load My work right now.'}
       action={<Button variant="secondary" onClick={load}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
   }
 
@@ -73,10 +74,7 @@ export function MyWorkPage() {
   const tab: Tab = requested !== 'auto' ? requested : work.counts.needs_you > 0 ? 'needs_you' : work.counts.waiting > 0 ? 'waiting' : 'graded'
   return (
     <div className="app-page max-w-4xl" data-page="my-work">
-      <header data-page-header="">
-        <h1 className="app-title">My work</h1>
-        <p className="app-description mt-1" data-page-context="">Everything you’ve submitted in <RecordLink record={{ type: 'cohort', id: work.cohort.id }} variant="plain" returnLabel="My work" className="font-semibold text-ink-secondary">{work.cohort.name}</RecordLink></p>
-      </header>
+      <PageHeader title="My work" description={<>Everything you’ve submitted in <RecordLink record={{ type: 'cohort', id: work.cohort.id }} variant="plain" returnLabel="My work" className="font-semibold text-ink-secondary">{work.cohort.name}</RecordLink></>} />
       <TabList label="My work" className="flex max-w-full overflow-x-auto border-b border-line">
         {TABS.map((key) => (
           <TabButton key={key} asTab selected={tab === key} count={work.counts[key]} id={`my-work-tab-${key}`} aria-controls={`my-work-panel-${key}`} onClick={() => setUrlState({ tab: key })} className="max-sm:flex-1 max-sm:px-2">
