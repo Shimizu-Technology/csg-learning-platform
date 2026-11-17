@@ -1,0 +1,30 @@
+{
+  "application_commit": "31de08b5254f284c3a145211c862c047d0e98def",
+  "command": "asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/staff-mobile-layout-gate.sh",
+  "exit_code": 0,
+  "vitest": {
+    "files": 224,
+    "tests": 2534,
+    "failed": 0
+  },
+  "passed": [
+    "typecheck",
+    "lint",
+    "vitest",
+    "test:netlify",
+    "build",
+    "test:bundle",
+    "api:check"
+  ],
+  "advisory_impeccable": [],
+  "desktop_comparison": {
+    "baseline": "c187ce251f4d387e7cfd60174d8f24fa431ab5e9",
+    "total": 60,
+    "identical": 60
+  },
+  "browser": {
+    "passed": 36,
+    "skipped_viewport_specific": 12,
+    "failed": 0
+  }
+}

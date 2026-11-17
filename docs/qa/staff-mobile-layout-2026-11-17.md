@@ -1,6 +1,10 @@
 # Staff workspace phone layout — W7 PR 7.6b
 
-Agent-executed affected-flow QA, 2026-11-17 (Guam). Application source:
+The [Fix round](#fix-round) below supersedes the original select interaction
+and records the requested review fixes. The original acceptance record is
+retained for comparison.
+
+Original agent-executed affected-flow QA, 2026-11-17 (Guam). Application source:
 `5a1d629781ea81d66a96cf2b090530fe662379b1`, based on `e0af0801` (#284,
 including #268 and #287). Branch: `feat/staff-mobile-layout`. This PR is held
 for lead review; no merge, watch or deployment was performed.
@@ -142,3 +146,101 @@ PostgreSQL container and shut down WSL on exit. `dev-lifecycle cleanup` and
 `status` report **no active owned resources**. Borrowed/protected PostgreSQL,
 Redis, simulators and other sessions were left available. The requested branch
 and worktree remain for lead review.
+
+## Fix round
+
+Review baseline: `c187ce251f4d387e7cfd60174d8f24fa431ab5e9`, CodeRabbit review
+`5933159351` and the independent Opus findings. `origin/main` was merged before
+editing (already current at `e0af0801`). The same agent executed this affected-flow
+round against a fresh synthetic harness database, `csg_qa_7126_1794891463`.
+Fix-round application source: `31de08b5254f284c3a145211c862c047d0e98def`.
+The final tested application and test bytes are identified by the
+[round source manifest](staff-mobile-layout-2026-11-17/round1/source-sha256.json).
+
+The phone control is now `WorkspaceSectionMenu`: a disclosure button showing
+“Section: Overview”, followed by ordinary links when opened. Typing or arrows
+never select a route. Enter/Space opens it, Tab visits links, Escape closes it
+and returns focus, and activating a link pushes one history entry. Links preserve
+`aria-current`, return state and native modified-click behavior. The panel scrolls
+within the space above the bottom navigation and can open upward when needed.
+The same negated `min-width: 1024px` media query now controls the menu and lesson
+objectives, meeting the desktop CSS breakpoint without a fractional-width gap.
+
+Staff cohort routes now enable the existing visual-viewport keyboard observer.
+While its keyboard state is open, pinned Save and primary bottom navigation
+hide. Staff workspace fields and offering/module/resource form controls use
+16px text below `lg`; the section navigation uses an inset focus outline.
+Phone Support counts identify open requests and plans.
+
+All eight CodeRabbit findings are addressed. Findings 2–8 were present in
+`e0af0801` before this PR; the extraction had preserved them. Finding 1 was a
+coverage gap introduced in this PR's QA spec. These explicit behavior/accessibility
+fixes are the only additions to the T-10 changes and otherwise mechanical T-14
+extraction.
+
+| Finding | Fix and regression coverage |
+| --- | --- |
+| 1 — Phone permissions | The matrix spec inspects the actual disclosure links, compares their destinations to permitted desktop destinations, and rejects instructor Settings/Teaching team links. |
+| 2 — Short dialog | Shared Modal is a flex column with a shrinking, scrolling `min-h-0` body and fixed header/footer. Phone checks at 390×568 and 390×320 keep both footer buttons inside the dialog and viewport while the body scrolls. Existing Modal callers retain their body height caps and fixed-height option. |
+| 3 — Module labels | `useId` connects Module start date and Repository name labels/inputs; browser queries use their accessible names. |
+| 4 — Resource category | Every editable resource has a visible Category label and unique associated select id; two rows are checked in both themes. |
+| 5 — Updates states | Home loading, failure and successful-empty are separate; Retry updates refetches. Component tests plus an intercepted browser request verify the entire sequence. |
+| 6 — Roster targets | Student-name RecordLinks use `touchTarget`; phone checks measure every visible name link at least 44px high. |
+| 7 — Learning return context | All four Overview-to-Learning links forward the resolved return state. Browser checks enter from a filtered student list, follow each link, and verify the exact Back destination at both widths/themes. |
+| 8 — Late direct message | An active ref and current cohort/student match ignore late success/error responses. Hook tests cover unmount, student change and cohort change; the browser changes students while message creation is held. |
+
+### Fix-round acceptance
+
+Both `staff-mobile-layout.spec.ts` and `staff-mobile-fixes.spec.ts` completed:
+**36 passed, 12 skipped, 0 failed**. The skips are tests scoped to the other
+viewport, rather than missing required coverage. The original 16 scenarios
+were rerun with the disclosure, plus 20 executions for the added regressions.
+The [case ledger](staff-mobile-layout-2026-11-17/round1/browser-results.json)
+records each result. All cohort and student sections, both roles, both themes,
+and Settings recovery/persistence still pass at 390 and 1280. Keyboard-only
+passes in light/dark verify no request or history entry on intermediate keys,
+one committed destination, Back/Forward, Escape focus restoration and the leave
+guard retaining a draft. A modified-click opens Learning in a separate tab.
+
+**60/60 settled desktop screenshots match `c187ce25` exactly, zero differing
+pixels**, including all ordinary sections in both themes/roles. The original
+round had already shown the same desktop parity against `e0af0801`. Dialog
+accessibility/footer fixes and the focused outline are deliberate changes to
+states outside the ordinary section screenshots.
+[New comparison](staff-mobile-layout-2026-11-17/round1/desktop-comparison.json),
+[light disclosure](staff-mobile-layout-2026-11-17/round1/phone-menu-light.png),
+[dark disclosure](staff-mobile-layout-2026-11-17/round1/phone-menu-dark.png).
+
+Regression development exposed several harness assumptions, which were fixed:
+StrictMode issues concurrent home requests; fractional iframe viewports can be
+rounded by Chromium; modified-click tabs are context pages without a popup
+opener; and the synthetic Clerk stub uses tab-local storage. Settings reloads
+now wait for the actual form after loading. The keyboard pass clears the existing
+fixture text before typing. An early lesson probe updated a student's presence;
+that synthetic timestamp was reset and the final probe uses admin identity.
+The complete clean rerun above supersedes those intermediate failures.
+
+The new disclosure tests failed against the old select (3/3). The initial phone
+browser regressions failed against the review baseline for keyboard chrome,
+textarea font sizing and clipped focus. Each CodeRabbit fix has a regression
+assertion that the old rendering or navigation cannot satisfy.
+
+Chromium viewport keyboard changes are simulated, using the same visual-viewport
+contract as iOS. Real iOS Safari software-keyboard behavior, physical-device
+touch feel and screen-reader output remain unverified. No production data,
+provider delivery, API/schema, native screen or ContentBlockRenderer change.
+The browser tab, QA servers and throwaway database were cleaned after this phase.
+
+
+The full ASUS web gate exited **0** for the fix-round source: typecheck, lint,
+**2,534 Vitest tests / 224 files**, Netlify checks, production build,
+`test:bundle` and `api:check`. The first attempt caught a DOM element type
+annotation in the new menu test; after correcting it, the complete gate above
+passed. Impeccable advisory output was `[]`; whitespace and the JSX length guard
+pass. API source was untouched, so no API suite or type regeneration was needed.
+The migration-process port adapter and prepared statements remain unchanged.
+
+All owned browser tabs, servers, database and test transports are cleaned.
+The ASUS helper removed its throwaway PostgreSQL and stopped its WSL runtime.
+The branch/worktree remain available for review; no merge, watch, review
+dismissal or deployment was performed.
