@@ -7,12 +7,16 @@ import { Alert, AppState, Platform, Text, TextInput, type AppStateStatus } from 
 
 import { OTA_CHECK_INTERVAL_MS, useOtaUpdates } from '../use-ota-updates';
 import { OtaUpdateNotice } from '@/components/ota-update-notice';
+import { AppRecovery } from '@/components/app-recovery';
 import { loadSubmissionDraft, saveSubmissionDraft } from '@/lib/submission-storage';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import appConfig from '../../../app.json';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
 jest.mock('expo-updates', () => ({ isEnabled: true, checkForUpdateAsync: jest.fn(), fetchUpdateAsync: jest.fn(), reloadAsync: jest.fn() }));
 jest.mock('expo-constants', () => ({ __esModule: true, default: { executionEnvironment: 'standalone' }, ExecutionEnvironment: { StoreClient: 'storeClient', Standalone: 'standalone' } }));
+jest.mock('@/lib/analytics', () => ({ analyticsClient: null }));
 
 const check = jest.mocked(Updates.checkForUpdateAsync);
 const fetchUpdate = jest.mocked(Updates.fetchUpdateAsync);
@@ -182,21 +186,55 @@ it('offers a dismissible restart notice without interrupting a draft or pending 
   }
   const ui = render(<Task />);
   await act(async () => {});
-  expect(ui.queryByText('Update ready — restart')).toBeNull();
+  expect(ui.queryByText('Update ready')).toBeNull();
   await act(async () => fireEvent.changeText(ui.getByLabelText('Draft'), 'My unfinished answer'));
   fireEvent.press(ui.getByText('Submit'));
   await act(async () => finishUpdate(downloaded));
-  expect(ui.getByText('Update ready — restart')).toBeTruthy();
-  expect(ui.getByText(/Finish any message or submission/)).toBeTruthy();
+  expect(ui.getByText('Update ready')).toBeTruthy();
+  expect(ui.getByText(/Finish any message, upload or submission first/)).toBeTruthy();
+  expect(ui.getByText(/Swipe CSG Learn away in the app switcher, then reopen it/)).toBeTruthy();
   expect(ui.getByText('Not submitted')).toBeTruthy();
   fireEvent.press(ui.getByRole('button', { name: 'Later' }));
-  expect(ui.queryByText('Update ready — restart')).toBeNull();
+  expect(ui.queryByText('Update ready')).toBeNull();
   expect(ui.getByLabelText('Draft').props.value).toBe('My unfinished answer');
   expect((await loadSubmissionDraft(42, 17, 3))?.text).toBe('My unfinished answer');
   await foreground();
-  expect(ui.queryByText('Update ready — restart')).toBeNull();
+  expect(ui.queryByText('Update ready')).toBeNull();
   await act(async () => finishSubmission());
   expect(ui.getByText('Submitted')).toBeTruthy();
   expect(Updates.reloadAsync).not.toHaveBeenCalled();
   await AsyncStorage.clear();
+});
+
+it('keeps checking and stages rollback while a throwing screen is caught by the real app boundary', async () => {
+  expect(appConfig.expo.updates).toMatchObject({ checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 });
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  function BrokenScreen(): never { throw new Error('bad OTA render'); }
+  check.mockResolvedValue({ isAvailable: false, isRollBackToEmbedded: true, manifest: undefined, reason: undefined });
+  fetchUpdate.mockResolvedValue({ isNew: false, isRollBackToEmbedded: true, manifest: undefined });
+  // AppRecovery is the same composition mounted by RootLayout under its theme
+  // and safe-area providers, not a test-only rearrangement of the boundary.
+  const ui = render(<AppRecovery><BrokenScreen /></AppRecovery>);
+  await act(async () => {});
+  expect(ui.getByText('Let’s get you back on track.')).toBeTruthy();
+  expect(check).toHaveBeenCalledTimes(1);
+  expect(fetchUpdate).toHaveBeenCalledTimes(1);
+  expect(ui.getByText('Update ready')).toBeTruthy();
+  now += OTA_CHECK_INTERVAL_MS;
+  await foreground();
+  expect(check).toHaveBeenCalledTimes(2);
+  expect(Updates.reloadAsync).not.toHaveBeenCalled();
+});
+
+it('uses the safe inset only for an absolute overlay, leaving the screen layout and outside touches alone', async () => {
+  check.mockResolvedValue(available);
+  const ui = render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 3, right: 4, bottom: 34 } }}><AppRecovery><Text>Current screen</Text></AppRecovery></SafeAreaProvider>);
+  await act(async () => {});
+  expect(ui.getByText('Current screen')).toBeTruthy();
+  const overlay = ui.getByTestId('ota-update-overlay');
+  expect(overlay).toHaveStyle({ position: 'absolute', top: 55, left: 15, right: 16 });
+  expect(overlay.props.pointerEvents).toBe('box-none');
+  fireEvent.press(ui.getByRole('button', { name: 'Later' }));
+  expect(ui.queryByTestId('ota-update-overlay')).toBeNull();
+  expect(ui.getByText('Current screen')).toBeTruthy();
 });

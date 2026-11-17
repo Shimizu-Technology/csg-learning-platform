@@ -80,10 +80,11 @@
     "test:e2e:ios:student": "CSG_MAESTRO_FLOWS=.maestro/ios-student.yaml ./scripts/run-maestro-ios.sh",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "check": "npm run brand:check && npm run test:uri-decoder && npm run typecheck && npm run lint && npm test",
+    "check": "npm run brand:check && npm run test:uri-decoder && npm run test:ota-release && npm run typecheck && npm run lint && npm test",
     "brand:generate": "node scripts/generate-brand-assets.mjs",
     "brand:check": "node scripts/generate-brand-assets.mjs --check",
-    "test:uri-decoder": "node --test scripts/decode-uri-component.test.cjs"
+    "test:uri-decoder": "node --test scripts/decode-uri-component.test.cjs",
+    "test:ota-release": "node --test scripts/publish-ota-ios.test.cjs"
   },
   "engines": {
     "node": ">=22.22.3 <23"

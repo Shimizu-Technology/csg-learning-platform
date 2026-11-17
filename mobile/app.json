@@ -8,7 +8,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/c6326478-e200-4aba-8614-806ca5f8e03a",
-      "checkAutomatically": "ON_ERROR_RECOVERY",
+      "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
     "orientation": "default",
