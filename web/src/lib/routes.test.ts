@@ -33,6 +33,12 @@ describe('connected record routes', () => {
     expect(staffMessageSourcePath({ type: 'submission', id: 812, cohort_id: 3 })).toBe('/admin/submissions/812?cohort_id=3')
     expect(staffMessageSourcePath({ type: 'help_request', id: 9 }, '/admin/support')).toBe('/admin/help-requests/9?return_to=%2Fadmin%2Fsupport')
     expect(staffMessageSourcePath({ type: 'lesson', id: 42, cohort_id: 3 })).toBe('/lessons/42?cohort_id=3')
+    expect(staffMessageSourcePath({ type: 'intervention', id: 61 }, '/admin/support')).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fsupport')
+  })
+
+  it('opens a direct message from a follow-up plan with the plan as its source (L-2.5)', () => {
+    expect(directMessagePath(6, { type: 'intervention', id: 61, label: 'Alex Rivera · Redo', returnTo: '/admin/support' }))
+      .toBe('/messages/dm/6?source_type=intervention&source_id=61&source_label=Alex+Rivera+%C2%B7+Redo&source_return_to=%2Fadmin%2Fsupport')
   })
 
   it('does not accept an external return path', () => {

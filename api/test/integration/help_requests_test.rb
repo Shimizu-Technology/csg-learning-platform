@@ -72,9 +72,9 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     request = HelpRequest.new(student: @student, cohort: @cohort, context_type: "exercise", context_source: "primary", context_id: @block.id)
     original = LearningDestination.method(:help_request)
     calls = 0
-    LearningDestination.define_singleton_method(:help_request) do |record|
+    LearningDestination.define_singleton_method(:help_request) do |record, **options|
       calls += 1
-      original.call(record)
+      original.call(record, **options)
     end
     HelpRequestSerializer.as_json(request)
     assert_equal 1, calls

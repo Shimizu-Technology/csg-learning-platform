@@ -169,6 +169,34 @@
         ]
       }
     },
+    "/api/v1/help_requests/{help_request_id}/replies": {
+      "post": {
+        "summary": "Reply to a help request (staff)",
+        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
+        "responses": {
+          "201": {
+            "description": "Reply saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpRequestReplyResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "help_request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/recordings": {
       "get": {
         "responses": {
@@ -3781,6 +3809,24 @@
                 "type": "null"
               }
             ]
+          },
+          "replies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HelpRequestReply"
+            },
+            "description": "Staff replies, oldest first. Requests resolved before replies existed have none; their one response is `staff_response`, which always mirrors the latest reply."
+          },
+          "follow_up": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HelpRequestFollowUp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Staff readers of one request (show, update, reply) only; null when no plan was started from it or the cohort has follow-up plans switched off. Never sent to learners or in lists."
           }
         },
         "required": [
@@ -3803,7 +3849,8 @@
           "updated_at",
           "owner",
           "destination",
-          "context_destination"
+          "context_destination",
+          "replies"
         ],
         "additionalProperties": false
       },
@@ -6970,6 +7017,10 @@
           },
           {
             "const": "help_request"
+          },
+          {
+            "const": "intervention",
+            "description": "A follow-up plan. Staff only: learners receive `source: null` for these messages."
           }
         ]
       },
@@ -15055,6 +15106,97 @@
           "students",
           "module_grids",
           "lesson"
+        ],
+        "additionalProperties": false
+      },
+      "HelpRequestReply": {
+        "type": "object",
+        "description": "One staff reply (U-4.7). `resolved_request` is true for the reply sent with Reply & resolve.",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "body": {
+            "type": "string"
+          },
+          "resolved_request": {
+            "type": "boolean"
+          },
+          "author": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "full_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name"
+            ],
+            "additionalProperties": false
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "resolved_request",
+          "author",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "HelpRequestFollowUp": {
+        "type": "object",
+        "description": "The latest follow-up plan started from this request, in the request's cohort.",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InterventionStatus"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "destination"
+        ],
+        "additionalProperties": false
+      },
+      "HelpRequestReplyResponse": {
+        "type": "object",
+        "properties": {
+          "help_request": {
+            "$ref": "#/components/schemas/HelpRequest"
+          },
+          "reply": {
+            "$ref": "#/components/schemas/HelpRequestReply"
+          },
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this was a retry: the reply saved by an earlier request with the same `client_request_id` is returned and nobody is notified again."
+          }
+        },
+        "required": [
+          "help_request",
+          "reply",
+          "replayed"
         ],
         "additionalProperties": false
       }

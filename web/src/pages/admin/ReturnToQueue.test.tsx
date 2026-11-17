@@ -362,41 +362,72 @@ describe('help requests from Support', () => {
     requests = [help(4, 'urgent'), help(5, 'normal'), help(6, 'urgent')]
     vi.spyOn(api, 'getHelpRequest').mockImplementation(async (id) => ({ data: { help_request: requests.find((item) => item.id === id)! }, error: null }))
     vi.spyOn(api, 'getSupportQueue').mockImplementation(async () => ({ data: { support_queue: { help_requests: requests.filter((item) => item.status !== 'resolved'), recently_resolved: requests.filter((item) => item.status === 'resolved'), students: [], interventions: [], recovery_plans: [], summary: {} } }, error: null }) as never)
-    vi.spyOn(api, 'updateHelpRequest').mockImplementation(async (id, payload) => {
-      requests = requests.map((item) => (item.id === id ? { ...item, status: payload.status as HelpRequest['status'], staff_response: payload.staff_response ?? null } : item))
-      return { data: { help_request: requests.find((item) => item.id === id)! }, error: null }
+    vi.spyOn(api, 'replyToHelpRequest').mockImplementation(async (id, payload) => {
+      const reply = { id: id * 10, body: payload.body, resolved_request: payload.resolve, author: { id: 1, full_name: 'Synthetic Staff' }, created_at: '2026-11-12T10:00:00Z' }
+      requests = requests.map((item) => (item.id === id ? { ...item, status: payload.resolve ? 'resolved' : 'acknowledged', staff_response: payload.body, replies: [...(item.replies ?? []), reply] } : item))
+      return { data: { help_request: requests.find((item) => item.id === id)!, reply, replayed: false }, error: null }
     })
   })
+  const replyBox = () => document.querySelector<HTMLTextAreaElement>('#help-record-response')!
+  async function typeReply(value: string) {
+    const textarea = replyBox()
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, value)
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
   const fromSupport = (id: number) => `/admin/help-requests/${id}?return_to=${encodeURIComponent('/admin/support?urgency=urgent')}`
 
   it('walks the filtered Support list and resolves into the next request', async () => {
     const router = await render(fromSupport(4))
     expect(counter()).toBe('1 of 2')
     expect(container.querySelector('[data-back-link]')?.textContent).toBe('Back to Support')
-    await press('Respond & resolve')
-    const textarea = document.querySelector<HTMLTextAreaElement>('#help-record-response, [role="dialog"] textarea')!
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Try the loop again.')
-      textarea.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    await act(async () => document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit())
+    await typeReply('Try the loop again.')
+    await press('Reply & resolve')
     await settle()
-    expect(api.updateHelpRequest).toHaveBeenCalledWith(4, expect.objectContaining({ status: 'resolved' }))
+    expect(api.replyToHelpRequest).toHaveBeenCalledWith(4, { body: 'Try the loop again.', resolve: true, client_request_id: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/) })
     expect(router.state.location.pathname).toBe('/admin/help-requests/6')
     expect(counter()).toBe('1 of 1')
   })
 
+  it('Reply sends the reply and keeps the request open on this page (U-4.7)', async () => {
+    const router = await render(fromSupport(4))
+    await typeReply('Check the loop condition.')
+    await press('Send reply')
+    await settle()
+    expect(api.replyToHelpRequest).toHaveBeenCalledWith(4, { body: 'Check the loop condition.', resolve: false, client_request_id: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/) })
+    expect(router.state.location.pathname).toBe('/admin/help-requests/4')
+    expect(container.textContent).toContain('Check the loop condition.')
+    expect(container.textContent).toContain('Acknowledged')
+    expect(replyBox().value).toBe('')
+    // Still active, so it can be answered again or resolved.
+    expect(button('Reply & resolve')).toBeTruthy()
+    expect(counter()).toBe('1 of 2')
+  })
+
+  it('retries a failed reply with the same attempt id so the learner is answered once', async () => {
+    await render(fromSupport(4))
+    const saved = vi.mocked(api.replyToHelpRequest).getMockImplementation()!
+    vi.mocked(api.replyToHelpRequest).mockResolvedValueOnce({ data: null, error: 'Network request failed', status: 0 } as never)
+    await typeReply('Check the loop condition.')
+    await press('Send reply')
+    await settle()
+    expect(replyBox().value).toBe('Check the loop condition.')
+    vi.mocked(api.replyToHelpRequest).mockImplementation(saved)
+    await press('Send reply')
+    await settle()
+    const ids = vi.mocked(api.replyToHelpRequest).mock.calls.map(([, data]) => data.client_request_id)
+    expect(ids).toHaveLength(2)
+    expect(ids[1]).toBe(ids[0])
+    await typeReply('A second, separate hint.')
+    await press('Send reply')
+    await settle()
+    expect(vi.mocked(api.replyToHelpRequest).mock.calls[2][1].client_request_id).not.toBe(ids[0])
+  })
+
   it('asks before Next leaves an unsent response', async () => {
     const router = await render(fromSupport(4))
-    await press('Respond & resolve')
-    const textarea = document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Half-written')
-      textarea.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    await settle()
-    document.querySelectorAll('[data-state="closing"]').forEach((node) => node.remove())
+    await typeReply('Half-written')
     confirm.mockResolvedValueOnce(false)
     await press('Next help request')
     expect(confirm).toHaveBeenCalledTimes(1)
@@ -405,22 +436,9 @@ describe('help requests from Support', () => {
     expect(router.state.location.pathname).toBe('/admin/help-requests/6')
   })
 
-  async function draftResponse(value: string) {
-    await press('Respond & resolve')
-    const textarea = document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, value)
-      textarea.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-  }
-  async function closeDialog() {
-    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    await settle()
-    document.querySelectorAll('[data-state="closing"]').forEach((node) => node.remove())
-  }
   async function sendResponse(value: string) {
-    await draftResponse(value)
-    await act(async () => document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit())
+    await typeReply(value)
+    await press('Reply & resolve')
     await settle()
     await settle()
   }
@@ -429,8 +447,7 @@ describe('help requests from Support', () => {
     const router = await render('/admin/support?urgency=urgent')
     await act(async () => router.navigate(fromSupport(4)))
     await settle()
-    await draftResponse('Half-written')
-    await closeDialog()
+    await typeReply('Half-written')
 
     confirm.mockResolvedValueOnce(false)
     await act(async () => router.navigate(-1))
@@ -445,10 +462,8 @@ describe('help requests from Support', () => {
     await settle()
     expect(confirm).toHaveBeenCalledTimes(2)
     expect(router.state.location.pathname).toBe('/admin/help-requests/4')
-    // The draft is still there when the dialog opens again.
-    await press('Respond & resolve')
-    expect(document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!.value).toBe('Half-written')
-    await closeDialog()
+    // The draft is still there after Keep editing.
+    expect(replyBox().value).toBe('Half-written')
 
     const unload = new Event('beforeunload', { cancelable: true })
     window.dispatchEvent(unload)

@@ -46,6 +46,7 @@ import type {
   HelpContextSource,
   HelpContextType,
   HelpRequest,
+  HelpRequestReply,
   HelpUrgency,
   SupportQueue,
   Intervention,
@@ -228,6 +229,8 @@ export class CsgApi {
   helpRequest = (id: number, signal?: AbortSignal) => this.request<{ help_request: HelpRequest }>(`/api/v1/help_requests/${id}`, { signal });
   createHelpRequest = (input: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) => this.request<{ help_request: HelpRequest; created: boolean }>('/api/v1/help_requests', { method: 'POST', body: JSON.stringify({ help_request: input }) });
   updateHelpRequest = (id: number, input: { status: 'acknowledged' | 'resolved' | 'canceled'; staff_response?: string }) => this.request<{ help_request: HelpRequest; status_changed: boolean }>(`/api/v1/help_requests/${id}`, { method: 'PATCH', body: JSON.stringify({ help_request: input }) });
+  /** Reply (U-4.7): `resolve: false` keeps the request open; `true` is Reply & resolve. `client_request_id`: one per reply attempt, reused on retry, so a resend never answers twice. */
+  replyToHelpRequest = (id: number, input: { body: string; resolve: boolean; client_request_id?: string }) => this.request<{ help_request: HelpRequest; reply: HelpRequestReply; replayed?: boolean }>(`/api/v1/help_requests/${id}/replies`, { method: 'POST', body: JSON.stringify({ reply: input }) });
   supportQueue = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ support_queue: SupportQueue }>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`, { signal });
   intervention = (id: number, signal?: AbortSignal) => this.request<{ intervention: Intervention }>(`/api/v1/interventions/${id}`, { signal });
   updateIntervention = (id: number, input: { owner_id?: number; status?: InterventionStatus; action_summary?: string; next_follow_up_at?: string; outcome?: InterventionOutcome; resolution_summary?: string }) => this.request<{ intervention: Intervention }>(`/api/v1/interventions/${id}`, { method: 'PATCH', body: JSON.stringify({ intervention: input }) });

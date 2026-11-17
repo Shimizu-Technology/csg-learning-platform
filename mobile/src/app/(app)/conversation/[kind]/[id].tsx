@@ -62,7 +62,7 @@ export default function ConversationScreen() {
   const conversationIdentity = `${kind}:${id}`;
   const anchorMessageId = Number(params.message_id ?? params.messageId) || undefined;
   const sourceId = Number(params.source_id) || undefined;
-  const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' ? params.source_type : undefined;
+  const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' || params.source_type === 'intervention' ? params.source_type : undefined;
   const sourceLabel = params.source_label?.trim();
   const router = useRouter();
   const auth = useCsgAuth();
@@ -788,6 +788,7 @@ export default function ConversationScreen() {
   const openSourceRecord = () => {
     if (!sourceType || !sourceId) return;
     if (sourceType === 'help_request') router.push({ pathname: '/staff/support/[id]', params: { id: String(sourceId) } });
+    else if (sourceType === 'intervention') router.push({ pathname: '/staff/intervention/[id]', params: { id: String(sourceId) } });
     else router.push({ pathname: '/staff/submission/[id]', params: { id: String(sourceId), cohort_id: params.source_cohort_id || '', student_id: params.source_student_id || '' } });
   };
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
 import { readReturnContext } from '../../../lib/navigationContext';
-import { helpRequestPath, safeInternalReturnPath, submissionPath } from '../../../lib/routes';
+import { safeInternalReturnPath, staffMessageSourcePath } from '../../../lib/routes';
 
 /** What the URL asks for: the conversation, a message to open at, a workspace, and the record a staff member came from. */
 export function useMessagesRoute() {
@@ -25,12 +25,12 @@ export function useMessagesRoute() {
     const type = searchParams.get('source_type')
     const id = Number(searchParams.get('source_id'))
     const label = searchParams.get('source_label')?.trim()
-    if ((type !== 'submission' && type !== 'help_request') || !Number.isInteger(id) || id <= 0 || !label) return null
+    if ((type !== 'submission' && type !== 'help_request' && type !== 'intervention') || !Number.isInteger(id) || id <= 0 || !label) return null
     // The source record's own return path (a support or grading queue), so its Back link still goes there.
     const returnTo = safeInternalReturnPath(searchParams.get('source_return_to'), '') || undefined
     return { type, id, label, returnTo } as const
   }, [searchParams, sourceContextHidden])
-  const sourceRecordPath = sourceRecord?.type === 'submission' ? submissionPath(sourceRecord.id, { returnTo: sourceRecord.returnTo }) : sourceRecord?.type === 'help_request' ? helpRequestPath(sourceRecord.id, sourceRecord.returnTo) : null
+  const sourceRecordPath = sourceRecord ? staffMessageSourcePath(sourceRecord, sourceRecord.returnTo) : null
 
   useEffect(() => { setSourceContextHidden(false) }, [searchParams])
 

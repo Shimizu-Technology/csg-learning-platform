@@ -1,6 +1,8 @@
-# The record a direct message is about: a lesson, a submission or a help
-# request (L-1.8). Staff write from that record; the learner sees a link to
-# their own view of it, and staff see a link to the staff view.
+# The record a direct message is about: a lesson, a submission, a help
+# request or a follow-up plan (L-1.8, L-2.5). Staff write from that record;
+# the learner sees a link to their own view of it, and staff see a link to the
+# staff view. Follow-up plans are staff records: only staff can attach one, and
+# a learner reading the message never sees that it has a source.
 #
 # Only these types can be attached, only to a top-level message in a cohort's
 # direct conversation, and only when the author can open the record and every
@@ -17,7 +19,8 @@ class MessageSource
   TYPES = {
     "lesson" => "Lesson",
     "submission" => "Submission",
-    "help_request" => "HelpRequest"
+    "help_request" => "HelpRequest",
+    "intervention" => "Intervention"
   }.freeze
 
   class << self
@@ -46,6 +49,11 @@ class MessageSource
         source.cohort_id == cohort.id &&
           (author.id == owner_id || author.can_teach_cohort?(cohort)) &&
           learners.all? { |learner| learner.id == owner_id }
+      when Intervention
+        owner_id = source.enrollment&.user_id
+        source.enrollment&.cohort_id == cohort.id &&
+          author.staff? && author.can_teach_cohort?(cohort) &&
+          learners.all? { |learner| learner.id == owner_id }
       when Lesson
         !source.archived? &&
           source.curriculum_module&.curriculum_id == cohort.curriculum_id &&
@@ -65,6 +73,7 @@ class MessageSource
       ActiveRecord::Associations::Preloader.new(records: messages, associations: :source).call
       sources = messages.filter_map(&:source)
       ActiveRecord::Associations::Preloader.new(records: sources.grep(Submission), associations: [ { content_block: :lesson }, :enrollment ]).call
+      ActiveRecord::Associations::Preloader.new(records: sources.grep(Intervention), associations: { enrollment: [ :user, :cohort ] }).call
       ActiveRecord::Associations::Preloader.new(records: messages, associations: :direct_conversation).call
 
       lesson_access = {}
@@ -97,6 +106,11 @@ class MessageSource
       when HelpRequest
         payload(message, title: source.context_label, lesson_id: nil, cohort_id: source.cohort_id,
           learner_path: internal_path(source.context_path))
+      when Intervention
+        # Staff only, and only staff who can open the plan: learners get no source at all.
+        return nil unless viewer&.staff? && viewer.can_teach_cohort?(source.enrollment&.cohort)
+
+        payload(message, title: source.enrollment.user.full_name, lesson_id: nil, cohort_id: source.enrollment.cohort_id, learner_path: nil)
       when Lesson
         cohort_id = message.direct_conversation&.cohort_id
         allowed = if preloaded&.viewer == viewer && preloaded.lesson_access.key?([ source.id, cohort_id ])

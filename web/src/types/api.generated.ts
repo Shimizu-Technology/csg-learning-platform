@@ -263,6 +263,47 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/help_requests/{help_request_id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reply to a help request (staff)
+         * @description Body: `{ "reply": { "body": string, "resolve": boolean, "client_request_id"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    help_request_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reply saved */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HelpRequestReplyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/recordings": {
         parameters: {
             query?: never;
@@ -4408,6 +4449,10 @@ export interface components {
             };
             destination: components["schemas"]["RecordDestination"] | null;
             context_destination: components["schemas"]["RecordDestination"] | null;
+            /** @description Staff replies, oldest first. Requests resolved before replies existed have none; their one response is `staff_response`, which always mirrors the latest reply. */
+            replies: components["schemas"]["HelpRequestReply"][];
+            /** @description Staff readers of one request (show, update, reply) only; null when no plan was started from it or the cohort has follow-up plans switched off. Never sent to learners or in lists. */
+            follow_up?: components["schemas"]["HelpRequestFollowUp"] | null;
         };
         /** @enum {string} */
         HelpContextType: "lesson" | "recording" | "exercise";
@@ -5054,7 +5099,7 @@ export interface components {
             avatar_url: string | null;
             blocked_at: string;
         };
-        MessageSourceType: "lesson" | "submission" | "help_request";
+        MessageSourceType: "lesson" | "submission" | "help_request" | "intervention";
         MessageSourceSummary: {
             type: components["schemas"]["MessageSourceType"];
             id: number | null;
@@ -6779,6 +6824,29 @@ export interface components {
             module_grids: components["schemas"]["GradingQueueModuleGrid"][];
             /** @description The lesson filter's title, when one is set. */
             lesson: components["schemas"]["GradingQueueLesson"] | null;
+        };
+        /** @description One staff reply (U-4.7). `resolved_request` is true for the reply sent with Reply & resolve. */
+        HelpRequestReply: {
+            id: number;
+            body: string;
+            resolved_request: boolean;
+            author: {
+                id: number;
+                full_name: string;
+            };
+            created_at: string;
+        };
+        /** @description The latest follow-up plan started from this request, in the request's cohort. */
+        HelpRequestFollowUp: {
+            id: number;
+            status: components["schemas"]["InterventionStatus"];
+            destination: components["schemas"]["RecordDestination"] | null;
+        };
+        HelpRequestReplyResponse: {
+            help_request: components["schemas"]["HelpRequest"];
+            reply: components["schemas"]["HelpRequestReply"];
+            /** @description True when this was a retry: the reply saved by an earlier request with the same `client_request_id` is returned and nobody is notified again. */
+            replayed: boolean;
         };
     };
     responses: {

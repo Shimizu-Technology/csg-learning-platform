@@ -28,7 +28,7 @@ const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { learnerModule: jest.fn(), setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
+const mockApi = { learnerModule: jest.fn(), setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn(), replyToHelpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ get router() { return mockRouter; }, useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -406,6 +406,32 @@ it('retains Back while help loads and on a denied target', async () => {
   await act(async () => { await clients[0].resetQueries(); });
   await waitFor(() => expect(screen.getByText('No access')).toBeTruthy());
   expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+});
+
+it('replies to a help request and keeps it open, or replies and resolves (U-4.7)', async () => {
+  mockStaff = true; mockParams = { id: '41' };
+  const open = { id: 41, cohort: { id: 2, name: 'Source cohort' }, context_type: 'lesson', context_id: 42, context_path: '/lessons/42?cohort_id=2', context_label: 'Loops', status: 'open', category: 'concept', urgency: 'normal', created_at: '2026-10-22', message: 'My loop never stops', replies: [] };
+  mockApi.helpRequest.mockResolvedValue({ help_request: open });
+  const reply = { id: 5, body: 'Add i++ inside the loop.', resolved_request: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-22T10:00:00Z' };
+  mockApi.replyToHelpRequest.mockResolvedValue({ reply, help_request: { ...open, status: 'acknowledged', staff_response: reply.body, replies: [reply] } });
+  const screen = render(<SupportScreen />, { wrapper: Wrapper });
+  fireEvent.changeText(await screen.findByLabelText('Reply to the student'), 'Add i++ inside the loop.');
+  fireEvent.press(screen.getByText('Send reply'));
+  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenCalledWith(41, { body: 'Add i++ inside the loop.', resolve: false, client_request_id: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/) }));
+  expect(await screen.findByText('Add i++ inside the loop.')).toBeTruthy();
+  // Still active: the reply box is back and empty, with Reply & resolve available.
+  expect(screen.getByLabelText('Reply to the student').props.value).toBe('');
+  fireEvent.changeText(screen.getByLabelText('Reply to the student'), 'Resolved now.');
+  // The first try fails; sending again reuses its attempt id so the server can't answer twice.
+  mockApi.replyToHelpRequest.mockRejectedValueOnce(new Error('Network request failed'));
+  fireEvent.press(screen.getByText('Reply & resolve'));
+  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenCalledTimes(2));
+  fireEvent.press(screen.getByText('Reply & resolve'));
+  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenCalledTimes(3));
+  const ids = mockApi.replyToHelpRequest.mock.calls.map(([, input]) => (input as { client_request_id: string }).client_request_id);
+  expect(mockApi.replyToHelpRequest).toHaveBeenLastCalledWith(41, { body: 'Resolved now.', resolve: true, client_request_id: ids[1] });
+  expect(ids[2]).toBe(ids[1]);
+  expect(ids[1]).not.toBe(ids[0]);
 });
 
 it('links a lesson to its source module', async () => {
