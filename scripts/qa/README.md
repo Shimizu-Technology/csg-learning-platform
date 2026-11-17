@@ -202,3 +202,15 @@ Off is today's Learn (the "before", and Lance's shape); On is the outline. Each 
 measures the first lesson's position and the page height for eight persona setups at
 1280/390 in light/dark, and writes captures to `docs/qa/course-outline-2026-11-17/`.
 See `docs/qa/course-outline-2026-11-17.md`.
+
+### Student lesson redesign (W8.3)
+
+After a fresh harness start, load `lesson-page-fixtures.rb` from `api/` with
+its exact owned `DATABASE_URL`. Run `QA_SPEC=lesson-page.spec.ts` with
+`DEV_LIFECYCLE_SESSION` set, using the Playwright command above. The spec resets
+only its own program journey before each case, uses touch input for textarea
+flows and desktop input for Monaco, and permits jsDelivr solely to load Monaco.
+It checks On/Off, light/dark, 390/1280, persisted submissions and completion,
+redo history, drafts, help and instructor actions. The synthetic video is a
+placeholder; it does not establish provider playback. Evidence is under
+`docs/qa/lesson-page-2026-11-17/`.

@@ -1,3 +1,5 @@
+import { StudentExperienceProvider, StudentExperienceSwitch } from '../../lib/studentExperience'
+import { LessonExperience } from '../../components/student/LessonExperience'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { activityReturnPath, learnerPaths, recordPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
@@ -51,6 +53,10 @@ function scrollToBlock(blockId: number) {
 
 
 export function LessonView() {
+  return <LegacyLessonView />
+}
+
+export function LegacyLessonView() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const activityReturn = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
@@ -93,10 +99,12 @@ export function LessonView() {
   const scrolledToHashRef = useRef<string | null>(null)
   const activeCohortId = useRef(selectedCohortId)
   activeCohortId.current = selectedCohortId
+  const activeLessonId = useRef(id)
+  activeLessonId.current = id
 
   const loadLesson = useCallback((options?: { silent?: boolean }) => {
     if (!id) return
-    if (selectedCohortId !== activeCohortId.current) return
+    if (selectedCohortId !== activeCohortId.current || id !== activeLessonId.current) return
     const currentRequest = ++requestId.current
     setLoadError(null)
     setNoAccess(false)
@@ -107,7 +115,7 @@ export function LessonView() {
       setLoading(false)
       return
     }
-    api.getLesson(Number(id), selectedCohortId ?? undefined).then((res) => {
+    return api.getLesson(Number(id), selectedCohortId ?? undefined).then((res) => {
       if (currentRequest !== requestId.current) return
       setNoAccess(unavailableResponse(res))
       if (unavailableResponse(res) || res.errorKind === 'auth' || res.status === 401) {
@@ -216,7 +224,14 @@ export function LessonView() {
     ? relatedRows(related.related, { viewer: user, returnTo: `${location.pathname}${location.search}`, learnerLesson: (lessonId, anchor) => paths.lesson(lessonId, anchor), actions: { scrollTo: scrollToSection } })
     : []
 
-  return (
+  const redesigned = lesson.learning_navigation && <LessonExperience key={`${lesson.id}:${lesson.cohort_id}`} lesson={lesson} readOnly={readOnly} savedData={savedData} error={loadError} reload={() => loadLesson({ silent: true })} helpRequests={helpRequests} helpRequestsLoading={helpRequestsLoading} setHelpRequests={setHelpRequests} refreshHelp={loadHelpRequests}>
+    <div className="min-w-0 space-y-5">{visibleBlocks.map((block: any) => <section key={block.id} id={`block-${block.id}`} tabIndex={-1} className="min-w-0 scroll-mt-24 outline-none">
+      <RubricPanel rubric={block.rubric} />
+      <ContentBlockRenderer block={block} cohortId={lesson.cohort_id} isStaff={user?.is_staff} requiresGithub={lesson.requires_github} requiresSubmission={lesson.requires_submission} repositoryName={lesson.repository_name} readOnly={readOnly} submissionsLocked={lesson.submission_window?.submissions_closed || false} submissionsCloseAt={lesson.submission_window?.submissions_close_at || null} submissionWeekNumber={lesson.submission_window?.week_number} analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }} lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }} onProgressUpdate={() => loadLesson({ silent: true })} completionInFooter reviewerName={lesson.instructor?.full_name} />
+    </section>)}</div>
+  </LessonExperience>
+
+  const legacy = (
     <article className="app-page max-w-3xl">
       {loadError && <div role="alert" className="rounded-2xl border border-warning-line bg-warning-soft p-4 text-sm text-warning-ink"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => loadLesson({ silent: true })}>Try again</Button></div>}
       {!user?.is_staff && lesson.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
@@ -356,4 +371,5 @@ export function LessonView() {
       </nav>
     </article>
   )
+  return user?.is_staff ? legacy : <StudentExperienceSwitch on={redesigned || <StudentExperienceProvider v2={false}>{legacy}</StudentExperienceProvider>} off={legacy} loading={<LoadingSpinner message="Loading lesson..." />} />
 }

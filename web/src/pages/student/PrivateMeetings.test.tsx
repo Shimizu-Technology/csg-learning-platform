@@ -95,6 +95,13 @@ describe('learner meetings week order', () => {
     }
   })
 
+  it('never offers another host when an instructor destination does not match the cohort host', async () => {
+    await act(async () => root.render(<MemoryRouter initialEntries={['/meetings?cohort_id=2&instructor_id=99']}><PrivateMeetings /></MemoryRouter>))
+    expect(container.textContent).toContain('This instructor does not offer meetings in this cohort')
+    expect(container.textContent).not.toContain('Audit Admin')
+    expect(container.querySelector('button')).toBeNull()
+  })
+
   it('asks which instructor when an unscoped meeting page has multiple cohorts', async () => {
     const response = await state.getPrivateMeetings()
     state.getPrivateMeetings.mockResolvedValue({ data: { cohorts: [{ ...response.data.cohorts[0], id: 1, instructor_id: 11 }, { ...response.data.cohorts[0], id: 2, instructor_id: 22 }] } })

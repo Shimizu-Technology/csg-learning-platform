@@ -273,6 +273,44 @@ class LearnerProgress
       .find { |lesson| actionable?(lesson_progress(lesson)) }
   end
 
+  # Reading order is the outline's order, across module boundaries. The primary
+  # continuation after handing in a lesson is still the one required next step
+  # (including an earlier redo), never a second client-side progress rule.
+  def lesson_navigation(lesson)
+    entries = @lessons.map { |item| lesson_progress(item) }
+    index = @course_index[lesson.id]
+    return nil unless index
+
+    current = entries[index]
+    ActiveRecord::Associations::Preloader.new(records: lesson.content_blocks.to_a, associations: :knowledge_check).call
+    readable = entries.select(&:available).map(&:lesson)
+    reading_index = readable.index { |item| item.id == lesson.id }
+    following = reading_index && readable[reading_index + 1]
+    target = if @enrollment.active? && !@cohort.alumni?
+      current.completed ? next_lesson : following
+    else
+      following # Browsing available lessons never changes progress.
+    end
+    ref = ->(item) { item && { id: item.id, title: item.title, module_id: item.module_id } }
+    counts = overall.slice(:completed_lessons, :total_lessons)
+    {
+      number: index + 1,
+      total: @lessons.size,
+      previous: ref.call(reading_index && reading_index.positive? ? readable[reading_index - 1] : nil),
+      next: ref.call(target),
+      next_module: target.present? && @course_index.fetch(target.id) > index && target.module_id != lesson.module_id,
+      next_redo: target.present? && lesson_progress(target).status == Status::REDO,
+      course_complete: !@cohort.alumni? && counts[:total_lessons].positive? && counts[:completed_lessons] == counts[:total_lessons],
+      counts: counts,
+      # Completion controls use the same evidence as the status, including
+      # feature fallbacks. Reviewed submissions and checks keep their own UI.
+      manual_block_ids: manual_completion_blocks(lesson).reject { |block|
+        (current.submission_window[:submissions_closed] && block.student_work_block?) ||
+          block_state(block) == BlockState::COMPLETE || (block.gradable_work_block? && @latest_submissions.key?(block.id))
+      }.map(&:id)
+    }
+  end
+
   # Can the learner act on this lesson now? See "Next step" above.
   def actionable?(entry)
     return false unless entry.available
@@ -294,6 +332,15 @@ class LearnerProgress
   end
 
   private
+
+  def manual_completion_blocks(lesson)
+    github = (@cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s, "requires_github") || false
+    checks = FeatureSwitches.for(cohort: @cohort)["knowledge_checks"]
+    lesson.completion_blocks.select do |block|
+      manual = block.text? || block.effective_submission_type(requires_github: github, feature_cohort: @cohort) == "manual_complete"
+      manual && !block.video? && !block.recording? && !(block.checkpoint? && block.knowledge_check && checks)
+    end
+  end
 
   def redo_graded
     @latest_submissions.values
