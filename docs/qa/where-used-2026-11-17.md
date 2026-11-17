@@ -68,6 +68,11 @@ Three #276 tests that asserted an instructor sees a cohort they don't teach by n
 | Web typecheck, lint, vitest, build, `test:bundle`, `api:check` | Passed; 208 files / 2,435 tests |
 | Mobile typecheck, lint, Jest | Passed. Lint: 74 warnings, 0 errors, unchanged. Jest: 136 suites / 1,430 tests. |
 
+**After merging main (`aa0cf1b4`, #286):**
+- API, both prepared-statement modes: 1,959 runs / 41,385 assertions, 0 failures, coverage check passed. RuboCop (698 files) and Brakeman clean.
+- Web: 209 files / 2,443 tests pass, plus typecheck, lint, build, `test:bundle` and `api:check`; the generated types were unchanged by the merge.
+- Mobile: typecheck passes, lint has 0 errors, Jest 139 suites / 1,506 tests pass.
+
 **Browser re-run.** The fixture now gives the QA instructor editing access to QA Program (A) only, and adds a question on another QA Program lesson. A new scenario 5 covers the instructor of A:
 - six payloads contain no QA Program 2 / QA Program 3 / their learner: block editor, curriculum, module, lesson, copy preview, and Support filtered to the lesson;
 - the editor's activity equals their own Grading count;
