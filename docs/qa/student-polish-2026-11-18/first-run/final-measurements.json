@@ -1,0 +1,373 @@
+{
+  "source": "5f7f47d5",
+  "measurements": [
+    {
+      "persona": "self-paced-new",
+      "theme": "light",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "self-paced-new-1280-light.png"
+    },
+    {
+      "persona": "program-first-day",
+      "theme": "light",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "program-first-day-1280-light.png"
+    },
+    {
+      "persona": "alumni",
+      "theme": "light",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "alumni-1280-light.png"
+    },
+    {
+      "persona": "two-workspaces",
+      "theme": "light",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "two-workspaces-1280-light.png"
+    },
+    {
+      "persona": "paused",
+      "theme": "light",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "paused-1280-light.png"
+    },
+    {
+      "persona": "lance-off",
+      "theme": "light",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "lance-off-1280-light.png"
+    },
+    {
+      "persona": "legal-on",
+      "theme": "light",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "legal-signed-out",
+      "theme": "light",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "legal-off",
+      "theme": "light",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "admin-activity",
+      "theme": "light",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "recording-week",
+      "theme": "light",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "support-ended",
+      "theme": "light",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "catalog-recovery",
+      "theme": "light",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "catalog-1280-light.png"
+    },
+    {
+      "persona": "self-paced-new",
+      "theme": "dark",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "self-paced-new-1280-dark.png"
+    },
+    {
+      "persona": "program-first-day",
+      "theme": "dark",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "program-first-day-1280-dark.png"
+    },
+    {
+      "persona": "alumni",
+      "theme": "dark",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "alumni-1280-dark.png"
+    },
+    {
+      "persona": "two-workspaces",
+      "theme": "dark",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "two-workspaces-1280-dark.png"
+    },
+    {
+      "persona": "paused",
+      "theme": "dark",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "paused-1280-dark.png"
+    },
+    {
+      "persona": "lance-off",
+      "theme": "dark",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "lance-off-1280-dark.png"
+    },
+    {
+      "persona": "legal-on",
+      "theme": "dark",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "legal-signed-out",
+      "theme": "dark",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "legal-off",
+      "theme": "dark",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "admin-activity",
+      "theme": "dark",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "recording-week",
+      "theme": "dark",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "support-ended",
+      "theme": "dark",
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "persona": "catalog-recovery",
+      "theme": "dark",
+      "width": 1280,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "catalog-1280-dark.png"
+    },
+    {
+      "persona": "self-paced-new",
+      "theme": "light",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "self-paced-new-390-light.png"
+    },
+    {
+      "persona": "program-first-day",
+      "theme": "light",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "program-first-day-390-light.png"
+    },
+    {
+      "persona": "alumni",
+      "theme": "light",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "alumni-390-light.png"
+    },
+    {
+      "persona": "two-workspaces",
+      "theme": "light",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "two-workspaces-390-light.png"
+    },
+    {
+      "persona": "paused",
+      "theme": "light",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "paused-390-light.png"
+    },
+    {
+      "persona": "lance-off",
+      "theme": "light",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "lance-off-390-light.png"
+    },
+    {
+      "persona": "legal-on",
+      "theme": "light",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "legal-signed-out",
+      "theme": "light",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "legal-off",
+      "theme": "light",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "admin-activity",
+      "theme": "light",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "recording-week",
+      "theme": "light",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "support-ended",
+      "theme": "light",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "catalog-recovery",
+      "theme": "light",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "catalog-390-light.png"
+    },
+    {
+      "persona": "self-paced-new",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "self-paced-new-390-dark.png"
+    },
+    {
+      "persona": "program-first-day",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "program-first-day-390-dark.png"
+    },
+    {
+      "persona": "alumni",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "alumni-390-dark.png"
+    },
+    {
+      "persona": "two-workspaces",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "two-workspaces-390-dark.png"
+    },
+    {
+      "persona": "paused",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "paused-390-dark.png"
+    },
+    {
+      "persona": "lance-off",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "lance-off-390-dark.png"
+    },
+    {
+      "persona": "legal-on",
+      "theme": "dark",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "legal-signed-out",
+      "theme": "dark",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "legal-off",
+      "theme": "dark",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "admin-activity",
+      "theme": "dark",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "recording-week",
+      "theme": "dark",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "support-ended",
+      "theme": "dark",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "persona": "catalog-recovery",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false,
+      "passed": true,
+      "screenshot": "catalog-390-dark.png"
+    }
+  ]
+}

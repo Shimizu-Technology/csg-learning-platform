@@ -1,0 +1,42 @@
+[
+  {
+    "route": "/dashboard?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/materials?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/cohorts/4",
+    "equal": true
+  },
+  {
+    "route": "/profile?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/recordings?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/resources?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/lessons/1?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/modules/1?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/modules/999999?cohort_id=4",
+    "equal": true
+  },
+  {
+    "route": "/meetings?cohort_id=4",
+    "equal": true
+  }
+]

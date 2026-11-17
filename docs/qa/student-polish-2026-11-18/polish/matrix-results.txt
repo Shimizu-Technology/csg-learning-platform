@@ -1,0 +1,59 @@
+
+Running 24 tests using 1 worker
+
+  ✓   1 [chromium-1280] › scripts/qa/student-polish.spec.ts:23:3 › Off light: main visual comparison and disclosure semantics (20.4s)
+  ✓   2 [chromium-1280] › scripts/qa/student-polish.spec.ts:51:3 › On light: Profile header, cohort redirect and recovery heading (2.5s)
+  ✓   3 [chromium-1280] › scripts/qa/student-polish.spec.ts:64:36 › On light: all block types save and recover (2.4s)
+  ✓   4 [chromium-1280] › scripts/qa/student-polish.spec.ts:64:36 › Off light: all block types save and recover (2.5s)
+  ✓   5 [chromium-1280] › scripts/qa/student-polish.spec.ts:23:3 › Off dark: main visual comparison and disclosure semantics (19.9s)
+  ✓   6 [chromium-1280] › scripts/qa/student-polish.spec.ts:51:3 › On dark: Profile header, cohort redirect and recovery heading (2.5s)
+  ✓   7 [chromium-1280] › scripts/qa/student-polish.spec.ts:64:36 › On dark: all block types save and recover (2.4s)
+  ✓   8 [chromium-1280] › scripts/qa/student-polish.spec.ts:64:36 › Off dark: all block types save and recover (2.4s)
+  ✓   9 [chromium-1280] › scripts/qa/student-polish.spec.ts:113:72 › canonical On light: real course content with synthetic learner (1.9s)
+  ✓  10 [chromium-1280] › scripts/qa/student-polish.spec.ts:113:72 › canonical Off light: real course content with synthetic learner (1.9s)
+  ✓  11 [chromium-1280] › scripts/qa/student-polish.spec.ts:113:72 › canonical On dark: real course content with synthetic learner (1.9s)
+  ✓  12 [chromium-1280] › scripts/qa/student-polish.spec.ts:113:72 › canonical Off dark: real course content with synthetic learner (1.9s)
+  ✓  13 [chromium-390] › scripts/qa/student-polish.spec.ts:23:3 › Off light: main visual comparison and disclosure semantics (20.2s)
+  ✓  14 [chromium-390] › scripts/qa/student-polish.spec.ts:51:3 › On light: Profile header, cohort redirect and recovery heading (2.4s)
+  ✓  15 [chromium-390] › scripts/qa/student-polish.spec.ts:64:36 › On light: all block types save and recover (2.5s)
+  ✓  16 [chromium-390] › scripts/qa/student-polish.spec.ts:64:36 › Off light: all block types save and recover (2.6s)
+  ✓  17 [chromium-390] › scripts/qa/student-polish.spec.ts:23:3 › Off dark: main visual comparison and disclosure semantics (19.7s)
+  ✓  18 [chromium-390] › scripts/qa/student-polish.spec.ts:51:3 › On dark: Profile header, cohort redirect and recovery heading (2.5s)
+  ✓  19 [chromium-390] › scripts/qa/student-polish.spec.ts:64:36 › On dark: all block types save and recover (2.6s)
+  ✓  20 [chromium-390] › scripts/qa/student-polish.spec.ts:64:36 › Off dark: all block types save and recover (2.6s)
+  ✓  21 [chromium-390] › scripts/qa/student-polish.spec.ts:113:72 › canonical On light: real course content with synthetic learner (1.9s)
+  ✓  22 [chromium-390] › scripts/qa/student-polish.spec.ts:113:72 › canonical Off light: real course content with synthetic learner (1.9s)
+  ✓  23 [chromium-390] › scripts/qa/student-polish.spec.ts:113:72 › canonical On dark: real course content with synthetic learner (1.9s)
+  ✓  24 [chromium-390] › scripts/qa/student-polish.spec.ts:113:72 › canonical Off dark: real course content with synthetic learner (1.9s)
+
+  24 passed (2.1m)
+
+Supplemental final video and shared-header run:
+
+Running 12 tests using 1 worker
+
+  ✓   1 [chromium-1280] › scripts/qa/student-polish.spec.ts:51:3 › On light: Profile header, cohort redirect and recovery heading (5.7s)
+  ✓   2 [chromium-1280] › scripts/qa/student-polish.spec.ts:69:36 › On light: all block types save and recover (2.4s)
+  ✓   3 [chromium-1280] › scripts/qa/student-polish.spec.ts:69:36 › Off light: all block types save and recover (2.6s)
+  ✓   4 [chromium-1280] › scripts/qa/student-polish.spec.ts:51:3 › On dark: Profile header, cohort redirect and recovery heading (5.6s)
+  ✓   5 [chromium-1280] › scripts/qa/student-polish.spec.ts:69:36 › On dark: all block types save and recover (2.5s)
+  ✓   6 [chromium-1280] › scripts/qa/student-polish.spec.ts:69:36 › Off dark: all block types save and recover (2.5s)
+  ✓   7 [chromium-390] › scripts/qa/student-polish.spec.ts:51:3 › On light: Profile header, cohort redirect and recovery heading (5.6s)
+  ✓   8 [chromium-390] › scripts/qa/student-polish.spec.ts:69:36 › On light: all block types save and recover (2.7s)
+  ✓   9 [chromium-390] › scripts/qa/student-polish.spec.ts:69:36 › Off light: all block types save and recover (2.7s)
+  ✓  10 [chromium-390] › scripts/qa/student-polish.spec.ts:51:3 › On dark: Profile header, cohort redirect and recovery heading (5.5s)
+  ✓  11 [chromium-390] › scripts/qa/student-polish.spec.ts:69:36 › On dark: all block types save and recover (2.6s)
+  ✓  12 [chromium-390] › scripts/qa/student-polish.spec.ts:69:36 › Off dark: all block types save and recover (2.6s)
+
+  12 passed (43.8s)
+
+Expanded final Off comparison:
+
+Running 4 tests using 1 worker
+
+  ✓  1 [chromium-1280] › scripts/qa/student-polish.spec.ts:24:3 › Off light: main visual comparison and disclosure semantics (25.8s)
+  ✓  2 [chromium-1280] › scripts/qa/student-polish.spec.ts:24:3 › Off dark: main visual comparison and disclosure semantics (26.2s)
+  ✓  3 [chromium-390] › scripts/qa/student-polish.spec.ts:24:3 › Off light: main visual comparison and disclosure semantics (27.8s)
+  ✓  4 [chromium-390] › scripts/qa/student-polish.spec.ts:24:3 › Off dark: main visual comparison and disclosure semantics (26.2s)
+
+  4 passed (1.8m)
