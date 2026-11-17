@@ -10,8 +10,13 @@ class PushNotificationJob < ApplicationJob
     notifications = Notification.where(id: notification_ids)
     case notifiable
     when Announcement
+      unless notifiable.published?
+        notifiable.with_lock do
+          notifiable.update_columns(push_settled_at: Time.current) unless notifiable.published?
+        end
+        return
+      end
       return if notifiable.fanout_requested_at && !notifiable.fanout_settled_at
-      return unless notifiable.published?
       # The push outbox (ScheduledAnnouncementPublisher): each recipient is
       # claimed per provider under the update's row lock before it is sent,
       # so a re-request after a crash, a retry, or two jobs at once push each

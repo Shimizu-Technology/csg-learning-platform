@@ -1191,3 +1191,10 @@ The existing 24-hour push expiry still applies after fan-out is complete.
 
 Message delivery deliberately retains its in-lock timing and checkpoints.
 Deferring it needs separate durable recovery semantics; R-2 does not change it.
+
+Fan-out recovery failures are logged per callback and back off for one hour;
+they do not cancel other callbacks in the same tick. The existing intent timestamp
+also records that retry timing. Push expiry after 24 hours is independent of
+fan-out completion, so a poisoned fan-out cannot retain an alert indefinitely.
+Settled fan-outs clear their stored recipient IDs. Archived updates stay archived;
+post a new update rather than restoring an interrupted archived publication.

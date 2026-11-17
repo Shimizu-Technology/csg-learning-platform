@@ -38,6 +38,7 @@ class ScheduledAnnouncementPublisher
   TIME_BUDGET = 300 # seconds per run
   PUSH_GRACE = 5.minutes
   PUSH_MAX_AGE = 24.hours
+  FANOUT_RETRY_BACKOFF = 1.hour
 
   class PublishFailed < StandardError; end
   class BacklogRemaining < StandardError; end
@@ -47,11 +48,27 @@ class ScheduledAnnouncementPublisher
   end
 
   def self.push_due(now)
-    Announcement.push_pending.where("fanout_requested_at IS NULL OR fanout_settled_at IS NOT NULL").where(push_requested_at: ..(now - PUSH_GRACE))
+    Announcement.push_pending.where("fanout_requested_at IS NULL OR fanout_settled_at IS NOT NULL OR push_requested_at < ?", now - PUSH_MAX_AGE).where(push_requested_at: ..(now - PUSH_GRACE))
   end
 
   def self.fanout_due(now)
     Announcement.fanout_pending.where(fanout_requested_at: ..(now - PUSH_GRACE))
+  end
+
+  # Isolate each after-commit recovery: a poisoned intent must not cancel
+  # later callbacks. Retry after an hour, but expire its push independently.
+  def self.fanout_after_commit(id, now: Time.current, logger: Rails.logger)
+    ActiveRecord.after_all_transactions_commit do
+      AnnouncementFanoutJob.perform_now(id)
+    rescue StandardError, NotImplementedError => error
+      begin
+        Announcement.where(id: id, fanout_settled_at: nil).update_all(
+          fanout_requested_at: now + FANOUT_RETRY_BACKOFF - PUSH_GRACE)
+      rescue StandardError => backoff_error
+        logger.error("[ScheduledAnnouncementPublisher] announcement_id=#{id} backoff_failed=#{backoff_error.class}: #{backoff_error.message}")
+      end
+      logger.error("[ScheduledAnnouncementPublisher] announcement_id=#{id} fanout_failed=#{error.class}: #{error.message}")
+    end
   end
 
   def self.preview(now)
@@ -92,7 +109,7 @@ class ScheduledAnnouncementPublisher
         metrics[:fanout_requeued] += 1
         # Perform after the tick commits its outer lock, on the durable cron
         # process rather than its async thread pool (which exits with the CLI).
-        ActiveRecord.after_all_transactions_commit { AnnouncementFanoutJob.perform_now(id) }
+        self.class.fanout_after_commit(id, now: now, logger: @logger)
       end
     end
     requested_ids = []

@@ -148,3 +148,25 @@ Postgres/WSL cleanup. No local server, browser, simulator or container remains.
 The clean source worktree and branch are retained for review; there is no running
 resource handoff. Shared-guidance freshness setup remains unverified as noted
 above; installed/synced applicable instructions were read directly.
+
+## Opus P3 follow-up
+
+Independent Opus review of `1fa3e259` reported ready with no P1/P2 findings
+(user-provided review summary). This round addresses its four P3s:
+
+- Every cron after-commit fan-out callback catches/logs its own error, allowing
+  later fan-outs and push callbacks to continue. Failure defers the next attempt
+  by one hour using the existing intent timestamp; cursor/snapshot stay durable.
+  Push expiry now also scans expired intents whose fan-out is still pending, so
+  a permanently failing fan-out cannot retain an unexpired push forever.
+- Push jobs settle archived/non-published updates instead of re-requesting them
+  hourly. The check is repeated under the row lock.
+- Archived updates cannot change status again. API PATCH archived → published
+  returns 422; posting a new update is the supported way to reach an audience.
+- Small-audience completion, the final background batch, and archive cancellation
+  clear the recipient snapshot in the same update as fan-out settlement.
+
+No migration or wire-type change. Optional async retry_on was not added: the
+existing durable tick recovery now supplies bounded retry cadence and independent
+push expiry. Local focused regression: 36 tests / 290 assertions, zero failures,
+errors or skips; changed-file RuboCop clean. Final ASUS gates pending.

@@ -19,6 +19,19 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     Enrollment.create!(user: @student, cohort: @cohort, status: :active)
   end
 
+  test "an archived update cannot be republished through the API" do
+    announcement = Announcement.create!(draft_attributes(author: @author))
+    announcement.update!(status: :published)
+    announcement.update!(status: :archived)
+    as_user(@author) do
+      patch "/api/v1/announcements/#{announcement.id}", params: { status: "published" }, headers: headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert announcement.reload.archived?
+    assert_includes response.parsed_body.fetch("errors").join, "archived"
+    assert_empty announcement.notifications
+  end
+
   test "a draft reaches nobody: no notification, push, list, detail, search or Today for students or other staff" do
     as_user(@author) do
       assert_no_enqueued_jobs(only: PushNotificationJob) do

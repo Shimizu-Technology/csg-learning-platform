@@ -67,13 +67,13 @@ class NotificationDeliveryService
       if async
         AnnouncementFanoutJob.perform_later(announcement.id)
       else
-        ActiveRecord.after_all_transactions_commit { AnnouncementFanoutJob.perform_now(announcement.id) }
+        ScheduledAnnouncementPublisher.fanout_after_commit(announcement.id)
       end
       return []
     end
 
     notification_ids = ids.empty? ? [] : insert_announcement_notifications(announcement, ids)
-    announcement.update_columns(fanout_settled_at: Time.current)
+    announcement.update_columns(fanout_settled_at: Time.current, fanout_recipient_ids: [])
     PushNotificationJob.perform_later("Announcement", announcement.id, notification_ids) if push
     notification_ids
   end

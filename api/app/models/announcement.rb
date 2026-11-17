@@ -28,6 +28,7 @@ class Announcement < ApplicationRecord
   validate :cohort_only_for_cohort_audience
   validate :audience_fixed_once_posted, on: :update
   validate :posted_updates_stay_posted, on: :update
+  validate :archived_updates_stay_archived, on: :update
   validate :schedule_only_while_draft
   validate :schedule_ahead, if: -> { scheduled_for.present? && will_save_change_to_scheduled_for? }
 
@@ -173,6 +174,12 @@ class Announcement < ApplicationRecord
     elsif scheduled_for > SCHEDULE_HORIZON.from_now
       errors.add(:base, "Choose a send time within a year")
     end
+  end
+
+  def archived_updates_stay_archived
+    return unless status_in_database == "archived" && will_save_change_to_status?
+
+    errors.add(:status, "can't change after an update is archived. Post a new update instead")
   end
 
   def posted_updates_stay_posted

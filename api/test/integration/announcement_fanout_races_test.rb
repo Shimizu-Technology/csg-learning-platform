@@ -12,6 +12,7 @@ class AnnouncementFanoutRacesTest < ActiveSupport::TestCase
 
   setup do
     @threads = []
+    @extra_announcements = []
     slug = SecureRandom.hex(6)
     @author = User.create!(clerk_id: slug, email: "#{slug}@example.com", role: :admin)
     now = Time.current
@@ -24,9 +25,53 @@ class AnnouncementFanoutRacesTest < ActiveSupport::TestCase
 
   teardown do
     finish_test_threads(@threads)
-    Notification.where(notifiable_type: "Announcement", notifiable_id: @announcement.id).delete_all
-    Announcement.where(id: @announcement.id).delete_all
+    ids = [ @announcement.id, *@extra_announcements.map(&:id) ]
+    Notification.where(notifiable_type: "Announcement", notifiable_id: ids).delete_all
+    Announcement.where(id: ids).delete_all
     delete_test_users(@users)
+  end
+
+  test "one failed recovery backs off without cancelling later fanout or push callbacks" do
+    now = Time.current
+    healthy = Announcement.create!(title: "Healthy", body: "Words", author: @author, audience: :staff, status: :published,
+      fanout_requested_at: 10.minutes.ago, fanout_recipient_ids: [ @author.id ])
+    push = Announcement.create!(title: "Push", body: "Words", author: @author, audience: :staff, status: :published, push_requested_at: 10.minutes.ago)
+    @extra_announcements.concat([ healthy, push ])
+    logger = ActiveSupport::Logger.new(log = StringIO.new)
+    original = AnnouncementFanoutJob.method(:perform_now)
+    broken_id = @announcement.id
+    AnnouncementFanoutJob.define_singleton_method(:perform_now) do |id|
+      raise "poisoned fanout" if id == broken_id
+      original.call(id)
+    end
+    with_job_adapter(PushNotificationJob, queue_adapter) do
+      assert_enqueued_with(job: PushNotificationJob, args: [ "Announcement", push.id, [] ]) do
+        Announcement.transaction do
+          ScheduledAnnouncementPublisher.new(logger: logger).call(now: now)
+          assert_empty healthy.notifications
+        end
+      end
+    end
+    assert_equal 1, healthy.notifications.count
+    assert_not_nil healthy.reload.fanout_settled_at
+    assert_includes log.string, "fanout_failed=RuntimeError: poisoned fanout"
+    assert_not ScheduledAnnouncementPublisher.fanout_due(now).exists?(@announcement.id)
+    assert ScheduledAnnouncementPublisher.fanout_due(now + 1.hour + 1.second).exists?(@announcement.id)
+  ensure
+    AnnouncementFanoutJob.define_singleton_method(:perform_now, original) if original
+  end
+
+  test "a permanently failing fanout cannot prevent its push expiring" do
+    @announcement.update_columns(push_requested_at: 2.days.ago)
+    original = AnnouncementFanoutJob.method(:perform_now)
+    AnnouncementFanoutJob.define_singleton_method(:perform_now) { |*| raise "always fails" }
+    metrics = ScheduledAnnouncementPublisher.new(logger: ActiveSupport::Logger.new(StringIO.new)).call(now: Time.current)
+    assert_equal 1, metrics[:push_expired]
+    assert_not_nil @announcement.reload.push_settled_at
+    assert_nil @announcement.fanout_settled_at
+    assert_not_empty @announcement.fanout_recipient_ids
+  ensure
+    AnnouncementFanoutJob.define_singleton_method(:perform_now, original) if original
   end
 
   test "a publication rollback is invisible on another connection and drops fanout" do

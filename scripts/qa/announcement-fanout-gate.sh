@@ -27,6 +27,24 @@ curl -fsSL https://github.com/libevent/libevent/releases/download/release-2.1.12
 export PKG_CONFIG_PATH="$scratch/install/lib/pkgconfig"
 curl -fsSL https://www.pgbouncer.org/downloads/files/1.24.1/pgbouncer-1.24.1.tar.gz | tar -xz -C "$scratch"
 (cd "$scratch/pgbouncer-1.24.1" && ./configure --prefix="$scratch/install" --without-cares --without-systemd --without-openssl > "$scratch/build.log" 2>&1 && make -j2 >> "$scratch/build.log" 2>&1 && make install >> "$scratch/build.log" 2>&1) || { cat "$scratch/build.log"; exit 1; }
+run_suite() {
+  local label=$1
+  shift
+  echo "API suite: $label prepared_statements=$prepared"
+  set +e
+  FAN_OUT_TIMING=1 bin/rails test "$@" --seed "${TEST_SEED:-5041}" > "$scratch/test-$prepared.log" 2>&1
+  suite_status=$?
+  set -e
+  tail -n 5 "$scratch/test-$prepared.log"
+  # Migration output can exceed tool output limits: always repeat any failure
+  # near the end, together with the query/time samples.
+  if command -v rg >/dev/null; then
+    rg -n -A 18 '^Failure:|^Error:|\[publish measurements\]' "$scratch/test-$prepared.log" || true
+  else
+    sed -n -e '/^Failure:/,+18p' -e '/^Error:/,+18p' -e '/\[publish measurements\]/p' "$scratch/test-$prepared.log"
+  fi
+  [[ $suite_status == 0 ]] || exit "$suite_status"
+}
 for prepared in false true; do
   max_prepared=0
   [[ $prepared == false ]] || max_prepared=100
@@ -44,20 +62,16 @@ for prepared in false true; do
   export POOLER_CANARY=1 EXPECTED_PREPARED_STATEMENTS=$prepared EXPECTED_MAX_PREPARED=$max_prepared
   export DATABASE_URL="postgres://postgres:postgres@127.0.0.1:16432/csg_learning_platform_test?prepared_statements=$prepared"
   bundle exec ruby ../.github/pgbouncer/verify.rb
-  echo "Full API suite: prepared_statements=$prepared"
-  set +e
-  FAN_OUT_TIMING=1 bin/rails test --seed "${TEST_SEED:-5041}" > "$scratch/test-$prepared.log" 2>&1
-  suite_status=$?
-  set -e
-  tail -n 5 "$scratch/test-$prepared.log"
-  # Migration output can exceed tool output limits: always repeat any failure
-  # near the end, together with the query/time samples.
-  if command -v rg >/dev/null; then
-    rg -n -A 18 '^Failure:|^Error:|\[publish measurements\]' "$scratch/test-$prepared.log" || true
+  if [[ ${FANOUT_REVIEW_GATE:-0} == 1 ]]; then
+    run_suite focused test/jobs/announcement_fanout_job_test.rb test/jobs/push_notification_job_test.rb \
+      test/integration/announcement_fanout_races_test.rb test/integration/update_drafts_test.rb \
+      test/integration/scheduled_updates_test.rb test/integration/scheduled_update_races_test.rb \
+      test/integration/sends_after_commit_test.rb test/models/announcement_test.rb \
+      test/services/scheduled_tick_test.rb test/migrations/add_fanout_outbox_to_announcements_test.rb
+    [[ $prepared == true ]] || run_suite full
   else
-    sed -n -e '/^Failure:/,+18p' -e '/^Error:/,+18p' -e '/\[publish measurements\]/p' "$scratch/test-$prepared.log"
+    run_suite full
   fi
-  [[ $suite_status == 0 ]] || exit "$suite_status"
   kill "$(cat "$scratch/pooler.pid")"
   for attempt in {1..50}; do
     [[ -f "$scratch/pooler.pid" ]] || break

@@ -31,6 +31,7 @@ class AnnouncementFanoutJobTest < ActiveJob::TestCase
     2.times { AnnouncementFanoutJob.perform_now(@announcement.id) }
     assert_equal 250, @announcement.notifications.count
     assert_not_nil @announcement.reload.fanout_settled_at
+    assert_empty @announcement.fanout_recipient_ids
     assert_enqueued_with(job: PushNotificationJob)
   end
 
@@ -67,6 +68,7 @@ class AnnouncementFanoutJobTest < ActiveJob::TestCase
     end
     assert_equal 100, @announcement.notifications.count
     assert_not_nil @announcement.reload.fanout_settled_at
+    assert_empty @announcement.fanout_recipient_ids
   ensure
     NotificationDeliveryService.define_method(:announcement_batch, original) if original
   end
@@ -115,7 +117,26 @@ class AnnouncementFanoutJobTest < ActiveJob::TestCase
     end
     assert_equal 250, @announcement.notifications.count
     assert_not_nil @announcement.reload.fanout_settled_at
+    assert_empty @announcement.fanout_recipient_ids
     assert_not_nil @announcement.push_settled_at
+  end
+
+  test "archived announcements settle push without waiting for fanout" do
+    @announcement.update_columns(status: Announcement.statuses[:archived], fanout_requested_at: Time.current)
+    PushNotificationJob.perform_now("Announcement", @announcement.id, [])
+    assert_not_nil @announcement.reload.push_settled_at
+    assert_nil @announcement.fanout_settled_at
+    assert_not ScheduledAnnouncementPublisher.push_due(2.hours.from_now).exists?(@announcement.id)
+  end
+
+  test "small audience snapshot clears atomically with inline completion" do
+    User.where.not(id: @author.id).update_all(archived_at: Time.current)
+    Announcement.transaction do
+      NotificationDeliveryService.announcement_published(@announcement)
+      assert_not_nil @announcement.reload.fanout_settled_at
+      assert_empty @announcement.fanout_recipient_ids
+      assert_equal [ @author.id ], @announcement.notifications.pluck(:user_id)
+    end
   end
 
   test "push cannot settle before fanout completes" do

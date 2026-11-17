@@ -10,7 +10,7 @@ class AnnouncementFanoutJob < ApplicationJob
         next true unless announcement && announcement.fanout_requested_at && !announcement.fanout_settled_at
 
         unless announcement.published?
-          announcement.update_columns(fanout_settled_at: Time.current, push_settled_at: Time.current)
+          announcement.update_columns(fanout_settled_at: Time.current, fanout_recipient_ids: [], push_settled_at: Time.current)
           next true
         end
 
@@ -22,7 +22,7 @@ class AnnouncementFanoutJob < ApplicationJob
         NotificationDeliveryService.new.announcement_batch(announcement, active_ids)
         finished = ids.size < NotificationDeliveryService::ANNOUNCEMENT_BATCH_SIZE
         changes = { fanout_cursor: ids.last || announcement.fanout_cursor }
-        changes[:fanout_settled_at] = Time.current if finished
+        changes.merge!(fanout_settled_at: Time.current, fanout_recipient_ids: []) if finished
         announcement.update_columns(changes)
         finished
       end
