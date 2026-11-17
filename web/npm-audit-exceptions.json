@@ -1,3 +1,5 @@
 {
-  "advisories": {}
+  "advisories": {
+    "https://github.com/advisories/GHSA-fc5q-39xc-vjpf": "No patched picomatch release exists (every version through 4.0.7 is affected). It is a dev-only dependency of Vite, Vitest, tinyglobby and fdir, used for build and test file matching with repository-controlled patterns; it is not bundled into the web app and never receives user-supplied globs. Remove this exception when a patched picomatch is published and the Vite/Vitest graph adopts it."
+  }
 }
