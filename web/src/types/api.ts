@@ -483,7 +483,7 @@ export interface CourseOfferingTerms {
   offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
 }
 
-export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'overall_progress'> & { overall_progress?: OverallProgress; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
+export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'overall_progress'> & { overall_progress?: OverallProgress; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status' | 'kind'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
 
 export interface CohortStudentViewLesson {
   id: number;
@@ -527,6 +527,8 @@ export interface CohortStudentView {
     end_date: string | null;
     curriculum_name: string;
     active_count: number;
+    /** The cohort's resolved feature switches. */
+    features?: Record<string, boolean>;
   };
   read_only: boolean;
   generated_at: string;
@@ -966,6 +968,11 @@ export type SessionResponse = components['schemas']['SessionResponse'];
 export type DashboardResponse = { dashboard: DashboardData };
 
 export type WeeklyPlanResponse = components['schemas']['WeeklyPlanResponse'];
+export type CourseOutline = components['schemas']['CourseOutline'];
+export type CourseOutlineGroup = components['schemas']['CourseOutlineGroup'];
+export type CourseOutlineLesson = components['schemas']['CourseOutlineLesson'];
+export type CourseOutlineResponse = components['schemas']['CourseOutlineResponse'];
+export type LessonKind = components['schemas']['LessonKind'];
 
 export type ProfileResponse = components['schemas']['ProfileResponse'];
 

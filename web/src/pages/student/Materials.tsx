@@ -375,7 +375,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
             {data.action_items.map((item) => (
               <Link
                 key={item.submission_id}
-                to={previewLessonPath ? previewLessonPath(item.lesson_id) : paths.lesson(item.lesson_id, `block-${item.content_block_id}`)}
+                to={previewLessonPath ? `${previewLessonPath(item.lesson_id)}#block-${item.content_block_id}` : paths.lesson(item.lesson_id, `block-${item.content_block_id}`)}
                 className="pressable min-w-0 rounded-xl border border-warning-line bg-surface-raised p-4 hover:border-warning-line"
               >
                 <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.content_block_title}</p>

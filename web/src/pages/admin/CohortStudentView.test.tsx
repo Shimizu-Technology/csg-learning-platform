@@ -19,6 +19,7 @@ vi.mock('../../lib/api', () => ({
 
 vi.mock('../student/Dashboard', () => ({ Dashboard: (props: unknown) => <><div data-testid="dashboard-props">{JSON.stringify(props)}</div><a href="/lessons/159?cohort_id=4#block-7">Continue learning</a><a href="/modules/9?cohort_id=4">Open module</a></> }))
 vi.mock('../student/Materials', () => ({ Materials: ({ previewLessonPath }: { previewLessonPath: (id: number) => string }) => <a href={previewLessonPath(99)}>Open lesson</a> }))
+vi.mock('../student/CourseOutline', () => ({ CourseOutline: (props: object) => <p data-testid="outline-props">{JSON.stringify(props)}</p> }))
 
 const student = {
   enrollment_id: 21,
@@ -162,6 +163,16 @@ describe('CohortStudentView routing', () => {
     const backLinks = Array.from(container.querySelectorAll('a')).filter((link) => link.textContent?.includes('Back to student overview'))
     expect(backLinks).toHaveLength(2)
     expect(backLinks.every((link) => link.getAttribute('href') === '/admin/cohorts/4/students/12/overview')).toBe(true)
+  })
+
+  it('previews a learner in the new student experience when their cohort has it on, and the template as today', async () => {
+    vi.mocked(api.getCohortStudentView).mockResolvedValue({ data: { student_view: { ...studentView, cohort: { ...studentView.cohort, features: { student_experience_v2: true } } } }, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view/materials?student_id=12'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(JSON.parse(container.querySelector('[data-testid="outline-props"]')!.textContent!)).toEqual({ previewStudentId: 12, previewCohortId: 4 })
+    await act(async () => { await router.navigate('/admin/cohorts/4/student-view/materials') })
+    expect(container.querySelector('[data-testid="outline-props"]')).toBeNull()
+    expect(container.textContent).toContain('Open lesson')
   })
 
   it('redirects a legacy alumni recordings URL to Learn and preserves the selected student', async () => {

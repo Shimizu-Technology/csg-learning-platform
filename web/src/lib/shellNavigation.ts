@@ -40,7 +40,8 @@ export function shellNavigation({ staff, admin, cohort, cohorts, schoolFeatures,
       { to: cohort?.workspace_id ? `/messages?workspace_id=${cohort.workspace_id}` : '/messages', icon: MessageCircle, label: 'Messages' },
     ],
     more: [
-      ...(live && cohort ? [{ to: learnerCohortPath(cohort.id), icon: Layers3, label: 'My cohort' }] : []),
+      // The redesign folds cohort home into Learn (C-2), so the item goes with it.
+      ...(live && cohort && !enabled('student_experience_v2') ? [{ to: learnerCohortPath(cohort.id), icon: Layers3, label: 'My cohort' }] : []),
       ...(meetingCohort || (live && enabled('private_meetings')) ? [{ to: meetingCohort ? `/meetings?cohort_id=${meetingCohort.id}` : '/meetings', icon: CalendarDays, label: 'My meetings' }] : []),
       ...(live && enabled('recordings') && !alumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
       { to: '/resources', icon: Link2, label: 'Resources' },

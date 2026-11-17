@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { api, type FeatureSettingsData } from '../../lib/api'
 import { Button } from '../ui/Button'
 
-const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans' }
+const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans', student_experience_v2: 'New student experience' }
 export function FeatureSettings({ cohortId, onDraftChange, onReviewResponseDraftChange, savedReviewResponse }: { cohortId?: number; onDraftChange?: (values: Record<string, boolean | null> | null) => void; onReviewResponseDraftChange?: (value: string | null | undefined) => void; savedReviewResponse?: SavedReviewResponse }) {
   const [data, setData] = useState<FeatureSettingsData | null>(null)
   const [values, setValues] = useState<Record<string, boolean | null>>({})
