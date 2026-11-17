@@ -123,16 +123,16 @@ class StudentToday
   end
 
   # The agreed plan: the saved, active learning plan the learner already sees,
-  # its target date, who saved it last and when, and its next required lessons.
+  # its target date, who saved it last and when, and the required lessons in
+  # its milestones that aren't handed in yet, in milestone order.
   def catch_up_plan_json
     plan = @progress.plan
     return nil unless plan && !library?
 
     milestone_dates = plan.milestones.flat_map { |item| item["lesson_ids"].map { |id| [ id, item["due_on"] ] } }.to_h
-    order = plan.milestones.flat_map { |item| item["lesson_ids"] }.each_with_index.to_h
-    remaining = @progress.lessons
+    lessons = @progress.lessons.index_by(&:id)
+    remaining = milestone_dates.keys.filter_map { |id| lessons[id] }
       .select { |lesson| @progress.required?(lesson) && !@progress.lesson_progress(lesson).completed }
-      .sort_by { |lesson| [ order.fetch(lesson.id, order.size), @progress.lessons.index(lesson) ] }
     revision = plan.revisions.order(created_at: :desc, id: :desc).includes(:author).first
     {
       title: plan.title,
@@ -140,7 +140,7 @@ class StudentToday
       agreed_at: (revision&.created_at || plan.updated_at).iso8601(6),
       agreed_by: revision&.author && { id: revision.author.id, full_name: revision.author.full_name },
       remaining_count: remaining.size,
-      items: remaining.first(LIST_LIMIT).map do |lesson|
+      items: remaining.map do |lesson|
         entry = @progress.lesson_progress(lesson)
         { lesson_id: lesson.id, title: lesson.title, kind: LessonKind.for(lesson), due_on: milestone_dates[lesson.id], available: entry.available, status: entry.status }
       end

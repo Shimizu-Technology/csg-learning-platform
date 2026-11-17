@@ -71,7 +71,7 @@ class StudentTodayTest < ActionDispatch::IntegrationTest
     assert_equal({ "behind" => false, "weeks_behind" => 0, "overdue_count" => 1 }, fetch_today["pace"])
   end
 
-  test "an agreed catch-up plan names who saved it and lists its next five lessons" do
+  test "an agreed catch-up plan names who saved it and lists its remaining lessons" do
     lessons = @weeks.values_at(4, 5, 6).flatten
     plan = LearningPlan.create!(enrollment: @enrollment, title: "Catch up by December", target_date: Date.new(2026, 12, 4),
       milestones: [ { "title" => "Week 4 and 5", "due_on" => "2026-11-25", "lesson_ids" => lessons.first(6).map(&:id) },
@@ -80,9 +80,9 @@ class StudentTodayTest < ActionDispatch::IntegrationTest
     plan_json = fetch_today["catch_up_plan"]
     assert_equal "2026-12-04", plan_json["target_date"]
     assert_equal({ "id" => @teacher.id, "full_name" => "Audreana Synthetic" }, plan_json["agreed_by"])
-    # Plan lessons first (milestone order), then the rest of the required work.
-    assert_equal 12, plan_json["remaining_count"]
-    assert_equal lessons.first(5).map(&:id), plan_json["items"].map { |item| item["lesson_id"] }
+    # The plan's own lessons not handed in yet, in milestone order.
+    assert_equal 9, plan_json["remaining_count"]
+    assert_equal lessons.map(&:id), plan_json["items"].map { |item| item["lesson_id"] }
     assert_equal "2026-11-25", plan_json["items"].first["due_on"]
 
     @cohort.update!(settings: { "features" => { "student_experience_v2" => true, "learning_plans" => false } })

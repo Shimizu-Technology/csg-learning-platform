@@ -21049,7 +21049,7 @@
                   "items"
                 ],
                 "additionalProperties": false,
-                "description": "The agreed plan: the active learning plan staff saved. No unreviewed suggestion is ever sent."
+                "description": "The agreed plan: the active learning plan staff saved, with every required lesson in its milestones not handed in yet (items; remaining_count is their number). No unreviewed suggestion is ever sent."
               },
               {
                 "type": "null"

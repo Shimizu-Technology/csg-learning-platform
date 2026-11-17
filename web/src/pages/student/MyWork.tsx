@@ -77,7 +77,9 @@ export function MyWorkPage() {
       </header>
       <TabList label="My work" className="flex max-w-full overflow-x-auto border-b border-line">
         {TABS.map((key) => (
-          <TabButton key={key} asTab selected={tab === key} count={work.counts[key]} id={`my-work-tab-${key}`} aria-controls={`my-work-panel-${key}`} onClick={() => setUrlState({ tab: key })}>{TAB_LABELS[key]}</TabButton>
+          <TabButton key={key} asTab selected={tab === key} count={work.counts[key]} id={`my-work-tab-${key}`} aria-controls={`my-work-panel-${key}`} onClick={() => setUrlState({ tab: key })} className="max-sm:flex-1 max-sm:px-2">
+            {key === 'waiting' ? <>Waiting<span className="max-sm:sr-only"> for review</span></> : TAB_LABELS[key]}
+          </TabButton>
         ))}
       </TabList>
       <TabPanel key={tab} id={`my-work-panel-${tab}`} aria-labelledby={`my-work-tab-${tab}`}>

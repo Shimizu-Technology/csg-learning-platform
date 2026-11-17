@@ -5,7 +5,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
 import { brand, SUPPORT_EMAIL } from '../../lib/brand'
-import { formatHeaderDate, formatShortDate, formatShortDateTime } from '../../lib/format'
+import { formatHeaderDate, formatShortDate, formatTime } from '../../lib/format'
 import { shortAgo } from '../../lib/recordRelated'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { conversationPath } from '../../lib/routes'
@@ -167,7 +167,9 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
         {today.paused && <Badge tone="neutral" icon={<Lock className="h-3.5 w-3.5" aria-hidden="true" />}>{pausedSince ? `Paused since ${pausedSince}` : 'Paused'}</Badge>}
         <h2 id="today-hero" className="mt-3 text-xl font-bold text-ink [overflow-wrap:anywhere]">{today.paused ? `Your enrollment in ${data.cohort?.name ?? 'this course'} is paused` : 'Past course · review only'}</h2>
         <p className="mt-2 text-sm leading-6 text-ink-secondary">
-          Your work is saved{counts ? <>: <span className="tabular-nums">{counts.completed_lessons}</span> {counts.completed_lessons === 1 ? 'lesson' : 'lessons'} completed</> : ''} and every submission and piece of feedback. You can still open past lessons and read your feedback.
+          {counts && counts.completed_lessons > 0
+            ? <>Your work is saved: <span className="tabular-nums">{counts.completed_lessons}</span> {counts.completed_lessons === 1 ? 'lesson' : 'lessons'} completed and every submission and piece of feedback.</>
+            : 'Your work is saved, including every submission and piece of feedback.'} You can still open past lessons and read your feedback.
           {today.paused && ' Submitting work, new lessons and class chat are off while you’re paused.'}
         </p>
         {today.paused && <p className="mt-2 text-sm leading-6 text-ink-secondary">To resume, message the {brand.schoolAbbreviation} team. We’ll pick a restart week with you.</p>}
@@ -223,18 +225,9 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
           {behindLine} {plan.target_date ? `Your plan gets you caught up by ${formatShortDate(plan.target_date, '', { withYear: false, weekday: true })}.` : plan.title}
         </h2>
         <p className="mt-1 text-sm text-ink-secondary">Required lessons only; optional ones can wait. {agreed}</p>
-        <ol className="mt-4 divide-y divide-line rounded-xl border border-line">
-          {plan.items.map((item) => (
-            <li key={item.lesson_id}>
-              {item.available
-                ? <Link to={paths.lesson(item.lesson_id)} className="pressable flex min-h-12 items-center gap-3 px-4 py-2 hover:bg-surface-hover"><PlanRow item={item} /></Link>
-                : <div className="flex min-h-12 items-center gap-3 px-4 py-2 opacity-80"><PlanRow item={item} /></div>}
-            </li>
-          ))}
-        </ol>
-        {plan.remaining_count > plan.items.length && <Link to={`${learnPath}&show=todo`} className="app-link mt-2 inline-flex min-h-11 items-center text-sm">Show all <span className="ml-1 tabular-nums">{plan.remaining_count}</span></Link>}
+        <PlanList plan={plan} paths={paths} />
         <div className="mt-4 flex flex-wrap gap-2">
-          {first && <LinkButton to={paths.lesson(first.lesson_id)}>Start with {first.title}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+          {first && <LinkButton to={paths.lesson(first.lesson_id)} aria-label={`Start with ${first.title}`}>Continue your plan<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
           {instructor && <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(instructor.id, { label: `My catch-up plan: ${plan.title}`, path: learnPath })}>Ask {instructorName} to change it</Button>}
         </div>
       </article>
@@ -282,6 +275,33 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
       )}
       <div className="mt-4"><LinkButton variant="secondary" to={learnPath}>Open Learn<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton></div>
     </article>
+  )
+}
+
+/** The plan's lessons, five at a time, with the rest revealed in place (U-5.1). */
+function PlanList({ plan, paths }: { plan: NonNullable<StudentToday['catch_up_plan']>; paths: Paths }) {
+  const [expanded, setExpanded] = useState(false)
+  const row = (item: NonNullable<StudentToday['catch_up_plan']>['items'][number]) => (
+    <li key={item.lesson_id}>
+      {item.available
+        ? <Link to={paths.lesson(item.lesson_id)} className="pressable flex min-h-12 items-center gap-3 px-4 py-2 hover:bg-surface-hover"><PlanRow item={item} /></Link>
+        : <div className="flex min-h-12 items-center gap-3 px-4 py-2 opacity-80"><PlanRow item={item} /></div>}
+    </li>
+  )
+  const rest = plan.items.slice(LIST_LIMIT)
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-line">
+      <ol className="divide-y divide-line" data-plan-items="">{plan.items.slice(0, LIST_LIMIT).map(row)}</ol>
+      {rest.length > 0 && (
+        <>
+          <Collapse open={expanded} id="today-plan-more"><ol className="divide-y divide-line border-t border-line" data-plan-items="">{rest.map(row)}</ol></Collapse>
+          <button type="button" aria-expanded={expanded} aria-controls="today-plan-more" onClick={() => setExpanded((value) => !value)} className={`${buttonClasses({ variant: 'quiet', size: 'sm' })} m-1`}>
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ease-[var(--ease-out)] motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+            {expanded ? 'Show fewer' : <>Show all <span className="tabular-nums">{plan.remaining_count}</span></>}
+          </button>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -409,7 +429,7 @@ function NextSession({ session }: { session: NonNullable<StudentToday['next_sess
   return (
     <section className="app-surface p-5" aria-labelledby="today-session" data-region="next-session">
       <h2 id="today-session" className="text-base font-semibold text-ink">{session.event_kind === 'live_class' ? 'Next live class' : 'Office hours'}</h2>
-      <p className="mt-2 font-semibold tabular-nums text-ink">{formatShortDateTime(session.starts_at, 'TBD', session.timezone)}</p>
+      <p className="mt-2 font-semibold tabular-nums text-ink">{formatShortDate(session.starts_at, 'TBD', { withYear: false, weekday: true, timeZone: session.timezone })} · {formatTime(session.starts_at, 'TBD', session.timezone)}</p>
       <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{session.title}</p>
       {session.description && <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{session.description}</p>}
       {url && <AnchorButton href={url} target="_blank" rel="noopener noreferrer" variant="primary" className="mt-3">Join<ExternalLink className="h-4 w-4" aria-hidden="true" /></AnchorButton>}

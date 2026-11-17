@@ -186,9 +186,9 @@ it('behind with no agreed plan: how far behind, the next required lesson and Ask
   expect(container.querySelector('[data-testid="where"]')?.textContent).toBe('/messages/dm/12?cohort_id=9')
 })
 
-it('an agreed plan shows who agreed it, five lessons, Show all and Ask to change it', async () => {
+it('an agreed plan shows who agreed it, five of its lessons, Show all in place and Ask to change it', async () => {
   state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
-  const items = Array.from({ length: 5 }, (_, index) => ({ lesson_id: 500 + index, title: `Plan lesson ${index + 1}`, kind: 'exercise', due_on: `2026-11-2${index}`, available: true, status: 'open' }))
+  const items = Array.from({ length: 14 }, (_, index) => ({ lesson_id: 500 + index, title: `Plan lesson ${index + 1}`, kind: 'exercise', due_on: `2026-11-${20 + Math.floor(index / 2)}`, available: true, status: 'open' }))
   const plan = { title: 'Catch up by December', target_date: '2026-11-28', agreed_at: '2026-11-12T00:00:00Z', agreed_by: person(2, 'Audreana Synthetic'), remaining_count: 14, items }
   mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({ pace: { behind: true, weeks_behind: 3, overdue_count: 14 }, catch_up_plan: plan })) } })
   await render('/dashboard?cohort_id=9', <TodayRoute />)
@@ -196,8 +196,12 @@ it('an agreed plan shows who agreed it, five lessons, Show all and Ask to change
   expect(hero.textContent).toContain('Catch-up plan · agreed with Audreana')
   expect(hero.textContent).toContain('You’re about 3 weeks behind. Your plan gets you caught up by Sat, Nov 28.')
   expect(hero.querySelectorAll('ol li')).toHaveLength(5)
-  expect(hero.textContent).toContain('Show all 14')
-  expect([...hero.querySelectorAll('a[href="/lessons/500?cohort_id=9"]')].map((link) => link.textContent)).toContain('Start with Plan lesson 1')
+  const showAll = [...hero.querySelectorAll('button')].find((element) => element.textContent === 'Show all 14')!
+  expect(showAll.getAttribute('aria-expanded')).toBe('false')
+  await act(async () => { showAll.click() })
+  expect(showAll.getAttribute('aria-expanded')).toBe('true')
+  expect(hero.querySelectorAll('ol li')).toHaveLength(14)
+  expect(hero.querySelector('a[aria-label="Start with Plan lesson 1"]')?.getAttribute('href')).toBe('/lessons/500?cohort_id=9')
   expect(hero.textContent).toContain('Ask Audreana to change it')
 })
 
