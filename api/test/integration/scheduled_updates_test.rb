@@ -254,18 +254,149 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
     assert_equal counts.first, counts.last, "posting to 1 then 10 recipients sent #{counts.first} then #{counts.last} queries"
   end
 
-  test "the Scheduled list sends the same number of queries for one scheduled update or five" do
+  test "the Scheduled and Drafts lists send the same number of queries for one update or five" do
+    # Grown with the instructor's own drafts and scheduled updates, which both
+    # the instructor and the admin see, and measured with the rows in each
+    # response checked (#299 review P3: an admin-authored fixture left the
+    # instructor's list empty at both sizes).
     counts = [ 1, 5 ].map do |size|
-      (size - Announcement.scheduled.count).times { |index| scheduled(at: (index + 1).days.from_now, author: person("writer#{size}_#{index}", :admin)) }
-      [ @author, @admin ].to_h do |viewer|
-        as_user(viewer) { get "/api/v1/announcements", params: { scope: "manage", status: "scheduled" }, headers: headers }
-        count = count_queries { as_user(viewer) { get "/api/v1/announcements", params: { scope: "manage", status: "scheduled", sort: "scheduled_asc" }, headers: headers } }
+      (size - Announcement.scheduled.count).times { |index| scheduled(at: (index + 1).days.from_now) }
+      (size - Announcement.unscheduled_drafts.count).times do |index|
+        Announcement.create!(title: "Draft #{size}.#{index}", body: "Words", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+      end
+      [ @author, @admin ].product(%w[scheduled draft]).to_h do |viewer, status|
+        params = { scope: "manage", status: status, sort: status == "scheduled" ? "scheduled_asc" : "updated_desc" }
+        as_user(viewer) { get "/api/v1/announcements", params: params, headers: headers }
+        count = count_queries { as_user(viewer) { get "/api/v1/announcements", params: params, headers: headers } }
         assert_response :success
-        [ viewer, count ]
+        assert_equal size, ids.size, "#{viewer.first_name} #{status} list at size #{size}"
+        [ [ viewer.first_name, status ], count ]
       end
     end
-    assert_equal 5, ids.size
     assert_equal counts.first, counts.last
+  end
+
+  test "everything due drains in one run, in batches, so nothing waits behind the hourly checkpoint" do
+    # The review's repro: 101 due updates and one tick.
+    101.times { scheduled(at: 1.hour.ago) }
+    assert tick(Time.current)
+    assert_equal 0, Announcement.scheduled.count
+    assert_equal 101, Announcement.published.count
+    assert_equal 101, ScheduledTaskRun.find_by!(name: "scheduled_updates").last_result["sent"]
+  end
+
+  test "a run that spends its time budget fails the task and the next run, even in the same hour, carries on" do
+    5.times { scheduled(at: 1.hour.ago) }
+    task = ScheduledTick::Task.new(name: "scheduled_updates", daily_hour: nil,
+      call: ->(now, _last, metrics) { ScheduledAnnouncementPublisher.new(batch_size: 2, time_budget: 0).call(now: now, metrics: metrics) })
+    run = ->(now) { ScheduledTick.new(now: now, tasks: [ task ], logger: logger, dry_run: false).call }
+    at = Time.current
+    assert_not run.call(at), "the budget ran out with work still due"
+    assert_equal 3, Announcement.scheduled.count
+    state = ScheduledTaskRun.find_by!(name: "scheduled_updates")
+    assert_nil state.last_succeeded_at
+    assert_equal "error", state.last_result["status"]
+    assert_includes @log.string, "ScheduledAnnouncementPublisher::BacklogRemaining"
+    assert_not run.call(at + 1.minute)
+    assert run.call(at + 2.minutes), "the last batch drains it"
+    assert_equal 0, Announcement.scheduled.count
+    assert ScheduledTaskRun.find_by!(name: "scheduled_updates").last_succeeded_at
+  end
+
+  test "an update that fails to post isn't retried in a loop within the run" do
+    good = scheduled(at: 1.hour.ago)
+    bad = scheduled(at: 2.hours.ago)
+    original = NotificationDeliveryService.method(:announcement_published)
+    NotificationDeliveryService.define_singleton_method(:announcement_published) do |announcement, **kwargs|
+      raise ActiveRecord::StatementInvalid, "connection lost" if announcement.id == bad.id
+
+      original.call(announcement, **kwargs)
+    end
+    error = assert_raises(ScheduledAnnouncementPublisher::PublishFailed) { ScheduledAnnouncementPublisher.new(batch_size: 1).call(now: Time.current) }
+    assert_match "1 scheduled update", error.message
+    assert good.reload.published?
+    assert bad.reload.scheduled?
+  ensure
+    NotificationDeliveryService.define_singleton_method(:announcement_published, original) if original
+  end
+
+  test "an update posted from a request whose push never ran is pushed by the tick once, after the grace period" do
+    # A process killed between the commit and the after-commit push (the same gap as scheduled posts).
+    as_user(@author) do
+      assert_enqueued_with(job: PushNotificationJob) do
+        post "/api/v1/announcements", params: schedule_params(nil, status: "published", scheduled_for: nil, send_push: true), headers: headers, as: :json
+      end
+    end
+    update = Announcement.find(response.parsed_body.dig("announcement", "id"))
+    assert update.push_requested_at
+    clear_enqueued_jobs # the job that "never ran"
+    travel_to(ScheduledAnnouncementPublisher::PUSH_GRACE.from_now + 1.second) do
+      assert_enqueued_with(job: PushNotificationJob, args: [ "Announcement", update.id, Notification.where(notifiable: update).pluck(:id) ]) do
+        assert tick(Time.current)
+      end
+    end
+    assert_equal 1, ScheduledTaskRun.find_by!(name: "scheduled_updates").last_result["push_requeued"]
+    perform_enqueued_jobs
+    assert update.reload.push_settled_at
+    travel_to(2.hours.from_now) { assert_no_enqueued_jobs { assert tick(Time.current) } }
+  end
+
+  test "posting without push leaves no intent, and a push unsettled for a day is settled without sending" do
+    as_user(@author) do
+      post "/api/v1/announcements", params: schedule_params(nil, status: "published", scheduled_for: nil, send_push: false), headers: headers, as: :json
+    end
+    assert_nil Announcement.find(response.parsed_body.dig("announcement", "id")).push_requested_at
+    stale = Announcement.create!(title: "Old", body: "Words", author: @author, audience: :cohort, cohort: @cohort, status: :published, push_requested_at: 25.hours.ago)
+    assert_no_enqueued_jobs { ScheduledAnnouncementPublisher.new.call(now: Time.current) }
+    assert stale.reload.push_settled_at
+  end
+
+  test "someone who can't act on the update's cohort gets the same 404 as a missing id for every action" do
+    update = scheduled(at: 1.day.from_now)
+    posted = Announcement.create!(title: "Posted", body: "Words", author: @admin, audience: :cohort, cohort: @cohort, status: :published)
+    archived = Announcement.create!(title: "Archived", body: "Words", author: @admin, audience: :cohort, cohort: @cohort, status: :archived)
+    actions = [
+      [ :get, {} ], [ :patch, { scheduled_for: nil } ], [ :patch, { scheduled_for: 2.days.from_now.iso8601 } ],
+      [ :patch, { title: "Changed" } ], [ :patch, { status: "published" } ], [ :delete, {} ]
+    ]
+    expect_missing = lambda do |announcement, label|
+      actions.each do |verb, params|
+        options = verb == :get ? { headers: headers } : { params: params, headers: headers, as: :json }
+        public_send(verb, "/api/v1/announcements/#{Announcement.maximum(:id) + 1000}", **options)
+        missing = [ response.status, response.body ]
+        public_send(verb, "/api/v1/announcements/#{announcement.id}", **options)
+        assert_equal missing, [ response.status, response.body ], "#{label}: #{verb} #{params.keys.join(',')}"
+      end
+    end
+    # A colleague on the cohort, an instructor of another cohort, and the
+    # author once their assignment is gone (the review's repro).
+    as_user(@colleague) { expect_missing.call(update, "colleague, scheduled") }
+    as_user(@outsider) { [ update, posted, archived ].each { |item| expect_missing.call(item, "outsider, #{item.title}") } }
+    @author.cohort_instructor_assignments.destroy_all
+    as_user(@author) { [ update, posted, archived ].each { |item| expect_missing.call(item, "removed author, #{item.title}") } }
+    assert update.reload.scheduled?
+    assert_equal "Posted", posted.reload.title
+    assert archived.reload.archived?
+    # Seeing it but not owning it is still 403: the colleague can read the posted update.
+    as_user(@colleague) do
+      patch "/api/v1/announcements/#{posted.id}", params: { title: "Changed" }, headers: headers, as: :json
+      assert_response :forbidden
+    end
+  end
+
+  test "a scheduled draft stays hidden from students with the new student experience on and off, counts included" do
+    # Adapted from the review's adversarial test.
+    update = scheduled(at: 1.day.from_now)
+    [ false, true ].each do |enabled|
+      @cohort.update!(settings: { "features" => { "student_experience_v2" => enabled } })
+      update.update!(title: "review299unique")
+      assert_hidden_from_student(update, "review299unique")
+      as_user(@student) do
+        get "/api/v1/announcements", params: { scope: "manage", status: "scheduled" }, headers: headers
+        assert_equal 0, response.parsed_body["unread_count"]
+        assert_equal 0, response.parsed_body.dig("meta", "total_count")
+      end
+    end
   end
 
   test "staff who manage a posted update see how many have read it; nobody else does" do

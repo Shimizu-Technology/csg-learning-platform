@@ -13,9 +13,12 @@
 #
 # At most two queries per curriculum, none repeated: memoized per instance.
 class StaffCohortScope
-  def initialize(viewer)
+  # `taught_cohort_ids` lets a caller that has just reloaded the viewer's
+  # assignments (under a row lock, say) pass them in instead of a new query.
+  def initialize(viewer, taught_cohort_ids: nil)
     @viewer = viewer
     @by_curriculum = {}
+    @taught_cohort_ids = taught_cohort_ids.to_a if taught_cohort_ids && viewer&.instructor? && !viewer.archived?
   end
 
   def admin?

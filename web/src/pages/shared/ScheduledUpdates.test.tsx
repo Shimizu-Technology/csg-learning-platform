@@ -68,6 +68,7 @@ describe('Scheduled updates (U-3.6)', () => {
     expect(container.querySelector('[data-testid="schedule-sends-about"]')?.textContent).toContain('Sends about Jan 15, 2030, 9:00 AM ChST.')
     expect(container.querySelector('[data-testid="schedule-sends-about"]')?.textContent).toContain('hourly run, not to the minute')
     expect(container.textContent).toContain('Time (Guam time)')
+    expect(container.querySelector('[data-testid="schedule-time-zone"]')?.textContent).toBe('Times are in Guam time, the school’s time zone, for every cohort.')
     await submit()
     // The cohort the page is scoped to: no audience check, as for posting.
     expect(mocks.confirm).not.toHaveBeenCalled()

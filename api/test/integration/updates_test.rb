@@ -102,7 +102,7 @@ class UpdatesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "management detail permits archives for staff of their audience and drafts only for their author and admins" do
+  test "management detail permits archives for staff of their audience and drafts only for their author and admins; everything else is not found" do
     instructor = User.create!(clerk_id: "updates_instructor", email: "updates-instructor@example.com", role: :instructor)
     CohortInstructorAssignment.create!(user: instructor, cohort: @a)
     %i[draft archived].each do |status|
@@ -125,7 +125,8 @@ class UpdatesTest < ActionDispatch::IntegrationTest
         end
         [ other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
-          assert_response status == :draft ? :not_found : :forbidden
+          # Nothing they can read or manage: the same 404 as a missing id (#299 review).
+          assert_response :not_found
         end
       end
       as_user(@admin) do
@@ -138,7 +139,8 @@ class UpdatesTest < ActionDispatch::IntegrationTest
       as_user(@student) do
         [ own, colleague, other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
-          assert_response status == :draft ? :not_found : :forbidden
+          # Nothing they can read or manage: the same 404 as a missing id (#299 review).
+          assert_response :not_found
         end
       end
     end

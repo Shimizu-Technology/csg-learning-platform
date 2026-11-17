@@ -10,8 +10,17 @@ class PushNotificationJob < ApplicationJob
     notifications = Notification.where(id: notification_ids)
     case notifiable
     when Announcement
-      deliver(WebPushNotificationService, :announcement_published, notifiable, notifications, notification_ids)
-      deliver(ExpoPushNotificationService, :announcement_published, notifiable, notifications, notification_ids)
+      # The push outbox (ScheduledAnnouncementPublisher): each recipient is
+      # claimed per provider under the update's row lock before it is sent,
+      # so a re-request after a crash, a retry, or two jobs at once push each
+      # recipient at most once per provider.
+      not_started = [
+        deliver_claimed_push(WebPushNotificationService, :announcement_published, :web_push_attempted_notification_ids, notifiable, notifications),
+        deliver_claimed_push(ExpoPushNotificationService, :announcement_published, :expo_push_attempted_notification_ids, notifiable, notifications)
+      ].compact
+      # Requests a provider never started stay unclaimed and unsettled; the
+      # tick re-requests them after its grace period.
+      settle_announcement_push(notifiable) if not_started.empty?
     when Message
       return if notifiable.deleted?
 
@@ -53,48 +62,67 @@ class PushNotificationJob < ApplicationJob
   private
 
   def deliver_message_push(service, attempted_attribute, message, notifications)
+    deliver_claimed_push(service, :message_created, attempted_attribute, message, notifications)
+  end
+
+  # Marks an update's push done once every notification it has is claimed by
+  # both providers. Other recipients' claims may still be in flight in another
+  # job; that job settles it when it finishes.
+  def settle_announcement_push(announcement)
+    announcement.with_lock do
+      next if announcement.push_settled_at
+
+      ids = Notification.where(notifiable: announcement).pluck(:id)
+      claimed = %i[web_push_attempted_notification_ids expo_push_attempted_notification_ids].all? do |attribute|
+        (ids - Array(announcement.public_send(attribute)).map(&:to_i)).empty?
+      end
+      announcement.update_columns(push_settled_at: Time.current) if claimed
+    end
+  end
+
+  def deliver_claimed_push(service, method, attempted_attribute, record, notifications)
     requested_ids = notifications.pluck(:id)
     # This is an at-most-once provider-attempt boundary. Providers can raise
     # after partial external delivery and expose no transactional idempotency
     # key, so releasing the claim here could notify the same recipient twice.
     # The one exception is a notification whose requests the provider never
     # started (PushDeliveryNotStarted), released below.
-    claimed_ids = message.with_lock do
-      next [] if message.deleted?
+    claimed_ids = record.with_lock do
+      next [] if record.is_a?(Message) && record.deleted?
 
-      attempted_ids = Array(message.public_send(attempted_attribute)).map(&:to_i)
+      attempted_ids = Array(record.public_send(attempted_attribute)).map(&:to_i)
       next_ids = requested_ids - attempted_ids
-      message.update_columns(attempted_attribute => (attempted_ids + next_ids).uniq) if next_ids.any?
+      record.update_columns(attempted_attribute => (attempted_ids + next_ids).uniq) if next_ids.any?
       next_ids
     end
     return if claimed_ids.empty?
 
     begin
-      service.message_created(message, Notification.where(id: claimed_ids))
+      service.public_send(method, record, Notification.where(id: claimed_ids))
     rescue PushDeliveryNotStarted => not_started
       # The provider's deadline passed before any request for these
       # notifications started, so nothing reached their devices. Releasing
       # the claim lets the next attempt send them; requests that started stay
       # claimed, which keeps the at-most-once boundary above.
       released_ids = not_started.notification_ids & claimed_ids
-      release_message_push_claims(message, attempted_attribute, released_ids)
+      release_push_claims(record, attempted_attribute, released_ids)
       return PushDeliveryNotStarted.new(provider: not_started.provider, notification_ids: released_ids) if released_ids.any?
     rescue StandardError => e
-      log_provider_failure(service, message, claimed_ids, e)
+      log_provider_failure(service, record, claimed_ids, e)
     end
     nil
   end
 
-  def release_message_push_claims(message, attempted_attribute, notification_ids)
+  def release_push_claims(record, attempted_attribute, notification_ids)
     return if notification_ids.empty?
 
-    message.with_lock do
-      attempted_ids = Array(message.public_send(attempted_attribute)).map(&:to_i)
-      message.update_columns(attempted_attribute => attempted_ids - notification_ids)
+    record.with_lock do
+      attempted_ids = Array(record.public_send(attempted_attribute)).map(&:to_i)
+      record.update_columns(attempted_attribute => attempted_ids - notification_ids)
     end
     Rails.logger.warn(
       "[PushNotificationJob] provider_not_started_released attribute=#{attempted_attribute} " \
-      "message_id=#{message.id} notification_ids=#{notification_ids.join(',')}"
+      "#{record.class.name.underscore}_id=#{record.id} notification_ids=#{notification_ids.join(',')}"
     )
   end
 

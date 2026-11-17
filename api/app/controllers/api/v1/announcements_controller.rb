@@ -37,11 +37,6 @@ module Api
         require_feature!("announcements", @announcement.cohort || announcement_context_cohort)
         return if performed?
 
-        unless can_view?(@announcement) || can_manage_view?(@announcement)
-          render_forbidden("Announcement is not visible")
-          return
-        end
-
         notification = current_user.notifications.find_by(notifiable: @announcement)
         notification&.mark_read!
         render json: { announcement: announcement_json(@announcement, notification, read_summary: read_summary(@announcement)) }
@@ -86,7 +81,10 @@ module Api
 
         # The in-app notifications are written in the same transaction as the
         # update, so it is posted with every recipient's notification or not
-        # at all. Push is requested here and runs after the commit (#258).
+        # at all. Push is requested here and runs after the commit (#258); its
+        # intent (push_requested_at) commits with the post, so the tick can
+        # re-request it if this process dies before the push runs.
+        announcement.push_requested_at = Time.current if announcement.published? && send_push?
         saved = Announcement.transaction do
           next false unless announcement.save
 
@@ -131,6 +129,10 @@ module Api
         outcome = Announcement.transaction do
           @announcement.lock!
           refresh_management_authorization!
+          # Someone who can no longer see it (their cohort assignment went, or
+          # it moved to a cohort they don't teach) gets the same 404 as a
+          # missing id; someone who can see it but not change it gets 403.
+          next :not_found unless viewable?(@announcement)
           next :not_editor unless @announcement.editable_by?(current_user)
           next :cannot_manage unless can_manage?(@announcement)
 
@@ -143,8 +145,10 @@ module Api
           next :cannot_manage unless can_manage?(@announcement)
 
           if never_posted && @announcement.published?
-            # Posted now, not at the scheduled time.
+            # Posted now, not at the scheduled time. The push intent is saved
+            # in the same UPDATE that posts it.
             @announcement.assign_attributes(scheduled_for: nil, scheduled_by: nil, scheduled_send_push: false)
+            @announcement.push_requested_at = Time.current if send_push?
           elsif params.key?(:scheduled_for)
             schedule(@announcement)
           end
@@ -164,6 +168,7 @@ module Api
 
         case outcome
         when :saved then render json: { announcement: announcement_json(@announcement) }
+        when :not_found then render_not_found
         when :not_editor then render_forbidden("Only the author or an admin can change this update")
         when :cannot_manage then render_forbidden("Cannot manage this announcement")
         when :already_posted then render json: { errors: [ "This update has already been posted, so its schedule can't change" ] }, status: :unprocessable_entity
@@ -182,7 +187,9 @@ module Api
         refusal = Announcement.transaction do
           @announcement.lock!
           refresh_management_authorization!
-          if !can_manage?(@announcement)
+          if !viewable?(@announcement)
+            :not_found
+          elsif !can_manage?(@announcement)
             "Cannot manage this announcement"
           elsif !@announcement.draft?
             @announcement.update!(status: :archived, archived_at: Time.current)
@@ -194,6 +201,7 @@ module Api
             "Only the author or an admin can delete this draft"
           end
         end
+        return render_not_found if refusal == :not_found
         return render_forbidden(refusal) if refusal
 
         render json: { announcement: announcement_json(@announcement) }
@@ -208,12 +216,20 @@ module Api
         render_forbidden("Cannot manage this announcement")
       end
 
-      # Can post to this audience: admins anywhere, instructors in their cohorts.
+      # Can post to this audience: admins anywhere, instructors in the
+      # cohorts they teach (StaffCohortScope).
       def can_manage?(announcement)
         return false unless current_user.staff? && !current_user.archived?
-        return true if current_user.admin?
+        return true if staff_scope.admin?
 
-        announcement.cohort? && teachable_cohort_ids.include?(announcement.cohort_id)
+        announcement.cohort? && announcement.cohort_id.present? && staff_scope.visible?(announcement.cohort_id)
+      end
+
+      # Whether the viewer may know this update exists: they manage it, or it
+      # is posted and in their feed. Everything else is "not found", exactly
+      # as a missing id is, for show, edit, reschedule, cancel and delete.
+      def viewable?(announcement)
+        can_manage_view?(announcement) || (announcement.published? && can_view?(announcement))
       end
 
       # Management detail: posted and archived updates for their audience's
@@ -232,8 +248,8 @@ module Api
         announcement.published? && can_manage?(announcement)
       end
 
-      def teachable_cohort_ids
-        @teachable_cohort_ids ||= current_user.cohort_instructor_assignments.pluck(:cohort_id).to_set
+      def staff_scope
+        @staff_scope ||= StaffCohortScope.new(current_user)
       end
 
       def refresh_management_authorization!
@@ -244,7 +260,7 @@ module Api
           User.eager_load(cohort_instructor_assignments: :cohort).where(id: current_user.id).load.first!
         end
         assignments = current_user.cohort_instructor_assignments
-        @teachable_cohort_ids = assignments.map(&:cohort_id).to_set
+        @staff_scope = StaffCohortScope.new(current_user, taught_cohort_ids: assignments.map(&:cohort_id))
         # Reuse the cohort loaded by the fresh check for validation and
         # fan-out, keeping publishing at five statements under the row lock.
         if (assignment = assignments.find { |item| item.cohort_id == @announcement.cohort_id })
@@ -258,14 +274,20 @@ module Api
       # requested through PushNotificationJob, which ApplicationJob defers
       # until the commit, so a push failure never undoes the notifications.
       def announce(announcement)
-        NotificationDeliveryService.announcement_published(announcement, push: send_push?)
+        NotificationDeliveryService.announcement_published(announcement, push: announcement.push_requested_at.present?)
       end
 
-      # A draft someone may not see is "not found", exactly as a missing id
-      # is, so the response doesn't reveal that it exists.
+      # An update someone may not see (a draft or scheduled update that isn't
+      # theirs, or anything in a cohort they don't teach) is "not found",
+      # exactly as a missing id is, so the response doesn't reveal it exists.
       def set_announcement
         @announcement = Announcement.drafts_visible_to(current_user).find_by(id: params[:id])
-        render json: { error: "Update not found" }, status: :not_found unless @announcement
+        @announcement = nil if @announcement && !viewable?(@announcement)
+        render_not_found unless @announcement
+      end
+
+      def render_not_found
+        render json: { error: "Update not found" }, status: :not_found
       end
 
       CLIENT_REQUEST_ID = /\A[A-Za-z0-9_-]{8,64}\z/

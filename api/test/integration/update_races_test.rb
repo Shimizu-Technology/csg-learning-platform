@@ -71,7 +71,9 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: auth(@author), as: :json
 
     assert_nil AfterEarlyCheck.callback, "the move committed after the early check"
-    assert_response :forbidden
+    # The draft is now in a cohort the poster doesn't teach, so for them it
+    # doesn't exist: the same 404 as a missing id (#299 review).
+    assert_response :not_found
     draft.reload
     assert draft.draft?, "the update was not posted"
     assert_equal @other_cohort.id, draft.cohort_id
@@ -91,7 +93,8 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
       end
 
       assert_nil AfterEarlyCheck.callback
-      assert_response :forbidden
+      # No longer teaching the cohort, the poster can't see it at all.
+      assert_response :not_found
       assert_equal status.to_s, announcement.reload.status
       assert_equal "Lab notes", announcement.title
       assert_equal 0, Notification.where(notifiable: announcement).count
@@ -104,7 +107,8 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
 
     patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: auth(@author), as: :json
 
-    assert_response :forbidden
+    # Now a student, who can't see a draft.
+    assert_response :not_found
     assert draft.reload.draft?
     assert_equal 0, Notification.where(notifiable: draft).count
   end

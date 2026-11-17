@@ -183,7 +183,8 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     @cohort.cohort_instructor_assignments.find_by!(user: @author).destroy!
     as_user(@author) do
       patch "/api/v1/announcements/#{posted.id}", params: { title: "Late fix" }, headers: headers, as: :json
-      assert_response :forbidden
+      # Not in their feed any more, so not found, as a missing id is (#299 review).
+      assert_response :not_found
     end
   end
 

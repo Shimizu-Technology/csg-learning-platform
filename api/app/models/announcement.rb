@@ -37,6 +37,9 @@ class Announcement < ApplicationRecord
   # only, and `drafts_visible_to` limits it to its author and admins).
   scope :scheduled, -> { draft.where.not(scheduled_for: nil) }
   scope :unscheduled_drafts, -> { draft.where(scheduled_for: nil) }
+  # Posted with push, and not every recipient has been claimed by both push
+  # providers yet (the push outbox; see PushNotificationJob).
+  scope :push_pending, -> { where.not(push_requested_at: nil).where(push_settled_at: nil) }
   # Drafts belong to their author until they are posted; admins see every
   # draft. Nobody else, staff included, sees one in a list, detail or search.
   scope :drafts_visible_to, ->(user) { user&.admin? ? all : where.not(status: :draft).or(where(author_id: user&.id)) }

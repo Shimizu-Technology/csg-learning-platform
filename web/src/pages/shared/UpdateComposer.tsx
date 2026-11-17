@@ -328,6 +328,8 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
                   </select>
                 </label>
               </div>
+              {/* Cohorts have no time zone of their own, so every schedule uses the school's. */}
+              <p className="text-sm text-ink-muted" data-testid="schedule-time-zone">Times are in {schoolTimeDescription()}, the school’s time zone, for every cohort.</p>
               <p className="text-sm text-ink-secondary" data-testid="schedule-sends-about">
                 {scheduledIso
                   ? <><strong className="text-ink">{sendsAboutLabel(scheduledIso, zone)}.</strong> Scheduled updates go out with the hourly run, not to the minute. Until then only you and admins can see it.</>
