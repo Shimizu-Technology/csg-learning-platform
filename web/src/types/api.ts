@@ -1175,17 +1175,15 @@ export interface PrivateMeetingCohort {
   slots: PrivateMeetingSlot[];
 }
 
-export interface StaffPrivateMeetingCohort extends Omit<PrivateMeetingCohort, 'bookable_week_numbers'> {
-  instructor_id: number;
-}
+export type StaffPrivateMeetingCohort = components['schemas']['StaffPrivateMeetingCohort'];
+export type StaffMeetingOtherCohort = components['schemas']['StaffMeetingOtherCohort'];
+export type StaffContact = components['schemas']['StaffContact'];
 
 export interface PrivateMeetingsResponse {
   cohorts: PrivateMeetingCohort[];
 }
 
-export interface StaffPrivateMeetingsResponse {
-  cohorts: StaffPrivateMeetingCohort[];
-}
+export type StaffPrivateMeetingsResponse = components['schemas']['StaffPrivateMeetingsResponse'];
 
 export interface PrivateMeetingResponse {
   booking: PrivateMeetingBooking;
@@ -1244,21 +1242,9 @@ export interface ThreadWindowOptions {
   message_limit?: number;
 }
 
-export interface LearningPlanInput {
-  active: boolean;
-  title: string;
-  description: string | null;
-  target_date: string | null;
-  next_check_in_on: string | null;
-  milestones: Array<{ title: string; due_on: string; lesson_ids: number[] }>;
-  lesson_overrides: Array<{ lesson_id: number; required: boolean; reason: string }>;
-  lock_version?: number;
-}
-export interface LearningPlanManagement {
-  learning_plan: (LearningPlanInput & { id: number; updated_at: string; lock_version: number }) | null;
-  lessons: Array<{ id: number; title: string; module_name: string; standard_required: boolean }>;
-  revisions: Array<{ id: number; author: string; created_at: string; snapshot: LearningPlanInput }>;
-}
+export type LearningPlanInput = components['schemas']['LearningPlanSnapshot'] & { lock_version?: number };
+export type LearningPlanManagement = components['schemas']['LearningPlanManagement'];
+export type LearningPlanEditorLesson = components['schemas']['LearningPlanEditorLesson'];
 
 export type AgentPostingToken = components['schemas']['AgentPostingToken'];
 

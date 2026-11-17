@@ -4,6 +4,7 @@ import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import type { PersonalLearningPlan as Plan, PersonalPlanLesson } from '../../types/api'
 import { LEARNER_STATUS, lessonStatus } from '../../lib/learningStatus'
 import { useLearnerPaths } from '../../lib/useRecordPath'
+import { MarkdownText } from '../shared/MarkdownRenderer'
 
 // One status per lesson, from the server when the payload has it (AS-10).
 function planLessonLabel(lesson: PersonalPlanLesson) {
@@ -19,7 +20,8 @@ export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { 
     <div>
       <p className="app-eyebrow">Your personal plan</p>
       <h2 className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.title}</h2>
-      {plan.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{plan.description}</p>}
+      {/* Staff write the note in the shared Markdown editor (§9); read it through the one renderer. */}
+      {plan.description && <div className="mt-2 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={plan.description} /></div>}
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-ink-secondary">
         {plan.target_date && <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4" aria-hidden="true" />Target finish: {formatShortDate(plan.target_date)}</p>}
         {plan.next_check_in_on && <p>Next follow-up: {formatShortDate(plan.next_check_in_on)}</p>}

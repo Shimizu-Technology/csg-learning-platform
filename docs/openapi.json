@@ -169,34 +169,6 @@
         ]
       }
     },
-    "/api/v1/help_requests/{help_request_id}/replies": {
-      "post": {
-        "summary": "Reply to a help request (staff)",
-        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
-        "responses": {
-          "201": {
-            "description": "Reply saved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HelpRequestReplyResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "help_request_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ]
-      }
-    },
     "/api/v1/recordings": {
       "get": {
         "responses": {
@@ -3262,6 +3234,100 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/learning_plan": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "LearningPlanManagement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearningPlanManagement"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LearningPlanUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LearningPlanManagement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearningPlanManagement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/staff/private_meetings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "StaffPrivateMeetingsResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPrivateMeetingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/help_requests/{help_request_id}/replies": {
+      "post": {
+        "summary": "Reply to a help request (staff)",
+        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
+        "responses": {
+          "201": {
+            "description": "Reply saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpRequestReplyResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "help_request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       }
     }
   },
@@ -15106,6 +15172,602 @@
           "students",
           "module_grids",
           "lesson"
+        ],
+        "additionalProperties": false
+      },
+      "LearningPlanMilestone": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string"
+          },
+          "lesson_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "due_on",
+          "lesson_ids"
+        ],
+        "additionalProperties": false
+      },
+      "LearningPlanLessonOverride": {
+        "type": "object",
+        "properties": {
+          "lesson_id": {
+            "type": "integer"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "required",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "LearningPlanSnapshot": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_check_in_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearningPlanMilestone"
+            }
+          },
+          "lesson_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearningPlanLessonOverride"
+            }
+          }
+        },
+        "required": [
+          "active",
+          "title",
+          "description",
+          "target_date",
+          "next_check_in_on",
+          "milestones",
+          "lesson_overrides"
+        ],
+        "additionalProperties": false,
+        "description": "A saved learning plan as staff edit it. Students read the projection (PersonalLearningPlan), never this."
+      },
+      "LearningPlanRecord": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_check_in_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearningPlanMilestone"
+            }
+          },
+          "lesson_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearningPlanLessonOverride"
+            }
+          },
+          "id": {
+            "type": "integer"
+          },
+          "lock_version": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "active",
+          "title",
+          "description",
+          "target_date",
+          "next_check_in_on",
+          "milestones",
+          "lesson_overrides",
+          "id",
+          "lock_version",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "LearningPlanEditorLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "standard_required": {
+            "type": "boolean"
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Week of the module the lesson releases in; null for self-paced courses, which show numbered sections instead."
+          },
+          "status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "Every step handed in (done or waiting for review), from LearnerProgress."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "module_name",
+          "standard_required",
+          "week",
+          "status",
+          "completed"
+        ],
+        "additionalProperties": false,
+        "description": "A lesson assigned to the student, in course order, with where this student stands on it."
+      },
+      "LearningPlanRevision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "author": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/LearningPlanSnapshot"
+          }
+        },
+        "required": [
+          "id",
+          "author",
+          "created_at",
+          "snapshot"
+        ],
+        "additionalProperties": false
+      },
+      "LearningPlanManagement": {
+        "type": "object",
+        "properties": {
+          "learning_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LearningPlanRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearningPlanEditorLesson"
+            }
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearningPlanRevision"
+            }
+          }
+        },
+        "required": [
+          "learning_plan",
+          "lessons",
+          "revisions"
+        ],
+        "additionalProperties": false,
+        "description": "Staff-only learning plan editor payload for one enrollment."
+      },
+      "LearningPlanUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "learning_plan": {
+            "type": "object",
+            "properties": {
+              "active": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "target_date": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "next_check_in_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "milestones": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LearningPlanMilestone"
+                }
+              },
+              "lesson_overrides": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LearningPlanLessonOverride"
+                }
+              },
+              "lock_version": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "active"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "learning_plan"
+        ],
+        "additionalProperties": false
+      },
+      "PrivateMeetingSlot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "starts_at": {
+            "type": "string"
+          },
+          "ends_at": {
+            "type": "string"
+          },
+          "instructor_id": {
+            "type": "integer"
+          },
+          "instructor_name": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "starts_at",
+          "ends_at",
+          "instructor_id",
+          "instructor_name",
+          "available"
+        ],
+        "additionalProperties": false
+      },
+      "StaffPrivateMeetingBooking": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "instructor_name": {
+            "type": "string"
+          },
+          "starts_at": {
+            "type": "string"
+          },
+          "ends_at": {
+            "type": "string"
+          },
+          "zoom_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "week_number": {
+            "type": "integer"
+          },
+          "reschedule_count": {
+            "type": "integer"
+          },
+          "student_name": {
+            "type": "string"
+          },
+          "student_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "instructor_name",
+          "starts_at",
+          "ends_at",
+          "zoom_url",
+          "status",
+          "week_number",
+          "reschedule_count",
+          "student_name",
+          "student_id"
+        ],
+        "additionalProperties": false
+      },
+      "StaffPrivateMeetingCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructor_id": {
+            "type": "integer"
+          },
+          "instructor_name": {
+            "type": "string"
+          },
+          "weeks": {
+            "type": "integer"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "reschedule_cutoff_hours": {
+            "type": "integer"
+          },
+          "max_student_changes": {
+            "type": "integer"
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrivateMeetingSlot"
+            }
+          },
+          "bookings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPrivateMeetingBooking"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "start_date",
+          "end_date",
+          "instructor_id",
+          "instructor_name",
+          "weeks",
+          "timezone",
+          "reschedule_cutoff_hours",
+          "max_student_changes",
+          "slots",
+          "bookings"
+        ],
+        "additionalProperties": false,
+        "description": "A cohort's meetings that the viewer hosts (or any cohort, for admins)."
+      },
+      "StaffContact": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "full_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "full_name"
+        ],
+        "additionalProperties": false
+      },
+      "StaffMeetingOtherCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaffContact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who hosts this cohort's meetings; null until an admin turns meetings on for it."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "host"
+        ],
+        "additionalProperties": false,
+        "description": "A running cohort the instructor teaches, with meetings switched on, that someone else hosts or that has no host yet."
+      },
+      "StaffPrivateMeetingsResponse": {
+        "type": "object",
+        "properties": {
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPrivateMeetingCohort"
+            }
+          },
+          "other_cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffMeetingOtherCohort"
+            },
+            "description": "Empty for admins."
+          },
+          "admin_contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffContact"
+            },
+            "description": "Admins who can turn meetings on or change the host. Empty for admins."
+          }
+        },
+        "required": [
+          "cohorts",
+          "other_cohorts",
+          "admin_contacts"
         ],
         "additionalProperties": false
       },
