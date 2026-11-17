@@ -72,6 +72,15 @@ class ExpoPushNotificationService
     end
   end
 
+  def self.intervention_follow_ups(notifications)
+    new.deliver_notifications(notifications, drain_receipts: false) do |notification|
+      path = "/staff/intervention/#{notification.notifiable_id}"
+      { title: notification.title, body: notification.body,
+        data: { destination: RecordDestination.from_path(notification.path), path: path, destination_path: path },
+        sound: "default", channelId: "learning" }
+    end
+  end
+
   def self.intervention_changed(intervention, notifications)
     new.deliver_notifications(notifications) do |notification|
       {
@@ -128,7 +137,7 @@ class ExpoPushNotificationService
     "/staff/submission/#{submission.id}#{suffix}"
   end
 
-  def deliver_notifications(notifications)
+  def deliver_notifications(notifications, drain_receipts: true)
     notification_list = Array.wrap(notifications).sort_by(&:id)
     ActiveRecord::Associations::Preloader.new(records: notification_list, associations: { user: :mobile_push_tokens }).call
     entries = notification_list.flat_map do |notification|
@@ -142,13 +151,13 @@ class ExpoPushNotificationService
     end
 
     if entries.empty?
-      ExpoPushReceiptJob.drain_due_inline
+      ExpoPushReceiptJob.drain_due_inline if drain_receipts
       return false
     end
 
     batches = entries.each_slice(BATCH_SIZE).to_a
     not_started = deliver_batches(batches)
-    ExpoPushReceiptJob.drain_due_inline
+    ExpoPushReceiptJob.drain_due_inline if drain_receipts
     raise_not_started(batches, not_started) if not_started.any?
     true
   rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e

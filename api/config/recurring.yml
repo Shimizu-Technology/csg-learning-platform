@@ -1,5 +1,6 @@
-# Recurring jobs configuration. These schedules run when the deployment uses
-# Solid Queue; request/replay recovery remains available in inline mode.
+# Historical Solid Queue schedules, only for an intentionally restored worker.
+# Current inline production uses bin/rails scheduled:tick on Render cron.
+# Never enable both schedulers; see docs/DEPLOYMENT.md before worker recovery.
 production:
   message_delivery_recovery:
     class: MessageDeliveryRecoveryJob

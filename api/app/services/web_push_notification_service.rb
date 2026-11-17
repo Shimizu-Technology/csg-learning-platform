@@ -65,6 +65,14 @@ class WebPushNotificationService
     new.batched { |service| service.intervention_changed(intervention, notifications) }
   end
 
+  # The scheduled sweep loads every recipient's subscriptions once, then uses
+  # the existing bounded HTTP batch for all follow-ups.
+  def self.intervention_follow_ups(notifications)
+    return false unless configured?
+
+    new.batched { |service| service.intervention_follow_ups(notifications) }
+  end
+
   def self.admin_alert(record, notifications)
     return false unless configured?
 
@@ -132,6 +140,17 @@ class WebPushNotificationService
       }.to_json
 
       deliver_to_user(notification.user_id, payload)
+    end
+  end
+
+  def intervention_follow_ups(notifications)
+    subscriptions = PushSubscription.active.joins(:user)
+      .where(user_id: notifications.map(&:user_id), users: { web_push_notifications_enabled: true }).to_a.group_by(&:user_id)
+    each_notification(notifications) do |notification|
+      payload = { title: notification.title, body: notification.body, path: notification.path,
+        destination: RecordDestination.from_path(notification.path), destination_path: notification.path,
+        tag: "intervention-#{notification.notifiable_id}" }.to_json
+      subscriptions.fetch(notification.user_id, []).each { |subscription| deliver(subscription, payload) }
     end
   end
 

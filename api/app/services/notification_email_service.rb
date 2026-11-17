@@ -14,6 +14,23 @@ class NotificationEmailService
       lessons = readable_lessons(user, cohort, lessons)
       return nil if lessons.empty?
 
+      deliver_daily_unlock(user: user, cohort: cohort, lessons: lessons)
+    end
+
+    # Scheduler has already batch-loaded LearnerProgress. Recheck using those
+    # same loaded assignments, avoiding a fresh enrollment lookup per recipient.
+    def send_daily_unlock_for_enrollment(enrollment:, lessons:, on: LearningCalendar.today)
+      modules = enrollment.module_assignments.index_by(&:module_id)
+      assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
+      lessons = lessons.select { |lesson| LessonReadAccess.readable?(enrollment, lesson, modules[lesson.module_id], assignments[lesson.id], on: on) }
+      return nil if lessons.empty?
+
+      deliver_daily_unlock(user: enrollment.user, cohort: enrollment.cohort, lessons: lessons)
+    end
+
+    def deliver_daily_unlock(user:, cohort:, lessons:)
+      return false unless configured?
+
       lesson_list = lessons.map { |lesson| daily_unlock_lesson_item(lesson, cohort) }.join
 
       response = Resend::Emails.send(

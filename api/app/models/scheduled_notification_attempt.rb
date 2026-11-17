@@ -1,0 +1,2 @@
+class ScheduledNotificationAttempt < ApplicationRecord
+end

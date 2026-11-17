@@ -425,22 +425,19 @@ class SendsAfterCommitTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # follow_up_notified_at commits with the follow-up and stops later runs, so
-  # the push is requested inside the same transaction, as on main: Solid
-  # Queue (this recurring job's only runner) commits the push job with the
-  # mark, and inline it is attempted before the mark.
-  test "an intervention follow-up is pushed before it is marked notified" do
+  test "an intervention follow-up is pushed only after its durable mark commits" do
     intervention = Intervention.create!(enrollment: @enrollment, trigger_type: :inactivity, severity: :normal, status: :contacted,
       evidence_snapshot: {}, owner: @instructor, created_by: @instructor, next_follow_up_at: 1.hour.ago)
     notified_at_send = []
     record_notified = ->(*) { notified_at_send << Intervention.where(id: intervention.id).pick(:follow_up_notified_at) }
 
     with_inline_jobs do
-      record_external_calls(WebPushNotificationService, :intervention_changed, returns: record_notified) do |calls|
+      record_external_calls(WebPushNotificationService, :intervention_follow_ups, returns: record_notified) do |calls|
         InterventionFollowUpJob.perform_now
 
-        assert_equal [ @instructor.id ], pushed_user_ids(calls).uniq
-        assert_equal [ nil ], notified_at_send, "the push is attempted before the follow-up is marked notified"
+        assert_equal [ @instructor.id ], calls.flat_map { |call| call[:args].first.map(&:user_id) }.uniq
+        assert notified_at_send.all?(&:present?), "the mark is saved before attempting a push"
+        assert_sent_after_commit(calls, "follow-up push")
         assert intervention.reload.follow_up_notified_at
       end
     end
