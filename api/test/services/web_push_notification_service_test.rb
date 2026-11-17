@@ -3,6 +3,26 @@ require_relative "../support/query_counter"
 
 class WebPushNotificationServiceTest < ActiveSupport::TestCase
   include QueryCounter
+  test "path-based system notices and follow-ups share opt-outs and routing while preserving tags" do
+    record = Curriculum.create!(name: "Path notice contract")
+    users = [ true, false ].each_with_index.map do |enabled, index|
+      user = User.create!(clerk_id: "path_notice#{index}", email: "path-notice#{index}@example.test", web_push_notifications_enabled: enabled)
+      user.push_subscriptions.create!(endpoint: "https://push.example/path#{index}", p256dh: "public", auth: "auth")
+      user
+    end
+    notifications = users.map { |user| user.notifications.create!(notifiable: record, notification_type: :system, title: "Due", body: "Body", path: "/admin/interventions/7") }
+    sent = []
+    service = WebPushNotificationService.new
+    service.define_singleton_method(:deliver) { |subscription, payload| sent << [ subscription.user_id, JSON.parse(payload) ] }
+    service.system_notice(record, notifications)
+    service.intervention_follow_ups(notifications)
+    assert_equal [ users.first.id, users.first.id ], sent.map(&:first)
+    assert_equal sent.first.last.except("tag"), sent.last.last.except("tag")
+    assert_equal "curriculum-#{record.id}", sent.first.last["tag"]
+    assert_equal "intervention-#{record.id}", sent.last.last["tag"]
+    assert_equal "follow_up", sent.last.last.dig("destination", "kind")
+  end
+
   test "real system notice web fanout has flat queries for one versus twenty recipients" do
     record = Curriculum.create!(name: "Real web push queries")
     ids = 20.times.map do |index|

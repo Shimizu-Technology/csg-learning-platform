@@ -31,8 +31,9 @@ class SchoolTimeTest < ActiveSupport::TestCase
       abort "Recurring office hour should remain at 18:00 local time" unless hour.upcoming_occurrences(from: Time.utc(2026, 4, 6)).first[:starts_at].in_time_zone(hour.timezone).hour == 18
       abort "New meeting config should default to New York" unless PrivateMeetingConfig.new.timezone == "America/New_York"
       config = YAML.safe_load(ERB.new(Rails.root.join("config/recurring.yml").read).result)
-      cron = Fugit.parse(config.dig("production", "intervention_follow_ups", "schedule"))
-      abort "Follow-up cron should run at 08:00 New York time" unless cron.next_time(Time.utc(2026, 4, 6)).utc == Time.utc(2026, 4, 6, 12)
+      cron = Fugit.parse(config.dig("production", "scheduled_tick", "schedule"))
+      abort "Hourly registry should run in either school zone" unless cron.next_time(Time.utc(2026, 4, 6)).utc == Time.utc(2026, 4, 6, 1)
+      abort "Daily unlock hour should default to 7" unless ScheduledTick::TASKS.find { |task| task.name == "daily_unlocks" }.daily_hour == 7
     RUBY
     output, status = Open3.capture2e({ "SCHOOL_TIME_ZONE" => "America/New_York" }, "bundle", "exec", "ruby", "-e", script, chdir: Rails.root)
     assert status.success?, output
@@ -46,8 +47,8 @@ class SchoolTimeTest < ActiveSupport::TestCase
 
   test "recurring YAML evaluates the configured school zone" do
     config = YAML.safe_load(ERB.new(Rails.root.join("config/recurring.yml").read).result)
-    cron = Fugit.parse(config.dig("production", "intervention_follow_ups", "schedule"))
+    cron = Fugit.parse(config.dig("production", "scheduled_tick", "schedule"))
     assert cron
-    assert_equal Time.utc(2026, 4, 6, 22), cron.next_time(Time.utc(2026, 4, 6)).utc
+    assert_equal Time.utc(2026, 4, 6, 1), cron.next_time(Time.utc(2026, 4, 6)).utc
   end
 end

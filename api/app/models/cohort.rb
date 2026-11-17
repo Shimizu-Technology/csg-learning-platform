@@ -10,7 +10,7 @@ class Cohort < ApplicationRecord
   enum :status, { upcoming: 0, active: 1, completed: 2, archived: 3 }
 
   # Stored upcoming cohorts become active by the school calendar, without writes.
-  scope :active, -> { where(status: :active).or(where(status: :upcoming).where("start_date <= ?", LearningCalendar.today)) }
+  scope :active, ->(on: LearningCalendar.today) { where(status: :active).or(where(status: :upcoming).where("start_date <= ?", on)) }
 
   def active?
     super || (upcoming? && start_date.present? && start_date <= LearningCalendar.today)

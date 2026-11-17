@@ -65,6 +65,14 @@ class WebPushNotificationService
     new.batched { |service| service.intervention_changed(intervention, notifications) }
   end
 
+  # The scheduled sweep loads every recipient's subscriptions once, then uses
+  # the existing bounded HTTP batch for all follow-ups.
+  def self.intervention_follow_ups(notifications)
+    return false unless configured?
+
+    new.batched { |service| service.intervention_follow_ups(notifications) }
+  end
+
   def self.admin_alert(record, notifications)
     return false unless configured?
 
@@ -135,6 +143,10 @@ class WebPushNotificationService
     end
   end
 
+  def intervention_follow_ups(notifications)
+    deliver_path_notifications(notifications) { |notification| "intervention-#{notification.notifiable_id}" }
+  end
+
   def intervention_changed(intervention, notifications)
     each_notification(notifications) do |notification|
       destination_path = notification.destination_path
@@ -151,14 +163,7 @@ class WebPushNotificationService
   end
 
   def system_notice(record, notifications)
-    items = notifications.to_a
-    subscriptions = PushSubscription.active.joins(:user).where(user_id: items.map(&:user_id), users: { web_push_notifications_enabled: true }).to_a.group_by(&:user_id)
-    each_notification(items) do |notification|
-      payload = { title: notification.title, body: notification.body, path: notification.path,
-        destination: RecordDestination.from_path(notification.path), destination_path: notification.path,
-        tag: "#{record.class.name.underscore.dasherize}-#{record.id}" }.to_json
-      subscriptions.fetch(notification.user_id, []).each { |subscription| deliver(subscription, payload) }
-    end
+    deliver_path_notifications(notifications) { |_notification| "#{record.class.name.underscore.dasherize}-#{record.id}" }
   end
 
   def admin_alert(record, notifications)
@@ -187,6 +192,18 @@ class WebPushNotificationService
   end
 
   private
+
+  def deliver_path_notifications(notifications)
+    items = notifications.to_a
+    subscriptions = PushSubscription.active.joins(:user)
+      .where(user_id: items.map(&:user_id), users: { web_push_notifications_enabled: true }).to_a.group_by(&:user_id)
+    each_notification(items) do |notification|
+      payload = { title: notification.title, body: notification.body, path: notification.path,
+        destination: RecordDestination.from_path(notification.path), destination_path: notification.path,
+        tag: yield(notification) }.to_json
+      subscriptions.fetch(notification.user_id, []).each { |subscription| deliver(subscription, payload) }
+    end
+  end
 
   def deliver_to_notifications(notifications, payload)
     delivered_user_ids = {}
