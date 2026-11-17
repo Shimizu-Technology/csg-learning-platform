@@ -9,7 +9,7 @@ import { useBackLink } from '../../../lib/recordOrigin'
 import { useRecordDetail } from '../../../lib/recordDetail'
 import { cohortPath, cohortStudentPath, recordPath, type RecordRef } from '../../../lib/routes'
 import { formatShortDateTime } from '../../../lib/format'
-import { humanize } from '../../../lib/glossary'
+import { humanize, TERMS } from '../../../lib/glossary'
 import { ACTIVITY_EVENT_LABELS } from '../../../lib/activityLabels'
 import type { RelatedRow } from '../../../lib/recordRelated'
 import type { ActivityEventDetail } from '../../../types/api'
@@ -21,7 +21,9 @@ const ROLES: Record<string, string> = { student: 'Learner', instructor: 'Instruc
 /** One activity event (L-5.2): what happened, who did it, when, and the record it is about. */
 export function ActivityEventRecord() {
   const state = useRecordDetail('activity_event', useRouteId())
-  return <DetailGate state={state} label="activity" icon={Activity}>{(detail) => <EventPage key={detail.id} detail={detail} />}</DetailGate>
+  // School activity is admin-only; instructors fall back to Today.
+  const admin = Boolean(useAuthContext().user?.is_admin)
+  return <DetailGate state={state} label="activity" icon={Activity} fallback={admin ? { returnTo: '/admin/activity', returnLabel: 'Activity' } : { returnTo: '/admin', returnLabel: TERMS.today }}>{(detail) => <EventPage key={detail.id} detail={detail} />}</DetailGate>
 }
 
 /** The record an event is about, as a registry reference. */
@@ -74,7 +76,7 @@ function EventPage({ detail }: { detail: ActivityEventDetail }) {
           { label: actor.id === subject.id ? 'Who' : 'For', value: <>{person(subject)} <span className="text-ink-muted">· {ROLES[subject.role] || humanize(subject.role)}</span></> },
           actor.id !== subject.id && { label: 'Done by', value: <>{person(actor)} <span className="text-ink-muted">· {ROLES[actor.role] || humanize(actor.role)}</span></> },
           { label: 'Cohort', value: cohort ? <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain">{cohort.name}</RecordLink> : 'None' },
-          { label: 'Linked to', value: record && ref ? <RecordLink record={ref} variant="plain">{detail.record_label}</RecordLink> : detail.record_label ? `${detail.record_label} · No longer available` : 'Nothing else' },
+          { label: 'Linked to', value: record && ref ? <RecordLink record={ref} variant="plain">{detail.record_label}</RecordLink> : detail.record_type ? 'Not available' : 'Nothing else' },
           { label: 'Recorded by', value: detail.evidence === 'player_reported' ? "The video player. It doesn't show attention." : 'The app' },
         ]} />
       </Section>

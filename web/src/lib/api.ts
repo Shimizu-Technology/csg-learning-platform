@@ -734,8 +734,9 @@ export const api = {
   /** Where a curriculum, module or lesson is used (staff, L-3.2 / L-5). Not cached offline: per viewer. */
   getRecordUsage: (type: 'curriculum' | 'module' | 'lesson', id: number, signal?: AbortSignal) =>
     fetchApi<components['schemas']['RecordUsageResponse']>(`/api/v1/records/${type}/${id}/usage`, { cache: 'no-store', signal }),
-  getRecordDetail: (type: 'recording' | 'office_hour' | 'private_meeting' | 'learning_plan' | 'channel' | 'rubric' | 'activity_event', id: number, signal?: AbortSignal) =>
-    fetchApi<components['schemas']['RecordDetailResponse']>(`/api/v1/records/${type}/${id}/detail`, { cache: 'no-store', signal }),
+  /** `page` pages a long list on the record (a recording's watchers), 1-based. */
+  getRecordDetail: (type: 'recording' | 'office_hour' | 'private_meeting' | 'learning_plan' | 'channel' | 'rubric' | 'activity_event', id: number, options: { page?: number; signal?: AbortSignal } = {}) =>
+    fetchApi<components['schemas']['RecordDetailResponse']>(`/api/v1/records/${type}/${id}/detail${options.page && options.page > 1 ? `?page=${options.page}` : ''}`, { cache: 'no-store', signal: options.signal }),
   acceptCommunityPolicy: (version: string) =>
     fetchApi<components['schemas']['CommunityPolicyResponse']>('/api/v1/community_policy/accept', {
       method: 'POST', body: JSON.stringify({ version, accepted: true }),

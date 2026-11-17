@@ -6,8 +6,12 @@ class RecordDetail
   # A lesson block plays the recording when its video is the same upload
   # (`s3_video_key` = `s3_key`) or the same link (`video_url` = `source_url`),
   # on the cohort's curriculum. Watch rows are the cohort's learners with read
-  # access who have started it.
+  # access who have started it, most recently watched first, one page of
+  # WATCHERS_PER_PAGE at a time (`page`); the totals are counted separately,
+  # so the payload stays the same size however many learners watched.
   class RecordingPage < Base
+    WATCHERS_PER_PAGE = 25
+
     private
 
     def cohort_id_for(id)
@@ -18,8 +22,13 @@ class RecordDetail
       recording = ::Recording.includes(:uploaded_by, :cohort).find(@id)
       cohort = recording.cohort
       enrollments = Enrollment.with_read_access.joins(:user).merge(User.where(role: :student)).where(cohort_id: cohort.id)
-      progress = WatchProgress.where(recording_id: recording.id, user_id: enrollments.select(:user_id))
-        .includes(:user).order(last_watched_at: :desc, id: :desc).to_a
+      watched = WatchProgress.where(recording_id: recording.id, user_id: enrollments.select(:user_id))
+      # One past the page shows whether there is a next one.
+      progress = watched.includes(:user).order(Arel.sql("watch_progresses.last_watched_at DESC NULLS LAST"), id: :desc)
+        .offset((@page - 1) * WATCHERS_PER_PAGE).limit(WATCHERS_PER_PAGE + 1).to_a
+      more = progress.size > WATCHERS_PER_PAGE
+      progress = progress.first(WATCHERS_PER_PAGE)
+      totals = watched.pick(Arel.sql("COUNT(*)"), Arel.sql("COUNT(*) FILTER (WHERE watch_progresses.completed)"))
 
       {
         type: "recording",
@@ -39,6 +48,10 @@ class RecordDetail
         can_edit: @viewer.can_teach_cohort?(cohort),
         lessons: lessons(recording, cohort),
         students_count: enrollments.count,
+        watchers_count: totals[0],
+        completed_count: totals[1],
+        watchers_page: @page,
+        watchers_next_page: more ? @page + 1 : nil,
         watchers: progress.map do |row|
           { student: person(row.user), progress_percentage: row.progress_percentage, completed: row.completed,
             last_watched_at: iso(row.last_watched_at) }

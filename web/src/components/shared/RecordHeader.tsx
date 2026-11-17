@@ -103,6 +103,25 @@ export function shareablePath(location: { pathname: string; search: string; hash
 }
 
 /**
+ * A record page's "Back to …" link. Also shown alone above a record page's
+ * loading, error and No access states, so the way back survives a failed load.
+ */
+export function RecordBackLink({ back, onBack }: { back: BackLink; onBack?: (event: MouseEvent<HTMLAnchorElement>, to: string) => void }) {
+  return (
+    <PreviewLink
+      to={back.to}
+      state={RESTORE_LIST_STATE}
+      onClick={onBack ? (event) => onBack(event, back.to) : undefined}
+      className="-ml-2 inline-flex min-h-11 max-w-full items-center gap-1 rounded-xl px-2 font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
+      data-back-link=""
+    >
+      <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span className="truncate">{back.label}</span>
+    </PreviewLink>
+  )
+}
+
+/**
  * The header for a page about one thing (L-0.3, spec §4.2): a Back link that
  * names where you came from, the breadcrumb, the record's type and identity,
  * title and status, a context line, and its actions with Copy link.
@@ -133,16 +152,7 @@ export function RecordHeader({ back, onBack, headingRef, breadcrumb = [], type, 
   return (
     <header className={`min-w-0 ${className}`} data-record-header="">
       <div className="mb-2 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <PreviewLink
-          to={back.to}
-          state={RESTORE_LIST_STATE}
-          onClick={onBack ? (event) => onBack(event, back.to) : undefined}
-          className="-ml-2 inline-flex min-h-11 max-w-full items-center gap-1 rounded-xl px-2 font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
-          data-back-link=""
-        >
-          <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="truncate">{back.label}</span>
-        </PreviewLink>
+        <RecordBackLink back={back} onBack={onBack} />
         {breadcrumb.length > 0 && (
           <nav aria-label="Breadcrumb" className="hidden min-w-0 sm:block">
             <ol className="flex min-w-0 flex-wrap items-center gap-1 text-ink-muted">

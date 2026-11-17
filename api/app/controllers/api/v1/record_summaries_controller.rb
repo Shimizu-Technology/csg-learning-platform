@@ -50,8 +50,9 @@ module Api
       # recording, office-hour session, private-meeting booking, learning plan,
       # channel, rubric or activity event (RecordDetail). Staff only;
       # instructors open only records in cohorts they teach. Same 404 rule.
+      # `page` pages a long list (a recording's watchers), 1-based.
       def detail
-        detail = RecordDetail.for(viewer: current_user, type: params[:type], id: params[:id])
+        detail = RecordDetail.for(viewer: current_user, type: params[:type], id: params[:id], page: params[:page])
         response.headers["Cache-Control"] = "private, no-store"
         if detail
           render json: { detail: detail }

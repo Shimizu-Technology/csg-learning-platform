@@ -19,7 +19,7 @@ import { DetailGate, EmptyRow, Facts, RecordLayout, Section, useRouteId } from '
 /** An office-hour or live-class session's staff page (L-5.2). */
 export function OfficeHourRecord() {
   const state = useRecordDetail('office_hour', useRouteId())
-  return <DetailGate state={state} label="session" icon={CalendarClock}>{(detail) => <OfficeHourPage key={detail.id} detail={detail} />}</DetailGate>
+  return <DetailGate state={state} label="session" icon={CalendarClock} fallback={{ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' }}>{(detail) => <OfficeHourPage key={detail.id} detail={detail} />}</DetailGate>
 }
 
 function OfficeHourPage({ detail }: { detail: OfficeHourDetail }) {

@@ -17,7 +17,7 @@ import { DetailGate, EmptyRow, RecordLayout, Section, useRouteId } from './Recor
 /** A rubric's staff page (L-5.2): criteria and the exercises graded with it. */
 export function RubricRecord() {
   const state = useRecordDetail('rubric', useRouteId())
-  return <DetailGate state={state} label="rubric" icon={ListChecks}>{(detail) => <RubricPage key={detail.id} detail={detail} />}</DetailGate>
+  return <DetailGate state={state} label="rubric" icon={ListChecks} fallback={{ returnTo: '/admin/content', returnLabel: TERMS.content }}>{(detail) => <RubricPage key={detail.id} detail={detail} />}</DetailGate>
 }
 
 function RubricPage({ detail }: { detail: RubricDetail }) {

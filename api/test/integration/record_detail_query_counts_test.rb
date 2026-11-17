@@ -35,7 +35,15 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
       lesson.content_blocks.create!(block_type: :video, title: "Part #{i}", position: 0, video_url: VIDEO_URL,
         metadata: { "video_segments" => [ { "label" => "Step #{i}", "start_seconds" => 0, "end_seconds" => 60 } ] })
     end
-    assert_flat(@instructor, "recording", recording.id, grow) { |detail| [ detail["watchers"].size, detail["lessons"].size ] }
+    # Grows past one page of watchers: the page stays at 25 rows while the totals keep counting.
+    per_page = RecordDetail::RecordingPage::WATCHERS_PER_PAGE
+    sizes = [ 1, per_page + 5 ]
+    assert_flat(@instructor, "recording", recording.id, grow, sizes: sizes) do |detail, size|
+      assert_equal [ size, per_page ].min, detail["watchers"].size, "watchers are one bounded page"
+      size > per_page ? assert_equal(2, detail["watchers_next_page"]) : assert_nil(detail["watchers_next_page"])
+      assert_operator response.body.bytesize, :<, 15_000 + size * 120, "only the lessons list grows the payload"
+      [ detail["watchers_count"], detail["lessons"].size ]
+    end
   end
 
   test "office-hour page" do
@@ -131,9 +139,9 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
 
   # Measures the page with one row, grows to five and measures again. The block
   # returns the response's growing lists; each must equal the size measured.
-  def assert_flat(user, type, id, grow)
+  def assert_flat(user, type, id, grow, sizes: [ 1, 5 ])
     assert_equal 0, @size, "assert_flat grows the fixtures itself; call it once per test"
-    counts = [ 1, 5 ].map do |size|
+    counts = sizes.map do |size|
       while @size < size
         grow.call(@size)
         @size += 1
@@ -141,14 +149,14 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
       path = "/api/v1/records/#{type}/#{id.respond_to?(:call) ? id.call : id}/detail"
       request_as(user, path)
       assert_response :success
-      grown = yield(response.parsed_body["detail"])
+      grown = yield(response.parsed_body["detail"], size)
       assert_equal [ size ] * grown.size, grown, "#{type}: the response lists must hold #{size} rows each"
       count = count_queries { request_as(user, path) }
       assert_response :success
       count
     end
     puts "\n#{type}: #{counts.join(' -> ')}" if ENV["QUERY_COUNT_REPORT"]
-    assert_equal counts.first, counts.last, "#{type} detail sent #{counts.join(' then ')} queries for 1 then 5 rows"
+    assert_equal counts.first, counts.last, "#{type} detail sent #{counts.join(' then ')} queries for #{sizes.join(' then ')} rows"
   end
 
   def person(name, role)

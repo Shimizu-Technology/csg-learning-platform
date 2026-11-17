@@ -5,8 +5,11 @@ import { RefreshCw } from 'lucide-react'
 import { EmptyState } from '../../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../../components/shared/LoadingSpinner'
 import { NoAccess } from '../../../components/shared/NoAccess'
+import { RecordBackLink } from '../../../components/shared/RecordHeader'
 import { Button } from '../../../components/ui/Button'
 import type { DetailState } from '../../../lib/recordDetail'
+import type { ReturnContext } from '../../../lib/navigationContext'
+import { useBackLink } from '../../../lib/recordOrigin'
 
 /*
  * Shared pieces of the staff record pages added in L-5.2. Each page is a
@@ -21,13 +24,21 @@ export function useRouteId() {
   return Number.isInteger(value) && value > 0 ? value : null
 }
 
-/** Loading, missing and failed states (spec §5). A 404 is "No access", the same as a record that doesn't exist. */
-export function DetailGate<T>({ state, label, icon, children }: { state: DetailState<T>; label: string; icon: LucideIcon; children: (detail: T) => ReactNode }) {
+/**
+ * Loading, missing and failed states (spec §5). A 404 is "No access", the same
+ * as a record that doesn't exist. Each keeps the page's Back link, from where
+ * the page was opened (router state or `return_to`) or else `fallback`, the
+ * record type's parent list, so a failed load never strands the viewer.
+ */
+export function DetailGate<T>({ state, label, icon, fallback, children }: { state: DetailState<T>; label: string; icon: LucideIcon; fallback: ReturnContext; children: (detail: T) => ReactNode }) {
+  const back = useBackLink(fallback)
   if (state.detail) return <>{children(state.detail)}</>
-  if (state.missing) return <NoAccess />
-  if (state.loading) return <LoadingSpinner message={`Loading ${label}…`} />
+  const backRow = <div className="flex min-h-11 items-center text-sm" data-record-gate-back=""><RecordBackLink back={back} /></div>
+  if (state.missing) return <><div className="mx-auto w-full max-w-3xl">{backRow}</div><NoAccess /></>
+  if (state.loading) return <><div className="app-page-wide pb-0 lg:pb-0">{backRow}</div><LoadingSpinner message={`Loading ${label}…`} /></>
   return (
     <div className="app-page">
+      {backRow}
       <EmptyState icon={icon} title={`Couldn't load this ${label}`} description={state.error || 'Something went wrong. Try again.'}
         action={<Button onClick={() => void state.reload()}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
     </div>

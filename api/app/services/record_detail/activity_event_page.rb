@@ -5,10 +5,12 @@ class RecordDetail
   # see every event; an instructor sees events in cohorts they teach and their
   # own history (a grant of editing access names them as the subject).
   #
-  # The subject record is linked only when it belongs to the event's cohort
+  # The subject record is shown only when it belongs to the event's cohort
   # and learner, as the feed's destinations require: a submission by that
   # learner in that cohort, a lesson block on the cohort's curriculum, or a
-  # recording of that cohort.
+  # recording of that cohort, in a cohort the viewer can see. Its label (an
+  # exercise, lesson or recording title) passes the same check as its link,
+  # so an event pointing at another cohort's record never names it.
   class ActivityEventPage < Base
     CATEGORIES = Api::V1::ActivityEventsController::CATEGORIES
 
@@ -24,6 +26,7 @@ class RecordDetail
     def build
       event = ActivityEvent.includes(:actor, :subject_user, :cohort).find(@id)
       record = load_record(event)
+      link = record_link(event, record)
 
       {
         type: "activity_event",
@@ -36,8 +39,8 @@ class RecordDetail
         subject: person(event.subject_user).merge(role: event.subject_user.role),
         cohort: event.cohort && (scope.visible?(event.cohort_id) ? cohort_json(event.cohort) : nil),
         record_type: event.record_type,
-        record_label: record_label(record),
-        record: record_link(event, record)
+        record_label: link ? record_label(record) : nil,
+        record: link
       }
     end
 

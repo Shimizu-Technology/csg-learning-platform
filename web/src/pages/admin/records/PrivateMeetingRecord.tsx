@@ -20,7 +20,7 @@ const ACTIONS: Record<string, string> = { booked: 'Booked', rescheduled: 'Moved'
 /** A private-meeting booking's staff page (L-5.2). The learner keeps their booking on My meetings. */
 export function PrivateMeetingRecord() {
   const state = useRecordDetail('private_meeting', useRouteId())
-  return <DetailGate state={state} label="meeting" icon={CalendarCheck}>{(detail) => <MeetingPage key={detail.id} detail={detail} />}</DetailGate>
+  return <DetailGate state={state} label="meeting" icon={CalendarCheck} fallback={{ returnTo: '/admin/meetings', returnLabel: TERMS.meetings }}>{(detail) => <MeetingPage key={detail.id} detail={detail} />}</DetailGate>
 }
 
 /** Meetings, focused on this booking's cohort, week and card. */

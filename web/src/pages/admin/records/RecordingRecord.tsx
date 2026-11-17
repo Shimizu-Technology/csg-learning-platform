@@ -1,12 +1,14 @@
+import { useCallback, useState } from 'react'
 import { BookOpen, CheckCircle2, ExternalLink, Eye, Layers3, PencilLine, PlayCircle, Users } from 'lucide-react'
 import { ReturnOrigin } from '../../../contexts/PreviewNavigationContext'
 import { RecordHeader } from '../../../components/shared/RecordHeader'
 import { RelatedPanel, scrollToSection } from '../../../components/shared/RelatedPanel'
 import { RecordLink } from '../../../components/shared/RecordLink'
 import { Badge } from '../../../components/ui/Badge'
-import { AnchorButton, LinkButton } from '../../../components/ui/Button'
+import { AnchorButton, Button, LinkButton } from '../../../components/ui/Button'
 import { useBackLink } from '../../../lib/recordOrigin'
 import { useRecordDetail } from '../../../lib/recordDetail'
+import { api } from '../../../lib/api'
 import { cohortPath, cohortWatchProgressPath } from '../../../lib/routes'
 import { plural } from '../../../lib/recordUsage'
 import { formatShortDate, formatShortDateTime } from '../../../lib/format'
@@ -21,19 +23,50 @@ const SOURCES: Record<string, string> = { uploaded: 'Uploaded video', youtube: '
 /** A class recording's staff page (L-5.2). Learners keep Recordings. */
 export function RecordingRecord() {
   const state = useRecordDetail('recording', useRouteId())
-  return <DetailGate state={state} label="recording" icon={PlayCircle}>{(detail) => <RecordingPage key={detail.id} detail={detail} />}</DetailGate>
+  return <DetailGate state={state} label="recording" icon={PlayCircle} fallback={{ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' }}>{(detail) => <RecordingPage key={detail.id} detail={detail} />}</DetailGate>
+}
+
+type Watcher = RecordingDetail['watchers'][number]
+
+/**
+ * The first page of watchers comes with the record; "Show more" fetches the
+ * next page and appends it. Totals come from the server, never from the rows.
+ */
+function useMoreWatchers(detail: RecordingDetail) {
+  const [rows, setRows] = useState<Watcher[]>(detail.watchers)
+  const [nextPage, setNextPage] = useState<number | null>(detail.watchers_next_page)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const loadMore = useCallback(async () => {
+    if (!nextPage || loading) return
+    setLoading(true)
+    setError(null)
+    const result = await api.getRecordDetail('recording', detail.id, { page: nextPage })
+    const page = result.data?.detail
+    if (page && page.type === 'recording' && page.id === detail.id) {
+      setRows((current) => {
+        const seen = new Set(current.map((row) => row.student.id))
+        return [...current, ...page.watchers.filter((row) => !seen.has(row.student.id))]
+      })
+      setNextPage(page.watchers_next_page)
+    } else {
+      setError(result.error || "Couldn't load more. Try again.")
+    }
+    setLoading(false)
+  }, [detail.id, nextPage, loading])
+  return { rows, nextPage, loading, error, loadMore }
 }
 
 function RecordingPage({ detail }: { detail: RecordingDetail }) {
   const { cohort } = detail
+  const watchers = useMoreWatchers(detail)
   const back = useBackLink({ returnTo: cohortPath(cohort.id, 'recordings'), returnLabel: `${cohort.name} · ${TERMS.recordings}` })
   const editPath = `${cohortPath(cohort.id, 'recordings')}&edit_recording=${detail.id}`
-  const completed = detail.watchers.filter((row) => row.completed).length
   const rows: RelatedRow[] = [
     { key: 'cohort', icon: Layers3, label: TERMS.cohort, value: cohort.name, to: cohortPath(cohort.id) },
     { key: 'lessons', icon: BookOpen, label: 'Used in lessons', count: detail.lessons.length, onSelect: () => scrollToSection('lessons') },
-    { key: 'watchers', icon: Users, label: 'Started watching', count: detail.watchers.length, onSelect: () => scrollToSection('watchers') },
-    { key: 'completed', icon: CheckCircle2, label: 'Finished', count: completed, onSelect: () => scrollToSection('watchers') },
+    { key: 'watchers', icon: Users, label: 'Started watching', count: detail.watchers_count, onSelect: () => scrollToSection('watchers') },
+    { key: 'completed', icon: CheckCircle2, label: 'Finished', count: detail.completed_count, onSelect: () => scrollToSection('watchers') },
     { key: 'progress', icon: Eye, label: 'Watch progress for the cohort', to: `${cohortWatchProgressPath(cohort.id)}?recording_id=${detail.id}` },
   ]
 
@@ -93,10 +126,10 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
         </ul> : <EmptyRow>No lesson plays this recording yet. A lesson's Video block uses it when it has the same video or link.</EmptyRow>}
       </Section>
 
-      <Section id="watchers" title="Who watched" count={`${detail.watchers.length} of ${plural(detail.students_count, 'learner')}`}>
+      <Section id="watchers" title="Who watched" count={`${detail.watchers_count} of ${plural(detail.students_count, 'learner')}`}>
         <p className="border-b border-line px-4 py-2 text-xs text-ink-muted sm:px-5">Only staff see this. Watch time comes from the player and doesn't show attention.</p>
-        {detail.watchers.length ? <ul className="divide-y divide-line">
-          {detail.watchers.map((row) => (
+        {watchers.rows.length ? <ul className="divide-y divide-line">
+          {watchers.rows.map((row) => (
             <li key={row.student.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 sm:px-5">
               <RecordLink record={{ type: 'student', id: row.student.id, cohortId: cohort.id, tab: 'learning' }} variant="plain" touchTarget className="min-w-0 flex-1 font-semibold">{row.student.name}</RecordLink>
               <span className="text-xs tabular-nums text-ink-muted">{row.last_watched_at ? `Last watched ${formatShortDateTime(row.last_watched_at)}` : ''}</span>
@@ -104,6 +137,12 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
             </li>
           ))}
         </ul> : <EmptyRow>No one in <RecordLink record={{ type: 'cohort', id: cohort.id, tab: 'students' }} variant="inline">{cohort.name}</RecordLink> has started it yet.</EmptyRow>}
+        {(detail.watchers_next_page || watchers.error) && watchers.rows.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
+            <p role="status" aria-live="polite" className="text-xs tabular-nums text-ink-muted">{watchers.error || `Showing ${watchers.rows.length} of ${detail.watchers_count}`}</p>
+            {watchers.nextPage && <Button variant="secondary" size="sm" onClick={() => void watchers.loadMore()} disabled={watchers.loading} data-show-more-watchers="">{watchers.loading ? 'Loading…' : watchers.error ? 'Try again' : 'Show more'}</Button>}
+          </div>
+        )}
       </Section>
     </RecordLayout>
   </div></ReturnOrigin>

@@ -18,7 +18,7 @@ import { DetailGate, EmptyRow, Facts, RecordLayout, Section, useRouteId } from '
 /** A channel as a cohort record (L-5.2): who's in it, recent activity, and the way into Messages. */
 export function ChannelRecord() {
   const state = useRecordDetail('channel', useRouteId())
-  return <DetailGate state={state} label="conversation" icon={Hash}>{(detail) => <ChannelPage key={detail.id} detail={detail} />}</DetailGate>
+  return <DetailGate state={state} label="conversation" icon={Hash} fallback={{ returnTo: '/messages', returnLabel: TERMS.messages }}>{(detail) => <ChannelPage key={detail.id} detail={detail} />}</DetailGate>
 }
 
 function ChannelPage({ detail }: { detail: ChannelDetail }) {

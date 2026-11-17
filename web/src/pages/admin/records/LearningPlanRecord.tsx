@@ -21,7 +21,7 @@ const TONES = { success: 'success', pending: 'pending', warning: 'warning', neut
 /** A learner's plan for one enrollment (L-5.2). Editing stays in the plan editor on the student page (#285). */
 export function LearningPlanRecord() {
   const state = useRecordDetail('learning_plan', useRouteId())
-  return <DetailGate state={state} label="learning plan" icon={Route}>{(detail) => <PlanPage key={detail.id} detail={detail} />}</DetailGate>
+  return <DetailGate state={state} label="learning plan" icon={Route} fallback={{ returnTo: '/admin/students', returnLabel: 'Students' }}>{(detail) => <PlanPage key={detail.id} detail={detail} />}</DetailGate>
 }
 
 function PlanPage({ detail }: { detail: LearningPlanDetail }) {

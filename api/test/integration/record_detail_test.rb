@@ -64,6 +64,35 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     refute_includes response.body, @coral_student.full_name
   end
 
+  # Review round 1 (P2): watchers come one bounded page at a time; totals are counted separately.
+  test "a recording's watchers are paged, with totals for the whole cohort" do
+    60.times do |i|
+      learner = User.create!(clerk_id: "detail_watch_#{i}", email: "detail-watch-#{i}@example.invalid", first_name: "Watcher", last_name: format("%02d", i), role: :student)
+      enroll(learner, @cohort)
+      WatchProgress.create!(user: learner, recording: @recording, total_watched_seconds: i.even? ? 3600 : 1800, duration_seconds: 3600, completed: i.even?, last_watched_at: (i + 2).hours.ago)
+    end
+
+    first = fetch(@instructor, "recording", @recording.id)
+    assert_response :success
+    assert_equal [ 25, 61, 30, 62, 1, 2 ],
+      first.values_at("watchers", "watchers_count", "completed_count", "students_count", "watchers_page", "watchers_next_page").then { |w, *rest| [ w.size, *rest ] }
+    assert_equal @student.id, first["watchers"].first.dig("student", "id"), "Most recently watched first"
+    assert_operator response.body.bytesize, :<, 12_000, "Page 1 stays small however many learners watched"
+    refute_includes response.body, @coral_student.full_name
+
+    seen = first["watchers"].map { |row| row.dig("student", "id") }
+    [ [ 2, 25, 3 ], [ 3, 11, nil ], [ 4, 0, nil ] ].each do |page, size, next_page|
+      detail = fetch(@instructor, "recording", @recording.id, page: page)
+      assert_equal [ size, next_page, 61 ], [ detail["watchers"].size, detail["watchers_next_page"], detail["watchers_count"] ], "page #{page}"
+      seen += detail["watchers"].map { |row| row.dig("student", "id") }
+    end
+    assert_equal 61, seen.uniq.size, "Every watcher appears once across the pages"
+
+    [ "abc", "0", "-3" ].each do |page|
+      assert_equal 1, fetch(@instructor, "recording", @recording.id, page: page)["watchers_page"], "page=#{page} reads the first page"
+    end
+  end
+
   test "a lesson block on another curriculum never links to the recording" do
     other = Curriculum.create!(name: "Elsewhere")
     elsewhere = Lesson.create!(curriculum_module: CurriculumModule.create!(curriculum: other, name: "Other", position: 0, day_offset: 0), title: "Hidden lesson", position: 0, release_day: 0)
@@ -194,6 +223,41 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     assert_equal "Cohort Coral", fetch(@admin, "activity_event", coral_event.id).dig("cohort", "name")
   end
 
+  # Review round 1 (P2): the subject's label passes the same check as its link.
+  # No user flow builds these mismatches; they are made directly on the model.
+  test "an event pointing at another cohort's record shows neither its link nor its label" do
+    coral_recording = @other_cohort.recordings.create!(title: "Coral secret replay", source_kind: "youtube", source_url: "https://www.youtube.com/watch?v=coral",
+      status: :published, position: 0)
+    coral_submission = Submission.create!(user: @coral_student, enrollment: @coral_enrollment, content_block: @exercise, submission_type: :text_submission, text: "B")
+    elsewhere = Curriculum.create!(name: "Elsewhere")
+    elsewhere_block = Lesson.create!(curriculum_module: CurriculumModule.create!(curriculum: elsewhere, name: "Other", position: 0, day_offset: 0), title: "Hidden lesson", position: 0, release_day: 0)
+      .content_blocks.create!(block_type: :exercise, title: "Elsewhere secret exercise", position: 0, submission_type: :text_submission)
+    mismatches = {
+      "Coral secret replay" => ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: @cohort, record: coral_recording),
+      # Ticket prices is the coral learner's submission, recorded as this learner's event in Teal.
+      "Ticket prices" => ActivityEvent.record!(event_type: "submission_created", actor: @student, cohort: @cohort, record: coral_submission),
+      "Elsewhere secret exercise" => ActivityEvent.record!(event_type: "checkpoint_completed", actor: @student, cohort: @cohort, record: elsewhere_block)
+    }
+
+    mismatches.each do |title, event|
+      [ @admin, @instructor ].each do |viewer|
+        detail = fetch(viewer, "activity_event", event.id)
+        assert_response :success
+        assert_nil detail["record"], "#{title}: no link for #{viewer.role}"
+        assert_nil detail["record_label"], "#{title}: no label for #{viewer.role}"
+        refute_includes response.body, title, "#{title} never reaches the page for #{viewer.role}"
+      end
+    end
+  end
+
+  test "an event's label shows when its record passes the check" do
+    recording_event = ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: @cohort, record: @recording)
+    block_event = ActivityEvent.record!(event_type: "checkpoint_completed", actor: @student, cohort: @cohort, record: @video)
+
+    assert_equal [ "Week 2 class", "recording" ], fetch(@instructor, "activity_event", recording_event.id).then { |d| [ d["record_label"], d.dig("record", "kind") ] }
+    assert_equal [ "Class replay", "lesson" ], fetch(@instructor, "activity_event", block_event.id).then { |d| [ d["record_label"], d.dig("record", "kind") ] }
+  end
+
   test "an instructor opens their own history in a cohort they don't teach, without that cohort's name" do
     event = ActivityEvent.record!(event_type: "lesson_editing_granted", actor: @admin, subject_user: @instructor, cohort: @other_cohort)
 
@@ -257,11 +321,11 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
       starts_at: starts, ends_at: starts + 30.minutes, week_number: 1)
   end
 
-  def fetch(user, type, id)
+  def fetch(user, type, id, **params)
     payload = { "sub" => user.clerk_id, "email" => user.email, "first_name" => user.first_name, "last_name" => user.last_name }
     original = ClerkAuth.method(:verify)
     ClerkAuth.define_singleton_method(:verify) { |_token| payload }
-    get "/api/v1/records/#{type}/#{id}/detail", headers: { "Authorization" => "Bearer test_token" }
+    get "/api/v1/records/#{type}/#{id}/detail", params: params, headers: { "Authorization" => "Bearer test_token" }
     response.parsed_body["detail"]
   ensure
     ClerkAuth.define_singleton_method(:verify, original)

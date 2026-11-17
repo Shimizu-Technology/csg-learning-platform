@@ -34,7 +34,7 @@ const recording: RecordingDetail = {
   uploaded_by: person(2, 'Ivy Instructor'), cohort: teal, week: 2, can_edit: true,
   lessons: [{ lesson: { id: 40, title: 'Make decisions', archived: false }, module: person(7, 'JavaScript basics'), week: 2, block: { id: 81, title: 'Class replay' },
     sections: [{ label: 'If statements', start_seconds: 60, end_seconds: 600, required: true }, { label: 'Ternaries', start_seconds: 700, end_seconds: 900, required: false }] }],
-  students_count: 2,
+  students_count: 2, watchers_count: 1, completed_count: 0, watchers_page: 1, watchers_next_page: null,
   watchers: [{ student: person(9, 'Alex Rivera'), progress_percentage: 50, completed: false, last_watched_at: '2026-11-16T09:00:00Z' }],
 }
 const officeHour: OfficeHourDetail = {
@@ -207,6 +207,76 @@ it.each(['/admin/recordings/21', '/admin/office-hours/15', '/admin/meetings/14',
     expect(container.textContent).toContain('No access')
     expect(container.querySelector('h1')?.textContent).not.toBe('Week 2 class')
   })
+
+// Review round 1 (P2): watchers come a page at a time; totals come from the server.
+it('a recording shows the total who watched and loads more watchers a page at a time', async () => {
+  const watcher = (id: number) => ({ student: person(id, `Learner ${id}`), progress_percentage: 100, completed: true, last_watched_at: '2026-11-16T09:00:00Z' })
+  mocks.getRecordDetail.mockImplementation(async (_type: string, _id: number, options?: { page?: number }) => ({
+    data: { detail: options?.page === 2
+      ? { ...recording, watchers: [watcher(30), watcher(31)], watchers_page: 2, watchers_next_page: null, watchers_count: 27, completed_count: 20 }
+      : { ...recording, watchers: Array.from({ length: 25 }, (_, index) => watcher(index + 1)), watchers_next_page: 2, watchers_count: 27, completed_count: 20 } },
+    error: null, status: 200,
+  }))
+  await render('/admin/recordings/21')
+  expect(container.querySelector('#watchers')?.textContent).toContain('27 of 2 learners')
+  expect(row('watchers')?.textContent).toContain('27')
+  expect(row('completed')?.textContent).toContain('20')
+  expect(container.querySelectorAll('#watchers li')).toHaveLength(25)
+  expect(container.textContent).toContain('Showing 25 of 27')
+  const more = container.querySelector<HTMLButtonElement>('[data-show-more-watchers]')!
+  await act(async () => { more.click() })
+  await act(async () => { await Promise.resolve() })
+  expect(mocks.getRecordDetail).toHaveBeenLastCalledWith('recording', 21, { page: 2 })
+  expect(container.querySelectorAll('#watchers li')).toHaveLength(27)
+  expect(container.textContent).toContain('Showing 27 of 27')
+  expect(container.querySelector('[data-show-more-watchers]')).toBeNull()
+})
+
+// Review round 1 (P2): an event whose record the viewer can't open names nothing.
+it('an activity event whose record is withheld says Not available', async () => {
+  mocks.getRecordDetail.mockResolvedValue({ data: { detail: { ...event, record: null, record_label: null, record_type: 'Recording' } }, error: null, status: 200 })
+  await render('/admin/activity/66')
+  expect(container.querySelector('h1')?.textContent).toBe('Submitted work')
+  expect(container.textContent).toContain('Not available')
+  expect(row('record')).toBeNull()
+})
+
+// Review round 1 (P3): a failed or refused load keeps the way back.
+it('a failed load keeps Back from return_to and retries', async () => {
+  mocks.getRecordDetail.mockResolvedValueOnce({ data: null, error: 'Server error', status: 500 })
+  await render('/admin/recordings/21?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
+  expect(backLink().textContent).toBe('Back to Grading · Redo')
+  expect(backLink().getAttribute('href')).toBe('/admin/grading?filter=redo')
+  expect(container.textContent).toContain("Couldn't load this recording")
+  const retry = [...container.querySelectorAll('button')].find((button) => button.textContent?.includes('Try again'))!
+  await act(async () => { retry.click() })
+  await act(async () => { await Promise.resolve() })
+  expect(container.querySelector('h1')?.textContent).toBe('Week 2 class')
+})
+
+it.each([
+  ['/admin/recordings/21', 'Back to Cohorts', '/admin/cohorts'],
+  ['/admin/office-hours/15', 'Back to Cohorts', '/admin/cohorts'],
+  ['/admin/meetings/14', 'Back to Meetings', '/admin/meetings'],
+  ['/admin/learning-plans/33', 'Back to Students', '/admin/students'],
+  ['/admin/channels/30', 'Back to Messages', '/messages'],
+  ['/admin/rubrics/55', 'Back to Content', '/admin/content'],
+  ['/admin/activity/66', 'Back to Today', '/admin'],
+])('%s keeps a Back link on No access, to where it came from or its list', async (path, label, href) => {
+  mocks.getRecordDetail.mockResolvedValue({ data: null, error: 'Not found', status: 404 })
+  await render(path)
+  expect(container.textContent).toContain('No access')
+  expect(backLink().textContent).toBe(label)
+  expect(backLink().getAttribute('href')).toBe(href)
+})
+
+it('No access keeps the Back link the page was opened with', async () => {
+  mocks.getRecordDetail.mockResolvedValue({ data: null, error: 'Not found', status: 404 })
+  await render({ pathname: '/admin/channels/30', state: { returnTo: '/admin/support', returnLabel: 'Support' } })
+  expect(container.textContent).toContain('No access')
+  expect(backLink().textContent).toBe('Back to Support')
+  expect(backLink().getAttribute('href')).toBe('/admin/support')
+})
 
 it('never shows another record type the server sent back', async () => {
   mocks.getRecordDetail.mockResolvedValue({ data: { detail: rubric }, error: null, status: 200 })
