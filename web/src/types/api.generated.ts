@@ -4736,6 +4736,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/records/{type}/{id}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: "recording" | "office_hour" | "private_meeting" | "learning_plan" | "channel" | "rubric" | "activity_event";
+                id: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * A staff record page for a recording, office-hour session, private-meeting booking, learning plan, channel, rubric or activity event
+         * @description Staff only. Instructors open records in cohorts they teach, and a booking only when they host it; a rubric names only their cohorts and counts the rest. Students, other cohorts' staff and unknown records get 404. Cache-Control: private, no-store.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Continue a recording's watchers after this cursor (the previous response's watchers_next_after). Other values start from the beginning. */
+                    watchers_after?: number;
+                };
+                header?: never;
+                path: {
+                    type: "recording" | "office_hour" | "private_meeting" | "learning_plan" | "channel" | "rubric" | "activity_event";
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecordDetailResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/course_outline": {
         parameters: {
             query?: never;
@@ -8284,6 +8332,305 @@ export interface components {
         };
         RecordUsageResponse: {
             usage: components["schemas"]["CurriculumUsage"] | components["schemas"]["ModuleUsage"] | components["schemas"]["LessonUsage"];
+        };
+        /** @description A person by id and display name. */
+        RecordDetailPerson: {
+            id: number;
+            name: string;
+        };
+        /** @description A cohort the viewer can see. */
+        RecordDetailCohort: {
+            id: number;
+            name: string;
+            course_delivery: string;
+            status: string;
+        };
+        RecordingDetail: {
+            /** @constant */
+            type: "recording";
+            id: number;
+            title: string;
+            description: string | null;
+            /** @enum {string} */
+            status: "draft" | "published";
+            source: string;
+            /** @description The link for external recordings; null for uploads (stream through the recordings API). */
+            url: string | null;
+            duration_seconds: number | null;
+            /** Format: date */
+            recorded_date: string | null;
+            /** Format: date-time */
+            published_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            uploaded_by: components["schemas"]["RecordDetailPerson"] | null;
+            cohort: components["schemas"]["RecordDetailCohort"];
+            /** @description Program week of the recorded date; null for self-paced or undated. */
+            week: number | null;
+            can_edit: boolean;
+            lessons: {
+                lesson: {
+                    id: number;
+                    title: string;
+                    archived: boolean;
+                };
+                module: {
+                    id: number;
+                    name: string;
+                };
+                week: number | null;
+                block: {
+                    id: number;
+                    title: string | null;
+                };
+                sections: {
+                    label: string;
+                    start_seconds: number;
+                    end_seconds: number;
+                    required: boolean;
+                }[];
+            }[];
+            /** @description Learners in the cohort with read access. */
+            students_count: number;
+            /** @description Learners in the cohort who have started it, across every page. */
+            watchers_count: number;
+            /** @description Learners in the cohort who finished it. */
+            completed_count: number;
+            /** @description Pass as watchers_after for the next watchers, or null after the last. */
+            watchers_next_after: number | null;
+            /** @description Up to 25 watchers, in the order they started watching (a fixed order, so paging never skips or repeats anyone). */
+            watchers: {
+                student: components["schemas"]["RecordDetailPerson"];
+                progress_percentage: number;
+                completed: boolean;
+                /** Format: date-time */
+                last_watched_at: string | null;
+            }[];
+        };
+        OfficeHourDetail: {
+            /** @constant */
+            type: "office_hour";
+            id: number;
+            title: string;
+            description: string | null;
+            /** @enum {string} */
+            event_kind: "office_hours" | "live_class";
+            /** @enum {string} */
+            recurrence: "once" | "weekly";
+            active: boolean;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            timezone: string;
+            meeting_url: string;
+            upcoming: {
+                /** Format: date-time */
+                starts_at: string;
+                /** Format: date-time */
+                ends_at: string;
+            }[];
+            cohort: components["schemas"]["RecordDetailCohort"];
+            scheduled_by: components["schemas"]["RecordDetailPerson"] | null;
+            teaching_team: components["schemas"]["RecordDetailPerson"][];
+            /** @description Active learners in the cohort. Attendance isn't recorded. */
+            invited_count: number;
+            can_edit: boolean;
+        };
+        PrivateMeetingDetail: {
+            /** @constant */
+            type: "private_meeting";
+            id: number;
+            /** @enum {string} */
+            status: "confirmed" | "canceled";
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            week_number: number;
+            timezone: string;
+            zoom_url: string | null;
+            reschedule_count: number;
+            cohort: components["schemas"]["RecordDetailCohort"];
+            student: components["schemas"]["RecordDetailPerson"];
+            host: components["schemas"]["RecordDetailPerson"];
+            /** @description The viewer's own conversation with the student in this cohort, if one exists. */
+            direct_conversation_id: number | null;
+            history: {
+                action: string;
+                actor: components["schemas"]["RecordDetailPerson"];
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                previous_starts_at: string | null;
+            }[];
+        };
+        LearningPlanDetail: {
+            /** @constant */
+            type: "learning_plan";
+            id: number;
+            title: string;
+            description: string | null;
+            active: boolean;
+            /** Format: date */
+            target_date: string | null;
+            /** Format: date */
+            next_check_in_on: string | null;
+            /** Format: date-time */
+            updated_at: string;
+            cohort: components["schemas"]["RecordDetailCohort"];
+            student: components["schemas"]["RecordDetailPerson"];
+            enrollment_status: string;
+            lesson_exceptions_count: number;
+            milestones: {
+                title: string;
+                /** Format: date */
+                due_on: string | null;
+                completed_count: number;
+                lessons: {
+                    id: number;
+                    title: string;
+                    module_id: number | null;
+                    module_name: string | null;
+                    status: string | null;
+                    completed: boolean;
+                    assigned: boolean;
+                }[];
+            }[];
+            revisions_count: number;
+            revisions: {
+                id: number;
+                author: components["schemas"]["RecordDetailPerson"];
+                /** Format: date-time */
+                created_at: string;
+                /** @description Parts that changed from the revision before, or ["created"] for the first. */
+                changes: string[];
+            }[];
+        };
+        ChannelDetail: {
+            /** @constant */
+            type: "channel";
+            id: number;
+            name: string;
+            description: string | null;
+            /** @enum {string} */
+            visibility: "cohort" | "staff_only";
+            /** @enum {string} */
+            status: "active" | "archived";
+            cohort: components["schemas"]["RecordDetailCohort"] | null;
+            workspace: {
+                id: number;
+                name: string;
+                workspace_type: string;
+            };
+            can_manage: boolean;
+            members: {
+                count: number;
+                staff_count: number;
+                /** @description The first 50 members for admins; null for instructors, who get the counts. */
+                list: {
+                    id: number;
+                    name: string;
+                    role: string;
+                }[] | null;
+            };
+            activity: {
+                messages_count: number;
+                last_7_days: number;
+                /** Format: date-time */
+                last_message_at: string | null;
+                recent: {
+                    id: number;
+                    author: components["schemas"]["RecordDetailPerson"];
+                    /** Format: date-time */
+                    created_at: string;
+                    hidden: boolean;
+                    /** @description One line; "Message hidden" when either person blocked the other. */
+                    preview: string;
+                }[];
+            };
+        };
+        RubricDetail: {
+            /** @constant */
+            type: "rubric";
+            id: number;
+            title: string;
+            description: string | null;
+            active: boolean;
+            curriculum: {
+                id: number;
+                name: string;
+            };
+            can_edit: boolean;
+            criteria: {
+                id: number;
+                title: string;
+                description: string;
+                objective: {
+                    id: number;
+                    code: string;
+                    title: string;
+                } | null;
+            }[];
+            uses: {
+                lesson: {
+                    id: number;
+                    title: string;
+                    archived: boolean;
+                };
+                module: {
+                    id: number;
+                    name: string;
+                };
+                block: {
+                    id: number;
+                    title: string | null;
+                    block_type: string;
+                };
+                /** @description Graded latest attempts in cohorts the viewer can count. */
+                graded: number;
+            }[];
+            cohorts: components["schemas"]["RecordDetailCohort"][];
+            /** @description Cohorts on the curriculum the viewer doesn't teach, as a number, never named. */
+            other_cohorts_count: number;
+        };
+        ActivityEventDetail: {
+            /** @constant */
+            type: "activity_event";
+            id: number;
+            event_type: string;
+            category: string | null;
+            /** @enum {string} */
+            evidence: "server_record" | "player_reported";
+            /** Format: date-time */
+            created_at: string;
+            actor: {
+                id: number;
+                name: string;
+                role: string;
+            };
+            subject: {
+                id: number;
+                name: string;
+                role: string;
+            };
+            /** @description Null when the event has no cohort or the viewer can't see it. */
+            cohort: components["schemas"]["RecordDetailCohort"] | null;
+            record_type: string | null;
+            record_label: string | null;
+            /** @description The subject record, when it belongs to the event's cohort and learner. */
+            record: {
+                /** @enum {string} */
+                kind: "submission" | "lesson" | "recording";
+                id: number;
+                cohort_id: number;
+                student_id: number;
+                lesson_id: number | null;
+                content_block_id: number | null;
+            } | null;
+        };
+        RecordDetailResponse: {
+            detail: components["schemas"]["RecordingDetail"] | components["schemas"]["OfficeHourDetail"] | components["schemas"]["PrivateMeetingDetail"] | components["schemas"]["LearningPlanDetail"] | components["schemas"]["ChannelDetail"] | components["schemas"]["RubricDetail"] | components["schemas"]["ActivityEventDetail"];
         };
         TeamMemberWorkload: {
             /** @description Active follow-up plans this person owns. */

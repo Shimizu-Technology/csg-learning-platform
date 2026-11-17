@@ -3615,6 +3615,63 @@
         }
       }
     },
+    "/api/v1/records/{type}/{id}/detail": {
+      "parameters": [
+        {
+          "name": "type",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "recording",
+              "office_hour",
+              "private_meeting",
+              "learning_plan",
+              "channel",
+              "rubric",
+              "activity_event"
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "A staff record page for a recording, office-hour session, private-meeting booking, learning plan, channel, rubric or activity event",
+        "parameters": [
+          {
+            "name": "watchers_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Continue a recording's watchers after this cursor (the previous response's watchers_next_after). Other values start from the beginning."
+          }
+        ],
+        "description": "Staff only. Instructors open records in cohorts they teach, and a booking only when they host it; a rubric names only their cohorts and counts the rest. Students, other cohorts' staff and unknown records get 404. Cache-Control: private, no-store.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordDetailResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/course_outline": {
       "get": {
         "responses": {
@@ -19853,6 +19910,1316 @@
         },
         "required": [
           "usage"
+        ],
+        "additionalProperties": false
+      },
+      "RecordDetailPerson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false,
+        "description": "A person by id and display name."
+      },
+      "RecordDetailCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "course_delivery": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "course_delivery",
+          "status"
+        ],
+        "additionalProperties": false,
+        "description": "A cohort the viewer can see."
+      },
+      "RecordingDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "recording"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The link for external recordings; null for uploads (stream through the recordings API)."
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "recorded_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "uploaded_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDetailPerson"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/RecordDetailCohort"
+          },
+          "week": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Program week of the recorded date; null for self-paced or undated."
+          },
+          "can_edit": {
+            "type": "boolean"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lesson": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "archived": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "archived"
+                  ],
+                  "additionalProperties": false
+                },
+                "module": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "week": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "block": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                },
+                "sections": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "start_seconds": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "end_seconds": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "required": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "start_seconds",
+                      "end_seconds",
+                      "required"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "lesson",
+                "module",
+                "week",
+                "block",
+                "sections"
+              ],
+              "additionalProperties": false,
+              "description": "A lesson block on the cohort's curriculum that plays this recording (same upload or same link)."
+            }
+          },
+          "students_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Learners in the cohort with read access."
+          },
+          "watchers_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Learners in the cohort who have started it, across every page."
+          },
+          "completed_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Learners in the cohort who finished it."
+          },
+          "watchers_next_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Pass as watchers_after for the next watchers, or null after the last."
+          },
+          "watchers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "student": {
+                  "$ref": "#/components/schemas/RecordDetailPerson"
+                },
+                "progress_percentage": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "completed": {
+                  "type": "boolean"
+                },
+                "last_watched_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "student",
+                "progress_percentage",
+                "completed",
+                "last_watched_at"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Up to 25 watchers, in the order they started watching (a fixed order, so paging never skips or repeats anyone)."
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "description",
+          "status",
+          "source",
+          "url",
+          "duration_seconds",
+          "recorded_date",
+          "published_at",
+          "created_at",
+          "uploaded_by",
+          "cohort",
+          "week",
+          "can_edit",
+          "lessons",
+          "students_count",
+          "watchers_count",
+          "completed_count",
+          "watchers_next_after",
+          "watchers"
+        ],
+        "additionalProperties": false
+      },
+      "OfficeHourDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "office_hour"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_kind": {
+            "type": "string",
+            "enum": [
+              "office_hours",
+              "live_class"
+            ]
+          },
+          "recurrence": {
+            "type": "string",
+            "enum": [
+              "once",
+              "weekly"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "starts_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "ends_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "starts_at",
+                "ends_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/RecordDetailCohort"
+          },
+          "scheduled_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDetailPerson"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "teaching_team": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordDetailPerson"
+            }
+          },
+          "invited_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Active learners in the cohort. Attendance isn't recorded."
+          },
+          "can_edit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "description",
+          "event_kind",
+          "recurrence",
+          "active",
+          "starts_at",
+          "ends_at",
+          "timezone",
+          "meeting_url",
+          "upcoming",
+          "cohort",
+          "scheduled_by",
+          "teaching_team",
+          "invited_count",
+          "can_edit"
+        ],
+        "additionalProperties": false
+      },
+      "PrivateMeetingDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "private_meeting"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "canceled"
+            ]
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "week_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "zoom_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reschedule_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/RecordDetailCohort"
+          },
+          "student": {
+            "$ref": "#/components/schemas/RecordDetailPerson"
+          },
+          "host": {
+            "$ref": "#/components/schemas/RecordDetailPerson"
+          },
+          "direct_conversation_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The viewer's own conversation with the student in this cohort, if one exists."
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string"
+                },
+                "actor": {
+                  "$ref": "#/components/schemas/RecordDetailPerson"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "previous_starts_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "action",
+                "actor",
+                "created_at",
+                "previous_starts_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "status",
+          "starts_at",
+          "ends_at",
+          "week_number",
+          "timezone",
+          "zoom_url",
+          "reschedule_count",
+          "cohort",
+          "student",
+          "host",
+          "direct_conversation_id",
+          "history"
+        ],
+        "additionalProperties": false
+      },
+      "LearningPlanDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "learning_plan"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "target_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "next_check_in_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/RecordDetailCohort"
+          },
+          "student": {
+            "$ref": "#/components/schemas/RecordDetailPerson"
+          },
+          "enrollment_status": {
+            "type": "string"
+          },
+          "lesson_exceptions_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "due_on": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "completed_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "lessons": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "module_id": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "module_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "completed": {
+                        "type": "boolean"
+                      },
+                      "assigned": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "module_id",
+                      "module_name",
+                      "status",
+                      "completed",
+                      "assigned"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "title",
+                "due_on",
+                "completed_count",
+                "lessons"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "revisions_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "author": {
+                  "$ref": "#/components/schemas/RecordDetailPerson"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Parts that changed from the revision before, or [\"created\"] for the first."
+                }
+              },
+              "required": [
+                "id",
+                "author",
+                "created_at",
+                "changes"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "description",
+          "active",
+          "target_date",
+          "next_check_in_on",
+          "updated_at",
+          "cohort",
+          "student",
+          "enrollment_status",
+          "lesson_exceptions_count",
+          "milestones",
+          "revisions_count",
+          "revisions"
+        ],
+        "additionalProperties": false
+      },
+      "ChannelDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "channel"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "cohort",
+              "staff_only"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "cohort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDetailCohort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workspace": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "workspace_type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "workspace_type"
+            ],
+            "additionalProperties": false
+          },
+          "can_manage": {
+            "type": "boolean"
+          },
+          "members": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "staff_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "list": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "role"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The first 50 members for admins; null for instructors, who get the counts."
+              }
+            },
+            "required": [
+              "count",
+              "staff_count",
+              "list"
+            ],
+            "additionalProperties": false
+          },
+          "activity": {
+            "type": "object",
+            "properties": {
+              "messages_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "last_7_days": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "last_message_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "recent": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "author": {
+                      "$ref": "#/components/schemas/RecordDetailPerson"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "hidden": {
+                      "type": "boolean"
+                    },
+                    "preview": {
+                      "type": "string",
+                      "description": "One line; \"Message hidden\" when either person blocked the other."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "author",
+                    "created_at",
+                    "hidden",
+                    "preview"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "messages_count",
+              "last_7_days",
+              "last_message_at",
+              "recent"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "name",
+          "description",
+          "visibility",
+          "status",
+          "cohort",
+          "workspace",
+          "can_manage",
+          "members",
+          "activity"
+        ],
+        "additionalProperties": false
+      },
+      "RubricDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "rubric"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "curriculum": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "can_edit": {
+            "type": "boolean"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "objective": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "description",
+                "objective"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "uses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lesson": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "archived": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "archived"
+                  ],
+                  "additionalProperties": false
+                },
+                "module": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "block": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "block_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "block_type"
+                  ],
+                  "additionalProperties": false
+                },
+                "graded": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Graded latest attempts in cohorts the viewer can count."
+                }
+              },
+              "required": [
+                "lesson",
+                "module",
+                "block",
+                "graded"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordDetailCohort"
+            }
+          },
+          "other_cohorts_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Cohorts on the curriculum the viewer doesn't teach, as a number, never named."
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "description",
+          "active",
+          "curriculum",
+          "can_edit",
+          "criteria",
+          "uses",
+          "cohorts",
+          "other_cohorts_count"
+        ],
+        "additionalProperties": false
+      },
+      "ActivityEventDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "activity_event"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "server_record",
+              "player_reported"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "subject": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "cohort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDetailCohort"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the event has no cohort or the viewer can't see it."
+          },
+          "record_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "record_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "record": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "submission",
+                      "lesson",
+                      "recording"
+                    ]
+                  },
+                  "id": {
+                    "type": "integer"
+                  },
+                  "cohort_id": {
+                    "type": "integer"
+                  },
+                  "student_id": {
+                    "type": "integer"
+                  },
+                  "lesson_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "content_block_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "cohort_id",
+                  "student_id",
+                  "lesson_id",
+                  "content_block_id"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The subject record, when it belongs to the event's cohort and learner."
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "event_type",
+          "category",
+          "evidence",
+          "created_at",
+          "actor",
+          "subject",
+          "cohort",
+          "record_type",
+          "record_label",
+          "record"
+        ],
+        "additionalProperties": false
+      },
+      "RecordDetailResponse": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecordingDetail"
+              },
+              {
+                "$ref": "#/components/schemas/OfficeHourDetail"
+              },
+              {
+                "$ref": "#/components/schemas/PrivateMeetingDetail"
+              },
+              {
+                "$ref": "#/components/schemas/LearningPlanDetail"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelDetail"
+              },
+              {
+                "$ref": "#/components/schemas/RubricDetail"
+              },
+              {
+                "$ref": "#/components/schemas/ActivityEventDetail"
+              }
+            ]
+          }
+        },
+        "required": [
+          "detail"
         ],
         "additionalProperties": false
       },

@@ -13,6 +13,7 @@ import { Button, IconButton } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { cohortPath } from '../../lib/routes'
+import { RecordLink } from '../shared/RecordLink'
 
 import type { S3Recording } from '../../types/api'
 
@@ -29,9 +30,11 @@ interface RecordingDraft {
 interface RecordingUploadManagerProps {
   cohortId: number
   onRecordingsChange?: () => void
+  /** Opens this recording's edit form once the list loads (the recording page's Edit, L-5.2). */
+  editRecordingId?: number | null
 }
 
-export function RecordingUploadManager({ cohortId, onRecordingsChange }: RecordingUploadManagerProps) {
+export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecordingId }: RecordingUploadManagerProps) {
   const draftFieldIdBase = useId()
   const { startVideoUpload, uploads, cancelUpload } = useUpload()
   const toast = useToast()
@@ -240,6 +243,17 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     setEditDate(rec.recorded_date ? rec.recorded_date.split('T')[0] : '')
     setEditUrl(rec.url || '')
   }
+
+  // Open the requested recording's edit form once, after the list loads.
+  const openedEditRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!editRecordingId || loading || openedEditRef.current === editRecordingId) return
+    const rec = recordings.find((item) => item.id === editRecordingId)
+    if (!rec) return
+    openedEditRef.current = editRecordingId
+    startEdit(rec)
+    requestAnimationFrame(() => document.getElementById(`recording-${rec.id}`)?.scrollIntoView?.({ block: 'center' }))
+  }, [editRecordingId, loading, recordings])
 
   const saveEdit = async () => {
     if (!editingId || !editTitle.trim() || savingEdit) return
@@ -670,7 +684,8 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
           {recordings.map((rec) => (
             <div
               key={rec.id}
-              className="rounded-xl border border-line bg-surface-raised p-3 sm:p-4 hover:border-line-strong transition-colors duration-150"
+              id={`recording-${rec.id}`}
+              className="scroll-mt-24 rounded-xl border border-line bg-surface-raised p-3 sm:p-4 hover:border-line-strong transition-colors duration-150"
             >
               {editingId === rec.id ? (
                 <div className="space-y-3">
@@ -710,7 +725,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="min-w-0 break-words text-sm font-semibold text-ink">{rec.title}</p>
+                      <RecordLink record={{ type: 'recording', id: rec.id, cohortId }} variant="plain" touchTarget className="min-w-0 break-words text-sm font-semibold">{rec.title}</RecordLink>
                       <Badge tone={rec.status === 'published' ? 'success' : 'neutral'} icon={rec.status === 'published' ? <Globe2 className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}>
                         {rec.status === 'published' ? 'Published' : 'Draft'}
                       </Badge>

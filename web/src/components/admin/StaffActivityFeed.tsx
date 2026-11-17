@@ -11,15 +11,12 @@ import { Button } from '../ui/Button'
 import type { ActivityEventsResponse, CohortDetail } from '../../types/api'
 import { RecordLink } from '../shared/RecordLink'
 import { humanize } from '../../lib/glossary'
+import { ACTIVITY_EVENT_LABELS } from '../../lib/activityLabels'
+import { useRecordPath } from '../../lib/useRecordPath'
 
 type Person = { id: number; name: string }
 type Choice = { id: number; name: string }
-const labels: Record<string, string> = {
-  account_signed_in: 'Signed in', checkpoint_completed: 'Marked complete', checkpoint_reopened: 'Marked not complete',
-  video_started: 'Started a lesson video', video_completed: 'Completed a lesson video', recording_started: 'Started a recording', recording_completed: 'Completed a recording',
-  submission_created: 'Submitted work', submission_updated: 'Resubmitted or updated work', submission_graded: 'Reviewed work',
-  lesson_editing_granted: 'Gave lesson editing access', lesson_editing_revoked: 'Removed lesson editing access', curriculum_copied: "Made the cohort's own copy of its curriculum",
-}
+const labels = ACTIVITY_EVENT_LABELS
 
 export function StaffActivityFeed({ cohort, learners = [], actors = [], cohorts = [] }: { cohort?: CohortDetail; learners?: Person[]; actors?: Person[]; cohorts?: Choice[] }) {
   const [params, setParams] = useSearchParams()
@@ -39,6 +36,7 @@ export function StaffActivityFeed({ cohort, learners = [], actors = [], cohorts 
   const [refresh, setRefresh] = useState(0)
   useListScrollMemory(!loading && Boolean(result))
   const generation = useRef(0)
+  const pathFor = useRecordPath()
   const people = cohort ? cohort.students.map((student) => ({ id: student.user_id, name: student.full_name || student.email })) : learners
 
   useEffect(() => {
@@ -82,13 +80,15 @@ export function StaffActivityFeed({ cohort, learners = [], actors = [], cohorts 
       <label className="min-w-0 text-sm font-semibold text-ink-secondary">Through ({until ? schoolTimeLabel(new Date(schoolWallTimeToIso(`${until}T12:00`) || until)) : schoolTimeGenericLabel()})<input className="app-control mt-1 w-full min-w-0" type="date" value={until} min={since} onChange={(event) => filter('until', event.target.value)} /></label>
     </div>
     {loading ? <p className="p-5 text-sm text-ink-muted">Loading activity…</p> : error ? <div role="alert" className="p-5 text-sm text-danger-ink">{error}<Button variant="quiet" onClick={() => setRefresh((value) => value + 1)}>Try again</Button></div> : !result?.activity_events.length ? <p className="p-5 text-sm text-ink-muted">No recorded activity matches these filters.</p> : <ol className="divide-y divide-line border-t border-line">{result.activity_events.map((event) => {
-      const path = activityDestination(event, returnTo, true)
+      // Staff open a recording on its record page (L-5.2); other subjects keep the feed's destination.
+      const recordingId = event.destination?.kind === 'recording' ? Number(event.destination.id) : 0
+      const path = recordingId > 0 ? pathFor({ type: 'recording', id: recordingId, cohortId: event.cohort_id }) : activityDestination(event, returnTo, true)
       const learner = event.subject_user?.name || 'A learner'
       return <li key={event.id} className="space-y-1 p-5 sm:px-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{event.cohort_id && event.subject_user?.role === 'student' ? <RecordLink record={{ type: 'student', id: event.subject_user_id, cohortId: event.cohort_id }} variant="app" touchTarget className="font-semibold" returnLabel="Activity">{learner}</RecordLink> : <span className="font-semibold text-ink">{event.subject_user?.name || event.actor.name}</span>}<span className="text-sm text-ink">{humanize(event.event_type, labels)}</span></div>
         <p className="text-sm text-ink-secondary">{event.actor.id === event.subject_user_id ? (event.actor.role === 'student' ? 'Learner acted' : 'Account activity') : `Staff acted for learner · ${event.actor.name}`}</p>
         {path ? <Link to={path} state={{ returnTo, returnLabel: 'Activity' }} className="app-link inline-flex min-h-11 items-center text-sm font-semibold">{event.record_label || 'Open'}</Link> : (event.record_type || event.record_id || event.record_label) && <p className="text-sm text-ink-muted">{event.record_label ? `${event.record_label} · ` : ''}No longer available</p>}
-        <p className="text-xs leading-5 text-ink-muted"><time dateTime={event.created_at}>{formatShortDateTime(event.created_at)}</time>{event.cohort_name && event.cohort_id ? <> · <RecordLink record={{ type: 'cohort', id: event.cohort_id, tab: 'activity' }} variant="plain" touchTarget className="font-normal text-ink-muted">{event.cohort_name}</RecordLink></> : event.cohort_name ? ` · ${event.cohort_name}` : ''} · {event.evidence === 'player_reported' ? 'Player reported progress; does not verify attention' : 'Recorded by the app'}</p>
+        <p className="text-xs leading-5 text-ink-muted"><RecordLink record={{ type: 'activity_event', id: event.id }} variant="plain" touchTarget returnLabel="Activity" className="font-normal text-ink-muted" aria-label={`Details: ${humanize(event.event_type, labels)}, ${formatShortDateTime(event.created_at)}`}><time dateTime={event.created_at}>{formatShortDateTime(event.created_at)}</time></RecordLink>{event.cohort_name && event.cohort_id ? <> · <RecordLink record={{ type: 'cohort', id: event.cohort_id, tab: 'activity' }} variant="plain" touchTarget className="font-normal text-ink-muted">{event.cohort_name}</RecordLink></> : event.cohort_name ? ` · ${event.cohort_name}` : ''} · {event.evidence === 'player_reported' ? 'Player reported progress; does not verify attention' : 'Recorded by the app'}</p>
       </li>
     })}</ol>}
     {!loading && result && <footer className="flex flex-wrap gap-3 border-t border-line p-5 sm:px-6">{beforeId && <Button variant="secondary" onClick={() => page(false)}>Newer activity</Button>}{result.next_before_id && <Button variant="secondary" onClick={() => page(true)}>Earlier activity</Button>}</footer>}

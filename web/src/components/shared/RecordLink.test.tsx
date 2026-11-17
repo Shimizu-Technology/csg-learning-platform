@@ -73,7 +73,7 @@ it('renders plain text, not a dead link, when the viewer cannot open the record'
 })
 
 it('renders plain text for records without a page and for signed-out viewers', () => {
-  render(<RecordLink record={{ type: 'private_meeting', id: 2 }}>Wed, Nov 12 meeting</RecordLink>)
+  render(<RecordLink record={{ type: 'user', id: 2 }}>Pat Lee</RecordLink>)
   expect(container.querySelector('a')).toBeNull()
   // Learners have no curriculum page (L-5).
   auth.user = { id: 1, is_staff: false, is_admin: false }

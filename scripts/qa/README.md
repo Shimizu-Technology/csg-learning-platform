@@ -144,6 +144,16 @@ check the new staff record pages and exact Back paths, milestone/media lesson
 links, preview module/lesson containment and all six normal student personas.
 The separate 16-case media matrix retains the lesson-only assignment fixture.
 
+### Staff record pages (L-5.2)
+
+After `start`, load the fixture once from `api/`:
+`DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/record-pages-fixtures.rb`.
+It adds one of each record to QA Program (a recording a lesson plays, a booking, plan revisions, channel
+messages with a blocked sender, an activity event) and "QA Other Program", which shares the curriculum but
+which the QA instructor doesn't teach. Then run `QA_SPEC=record-pages.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts`
+from `web/`. It covers the seven pages, every new link and its Back, instructor scope, a refused student and
+copying a message link. See `docs/qa/record-pages-2026-11-17.md`.
+
 ### Catalog and course pages
 
 Start with `QA_CHECKOUT_READY=1 scripts/qa/run start`, then from `api/` run
