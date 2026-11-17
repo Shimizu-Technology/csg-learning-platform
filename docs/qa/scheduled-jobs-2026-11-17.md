@@ -186,8 +186,8 @@ including daily unlocks; the legacy separate schedules cannot drop the digest.
 | Additive result-column migration round trip and all-pool cache cleanup | Passed |
 | Existing after-commit, recipient query budgets, receipt leases/backoff | Passed |
 
-Focused run: **107 tests / 598 assertions**, zero failures/errors/skips.
-RuboCop: **723 files, no offenses**. Initial fixture errors (missing trigger type,
+Focused run: **117 tests / 691 assertions**, zero failures/errors/skips.
+RuboCop: **730 files, no offenses**. Initial fixture errors (missing trigger type,
 unique active-trigger collision, wrong expected descriptor vocabulary) were
 corrected and retested; none required a production behavior workaround.
 
@@ -198,13 +198,33 @@ before the provider stubs. This is runner/persistence evidence, not live email o
 physical-device delivery. New observed summaries:
 
 ```text
-[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":true,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"follow_ups_due":1,"older_than_7_days":0,"would_claim":1,"duration_ms":10},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"recipients":1,"lessons":1,"would_claim":1,"catch_up_days":3,"duration_ms":74},{"name":"expo_push_receipts","status":"would_run","claimed":0,"sent":0,"failed":0,"would_claim":1,"duration_ms":4}],"duration_ms":107}
-[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":6}],"duration_ms":12}
-[ScheduledTick] {"at":"2030-01-16T21:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"run","claimed":1,"sent":1,"failed":0,"catch_up_days":3,"released":0,"duration_ms":26},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":2}],"duration_ms":32}
-[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":37},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":3},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":16}],"duration_ms":66}
-[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0}],"duration_ms":2}
+[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":true,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"follow_ups_due":1,"older_than_7_days":0,"would_claim":1,"duration_ms":12},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"recipients":1,"lessons":1,"would_claim":1,"catch_up_days":3,"duration_ms":42},{"name":"expo_push_receipts","status":"would_run","claimed":0,"sent":0,"failed":0,"would_claim":1,"duration_ms":3}],"duration_ms":82}
+[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":4}],"duration_ms":9}
+[ScheduledTick] {"at":"2030-01-16T21:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"run","claimed":1,"sent":1,"failed":0,"catch_up_days":3,"released":0,"duration_ms":20},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":2}],"duration_ms":26}
+[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":26},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":1},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":2}],"duration_ms":31}
+[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0}],"duration_ms":1}
 SMOKE passed: dry preview has no writes/sends; 06:50 receipts only; 07:00 digest; 08:00 follow-up; repeat skipped; email=1 push_providers=2 receipts=1
 ```
 
 Final ASUS gate, source/main integration, review-thread replies and cleanup will
 be recorded below before handback. Existing PR remains held, unmerged/unwatched.
+
+
+Main integration requested during this round: merged `5fa85024` (#293) as
+`1466ddd8`. The only conflict was the schema version header; kept
+`2026_11_18_020000`, both scheduler tables/result columns and nullable
+`feature_switch_changes.actor_id`. Scheduler migrations `20261118000100` and
+`20261118000200` remain unique and unchanged. The scheduler does not read that
+audit actor; its `Notification.actor_id` is a separate field. A regression with a
+system audit row and `student_experience_v2` on/off produces identical digest
+recipient, subject and HTML. The imported migration test now clears every
+connection pool's statement cache in ensure, matching the pooler test contract.
+
+Regenerated both web/mobile API clients from the merged OpenAPI and ran
+`npm run api:check`: generation made no diff beyond main's existing generated
+clients, and the transport/generated-file check passed. Reused installed
+TypeScript/generator dependencies read-only through a temporary link, then removed
+that link; no package installation or borrowed-directory mutation occurred.
+The integrated local smoke passed again. Earlier ASUS snapshots were deliberately
+stopped by exact validated task-owned PID/worktree after the day-reservation fix
+and then this API integration; neither interrupted run is counted as final QA.

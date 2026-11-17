@@ -221,3 +221,19 @@ class DailyUnlockNotificationsTest
     assert_equal 0, DailyUnlockNotifications.new.preview[:would_claim]
   end
 end
+
+class DailyUnlockNotificationsTest
+  test "course-outline experience switch and system audit actors do not alter digests" do
+    FeatureSwitchChange.insert_all!([ { actor_id: nil, cohort_id: @cohort.id, before: {}, after: { "student_experience_v2" => false }, created_at: Time.current, updated_at: Time.current } ])
+    outputs = [ false, true ].map do |enabled|
+      @cohort.update!(settings: { "features" => { "student_experience_v2" => enabled } })
+      ScheduledNotificationAttempt.delete_all
+      @sent.clear
+      DailyUnlockNotifications.new.call
+      assert_equal 1, @sent.size
+      @sent.first.slice(:to, :subject, :html)
+    end
+    assert_equal outputs.first, outputs.last
+    assert_nil FeatureSwitchChange.last.actor_id
+  end
+end
