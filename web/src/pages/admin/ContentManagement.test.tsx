@@ -36,18 +36,13 @@ async function changeSchedule() {
   const select = container.querySelector<HTMLSelectElement>('select[aria-label="Schedule pattern for Foundations"]')!
   await act(async () => { select.value = 'weekdays'; select.dispatchEvent(new Event('change', { bubbles: true })) })
 }
-it('confirms added slots, keeps exercise days, and exposes empty-day authoring only after expansion', async () => {
+it('widening MWF keeps exercise days and never renders empty authoring rows', async () => {
   const confirm = mocks.confirm
   await mount(); mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [{ ...module, schedule_days: 'weekdays' }] } } }); await changeSchedule()
-  expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: 'Adds Tuesday/Thursday slots. Existing exercises keep their days.' }))
+  expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: 'Adds Tuesday/Thursday as options for new exercises. Existing exercises keep their saved days; empty days stay hidden.' }))
   expect(mocks.updateModule).toHaveBeenCalledWith(10, { schedule_days: 'weekdays', base_updated_at: '2026-10-22' })
   expect(Array.from(container.querySelectorAll('h4')).map(item => item.textContent)).toEqual(['Day 1 · Monday', 'Day 3 · Wednesday', 'Day 5 · Friday'])
-  expect(button('Show empty days (2)').getAttribute('aria-expanded')).toBe('false')
-  await act(async () => button('Show empty days (2)').click())
-  const tuesday = Array.from(container.querySelectorAll('h4')).find(item => item.textContent?.includes('Tuesday'))!.parentElement!.parentElement!
-  await act(async () => tuesday.querySelector<HTMLButtonElement>('button')!.click())
-  expect(container.querySelector('[data-testid="exercise-placement"]')?.textContent).toBe('1:1')
-  await act(async () => button('Hide empty days').click())
+  expect(container.textContent).not.toContain('Show empty days')
   expect(container.textContent).not.toContain('Tuesday')
   expect(container.textContent).toContain('Exercise 3')
 })

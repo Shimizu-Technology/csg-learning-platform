@@ -325,6 +325,14 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal [ mine.id, other.id ].sort, response.parsed_body.fetch("cohorts").flat_map { |row| row["bookings"] }.pluck("id").sort
   end
 
+  test "communication fixtures stay inside one course week near local midnight" do
+    travel_to(Time.current.change(hour: 13, min: 30, sec: 0)) do
+      booking = book(@teacher, 17, status: :canceled)
+      config = @cohort.private_meeting_config
+      assert_equal config.week_for(booking.starts_at), config.week_for(booking.ends_at - 1.second)
+    end
+  end
+
   test "filtered full communication lists and media lists keep flat query counts" do
     conversation(@teacher).messages.create!(author: @student, body: "Scoped message")
     outsider = person("another_learner", :student)

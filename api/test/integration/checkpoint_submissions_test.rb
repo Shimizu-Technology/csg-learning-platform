@@ -61,9 +61,13 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
     assert_equal "redo_requested", weekly_item.fetch("review_status")
     refute dashboard_lesson.fetch("completed")
 
-    as_user(@student) do
-      post "/api/v1/submissions", params: { content_block_id: @checkpoint.id, cohort_id: @cohort.id, text: "fixed" },
-        headers: auth_headers, as: :json
+    # This flow requires a later attempt; make its chronology independent of
+    # wall-clock adjustments on the test runner.
+    travel_to(submission.created_at + 1.second) do
+      as_user(@student) do
+        post "/api/v1/submissions", params: { content_block_id: @checkpoint.id, cohort_id: @cohort.id, text: "fixed" },
+          headers: auth_headers, as: :json
+      end
     end
     assert_response :created
     resubmission = Submission.find(JSON.parse(response.body).dig("submission", "id"))

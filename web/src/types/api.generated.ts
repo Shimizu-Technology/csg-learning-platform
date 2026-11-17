@@ -4873,6 +4873,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/submission_audits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAuditResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/submission_audits/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        content_digest: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAuditReviewResponse"];
+                    };
+                };
+                /** @description The review requires content_digest. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAudit400Response"];
+                    };
+                };
+                /** @description The content digest is stale. Reload the audit before reviewing the changed block. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAuditConflictResponse"];
+                    };
+                };
+                /** @description The block is not currently an audit candidate. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAudit422Response"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6054,6 +6159,7 @@ export interface components {
             community_policy?: components["schemas"]["CommunityPolicy"];
             /** @description Included with code impact_changed: the impact the move would have now. */
             impact?: components["schemas"]["LessonMoveImpact"];
+            completion_impact?: components["schemas"]["LessonCompletionImpact"];
         };
         ApiValidationError: {
             errors: string[];
@@ -6175,6 +6281,7 @@ export interface components {
             block_activity: components["schemas"]["BlockLearnerActivity"][];
             context: components["schemas"]["LessonEditorContext"];
             access: components["schemas"]["LessonEditAccess"];
+            completion_impact: components["schemas"]["LessonCompletionImpact"];
         };
         /** @description One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference. */
         LessonBlockInput: {
@@ -6234,6 +6341,7 @@ export interface components {
                     content_block_id?: number | null;
                     block_client_id?: string;
                 }[];
+                confirm_reopen_completed_count?: number;
             };
         };
         CurriculumSummary: {
@@ -8929,6 +9037,53 @@ export interface components {
         CourseReceiptResponse: {
             /** Format: uri */
             url: string;
+        };
+        SubmissionAuditBlock: {
+            id: number;
+            title: string | null;
+            body: string | null;
+            lesson_id: number;
+            lesson_title: string;
+            module_id: number;
+            module_name: string;
+            curriculum_id: number;
+            curriculum_name: string;
+            completed_learners: number;
+            suggested_type: string | null;
+            content_digest: string;
+            cohort_submissions: {
+                id: number;
+                name: string;
+                submission_type: string;
+            }[];
+            completion_impact: components["schemas"]["LessonCompletionImpact"];
+        };
+        SubmissionAuditResponse: {
+            blocks: components["schemas"]["SubmissionAuditBlock"][];
+        };
+        SubmissionAuditReviewResponse: {
+            reviewed_by_id: number;
+            reviewed_at: string;
+        };
+        SubmissionAuditConflictResponse: {
+            /** @constant */
+            error: "This block changed. Reload the audit before reviewing it.";
+        };
+        LessonCompletionImpact: {
+            completed_learners: number;
+            cohorts: {
+                id: number;
+                name: string;
+                completed_learners: number;
+            }[];
+            /** @description Distinct completed learners across cohorts the viewer cannot see. Omitted when all affected cohorts are visible; no hidden cohort identifiers or names are returned. */
+            other_cohorts_completed_learners?: number;
+        };
+        SubmissionAudit400Response: {
+            error: string;
+        };
+        SubmissionAudit422Response: {
+            error: string;
         };
     };
     responses: {

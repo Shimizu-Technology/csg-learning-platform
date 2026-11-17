@@ -13,6 +13,15 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
 
   teardown { CurriculumCopyForCohort.stage_hook = nil }
 
+  test "practice reviews stay with original blocks and copies require a fresh review" do
+    original = @f.blocks.fetch(:read)
+    review = SubmissionAuditReview.create!(content_block: original, reviewed_by: @f.admin, content_digest: SubmissionAudit.digest(original))
+    result = copy!(@f.instructor)
+    assert_equal original.id, review.reload.content_block_id
+    copy_block_ids = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: result.copy.copy_curriculum_id }).pluck(:id)
+    assert_empty SubmissionAuditReview.where(content_block_id: copy_block_ids)
+  end
+
   test "copies the curriculum, moves the cohort and every row of its learner data, and leaves the other cohort alone" do
     other_before = other_cohort_rows
     shared_before = shared_tree
