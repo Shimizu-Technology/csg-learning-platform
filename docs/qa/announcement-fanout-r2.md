@@ -114,8 +114,37 @@ ASUS, PgBouncer 1.24.1 transaction mode, round-robin six-backend pool, seed 5041
   errors or skips (336.304 seconds).
 - RuboCop: **783 files**, no offenses. Brakeman: **zero active warnings**,
   one pre-existing ignored warning. Bundler-audit: no vulnerabilities.
-- Prepared statements on: running; not yet accepted.
+- Prepared statements on: **2265 tests, 43527 assertions**, zero failures,
+  errors or skips (380.474 seconds).
 
 Final off-mode after-only request samples for 1 / 50 / 500 recipients were
 17.4 / 34.7 / 36.3 ms and 12 / 12 / 10 queries. These are pooler samples, separate
 from the paired direct-Postgres before/after measurements above.
+
+On-mode after-only request samples were 20.0 / 30.4 / 36.9 ms with the same
+12 / 12 / 10 query counts. Both complete suites exercised implementation
+`b364e03f1f5d4ad91211bf9d2bed8013c94a5a5f`; only this evidence record changed
+afterward. The accepted runs include submission create/grade inline-adapter
+provider-after-commit proofs, message timing regressions, all fan-out adversarial
+cases and the migration round-trip/cache tests. No tests were excluded.
+
+## Lead handback
+
+Worktree: `/Users/agent/work/csg-announcement-fanout`; branch:
+`fix/announcement-fanout`; target/base: `main` / `3a8b3ebf`. The PR is held for
+lead review. No merge, watch, production deployment or real provider send was
+performed. Inspect CI and CodeRabbit coverage against the PR head before further
+action; neither is claimed complete merely because the local gates passed.
+
+The fan-out snapshot still requires O(audience size) ID bytes in the publication
+transaction. Notifications are eventually available after publication; push waits
+for all batches. Recovery after losing the web process waits for the next hourly
+tick eligible after the five-minute grace period. These are deliberate behavior
+changes, not a guarantee of immediate notifications after an async crash.
+
+Owned local databases are absent (verified via the Postgres catalog). The final
+ASUS gate exited successfully after its PgBouncer/scratch cleanup and the wrapper's
+Postgres/WSL cleanup. No local server, browser, simulator or container remains.
+The clean source worktree and branch are retained for review; there is no running
+resource handoff. Shared-guidance freshness setup remains unverified as noted
+above; installed/synced applicable instructions were read directly.
