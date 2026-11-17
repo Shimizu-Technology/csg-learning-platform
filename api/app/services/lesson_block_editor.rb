@@ -107,7 +107,7 @@ class LessonBlockEditor
   def require_reopen_confirmation!
     return unless adds_completion_block?
 
-    impact = LessonCompletionImpact.for_lessons([ @lesson ]).fetch(@lesson.id)
+    impact = LessonCompletionImpact.for_lesson(@lesson, viewer: @user)
     return if impact[:completed_learners].zero?
     return if @params[:confirm_reopen_completed_count].to_s == impact[:completed_learners].to_s
 

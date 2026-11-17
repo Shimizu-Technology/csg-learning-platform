@@ -72,7 +72,7 @@ module Api
           lesson: lesson_json(@lesson, include_content: true),
           block_activity: block_activity_json,
           context: context_json,
-          completion_impact: LessonCompletionImpact.for_lessons([ @lesson ], cohort_ids: cohort_scope.visible_ids(@lesson.curriculum_module.curriculum_id)).fetch(@lesson.id),
+          completion_impact: LessonCompletionImpact.for_lesson(@lesson, viewer: current_user),
           access: LessonEditAccess.for(current_user, @lesson.curriculum_module.curriculum).as_json
         }
       end

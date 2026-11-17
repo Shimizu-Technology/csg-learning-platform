@@ -2,12 +2,18 @@
 # lessons would reopen when a new completion block is added. Reuse the same
 # definition the learner's outline/percentages use; do not grandfather progress.
 class LessonCompletionImpact
-  def self.for_lessons(lessons, cohort_ids: nil)
+  # Visibility limits the breakdown, never the total used for confirmation.
+  # Hidden cohorts contribute one distinct-learner aggregate without names/ids.
+  def self.for_lesson(lesson, viewer:)
+    visible_ids = StaffCohortScope.new(viewer).visible_ids(lesson.curriculum_module.curriculum_id)
+    for_lessons([ lesson ], visible_cohort_ids: visible_ids).fetch(lesson.id)
+  end
+
+  def self.for_lessons(lessons, visible_cohort_ids: nil)
     lessons = lessons.uniq(&:id)
     return {} if lessons.empty?
 
     cohorts = Cohort.where(curriculum_id: lessons.map { |lesson| lesson.curriculum_module.curriculum_id }.uniq)
-    cohorts = cohorts.where(id: cohort_ids) if cohort_ids
     enrollments = Enrollment.where(cohort_id: cohorts.select(:id))
     school = FeatureSwitches::DEFAULTS.merge((SchoolSetting.find_by(id: 1)&.features || {}).slice(*FeatureSwitches::KEYS))
     projections = LearnerProgress.for_all(enrollments, school_features: school)
@@ -23,11 +29,17 @@ class LessonCompletionImpact
       end
     end
     lessons.to_h do |lesson|
-      cohorts = completed[lesson.id].sort.map do |id, row|
+      visible, hidden = completed[lesson.id].partition { |id, _| visible_cohort_ids.nil? || visible_cohort_ids.include?(id) }.map(&:to_h)
+      cohorts = visible.sort.map do |id, row|
         { id: id, name: row[:name], completed_learners: row[:users].size }
       end
       users = completed[lesson.id].values.reduce(Set.new) { |all, row| all | row[:users] }
-      [ lesson.id, { completed_learners: users.size, cohorts: cohorts } ]
+      impact = { completed_learners: users.size, cohorts: cohorts }
+      unless hidden.empty?
+        other_users = hidden.values.reduce(Set.new) { |all, row| all | row[:users] }
+        impact[:other_cohorts_completed_learners] = other_users.size
+      end
+      [ lesson.id, impact ]
     end
   end
 end

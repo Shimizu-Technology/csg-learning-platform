@@ -119,21 +119,92 @@ class SubmissionAuditRecheckTest < ActionDispatch::IntegrationTest
     assert_equal 1, LessonCompletionImpact.for_lessons([ @lesson ]).fetch(@lesson.id)[:completed_learners]
   end
 
+  test "instructor impact keeps the total and hides untaught cohorts before first authorized confirmation" do
+    instructor, other, hidden_enrollment = shared_completed_lesson
+    as_user(instructor) { get "/api/v1/lessons/#{@lesson.id}/block_editor", headers: headers }
+    assert_response :success
+    impact = response.parsed_body.fetch("completion_impact")
+    assert_equal 2, impact["completed_learners"]
+    assert_equal [ { "id" => @cohort.id, "name" => @cohort.name, "completed_learners" => 1 } ], impact["cohorts"]
+    assert_equal 1, impact["other_cohorts_completed_learners"]
+    refute_includes response.body, other.name
+    assert_equal false, response.parsed_body.dig("access", "can_edit")
+
+    # Shared curricula remain read-only until every cohort grants access.
+    put_editor([ original_block, companion ], confirm: impact["completed_learners"], user: instructor)
+    assert_response :forbidden
+    refute_includes response.body, other.name
+    error = assert_raises(LessonBlockEditor::Invalid) do
+      # Exercise the save guard's privacy independently of the controller's
+      # earlier authorization refusal; do not weaken that refusal for the test.
+      LessonBlockEditor.new(lesson: @lesson, user: instructor, params: editor_body([ original_block, companion ])).save!
+    end
+    assert_equal "confirm_reopen_completed", error.code
+    assert_equal impact, error.completion_impact.deep_stringify_keys
+    refute_includes error.completion_impact.to_json, other.name
+
+    # The initial payload's total can be used on the first authorized PUT,
+    # without loading a different count after the remaining grant is added.
+    other.cohort_instructor_assignments.create!(user: instructor, can_edit_lessons: true, edit_granted_by: @admin, edit_granted_at: Time.current)
+    put_editor([ original_block, companion ], confirm: impact["completed_learners"], user: instructor)
+    assert_response :success
+    assert_equal 2, @lesson.content_blocks.count
+    refute LearnerProgress.new(hidden_enrollment.reload).lesson_progress(@lesson.reload).completed
+  end
+
+  test "hidden cohort aggregation counts distinct learners and admins keep all named cohorts" do
+    instructor, other, = shared_completed_lesson
+    another = Cohort.create!(name: "Another private cohort", curriculum: @curriculum, start_date: Date.current - 7)
+    person = other.enrollments.sole.user
+    enrollment = Enrollment.create!(user: person, cohort: another)
+    enrollment.module_assignments.create!(curriculum_module: @module, unlocked: true)
+    Progress.create!(user: person, enrollment: enrollment, content_block: @text, status: :completed)
+    impact = LessonCompletionImpact.for_lesson(@lesson, viewer: instructor)
+    assert_equal 2, impact[:completed_learners]
+    assert_equal 1, impact[:other_cohorts_completed_learners]
+    assert_equal [ @cohort.id ], impact[:cohorts].pluck(:id)
+
+    as_admin { get "/api/v1/lessons/#{@lesson.id}/block_editor", headers: headers }
+    admin_impact = response.parsed_body.fetch("completion_impact")
+    assert_equal 2, admin_impact["completed_learners"]
+    assert_equal [ @cohort.id, other.id, another.id ].sort, admin_impact["cohorts"].pluck("id").sort
+    refute admin_impact.key?("other_cohorts_completed_learners")
+    put_editor([ original_block, companion ])
+    assert_response :unprocessable_entity
+    assert_equal admin_impact, response.parsed_body.fetch("completion_impact")
+  end
+
   private
 
   def original_block = { id: @text.id, block_type: @text.block_type, title: @text.title, body: @text.body }
   def companion = { client_id: "companion", block_type: "exercise", title: "Exercise: Deploy your site", body: @text.body, submission_type: "text_submission" }
 
-  def put_editor(blocks, confirm: nil)
+  def editor_body(blocks, confirm: nil)
     body = { base_updated_at: @lesson.reload.updated_at.iso8601(6), title: @lesson.title, required: true, blocks: blocks }
     body[:confirm_reopen_completed_count] = confirm unless confirm.nil?
-    as_admin { put "/api/v1/lessons/#{@lesson.id}/block_editor", params: { lesson: body }, headers: headers, as: :json }
+    body
+  end
+
+  def put_editor(blocks, confirm: nil, user: @admin)
+    as_user(user) { put "/api/v1/lessons/#{@lesson.id}/block_editor", params: { lesson: editor_body(blocks, confirm: confirm) }, headers: headers, as: :json }
+  end
+
+  def shared_completed_lesson
+    instructor = User.create!(clerk_id: "rc-instructor", email: "rc-instructor@example.invalid", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: instructor, can_edit_lessons: true, edit_granted_by: @admin, edit_granted_at: Time.current)
+    Progress.create!(user: @learner, enrollment: @enrollment, content_block: @text, status: :completed)
+    other = Cohort.create!(name: "Private foreign cohort", curriculum: @curriculum, start_date: Date.current - 7)
+    person = User.create!(clerk_id: "rc-hidden", email: "rc-hidden@example.invalid", role: :student)
+    enrollment = Enrollment.create!(user: person, cohort: other)
+    enrollment.module_assignments.create!(curriculum_module: @module, unlocked: true)
+    Progress.create!(user: person, enrollment: enrollment, content_block: @text, status: :completed)
+    [ instructor, other, enrollment ]
   end
 
   def headers = { "Authorization" => "Bearer rc" }
-  def as_admin
+  def as_admin(&block) = as_user(@admin, &block)
+  def as_user(user)
     original = ClerkAuth.method(:verify)
-    user = @admin
     ClerkAuth.define_singleton_method(:verify) { |_token| { "sub" => user.clerk_id, "email" => user.email } }
     yield
   ensure

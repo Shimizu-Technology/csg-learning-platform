@@ -23088,6 +23088,11 @@
               ],
               "additionalProperties": false
             }
+          },
+          "other_cohorts_completed_learners": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Distinct completed learners across cohorts the viewer cannot see. Omitted when all affected cohorts are visible; no hidden cohort identifiers or names are returned."
           }
         },
         "required": [

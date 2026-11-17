@@ -745,7 +745,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         <Button variant="secondary" onClick={() => setReopen(null)}>Keep editing</Button>
         <Button variant="danger" onClick={() => { const warning = reopen; setReopen(null); if (warning) void save(warning.watchReset, warning.impact.completed_learners) }}>Add work and reopen</Button>
       </>}>
-        <ul className="space-y-2 text-sm text-ink-muted">{reopen?.impact.cohorts.map((cohort) => <li key={cohort.id}><Link className="app-link" to={cohortPath(cohort.id)}>{cohort.name}</Link>: {cohort.completed_learners} learners</li>)}</ul>
+        <ul className="space-y-2 text-sm text-ink-muted">{reopen?.impact.cohorts.map((cohort) => <li key={cohort.id}><Link className="app-link" to={cohortPath(cohort.id)}>{cohort.name}</Link>: {cohort.completed_learners} {cohort.completed_learners === 1 ? 'learner' : 'learners'}</li>)}</ul>
+        {Boolean(reopen?.impact.other_cohorts_completed_learners) && <p className="mt-2 text-sm text-ink-muted">Other cohorts: {reopen?.impact.other_cohorts_completed_learners} {reopen?.impact.other_cohorts_completed_learners === 1 ? 'learner' : 'learners'}</p>}
         <p className="mt-3 text-sm text-ink-muted">Their saved work stays recorded, but their lesson and course completion percentages may go down.</p>
       </Modal>
 

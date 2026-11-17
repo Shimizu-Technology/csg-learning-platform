@@ -9034,6 +9034,8 @@ export interface components {
                 name: string;
                 completed_learners: number;
             }[];
+            /** @description Distinct completed learners across cohorts the viewer cannot see. Omitted when all affected cohorts are visible; no hidden cohort identifiers or names are returned. */
+            other_cohorts_completed_learners?: number;
         };
         SubmissionAudit400Response: {
             error: string;

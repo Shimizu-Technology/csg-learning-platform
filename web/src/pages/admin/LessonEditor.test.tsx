@@ -199,6 +199,20 @@ describe('block lesson editor', () => {
     expect(save).not.toHaveBeenCalled()
   })
 
+  it('shows other cohorts only as an aggregate and confirms with the total', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockResolvedValue({ data: { ...response(), completion_impact: { completed_learners: 3, cohorts: [{ id: 4, name: 'My cohort', completed_learners: 1 }], other_cohorts_completed_learners: 2 } }, error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(dialog.textContent).toContain('3 learners finished this lesson')
+    expect(dialog.textContent).toContain('My cohort: 1 learner')
+    expect(dialog.textContent).toContain('Other cohorts: 2 learners')
+    expect(dialog.querySelectorAll('a')).toHaveLength(1)
+    await click(button('Add work and reopen', dialog))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][1].confirm_reopen_completed_count).toBe(3)
+  })
+
   it('does not ask to reopen when nobody completed the lesson', async () => {
     await mount('/admin/lessons/2/edit?block=1&add_companion=1')
     await click(button('Save'))
