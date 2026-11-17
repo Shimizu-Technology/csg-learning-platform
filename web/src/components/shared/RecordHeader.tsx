@@ -85,10 +85,10 @@ const PAGE_PARAMS: [RegExp, Record<string, RegExp>][] = [
 export function shareablePath(location: { pathname: string; search: string; hash?: string }) {
   const { pathname } = location
   const destination = fromWebPath(`${pathname}${location.search}${location.hash || ''}`)
-  const canonical = destination && toWebPath(destination)
+  const allowed = PAGE_PARAMS.find(([pattern]) => pattern.test(pathname))?.[1]
+  const canonical = !allowed && destination && toWebPath(destination)
   if (canonical) return canonical
 
-  const allowed = PAGE_PARAMS.find(([pattern]) => pattern.test(pathname))?.[1]
   if (!allowed) return pathname
   const current = new URLSearchParams(location.search)
   const params = new URLSearchParams()

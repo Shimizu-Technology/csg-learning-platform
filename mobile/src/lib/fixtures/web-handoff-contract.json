@@ -1,0 +1,167 @@
+[
+  {
+    "path": "/lessons/42?cohort_id=2#block-8",
+    "role": "student",
+    "status": 200
+  },
+  {
+    "path": "/modules/7",
+    "role": "student",
+    "status": 200
+  },
+  {
+    "path": "/meetings?cohort_id=2",
+    "role": "student",
+    "status": 200
+  },
+  {
+    "path": "/recordings?cohort_id=2&recording=9",
+    "role": "student",
+    "status": 200
+  },
+  {
+    "path": "/recordings?cohort_id=2&recording=legacy-2-1",
+    "role": "student",
+    "status": 200
+  },
+  {
+    "path": "/profile",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/announcements/9",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/announcements",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/privacy",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/courses/python",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/admin/team/9",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/recordings?cohort_id=2",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/admin/meetings?booking_id=3&booking_id=4",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/admin/meetings?week=bad",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/admin/meetings?week=2#fragment",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "https://evil.test",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/unknown",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "",
+    "role": "admin",
+    "status": 422
+  },
+  {
+    "path": "/admin/students/9?cohort_id=4",
+    "role": "student",
+    "status": 403
+  },
+  {
+    "path": "/admin/students/9?cohort_id=4",
+    "role": "instructor",
+    "status": 200
+  },
+  {
+    "path": "/admin/students/9?cohort_id=4",
+    "role": "admin",
+    "status": 200
+  },
+  {
+    "path": "/admin/cohorts/4/settings",
+    "role": "student",
+    "status": 403
+  },
+  {
+    "path": "/admin/cohorts/4/settings",
+    "role": "instructor",
+    "status": 200
+  },
+  {
+    "path": "/admin/cohorts/4/settings",
+    "role": "admin",
+    "status": 200
+  },
+  {
+    "path": "/admin/submissions/9",
+    "role": "student",
+    "status": 403
+  },
+  {
+    "path": "/admin/submissions/9",
+    "role": "instructor",
+    "status": 200
+  },
+  {
+    "path": "/admin/submissions/9",
+    "role": "admin",
+    "status": 200
+  },
+  {
+    "path": "/admin/meetings?cohort_id=4&booking_id=7&week=2",
+    "role": "student",
+    "status": 403
+  },
+  {
+    "path": "/admin/meetings?cohort_id=4&booking_id=7&week=2",
+    "role": "instructor",
+    "status": 200
+  },
+  {
+    "path": "/admin/meetings?cohort_id=4&booking_id=7&week=2",
+    "role": "admin",
+    "status": 200
+  },
+  {
+    "path": "/admin/moderation#report-5",
+    "role": "student",
+    "status": 403
+  },
+  {
+    "path": "/admin/moderation#report-5",
+    "role": "instructor",
+    "status": 403
+  },
+  {
+    "path": "/admin/moderation#report-5",
+    "role": "admin",
+    "status": 200
+  }
+]

@@ -84,6 +84,15 @@ class ExpoPushNotificationService
     end
   end
 
+  def self.system_notice(_record, notifications)
+    new.deliver_notifications(notifications) do |notification|
+      destination = RecordDestination.from_path(notification.path)
+      { title: notification.title, body: notification.body,
+        data: { destination: destination, path: RecordDestination.to_native_href(destination) || notification.path, destination_path: RecordDestination.to_native_href(destination) || notification.path },
+        sound: "default", channelId: "learning" }
+    end
+  end
+
   # The app has no Safety or purchase screens yet: the descriptor is web-only
   # (its native href is nil), so the tap opens Updates, where the alert is listed.
   # A purchase's student page does exist natively.
@@ -202,15 +211,22 @@ class ExpoPushNotificationService
 
     receipts = Array(JSON.parse(response.body)["data"])
     receipt_requests = []
+    seen_ids = []
+    failed_ids = []
+    now = Time.current
     entries.zip(receipts).each do |(token, _payload, _notification_id), receipt|
       if receipt&.dig("status") == "error" && receipt.dig("details", "error") == "DeviceNotRegistered"
-        token.mark_failed!
+        failed_ids << token.id
+        token.assign_attributes(failed_at: now, updated_at: now)
       elsif receipt&.dig("status") == "ok"
-        token.mark_seen!
+        seen_ids << token.id
+        token.assign_attributes(last_seen_at: now, failed_at: nil, updated_at: now)
         receipt_id = receipt["id"].to_s
         receipt_requests << { "receipt_id" => receipt_id, "mobile_push_token_id" => token.id } if receipt_id.present?
       end
     end
+    MobilePushToken.where(id: failed_ids).update_all(failed_at: now, updated_at: now) if failed_ids.any?
+    MobilePushToken.where(id: seen_ids - failed_ids).update_all(last_seen_at: now, failed_at: nil, updated_at: now) if seen_ids.any?
     ExpoPushReceiptJob.track(receipt_requests)
   rescue JSON::ParserError => e
     Rails.logger.warn("[ExpoPush] delivery failed: #{e.class} #{e.message}")

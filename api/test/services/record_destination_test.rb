@@ -16,6 +16,12 @@ class RecordDestinationTest < ActiveSupport::TestCase
     end
   end
 
+  test "native and canonical aliases share the parser table" do
+    assert_equal "/staff/student/18?cohort_id=4", RecordDestination.to_native_href(RecordDestination.from_path("/staff/student/18?cohort_id=4"))
+    assert_equal "/staff/student/18?cohort_id=4", RecordDestination.to_native_href(RecordDestination.from_path("/admin/cohorts/4/students/18"))
+    assert_equal "/staff/curriculum/3?cohort_id=4", RecordDestination.to_native_href(RecordDestination.from_path("/staff/curriculum/3?cohort_id=4"))
+  end
+
   test "search destinations open role-appropriate web and native surfaces" do
     curriculum = RecordDestination.build(kind: "curriculum", id: 3, context: { staff: true, cohort_id: 4 })
     assert_equal "/admin/content?cohort_id=4#curriculum-3", RecordDestination.to_web_path(curriculum)

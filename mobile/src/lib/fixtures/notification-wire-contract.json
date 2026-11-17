@@ -113,7 +113,7 @@
     "path": "/admin/moderation#report-5",
     "destination_path": "/admin/moderation#report-5",
     "installed_destination": "/updates",
-    "new_destination": "/updates",
+    "new_destination": "/link-unavailable?path=%2Fadmin%2Fmoderation%23report-5",
     "descriptor": {
       "kind": "content_report",
       "id": "5",
@@ -126,7 +126,7 @@
     "path": "/admin/moderation#deletion-6",
     "destination_path": "/admin/moderation#deletion-6",
     "installed_destination": "/updates",
-    "new_destination": "/updates",
+    "new_destination": "/link-unavailable?path=%2Fadmin%2Fmoderation%23deletion-6",
     "descriptor": {
       "kind": "deletion_request",
       "id": "6",

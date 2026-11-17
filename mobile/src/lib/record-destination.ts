@@ -1,3 +1,4 @@
+import aliases from '../../../api/config/record_destination_aliases.json'
 /** Twins: web/src/lib/recordDestination.ts and mobile/src/lib/record-destination.ts. Keep equivalent apart from package-local import paths. */
 /** Wire contract v1. Unknown/invalid context entries are discarded independently. */
 import type { components } from './api.generated'
@@ -45,6 +46,18 @@ function adapt(target: unknown, native: boolean): string | null {
 /** Legacy stored web paths are decoded at the boundary, never interpreted as URLs. */
 export function fromWebPath(value: unknown): RecordDestination | null {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.split('#').length > 2 || /[\s\\]/.test(value)) return null
+  for (const alias of aliases) {
+    const base = value.split(/[?#]/)[0]
+    if (new RegExp(alias.pattern).test(base)) {
+      const target = base.replace(new RegExp(alias.pattern), alias.replacement)
+      const source = new URL(value, 'https://csg.invalid')
+      const mapped = new URL(target, 'https://csg.invalid')
+      const fixed = new Set(mapped.searchParams.keys())
+      for (const [key, entry] of source.searchParams) if (!fixed.has(key)) mapped.searchParams.append(key, entry)
+      const result = fromWebPath(mapped.pathname + mapped.search + mapped.hash)
+      return result ? { ...result, context: { ...result.context, ...('context' in alias ? alias.context : {}) } } : null
+    }
+  }
   const url = new URL(value, 'https://csg.invalid')
   if (url.pathname !== value.split(/[?#]/)[0]) return null
   const context: Record<string, unknown> = {}
@@ -54,6 +67,8 @@ export function fromWebPath(value: unknown): RecordDestination | null {
     const match = url.pathname.match(pattern)
     if (match) return { kind, id: match[1], context, anchor: { block_id: url.hash.match(/^#block-([1-9]\d*)$/)?.[1] ?? numeric(context.block_id) ?? undefined, message_id: context.message_id ?? context.messageId } }
   }
+  const curriculum = url.pathname === '/admin/content' ? url.hash.match(/^#curriculum-([1-9]\d*)$/) : null
+  if (curriculum) return { kind: 'curriculum', id: curriculum[1], context: { ...context, staff: true }, anchor: {} }
   const safety = url.pathname === '/admin/moderation' ? url.hash.match(/^#(report|deletion)-([1-9]\d*)$/) : null
   if (safety) return { kind: safety[1] === 'report' ? 'content_report' : 'deletion_request', id: safety[2], context: {}, anchor: {} }
   if (url.pathname === '/recordings' && /^(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)$/.test(String(context.recording))) return { kind: 'recording', id: String(context.recording), context, anchor: {} }

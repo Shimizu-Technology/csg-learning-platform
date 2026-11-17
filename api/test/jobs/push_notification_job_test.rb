@@ -264,4 +264,21 @@ class PushNotificationJobTest < ActiveJob::TestCase
     WebPushNotificationService.define_singleton_method(:help_request_changed, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:help_request_changed, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end
+  test "enrollment system notices reach both existing providers" do
+    curriculum = Curriculum.create!(name: "Enrollment pushes")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Enrollment cohort", start_date: Date.current, status: :active)
+    student = User.create!(clerk_id: "enrollment_push", email: "enrollment-push@example.com", role: :student)
+    enrollment = Enrollment.create!(user: student, cohort: cohort)
+    notification = student.notifications.create!(notifiable: enrollment, notification_type: :system, title: "Enrolled", path: "/cohorts/#{cohort.id}")
+    deliveries = []
+    web = WebPushNotificationService.method(:system_notice)
+    expo = ExpoPushNotificationService.method(:system_notice)
+    WebPushNotificationService.define_singleton_method(:system_notice) { |record, rows| deliveries << [ :web, record.id, rows.pluck(:id) ] }
+    ExpoPushNotificationService.define_singleton_method(:system_notice) { |record, rows| deliveries << [ :expo, record.id, rows.pluck(:id) ] }
+    PushNotificationJob.perform_now("Enrollment", enrollment.id, [ notification.id ])
+    assert_equal [ [ :web, enrollment.id, [ notification.id ] ], [ :expo, enrollment.id, [ notification.id ] ] ], deliveries
+  ensure
+    WebPushNotificationService.define_singleton_method(:system_notice, web) if web
+    ExpoPushNotificationService.define_singleton_method(:system_notice, expo) if expo
+  end
 end

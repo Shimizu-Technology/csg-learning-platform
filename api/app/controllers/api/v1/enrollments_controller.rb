@@ -35,7 +35,7 @@ module Api
         if enrollment.persisted?
           invitation = dispatch_invitation(user)
           unless user.invite_pending?
-            Notification.create!(
+            notification = Notification.create!(
               user: user,
               actor: current_user,
               notifiable: enrollment,
@@ -44,6 +44,7 @@ module Api
               body: "Open your cohort workspace to see your class, schedule, and messages.",
               path: "/cohorts/#{@cohort.id}"
             )
+            NotificationDeliveryService.system_notice(enrollment, [ notification ])
           end
           render json: {
             enrollment: enrollment_json(enrollment),
@@ -126,9 +127,10 @@ module Api
               else
                 invitation = dispatch_invitation(user)
                 if created && !user.invite_pending?
-                  Notification.create!(user: user, actor: current_user, notifiable: enrollment, notification_type: :system,
+                  notification = Notification.create!(user: user, actor: current_user, notifiable: enrollment, notification_type: :system,
                     title: "You've been added to #{@cohort.name}",
                     body: "Open your cohort workspace to see your class, schedule, and messages.", path: "/cohorts/#{@cohort.id}")
+                  NotificationDeliveryService.system_notice(enrollment, [ notification ])
                 end
                 result.merge(status: created ? "enrolled" : "already_enrolled", invitation_status: invitation&.status, error: invitation&.error).compact
               end

@@ -50,7 +50,7 @@ describe('isAllowedNotificationPath', () => {
     expect(mobileNotificationPath('/dashboard')).toBe('/');
     expect(mobileNotificationPath('/admin/grading')).toBe('/staff/grading');
     expect(mobileNotificationPath('/admin/support')).toBe('/staff/support');
-    expect(mobileNotificationPath('https://example.com')).toBe('/updates');
+    expect(mobileNotificationPath('https://example.com')).toBe('/link-unavailable');
   });
 });
 
@@ -82,4 +82,14 @@ it.each([
   expect(mobileNotificationPath(source)).toBe(expected);
   expect(isAllowedNotificationPath(source)).toBe(false);
   expect(isAllowedNotificationPath(expected)).toBe(true);
+});
+
+it.each([
+  ['/messages', '/messages'], ['/materials', '/learn'], ['/staff/curriculum', '/learn'],
+  ['/thread/12', '/thread/12'], ['/cohort/4/schedule', '/cohort/4/schedule'],
+  ['/admin/cohorts/4', '/cohort/4'],
+  ['/staff/submission/31?cohort_id=4&student_id=18&extra=1', '/staff/submission/31?cohort_id=4&student_id=18'],
+])('recovers backlog route %s', (input, expected) => expect(mobileNotificationPath(input)).toBe(expected));
+it('keeps unsupported pages explicit and preserves the web destination', () => {
+  expect(mobileNotificationPath('/admin/cohorts/4/bulk')).toBe('/link-unavailable?path=%2Fadmin%2Fcohorts%2F4%2Fbulk');
 });

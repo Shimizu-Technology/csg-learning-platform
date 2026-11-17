@@ -27,6 +27,9 @@ class PushNotificationJob < ApplicationJob
       # released notifications are claimed and sent.
       raise not_started.first if not_started.one?
       raise PushDeliveryNotStarted.new(provider: "web_push+expo", notification_ids: not_started.flat_map(&:notification_ids)) if not_started.any?
+    when PrivateMeetingBookingEvent, Enrollment
+      deliver(WebPushNotificationService, :system_notice, notifiable, notifications, notification_ids)
+      deliver(ExpoPushNotificationService, :system_notice, notifiable, notifications, notification_ids)
     when Submission
       deliver(WebPushNotificationService, :submission_changed, notifiable, notifications, notification_ids)
       deliver(ExpoPushNotificationService, :submission_changed, notifiable, notifications, notification_ids)

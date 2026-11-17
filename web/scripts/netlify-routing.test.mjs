@@ -36,6 +36,7 @@ const directFileRules = [
   '/sitemap.xml',
   '/manifest.json',
   '/sw.js',
+  '/.well-known/apple-app-site-association',
 ]
 const spaFallback = { from: '/*', to: '/index.html', status: '200' }
 
@@ -106,3 +107,10 @@ for (const isolatedHost of [
 }
 
 console.log('Netlify routing checks passed.')
+
+const association = JSON.parse(await readFile(new URL('../public/.well-known/apple-app-site-association', import.meta.url), 'utf8'))
+const app = JSON.parse(await readFile(new URL('../../mobile/app.json', import.meta.url), 'utf8')).expo
+assert.equal(association.applinks.details[0].appID, `${app.ios.appleTeamId}.${app.ios.bundleIdentifier}`)
+assert.ok(app.ios.associatedDomains.includes(`applinks:${new URL(brand.appUrl).host}`))
+const netlify = await readFile(new URL('../../netlify.toml', import.meta.url), 'utf8')
+assert.match(netlify, /for = "\/\.well-known\/apple-app-site-association"\s+\[headers.values\]\s+Content-Type = "application\/json"/)

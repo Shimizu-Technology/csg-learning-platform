@@ -136,21 +136,21 @@ it.each([false, true])('preserves exact staff meeting context in authenticated w
   mockAdmin = admin;
   mockStaff = true; mockParams = { cohort_id: '4', booking_id: '81', week: '3' };
   const { screen } = show();
-  fireEvent.press(screen.getByText('Manage on web'));
+  expect(screen.queryByText(/Booking 81/)).toBeNull();
   await waitFor(() => expect(mockHandoff).toHaveBeenCalledWith(mockApi, '/admin/meetings?cohort_id=4&booking_id=81&week=3'));
 });
 it('opens the notified past week and identifies the booking', async () => {
   mockParams = { cohort_id: '2', booking_id: String(booking.id), week: String(booking.week_number) };
   mockCohorts = [{ ...cohort, bookings: [booking] }];
   const { screen } = show();
-  await waitFor(() => expect(screen.getByText(`Meeting from your update · Booking ${booking.id}`)).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Meeting from your update')).toBeTruthy());
 });
 
 it('shows the canceled target without hiding the learner’s current scheduling actions', async () => {
   mockParams = { cohort_id: '2', booking_id: String(booking.id), week: String(booking.week_number) };
   mockCohorts = [{ ...cohort, bookings: [{ ...booking, status: 'canceled' }] }];
   const { screen } = show(); await ready(screen);
-  expect(screen.getByText(`Meeting from your update · Booking ${booking.id}`)).toBeTruthy();
+  expect(screen.getByText('Meeting from your update')).toBeTruthy();
   expect(screen.getByText(/Canceled ·/)).toBeTruthy();
   expect(screen.getByTestId('meeting-slot-2-0')).toBeEnabled();
   expect(screen.queryByTestId('cancel-week-2')).toBeNull();

@@ -30,3 +30,7 @@ for (const name of forbidden) {
 }
 assert.ok([...initial].some((file) => file.startsWith('vendor-react')), 'React should load from its own vendor chunk')
 console.log(`initial bundle ok: ${[...initial].join(', ')}`)
+
+const associationOutput = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../dist/.well-known/apple-app-site-association', import.meta.url), 'utf8'))
+const nativeConfig = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../../mobile/app.json', import.meta.url), 'utf8')).expo
+if (associationOutput.applinks.details[0].appID !== `${nativeConfig.ios.appleTeamId}.${nativeConfig.ios.bundleIdentifier}`) throw new Error('Built universal link identity drifted')
