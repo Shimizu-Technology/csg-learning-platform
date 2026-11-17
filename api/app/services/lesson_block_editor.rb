@@ -34,12 +34,13 @@ class LessonBlockEditor
   class Stale < StandardError; end
 
   class Invalid < StandardError
-    attr_reader :code, :block_ids
+    attr_reader :code, :block_ids, :completion_impact
 
-    def initialize(message, code: "invalid", block_ids: nil)
+    def initialize(message, code: "invalid", block_ids: nil, completion_impact: nil)
       super(message)
       @code = code
       @block_ids = block_ids
+      @completion_impact = completion_impact
     end
   end
 
@@ -75,11 +76,12 @@ class LessonBlockEditor
         validate_block_list!
         guarded = guarded_block_ids
         # A day change counts learner work across the whole lesson.
-        guarded |= @existing.keys if day_change
+        guarded |= @existing.keys if day_change || adds_completion_block?
         # Learner writes on guarded blocks wait while this save runs, so the
         # evidence read below stays true until commit.
         ContentBlock.lock_for_authoring!(@existing.keys, exclusive: guarded)
         @evidence = ContentBlock.learner_evidence_for(guarded)
+        require_reopen_confirmation!
         remove_blocks!
         save_blocks!
         save_lesson!
@@ -97,6 +99,21 @@ class LessonBlockEditor
   end
 
   private
+
+  def adds_completion_block?
+    block_payloads.any? { |payload| payload[:id].blank? && %w[exercise code_challenge checkpoint].include?(payload[:block_type].to_s) }
+  end
+
+  def require_reopen_confirmation!
+    return unless adds_completion_block?
+
+    impact = LessonCompletionImpact.for_lesson(@lesson, viewer: @user)
+    return if impact[:completed_learners].zero?
+    return if @params[:confirm_reopen_completed_count].to_s == impact[:completed_learners].to_s
+
+    raise Invalid.new("Adding this work reopens the lesson for #{impact[:completed_learners]} learners until they finish the new work.",
+      code: "confirm_reopen_completed", completion_impact: impact)
+  end
 
   def require_current_version!
     requested = @params[:base_updated_at].presence

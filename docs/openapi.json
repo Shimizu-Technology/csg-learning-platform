@@ -3714,6 +3714,97 @@
           }
         }
       }
+    },
+    "/api/v1/submission_audits": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAuditResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/submission_audits/{id}": {
+      "patch": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content_digest": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "content_digest"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAuditReviewResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The content digest is stale. Reload the audit before reviewing the changed block.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAuditConflictResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The review requires content_digest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAudit400Response"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The block is not currently an audit candidate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAudit422Response"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9458,6 +9549,9 @@
           "impact": {
             "$ref": "#/components/schemas/LessonMoveImpact",
             "description": "Included with code impact_changed: the impact the move would have now."
+          },
+          "completion_impact": {
+            "$ref": "#/components/schemas/LessonCompletionImpact"
           }
         },
         "required": [
@@ -9966,13 +10060,17 @@
           },
           "access": {
             "$ref": "#/components/schemas/LessonEditAccess"
+          },
+          "completion_impact": {
+            "$ref": "#/components/schemas/LessonCompletionImpact"
           }
         },
         "required": [
           "lesson",
           "block_activity",
           "context",
-          "access"
+          "access",
+          "completion_impact"
         ],
         "additionalProperties": false
       },
@@ -10235,6 +10333,10 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "confirm_reopen_completed_count": {
+                "type": "integer",
+                "minimum": 0
               }
             },
             "required": [
@@ -22820,6 +22922,208 @@
         ],
         "additionalProperties": false,
         "description": "The redesigned student Today (StudentToday). Every status, count and next step comes from LearnerProgress."
+      },
+      "SubmissionAuditBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lesson_id": {
+            "type": "integer"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "curriculum_id": {
+            "type": "integer"
+          },
+          "curriculum_name": {
+            "type": "string"
+          },
+          "completed_learners": {
+            "type": "integer"
+          },
+          "suggested_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content_digest": {
+            "type": "string"
+          },
+          "cohort_submissions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "submission_type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "submission_type"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "completion_impact": {
+            "$ref": "#/components/schemas/LessonCompletionImpact"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "body",
+          "lesson_id",
+          "lesson_title",
+          "module_id",
+          "module_name",
+          "curriculum_id",
+          "curriculum_name",
+          "completed_learners",
+          "suggested_type",
+          "content_digest",
+          "cohort_submissions",
+          "completion_impact"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAuditResponse": {
+        "type": "object",
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionAuditBlock"
+            }
+          }
+        },
+        "required": [
+          "blocks"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAuditReviewResponse": {
+        "type": "object",
+        "properties": {
+          "reviewed_by_id": {
+            "type": "integer"
+          },
+          "reviewed_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewed_by_id",
+          "reviewed_at"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAuditConflictResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "const": "This block changed. Reload the audit before reviewing it."
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "LessonCompletionImpact": {
+        "type": "object",
+        "properties": {
+          "completed_learners": {
+            "type": "integer"
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "completed_learners": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "completed_learners"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "other_cohorts_completed_learners": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Distinct completed learners across cohorts the viewer cannot see. Omitted when all affected cohorts are visible; no hidden cohort identifiers or names are returned."
+          }
+        },
+        "required": [
+          "completed_learners",
+          "cohorts"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAudit400Response": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAudit422Response": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {

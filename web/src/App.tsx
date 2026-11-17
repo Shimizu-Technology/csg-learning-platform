@@ -29,6 +29,7 @@ import {
   CohortStudentView,
   CohortWatchProgress,
   ContentManagement,
+  SubmissionAudit,
   PrivateMeetings,
   StaffPrivateMeetings,
   Grading,
@@ -181,6 +182,7 @@ function AppRoutes() {
 
           {/* Admin-only routes */}
           <Route element={<ProtectedRoute requiredRole="admin" />}>
+            <Route path="/admin/content/submission-audit" element={<SuspendedRoute><SubmissionAudit /></SuspendedRoute>} />
             <Route path="/admin/activity" element={<SuspendedRoute><AdminActivity /></SuspendedRoute>} />
             <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />

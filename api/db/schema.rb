@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -1211,6 +1211,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_020000) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
+  create_table "submission_audit_reviews", force: :cascade do |t|
+    t.bigint "content_block_id", null: false
+    t.bigint "reviewed_by_id"
+    t.string "content_digest", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_block_id"], name: "index_submission_audit_reviews_on_content_block_id", unique: true
+    t.index ["reviewed_by_id"], name: "index_submission_audit_reviews_on_reviewed_by_id"
+  end
+
   create_table "submission_criterion_results", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "feedback"
@@ -1479,6 +1489,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_020000) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "submission_audit_reviews", "content_blocks"
+  add_foreign_key "submission_audit_reviews", "users", column: "reviewed_by_id", on_delete: :nullify
   add_foreign_key "submission_criterion_results", "rubric_criteria", column: "rubric_criterion_id"
   add_foreign_key "submission_criterion_results", "submissions"
   add_foreign_key "submissions", "content_blocks"

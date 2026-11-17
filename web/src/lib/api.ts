@@ -161,6 +161,7 @@ export interface ApiResponse<T> {
   errorCode?: string;
   /** Blocks an error is about, e.g. the videos a save would reset watch progress on (confirm_watch_reset). */
   errorBlockIds?: number[];
+  errorCompletionImpact?: components['schemas']['LessonCompletionImpact'];
   /** The move's impact now, with code impact_changed (POST /lessons/:id/move). */
   errorImpact?: components['schemas']['LessonMoveImpact'];
   latestSubmissionId?: number;
@@ -252,6 +253,7 @@ async function fetchApi<T>(
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
           errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
+          errorCompletionImpact: errorBody.completion_impact,
           errorImpact: errorBody.impact && typeof errorBody.impact === 'object' ? errorBody.impact : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
@@ -472,6 +474,8 @@ export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
 export type BulkEnrollmentResult = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
 export type BulkEnrollmentState = { enrolled: number; invited: number; results: BulkEnrollmentResult[] }
 export const api = {
+  getSubmissionAudit: () => fetchApi<components['schemas']['SubmissionAuditResponse']>('/api/v1/submission_audits', { cache: 'no-store' }),
+  reviewSubmissionAudit: (id: number, content_digest: string) => fetchApi<components['schemas']['SubmissionAuditReviewResponse']>(`/api/v1/submission_audits/${id}`, { method: 'PATCH', body: JSON.stringify({ content_digest }) }),
   getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
   bulkEnroll: async (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean, onProgress?: (count: number, phase: 'enrolling' | 'inviting') => void, resume?: BulkEnrollmentState) => {
     const state = resume || { enrolled: 0, invited: 0, results: [] }

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
-import { curriculumPath, lessonEditorPath, lessonRecordPath, moduleRecordPath } from '../../lib/routes'
+import { cohortPath, curriculumPath, lessonEditorPath, lessonRecordPath, moduleRecordPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink, type BackLink } from '../../lib/recordOrigin'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -124,10 +124,14 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
 
   const [objectives, setObjectives] = useState<LearningObjective[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
+  const auditBlockId = Number(searchParams.get('block'))
+  const auditRequest = useRef({ blockId: auditBlockId, companion: searchParams.get('add_companion') === '1' })
+  const [suggestedSubmission, setSuggestedSubmission] = useState(searchParams.get('suggest_submission'))
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('lesson')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<BlockDraft | null>(null)
+  const [reopen, setReopen] = useState<{ impact: LessonBlockEditorResponse['completion_impact']; watchReset?: number[] } | null>(null)
   const [watchReset, setWatchReset] = useState<{ ids: number[]; message: string } | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
@@ -148,8 +152,11 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     setSaveError(null)
   }, [setSavedSig, setStatus])
 
+  const loadVersion = useRef(0)
   const load = useCallback(async () => {
+    const version = ++loadVersion.current
     const response = await api.getLessonBlockEditor(lessonId)
+    if (version !== loadVersion.current) return
     if (!response.data) {
       setLoadError(response.error || 'This lesson couldn\'t be loaded.')
       return
@@ -167,11 +174,28 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       setReadOnlyBackup(null)
       setBackupChecked(true)
     }
+    if (firstLoad) {
+      const blockId = auditRequest.current.blockId
+      const block = draftRef.current?.blocks.find((item) => item.id === blockId)
+      if (block) {
+        if (editable && auditRequest.current.companion && draftRef.current!.blocks.length < MAX_BLOCKS && !['exercise', 'code_challenge', 'checkpoint'].includes(block.block_type)) {
+          auditRequest.current.companion = false
+          const companion = newBlock('exercise')
+          companion.title = `Exercise: ${block.title || 'Your work'}`
+          companion.body = block.body || 'Describe the work learners should submit.'
+          companion.submission_type = 'text_submission'
+          setDraft((current) => ({ ...current, blocks: insertBlock(current.blocks, current.blocks.findIndex((item) => item.key === block.key) + 1, companion) }))
+          setSelectedKey(companion.key)
+        } else setSelectedKey(block.key)
+        setInspectorTab('block')
+        if (window.innerWidth < 1024) setSettingsOpen(true)
+      }
+    }
     const curriculumId = response.data.lesson.curriculum_id
     if (!editable) return
     void api.getLearningObjectives(curriculumId).then((result) => { if (result.data) setObjectives(result.data.learning_objectives) })
     void api.getRubrics(curriculumId).then((result) => { if (result.data) setRubrics(result.data.rubrics) })
-  }, [backupKey, hydrate, lessonId])
+  }, [backupKey, hydrate, lessonId, setDraft])
 
   useEffect(() => {
     void load()
@@ -185,18 +209,28 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     .filter((upload) => upload.contentBlockId && PENDING_UPLOAD.has(upload.status))
     .map((upload) => upload.contentBlockId as number)), [uploads])
   const dirty = Boolean(draft) && signature !== savedSig
+  useEffect(() => {
+    if (dirty || !savedAt || (!searchParams.has('suggest_submission') && !searchParams.has('add_companion'))) return
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params)
+      next.delete('suggest_submission')
+      next.delete('add_companion')
+      return next
+    }, { replace: true })
+  }, [dirty, savedAt, searchParams, setSearchParams])
+
   const saving = status === 'saving'
 
   // What a save reads when it starts, not when it was asked for.
-  const live = useRef({ activity, pendingUploads, uploads, completeDeferredUpload })
+  const live = useRef({ activity, pendingUploads, uploads, completeDeferredUpload, completionImpact: server?.completion_impact })
   useEffect(() => {
-    live.current = { activity, pendingUploads, uploads, completeDeferredUpload }
-  }, [activity, completeDeferredUpload, pendingUploads, uploads])
+    live.current = { activity, pendingUploads, uploads, completeDeferredUpload, completionImpact: server?.completion_impact }
+  }, [activity, completeDeferredUpload, pendingUploads, uploads, server?.completion_impact])
 
   // One save at a time. Each builds its payload and base version when it
   // starts, so a save queued behind another sends the newest edits on top of
   // the version the first one produced.
-  const runSave = useCallback(async (confirmWatchReset?: number[]): Promise<boolean> => {
+  const runSave = useCallback(async (confirmWatchReset?: number[], confirmReopenCount?: number): Promise<boolean> => {
     const sent = draftRef.current
     if (!sent) return false
     if (statusRef.current === 'conflict') return false
@@ -208,6 +242,18 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     }
     const { activity: currentActivity, pendingUploads: uploading, uploads: currentUploads, completeDeferredUpload: completeUpload } = live.current
     const payload = draftPayload(sent, { baseUpdatedAt: updatedAtRef.current, baseline: baselineRef.current, pendingUploads: uploading, confirmWatchReset })
+    const addsWork = sent.blocks.some((block) => !block.id && ['exercise', 'code_challenge', 'checkpoint'].includes(block.block_type))
+    const impact = live.current.completionImpact
+    if (addsWork && !impact) {
+      setSaveError('The completion impact is unavailable. Reload the lesson before adding new work.')
+      setStatus('error')
+      return false
+    }
+    if (addsWork && impact && impact.completed_learners > 0 && confirmReopenCount === undefined) {
+      setReopen({ impact, watchReset: confirmWatchReset })
+      return false
+    }
+    if (confirmReopenCount !== undefined) payload.confirm_reopen_completed_count = confirmReopenCount
     setStatus('saving')
     setSaveError(null)
     const response = await api.saveLessonBlockEditor(lessonId, payload)
@@ -216,6 +262,11 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       if (response.status === 409) {
         setStatus('conflict')
         setSaveError(message)
+        return false
+      }
+      if (response.errorCode === 'confirm_reopen_completed' && response.errorCompletionImpact) {
+        setReopen({ impact: response.errorCompletionImpact, watchReset: confirmWatchReset })
+        setStatus('idle')
         return false
       }
       if (response.errorCode === 'confirm_watch_reset') {
@@ -250,6 +301,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     setServer(saved)
     setSavedSig(draftSignature(settled))
     setSavedAt(Date.now())
+    setSuggestedSubmission(null)
     setStatus('idle')
     setDraft((current) => applySavedIds(current, sent, savedLesson))
     for (const upload of currentUploads) {
@@ -260,8 +312,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     return true
   }, [lessonId, setDraft, setSavedSig, setStatus])
 
-  const save = useCallback((confirmWatchReset?: number[]): Promise<boolean> => {
-    const next = saveQueueRef.current.then(() => runSave(confirmWatchReset), () => runSave(confirmWatchReset))
+  const save = useCallback((confirmWatchReset?: number[], confirmReopenCount?: number): Promise<boolean> => {
+    const next = saveQueueRef.current.then(() => runSave(confirmWatchReset, confirmReopenCount), () => runSave(confirmWatchReset, confirmReopenCount))
     saveQueueRef.current = next.catch(() => undefined)
     return next
   }, [runSave])
@@ -497,6 +549,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
 
   return (
     <div className="-mx-4 -mt-4 flex flex-col sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+      {suggestedSubmission && selectedBlock?.id === auditBlockId && <p role="status" className="border-b border-line bg-surface-sunken p-4 text-sm text-ink">Suggested submission: {({ text_submission: 'Text submission', repo_url_submission: 'Repository link', repo_and_live_url_submission: 'Repository and live links' } as Record<string, string>)[suggestedSubmission] || 'Choose a submission type'}. Review the block settings and save your decision. Opening this suggestion does not change the block.</p>}
       <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} onDiscard={() => clearLocalDraft(backupKey)} problem={firstProblem} />
       <p aria-live="polite" className="sr-only">{announcement}</p>
 
@@ -687,6 +740,15 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
           <Button variant="danger" onClick={() => pendingDelete && deleteBlock(pendingDelete)}>Delete block</Button>
         </>}
       />
+
+      <Modal open={Boolean(reopen)} onClose={() => setReopen(null)} title="Reopen finished lessons?" subtitle={reopen ? `${reopen.impact.completed_learners} ${reopen.impact.completed_learners === 1 ? 'learner' : 'learners'} finished this lesson. Adding new work reopens it for them until they finish that work.` : ''} size="md" footer={<>
+        <Button variant="secondary" onClick={() => setReopen(null)}>Keep editing</Button>
+        <Button variant="danger" onClick={() => { const warning = reopen; setReopen(null); if (warning) void save(warning.watchReset, warning.impact.completed_learners) }}>Add work and reopen</Button>
+      </>}>
+        <ul className="space-y-2 text-sm text-ink-muted">{reopen?.impact.cohorts.map((cohort) => <li key={cohort.id}><Link className="app-link" to={cohortPath(cohort.id)}>{cohort.name}</Link>: {cohort.completed_learners} {cohort.completed_learners === 1 ? 'learner' : 'learners'}</li>)}</ul>
+        {Boolean(reopen?.impact.other_cohorts_completed_learners) && <p className="mt-2 text-sm text-ink-muted">Other cohorts: {reopen?.impact.other_cohorts_completed_learners} {reopen?.impact.other_cohorts_completed_learners === 1 ? 'learner' : 'learners'}</p>}
+        <p className="mt-3 text-sm text-ink-muted">Their saved work stays recorded, but their lesson and course completion percentages may go down.</p>
+      </Modal>
 
       <Modal
         open={Boolean(watchReset)}

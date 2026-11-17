@@ -50,6 +50,7 @@ let access: LessonBlockEditorResponse['access'] = adminAccess
 function response(overrides: Partial<LessonBlockEditorResponse['lesson']> = {}): LessonBlockEditorResponse {
   return {
     access,
+    completion_impact: { completed_learners: 0, cohorts: [] },
     lesson: {
       id: 2, curriculum_id: 1, module_id: 3, title: 'Make decisions', lesson_type: 'exercise', position: 0, release_day: 0, required: true,
       requires_submission: true, submission_type: 'text_submission', content_blocks_count: blocks.length, archived_at: null,
@@ -139,6 +140,116 @@ const type = async (input: HTMLInputElement | HTMLTextAreaElement, value: string
 const sentLesson = () => save.mock.calls.at(-1)![1] as { blocks: Array<{ id?: number; client_id?: string; block_type: string; title: string | null }>; removed_block_ids: number[]; title: string; release_day: number }
 
 describe('block lesson editor', () => {
+  it('hides submission settings on text video and recording blocks', async () => {
+    await mount()
+    const aside = container.querySelector('aside[aria-label="Settings"]')!
+    for (const index of [0, 1, 5]) {
+      await act(async () => cards()[index].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+      await settle()
+      expect(aside.textContent).not.toContain('Submission type')
+    }
+  })
+
+  it('adds an unsaved companion exercise immediately after an instructional audit block', async () => {
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    expect(cardLabels().slice(0, 3)).toEqual(['Text block, 1 of 7', 'Exercise block, 2 of 7', 'Video block, 3 of 7'])
+    expect(cards()[1].getAttribute('aria-current')).toBe('true')
+    expect(cards()[0].getAttribute('aria-label')).toBe('Text block, 1 of 7')
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('shows a suggestion only on its original audit block and consumes it after saving', async () => {
+    await mount('/admin/lessons/2/edit?block=3&suggest_submission=text_submission')
+    expect(container.textContent).toContain('Suggested submission:')
+    await act(async () => cards()[0].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+    await settle()
+    expect(container.textContent).not.toContain('Suggested submission:')
+    await act(async () => cards()[2].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+    await settle()
+    expect(container.textContent).toContain('Suggested submission:')
+    await type(cards()[2].querySelector('input')!, 'Updated exercise')
+    await click(button('Save'))
+    expect(container.textContent).not.toContain('Suggested submission:')
+  })
+
+  it('warns before a companion save and cancel keeps the draft unsaved', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockImplementation(async () => ({ data: { ...response(), completion_impact: { completed_learners: 2, cohorts: [{ id: 4, name: 'Cohort 3', completed_learners: 2 }] } }, error: null }))
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(dialog.textContent).toContain('2 learners finished this lesson')
+    expect(dialog.textContent).toContain('Cohort 3')
+    expect(save).not.toHaveBeenCalled()
+    await click(button('Keep editing', dialog))
+    expect(cards()).toHaveLength(7)
+    expect(button('Save')!.disabled).toBe(false)
+    expect(save).not.toHaveBeenCalled()
+    await click(button('Save'))
+    await click(button('Add work and reopen'))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][1].confirm_reopen_completed_count).toBe(2)
+  })
+
+  it('also warns for manually duplicated work on a completed lesson', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockImplementation(async () => ({ data: { ...response(), completion_impact: { completed_learners: 1, cohorts: [] } }, error: null }))
+    await mount()
+    await click(button('Duplicate exercise block'))
+    await click(button('Save'))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('1 learner finished this lesson')
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('shows other cohorts only as an aggregate and confirms with the total', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockResolvedValue({ data: { ...response(), completion_impact: { completed_learners: 3, cohorts: [{ id: 4, name: 'My cohort', completed_learners: 1 }], other_cohorts_completed_learners: 2 } }, error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(dialog.textContent).toContain('3 learners finished this lesson')
+    expect(dialog.textContent).toContain('My cohort: 1 learner')
+    expect(dialog.textContent).toContain('Other cohorts: 2 learners')
+    expect(dialog.querySelectorAll('a')).toHaveLength(1)
+    await click(button('Add work and reopen', dialog))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][1].confirm_reopen_completed_count).toBe(3)
+  })
+
+  it('does not ask to reopen when nobody completed the lesson', async () => {
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Reopen finished lessons?')
+  })
+
+  it('uses a newer server count when completion changes after the editor loads', async () => {
+    save.mockResolvedValueOnce({ data: null, error: 'Reopen', errorCode: 'confirm_reopen_completed', errorCompletionImpact: { completed_learners: 3, cohorts: [] } }).mockResolvedValue({ data: response(), error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('3 learners finished this lesson')
+    await click(button('Add work and reopen'))
+    expect(save.mock.calls[1][1].confirm_reopen_completed_count).toBe(3)
+  })
+
+  it('does not guess zero completed learners when an older API omits the impact', async () => {
+    const data: Partial<LessonBlockEditorResponse> = response()
+    delete data.completion_impact
+    vi.mocked(api.getLessonBlockEditor).mockResolvedValue({ data: data as LessonBlockEditorResponse, error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    expect(save).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('completion impact is unavailable')
+  })
+
+  it('requires a fresh decision when another learner finishes after the first warning', async () => {
+    vi.mocked(api.getLessonBlockEditor).mockResolvedValue({ data: { ...response(), completion_impact: { completed_learners: 1, cohorts: [] } }, error: null })
+    save.mockResolvedValueOnce({ data: null, error: 'Count changed', errorCode: 'confirm_reopen_completed', errorCompletionImpact: { completed_learners: 2, cohorts: [] } }).mockResolvedValue({ data: response(), error: null })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    await click(button('Save'))
+    await click(button('Add work and reopen'))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('2 learners finished this lesson')
+    await click(button('Add work and reopen'))
+    expect(save.mock.calls.map((call) => call[1].confirm_reopen_completed_count)).toEqual([1, 2])
+  })
+
   it('shows every block in order as an editable card with the two-mode editor on formatted text', async () => {
     await mount()
     expect(cardLabels()).toEqual([
@@ -563,6 +674,35 @@ describe('lesson editing access', () => {
       { id: 8, curriculum_id: 1, name: 'The DOM', module_type: 'live_class', description: null, position: 1, total_days: null, day_offset: 14, schedule_days: 'mwf', updated_at: '', scheduled_day_names: [], week_count: 1, lessons_count: 0, archived_lessons_count: 0, submissions_count: 0, deletion_blocked: false, lessons: [] },
     ]
   }
+
+  it('consumes the companion audit request across add save and move reloads', async () => {
+    let saved = response()
+    vi.mocked(api.getLessonBlockEditor).mockImplementation(async () => ({ data: saved, error: null }))
+    save.mockImplementation(async (_id: number, payload: { blocks: Array<{ id?: number; block_type: string; position: number; title?: string; body?: string; submission_type?: string }> }) => {
+      saved = response({ updated_at: '2026-11-16T00:00:05.000000Z', content_blocks: payload.blocks.map((block, index) => ({ ...base, ...block, id: block.id || 100 + index, submission_type_explicit: block.submission_type })) as LessonBlockEditorResponse['lesson']['content_blocks'] })
+      return { data: saved, error: null }
+    })
+    mockModules(moveModules())
+    const impact = { learners_losing_access: 0, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
+    const move = vi.spyOn(api, 'moveLesson').mockImplementation(async (_id, input) => {
+      if (!input.dry_run) saved = { ...saved, lesson: { ...saved.lesson, release_day: 1 } }
+      return { data: input.dry_run ? { impact } : { lesson: saved.lesson, impact }, error: null }
+    })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    expect(cards()).toHaveLength(7)
+    await click(button('Save'))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(router.state.location.search).not.toContain('add_companion')
+    const dialog = await openMoveDialog()
+    const day = dialog.querySelectorAll<HTMLSelectElement>('select')[1]
+    await act(async () => { day.value = '1'; day.dispatchEvent(new Event('change', { bubbles: true })) })
+    await click(button('Move lesson', dialog))
+    expect(move).toHaveBeenCalledTimes(2)
+    expect(cards()).toHaveLength(7)
+    expect(cards().filter((card) => card.querySelector<HTMLInputElement>('input')?.value === 'Exercise: Your work').length).toBe(1)
+    expect(button('Save')!.disabled).toBe(true)
+    expect(vi.mocked(api.getLessonBlockEditor).mock.calls.length).toBeGreaterThan(1)
+  })
 
   it('moves the lesson to another day and place, checking a module change with a dry run first', async () => {
     const modules = moveModules()

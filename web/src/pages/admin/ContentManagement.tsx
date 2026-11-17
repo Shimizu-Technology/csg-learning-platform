@@ -426,7 +426,7 @@ export function ContentManagement() {
       (day) => !(SCHEDULE_DAY_INDICES[mod.schedule_days] || []).includes(day)
     )
     const copy = added.length
-      ? `Adds ${added.map((day) => ALL_DAY_NAMES[day]).join('/')} slots. Existing exercises keep their days.`
+      ? `Adds ${added.map((day) => ALL_DAY_NAMES[day]).join('/')} as options for new exercises. Existing exercises keep their saved days; empty days stay hidden.`
       : 'Existing exercises keep their days. Days with existing exercises cannot be removed.'
     if (
       !(await confirm({
@@ -485,6 +485,7 @@ export function ContentManagement() {
         actions={
           canManageModules ? (
             <>
+              <Link className="app-link inline-flex min-h-11 items-center" to="/admin/content/submission-audit">Submission audit</Link>
               <Button variant="secondary" onClick={() => setShowPackageImport(true)}>
                 <Upload className="h-4 w-4" /> Import course package
               </Button>
@@ -992,7 +993,6 @@ function ModuleSection({
 }) {
   const location = useLocation()
   const matches = (lesson: Lesson) => !search.trim() || mod.name.toLowerCase().includes(search.trim().toLowerCase()) || lesson.title.toLowerCase().includes(search.trim().toLowerCase())
-  const [showEmptyDays, setShowEmptyDays] = useState(false)
   const activeLessons = useMemo(
     () => (mod.lessons || []).filter((lesson) => !lesson.archived_at),
     [mod.lessons]
@@ -1025,7 +1025,7 @@ function ModuleSection({
       const releaseDay = (activeWeek - 1) * 7 + dayIdx
       const exercises = lessonsByDay[releaseDay] || []
       return { dayIdx, releaseDay, exercises }
-    })
+    }).filter((day) => day.exercises.length > 0)
   }, [activeWeek, scheduleIndices, lessonsByDay])
 
   return (
@@ -1132,22 +1132,9 @@ function ModuleSection({
                 ))}
               </TabList>
 
-              {daysInActiveWeek.some((day) => !day.exercises.length) && (
-                <Button
-                  variant="quiet"
-                  aria-expanded={showEmptyDays}
-                  onClick={() => setShowEmptyDays((value) => !value)}
-                  className="mb-3"
-                >
-                  {showEmptyDays
-                    ? 'Hide empty days'
-                    : `Show empty days (${daysInActiveWeek.filter((day) => !day.exercises.length).length})`}
-                </Button>
-              )}
               {/* Days in the active week */}
               <TabPanel key={activeWeek} aria-label={`Week ${activeWeek}`} className="space-y-4">
                 {daysInActiveWeek
-                  .filter((day) => showEmptyDays || day.exercises.length > 0)
                   .map(({ dayIdx, exercises }) => (
                     <div key={dayIdx} className="rounded-xl border border-line overflow-hidden">
                       {/* Day header */}
