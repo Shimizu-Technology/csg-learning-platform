@@ -210,6 +210,44 @@ module only when one of those cohorts uses it.
 cohort's `waiting_review` and `open_help`, and a `workload` with the active
 follow-up plans the person owns and their owned open help requests.
 
+### `GET /api/v1/records/:type/:id/detail`
+
+The staff record pages added in L-5.2, one request per page. Staff only.
+`type` is `recording`, `office_hour`, `private_meeting`, `learning_plan`,
+`channel`, `rubric` or `activity_event`. Returns `{ detail: RecordingDetail | … }`
+(see `docs/openapi.json`). Web pages: `/admin/recordings/:id`,
+`/admin/office-hours/:id`, `/admin/meetings/:id`, `/admin/learning-plans/:id`,
+`/admin/channels/:id`, `/admin/rubrics/:id`, `/admin/activity/:id`.
+
+- **Who opens what:** admins open every record. Instructors open records in
+  cohorts they teach (`StaffCohortScope`), a booking only when they host it
+  (as on Meetings), an activity event in a cohort they teach or about
+  themselves (the cohort is then `null` unless they teach it), and any rubric
+  (content isn't cohort-scoped). A rubric lists only the instructor's cohorts;
+  the rest are `other_cohorts_count`, and `graded` counts only their cohorts'
+  latest graded attempts. Curriculum names go through `CurriculumName`.
+- **Recording:** cohort, program week of the recorded date, the lesson blocks on
+  the cohort's curriculum that play it (same upload key or same link) with their
+  sections, and the cohort's learners who have started it.
+- **Office hours:** time, repeat, next three times, who scheduled it, the
+  teaching team, `invited_count` (active learners; attendance isn't recorded)
+  and the Join link.
+- **Private meeting:** student, host, time, status, link, the booking's history
+  (booked, rescheduled, link changed, canceled; bookings have no notes) and the
+  viewer's own conversation with the student, if any.
+- **Learning plan:** milestones with each lesson's status (LearnerProgress),
+  and the newest 20 revisions with the parts each one changed.
+- **Channel:** only when the viewer can open the channel. Members are the
+  channel's recipients: a count for instructors, a list (first 50) for admins.
+  The five newest messages carry a one-line preview; a sender either side has
+  blocked reads `Message hidden`. Never direct-message text.
+- **Activity event:** what happened, actor, subject, cohort, and the subject
+  record when it belongs to the event's cohort and learner.
+
+Students, archived accounts, unknown types and records the viewer can't open
+get `404`. Query counts do not grow with any of the page's lists. Sent with
+`Cache-Control: private, no-store`.
+
 ### `GET /api/v1/dashboard`
 
 Returns role-appropriate dashboard data.

@@ -89,7 +89,8 @@ it('links a recording the request was asked from', async () => {
   ] }) }, error: null })
   await act(async () => router.navigate('/admin/interventions/63'))
   await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
-  const recording = Array.from(container.querySelectorAll('a')).find((anchor) => anchor.getAttribute('href')?.startsWith('/recordings'))
-  expect(recording?.getAttribute('href')).toMatch(/^\/recordings\?cohort_id=3&recording=3/)
+  // Staff open the recording's own page (L-5.2).
+  const recording = Array.from(container.querySelectorAll('a')).find((anchor) => anchor.getAttribute('href')?.startsWith('/admin/recordings/'))
+  expect(recording?.getAttribute('href')).toMatch(/^\/admin\/recordings\/3(?:\?|$)/)
   expect(container.textContent).toContain('Recording')
 })

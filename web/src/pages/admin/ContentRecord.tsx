@@ -12,6 +12,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { UsedInCohorts } from '../../components/admin/UsedInCohorts'
+import { Section } from './records/RecordParts'
 import { Badge } from '../../components/ui/Badge'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { useBackLink } from '../../lib/recordOrigin'
@@ -48,21 +49,6 @@ function UsageGate<T>({ state, label, children }: { state: UsageState<T>; label:
       <EmptyState icon={LibraryBig} title={`Couldn't load this ${label}`} description={state.error || 'Something went wrong. Try again.'}
         action={<Button onClick={() => void state.reload()}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
     </div>
-  )
-}
-
-function Section({ id, title, count, children, action }: { id: string; title: string; count?: string; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <section id={id} aria-labelledby={`${id}-title`} className="app-surface overflow-hidden" tabIndex={-1}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
-        <h2 id={`${id}-title`} className="text-base font-semibold text-ink">{title}</h2>
-        <div className="flex items-center gap-2">
-          {count && <span className="text-xs font-semibold tabular-nums text-ink-muted">{count}</span>}
-          {action}
-        </div>
-      </div>
-      {children}
-    </section>
   )
 }
 
@@ -411,7 +397,7 @@ function CurriculumPage({ usage }: { usage: CurriculumUsage }) {
               {usage.rubrics.map((rubric) => (
                 <li key={rubric.id} className="space-y-1.5 px-4 py-3 sm:px-5">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
-                    <ListChecks className="h-4 w-4 text-ink-muted" aria-hidden="true" />{rubric.title}
+                    <ListChecks className="h-4 w-4 text-ink-muted" aria-hidden="true" /><RecordLink record={{ type: 'rubric', id: rubric.id }} variant="plain" touchTarget>{rubric.title}</RecordLink>
                     <span className="text-xs font-semibold tabular-nums text-ink-muted">{plural(rubric.criteria_count, 'criterion', 'criteria')}</span>
                     {!rubric.active && <Badge>Inactive</Badge>}
                   </p>

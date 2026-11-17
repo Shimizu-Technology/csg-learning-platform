@@ -37,6 +37,13 @@ import {
   LessonRecord,
   CurriculumRecord,
   ModuleRecord,
+  RecordingRecord,
+  OfficeHourRecord,
+  PrivateMeetingRecord,
+  LearningPlanRecord,
+  ChannelRecord,
+  RubricRecord,
+  ActivityEventRecord,
   LessonView,
   Materials,
   Messages,
@@ -146,6 +153,7 @@ function AppRoutes() {
           <Route element={<ProtectedRoute requiredRole="staff" />}>
             <Route path="/admin" element={<SuspendedRoute><AdminDashboard /></SuspendedRoute>} />
             <Route path="/admin/meetings" element={<SuspendedRoute><StaffPrivateMeetings /></SuspendedRoute>} />
+            <Route path="/admin/meetings/:id" element={<SuspendedRoute><PrivateMeetingRecord /></SuspendedRoute>} />
             <Route path="/admin/students" element={<SuspendedRoute><StudentManagement /></SuspendedRoute>} />
             <Route path="/admin/students/:id" element={<SuspendedRoute><StudentDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/students/:id/:tab?" element={<SuspendedRoute><StudentWorkspace /></SuspendedRoute>} />
@@ -164,6 +172,13 @@ function AppRoutes() {
             <Route path="/admin/modules/:id" element={<SuspendedRoute><ModuleRecord /></SuspendedRoute>} />
             <Route path="/admin/lessons/:id" element={<SuspendedRoute><LessonRecord /></SuspendedRoute>} />
             <Route path="/admin/lessons/:id/edit" element={<SuspendedRoute><LessonEditor /></SuspendedRoute>} />
+            {/* Staff record pages (L-5.2). Students get No access; the server answers 404 for anything else out of scope. */}
+            <Route path="/admin/recordings/:id" element={<SuspendedRoute><RecordingRecord /></SuspendedRoute>} />
+            <Route path="/admin/office-hours/:id" element={<SuspendedRoute><OfficeHourRecord /></SuspendedRoute>} />
+            <Route path="/admin/learning-plans/:id" element={<SuspendedRoute><LearningPlanRecord /></SuspendedRoute>} />
+            <Route path="/admin/channels/:id" element={<SuspendedRoute><ChannelRecord /></SuspendedRoute>} />
+            <Route path="/admin/rubrics/:id" element={<SuspendedRoute><RubricRecord /></SuspendedRoute>} />
+            <Route path="/admin/activity/:id" element={<SuspendedRoute><ActivityEventRecord /></SuspendedRoute>} />
           </Route>
 
           {/* Admin-only routes */}

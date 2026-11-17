@@ -32,6 +32,9 @@ vi.mock('./lib/routePreload', () => ({
   SupportQueue: () => null, Moderation: () => <p>Private safety review</p>, InterventionDetail: () => null,
   HelpRequestDetail: () => null, TeamManagement: () => null, TeamMemberDetail: () => <p>Team member record</p>,
   CurriculumRecord: () => <p>Curriculum record</p>, ModuleRecord: () => <p>Module record</p>, LessonRecord: () => <p>Lesson record</p>,
+  RecordingRecord: () => <p>Recording record</p>, OfficeHourRecord: () => <p>Session record</p>, PrivateMeetingRecord: () => <p>Meeting record</p>,
+  LearningPlanRecord: () => <p>Plan record</p>, ChannelRecord: () => <p>Conversation record</p>, RubricRecord: () => <p>Rubric record</p>,
+  ActivityEventRecord: () => <p>Event record</p>,
 }))
 import App from './App'
 
@@ -76,6 +79,14 @@ it.each([
   ['/admin/curricula/3', 'Curriculum record'],
   ['/admin/modules/5', 'Module record'],
   ['/admin/lessons/7', 'Lesson record'],
+  // L-5.2: the remaining staff record pages. Learners keep their own booking (/meetings) and Recordings.
+  ['/admin/recordings/8', 'Recording record'],
+  ['/admin/office-hours/9', 'Session record'],
+  ['/admin/meetings/10', 'Meeting record'],
+  ['/admin/learning-plans/11', 'Plan record'],
+  ['/admin/channels/12', 'Conversation record'],
+  ['/admin/rubrics/13', 'Rubric record'],
+  ['/admin/activity/14', 'Event record'],
 ])('%s opens for staff and refuses students', async (path, text) => {
   window.history.replaceState({}, '', path)
   state.role = 'student'
