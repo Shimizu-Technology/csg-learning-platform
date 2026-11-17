@@ -34,7 +34,7 @@ first.completion_blocks.each do |block|
 end
 # Two real public offerings exercise recovery from the query-filtered catalog.
 solo.update!(public_checkout_enabled: true, public_title: "QA Self paced", public_description: "Synthetic course for first-run recovery.", public_price_cents: 14900, stripe_price_id: "price_qa_first_run")
-catalog_other = Cohort.create!(name: "QA Ruby basics", curriculum: solo.curriculum, course_delivery: "self_paced", status: :active,
+catalog_other = Cohort.create!(name: "QA Ruby basics", curriculum: solo.curriculum, course_delivery: "self_paced", status: :active, start_date: LearningCalendar.today,
   public_title: "QA Ruby basics", public_description: "A second synthetic public offering.", public_checkout_enabled: true, public_price_cents: 14900, stripe_price_id: "price_qa_other",
   settings: { "features" => { "student_experience_v2" => true } })
 catalog_other.instructors << User.find(2)

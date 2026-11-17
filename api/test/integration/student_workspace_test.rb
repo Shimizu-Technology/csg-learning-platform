@@ -417,6 +417,15 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_includes StaffCohortScope.new(@admin).visible_cohorts.pluck(:id), hidden.id
   end
 
+  test "meeting fixtures stay within a course week late at night" do
+    @cohort.update!(start_date: LearningCalendar.today - 3)
+    travel_to Time.current.in_time_zone(LearningCalendar::TIMEZONE).change(hour: 23, min: 30) do
+      booking = book(@teacher, 3)
+      config = @cohort.private_meeting_config
+      assert_equal config.week_for(booking.starts_at), config.week_for(booking.ends_at - 1.second)
+    end
+  end
+
   private
 
   def person(name, role)
@@ -429,7 +438,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   def book(teacher, offset, status: :confirmed)
     config = @cohort.private_meeting_config || @cohort.create_private_meeting_config!(instructor: teacher, weeks: 30)
-    starts = Time.current + offset.days
+    # Use a daytime hour: a 23:xx fixture plus one hour can cross a course week.
+    starts = Time.use_zone(config.timezone) { (Time.current + offset.days).change(hour: 10, min: 0, sec: 0) }
     # A second instructor can retain canceled/historical bookings after reassignment.
     config.update!(instructor: teacher)
     slot = config.private_meeting_slots.create!(instructor: teacher, starts_at: starts, ends_at: starts + 1.hour)
