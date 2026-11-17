@@ -2,12 +2,12 @@
  "rows": [
   {
    "persona": "redo-feedback",
-   "width": 1280,
+   "width": 390,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 6646,
+    "firstActionY": 354,
+    "firstActionBottom": 398,
+    "pageHeight": 8737,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -18,9 +18,9 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 6646,
+    "firstActionY": 354,
+    "firstActionBottom": 398,
+    "pageHeight": 8737,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -31,9 +31,9 @@
    },
    "on_light": {
     "firstAction": "Continue",
-    "firstActionY": 337,
-    "firstActionBottom": 385,
-    "pageHeight": 1436,
+    "firstActionY": 405,
+    "firstActionBottom": 453,
+    "pageHeight": 2342,
     "overflowX": 0,
     "sections": [
      "Week 1 Day 1 Lesson 1: Integers and floats to represent numbers",
@@ -44,18 +44,13 @@
      "Next live class",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Read feedback",
-     "a:View response",
-     "a:Reply",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    },
    "on_dark": {
     "firstAction": "Continue",
-    "firstActionY": 337,
-    "firstActionBottom": 385,
-    "pageHeight": 1436,
+    "firstActionY": 405,
+    "firstActionBottom": 453,
+    "pageHeight": 2342,
     "overflowX": 0,
     "sections": [
      "Week 1 Day 1 Lesson 1: Integers and floats to represent numbers",
@@ -66,22 +61,17 @@
      "Next live class",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Read feedback",
-     "a:View response",
-     "a:Reply",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    }
   },
   {
    "persona": "behind",
-   "width": 1280,
+   "width": 390,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 9603,
+    "firstActionY": 354,
+    "firstActionBottom": 398,
+    "pageHeight": 12662,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -92,9 +82,9 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 9603,
+    "firstActionY": 354,
+    "firstActionBottom": 398,
+    "pageHeight": 12662,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -105,9 +95,9 @@
    },
    "on_light": {
     "firstAction": "Continue",
-    "firstActionY": 309,
-    "firstActionBottom": 357,
-    "pageHeight": 1324,
+    "firstActionY": 405,
+    "firstActionBottom": 453,
+    "pageHeight": 2262,
     "overflowX": 0,
     "sections": [
      "Week 1 Overview Lesson 1: Debugging",
@@ -115,21 +105,13 @@
      "Next live class",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Read feedback",
-     "a:Read feedback",
-     "a:Read feedback",
-     "a:Read feedback",
-     "a:Read feedback",
-     "button:Show all 7",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    },
    "on_dark": {
     "firstAction": "Continue",
-    "firstActionY": 309,
-    "firstActionBottom": 357,
-    "pageHeight": 1324,
+    "firstActionY": 405,
+    "firstActionBottom": 453,
+    "pageHeight": 2262,
     "overflowX": 0,
     "sections": [
      "Week 1 Overview Lesson 1: Debugging",
@@ -137,25 +119,17 @@
      "Next live class",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Read feedback",
-     "a:Read feedback",
-     "a:Read feedback",
-     "a:Read feedback",
-     "a:Read feedback",
-     "button:Show all 7",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    }
   },
   {
    "persona": "behind-plan",
-   "width": 1280,
+   "width": 390,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 1587,
+    "firstActionY": 382,
+    "firstActionBottom": 426,
+    "pageHeight": 1875,
     "overflowX": 0,
     "sections": [
      "Catch up by early December",
@@ -165,9 +139,9 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 1587,
+    "firstActionY": 382,
+    "firstActionBottom": 426,
+    "pageHeight": 1875,
     "overflowX": 0,
     "sections": [
      "Catch up by early December",
@@ -177,45 +151,39 @@
    },
    "on_light": {
     "firstAction": "Nov 19Week 1 Day 4 Lesson 3: Hashes to store values by assoc",
-    "firstActionY": 290,
-    "firstActionBottom": 338,
-    "pageHeight": 844,
+    "firstActionY": 342,
+    "firstActionBottom": 398,
+    "pageHeight": 1452,
     "overflowX": 0,
     "sections": [
      "You\u2019re about 4 weeks behind. Your plan gets you caught up by Thu, Dec 3.",
      "Next live class",
      "Your instructor"
     ],
-    "smallTargets": [
-     "button:Show all 14",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    },
    "on_dark": {
     "firstAction": "Nov 19Week 1 Day 4 Lesson 3: Hashes to store values by assoc",
-    "firstActionY": 290,
-    "firstActionBottom": 338,
-    "pageHeight": 844,
+    "firstActionY": 342,
+    "firstActionBottom": 398,
+    "pageHeight": 1452,
     "overflowX": 0,
     "sections": [
      "You\u2019re about 4 weeks behind. Your plan gets you caught up by Thu, Dec 3.",
      "Next live class",
      "Your instructor"
     ],
-    "smallTargets": [
-     "button:Show all 14",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    }
   },
   {
    "persona": "awaiting-review",
-   "width": 1280,
+   "width": 390,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 1611,
+    "firstActionY": 326,
+    "firstActionBottom": 370,
+    "pageHeight": 1807,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -226,9 +194,9 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 274,
-    "firstActionBottom": 318,
-    "pageHeight": 1611,
+    "firstActionY": 326,
+    "firstActionBottom": 370,
+    "pageHeight": 1807,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -239,9 +207,9 @@
    },
    "on_light": {
     "firstAction": "Nov 24QA Lab 1.1.1",
-    "firstActionY": 290,
-    "firstActionBottom": 338,
-    "pageHeight": 966,
+    "firstActionY": 342,
+    "firstActionBottom": 390,
+    "pageHeight": 1640,
     "overflowX": 0,
     "sections": [
      "You\u2019re about 3 weeks behind. Your plan gets you caught up by Tue, Dec 1.",
@@ -251,16 +219,13 @@
      "Office hours",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Open feedback and resubmit",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    },
    "on_dark": {
     "firstAction": "Nov 24QA Lab 1.1.1",
-    "firstActionY": 290,
-    "firstActionBottom": 338,
-    "pageHeight": 966,
+    "firstActionY": 342,
+    "firstActionBottom": 390,
+    "pageHeight": 1640,
     "overflowX": 0,
     "sections": [
      "You\u2019re about 3 weeks behind. Your plan gets you caught up by Tue, Dec 1.",
@@ -270,50 +235,43 @@
      "Office hours",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Open feedback and resubmit",
-     "button:Message QA"
-    ]
+    "smallTargets": []
    }
   },
   {
    "persona": "self-paced",
-   "width": 1280,
+   "width": 390,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 568,
-    "firstActionBottom": 612,
-    "pageHeight": 1176,
+    "firstActionY": 772,
+    "firstActionBottom": 816,
+    "pageHeight": 1516,
     "overflowX": 0,
     "sections": [
      "Start here",
      "CSG Full-Stack Bootcamp 2026",
      "Your course"
     ],
-    "smallTargets": [
-     "a:CSG Full-Stack Bootcamp 2026"
-    ]
+    "smallTargets": []
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 568,
-    "firstActionBottom": 612,
-    "pageHeight": 1176,
+    "firstActionY": 772,
+    "firstActionBottom": 816,
+    "pageHeight": 1516,
     "overflowX": 0,
     "sections": [
      "Start here",
      "CSG Full-Stack Bootcamp 2026",
      "Your course"
     ],
-    "smallTargets": [
-     "a:CSG Full-Stack Bootcamp 2026"
-    ]
+    "smallTargets": []
    },
    "on_light": {
     "firstAction": "Continue",
-    "firstActionY": 539,
-    "firstActionBottom": 587,
-    "pageHeight": 879,
+    "firstActionY": 695,
+    "firstActionBottom": 743,
+    "pageHeight": 1445,
     "overflowX": 0,
     "sections": [
      "Start here",
@@ -321,15 +279,13 @@
      "Waiting on your instructor",
      "Your instructor"
     ],
-    "smallTargets": [
-     "button:Message QA"
-    ]
+    "smallTargets": []
    },
    "on_dark": {
     "firstAction": "Continue",
-    "firstActionY": 539,
-    "firstActionBottom": 587,
-    "pageHeight": 879,
+    "firstActionY": 695,
+    "firstActionBottom": 743,
+    "pageHeight": 1445,
     "overflowX": 0,
     "sections": [
      "Start here",
@@ -337,18 +293,16 @@
      "Waiting on your instructor",
      "Your instructor"
     ],
-    "smallTargets": [
-     "button:Message QA"
-    ]
+    "smallTargets": []
    }
   },
   {
    "persona": "paused",
-   "width": 1280,
+   "width": 390,
    "off_light": {
     "firstAction": "Message staff",
-    "firstActionY": 280,
-    "firstActionBottom": 324,
+    "firstActionY": 416,
+    "firstActionBottom": 460,
     "pageHeight": 844,
     "overflowX": 0,
     "sections": [
@@ -358,8 +312,8 @@
    },
    "off_dark": {
     "firstAction": "Message staff",
-    "firstActionY": 280,
-    "firstActionBottom": 324,
+    "firstActionY": 416,
+    "firstActionBottom": 460,
     "pageHeight": 844,
     "overflowX": 0,
     "sections": [
@@ -368,42 +322,38 @@
     "smallTargets": []
    },
    "on_light": {
-    "firstAction": "Message CSG staff",
-    "firstActionY": 345,
-    "firstActionBottom": 389,
-    "pageHeight": 844,
+    "firstAction": "QA canonical program",
+    "firstActionY": 213,
+    "firstActionBottom": 268,
+    "pageHeight": 1117,
     "overflowX": 0,
     "sections": [
      "Your enrollment in QA canonical program is paused",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Contact CSG"
-    ]
+    "smallTargets": []
    },
    "on_dark": {
-    "firstAction": "Message CSG staff",
-    "firstActionY": 345,
-    "firstActionBottom": 389,
-    "pageHeight": 844,
+    "firstAction": "QA canonical program",
+    "firstActionY": 213,
+    "firstActionBottom": 268,
+    "pageHeight": 1117,
     "overflowX": 0,
     "sections": [
      "Your enrollment in QA canonical program is paused",
      "Your instructor"
     ],
-    "smallTargets": [
-     "a:Contact CSG"
-    ]
+    "smallTargets": []
    }
   },
   {
    "persona": "alumni",
-   "width": 1280,
+   "width": 390,
    "off_light": {
     "firstAction": "Open library",
-    "firstActionY": 224,
-    "firstActionBottom": 268,
-    "pageHeight": 1200,
+    "firstActionY": 324,
+    "firstActionBottom": 368,
+    "pageHeight": 1650,
     "overflowX": 0,
     "sections": [
      "Recently added",
@@ -414,9 +364,9 @@
    },
    "off_dark": {
     "firstAction": "Open library",
-    "firstActionY": 224,
-    "firstActionBottom": 268,
-    "pageHeight": 1200,
+    "firstActionY": 324,
+    "firstActionBottom": 368,
+    "pageHeight": 1650,
     "overflowX": 0,
     "sections": [
      "Recently added",
@@ -427,8 +377,8 @@
    },
    "on_light": {
     "firstAction": "Open the library",
-    "firstActionY": 221,
-    "firstActionBottom": 265,
+    "firstActionY": 245,
+    "firstActionBottom": 289,
     "pageHeight": 844,
     "overflowX": 0,
     "sections": [
@@ -438,8 +388,8 @@
    },
    "on_dark": {
     "firstAction": "Open the library",
-    "firstActionY": 221,
-    "firstActionBottom": 265,
+    "firstActionY": 245,
+    "firstActionBottom": 289,
     "pageHeight": 844,
     "overflowX": 0,
     "sections": [
@@ -450,46 +400,12 @@
   },
   {
    "persona": "redo-feedback",
-   "width": 390,
-   "on_light": {
-    "firstAction": "Continue",
-    "firstActionY": 405,
-    "firstActionBottom": 453,
-    "pageHeight": 2342,
-    "overflowX": 0,
-    "sections": [
-     "Week 1 Day 1 Lesson 1: Integers and floats to represent numbers",
-     "Needs you",
-     "Your questions",
-     "Waiting on your instructor",
-     "Recently graded",
-     "Next live class",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
-   "on_dark": {
-    "firstAction": "Continue",
-    "firstActionY": 405,
-    "firstActionBottom": 453,
-    "pageHeight": 2342,
-    "overflowX": 0,
-    "sections": [
-     "Week 1 Day 1 Lesson 1: Integers and floats to represent numbers",
-     "Needs you",
-     "Your questions",
-     "Waiting on your instructor",
-     "Recently graded",
-     "Next live class",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
+   "width": 1280,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 354,
-    "firstActionBottom": 398,
-    "pageHeight": 8737,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 6646,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -500,9 +416,9 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 354,
-    "firstActionBottom": 398,
-    "pageHeight": 8737,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 6646,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -510,44 +426,60 @@
      "Your course"
     ],
     "smallTargets": []
+   },
+   "on_light": {
+    "firstAction": "Continue",
+    "firstActionY": 337,
+    "firstActionBottom": 385,
+    "pageHeight": 1436,
+    "overflowX": 0,
+    "sections": [
+     "Week 1 Day 1 Lesson 1: Integers and floats to represent numbers",
+     "Needs you",
+     "Your questions",
+     "Waiting on your instructor",
+     "Recently graded",
+     "Next live class",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Read feedback",
+     "a:View response",
+     "a:Reply",
+     "button:Message QA"
+    ]
+   },
+   "on_dark": {
+    "firstAction": "Continue",
+    "firstActionY": 337,
+    "firstActionBottom": 385,
+    "pageHeight": 1436,
+    "overflowX": 0,
+    "sections": [
+     "Week 1 Day 1 Lesson 1: Integers and floats to represent numbers",
+     "Needs you",
+     "Your questions",
+     "Waiting on your instructor",
+     "Recently graded",
+     "Next live class",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Read feedback",
+     "a:View response",
+     "a:Reply",
+     "button:Message QA"
+    ]
    }
   },
   {
    "persona": "behind",
-   "width": 390,
-   "on_light": {
-    "firstAction": "Continue",
-    "firstActionY": 405,
-    "firstActionBottom": 453,
-    "pageHeight": 2262,
-    "overflowX": 0,
-    "sections": [
-     "Week 1 Overview Lesson 1: Debugging",
-     "Needs you",
-     "Next live class",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
-   "on_dark": {
-    "firstAction": "Continue",
-    "firstActionY": 405,
-    "firstActionBottom": 453,
-    "pageHeight": 2262,
-    "overflowX": 0,
-    "sections": [
-     "Week 1 Overview Lesson 1: Debugging",
-     "Needs you",
-     "Next live class",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
+   "width": 1280,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 354,
-    "firstActionBottom": 398,
-    "pageHeight": 12662,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 9603,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -558,9 +490,9 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 354,
-    "firstActionBottom": 398,
-    "pageHeight": 12662,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 9603,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -568,42 +500,60 @@
      "Your course"
     ],
     "smallTargets": []
+   },
+   "on_light": {
+    "firstAction": "Continue",
+    "firstActionY": 309,
+    "firstActionBottom": 357,
+    "pageHeight": 1324,
+    "overflowX": 0,
+    "sections": [
+     "Week 1 Overview Lesson 1: Debugging",
+     "Needs you",
+     "Next live class",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Read feedback",
+     "a:Read feedback",
+     "a:Read feedback",
+     "a:Read feedback",
+     "a:Read feedback",
+     "button:Show all 7",
+     "button:Message QA"
+    ]
+   },
+   "on_dark": {
+    "firstAction": "Continue",
+    "firstActionY": 309,
+    "firstActionBottom": 357,
+    "pageHeight": 1324,
+    "overflowX": 0,
+    "sections": [
+     "Week 1 Overview Lesson 1: Debugging",
+     "Needs you",
+     "Next live class",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Read feedback",
+     "a:Read feedback",
+     "a:Read feedback",
+     "a:Read feedback",
+     "a:Read feedback",
+     "button:Show all 7",
+     "button:Message QA"
+    ]
    }
   },
   {
    "persona": "behind-plan",
-   "width": 390,
-   "on_light": {
-    "firstAction": "Nov 19Week 1 Day 4 Lesson 3: Hashes to store values by assoc",
-    "firstActionY": 342,
-    "firstActionBottom": 398,
-    "pageHeight": 1452,
-    "overflowX": 0,
-    "sections": [
-     "You\u2019re about 4 weeks behind. Your plan gets you caught up by Thu, Dec 3.",
-     "Next live class",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
-   "on_dark": {
-    "firstAction": "Nov 19Week 1 Day 4 Lesson 3: Hashes to store values by assoc",
-    "firstActionY": 342,
-    "firstActionBottom": 398,
-    "pageHeight": 1452,
-    "overflowX": 0,
-    "sections": [
-     "You\u2019re about 4 weeks behind. Your plan gets you caught up by Thu, Dec 3.",
-     "Next live class",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
+   "width": 1280,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 382,
-    "firstActionBottom": 426,
-    "pageHeight": 1875,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 1587,
     "overflowX": 0,
     "sections": [
      "Catch up by early December",
@@ -613,57 +563,57 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 382,
-    "firstActionBottom": 426,
-    "pageHeight": 1875,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 1587,
     "overflowX": 0,
     "sections": [
      "Catch up by early December",
      "Your course"
     ],
     "smallTargets": []
+   },
+   "on_light": {
+    "firstAction": "Nov 19Week 1 Day 4 Lesson 3: Hashes to store values by assoc",
+    "firstActionY": 290,
+    "firstActionBottom": 338,
+    "pageHeight": 844,
+    "overflowX": 0,
+    "sections": [
+     "You\u2019re about 4 weeks behind. Your plan gets you caught up by Thu, Dec 3.",
+     "Next live class",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "button:Show all 14",
+     "button:Message QA"
+    ]
+   },
+   "on_dark": {
+    "firstAction": "Nov 19Week 1 Day 4 Lesson 3: Hashes to store values by assoc",
+    "firstActionY": 290,
+    "firstActionBottom": 338,
+    "pageHeight": 844,
+    "overflowX": 0,
+    "sections": [
+     "You\u2019re about 4 weeks behind. Your plan gets you caught up by Thu, Dec 3.",
+     "Next live class",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "button:Show all 14",
+     "button:Message QA"
+    ]
    }
   },
   {
    "persona": "awaiting-review",
-   "width": 390,
-   "on_light": {
-    "firstAction": "Nov 24QA Lab 1.1.1",
-    "firstActionY": 342,
-    "firstActionBottom": 390,
-    "pageHeight": 1640,
-    "overflowX": 0,
-    "sections": [
-     "You\u2019re about 3 weeks behind. Your plan gets you caught up by Tue, Dec 1.",
-     "Needs you",
-     "Waiting on your instructor",
-     "Recently graded",
-     "Office hours",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
-   "on_dark": {
-    "firstAction": "Nov 24QA Lab 1.1.1",
-    "firstActionY": 342,
-    "firstActionBottom": 390,
-    "pageHeight": 1640,
-    "overflowX": 0,
-    "sections": [
-     "You\u2019re about 3 weeks behind. Your plan gets you caught up by Tue, Dec 1.",
-     "Needs you",
-     "Waiting on your instructor",
-     "Recently graded",
-     "Office hours",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
+   "width": 1280,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 326,
-    "firstActionBottom": 370,
-    "pageHeight": 1807,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 1611,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -674,9 +624,9 @@
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 326,
-    "firstActionBottom": 370,
-    "pageHeight": 1807,
+    "firstActionY": 274,
+    "firstActionBottom": 318,
+    "pageHeight": 1611,
     "overflowX": 0,
     "sections": [
      "Feedback to act on",
@@ -684,97 +634,119 @@
      "Your course"
     ],
     "smallTargets": []
+   },
+   "on_light": {
+    "firstAction": "Nov 24QA Lab 1.1.1",
+    "firstActionY": 290,
+    "firstActionBottom": 338,
+    "pageHeight": 966,
+    "overflowX": 0,
+    "sections": [
+     "You\u2019re about 3 weeks behind. Your plan gets you caught up by Tue, Dec 1.",
+     "Needs you",
+     "Waiting on your instructor",
+     "Recently graded",
+     "Office hours",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Open feedback and resubmit",
+     "button:Message QA"
+    ]
+   },
+   "on_dark": {
+    "firstAction": "Nov 24QA Lab 1.1.1",
+    "firstActionY": 290,
+    "firstActionBottom": 338,
+    "pageHeight": 966,
+    "overflowX": 0,
+    "sections": [
+     "You\u2019re about 3 weeks behind. Your plan gets you caught up by Tue, Dec 1.",
+     "Needs you",
+     "Waiting on your instructor",
+     "Recently graded",
+     "Office hours",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Open feedback and resubmit",
+     "button:Message QA"
+    ]
    }
   },
   {
    "persona": "self-paced",
-   "width": 390,
-   "on_light": {
-    "firstAction": "Continue",
-    "firstActionY": 695,
-    "firstActionBottom": 743,
-    "pageHeight": 1445,
-    "overflowX": 0,
-    "sections": [
-     "Start here",
-     "Week 3 Day 2 Lesson 4: Challenge problem",
-     "Waiting on your instructor",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
-   "on_dark": {
-    "firstAction": "Continue",
-    "firstActionY": 695,
-    "firstActionBottom": 743,
-    "pageHeight": 1445,
-    "overflowX": 0,
-    "sections": [
-     "Start here",
-     "Week 3 Day 2 Lesson 4: Challenge problem",
-     "Waiting on your instructor",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
+   "width": 1280,
    "off_light": {
     "firstAction": "Continue learning",
-    "firstActionY": 772,
-    "firstActionBottom": 816,
-    "pageHeight": 1516,
+    "firstActionY": 568,
+    "firstActionBottom": 612,
+    "pageHeight": 1176,
     "overflowX": 0,
     "sections": [
      "Start here",
      "CSG Full-Stack Bootcamp 2026",
      "Your course"
     ],
-    "smallTargets": []
+    "smallTargets": [
+     "a:CSG Full-Stack Bootcamp 2026"
+    ]
    },
    "off_dark": {
     "firstAction": "Continue learning",
-    "firstActionY": 772,
-    "firstActionBottom": 816,
-    "pageHeight": 1516,
+    "firstActionY": 568,
+    "firstActionBottom": 612,
+    "pageHeight": 1176,
     "overflowX": 0,
     "sections": [
      "Start here",
      "CSG Full-Stack Bootcamp 2026",
      "Your course"
     ],
-    "smallTargets": []
+    "smallTargets": [
+     "a:CSG Full-Stack Bootcamp 2026"
+    ]
+   },
+   "on_light": {
+    "firstAction": "Continue",
+    "firstActionY": 539,
+    "firstActionBottom": 587,
+    "pageHeight": 879,
+    "overflowX": 0,
+    "sections": [
+     "Start here",
+     "Week 3 Day 2 Lesson 4: Challenge problem",
+     "Waiting on your instructor",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "button:Message QA"
+    ]
+   },
+   "on_dark": {
+    "firstAction": "Continue",
+    "firstActionY": 539,
+    "firstActionBottom": 587,
+    "pageHeight": 879,
+    "overflowX": 0,
+    "sections": [
+     "Start here",
+     "Week 3 Day 2 Lesson 4: Challenge problem",
+     "Waiting on your instructor",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "button:Message QA"
+    ]
    }
   },
   {
    "persona": "paused",
-   "width": 390,
-   "on_light": {
-    "firstAction": "Message CSG staff",
-    "firstActionY": 469,
-    "firstActionBottom": 513,
-    "pageHeight": 1117,
-    "overflowX": 0,
-    "sections": [
-     "Your enrollment in QA canonical program is paused",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
-   "on_dark": {
-    "firstAction": "Message CSG staff",
-    "firstActionY": 469,
-    "firstActionBottom": 513,
-    "pageHeight": 1117,
-    "overflowX": 0,
-    "sections": [
-     "Your enrollment in QA canonical program is paused",
-     "Your instructor"
-    ],
-    "smallTargets": []
-   },
+   "width": 1280,
    "off_light": {
     "firstAction": "Message staff",
-    "firstActionY": 416,
-    "firstActionBottom": 460,
+    "firstActionY": 280,
+    "firstActionBottom": 324,
     "pageHeight": 844,
     "overflowX": 0,
     "sections": [
@@ -784,46 +756,52 @@
    },
    "off_dark": {
     "firstAction": "Message staff",
-    "firstActionY": 416,
-    "firstActionBottom": 460,
+    "firstActionY": 280,
+    "firstActionBottom": 324,
     "pageHeight": 844,
     "overflowX": 0,
     "sections": [
      "Your course"
     ],
     "smallTargets": []
+   },
+   "on_light": {
+    "firstAction": "QA canonical program",
+    "firstActionY": 189,
+    "firstActionBottom": 216,
+    "pageHeight": 844,
+    "overflowX": 0,
+    "sections": [
+     "Your enrollment in QA canonical program is paused",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Contact CSG"
+    ]
+   },
+   "on_dark": {
+    "firstAction": "QA canonical program",
+    "firstActionY": 189,
+    "firstActionBottom": 216,
+    "pageHeight": 844,
+    "overflowX": 0,
+    "sections": [
+     "Your enrollment in QA canonical program is paused",
+     "Your instructor"
+    ],
+    "smallTargets": [
+     "a:Contact CSG"
+    ]
    }
   },
   {
    "persona": "alumni",
-   "width": 390,
-   "on_light": {
-    "firstAction": "Open the library",
-    "firstActionY": 245,
-    "firstActionBottom": 289,
-    "pageHeight": 844,
-    "overflowX": 0,
-    "sections": [
-     "CSG Alumni library"
-    ],
-    "smallTargets": []
-   },
-   "on_dark": {
-    "firstAction": "Open the library",
-    "firstActionY": 245,
-    "firstActionBottom": 289,
-    "pageHeight": 844,
-    "overflowX": 0,
-    "sections": [
-     "CSG Alumni library"
-    ],
-    "smallTargets": []
-   },
+   "width": 1280,
    "off_light": {
     "firstAction": "Open library",
-    "firstActionY": 324,
-    "firstActionBottom": 368,
-    "pageHeight": 1650,
+    "firstActionY": 224,
+    "firstActionBottom": 268,
+    "pageHeight": 1200,
     "overflowX": 0,
     "sections": [
      "Recently added",
@@ -834,14 +812,36 @@
    },
    "off_dark": {
     "firstAction": "Open library",
-    "firstActionY": 324,
-    "firstActionBottom": 368,
-    "pageHeight": 1650,
+    "firstActionY": 224,
+    "firstActionBottom": 268,
+    "pageHeight": 1200,
     "overflowX": 0,
     "sections": [
      "Recently added",
      "CSG Alumni library",
      "Learning library"
+    ],
+    "smallTargets": []
+   },
+   "on_light": {
+    "firstAction": "Open the library",
+    "firstActionY": 221,
+    "firstActionBottom": 265,
+    "pageHeight": 844,
+    "overflowX": 0,
+    "sections": [
+     "CSG Alumni library"
+    ],
+    "smallTargets": []
+   },
+   "on_dark": {
+    "firstAction": "Open the library",
+    "firstActionY": 221,
+    "firstActionBottom": 265,
+    "pageHeight": 844,
+    "overflowX": 0,
+    "sections": [
+     "CSG Alumni library"
     ],
     "smallTargets": []
    }

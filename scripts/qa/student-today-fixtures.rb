@@ -16,11 +16,14 @@ require_relative "boot"
 
 path = Rails.root.join("..", ".qa-local", "student-today.json")
 #   bundle exec ruby ../scripts/qa/student-today-fixtures.rb unread
-#     Marks persona 3's help answer unread again, after the journey reads it.
+#     Marks persona 3's help answer and instructor message unread again, after
+#     the journey reads them (View response; Ask about this feedback opens the DM).
 if ARGV.first == "unread"
-  request = HelpRequest.find(JSON.parse(path.read).fetch("answered_help_request"))
+  ids = JSON.parse(path.read)
+  request = HelpRequest.find(ids.fetch("answered_help_request"))
   Notification.where(user_id: 3, notifiable: request).update_all(read_at: nil)
-  puts "Help answer #{request.id} unread again"
+  DirectConversationMember.where(direct_conversation_id: ids.fetch("conversation"), user_id: 3).update_all(last_read_at: nil, last_read_message_id: nil)
+  puts "Help answer #{request.id} and conversation #{ids.fetch('conversation')} unread again"
   exit
 end
 abort "usage: student-today-fixtures.rb setup | unread" unless ARGV.first == "setup"

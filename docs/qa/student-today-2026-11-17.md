@@ -62,7 +62,7 @@ The harness ran 7 persona setups × 2 widths × 2 themes in each state. "Before"
 | Behind with an agreed catch-up plan | 390 | 382 / 1,875 | 342 / 1,452 |
 | Personal plan, work waiting for review | 390 | 326 / 1,807 | 342 / 1,640 |
 | Self-paced, halfway, two waiting | 390 | 772 / 1,516 | 695 / 1,445 |
-| Paused | 390 | 416 / 844 | 469 / 1,117 |
+| Paused | 390 | 416 / 844 | 213 / 1,117 (the cohort link in the heading; Message CSG staff at 469) |
 | Alumni library | 390 | 324 / 1,650 | 245 / 844 |
 
 The first actionable item is on the first phone screen for every persona, before the tab bar. The longest Today fell from 12,662px to 2,342px. Pages got shorter because lists are capped at five and the module list and stat rows are gone.
@@ -122,6 +122,50 @@ An earlier ASUS run on `e4fe4507`, before the guard fixes, passed every stage ex
 
 They're fixed in `5ae11cbc`, and the local gate above covers that commit.
 
+## Fix round 1 (independent Codex review and CodeRabbit, head `d497231a`)
+
+The Codex review rated the PR not ready, with seven P2s, all reproduced. It confirmed these hold:
+
+- The Off dashboard JSON, markup, nav, `/my-work` fallback and help behaviour are unchanged.
+- Own-work isolation, latest attempts, counts, copied-cohort destinations and paused learners.
+- Inactive plans are excluded, query growth is flat, and the next session follows its rules.
+
+CodeRabbit raised 12 findings, all valid. Where they overlapped with the review they were fixed once. Every fix has a test that fails on `d497231a`. The new tests were run against that commit in a temporary worktree: all 6 new API tests and all 12 new web tests failed there.
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| P2 1: Today waited for the cohort list before requesting `/dashboard`, even for Lance. | `TodayRoute` starts the dashboard request during render (`lib/dashboardRequest.ts`), while the switch is still resolving. Whichever view renders takes it, so there's one request and no wait. Until the switch is known only the loading state shows, so Off never flashes the new view. W8.3 (#294) can use the same pattern for the lesson request. | `Today.test.tsx`: a hanging cohort list (switch Off and On) gets exactly one request at once and no view until known. |
+| P2 2, 3: Ask about this feedback offered blocked graders and former instructors, so it ended in a 403/404 and support email. | `StaffContact` applies the conversation-creation rules: the cohort workspace's people, staff, not archived, no block either way. My work rows carry `ask_to` (the grader while reachable, else the cohort's `contact`, else nothing). The grader stays named. Today's Message, Ask to change it and Ask for a plan use `contact`. | API: a former instructor's row asks a current one, and blocked means no action. The offered contact really can be messaged (201). `MyWork.test.tsx`: the server-chosen person, no button when null. |
+| P2 4 / CodeRabbit 6: a link to an older answer showed the newest, and an open lesson didn't refresh. | The dialog shows the linked request. A new `help_request` on a lesson that's already open refetches the requests. Switch On only. | `MyWork.test.tsx`: older answer shown, refresh on query-only navigation. |
+| P2 5: the plan's Continue could target a redo in a closed week. | Continue uses the server's next step (`LearnerProgress#next_lesson`, in plan order). | `Today.test.tsx`. |
+| P2 6 / CodeRabbit 3: only five questions and three conversations were sent. | Every waiting question and every conversation with an unread staff message is sent, one row per conversation picked in SQL. Today shows five, then Show all. Counts equal what's reachable. | API: 6 of 6 questions, and a busy conversation doesn't hide a quiet one. `Today.test.tsx`: Show all 6. |
+| P2 7: with learning plans Off, Today still offered to ask for one. | `can_ask_for_plan` needs an active program enrollment, learning plans on and a reachable contact. The explanatory copy follows it. | API and `Today.test.tsx`. |
+| CodeRabbit 1, 2: the previous cohort's Today or My work stayed on screen while a new cohort loaded, or after it failed. | Both clear their data when a load starts. | `Today.test.tsx`, `MyWork.test.tsx`. |
+| CodeRabbit 4: zero-step lessons counted in the scheduled pace totals. | They're excluded from the scheduled weeks and this week, as well as from overdue. `pace` is new and only Today reads it, so no Off count changes. | API: empty lessons in weeks 1–4 no longer change the typical week. |
+| CodeRabbit 5: a locked redo offered resubmit. | `can_resubmit` requires the lesson to be open. | API. |
+| CodeRabbit 7: My work's nav link could come from the school default. | It follows only the cohort's own resolved switch. | `shellNavigation.test.ts`. |
+| CodeRabbit 8, 9: the message hook didn't fall back on rejection, and could navigate after unmount. | A rejected request opens the support email; a result after unmount is ignored. | `MyWork.test.tsx`. |
+| CodeRabbit 10, 11: the spec checked only target height, and could leave state read after a failure. | It checks width too. The journey restores the help answer and the instructor conversation to unread in a `finally`. | Browser pass. |
+
+The QA harness now also resets the instructor conversation to unread. The 1280 journey's Ask about this feedback opens the conversation, which reads its messages, so the 390 pass had lost its unread message.
+
+### Fix-round gate (local MacBook; the ASUS is still unreachable)
+
+On `cb0a2f73`, this branch with `origin/main` at `59c4a3a8` (unchanged). Stages ran one at a time, each starting with the 1-minute load under 25:
+
+- API, `PARALLEL_WORKERS=1`, owned database `csg_student_today_test`, prepared statements on and off: **2,073 runs and 42,273 assertions** each, 0 failures, errors or skips.
+- RuboCop: 735 files, no offenses. Brakeman: no warnings.
+- Web: typecheck, lint, vitest (229 files, 2,594 tests), build, `test:bundle` and `api:check` passed.
+- Mobile: typecheck, lint (0 errors, 74 warnings as on `main`) and jest (141 suites, 1,544 tests) passed.
+
+### Fix-round browser matrix
+
+A fresh harness on `cb0a2f73` (servers `68050`/`68089`, claimed, then stopped and dropped with `run clean`):
+
+- Switch Off, Lance's shape and the "before": **28/28**.
+- Switch On: **32/32**. That's 7 personas × 390/1280 × light/dark, plus the journeys at both widths and Show all under reduced motion. Phone targets were checked for width as well as height.
+- Measurements match the table above. The paused learner's first link is now the cohort record link in the heading.
+
 ## Not run
 
 - Native device UI and native visual parity (follow-up).
@@ -140,6 +184,6 @@ They're fixed in `5ae11cbc`, and the local gate above covers that commit.
 ## Resources
 
 - Lifecycle session `2a22c646-2f4f-4bc8-acaa-b14cad908eea`.
-- Three harness runs: servers `93920`/`93952`, `84921`/`85052` and `3626`/`3696` (the last on the merged head). Each was claimed, then stopped and its database dropped with `scripts/qa/run clean`. Playwright pages were claimed and released per test by the spec.
+- Four harness runs: servers `93920`/`93952`, `84921`/`85052`, `3626`/`3696` (on the merged head) and `68050`/`68089` (fix round). Each was claimed, then stopped and its database dropped with `scripts/qa/run clean`. Playwright pages were claimed and released per test by the spec.
 - The owned local test database `csg_student_today_test` was dropped at the end.
 - The ASUS wrapper removes its own container; its retry loop was stopped once the ASUS was known to be unreachable. Shared PostgreSQL and other sessions' worktrees were left untouched.
