@@ -89,7 +89,7 @@ export function LessonView() {
     navigate({ pathname: `/lessons/${lesson.id}`, search: location.search, hash }, { replace: true, state: location.state })
   }, [lesson, id, location.hash, location.search, location.state, navigate])
   const requestId = useRef(0)
-  const isPhone = useMediaQuery('(max-width: 1023px)')
+  const isPhone = useMediaQuery('not all and (min-width: 1024px)')
   const scrolledToHashRef = useRef<string | null>(null)
   const activeCohortId = useRef(selectedCohortId)
   activeCohortId.current = selectedCohortId
