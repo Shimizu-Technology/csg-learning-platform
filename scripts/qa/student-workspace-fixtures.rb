@@ -26,3 +26,9 @@ block = lesson.content_blocks.find_by!(block_type: :exercise, submission_type: :
 ObjectiveAlignment.create!(learning_objective: objective, lesson: lesson, content_block: block)
 Submission.where(user: student, content_block: block).update_all(grade: "A", graded_at: Time.current)
 puts "QA workspace fixtures: program=#{program.id}, self_paced=#{self_paced.id}, lesson=#{lesson.id}, module=#{lesson.module_id}, meeting=#{PrivateMeetingBooking.last.id}"
+
+# Two waiting items let the profile's Grade next exercise the workbench Previous/Next.
+review_block = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: program.curriculum_id }, block_type: :exercise, submission_type: :text_submission).order(:id).offset(3).first!
+Submission.find_or_create_by!(enrollment: student.enrollments.find_by!(cohort: program), user: student, content_block: review_block) do |submission|
+  submission.text = "Synthetic second reviewable attempt"
+end

@@ -296,7 +296,7 @@ test('staff profile uses server counts, reasons and review target rather than re
   expect(screen.getByText('4')).toBeTruthy();
   expect(screen.getByText('8')).toBeTruthy();
   fireEvent.press(screen.getByRole('button', { name: 'Grade next' }));
-  expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/staff/submission/[id]', params: { id: '901', cohort_id: '4', student_id: String(progress.user.id) } });
+  expect(openAuthenticatedWebPage).toHaveBeenLastCalledWith(expect.anything(), `/admin/grading?cohort_id=4&student_id=${progress.user.id}&submission=901&return_to=${encodeURIComponent(`/admin/cohorts/4/students/${progress.user.id}/overview`)}`);
   fireEvent.press(screen.getByRole('button', { name: 'Open Other cohort enrollment' }));
   expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/staff/student/[id]', params: { id: String(progress.user.id), cohort_id: '9' } });
   fireEvent.press(screen.getByRole('button', { name: 'Start follow-up plan' }));

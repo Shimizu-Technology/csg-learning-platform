@@ -284,7 +284,7 @@ function Workspace() {
         </>}
         actions={<>
           <Button size="sm" onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{openingMessage ? 'Opening…' : 'Message'}</Button>
-          {nextReview && <LinkButton size="sm" to={submissionPath(nextReview, { cohortId, userId: studentId, returnTo: currentPath })} variant="secondary"><FileCheck2 className="h-4 w-4" aria-hidden="true" />Grade next ({ungraded})</LinkButton>}
+          {nextReview && <LinkButton size="sm" to={`/admin/grading?${new URLSearchParams({ cohort_id: String(cohortId), student_id: String(studentId), submission: String(nextReview), return_to: currentPath })}`} variant="secondary"><FileCheck2 className="h-4 w-4" aria-hidden="true" />Grade next ({ungraded})</LinkButton>}
           <StartFollowUpPlan activePlanId={progress.status?.active_intervention_id} enrollmentId={progress.enrollment.id} studentName={progress.user.full_name} returnTo={currentPath} />
         </>}
       >

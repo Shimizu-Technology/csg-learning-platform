@@ -118,12 +118,12 @@ describe('student submission cohort context', () => {
     await act(async () => root.render(<RouterProvider router={router} />))
     expect(container.textContent).toContain('Work from cohort A')
     expect(container.textContent).not.toContain('Work from cohort B')
-    expect(container.querySelector('a[href*="/submissions/21"]')?.textContent).toContain('Grade next')
+    expect(container.querySelector('a[href^="/admin/grading?cohort_id=1&student_id=6&submission=21"]')?.textContent).toContain('Grade next')
 
     await act(async () => { await router.navigate('/admin/cohorts/2/students/6/work') })
     expect(container.textContent).toContain('Work from cohort B')
     expect(container.textContent).not.toContain('Work from cohort A')
-    expect(container.querySelector('a[href*="/submissions/22"]')?.textContent).toContain('Grade next')
+    expect(container.querySelector('a[href^="/admin/grading?cohort_id=2&student_id=6&submission=22"]')?.textContent).toContain('Grade next')
   })
 
   it.each(['progress', 'interventions'] as const)('ignores an old cohort request that finishes during %s after navigation', async (stage) => {
@@ -354,8 +354,11 @@ it('uses shared counts and next review even when history differs; every metric i
   await act(async () => root.render(<RouterProvider router={router} />))
   expect(container.querySelector('[role="note"]')?.textContent).toContain('Why flagged')
   expect(container.querySelector('[role="note"]')?.textContent).toContain('1 latest attempt awaiting review')
-  const grade = container.querySelector('a[href*="/submissions/99"]')!
+  const grade = container.querySelector('a[href^="/admin/grading?"]')!
   expect(grade.textContent).toContain('Grade next (7)')
+  const gradingUrl = new URL(grade.getAttribute('href')!, 'https://local')
+  expect(gradingUrl.pathname).toBe('/admin/grading')
+  expect(Object.fromEntries(gradingUrl.searchParams)).toMatchObject({ cohort_id: '1', student_id: '6', submission: '99' })
   expect(new URL(grade.getAttribute('href')!, 'https://local').searchParams.get('return_to')).toBe('/admin/cohorts/1/students/6/overview')
   const metric = (label: string) => [...container.querySelectorAll('a')].find(link => [...link.querySelectorAll('p')].some(p => p.textContent === label))!
   expect(metric('Work waiting').textContent).toContain('7')

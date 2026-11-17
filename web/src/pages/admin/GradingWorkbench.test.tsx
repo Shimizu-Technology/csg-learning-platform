@@ -362,3 +362,28 @@ describe('Grading workbench: held keys and paging', () => {
     expect(container.querySelector('[data-record-header]')!.textContent).toContain('52 of 52')
   })
 })
+
+
+it('returns from a student-filtered queue to its exact profile origin and guards unsaved feedback', async () => {
+  const origin = '/admin/cohorts/4/students/20/work?filter=ungraded'
+  vi.mocked(api.getSubmissions).mockImplementation(async params => ({ data: { submissions: store.filter(item => !params?.cohort_id || item.cohort_id === Number(params.cohort_id)) }, error: null }))
+  const router = await render(`/admin/grading?cohort_id=4&student_id=20&submission=3&return_to=${encodeURIComponent(origin)}`)
+  expect(rows().map(row => row.id)).toEqual(['submission-row-3'])
+  const back = [...container.querySelectorAll<HTMLAnchorElement>('a')].find(link => link.getAttribute('href') === origin)!
+  expect(back.textContent).toContain('Back to')
+  const textarea = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Keep this feedback')
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  confirm.mockResolvedValueOnce(false)
+  await act(async () => back.click())
+  await settle()
+  expect(router.state.location.pathname).toBe('/admin/grading')
+  expect(query(router).get('student_id')).toBe('20')
+  expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')!.value).toBe('Keep this feedback')
+  confirm.mockResolvedValue(true)
+  await act(async () => back.click())
+  await settle()
+  expect(router.state.location.pathname + router.state.location.search).toBe(origin)
+})
