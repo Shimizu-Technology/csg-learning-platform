@@ -29,6 +29,6 @@ it.each(['instructor', 'admin'])('links a known %s to their team member page wit
   await open(role)
   expect(api.getUser).not.toHaveBeenCalled()
   expect(document.querySelector('[role="dialog"]')).toBeNull()
-  expect(container.querySelector('a')?.getAttribute('href')).toBe('/admin/team/20')
+  expect(container.querySelector('a')?.getAttribute('href')).toMatch(/^\/admin\/team\/20\?return_to=/)
 })
 it('leaves other non-learner accounts as text', async () => { await open('guest'); expect(container.querySelector('a')).toBeNull(); expect(container.textContent).toBe('Person') })

@@ -119,6 +119,26 @@ export function teamMemberPath(userId: number) {
   return `/admin/team/${userId}`
 }
 
+/** A return plan's staff page (L-5.2; stored as a recovery plan): owner, scope, check-ins and where it came from. */
+export function recoveryPlanPath(planId: number) {
+  return `/admin/recovery-plans/${planId}`
+}
+
+/** One community report on Safety (L-5.2 moderation item, admins). */
+export function contentReportPath(reportId: number) {
+  return `/admin/moderation/reports/${reportId}`
+}
+
+/** Safety filtered to one person's reports and blocks (L-3.2, admins), optionally on one view. */
+export function safetyPersonPath(userId: number, view?: 'open' | 'resolved' | 'blocks') {
+  return withQuery('/admin/moderation', { view: view && view !== 'open' ? view : undefined, person_id: userId })
+}
+
+/** A self-paced course's offering and purchases (L-3.2, admins). The id is the cohort's. */
+export function offeringPath(cohortId: number) {
+  return `/admin/offerings/${cohortId}`
+}
+
 /** A student without a chosen cohort: the page opens their first enrollment (or Access when they have none). */
 export function studentPath(userId: number) {
   return `/admin/students/${userId}`
@@ -307,8 +327,12 @@ export type RecordRef =
    * plan page (L-5.2); without it, the workspace's Learning tab, where the editor is.
    */
   | { type: 'learning_plan'; id?: OptionalId; userId?: OptionalId; cohortId?: OptionalId }
-  /** A return plan (stored as a recovery plan): the student page's Support tab, showing that plan. */
-  | { type: 'recovery_plan'; id: Id; userId: Id; cohortId: Id }
+  /** A return plan (stored as a recovery plan): its staff page (L-5.2). `userId` and `cohortId` are kept for callers; the page finds both. */
+  | { type: 'recovery_plan'; id: Id; userId?: OptionalId; cohortId?: OptionalId }
+  /** A community report: its Safety page (admins). */
+  | { type: 'content_report'; id: Id }
+  /** A self-paced course's offering and purchases (admins); `id` is the cohort's. */
+  | { type: 'offering'; id: Id }
   /** Staff open the rubric page (L-5.2). */
   | { type: 'rubric'; id: Id }
   /** Staff open the activity event page (L-5.2). */
@@ -351,7 +375,7 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   student: { staff: '/admin/cohorts/:cohortId/students/:userId/:tab', admin: '/admin/cohorts/:cohortId/students/:userId/:tab', student: null, contextKeys: ['return_to'], returnTo: 'activity' },
   enrollment: { staff: '/admin/cohorts/:cohortId/students/:userId/:tab', admin: '/admin/cohorts/:cohortId/students/:userId/:tab', student: null, contextKeys: ['return_to'], returnTo: 'activity' },
   user: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
-  staff: { staff: null, admin: '/admin/team/:id', student: null, contextKeys: [], returnTo: 'none' },
+  staff: { staff: null, admin: '/admin/team/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   cohort: { staff: '/admin/cohorts/:id', admin: '/admin/cohorts/:id', student: '/cohorts/:id', contextKeys: ['tab'], returnTo: 'none' },
   curriculum: { staff: '/admin/curricula/:id', admin: '/admin/curricula/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   module: { staff: '/admin/modules/:id', admin: '/admin/modules/:id', student: '/modules/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'none', staffReturnTo: 'any' },
@@ -368,7 +392,9 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   office_hour: { staff: '/admin/office-hours/:id', admin: '/admin/office-hours/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   recording: { staff: '/admin/recordings/:id', admin: '/admin/recordings/:id', student: '/recordings', contextKeys: ['cohort_id', 'recording', 'return_to'], returnTo: 'activity', staffReturnTo: 'any' },
   learning_plan: { staff: '/admin/learning-plans/:id', admin: '/admin/learning-plans/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
-  recovery_plan: { staff: '/admin/cohorts/:cohortId/students/:userId/support', admin: '/admin/cohorts/:cohortId/students/:userId/support', student: null, contextKeys: ['plan_id'], returnTo: 'none' },
+  recovery_plan: { staff: '/admin/recovery-plans/:id', admin: '/admin/recovery-plans/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
+  content_report: { staff: null, admin: '/admin/moderation/reports/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
+  offering: { staff: null, admin: '/admin/offerings/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   rubric: { staff: '/admin/rubrics/:id', admin: '/admin/rubrics/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   activity_event: { staff: '/admin/activity/:id', admin: '/admin/activity/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
 }
@@ -424,7 +450,7 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
       return studentPath(userId)
     }
     case 'staff':
-      return role === 'admin' && validId(ref.id) ? teamMemberPath(ref.id) : null
+      return role === 'admin' && validId(ref.id) ? withQuery(teamMemberPath(ref.id), { return_to: routeReturn('staff') }) : null
     case 'cohort':
       if (!validId(ref.id)) return null
       if (!staff) return learnerCohortPath(ref.id)
@@ -476,7 +502,11 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
       if (validId(ref.id)) return withQuery(learningPlanPath(ref.id), { return_to: routeReturn('learning_plan') })
       return validId(ref.userId) && validId(ref.cohortId) ? cohortStudentPath(ref.cohortId, ref.userId, 'learning') : null
     case 'recovery_plan':
-      return staff && validId(ref.id) && validId(ref.userId) && validId(ref.cohortId) ? withQuery(cohortStudentPath(ref.cohortId, ref.userId, 'support'), { plan_id: ref.id }) : null
+      return staff && validId(ref.id) ? withQuery(recoveryPlanPath(ref.id), { return_to: routeReturn('recovery_plan') }) : null
+    case 'content_report':
+      return role === 'admin' && validId(ref.id) ? withQuery(contentReportPath(ref.id), { return_to: routeReturn('content_report') }) : null
+    case 'offering':
+      return role === 'admin' && validId(ref.id) ? withQuery(offeringPath(ref.id), { return_to: routeReturn('offering') }) : null
     case 'private_meeting':
       if (!validId(ref.id)) return null
       if (staff) return withQuery(meetingBookingPath(ref.id), { return_to: routeReturn('private_meeting', true) })

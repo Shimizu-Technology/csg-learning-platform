@@ -72,6 +72,6 @@ it('removes access without a confirmation and leaves it unchanged when the admin
 it('links each teacher to their team member page', async () => {
   await mount()
   const link = container.querySelector<HTMLAnchorElement>('a[data-record-link="staff"]')
-  expect(link?.getAttribute('href')).toBe('/admin/team/7')
+  expect(link?.getAttribute('href')).toMatch(/^\/admin\/team\/7\?return_to=/)
   expect(link?.textContent).toBe('Audreana Tester')
 })

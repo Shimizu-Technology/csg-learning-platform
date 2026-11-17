@@ -9,7 +9,7 @@ import { followUpLabel } from '../../../lib/followUpLabels'
 import { formatShortDateTime } from '../../../lib/format'
 import { humanize, TERMS } from '../../../lib/glossary'
 import { markdownExcerpt } from '../../../lib/plainText'
-import { cohortStudentPath, helpRequestPath, interventionPath } from '../../../lib/routes'
+import { cohortStudentPath, helpRequestPath, interventionPath, recoveryPlanPath } from '../../../lib/routes'
 import { SectionBoundary, type Section } from '../../../lib/useSection'
 import type { HelpRequest, Intervention, RecoveryPlan } from '../../../types/api'
 
@@ -149,14 +149,23 @@ export function SupportTab({
                 <p className="mt-1 text-xs text-ink-muted">Owner: {plan.owner.full_name}</p>
               </div>
             </div>
-            {plan.intervention_id && (
+            <div className="mt-4 flex flex-wrap gap-x-4">
+              {/* The plan's own page (L-5.2): owner, scope, every check-in and where it came from. */}
               <Link
-                to={interventionPath(plan.intervention_id, returnTo)}
-                className="app-link mt-4 inline-flex min-h-11 items-center gap-1 text-sm"
+                to={`${recoveryPlanPath(plan.id)}?return_to=${encodeURIComponent(returnTo)}`}
+                className="app-link inline-flex min-h-11 items-center gap-1 text-sm"
               >
-                Open follow-up plan <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Plan page <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
-            )}
+              {plan.intervention_id && (
+                <Link
+                  to={interventionPath(plan.intervention_id, returnTo)}
+                  className="app-link inline-flex min-h-11 items-center gap-1 text-sm"
+                >
+                  Open follow-up plan <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )}
+            </div>
             <RecoveryPlanActions plan={plan} onSaved={onSaved} />
           </section>
         ))}

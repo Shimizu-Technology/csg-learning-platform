@@ -27,6 +27,7 @@ const lesson: LessonUsage = {
   cohorts: [{ ...teal, assigned: true, release_date: '2026-11-12', submissions: 2, waiting: 1, open_help: 1 }],
   other_cohorts_count: 1,
   help_requests: [{ id: 55, status: 'open', urgency: 'urgent', category: 'concept', cohort_id: 4, created_at: '2026-11-16T09:00:00Z', student: { id: 9, name: 'Alex Rivera' } }],
+  activity: { count: 12, recent: [{ id: 66, event_type: 'checkpoint_completed', created_at: '2026-11-16T09:00:00Z', cohort_id: 4, actor: { id: 9, name: 'Alex Rivera' }, subject: { id: 9, name: 'Alex Rivera' } }] },
   totals: { submissions: 2, waiting: 1, open_help: 1 },
 }
 const mod: ModuleUsage = {
@@ -41,7 +42,7 @@ const mod: ModuleUsage = {
   totals: { submissions: 2, waiting: 1, open_help: null },
 }
 const curriculum: CurriculumUsage = {
-  type: 'curriculum', id: 1, name: 'Usage curriculum', description: 'Synthetic course', status: 'active', total_weeks: 12, imported: true, package_revision: 'r7', can_edit: true,
+  type: 'curriculum', id: 1, name: 'Usage curriculum', description: 'Synthetic course', status: 'active', total_weeks: 12, imported: true, package_revision: 'r7', package_key: 'js-basics', can_edit: true,
   modules: [{ id: 7, name: 'JavaScript basics', module_type: 'live_class', position: 0, scheduled_day_names: ['Monday'], lessons_count: 2 }],
   cohorts: [
     { ...teal, students: 12, waiting: 3, open_help: 0 },
@@ -112,6 +113,15 @@ it('a lesson page shows what it is, where it is used for this instructor, its wo
   expect(row('submissions')?.querySelector('a')?.getAttribute('href')).toBe('/admin/grading?cohort_id=4&lesson_id=40&filter=all')
   expect(row('waiting')?.textContent).toContain('1')
   expect(row('curriculum')?.querySelector('a')?.getAttribute('href')).toBe('/admin/curricula/1')
+
+  // Learner activity (L-3.2): each event opens its own page, its learner the student page.
+  const activity = container.querySelector('#activity')!
+  expect(activity.querySelector('h2')?.textContent).toBe('Learner activity')
+  expect(activity.textContent).toContain('Newest 1 of 12')
+  expect(activity.querySelector('a[data-record-link="activity_event"]')?.textContent).toBe('Alex Rivera · Marked complete')
+  expect(activity.querySelector('a[data-record-link="activity_event"]')?.getAttribute('href')).toMatch(/^\/admin\/activity\/66\?return_to=/)
+  expect(activity.querySelector('a[data-record-link="student"]')?.getAttribute('href')).toMatch(/^\/admin\/cohorts\/4\/students\/9\/overview/)
+  expect(row('activity')?.textContent).toContain('12')
 })
 
 it('an admin who can edit sees Edit lesson', async () => {
@@ -161,7 +171,7 @@ it('a module page lists lessons by week and each cohort schedule with its module
 
 it('a curriculum page lists cohorts with delivery, modules, copy history, rubrics and objectives', async () => {
   await mount('/admin/curricula/1')
-  expect(container.querySelector('[data-record-type]')?.textContent).toBe('Curriculum · Imported course package r7')
+  expect(container.querySelector('[data-record-type]')?.textContent).toBe('Curriculum · Imported course package js-basics, revision r7')
   expect(container.querySelector('[data-back-link]')?.textContent).toBe('Back to Content')
   const used = container.querySelector('#used-in')!
   expect(used.textContent).toContain('Live program')

@@ -84,7 +84,7 @@ it('lists every block read-only with links to both people', async () => {
   await mount('/admin/moderation?view=blocks')
   expect(mocks.getSafetyUserBlocks).toHaveBeenCalledWith({ page: 1, per_page: 25 })
   expect(container.textContent).toContain('Cy Classmate blocked Ina Teacher')
-  expect(container.querySelector('a[href="/admin/team/3"]')?.textContent).toBe('Ina Teacher')
+  expect(container.querySelector('a[href^="/admin/team/3?"]')?.textContent).toBe('Ina Teacher')
   // The learner resolves to an enrollment from a dialog, as elsewhere in Safety.
   expect([...container.querySelectorAll('button')].some((el) => el.textContent === 'Cy Classmate')).toBe(true)
   expect(button('Unblock')).toBeUndefined()
@@ -168,4 +168,23 @@ it('does not fetch a deletion request that is already shown in this view', async
   await mount('/admin/moderation?view=resolved#deletion-3')
   expect(mocks.getDataDeletionRequest).not.toHaveBeenCalled()
   expect(container.textContent).not.toContain('The deletion request you opened')
+})
+
+// L-3.2: a student or team member page opens Safety filtered to that person's reports and blocks.
+it('filters reports and blocks to one person and shows everyone again', async () => {
+  mocks.getContentReports.mockResolvedValue({ data: { content_reports: [report()], meta: meta(1, 1, 1), person: { id: 21, full_name: 'Cy Classmate' } }, error: null })
+  await mount('/admin/moderation?person_id=21')
+  expect(mocks.getContentReports).toHaveBeenCalledWith({ view: 'open', page: 1, per_page: 25, user_id: 21 })
+  expect(container.querySelector('[role="status"]')?.textContent).toContain('Showing reports and blocks involving Cy Classmate.')
+  // Each report opens its own page.
+  expect(container.querySelector('a[href^="/admin/moderation/reports/5"]')?.textContent).toBe('Open report')
+
+  await act(async () => button('Blocks').click())
+  await flush()
+  expect(mocks.getSafetyUserBlocks).toHaveBeenLastCalledWith({ page: 1, per_page: 25, user_id: 21 })
+
+  await act(async () => button('Show everyone').click())
+  await flush()
+  expect(router.state.location.search).toBe('?view=blocks')
+  expect(mocks.getSafetyUserBlocks).toHaveBeenLastCalledWith({ page: 1, per_page: 25, user_id: undefined })
 })

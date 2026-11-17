@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { ImportCoursePackageModal } from './ImportCoursePackageModal'
 
-const preview = { key: 'python', revision: 'v1', title: 'Python', modules: 1, lessons: 26, blocks: 36, existing_curriculum_id: null, unchanged: false, status: 'draft', assigned: false }
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_staff: true, is_admin: true } }) }))
+
+const preview = { key: 'python', revision: 'v1', title: 'Python', modules: 1, lessons: 26, blocks: 36, existing_curriculum_id: null, unchanged: false, status: 'draft', assigned: false, curriculum: null, cohorts: [] }
 
 describe('course package import', () => {
   let container: HTMLDivElement
@@ -20,7 +23,7 @@ describe('course package import', () => {
     vi.stubGlobal('cancelAnimationFrame', clearTimeout)
     vi.spyOn(api, 'previewCoursePackage').mockResolvedValue({ data: { preview }, error: null, status: 200 })
     vi.spyOn(api, 'importCoursePackage').mockResolvedValue({ data: { import: { curriculum_id: 12, unchanged: false } }, error: null, status: 201 })
-    await act(async () => root.render(<ImportCoursePackageModal onClose={onClose} onImported={onImported} />))
+    await act(async () => root.render(<MemoryRouter><ImportCoursePackageModal onClose={onClose} onImported={onImported} /></MemoryRouter>))
   })
   afterEach(() => {
     act(() => root.unmount())
@@ -73,5 +76,19 @@ describe('course package import', () => {
     await load('{}')
     expect(container.textContent).toContain('Current status: active, assigned to a cohort')
     expect(importButton().textContent).toBe('Confirm existing course')
+  })
+  // L-3.2: a re-import names the curriculum it updates and the cohorts and offerings using it.
+  it('links the curriculum a package updates and the cohorts using it, marking offerings on sale', async () => {
+    const cohorts = [
+      { id: 4, name: 'Python Cohort 1', status: 'active', course_delivery: 'program', on_sale: false },
+      { id: 9, name: 'Python self-paced', status: 'active', course_delivery: 'self_paced', on_sale: true },
+    ]
+    vi.mocked(api.previewCoursePackage).mockResolvedValueOnce({ data: { preview: { ...preview, existing_curriculum_id: 12, assigned: true, curriculum: { id: 12, name: 'Python Fundamentals', revision: 'v1' }, cohorts } }, error: null, status: 200 })
+    await load('{}')
+    const where = container.querySelector('[data-package-where-used]')!
+    expect(where.textContent).toContain('Imported as Python Fundamentals, revision v1.')
+    expect(where.textContent).toContain('Used by 2 cohorts, 1 on sale')
+    expect(Array.from(where.querySelectorAll('a')).map((link) => link.getAttribute('href'))).toEqual(['/admin/curricula/12?return_to=%2F', '/admin/cohorts/4', '/admin/cohorts/9'])
+    expect(where.textContent).toContain('On sale')
   })
 })

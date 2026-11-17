@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Film, CheckCircle2, PlaySquare } from 'lucide-react'
+import { Film, CheckCircle2, PlaySquare } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -10,6 +10,8 @@ import { Avatar } from '../../components/ui/Avatar'
 import { TabButton } from '../../components/ui/Choice'
 import { TabList, TabPanel } from '../../components/ui/Motion'
 import { cohortStudentPath, cohortPath } from '../../lib/routes'
+import { useBackLink } from '../../lib/recordOrigin'
+import { RecordBackLink } from '../../components/shared/RecordHeader'
 
 interface RecordingInfo {
   id: number
@@ -175,6 +177,8 @@ export function CohortWatchProgress() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [cohortName, setCohortName] = useState('')
+  // Back returns to where this was opened (Recordings, a recording's page), or else the cohort's Learning tab (L-2.9).
+  const back = useBackLink({ returnTo: cohortPath(Number(id), 'learning'), returnLabel: cohortName || 'Cohort' })
 
   useEffect(() => {
     if (!id) return
@@ -238,18 +242,12 @@ export function CohortWatchProgress() {
     [videoStudents]
   )
 
-  if (loading) return <LoadingSpinner message="Loading watch progress..." />
+  if (loading) return <><div className="app-page-wide pb-0 lg:pb-0"><div className="flex min-h-11 items-center text-sm"><RecordBackLink back={back} /></div></div><LoadingSpinner message="Loading watch progress..." /></>
 
   if (loadError && recordings.length === 0 && videos.length === 0) {
     return (
       <div className="app-page-wide">
-        <Link
-          to={cohortPath(Number(id), 'learning')}
-          className="app-link inline-flex min-h-11 items-center gap-1 text-sm"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to cohort
-        </Link>
+        <div className="flex min-h-11 items-center text-sm"><RecordBackLink back={back} /></div>
         <div role="alert" className="rounded-2xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">
           {loadError}
         </div>
@@ -264,13 +262,7 @@ export function CohortWatchProgress() {
   return (
     <div className="app-page-wide">
       <div className="space-y-4">
-        <Link
-          to={cohortPath(Number(id), 'learning')}
-          className="app-link inline-flex min-h-11 max-w-full items-center gap-1 text-sm"
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" />
-          <span className="truncate" title={cohortName || undefined}>Back to {cohortName || 'Cohort'}</span>
-        </Link>
+        <div className="flex min-h-11 min-w-0 items-center text-sm"><RecordBackLink back={back} /></div>
         <PageHeader
           eyebrow="Cohort engagement"
           title="Watch progress"

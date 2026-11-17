@@ -18,10 +18,11 @@
 #
 # Rows carry names, dates and counts only, never answers, questions or
 # feedback. The query count does not grow with the number of cohorts, modules,
-# lessons, submissions, rubrics, objectives or copies.
+# lessons, submissions, rubrics, objectives, copies or activity events.
 class RecordUsage
   TYPES = %w[curriculum module lesson].freeze
   HELP_LIST_LIMIT = 5 # per cohort
+  ACTIVITY_LIST_LIMIT = 10
 
   def self.for(viewer:, type:, id:)
     new(viewer: viewer, type: type, id: id).call
@@ -65,6 +66,7 @@ class RecordUsage
       total_weeks: curriculum.total_weeks,
       imported: curriculum.course_package_key.present?,
       package_revision: curriculum.course_package_revision,
+      package_key: curriculum.course_package_key,
       can_edit: LessonEditAccess.for(@viewer, curriculum).can_edit?,
       modules: modules.map do |mod|
         { id: mod.id, name: mod.name, module_type: mod.module_type, position: mod.position,
@@ -257,7 +259,41 @@ class RecordUsage
       end,
       other_cohorts_count: @other_cohorts_count,
       help_requests: recent_help(help_scope, cohorts),
+      activity: lesson_activity(cohorts, block_ids),
       totals: { submissions: attempts.values.sum, waiting: waiting.values.sum, open_help: help_total(help) }
+    }
+  end
+
+  # Learner activity on this lesson (L-3.2 "lesson → activity"): videos and
+  # checkpoints on its blocks, and work on its exercises, in the cohorts the
+  # viewer can see, newest first. An event counts only when it passes the
+  # check its own page applies (RecordDetail::ActivityEventPage): its learner
+  # is enrolled in the event's cohort, whoever acted is that learner, an
+  # admin or one of the cohort's people, and a submission belongs to that
+  # learner in that cohort. The cohorts are all on this lesson's curriculum,
+  # so a block id can't name another curriculum's lesson. Three queries.
+  def lesson_activity(cohorts, block_ids)
+    return { count: 0, recent: [] } if cohorts.empty? || block_ids.empty?
+
+    events = ActivityEvent.where(cohort_id: cohorts.map(&:id)).where(<<~SQL.squish, blocks: block_ids, admin: User.roles[:admin])
+      ((activity_events.record_type = 'ContentBlock' AND activity_events.record_id IN (:blocks))
+        OR (activity_events.record_type = 'Submission' AND EXISTS (
+          SELECT 1 FROM submissions JOIN enrollments ON enrollments.id = submissions.enrollment_id
+          WHERE submissions.id = activity_events.record_id AND submissions.content_block_id IN (:blocks)
+            AND submissions.user_id = activity_events.subject_user_id AND enrollments.cohort_id = activity_events.cohort_id)))
+      AND EXISTS (SELECT 1 FROM enrollments WHERE enrollments.user_id = activity_events.subject_user_id AND enrollments.cohort_id = activity_events.cohort_id)
+      AND (activity_events.actor_id = activity_events.subject_user_id
+        OR EXISTS (SELECT 1 FROM users WHERE users.id = activity_events.actor_id AND users.role = :admin)
+        OR EXISTS (SELECT 1 FROM cohort_instructor_assignments WHERE cohort_instructor_assignments.user_id = activity_events.actor_id AND cohort_instructor_assignments.cohort_id = activity_events.cohort_id)
+        OR EXISTS (SELECT 1 FROM enrollments WHERE enrollments.user_id = activity_events.actor_id AND enrollments.cohort_id = activity_events.cohort_id))
+    SQL
+    recent = events.includes(:actor, :subject_user).order(id: :desc).limit(ACTIVITY_LIST_LIMIT).to_a
+    {
+      count: events.count,
+      recent: recent.map do |event|
+        { id: event.id, event_type: event.event_type, created_at: event.created_at.iso8601, cohort_id: event.cohort_id,
+          actor: { id: event.actor.id, name: event.actor.full_name }, subject: { id: event.subject_user.id, name: event.subject_user.full_name } }
+      end
     }
   end
 

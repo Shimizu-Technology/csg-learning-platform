@@ -107,7 +107,7 @@ function lessonUsage(): LessonUsage {
     type: 'lesson', id: 2, title: 'Make decisions', lesson_type: 'lesson', required: true, archived: false, release_day: 0, week: 1, day_name: 'Monday',
     curriculum: { id: 1, name: 'Synthetic Web Lab' }, module: { id: 3, name: 'JavaScript basics' }, can_edit: true, blocks: [], objectives: [],
     cohorts: [{ id: 4, name: 'Cohort 3', status: 'active', course_delivery: 'program', start_date: '2026-11-10', end_date: null, on_sale: false, assigned: true, release_date: '2026-11-10', submissions: 5, waiting: 2, open_help: 1 }],
-    other_cohorts_count: 0, help_requests: [], totals: { submissions: 5, waiting: 2, open_help: 1 },
+    other_cohorts_count: 0, help_requests: [], activity: { count: 0, recent: [] }, totals: { submissions: 5, waiting: 2, open_help: 1 },
   }
 }
 

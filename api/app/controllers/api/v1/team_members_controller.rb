@@ -35,7 +35,9 @@ module Api
             # Read-only here; editing access is changed on the cohort's Teaching team tab.
             teaching: assignments.map { |assignment| teaching_json(assignment) },
             message_cohort_id: message_cohort_id(member, assignments),
-            workload: workload_json(member)
+            workload: workload_json(member),
+            # Reports by and about them and blocks they made or received (L-3.2), as counts; Safety lists them.
+            safety: PersonSafety.for(viewer: current_user, user_id: member.id)
           }
         }
       end

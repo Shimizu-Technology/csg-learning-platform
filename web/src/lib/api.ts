@@ -740,9 +740,17 @@ export const api = {
   /** Where a curriculum, module or lesson is used (staff, L-3.2 / L-5). Not cached offline: per viewer. */
   getRecordUsage: (type: 'curriculum' | 'module' | 'lesson', id: number, signal?: AbortSignal) =>
     fetchApi<components['schemas']['RecordUsageResponse']>(`/api/v1/records/${type}/${id}/usage`, { cache: 'no-store', signal }),
-  /** `watchersAfter` continues a recording's watchers (the previous response's `watchers_next_after`). */
-  getRecordDetail: (type: 'recording' | 'office_hour' | 'private_meeting' | 'learning_plan' | 'channel' | 'rubric' | 'activity_event', id: number, options: { watchersAfter?: number; signal?: AbortSignal } = {}) =>
-    fetchApi<components['schemas']['RecordDetailResponse']>(`/api/v1/records/${type}/${id}/detail${options.watchersAfter ? `?watchers_after=${options.watchersAfter}` : ''}`, { cache: 'no-store', signal: options.signal }),
+  /**
+   * `watchersAfter` continues a recording's watchers (the previous response's `watchers_next_after`);
+   * `purchasesBefore` continues an offering's purchases (`purchases_next_before`).
+   */
+  getRecordDetail: (type: 'recording' | 'office_hour' | 'private_meeting' | 'learning_plan' | 'channel' | 'rubric' | 'activity_event' | 'recovery_plan' | 'content_report' | 'offering', id: number, options: { watchersAfter?: number; purchasesBefore?: number; signal?: AbortSignal } = {}) => {
+    const query = new URLSearchParams()
+    if (options.watchersAfter) query.set('watchers_after', String(options.watchersAfter))
+    if (options.purchasesBefore) query.set('purchases_before', String(options.purchasesBefore))
+    const search = query.toString()
+    return fetchApi<components['schemas']['RecordDetailResponse']>(`/api/v1/records/${type}/${id}/detail${search ? `?${search}` : ''}`, { cache: 'no-store', signal: options.signal })
+  },
   acceptCommunityPolicy: (version: string) =>
     fetchApi<components['schemas']['CommunityPolicyResponse']>('/api/v1/community_policy/accept', {
       method: 'POST', body: JSON.stringify({ version, accepted: true }),
@@ -751,15 +759,15 @@ export const api = {
     fetchApi<components['schemas']['ContentReportResponse']>('/api/v1/content_reports', {
       method: 'POST', body: JSON.stringify({ content_report: data }),
     }),
-  /** `open`: the queue, oldest first. `resolved`: history, most recently resolved first, paginated. */
-  getContentReports: (params: { view?: 'open' | 'resolved'; page?: number; per_page?: number; status?: string } = {}) => {
+  /** `open`: the queue, oldest first. `resolved`: history, most recently resolved first, paginated. `user_id`: by or about one person. */
+  getContentReports: (params: { view?: 'open' | 'resolved'; page?: number; per_page?: number; status?: string; user_id?: number } = {}) => {
     const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)])).toString()
     return fetchApi<components['schemas']['ContentReportsResponse']>(`/api/v1/content_reports${query ? `?${query}` : ''}`)
   },
   getContentReport: (id: number) => fetchApi<components['schemas']['ContentReportResponse']>(`/api/v1/content_reports/${id}`),
-  /** Every block between two people (admins, read-only). */
-  getSafetyUserBlocks: (params: { page?: number; per_page?: number } = {}) =>
-    fetchApi<components['schemas']['SafetyUserBlocksResponse']>(`/api/v1/safety/user_blocks?page=${params.page ?? 1}&per_page=${params.per_page ?? 25}`),
+  /** Every block between two people (admins, read-only). `user_id`: blocks one person made or received. */
+  getSafetyUserBlocks: (params: { page?: number; per_page?: number; user_id?: number } = {}) =>
+    fetchApi<components['schemas']['SafetyUserBlocksResponse']>(`/api/v1/safety/user_blocks?page=${params.page ?? 1}&per_page=${params.per_page ?? 25}${params.user_id ? `&user_id=${params.user_id}` : ''}`),
   /** One staff person's record (admins). */
   getTeamMember: (id: number) => fetchApi<components['schemas']['TeamMemberResponse']>(`/api/v1/team_members/${id}`),
   updateContentReport: (id: number, status: 'reviewing' | 'actioned' | 'dismissed') =>
@@ -968,7 +976,7 @@ export const api = {
   getCurriculum: (id: number, signal?: AbortSignal) =>
     fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`, { signal }),
   previewCoursePackage: (packageData: unknown) =>
-    fetchApi<{ preview: { key: string; revision: string; title: string; modules: number; lessons: number; blocks: number; existing_curriculum_id: number | null; unchanged: boolean; status: string; assigned: boolean } }>('/api/v1/course_packages/preview', { method: 'POST', body: coursePackageBody(packageData) }),
+    fetchApi<components['schemas']['CoursePackagePreviewResponse']>('/api/v1/course_packages/preview', { method: 'POST', body: coursePackageBody(packageData) }),
   importCoursePackage: (packageData: unknown) =>
     fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: coursePackageBody(packageData) }),
 

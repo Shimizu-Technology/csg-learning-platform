@@ -285,6 +285,10 @@ class RecordRelated
     others = Enrollment.with_read_access.where(user_id: student.id, cohort_id: @viewer.accessible_cohorts.select(:id))
       .where.not(id: enrollment.id).order(enrolled_at: :desc, id: :desc)
     items << item("other_enrollments", count: others.count, cohort_id: others.pick(:cohort_id), user_id: student.id)
+    # Admins: reports by or about the learner and blocks they made or received (L-3.2). The
+    # count is the open reports about them; Safety, filtered to them, lists the rest.
+    safety = PersonSafety.for(viewer: @viewer, user_id: student.id)
+    items << item("safety", count: safety[:open_reports_about], user_id: student.id, **safety) if safety
 
     result("student", student.id, items, cohort: cohort, student: student)
   end
@@ -312,6 +316,8 @@ class RecordRelated
     items << item("recordings", count: cohort.recordings.count, cohort_id: cohort.id) if features["recordings"]
     # Posted updates only: a draft is private to its author and admins.
     items << item("updates", count: cohort.announcements.published.count, cohort_id: cohort.id) if features["announcements"]
+    # Admins: a self-paced course's paid purchases (L-3.2 "offering → purchases"), on its offering page.
+    items << item("purchases", count: CoursePurchase.where(cohort_id: cohort.id, status: "paid").count, cohort_id: cohort.id) if @viewer.admin? && cohort.self_paced?
 
     result("cohort", cohort.id, items, cohort: cohort)
   end
