@@ -109,21 +109,6 @@ class RecordDestination
 
     d = descriptor.deep_symbolize_keys
     id = d[:id]
-    PATH_ALIASES.each do |entry|
-      pattern = Regexp.new(entry.fetch("pattern"))
-      base = path.split(/[?#]/).first
-      next unless pattern.match?(base)
-
-      captures = base.match(pattern)
-      target = entry.fetch("replacement").gsub(/\$(\d+)/) { captures[Regexp.last_match(1).to_i] }
-      source_uri = URI.parse(path)
-      target_uri = URI.parse(target)
-      fixed = URI.decode_www_form(target_uri.query.to_s)
-      target_uri.query = URI.encode_www_form(fixed + URI.decode_www_form(source_uri.query.to_s).reject { |key, _| fixed.any? { |k, _| k == key } })
-      result = from_path(target_uri.to_s)
-      result[:context].merge!(entry.fetch("context", {})) if result
-      return result
-    end
     uri = URI.parse(path)
     params = URI.decode_www_form(uri.query.to_s).to_h
     paths = { "student" => "/staff/student/#{id}", "staff" => "/staff/team", "curriculum" => d.dig(:context, :staff) == true ? "/staff/curriculum/#{id}" : "/learn", "resource" => "/resources", "lesson" => "/lesson/#{id}", "module" => "/module/#{id}", "submission" => "/staff/submission/#{id}", "help_request" => "/staff/support/#{id}", "follow_up" => "/staff/intervention/#{id}", "channel" => "/conversation/channel/#{id}", "dm" => "/conversation/dm/#{id}", "announcement" => "/updates", "recording" => "/recording/#{id}", "meeting" => "/meetings", "cohort" => "/cohort/#{id}" }

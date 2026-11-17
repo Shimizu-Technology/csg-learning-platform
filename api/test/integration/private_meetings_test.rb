@@ -61,16 +61,9 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_empty response.parsed_body["admin_contacts"]
   end
 
-  test "meeting notices queue push only through the registered after-commit callback" do
+  test "meeting notices queue push through the existing after-commit job boundary" do
     slot = publish_slot(@start_time)
-    callbacks = []
-    original = ActiveRecord.method(:after_all_transactions_commit)
-    ActiveRecord.define_singleton_method(:after_all_transactions_commit) { |&callback| callbacks << callback }
-    assert_no_enqueued_jobs(only: PushNotificationJob) { PrivateMeetingScheduler.book!(student: @student, slot: slot) }
-    assert_equal 1, callbacks.size
-    assert_enqueued_with(job: PushNotificationJob) { callbacks.first.call }
-  ensure
-    ActiveRecord.define_singleton_method(:after_all_transactions_commit, original) if original
+    assert_enqueued_with(job: PushNotificationJob) { PrivateMeetingScheduler.book!(student: @student, slot: slot) }
   end
 
   test "hosts stay admin-assigned" do

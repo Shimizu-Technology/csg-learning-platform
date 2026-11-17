@@ -17,9 +17,9 @@ exact web booking automatically, with a retry action after failure.
 ## Automated evidence
 
 - Mobile: typecheck; lint (existing warnings); public Expo config resolution;
-  137 Jest suites / 1,459 tests. Used `--forceExit` after completed suites left
+  137 Jest suites / 1,466 tests. Used `--forceExit` after completed suites left
   timers open; earlier test processes were stopped by exact PID.
-- Web: lint, typecheck, 207 Vitest suites / 2,414 tests, Netlify routing,
+- Web: lint, typecheck, 207 Vitest suites / 2,415 tests, Netlify routing,
   production build and bundle gate. The bundle gate reads
   `dist/.well-known/apple-app-site-association`; routing tests verify its explicit
   rule before the SPA fallback and its JSON Content-Type rule in netlify.toml.

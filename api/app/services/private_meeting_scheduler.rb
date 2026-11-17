@@ -149,7 +149,8 @@ class PrivateMeetingScheduler
         path: "#{recipient.id == booking.student_id ? "/meetings" : "/admin/meetings"}?cohort_id=#{booking.cohort_id}&booking_id=#{booking.id}&week=#{booking.week_number}"
       )
     end
-    ActiveRecord.after_all_transactions_commit { NotificationDeliveryService.system_notice(event, notifications) }
+    # ApplicationJob already defers delivery until the transaction commits.
+    NotificationDeliveryService.system_notice(event, notifications)
     event
   end
 
