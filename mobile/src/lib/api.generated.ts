@@ -4419,6 +4419,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course_offerings/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicCourseResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/start_here": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        cohort_id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StartHereDismissalResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/records/{type}/{id}/usage": {
         parameters: {
             query?: never;
@@ -5470,6 +5548,7 @@ export interface components {
                 features: {
                     [key: string]: boolean;
                 };
+                review_response_time?: string;
             };
             status: string;
             enrolled_at: string | null;
@@ -5585,6 +5664,9 @@ export interface components {
             } | null;
             /** @enum {unknown} */
             public_catalog_mode: "automatic" | "always" | "hidden";
+            review_response_time?: string;
+            review_response_time_default?: string;
+            review_response_time_override?: string | null;
         };
         ContentReportsResponse: {
             content_reports: components["schemas"]["ContentReport"][];
@@ -6156,6 +6238,7 @@ export interface components {
                 course_delivery: "program" | "guided" | "self_paced";
                 access_expires_at: string | null;
                 support_expires_at: string | null;
+                support_weeks?: number;
             };
             user: components["schemas"]["DashboardUser"];
             cohort?: {
@@ -6214,6 +6297,8 @@ export interface components {
             recently_graded?: components["schemas"]["DashboardDataRecentlyGradedItem"][];
             /** @description Staff-only ranked action inbox. */
             today?: components["schemas"]["InstructorToday"];
+            start_here?: boolean;
+            review_response_time?: string;
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -6658,21 +6743,7 @@ export interface components {
         };
         PublicOfferingsResponse: {
             public_catalog_mode: string;
-            offerings: {
-                id: number;
-                name: string;
-                description: string | null;
-                image_url: string | null;
-                curriculum_name: string;
-                checkout_available: boolean;
-                price_cents: number | null;
-                currency: string;
-                access_months: number;
-                includes_private_meetings: boolean;
-                instructor_message_weeks: number;
-                instructor_response_target: string;
-                includes_individual_project_review: boolean;
-            }[];
+            offerings: components["schemas"]["PublicCourse"][];
         };
         /** @description Where the reported message was posted. `destination` is null when the viewing admin can't open that conversation (most direct conversations); show `label` as text then. */
         ContentReportConversation: {
@@ -7128,6 +7199,37 @@ export interface components {
             reply: components["schemas"]["HelpRequestReply"];
             /** @description True when this was a retry: the reply saved by an earlier request with the same `client_request_id` is returned and nobody is notified again. */
             replayed: boolean;
+        };
+        PublicCourse: {
+            id: number;
+            name: string;
+            description: string | null;
+            image_url: string | null;
+            curriculum_name: string;
+            checkout_available: boolean;
+            price_cents: number | null;
+            currency: string;
+            access_months: number;
+            includes_private_meetings: boolean;
+            instructor_message_weeks: number;
+            instructor_response_target: string;
+            includes_individual_project_review: boolean;
+            outcomes: string | null;
+            duration: string | null;
+            prerequisites: string | null;
+            preview: string | null;
+            slug: string;
+            lesson_count: number;
+            syllabus: {
+                title: string;
+                lessons: string[];
+            }[];
+        };
+        PublicCourseResponse: {
+            offering: components["schemas"]["PublicCourse"];
+        };
+        StartHereDismissalResponse: {
+            dismissed: boolean;
         };
         /** @description A cohort using the curriculum. */
         CurriculumUsageCohort: {

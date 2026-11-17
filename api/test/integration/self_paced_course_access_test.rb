@@ -19,6 +19,7 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
   end
 
   test "checkout stays disabled and a public offering does not expose a price until sale is enabled" do
+    @cohort.update!(public_title: "Python fundamentals")
     get "/api/v1/course_offerings"
     assert_response :success
     offering = JSON.parse(response.body).fetch("offerings").sole

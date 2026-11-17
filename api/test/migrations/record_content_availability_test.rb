@@ -54,6 +54,7 @@ class RecordContentAvailabilityTest < ActiveSupport::TestCase
     assert_equal timestamp, resource.reload.ready_at
     assert_equal link_date, cohort.reload.settings.fetch("class_resources").first.fetch("available_at")
   ensure
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
     [ Recording, CurriculumResource, LessonAssignment, ModuleAssignment ].each(&:reset_column_information)
   end
 end

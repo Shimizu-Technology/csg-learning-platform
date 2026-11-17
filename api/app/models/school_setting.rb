@@ -1,6 +1,8 @@
 class SchoolSetting < ApplicationRecord
   validates :public_catalog_mode, inclusion: { in: %w[automatic always hidden] }
 
+  validates :review_response_time, presence: true, length: { maximum: 200 }
+
   def self.current
     return load_current unless RequestCache.enabled
 

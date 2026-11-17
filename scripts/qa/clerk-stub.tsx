@@ -1,6 +1,6 @@
 import type { ReactNode } from '../../web/node_modules/@types/react/index'
 const requested = new URLSearchParams(location.search).get('qa_user')
-if (requested && /^[1-8]$/.test(requested)) sessionStorage.setItem('qa_user', requested)
+if (requested && /^[1-9]$/.test(requested)) sessionStorage.setItem('qa_user', requested)
 const id = sessionStorage.getItem('qa_user')
 const getToken = async () => id ? `test_token_${id}` : null
 const user = id ? { id: `qa_${id}`, hasImage: false, imageUrl: '', firstName: 'QA' } : null

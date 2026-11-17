@@ -75,6 +75,10 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
   end
 
   test "started cohort refuses upcoming until its date moves into the future" do
+    @curriculum.update!(status: :active)
+    mod = @curriculum.modules.create!(name: "Published module", position: 0)
+    mod.lessons.create!(title: "Published lesson", position: 0, release_day: 0).content_blocks.create!(block_type: :text, body: "Public lesson", position: 0)
+    @cohort.update!(public_title: "Published course", content_defaults: { mod.id.to_s => { "assigned" => true } })
     @cohort.update_columns(public_checkout_enabled: true)
     get "/api/v1/course_offerings"
     assert_includes response.parsed_body["offerings"].map { |row| row["id"] }, @cohort.id
@@ -109,6 +113,22 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
     assert_nil @cohort.reload.public_title
   end
 
+  test "wizard assigns a readable address only when the public title is first saved" do
+    as_user(@admin) do
+      post "/api/v1/cohorts", params: { name: "Internal wizard draft", curriculum_id: @curriculum.id,
+        start_date: LearningCalendar.today, course_delivery: "self_paced" }, headers: auth_headers, as: :json
+      assert_response :created
+      cohort = Cohort.find(response.parsed_body.fetch("cohort").fetch("id"))
+      assert_nil cohort.public_slug
+      patch "/api/v1/cohorts/#{cohort.id}", params: { public_title: "Python fundamentals" }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal "python-fundamentals", cohort.reload.public_slug
+      patch "/api/v1/cohorts/#{cohort.id}", params: { public_title: "Renamed course" }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal "python-fundamentals", cohort.reload.public_slug
+    end
+  end
+
   test "future cohort defaults upcoming and current cohort active" do
     assert @cohort.active?
     future = Cohort.create!(name: "Future", curriculum: @curriculum, start_date: LearningCalendar.today + 10)
@@ -117,6 +137,10 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
 
   test "catalog returns public copy and never internal name" do
     @cohort.update!(public_checkout_enabled: true, public_title: "Learn Ruby", public_description: "Build a project", public_image_url: "https://example.test/ruby.png")
+    @curriculum.update!(status: :active)
+    mod = @curriculum.modules.create!(name: "Published module", position: 0)
+    mod.lessons.create!(title: "Published lesson", position: 0, release_day: 0).content_blocks.create!(block_type: :text, body: "Public lesson", position: 0)
+    @cohort.update!(content_defaults: { mod.id.to_s => { "assigned" => true } })
     get "/api/v1/course_offerings"
     assert_response :success
     offering = response.parsed_body["offerings"].find { |row| row["id"] == @cohort.id }

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 import { CohortSettings as CohortDetail } from './CohortDetail'
 
-const state = vi.hoisted(() => ({ confirm: vi.fn(), deleteOfficeHour: vi.fn(), getCohort: vi.fn(), updateCohort: vi.fn(), updateCohortModuleAccess: vi.fn(), updateCohortModuleSubmissionWindows: vi.fn(), updateCohortClassResources: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn() }))
+const state = vi.hoisted(() => ({ confirm: vi.fn(), deleteOfficeHour: vi.fn(), getCohort: vi.fn(), updateCohort: vi.fn(), updateCohortModuleAccess: vi.fn(), updateCohortModuleSubmissionWindows: vi.fn(), updateCohortClassResources: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn(), saveFeatureSettings: vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { role: state.role } }) }))
 vi.mock('../../lib/api', () => ({ api: state }))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: async () => () => {} }))
@@ -20,7 +20,7 @@ let container: HTMLDivElement
 let root: Root
 const button = (text: string) => [...container.querySelectorAll('button')].find((el) => el.textContent === text)!
 
-vi.mock('../../components/admin/FeatureSettings', () => ({ FeatureSettings: () => <p>Features</p> }))
+vi.mock('../../components/admin/FeatureSettings', () => ({ FeatureSettings: ({ onReviewResponseDraftChange }: { onReviewResponseDraftChange: (value: string) => void }) => <label>Typical response time<input id="review-response-time-test" onChange={e => onReviewResponseDraftChange(e.target.value)} /></label> }))
 const cohort = { id: 1, name: 'Pilot', curriculum_id: 7, curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', modules: [], students: [], active_count: 0 }
 const render = async () => { await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1?tab=settings']}><Routes><Route path="/admin/cohorts/:id" element={<CohortDetail />} /></Routes></MemoryRouter>)) }
 const input = async (selector: string, value: string) => { await act(async () => { const el = container.querySelector(selector)!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })) }) }
@@ -117,4 +117,16 @@ it('blocks implicit Enter submission in module inputs', async () => {
   const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
   await act(async () => field.dispatchEvent(event))
   expect(event.defaultPrevented).toBe(true); expect(state.updateCohort).not.toHaveBeenCalled()
+})
+
+it('guards and saves an unsaved response-time edit through Save settings', async () => {
+  state.saveFeatureSettings.mockResolvedValue({ data: {} })
+  await render()
+  await input('#review-response-time-test', 'usually reviewed within 3 days')
+  const leaving = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(leaving)
+  expect(leaving.defaultPrevented).toBe(true)
+  await act(async () => button('Save settings').click())
+  expect(state.saveFeatureSettings).toHaveBeenCalledWith({ review_response_time: 'usually reviewed within 3 days' }, 1)
+  const saved = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(saved)
+  expect(saved.defaultPrevented).toBe(false)
 })

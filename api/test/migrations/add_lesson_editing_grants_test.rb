@@ -22,6 +22,7 @@ class AddLessonEditingGrantsTest < ActiveSupport::TestCase
       assert connection.select_value("SELECT convalidated FROM pg_constraint WHERE conname = 'fk_cohort_instructor_assignments_edit_granted_by'")
     end
   ensure
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
     CohortInstructorAssignment.reset_column_information
   end
 end

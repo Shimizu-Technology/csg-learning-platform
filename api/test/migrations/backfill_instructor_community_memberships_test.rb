@@ -54,6 +54,7 @@ class BackfillInstructorCommunityMembershipsTest < ActiveSupport::TestCase
     WorkspaceMembership.connection.clear_cache!
     WorkspaceMembership.reset_column_information
   ensure
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
     WorkspaceMembership.reset_column_information
   end
 

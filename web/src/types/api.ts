@@ -377,6 +377,7 @@ export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningP
 export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>>; recording_catch_up?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>> };
 
 export interface CohortSummary extends Partial<CourseOfferingTerms> {
+  review_response_time?: string;
   course_delivery?: 'program' | 'guided' | 'self_paced';
   id: number;
   name: string;
@@ -461,6 +462,11 @@ export interface CohortDetail extends CohortSummary {
 }
 
 export interface CourseOfferingTerms {
+  public_slug?: string | null;
+  public_outcomes?: string | null;
+  public_duration?: string | null;
+  public_prerequisites?: string | null;
+  public_preview?: string | null;
   public_title?: string | null;
   public_description?: string | null;
   public_image_url?: string | null;
@@ -1049,6 +1055,7 @@ export interface CohortResponse {
 
 export interface AccessibleCohort {
   curriculum_id?: number;
+  review_response_time?: string;
   course_delivery?: 'program' | 'guided' | 'self_paced';
   capabilities?: LearnerCapabilities;
   features?: Record<string, boolean>;

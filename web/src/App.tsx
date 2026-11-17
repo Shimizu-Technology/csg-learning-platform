@@ -112,6 +112,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<HomeRoute />} />
         <Route path="/courses" element={<CourseCatalog />} />
+        <Route path="/courses/:slug" element={<CourseCatalog />} />
         <Route path="/sign-in" element={<SuspendedRoute><SignInPage /></SuspendedRoute>} />
         <Route path="/sign-up" element={<SuspendedRoute><SignUpPage /></SuspendedRoute>} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />

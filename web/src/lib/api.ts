@@ -266,6 +266,9 @@ async function fetchApi<T>(
       }
 
       const data = JSON.parse(text) as T;
+      if (method === 'PATCH' && endpoint === '/api/v1/dashboard/start_here' && (data as { dismissed?: boolean }).dismissed === true) {
+        invalidateDashboardCache(cacheScope);
+      }
       if ((method !== 'GET' && /\/api\/v1\/(notifications|channels|direct_conversations)\/.*read/.test(endpoint)) ||
           (method !== 'GET' && endpoint === '/api/v1/message_preferences') ||
           (method === 'GET' && /^\/api\/v1\/announcements\/\d+$/.test(endpoint))) {
@@ -355,6 +358,16 @@ function waitForRetry(attempt: number) {
   return new Promise<void>((resolve) => {
     globalThis.setTimeout(resolve, 400 * attempt * attempt + jitter);
   });
+}
+
+function invalidateDashboardCache(scope: string | null) {
+  if (!scope) return;
+  try {
+    const prefix = `${CACHE_PREFIX}${scope}:`;
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith(prefix) && /^\/api\/v1\/dashboard(?:\?|$)/.test(key.slice(prefix.length))) localStorage.removeItem(key);
+    });
+  } catch { /* Storage may be unavailable; the successful dismissal still stands. */ }
 }
 
 function invalidateUnreadCache(scope: string | null) {
@@ -452,6 +465,7 @@ function coursePackageBody(packageData: unknown): string {
   return JSON.stringify({ package_base64: btoa(binary) })
 }
 
+export type PublicCourse = components['schemas']['PublicCourse'];
 export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
 export type BulkEnrollmentResult = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
 export type BulkEnrollmentState = { enrolled: number; invited: number; results: BulkEnrollmentResult[] }
@@ -483,10 +497,12 @@ export const api = {
   },
 
   getFeatureSettings: (cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { cache: 'no-store' }),
-  saveFeatureSettings: (data: { features: Record<string, boolean | null>; public_catalog_mode?: string }, cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  saveFeatureSettings: (data: { features?: Record<string, boolean | null>; public_catalog_mode?: string; review_response_time?: string | null }, cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { method: 'PATCH', body: JSON.stringify(data) }),
   // Auth
   getCourseOfferings: () =>
-    fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: Array<{ id: number; name: string; description?: string | null; image_url?: string | null; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
+    fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: PublicCourse[] }>('/api/v1/course_offerings', {}, false),
+  getCourseOffering: (slug: string) => fetchApi<{ offering: PublicCourse }>(`/api/v1/course_offerings/${encodeURIComponent(slug)}`, {}, false),
+  dismissStartHere: (cohortId: number) => fetchApi<{ dismissed: boolean }>('/api/v1/dashboard/start_here', { method: 'PATCH', body: JSON.stringify({ cohort_id: cohortId }) }),
   getCourseCheckoutStatus: (id: string | number) =>
     fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
   getPendingCoursePurchases: () =>
@@ -972,7 +988,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateCohort: (id: number, data: { curriculum_id?: number; public_title?: string; public_description?: string; public_image_url?: string;
+  updateCohort: (id: number, data: { curriculum_id?: number; public_outcomes?: string; public_duration?: string; public_prerequisites?: string; public_preview?: string; public_title?: string; public_description?: string; public_image_url?: string;
     name?: string
     start_date?: string
     end_date?: string

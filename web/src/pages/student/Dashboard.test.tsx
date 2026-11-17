@@ -132,15 +132,15 @@ describe('Dashboard empty and review states', () => {
     expect(html).not.toContain('0 of 0')
   })
 
-  it('says work is awaiting review instead of calling the learner caught up', () => {
+  it.each([[undefined, 'usually within 2 days'], ['usually reviewed within 3 days', 'usually within 3 days']])('shows a natural review expectation without calling the learner caught up (%s)', (phrase, expected) => {
     const module = previewData.modules![0]
     const html = renderToStaticMarkup(
       <MemoryRouter>
-        <Dashboard previewData={{ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, modules: [{ ...module, lessons: [{ ...module.lessons[0], completed: true, review_status: 'awaiting_review' }] }] }} previewWeeklyPlan={null} disableStaffRedirect />
+        <Dashboard previewData={{ ...previewData, review_response_time: phrase, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, modules: [{ ...module, lessons: [{ ...module.lessons[0], completed: true, review_status: 'awaiting_review' }] }] }} previewWeeklyPlan={null} disableStaffRedirect />
       </MemoryRouter>,
     )
 
-    expect(html).toContain('Your instructor is reviewing one piece of work')
+    expect(html).toContain(`Your instructor will review one piece of work — ${expected}. Feedback will show up on the lesson and here.`)
     expect(html).not.toContain('caught up')
   })
 

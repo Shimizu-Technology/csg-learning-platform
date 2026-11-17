@@ -39,6 +39,7 @@ class AddPausedAtToEnrollmentsTest < ActiveSupport::TestCase
     assert_equal real_pause, paused.reload.paused_at
     assert_equal timestamp, paused.read_cutoff_at
   ensure
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
     Enrollment.reset_column_information
   end
 end
