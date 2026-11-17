@@ -30,11 +30,6 @@ jest.mock('lucide-react-native', () => {
 jest.mock('../lesson-content-block', () => ({ LessonContentBlockCard: () => null }));
 jest.mock('../lesson-objectives', () => ({ LessonObjectives: () => null }));
 jest.mock('../rubric-panel', () => ({ RubricPanel: () => null }));
-jest.mock('../staff-rich-text-editor', () => {
-  const React = jest.requireActual('react');
-  const { TextInput } = jest.requireActual('react-native');
-  return { StaffRichTextEditor: ({ value, onChange, accessibilityLabel = 'Exercise instructions' }: { value: string; onChange: (value: string) => void; accessibilityLabel?: string }) => React.createElement(TextInput, { accessibilityLabel, value, onChangeText: onChange }) };
-});
 jest.mock('../staff-video-source-editor', () => ({ StaffVideoSourceEditor: (props: { onBusyChange?: (busy: boolean) => void }) => { mockVideoBusyChange = props.onBusyChange; return null; } }));
 
 // Native dependencies must be mocked before loading the component.
@@ -268,4 +263,44 @@ afterEach(() => {
   cleanup();
   jest.clearAllTimers();
   jest.useRealTimers();
+});
+
+it('keeps Markdown unchanged through preview and title-only save, then edits one paragraph', async () => {
+  const body = '\n# Build\n\nFirst paragraph.\n\nKeep chap\\_01 &nbsp; and `code`.  \n';
+  const source = { ...lesson, content_blocks: lesson.content_blocks.map((block) => block.block_type === 'exercise' ? { ...block, body } : block) };
+  const onSave = jest.fn(async (input) => lessonForEditorInput(source, input));
+  const screen = render(<StaffLessonEditor {...uploadProps} lesson={source} userId={7} onBack={jest.fn()} onSave={onSave} onReload={async () => source} />);
+  await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());
+  expect(screen.getByLabelText('Exercise instructions')).toHaveProp('value', body);
+  expect(screen.getByLabelText('Exercise instructions')).toHaveProp('autoCorrect', false);
+  fireEvent.press(screen.getByText('Preview draft'));
+  fireEvent.press(screen.getByText('Edit'));
+  expect(screen.getByLabelText('Save lesson')).toBeDisabled();
+  fireEvent.changeText(screen.getByLabelText('Lesson title'), 'New title');
+  fireEvent.press(screen.getByLabelText('Save lesson'));
+  await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+  expect(onSave.mock.calls[0][0].exercise.body).toBe(body);
+  await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());
+  const edited = body.replace('First paragraph.', 'Edited paragraph.');
+  fireEvent.changeText(screen.getByLabelText('Exercise instructions'), edited);
+  fireEvent.press(screen.getByLabelText('Save lesson'));
+  await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+  expect(onSave.mock.calls[1][0].exercise.body).toBe(edited);
+});
+
+it.each(['Keep saved Markdown', 'Use draft anyway'])('requires an explicit choice for an old HTML draft: %s', async (choice) => {
+  const body = '# Saved Markdown\n\nKeep this.';
+  const htmlDraft = '<div>Old HTML draft</div>';
+  const source = { ...lesson, content_blocks: lesson.content_blocks.map((block) => block.block_type === 'exercise' ? { ...block, body } : block) };
+  mockLoadDraft.mockResolvedValue({ ...fieldsForLesson(source), title: 'Recovered title', instructions: htmlDraft, base_updated_at: source.updated_at });
+  const onSave = jest.fn(async (input) => lessonForEditorInput(source, input));
+  const screen = render(<StaffLessonEditor {...uploadProps} lesson={source} userId={7} onBack={jest.fn()} onSave={onSave} onReload={async () => source} />);
+  expect(await screen.findByText('This draft came from an older app version and is in HTML.')).toBeTruthy();
+  expect(screen.getByLabelText('Save lesson')).toBeDisabled();
+  fireEvent.press(screen.getByText(choice));
+  expect(screen.getByLabelText('Exercise instructions')).toHaveProp('value', choice === 'Keep saved Markdown' ? body : htmlDraft);
+  expect(screen.getByLabelText('Lesson title')).toHaveProp('value', 'Recovered title');
+  fireEvent.press(screen.getByLabelText('Save lesson'));
+  await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+  expect(onSave.mock.calls[0][0].exercise.body).toBe(choice === 'Keep saved Markdown' ? body : htmlDraft);
 });

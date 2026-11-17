@@ -19,7 +19,7 @@ describe('lesson editor helpers', () => {
       required: true,
       requires_submission: true,
       video: { id: 204, s3_video_key: 'content_videos/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 4096 },
-      exercise: { id: 203, body: 'Build a responsive grid.', solution: 'Use minmax().', submission_config: { review: { mode: 'guided' }, runner: { enabled: true, language: 'javascript' } }, rubric_id: 12 },
+      exercise: { id: 203, body: ' Build a responsive grid. ', solution: 'Use minmax().', submission_config: { review: { mode: 'guided' }, runner: { enabled: true, language: 'javascript' } }, rubric_id: 12 },
       alignments: [{ learning_objective_id: 9, content_block_id: 203 }],
     });
   });
@@ -47,17 +47,17 @@ describe('lesson editor helpers', () => {
     expect(lessonEditorValidation(fields)).toBeNull();
   });
 
-  it('treats structural rich-text markup as blank in validation, preview, and payloads', () => {
+  it('treats structural rich-text markup as blank for validation but preserves its source', () => {
     const fields = { ...fieldsForLesson(lesson), instructions: '<p><br></p><div>&nbsp;</div>', filename: '', solution: 'Answer' };
 
     expect(lessonEditorValidation(fields)).toMatch(/instructions/i);
-    expect(lessonEditorInput(lesson, { ...fields, solution: '' }, lesson.updated_at!).exercise?.body).toBeNull();
-    expect(lessonPreviewForFields(lesson, { ...fields, solution: '' }).content_blocks.find((block) => block.id === 203)?.body).toBeNull();
+    expect(lessonEditorInput(lesson, { ...fields, solution: '' }, lesson.updated_at!).exercise?.body).toBe(fields.instructions);
+    expect(lessonPreviewForFields(lesson, { ...fields, solution: '' }).content_blocks.find((block) => block.id === 203)?.body).toBe(fields.instructions);
   });
 
-  it('sanitizes an unedited hostile HTML import before previewing or saving it', () => {
+  it('preserves imported source for saving and leaves sanitization to the learner renderer', () => {
     const fields = { ...fieldsForLesson(lesson), instructions: '<p onclick="steal()">Safe <strong style="color:red">lesson</strong></p><script>steal()</script>' };
-    const expected = '<p>Safe <strong>lesson</strong></p>';
+    const expected = fields.instructions;
 
     expect(lessonEditorInput(lesson, fields, lesson.updated_at!).exercise?.body).toBe(expected);
     expect(lessonPreviewForFields(lesson, fields).content_blocks.find((block) => block.id === 203)?.body).toBe(expected);
@@ -121,4 +121,10 @@ describe('lesson editor helpers', () => {
 
     expect(lessonEditorInput(lesson, fields, lesson.updated_at!)).not.toHaveProperty('retrieval_check');
   });
+});
+
+it('accepts Markdown autolinks as instructions when a solution or rubric is present', () => {
+  const fields = { ...fieldsForLesson(lesson), instructions: '<https://example.com>', filename: '', solution: 'Answer', rubric_id: 12 };
+  expect(lessonEditorValidation(fields)).toBeNull();
+  expect(lessonEditorInput(lesson, fields, lesson.updated_at!).exercise?.body).toBe(fields.instructions);
 });

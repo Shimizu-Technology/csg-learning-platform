@@ -11,9 +11,9 @@ import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Switch, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fonts } from '@/constants/csg-theme';
-import { StaffRichTextEditor } from '@/components/staff-rich-text-editor';
+import { StaffMarkdownEditor } from '@/components/staff-markdown-editor';
 import { curriculumDayNames, curriculumModuleTypes, curriculumReleaseDay, curriculumSchedulePatterns, curriculumWeekFor, scheduledDayIndices } from '@/lib/curriculum';
-import { richTextHtmlHasVisibleContent } from '@/lib/rich-text-editor';
+import { authoredContentHasVisibleContent } from '@/lib/authored-content';
 import type { CurriculumModuleInput, ExerciseCreateInput, LessonDetail, StaffCurriculumModule } from '@/lib/types';
 
 type ModuleEditorProps = {
@@ -107,10 +107,10 @@ function AdminExerciseEditorModal({ visible, module, defaultWeek, defaultDayInde
 
   const submit = async () => {
     if (!title.trim()) { setError('Give this lesson a clear title.'); return; }
-    if (!richTextHtmlHasVisibleContent(instructions)) { setError('Add a starting prompt so the new lesson is useful immediately.'); return; }
+    if (!authoredContentHasVisibleContent(instructions)) { setError('Add a starting prompt so the new lesson is useful immediately.'); return; }
     setSaving(true); setError(null);
     try {
-      await onSave({ title: title.trim(), instructions: instructions.trim(), release_day: curriculumReleaseDay(week, weekdayIndex), required, submission_type: 'manual_complete' });
+      await onSave({ title: title.trim(), instructions, release_day: curriculumReleaseDay(week, weekdayIndex), required, submission_type: 'manual_complete' });
       onClose();
     } catch (requestError) {
       setError((requestError as Error).message || 'The lesson could not be created.');
@@ -124,7 +124,7 @@ function AdminExerciseEditorModal({ visible, module, defaultWeek, defaultDayInde
     <Field label="WEEK"><HorizontalChoices options={weeks.map((value) => ({ value, label: `Week ${value}` }))} selected={week} onSelect={setWeek} /></Field>
     <Field label="DAY"><HorizontalChoices options={days.map((value) => ({ value, label: curriculumDayNames[value] }))} selected={weekdayIndex} onSelect={setWeekdayIndex} /></Field>
     <View style={styles.toggle}><View style={styles.flex}><Text style={styles.toggleTitle}>{required ? 'Required lesson' : 'Optional stretch'}</Text><Text style={styles.toggleCopy}>{required ? 'Counts toward required weekly work.' : 'Available without counting toward required completion.'}</Text></View><Switch accessibilityLabel="Required lesson" value={required} onValueChange={setRequired} {...switchColors(c, required)} /></View>
-    <Field label="STARTING PROMPT"><StaffRichTextEditor accessibilityLabel="New lesson instructions" value={instructions} onChange={setInstructions} /></Field>
+    <Field label="STARTING PROMPT"><StaffMarkdownEditor accessibilityLabel="New lesson instructions" value={instructions} onChange={setInstructions} /></Field>
   </EditorSheet>;
 }
 
