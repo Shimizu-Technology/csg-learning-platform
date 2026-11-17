@@ -58,18 +58,23 @@ RAILS_ENV=test DATABASE_URL=postgresql:///csg_scheduled_jobs_20261117 \
   bin/rails runner ../scripts/qa/scheduled-jobs-smoke.rb
 ```
 
-Observed summary lines:
+Observed summary lines (final application source `326f07d2`):
 
 ```text
-[ScheduledTick] {"at":"2030-01-16T02:00:00Z","dry_run":true,"tasks":[{"name":"intervention_follow_ups","status":"would_run","duration_ms":4},{"name":"daily_unlocks","status":"would_run","duration_ms":0},{"name":"expo_push_receipts","status":"would_run","duration_ms":0}],"duration_ms":22}
-[ScheduledTick] {"at":"2030-01-16T02:00:00Z","dry_run":false,"tasks":[{"name":"intervention_follow_ups","status":"run","duration_ms":32},{"name":"daily_unlocks","status":"run","duration_ms":65},{"name":"expo_push_receipts","status":"run","duration_ms":8}],"duration_ms":106}
-[ScheduledTick] {"at":"2030-01-16T02:00:00Z","dry_run":false,"tasks":[{"name":"intervention_follow_ups","status":"skipped","duration_ms":0},{"name":"daily_unlocks","status":"skipped","duration_ms":0},{"name":"expo_push_receipts","status":"skipped","duration_ms":0}],"duration_ms":1}
+[ScheduledTick] {"at":"2030-01-16T02:00:00Z","dry_run":true,"tasks":[{"name":"intervention_follow_ups","status":"would_run","duration_ms":14},{"name":"daily_unlocks","status":"would_run","duration_ms":0},{"name":"expo_push_receipts","status":"would_run","duration_ms":0}],"duration_ms":59}
+[ScheduledTick] {"at":"2030-01-16T02:00:00Z","dry_run":false,"tasks":[{"name":"intervention_follow_ups","status":"run","duration_ms":151},{"name":"daily_unlocks","status":"run","duration_ms":245},{"name":"expo_push_receipts","status":"run","duration_ms":17}],"duration_ms":429}
+[ScheduledTick] {"at":"2030-01-16T02:00:00Z","dry_run":false,"tasks":[{"name":"intervention_follow_ups","status":"skipped","duration_ms":1},{"name":"daily_unlocks","status":"skipped","duration_ms":0},{"name":"expo_push_receipts","status":"skipped","duration_ms":0}],"duration_ms":3}
 SMOKE passed: dry run has no writes/sends; real tick committed claims before simulated providers; repeat skipped; email=1 push_providers=2 receipts=1
 ```
 
 ## Engineering checks
 
-Final-head ASUS results will be recorded here after the complete gate. The
+Final application source is `326f07d2`. Focused local checks passed **59 tests /
+336 assertions**, zero failures/errors/skips; the corrected workspace fixture
+passed **21 tests / 165 assertions** with the failing full-suite seed 27862.
+RuboCop inspected **718 files, no offenses**; Brakeman reported **zero security
+warnings** (one existing ignored warning). Final-source ASUS results will be
+recorded here after the complete gate. The
 reproducible command is:
 
 ```bash
@@ -81,6 +86,15 @@ migration-process port adapter on 55432, explicitly asserts prepared statements
 are enabled for the first full suite and disabled for the second, then runs
 RuboCop and Brakeman. Production's prepared-statement setting is unchanged.
 No OpenAPI or generated client update is needed because no API shape changed.
+
+The first ASUS gate used an earlier scheduler snapshot: prepared statements
+passed **2,021 tests / 41,882 assertions** (seed 40070). The unprepared run
+(seed 27862) found an existing workspace fixture ordering failure: expected
+`Most recent 11`, observed `Reply 5:1`. The test assumed successive wall-clock
+inserts were chronological. That fixture now assigns explicit ascending
+`created_at` values; application message ordering is unchanged. WSL clock
+correction is a possible cause, not a proven diagnosis. Both full modes will be
+repeated on the final source; the initial run is not final acceptance.
 
 Initial focused checks caught an irreversible migration `execute`, a fixture
 connection overlap-test deadlock, and Rails timestamp duplication in a bulk

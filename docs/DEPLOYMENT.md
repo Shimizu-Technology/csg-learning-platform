@@ -127,7 +127,7 @@ notifications' provider claims are released and the notification stage stays
 open. The sender's replay then sends only those, and nothing that already
 started is sent again.
 
-Fully deferring message notifications needs the AS-6 job runner (W9.1) and:
+The AS-6 cron does not defer message delivery. Fully deferring it still needs:
 
 1. A persisted pending state for each message's push, DM email and mention
    email, written with the delivery stage instead of a delivered mark.
@@ -141,7 +141,7 @@ without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or
 `SOLID_QUEUE_IN_PUMA=true`, so jobs cannot silently enqueue with no worker.
 It also fails boot if both execution paths are enabled, or if inline mode still
 declares Solid Queue infrastructure. Each deployment must have exactly one
-job-execution path.
+request-job execution path; the cron runs scheduled tasks synchronously.
 The polling defaults above keep normal notification latency while avoiding the
 ten database polls per second caused by Solid Queue's upstream worker default.
 If either concurrent message index migration times out, rerun the migration.
@@ -496,8 +496,8 @@ node scripts/production-health-check.mjs
 ### Database Migrations
 
 Production uses the native Ruby build command
-`bundle install && bundle exec rails db:prepare`. No dashboard changes are
-required for this PR. The migration Rake prerequisite runs before Rails loads
+`bundle install && bundle exec rails db:prepare`. Web-service migration settings
+are unchanged; cron setup is separate. The migration Rake prerequisite runs before Rails loads
 its database configuration, including for manual commands. `bin/migrate` and the
 future Docker entrypoint call the same guarded `db:prepare` path.
 
@@ -746,7 +746,8 @@ After first deployment or major changes:
 
 - [ ] Verify health check: `curl https://learn-api.codeschoolofguam.com/health`
 - [ ] Verify dependencies once: `curl https://learn-api.codeschoolofguam.com/api/v1/ready`
-- [ ] If Solid Queue is enabled, confirm the worker command is `./bin/jobs` and `/api/v1/ready` reports `queue: ok`
+- [ ] Verify the scheduled cron summary and `bin/rails scheduled:status`; keep the worker suspended until the cron is proven and the lead deletes it
+- [ ] If Solid Queue is intentionally restored, suspend the cron first, confirm the worker command is `./bin/jobs` and `/api/v1/ready` reports `queue: ok`
 - [ ] Verify frontend loads: `https://learn.codeschoolofguam.com`
 - [ ] Verify Clerk auth works (sign in with test account)
 - [ ] Run seed data if needed: `bin/rails db:seed` via Render Shell
