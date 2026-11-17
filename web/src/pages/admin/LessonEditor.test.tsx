@@ -497,6 +497,51 @@ describe('block lesson editor', () => {
     expect(router.state.location.pathname).toBe('/admin/lessons/2/edit')
   })
 
+  for (const keepOther of [false, true]) it(`drops deleted-block rubric drafts after save; remaining draft: ${keepOther}`, async () => {
+    save.mockResolvedValue({ data: response({ content_blocks: blocks.filter((block) => block.id !== 4), content_blocks_count: blocks.length - 1, updated_at: '2026-11-16T00:00:05Z' }), error: null })
+    await mount()
+    if (keepOther) {
+      await act(async () => cards()[2].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+      await settle()
+      await type(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!, 'Keep this rubric')
+    }
+    await act(async () => cards()[3].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+    await settle()
+    await type(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!, 'Delete this rubric')
+    await click(button('Delete code challenge block'))
+    await click(button('Delete block'))
+    await click(button('Save'))
+    await settle()
+    const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(keepOther)
+    await click(container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]'))
+    if (keepOther) {
+      expect(document.querySelectorAll('[role="dialog"][aria-modal="true"]')).toHaveLength(1)
+      expect(document.body.textContent).toContain('unfinished rubric text')
+      await click(button('Keep editing'))
+      await act(async () => cards()[2].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+      await settle()
+      expect(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!.value).toBe('Keep this rubric')
+    } else expect(router.state.location.pathname).toBe('/admin/content')
+  })
+
+  it('does not erase rubric edits made during a pending create across inspector tabs', async () => {
+    let release!: (value: Awaited<ReturnType<typeof api.createRubric>>) => void
+    vi.spyOn(api, 'createRubric').mockImplementation(() => new Promise((resolve) => { release = resolve }))
+    await mount()
+    await act(async () => cards()[3].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+    await settle()
+    await type(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!, 'Submitted rubric')
+    await type(container.querySelector<HTMLInputElement>('input[aria-label="Criterion 1"]')!, 'First criterion')
+    await click(button('Add rubric'))
+    await click(button('Lesson'))
+    await click(button('Code challenge block'))
+    await type(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!, 'Later rubric edits')
+    await act(async () => release({ data: { rubric: { id: 45, title: 'Submitted rubric', description: null, active: true, criteria: [] } }, error: null } as Awaited<ReturnType<typeof api.createRubric>>))
+    await settle()
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!.value).toBe('Later rubric edits')
+  })
+
   it('asks before leaving with unsaved edits and can save and leave', async () => {
     await mount()
     await type(cards()[2].querySelector('input')!, 'Changed title')

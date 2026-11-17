@@ -218,6 +218,26 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
       get "/api/v1/announcements/#{update.id}", headers: headers
       assert_response :not_found
     end
+    as_user(@author) do
+      get "/api/v1/announcements/#{update.id}", headers: headers
+      assert_response :success
+      assert_equal false, response.parsed_body.dig("announcement", "can_edit")
+      original = update.reload.attributes
+      [ { title: "Changed" }, { status: "published" }, { scheduled_for: 1.day.from_now.iso8601 } ].each do |change|
+        patch "/api/v1/announcements/#{update.id}", params: change, headers: headers, as: :json
+        assert_response :forbidden
+        assert_equal original, update.reload.attributes
+      end
+    end
+    as_user(@colleague) do
+      delete "/api/v1/announcements/#{update.id}", headers: headers
+      assert_response :not_found
+    end
+    as_user(@author) do
+      delete "/api/v1/announcements/#{update.id}", headers: headers
+      assert_response :success
+      refute Announcement.exists?(update.id)
+    end
   end
 
   test "a refused update can be scheduled again and refused again without duplicate notices" do

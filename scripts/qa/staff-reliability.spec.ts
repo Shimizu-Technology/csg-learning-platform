@@ -94,22 +94,34 @@ test('manual-complete filename is honest on On and unchanged on Off', async ({ p
   }
 })
 
-test('paused learner retains the earlier lesson after module and cohort date edits', async ({ page, request }, info) => {
-  const f = fixtures.on
-  await page.goto(`/lessons/${f.lesson}?cohort_id=${f.cohort}&qa_user=5`)
-  await expect(page.getByText('Practice locally', { exact: false }).first()).toBeVisible()
-  const changed = await request.patch(`${API}/module_assignments/${f.paused_assignment}`, { headers: headers(1), data: { unlock_date_override: '2035-01-01' } })
-  expect(changed.ok()).toBe(true)
-  const moved = await request.patch(`${API}/cohorts/${f.cohort}`, { headers: headers(1), data: { start_date: '2035-01-01' } })
-  expect(moved.ok()).toBe(true)
-  await page.reload()
-  await expect(page.getByText('Practice locally', { exact: false }).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(0)
-  await page.screenshot({ path: `.qa-local/staff-reliability/paused-${info.project.name}.png`, fullPage: true })
-  await page.goto(`/lessons/${f.later}?cohort_id=${f.cohort}&qa_user=5`)
-  await expect(page.getByText('Later reliability lesson', { exact: true })).toHaveCount(0)
-  expect((await request.patch(`${API}/module_assignments/${f.paused_assignment}`, { headers: headers(1), data: { unlock_date_override: null } })).ok()).toBe(true)
-  expect((await request.patch(`${API}/cohorts/${f.cohort}`, { headers: headers(1), data: { start_date: f.start_date } })).ok()).toBe(true)
+test('dated paused module retains module, lesson and video access with On and Off', async ({ page, request }, info) => {
+  for (const mode of ['on', 'off']) {
+    const f = fixtures[mode]
+    const originalAssignment = (await (await request.get(`${API}/module_assignments/${f.paused_assignment}`, { headers: headers(1) })).json()).module_assignment
+    const originalCohort = (await (await request.get(`${API}/cohorts/${f.cohort}`, { headers: headers(1) })).json()).cohort
+    try {
+      expect(originalAssignment.unlocked).toBe(false)
+      expect((await request.patch(`${API}/module_assignments/${f.paused_assignment}`, { headers: headers(1), data: { unlock_date_override: '2035-01-01' } })).ok()).toBe(true)
+      expect((await request.patch(`${API}/cohorts/${f.cohort}`, { headers: headers(1), data: { start_date: '2035-01-01' } })).ok()).toBe(true)
+      await page.goto(`/modules/${f.module}?cohort_id=${f.cohort}&qa_user=5`)
+      await expect(page.getByRole('heading', { name: 'Reliability history', exact: true })).toBeVisible()
+      await page.goto(`/lessons/${f.lesson}?cohort_id=${f.cohort}&qa_user=5`)
+      await expect(page.getByText('Practice locally', { exact: false }).first()).toBeVisible()
+      const video = await request.get(`${API}/content_blocks/${f.video}/video_stream?cohort_id=${f.cohort}`, { headers: headers(5) })
+      expect(video.status()).toBe(200)
+      expect((await video.json()).stream_url).toContain('/synthetic-video.mp4')
+      await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(0)
+      await page.screenshot({ path: `.qa-local/staff-reliability/paused-${mode}-${info.project.name}.png`, fullPage: true })
+      await page.goto(`/lessons/${f.later}?cohort_id=${f.cohort}&qa_user=5`)
+      await expect(page.getByText('Later reliability lesson', { exact: true })).toHaveCount(0)
+    } finally {
+      const restored = await Promise.allSettled([
+        request.patch(`${API}/module_assignments/${f.paused_assignment}`, { headers: headers(1), data: { unlock_date_override: originalAssignment.unlock_date_override } }),
+        request.patch(`${API}/cohorts/${f.cohort}`, { headers: headers(1), data: { start_date: originalCohort.start_date } }),
+      ])
+      expect(restored.every((result) => result.status === 'fulfilled' && result.value.ok())).toBe(true)
+    }
+  }
 })
 
 test('resolving help retains inactivity in attention, staff home, student and cohort workspaces', async ({ page, request }, info) => {
@@ -193,7 +205,7 @@ test('new rubric survives inspector close and tab changes and guards departure',
   await page.locator('header a[data-back-link]').click()
   const question = page.getByRole('dialog', { name: 'Leave without saving?' })
   await expect(question).toBeVisible()
-  await question.getByRole('button', { name: 'Discard changes and leave' }).click()
+  await question.getByRole('button', { name: 'Discard', exact: true }).click()
 })
 
 
@@ -206,4 +218,55 @@ test('a refused schedule tells its author in Notifications and Drafts', async ({
   await expect(row.getByText(f.reason, { exact: true })).toBeVisible()
   const student = await request.get(`${API}/announcements/${f.id}`, { headers: headers(3) })
   expect(student.status()).toBe(404)
+  expect((await request.get(`${API}/announcements/${f.published_control}`, { headers: headers(3) })).status()).toBe(200)
+})
+
+test('deleting a rubric block then saving removes its warning and protects the remaining block', async ({ page }, info) => {
+  const width = info.project.name.endsWith('390') ? 390 : 1280
+  const lesson = fixtures.deleted_rubric[String(width)]
+  await page.goto(`/admin/lessons/${lesson}/edit?qa_user=1`)
+  const select = async (position: number, total: number) => {
+    await page.getByRole('article', { name: `Exercise block, ${position} of ${total}`, exact: true }).click()
+    if (width === 390) await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = width === 390 ? page.getByRole('dialog', { name: 'Settings', exact: true }) : page.getByRole('complementary', { name: 'Settings', exact: true })
+    const details = settings.locator('details').filter({ hasText: 'New rubric' })
+    if (await details.getAttribute('open') === null) await settings.getByText('New rubric', { exact: true }).click()
+    return settings
+  }
+  const first = await select(1, 2)
+  await first.getByPlaceholder('Ticket prices rubric').fill('Delete this unfinished rubric')
+  if (width === 390) await page.keyboard.press('Escape')
+  await page.getByRole('article', { name: 'Exercise block, 1 of 2', exact: true }).getByRole('button', { name: 'Delete exercise block', exact: true }).click()
+  await page.getByRole('button', { name: 'Delete block', exact: true }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  await expect.poll(() => page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented })).toBe(false)
+  const remaining = await select(1, 1)
+  await remaining.getByPlaceholder('Ticket prices rubric').fill('Keep this unfinished rubric')
+  if (width === 390) await page.keyboard.press('Escape')
+  await page.locator('header a[data-back-link]').click()
+  const question = page.getByRole('dialog', { name: 'Leave without saving?' })
+  await expect(question).toBeVisible()
+  expect(await question.count()).toBe(1)
+  await question.getByRole('button', { name: 'Keep editing' }).click()
+  expect(await page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented })).toBe(true)
+  await page.locator('header a[data-back-link]').click()
+  await question.getByRole('button', { name: 'Discard', exact: true }).click()
+})
+
+test('attention details and both actions remain usable at sm width', async ({ page }, info) => {
+  if (!info.project.name.endsWith('390')) return
+  for (const width of [390, 700]) {
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto('/admin/cohorts/1?qa_user=2')
+    const card = page.getByRole('region', { name: 'Needs attention' }).locator('.pressable').filter({ hasText: 'QA Behind' })
+    await expect(card.getByText('No learning activity', { exact: false })).toBeVisible()
+    const message = card.getByRole('button', { name: 'Message QA Behind', exact: true })
+    await expect(message).toBeVisible()
+    await message.click()
+    await expect(page).toHaveURL(/messages|conversation/)
+    await page.goto('/admin/cohorts/1?qa_user=2')
+    await page.getByRole('region', { name: 'Needs attention' }).getByRole('link', { name: 'Consider a check-in: QA Behind' }).click()
+    await expect(page).toHaveURL(/students\/4\/overview/)
+  }
 })

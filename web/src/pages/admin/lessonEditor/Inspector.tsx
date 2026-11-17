@@ -271,7 +271,7 @@ function BlockSettings({ block, onBlock, activity, objectives, rubrics, onRubric
     }
     onRubricCreated(response.data.rubric)
     onBlock({ rubric_id: response.data.rubric.id })
-    setRubricDraft({ title: '', criteria: ['', ''] })
+    setRubricDraft((current) => JSON.stringify(current) === JSON.stringify(rubricDraft) ? { title: '', criteria: ['', ''] } : current)
   }
 
   return (

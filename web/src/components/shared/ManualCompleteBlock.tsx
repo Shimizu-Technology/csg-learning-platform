@@ -21,13 +21,13 @@ export function ManualCompleteBlock({ controller, ...props }: ContentBlockRender
               <p className={`text-sm font-semibold ${isCompleted ? 'text-success-ink' : 'text-ink'}`}>
                 {isCompleted ? 'Exercise marked complete' : 'Mark this exercise complete when you finish it'}
               </p>
-              {studentExperience.v2 ? (
+              {studentExperience.v2 && !block.filename ? (
                 <p className="mt-1 text-sm text-ink-muted">Nothing to hand in for this one.</p>
-              ) : (
+              ) : !studentExperience.v2 ? (
                 <p className="mt-1 text-sm text-ink-muted">
                   For practice exercises that don't need a submission.
                 </p>
-              )}
+              ) : null}
             </div>
             <Button
               variant={isCompleted ? 'secondary' : 'primary'}

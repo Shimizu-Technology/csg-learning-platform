@@ -144,7 +144,12 @@ module Api
 
       # PATCH /api/v1/enrollments/:id
       def update
-        updated = @enrollment.user.with_lock { @enrollment.update(enrollment_params) }
+        updated = @enrollment.user.with_lock do
+          @enrollment.with_learning_write_guard(request_started_at: @learning_request_started_at) do
+            @enrollment.association(:cohort).reset
+            @enrollment.update(enrollment_params)
+          end
+        end
         if updated
           render json: { enrollment: enrollment_json(@enrollment) }
         else

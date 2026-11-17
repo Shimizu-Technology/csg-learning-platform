@@ -76,7 +76,7 @@ class LessonReadAccess
   # is assigned on its own, and the lesson is released for them on `on`.
   def self.readable?(enrollment, lesson, assignment, lesson_assignment, on: LearningCalendar.today)
     return false if lesson.archived?
-    return false unless (enrollment.paused? ? assignment.present? : assignment&.accessible?(enrollment.cohort, on: on)) || lesson_assignment.present?
+    return false unless enrollment.module_reachable_for_read?(assignment, on: on) || lesson_assignment.present?
 
     enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignment, on: on)
   end
@@ -127,7 +127,7 @@ class LessonReadAccess
   end
 
   def decide(enrollment, assignment, lesson_assignment)
-    return denied(enrollment) unless (enrollment.paused? ? assignment.present? : assignment&.accessible?(enrollment.cohort)) || lesson_assignment.present?
+    return denied(enrollment) unless enrollment.module_reachable_for_read?(assignment) || lesson_assignment.present?
     return Result.new(enrollment: enrollment, error: nil) if self.class.readable?(enrollment, @lesson, assignment, lesson_assignment)
 
     Result.new(enrollment: enrollment, error: NOT_UNLOCKED)

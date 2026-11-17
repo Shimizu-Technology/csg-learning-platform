@@ -102,7 +102,7 @@ module Api
         assignment = @student_content.module_assignments[@module.id]
         lesson_assignments = enrollment.lesson_assignments.where(lesson_id: @module.lessons.select(:id)).index_by(&:lesson_id)
 
-        unless assignment&.accessible?(enrollment.cohort) || lesson_assignments.any?
+        unless enrollment.module_reachable_for_read?(assignment) || lesson_assignments.any?
           render_forbidden("Cannot access this module")
           return
         end

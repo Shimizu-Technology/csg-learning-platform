@@ -43,6 +43,55 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert enrollment.paused?
   end
 
+  test "a pause request crossing a copy is refused and a fresh pause captures copied ids" do
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    stale = Enrollment.find(enrollment.id)
+    started_at = Time.current
+    result = copy!(@f.instructor)
+    error = assert_raises(Enrollment::StaleLearningWrite) do
+      stale.with_learning_write_guard(request_started_at: started_at) do
+        stale.association(:cohort).reset
+        stale.update!(status: :paused)
+      end
+    end
+    assert_equal "content_moved", error.code
+    assert enrollment.reload.active?
+    stale.with_learning_write_guard(request_started_at: enrollment.content_moved_at + 1.second) do
+      stale.association(:cohort).reset
+      stale.update!(status: :paused)
+    end
+    assert stale.paused_lesson_ids.any?
+    assert_empty stale.paused_lesson_ids & result.lesson_ids.keys.map(&:to_i)
+    assert (stale.paused_lesson_ids - result.lesson_ids.values).empty?
+  end
+
+  test "HTTP pause crossing a copy returns content_moved and retry captures copied lessons" do
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    original_verify = ClerkAuth.method(:verify)
+    test_case = self
+    copied = false
+    result = nil
+    payload = { "sub" => @f.admin.clerk_id, "email" => @f.admin.email }
+    ClerkAuth.define_singleton_method(:verify) do |_token|
+      unless copied
+        copied = true
+        result = test_case.send(:copy!, test_case.instance_variable_get(:@f).instructor)
+      end
+      payload
+    end
+    client = ActionDispatch::Integration::Session.new(Rails.application)
+    client.patch "/api/v1/enrollments/#{enrollment.id}", params: { status: "paused" }, headers: { "Authorization" => "Bearer test" }, as: :json
+    assert_equal 409, client.response.status
+    assert_equal "content_moved", client.response.parsed_body["code"]
+    assert enrollment.reload.active?
+    client.patch "/api/v1/enrollments/#{enrollment.id}", params: { status: "paused" }, headers: { "Authorization" => "Bearer test" }, as: :json
+    assert_equal 200, client.response.status
+    assert enrollment.reload.paused_lesson_ids.any?
+    assert_empty enrollment.paused_lesson_ids & result.lesson_ids.keys.map(&:to_i)
+  ensure
+    ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
+  end
+
   test "practice reviews stay with original blocks and copies require a fresh review" do
     original = @f.blocks.fetch(:read)
     review = SubmissionAuditReview.create!(content_block: original, reviewed_by: @f.admin, content_digest: SubmissionAudit.digest(original))

@@ -82,7 +82,7 @@ module Api
             progress_percentage: module_progress.progress_percentage,
             **progress.module_lesson_counts(mod),
             assigned: assignment.present?,
-            unlocked: assignment&.accessible?(cohort) || false,
+            unlocked: enrollment.module_reachable_for_read?(assignment) || false,
             available: module_progress.lessons.any?(&:available),
             unlock_date: assignment&.next_unlock_date(cohort),
             lessons: module_progress.lessons.map { |entry|

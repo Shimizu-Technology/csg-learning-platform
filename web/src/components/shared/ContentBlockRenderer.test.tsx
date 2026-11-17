@@ -480,6 +480,8 @@ it('labels a manual-complete filename as an exercise reference only for On learn
   const block = { id: 99, block_type: 'exercise', position: 0, title: 'Practice', body: null, video_url: null, filename: 'practice.rb', submission_type: 'manual_complete', metadata: {} }
   const render = (v2: boolean) => renderToStaticMarkup(<StudentExperienceProvider v2={v2}><ContentBlockRenderer block={block} cohortId={2} /></StudentExperienceProvider>)
   expect(render(true)).toContain('Exercise file:')
+  expect(render(true).match(/practice\.rb/g)).toHaveLength(1)
+  expect(render(true)).not.toContain('Nothing to hand in for this one.')
   expect(render(true)).toContain('Work in your own editor. Nothing to upload here.')
   expect(render(false)).not.toContain('Exercise file:')
   expect(render(false)).toContain('practice.rb')

@@ -74,6 +74,17 @@ describe('Updates reader', () => {
     expect(container.querySelector('output')?.textContent).toContain('edit=1')
   })
 
+  it('lets the removed author delete their refused draft without offering edit', async () => {
+    mocks.user.is_staff = true
+    const failed = { ...announcement, status: 'draft', schedule_failure: 'Not sent: no longer teaching.', author: { id: 1, full_name: 'Author', email: 'author@example.invalid' }, can_edit: false, can_archive: false }
+    mocks.list.mockResolvedValue({ data: { announcements: [failed], unread_count: 0, meta }, error: null })
+    mocks.archive.mockResolvedValue({ data: { announcement: failed }, error: null })
+    await mount('/announcements?scope=manage&status=draft')
+    expect([...container.querySelectorAll('a')].some((item) => item.textContent?.trim() === 'Edit')).toBe(false)
+    await click('Delete')
+    expect(mocks.archive).toHaveBeenCalledWith(8)
+  })
+
   it('links the update cohort, and the author to their team page for admins only (L-2.9)', async () => {
     mocks.user.is_staff = true
     const scoped = { ...announcement, cohort_id: 4, cohort_name: 'Python', audience: 'cohort', author: { id: 9, full_name: 'QA Author', email: 'author@example.invalid' } }

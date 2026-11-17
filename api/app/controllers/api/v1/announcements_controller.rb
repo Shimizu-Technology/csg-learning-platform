@@ -194,6 +194,9 @@ module Api
           refresh_management_authorization!
           if hidden_draft?(@announcement)
             :not_found
+          elsif own_refused_draft?(@announcement)
+            @announcement.destroy!
+            nil
           elsif !can_manage?(@announcement)
             "Cannot manage this announcement"
           elsif !@announcement.draft?
@@ -217,6 +220,7 @@ module Api
       def authorize_announcement_management!
         announcement = @announcement || Announcement.new(announcement_params)
         return if can_manage?(announcement)
+        return if action_name == "destroy" && own_refused_draft?(announcement)
 
         render_forbidden("Cannot manage this announcement")
       end
@@ -241,8 +245,12 @@ module Api
 
       # Management detail: posted and archived updates for their audience's
       # staff; drafts only for their author and admins.
+      def own_refused_draft?(announcement)
+        current_user.staff? && !current_user.archived? && announcement.draft? && announcement.schedule_failure.present? && announcement.author_id == current_user.id
+      end
+
       def can_manage_view?(announcement)
-        return true if current_user.staff? && !current_user.archived? && announcement.draft? && announcement.schedule_failure.present? && announcement.author_id == current_user.id
+        return true if own_refused_draft?(announcement)
 
         can_manage?(announcement) && (!announcement.draft? || announcement.editable_by?(current_user))
       end

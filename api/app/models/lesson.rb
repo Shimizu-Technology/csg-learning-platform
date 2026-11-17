@@ -1,4 +1,12 @@
 class Lesson < ApplicationRecord
+  before_update :preserve_missing_paused_libraries
+
+  def preserve_missing_paused_libraries
+    return unless will_save_change_to_release_day? || will_save_change_to_module_id?
+
+    Enrollment.capture_missing_paused_libraries!(Enrollment.joins(:cohort).where(cohorts: { curriculum_id: curriculum_module.curriculum_id }))
+  end
+
   enum :lesson_type, { video: 0, exercise: 1, reading: 2, project: 3, checkpoint: 4 }
 
   belongs_to :curriculum_module, foreign_key: :module_id

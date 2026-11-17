@@ -23,7 +23,6 @@ import { MoveLessonDialog } from './lessonEditor/MoveLessonDialog'
 import { AddBlockMenu } from './lessonEditor/AddBlockMenu'
 import { BlockCard } from './lessonEditor/BlockCard'
 import { Inspector, type InspectorTab, type RubricDraft } from './lessonEditor/Inspector'
-import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { LessonLeaveGuard } from './lessonEditor/LessonLeaveGuard'
 import {
   BLOCK_LABELS, MAX_BLOCKS, applySavedIds, blockFromServer, blockTitle, draftFromLesson, draftPayload, draftProblems, draftSignature,
@@ -146,6 +145,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     const next = draftFromLesson(response.lesson, keys)
     draftRef.current = next
     setDraftState(next)
+    setRubricDrafts((current) => Object.fromEntries(Object.entries(current).filter(([key]) => next.blocks.some((block) => block.key === key))))
     setServer(response)
     updatedAtRef.current = response.lesson.updated_at
     baselineRef.current = new Map(next.blocks.map((block) => [block.id!, block]))
@@ -211,6 +211,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     .filter((upload) => upload.contentBlockId && PENDING_UPLOAD.has(upload.status))
     .map((upload) => upload.contentBlockId as number)), [uploads])
   const dirty = Boolean(draft) && signature !== savedSig
+  const rubricDirty = Boolean(draft?.blocks.some((block) => { const item = rubricDrafts[block.key]; return item && (item.title.trim() || item.criteria.some((criterion) => criterion.trim())) }))
   useEffect(() => {
     if (dirty || !savedAt || (!searchParams.has('suggest_submission') && !searchParams.has('add_companion'))) return
     setSearchParams((params) => {
@@ -410,6 +411,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const deleteBlock = (block: BlockDraft) => {
     const index = blocks.findIndex((item) => item.key === block.key)
     setDraft((current) => removeBlock(current, block.key))
+    setRubricDrafts((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== block.key)))
     setPendingDelete(null)
     if (selectedKey === block.key) {
       setSelectedKey(null)
@@ -816,8 +818,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         </>}
       />
       {/* Leave questions must sit above Settings and every other editor dialog. */}
-      <UnsavedChangesGuard dirty={Object.values(rubricDrafts).some((item) => Boolean(item.title.trim() || item.criteria.some((criterion) => criterion.trim())))} />
-      <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} onDiscard={() => clearLocalDraft(backupKey)} problem={firstProblem} />
+      <LessonLeaveGuard dirty={dirty || saving || rubricDirty} rubricDirty={rubricDirty} onSave={() => save()} onDiscard={() => { clearLocalDraft(backupKey); setRubricDrafts({}) }} problem={firstProblem} />
     </div>
   )
 }

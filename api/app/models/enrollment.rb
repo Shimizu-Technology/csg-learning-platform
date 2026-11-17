@@ -24,11 +24,48 @@ class Enrollment < ApplicationRecord
   has_many :recovery_plans, dependent: :destroy
   has_one :learning_plan, dependent: :destroy
 
+  # Coarse assignment reachability only; each lesson still passes the frozen
+  # library/cutoff check. Writes continue to require active access separately.
+  def module_reachable_for_read?(assignment, on: LearningCalendar.today)
+    paused? ? assignment.present? : assignment&.accessible?(cohort, on: on)
+  end
+
+  def self.capture_missing_paused_libraries!(scope = all)
+    # Older data migrations may edit calendars before the additive columns exist.
+    return unless column_names.include?("paused_lesson_ids")
+
+    scope.where(status: :paused, paused_lesson_ids: nil).find_each(&:ensure_paused_library!)
+  end
+
+  # Rows paused by an older API during rollout are captured on their first
+  # read, or before a schedule edit. No timestamps or release dates are moved.
+  def ensure_paused_library!
+    return true unless paused? && paused_lesson_ids.nil?
+    return true if @capturing_paused_library
+
+    current = self.class.find(id)
+    current.with_lock do
+      if current.paused? && current.paused_lesson_ids.nil?
+        current.association(:cohort).reset
+        current.snapshot_paused_lessons
+        current.update_columns(paused_lesson_ids: current.paused_lesson_ids, paused_library_cutoff_at: current.paused_library_cutoff_at)
+      end
+    end
+    self.paused_lesson_ids = current.paused_lesson_ids
+    self.paused_library_cutoff_at = current.paused_library_cutoff_at
+    current.paused? && (current.access_expires_at.nil? || current.access_expires_at > Time.current)
+  end
+
   def lesson_available_for_read?(lesson, assignment, lesson_assignment, on: LearningCalendar.today)
+    return false unless ensure_paused_library!
+
     # A paused library is the set readable at pause, independent of later
     # cohort/module/lesson date edits. Authorization and assignment containment
     # remain the caller's responsibility; archived lessons stay hidden.
     if paused? && paused_lesson_ids && paused_library_cutoff_at == (paused_at || read_cutoff_at)
+      governing_assignment = assignment && (cohort.self_paced? || lesson_assignment.nil?) ? assignment : lesson_assignment
+      return false if governing_assignment && !content_available_for_read?(governing_assignment.created_at)
+
       return !lesson.archived? && paused_lesson_ids.include?(lesson.id)
     end
     return false unless lesson.available?(cohort, assignment, lesson_assignment, on: on)
@@ -76,6 +113,8 @@ class Enrollment < ApplicationRecord
   # Also used once by the additive migration for existing paused enrollments.
   # Read-side projections use the stored array and add no per-lesson queries.
   def snapshot_paused_lessons
+    previous_capture = @capturing_paused_library
+    @capturing_paused_library = true
     self.paused_lesson_ids = nil
     cohort.cohort_module_schedules.load
     modules = cohort.curriculum.modules.includes(lessons: :curriculum_module)
@@ -85,6 +124,8 @@ class Enrollment < ApplicationRecord
     self.paused_lesson_ids = modules.flat_map(&:lessons).select do |lesson|
       LessonReadAccess.readable?(self, lesson, assigned_modules[lesson.module_id], assigned_lessons[lesson.id])
     end.map(&:id).uniq
+  ensure
+    @capturing_paused_library = previous_capture
   end
 
   def record_paused_library

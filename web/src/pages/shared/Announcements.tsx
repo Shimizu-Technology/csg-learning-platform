@@ -443,6 +443,7 @@ function AnnouncementFeed() {
 
   if (loading && !selectedId) return <LoadingSpinner message="Loading updates…" />
 
+  const canDeleteRefused = (announcement: Announcement) => isStaff && announcement.status === 'draft' && Boolean(announcement.schedule_failure) && announcement.author?.id === user?.id
   const editDirty = editing && Boolean(selected?.can_edit) && JSON.stringify(editForm) !== editBaseline
   const unreadLabel = unreadCount > 0 ? `${unreadCount} unread ${unreadCount === 1 ? 'update' : 'updates'}` : 'You’re all caught up'
 
@@ -643,7 +644,7 @@ function AnnouncementFeed() {
                     {announcement.edited_at && <> · <EditedMarker announcement={announcement} /></>}
                   </p>
                 </div>
-                {manageMode && (announcement.can_edit || announcement.can_archive) && (
+                {manageMode && (announcement.can_edit || announcement.can_archive || canDeleteRefused(announcement)) && (
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {announcement.can_edit && announcement.status !== 'archived' && (
                       <LinkButton variant="secondary" size="sm" to={`/announcements/${announcement.id}${feedSearch(location.search) ? `${feedSearch(location.search)}&edit=1` : '?edit=1'}`} state={listLinkState(location, 'Updates')}>
@@ -651,7 +652,7 @@ function AnnouncementFeed() {
                         Edit
                       </LinkButton>
                     )}
-                    {(announcement.can_archive || (announcement.status === 'draft' && announcement.can_edit)) && (
+                    {(announcement.can_archive || (announcement.status === 'draft' && announcement.can_edit) || canDeleteRefused(announcement)) && (
                       <Button variant="danger" size="sm" onClick={() => handleRemove(announcement)} disabled={isRemoving}>
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         {announcement.status === 'draft' ? (isRemoving ? 'Deleting…' : 'Delete') : isRemoving ? 'Archiving…' : 'Archive'}
