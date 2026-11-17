@@ -11,8 +11,8 @@ class Enrollment < ApplicationRecord
   CONTENT_MOVED_MESSAGE = "Your course moved to its own copy while this was saving. Reload, then save again.".freeze
 
   enum :status, { active: 0, paused: 1, dropped: 2, completed: 3 }
-  scope :unexpired, -> { where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", Time.current) }
-  scope :active, -> { where(status: statuses.fetch("active")).unexpired }
+  scope :unexpired, ->(at: Time.current) { where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", at) }
+  scope :active, ->(at: Time.current) { where(status: statuses.fetch("active")).unexpired(at: at) }
   # Completed program enrollments retain read-only history, within any agreed deadline.
   scope :with_read_access, -> { where(status: %i[active paused completed]).unexpired }
 

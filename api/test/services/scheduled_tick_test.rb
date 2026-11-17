@@ -9,7 +9,7 @@ class ScheduledTickTest < ActiveSupport::TestCase
     @logger = ActiveSupport::Logger.new(@log)
     @calls = []
     @daily = ScheduledTick::Task.new(name: "daily_probe", daily_hour: 8, call: ->(now, last) { @calls << [ now, last ] })
-    @quarter = ScheduledTick::Task.new(name: "quarter_probe", daily_hour: nil, call: ->(*) { @calls << :quarter })
+    @hourly = ScheduledTick::Task.new(name: "hourly_probe", daily_hour: nil, call: ->(*) { @calls << :hourly })
   end
 
   test "daily work waits for school 8am, catches up after missed days and runs once per school day" do
@@ -49,18 +49,18 @@ class ScheduledTickTest < ActiveSupport::TestCase
     Rails.application.config.x.school.time_zone = previous
   end
 
-  test "quarter-hour work is checkpointed once per slot and missed slots coalesce" do
+  test "hourly work is checkpointed once per slot and missed slots coalesce" do
     now = Time.utc(2026, 11, 17, 1)
-    assert tick(now, [ @quarter ])
-    assert tick(now + 14.minutes, [ @quarter ])
-    assert_equal [ :quarter ], @calls
-    assert tick(now + 3.hours, [ @quarter ])
-    assert_equal [ :quarter, :quarter ], @calls
+    assert tick(now, [ @hourly ])
+    assert tick(now + 59.minutes, [ @hourly ])
+    assert_equal [ :hourly ], @calls
+    assert tick(now + 3.hours, [ @hourly ])
+    assert_equal [ :hourly, :hourly ], @calls
   end
 
   test "dry run reports due work without task calls or checkpoint writes" do
     assert_no_difference("ScheduledTaskRun.count") do
-      assert tick(Time.utc(2026, 11, 17), [ @daily, @quarter ], dry_run: true)
+      assert tick(Time.utc(2026, 11, 17), [ @daily, @hourly ], dry_run: true)
     end
     assert_empty @calls
     assert_includes @log.string, '"status":"would_run"'
@@ -69,10 +69,11 @@ class ScheduledTickTest < ActiveSupport::TestCase
 
   test "a failing task leaves its checkpoint unchanged, runs the others and returns failure" do
     failing = ScheduledTick::Task.new(name: "failure_probe", daily_hour: nil, call: ->(*) { raise "provider unavailable" })
-    assert_not tick(Time.utc(2026, 11, 17), [ failing, @quarter ])
-    assert_nil ScheduledTaskRun.find_by(name: failing.name)
-    assert ScheduledTaskRun.find_by(name: @quarter.name)
-    assert_equal [ :quarter ], @calls
+    assert_not tick(Time.utc(2026, 11, 17), [ failing, @hourly ])
+    assert_nil ScheduledTaskRun.find_by!(name: failing.name).last_succeeded_at
+    assert_equal "error", ScheduledTaskRun.find_by!(name: failing.name).last_result["status"]
+    assert ScheduledTaskRun.find_by(name: @hourly.name)
+    assert_equal [ :hourly ], @calls
     assert_includes @log.string, '"error":"RuntimeError"'
     assert_equal 1, @log.string.lines.size
   end
@@ -81,7 +82,7 @@ class ScheduledTickTest < ActiveSupport::TestCase
     assert_equal %w[intervention_follow_ups daily_unlocks expo_push_receipts], ScheduledTick::TASKS.map(&:name)
     original = ExpoPushReceiptJob.method(:new)
     probe = Object.new
-    probe.define_singleton_method(:drain_due) { [] }
+    probe.define_singleton_method(:drain_due) { |**| [] }
     ExpoPushReceiptJob.define_singleton_method(:new) { probe }
     assert_no_enqueued_jobs { assert tick(Time.utc(2026, 11, 17), [ ScheduledTick::TASKS.last ]) }
   ensure
@@ -134,5 +135,59 @@ class ScheduledTickOverlapTest < ActiveSupport::TestCase
   ensure
     finish_test_threads(thread) if defined?(thread)
     ScheduledTaskRun.where(name: "overlap_probe").delete_all
+  end
+end
+
+class ScheduledTickTest
+  test "daily unlock schedule defaults to school 7am and can be configured" do
+    assert_equal 7, ScheduledTick::TASKS.find { |task| task.name == "daily_unlocks" }.daily_hour
+    previous = ENV["SCHEDULED_DAILY_UNLOCK_HOUR"]
+    ENV["SCHEDULED_DAILY_UNLOCK_HOUR"] = "6"
+    assert_equal 6, ScheduledTick.daily_unlock_hour
+    ENV["SCHEDULED_DAILY_UNLOCK_HOUR"] = "24"
+    assert_raises(ArgumentError) { ScheduledTick.daily_unlock_hour }
+  ensure
+    ENV["SCHEDULED_DAILY_UNLOCK_HOUR"] = previous
+  end
+
+  test "dry-run environment is case insensitive and fails closed for all other values" do
+    [ "1", "true", "TRUE", "Yes", " yes " ].each { |value| assert ScheduledTick.dry_run("SCHEDULED_TICK_DRY_RUN" => value) }
+    [ nil, "" ].each { |value| assert_not ScheduledTick.dry_run("SCHEDULED_TICK_DRY_RUN" => value) }
+    [ " ", "0", "false", "no", "treu", "2" ].each do |value|
+      assert_raises(ArgumentError) { ScheduledTick.dry_run("SCHEDULED_TICK_DRY_RUN" => value) }
+    end
+  end
+
+  test "metrics persist on successful and failed attempts and status exposes them" do
+    require "rake"
+    task = ScheduledTick::Task.new(name: "metrics_probe", daily_hour: nil,
+      call: ->(_now, _last, metrics) { metrics.merge!(claimed: 3, sent: 2, failed: 1); raise "provider failure" })
+    assert_not tick(Time.utc(2026, 11, 17), [ task ])
+    state = ScheduledTaskRun.find_by!(name: task.name)
+    assert_nil state.last_succeeded_at
+    assert_equal 3, state.last_result["claimed"]
+    assert_equal 2, state.last_result["sent"]
+    assert_equal 1, state.last_result["failed"]
+    Rails.application.load_tasks unless Rake::Task.task_defined?("scheduled:status")
+    output, = capture_io { Rake::Task["scheduled:status"].reenable; Rake::Task["scheduled:status"].invoke }
+    row = JSON.parse(output).find { |entry| entry["name"] == task.name }
+    assert_equal state.last_result, row["last_result"]
+    assert_includes @log.string, '"catch_up_days":3'
+  end
+
+  test "Solid Queue recurring path invokes the same registry including daily unlocks" do
+    require "fugit"
+    config = YAML.safe_load(ERB.new(Rails.root.join("config/recurring.yml").read).result)
+    assert_equal "ScheduledTickJob", config.dig("production", "scheduled_tick", "class")
+    assert Fugit.parse(config.dig("production", "scheduled_tick", "schedule"))
+    original = ScheduledTick.method(:new)
+    called = 0
+    probe = Object.new
+    probe.define_singleton_method(:call) { called += 1; true }
+    ScheduledTick.define_singleton_method(:new) { probe }
+    ScheduledTickJob.perform_now
+    assert_equal 1, called
+  ensure
+    ScheduledTick.define_singleton_method(:new, original) if original
   end
 end

@@ -1,5 +1,7 @@
 # Scheduled jobs — W9 PR 9.1
 
+Current policy is the **Fix round** below: hourly tick, 07:00 digest, three-day cap. Earlier sections retain the original implementation/test history.
+
 ## Context and acceptance
 
 Implementation worker; agent-executed affected-flow backend QA. Branch
@@ -146,3 +148,61 @@ scheduler/browser integration path was altered, so no further API rerun was
 needed. The PR diff against current main contains only this worker's 26 files. The clean task branch/worktree remains available for
 review. The PR is intentionally left unmerged and unwatched; GitHub CI and
 CodeRabbit review are reported at handback, not treated as already passed.
+
+
+## Fix round — lead decisions and review 5933816610
+
+Base head `20617d24`. One implementation round; independent Opus review was
+reported by the lead as ready with no P1. That review is evidence for the prior
+head, not a claim of review coverage for these changes. Agent-executed backend
+QA; no Render actions, merge, PR watch or review dismissal is authorized.
+
+Acceptance changes: hourly `0 * * * *`; configurable school digest hour defaults
+to 07:00; rolling three-school-day unclaimed-release window, including activation;
+optional lessons included when no active enabled personal plan exists. Dry preview
+reports follow-up backlog/older-than-seven-days and unlock recipients/lessons
+without writes. Real results persist claimed/sent/failed metrics. Definite Resend
+4xx rejections (except 408) release only rejected claims for retry; ambiguous
+5xx/timeouts retain claims. Supplied time controls cohort start and expiry.
+
+The runbook now plans first real activation at 06:45–06:50 Guam (or an approved
+07:45–07:50), requires waiting for prior Render completion, avoids top-of-hour
+manual triggers and includes a report/explicit-Leon-approval baseline command for
+old follow-ups. This command was tested only on synthetic fixtures, never run
+against production. Solid Queue's hourly `ScheduledTickJob` owns the same registry,
+including daily unlocks; the legacy separate schedules cannot drop the digest.
+
+| Case | Result before full gate |
+| --- | --- |
+| Hourly slot exclusion, school 07:00 boundary/configuration, Guam/DST daily rules | Passed |
+| Three-day cap and next-day late release, no-plan optional lesson, supplied-time start/expiry | Passed |
+| Dry preview counts and zero writes even with no SchoolSetting; invalid flags fail before work | Passed |
+| Backlog age counts and approved one-time baseline strict cutoff/no sends | Passed |
+| Claimed/sent/failed results survive failed attempts and appear in scheduled:status | Passed |
+| Resend 422/429 retry; 500/503/408/timeout remain claimed | Passed |
+| Non-empty Expo follow-up skips drain while tracking tickets; shared web opt-out/routing helper | Passed |
+| Additive result-column migration round trip and all-pool cache cleanup | Passed |
+| Existing after-commit, recipient query budgets, receipt leases/backoff | Passed |
+
+Focused run: **106 tests / 591 assertions**, zero failures/errors/skips.
+RuboCop: **723 files, no offenses**. Initial fixture errors (missing trigger type,
+unique active-trigger collision, wrong expected descriptor vocabulary) were
+corrected and retested; none required a production behavior workaround.
+
+Local disposable DB `csg_scheduled_jobs_fix_20261117`, synthetic users and
+simulated providers. The real Rake command was exercised at controlled Guam
+06:50/07:00/08:00. Independent lock-pool reads verified claims/marks committed
+before the provider stubs. This is runner/persistence evidence, not live email or
+physical-device delivery. New observed summaries:
+
+```text
+[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":true,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"follow_ups_due":1,"older_than_7_days":0,"would_claim":1,"duration_ms":17},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"recipients":1,"lessons":1,"would_claim":1,"catch_up_days":3,"duration_ms":50},{"name":"expo_push_receipts","status":"would_run","claimed":0,"sent":0,"failed":0,"would_claim":1,"duration_ms":3}],"duration_ms":105}
+[ScheduledTick] {"at":"2030-01-16T20:50:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":1},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":10}],"duration_ms":17}
+[ScheduledTick] {"at":"2030-01-16T21:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"run","claimed":1,"sent":1,"failed":0,"catch_up_days":3,"released":0,"duration_ms":22},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":2}],"duration_ms":26}
+[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"run","claimed":1,"sent":1,"failed":0,"duration_ms":19},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"run","claimed":0,"sent":0,"failed":0,"duration_ms":10}],"duration_ms":36}
+[ScheduledTick] {"at":"2030-01-16T22:00:00Z","dry_run":false,"catch_up_days":3,"tasks":[{"name":"intervention_follow_ups","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"daily_unlocks","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0},{"name":"expo_push_receipts","status":"skipped","claimed":0,"sent":0,"failed":0,"duration_ms":0}],"duration_ms":2}
+SMOKE passed: dry preview has no writes/sends; 06:50 receipts only; 07:00 digest; 08:00 follow-up; repeat skipped; email=1 push_providers=2 receipts=1
+```
+
+Final ASUS gate, source/main integration, review-thread replies and cleanup will
+be recorded below before handback. Existing PR remains held, unmerged/unwatched.

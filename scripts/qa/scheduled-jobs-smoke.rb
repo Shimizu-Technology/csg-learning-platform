@@ -11,7 +11,7 @@ ActiveJob::Base.logger = Rails.logger
 ActiveJob::Base.queue_adapter = :inline
 ENV["RESEND_API_KEY"] = "re_test_simulated"
 ENV["RESEND_FROM_EMAIL"] = "CSG <scheduled-smoke@example.test>"
-travel_to Time.utc(2030, 1, 16, 2) # noon January 16 Guam
+travel_to Time.utc(2030, 1, 16, 20, 50) # Jan 17 06:50 Guam, before the daily sends
 
 curriculum = Curriculum.create!(name: "Scheduled smoke")
 mod = curriculum.modules.create!(name: "Scheduled week", position: 0, day_offset: 0, schedule_days: "daily")
@@ -49,15 +49,21 @@ receipt_service.define_singleton_method(:check) { |requests| receipt_count += re
 ExpoPushReceiptService.define_singleton_method(:new) { receipt_service }
 Rails.application.load_tasks
 
-ENV["SCHEDULED_TICK_DRY_RUN"] = "1"
-Rake::Task["scheduled:tick"].invoke
-raise "Dry run mutated or delivered" unless ScheduledTaskRun.count.zero? && ScheduledNotificationAttempt.count.zero? && email_count.zero? && push_count.zero? && receipt_count.zero?
+invoke_tick = -> { Rake::Task["scheduled:tick"].reenable; Rake::Task["scheduled:tick"].invoke }
+ENV["SCHEDULED_TICK_DRY_RUN"] = "TrUe"
+school_count = SchoolSetting.count
+invoke_tick.call
+raise "Dry run mutated or delivered" unless ScheduledTaskRun.count.zero? && ScheduledNotificationAttempt.count.zero? && SchoolSetting.count == school_count && email_count.zero? && push_count.zero? && receipt_count.zero?
 ENV.delete("SCHEDULED_TICK_DRY_RUN")
-Rake::Task["scheduled:tick"].reenable
-Rake::Task["scheduled:tick"].invoke
+invoke_tick.call
+raise "Pre-7am real trigger should only handle receipts" unless [ email_count, push_count, receipt_count ] == [ 0, 0, 1 ]
+travel_to Time.utc(2030, 1, 16, 21) # 07:00 Guam
+invoke_tick.call
+raise "7am should send only the digest" unless [ email_count, push_count, receipt_count ] == [ 1, 0, 1 ]
+travel_to Time.utc(2030, 1, 16, 22) # 08:00 Guam
+invoke_tick.call
 raise "Expected one unlock, both push providers, one resolved receipt" unless [ email_count, push_count, receipt_count ] == [ 1, 2, 1 ] && ExpoPushReceipt.count.zero? && Notification.where(notifiable: intervention).count == 1
-Rake::Task["scheduled:tick"].reenable
-Rake::Task["scheduled:tick"].invoke
+invoke_tick.call
 raise "Repeat delivered again" unless [ email_count, push_count, receipt_count ] == [ 1, 2, 1 ]
-puts "SMOKE passed: dry run has no writes/sends; real tick committed claims before simulated providers; repeat skipped; email=1 push_providers=2 receipts=1"
+puts "SMOKE passed: dry preview has no writes/sends; 06:50 receipts only; 07:00 digest; 08:00 follow-up; repeat skipped; email=1 push_providers=2 receipts=1"
 travel_back

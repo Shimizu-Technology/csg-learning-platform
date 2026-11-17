@@ -201,133 +201,212 @@ queue is unnecessary for current traffic:
    still go through the report-and-approval process above before any future
    worker activation.
 
-### Scheduled work — Render cron (AS-6, W9.1)
+### Scheduled work — hourly Render cron (AS-6, W9.1)
 
 Request jobs stay inline. Scheduled work has one entry point:
-`bundle exec rails scheduled:tick`. It runs once and exits; it neither starts
-Solid Queue nor reads its backlog. The lead provisions this service after merge.
-This PR does not create, resume, delete, or change any Render service.
+`bundle exec rails scheduled:tick`. It exits after its tasks and never starts
+Solid Queue or reads its backlog. The lead provisions this service after merge;
+this PR makes no Render changes.
 
 | Setting | Value |
 | --- | --- |
-| Service type | Cron Job |
-| Suggested name | `csg-learning-platform-scheduled-jobs` |
+| Service type / suggested name | Cron Job / `csg-learning-platform-scheduled-jobs` |
 | Repository / branch | This API repository / `main` |
-| Region | Singapore |
-| Runtime | Ruby |
+| Region / runtime | Singapore / Ruby |
 | Root directory | `api` |
 | Build command | `bundle install` |
 | Command | `bundle exec rails scheduled:tick` |
-| Schedule (UTC) | `*/15 * * * *` |
-| Environment | Same variables/secrets and database as the web service |
+| Schedule (UTC) | `0 * * * *` |
+| Environment | Same variables/secrets/database and school zone as the web service |
 | Job flags | `ACTIVE_JOB_QUEUE_ADAPTER=inline`, `SOLID_QUEUE_WORKER_PROVISIONED=false`, `SOLID_QUEUE_IN_PUMA=false` |
+| Digest hour | `SCHEDULED_DAILY_UNLOCK_HOUR=7` (integer 0..23, defaults to 7) |
 
 The web build remains `bundle install && bundle exec rails db:prepare` and owns
-migrations. Do not migrate concurrently from the cron build. Normal contradictory
-job settings still fail production boot. Keep `SCHOOL_TIME_ZONE` identical on
-both services (default `Pacific/Guam`). The UTC quarter-hour schedule works in
-any school zone; daily decisions use the configured local calendar, including
-zones with DST. Guam has none.
+migrations, including `20261118000100` and `20261118000200`. Do not migrate from
+the cron build. Contradictory queue flags still fail production boot. Set the
+same `SCHOOL_TIME_ZONE` (default `Pacific/Guam`) and digest hour on every runner.
+The hourly schedule gives about 24 wakes/day rather than 96 quarter-hour wakes.
+Each invocation opens a transaction and can keep Neon awake for its idle period;
+the old cadence could amount to roughly eight awake hours/day and exceed a free
+compute allowance. Hourly receipt sweeps remain within their 24-hour window.
+Verify actual compute usage during rollout; no persistent polling daemon exists.
 
-| Task name | Due rule / catch-up |
+| Task | Due rule |
 | --- | --- |
-| `intervention_follow_ups` | Once daily at/after 08:00 school time. A missed run processes all currently overdue follow-ups at the next eligible tick, including older due dates. |
-| `daily_unlocks` | Once daily from school midnight. First activation considers today only. Later runs combine releases since the last successful school date into one digest per enrollment. |
-| `expo_push_receipts` | Once per UTC quarter-hour slot. Drains due durable receipts directly; missing results keep the existing 15-minute backoff and lookup/age bounds. No inline delayed enqueue. |
+| `intervention_follow_ups` | Once daily at/after 08:00 school time; processes all currently overdue, unnotified valid-owner follow-ups, including old dates. Inspect and baseline backlog before activation. |
+| `daily_unlocks` | Once daily at/after `SCHEDULED_DAILY_UNLOCK_HOUR` (07:00 Guam by default). One coalesced digest per enrollment covering unclaimed releases in **today and the previous two school dates**, including activation. |
+| `expo_push_receipts` | Once per UTC hour slot. Drains due receipts directly, without delayed inline enqueues. The existing 15-minute minimum backoff, lookup limit and 24-hour age bound remain; the next cron opportunity is hourly. |
 
-Unlock eligibility comes from batch-loaded `LearnerProgress` /
-`AssignedLearningContent`: explicit lesson assignments override module release,
-locked/archived lessons stay excluded, and active personal plans limit the digest
-to required content. Paused, completed, dropped, expired and archived-user
-recipients are excluded. Self-paced cohorts have no daily calendar release and
-are skipped. Upcoming cohorts become eligible by the same school-date active
-scope used by Learn.
+The digest scans a rolling **three-school-day cap**, even when a successful
+checkpoint exists. This includes content released/assigned after yesterday's
+digest on the next day's run, provided its release date is still in that window.
+Content whose release date has moved outside the window is not emailed. A long
+outage never sends an unbounded historical digest. Durable per-enrollment/lesson
+claims prevent an already-attempted release from reappearing after catch-up,
+checkpoint failure or date edits.
 
-The runner holds `pg_try_advisory_xact_lock` in an open transaction on a separate
-connection. PgBouncer transaction mode pins that backend until commit/rollback;
-there are no session locks. A competing tick logs `overlap` and exits successfully.
-Task writes commit independently on the primary pool. Every successful task
-updates `scheduled_task_runs.last_succeeded_at` and `last_school_date`; failures
-leave the checkpoint unchanged, allow the other tasks to finish, and exit 1.
-Daily successes run at most once per school date; missed quarter-hour slots
-coalesce into one current sweep rather than replaying empty historical ticks.
+Eligibility uses batch-loaded `LearnerProgress` / `AssignedLearningContent` with
+the supplied tick time for cohort starts, enrollment expiry and school dates.
+Explicit lesson overrides and locks apply; archived content is excluded. With
+**no active personal plan**, optional (`required: false`) lessons remain included,
+as in the old rake task. An active enabled personal plan narrows the digest to
+its required scope. Paused, completed, dropped, expired, pending-invite and
+archived-user recipients are excluded. Self-paced cohorts have no calendar
+release digest and are skipped.
 
-Unlock lesson/enrollment claims are bulk-inserted into
-`scheduled_notification_attempts` before any email call. A claim survives an
-uncertain response, failed checkpoint, date edit or next-day catch-up. It is never
-automatically cleared or retried, even after Resend's idempotency window expires.
-As with message push claims, a crash after claiming but before sending can lose
-the external notification. Keep claims for delivery history; do not delete them
-as routine cleanup. In-app follow-up notices remain atomic with their claims.
-Both daily selection and follow-up planning/provider preparation use batch
-queries; HTTP work still grows with actual subscriptions and provider batches.
+The runner holds `pg_try_advisory_xact_lock` through its last task on a separate
+connection. The open transaction pins a PgBouncer transaction-mode backend;
+there are no session locks. A competing application tick logs `overlap` and
+exits successfully. Task writes commit independently. Each successful task
+updates `last_succeeded_at` / `last_school_date`. Failures keep those checkpoints,
+allow other tasks to finish and exit 1. Hourly gaps coalesce into a current sweep.
 
-Each invocation emits one `[ScheduledTick]` JSON summary with `at`, `dry_run`,
-per-task `run` / `would_run` / `skipped` / `error`, duration milliseconds and error
-class. An overlapping invocation has a `tick: overlap` entry. Provider-specific
-logs supply delivery details without putting email addresses in the summary.
-Use the Render cron run history for the last attempted tick; from an authorized
-shell, `bundle exec rails scheduled:status` reports the last successful time and
-school date per task. No new readiness JSON field or client regeneration is
-needed. Keep `/health` database-free and Render's automatic health path unchanged.
+Email claims commit before provider calls. Timeouts, HTTP 5xx, HTTP 408, malformed
+responses and unknown errors are ambiguous: retain those claims permanently,
+including beyond Resend's dedupe window. Definite Resend HTTP 4xx rejections
+(excluding 408), including 422/429, release only that invocation's rejected
+recipient/lesson claims in one bulk delete. The task fails without advancing its
+success checkpoint, so the next hourly tick retries them while they remain in
+the three-day window. Fix a persistent 422/configuration error rather than
+manually resending. A process crash after claiming may lose a send; uncertain
+work is never automatically replayed. In-app follow-up notices and push claims
+remain atomic. Keep durable claims as history, not routine cleanup targets.
 
-#### Rollout and rollback
+#### Dry-run preview, counts and status
 
-1. Merge and deploy the API migration `20261118000100`. Verify its source and
-   `/api/v1/ready` (`queue: not_required`). Keep the worker suspended with
-   automatic deploys disabled throughout this rollout.
-2. The lead creates the cron with the table's exact settings and the web
-   service's environment. Initially set `SCHEDULED_TICK_DRY_RUN=1`; trigger it
-   manually and save the `[ScheduledTick]` summary. It reports only due task
-   names, performs no sends or checkpoint writes, and does not inspect the old
-   queue. Never use production provider credentials in local tests.
-3. Remove `SCHEDULED_TICK_DRY_RUN` (or set `0`) and trigger once. Inspect the
-   summary, `scheduled:status`, the controlled recipient's in-app follow-up,
-   unlock email and receipt outcome. Repeat within the same slot: successful
-   work must be `skipped` and notifications must not repeat.
-4. Observe consecutive scheduled quarter-hour runs plus the next school-local
-   midnight and 08:00 boundaries. Verify failed runs are visible in Render and
-   investigate any retained uncertain claim instead of manually resending it.
-   Confirm Neon can sleep between runs; no polling daemon is provisioned.
-5. Once the cron is proven, the lead deletes the suspended
-   `csg-learning-platform-background-worker` service. Preserve its old Solid
-   Queue rows. The historical worker recovery and inline return sections above
-   remain the required runbooks for any future topology change.
-6. Rollback: suspend the cron. Requests remain inline. Keep the additive tables,
-   checkpoints and claims. Do not resume the old worker as a rollback shortcut.
-   Deploy a fixed runner before restoring the schedule; never run both schedulers.
+`SCHEDULED_TICK_DRY_RUN` accepts `1`, `true` or `yes`, case-insensitive, with
+surrounding whitespace ignored. **Unset/empty means real execution. Any other
+non-empty value (including `0`, `false` or a typo) aborts before work.** Remove the
+variable to activate real execution. The legacy `notifications:send_daily_unlocks`
+command and the Solid Queue wrapper use the same parser and registry.
 
-#### Deliberately excluded work (R-2 decision)
+Dry run performs no writes, sends or claims. Its summary reports potential
+`follow_ups_due`, `older_than_7_days`, unlock `recipients` / `lessons` /
+`would_claim`, and receipt `would_claim`, even before a task's daily hour. The
+`status` says whether it would run **now**; preview numbers show the current
+eligible backlog, not a promise that tomorrow's data will be unchanged.
 
-`MessageDeliveryRecoveryJob` is **not** in the cron registry. Its per-provider
-push checkpoints make interrupted push recovery safe, but message mention/DM
-email attempts lack our own per-recipient durable results. Recovery can replay
-beyond Resend's 24-hour dedupe window. It also broadcasts through the current
-process-local Action Cable `async` adapter: a cron process cannot reach the web
-process's sockets. A 15-minute cadence changes latency, not these safety limits.
-Keep request/replay recovery and the historical worker configuration; fully
-pending-state message delivery and shared broadcast transport are separate work.
+Every `[ScheduledTick]` JSON summary includes `catch_up_days: 3`, per-task status,
+duration, error class and `claimed` / `sent` / `failed` counts. Unlock `claimed`
+counts lesson claims; `sent` / `failed` count recipient digests. Follow-up counts
+are notices: `sent` means at least one provider routine accepted the handoff,
+not confirmed device receipt; a notice can have both a successful provider and a
+failed provider. Receipt counts measure claims, successful lookup requests and
+failed lookups, not new notifications. Dry/skip/overlap actual counts are zero.
+`released` records definitely rejected email lesson claims released for retry.
 
-Announcement in-app fan-out remains bulk-inserted under the publish lock (#279).
-Its push runs after commit (#282-era runtime behavior), still within the originating
-request in inline mode. Moving it safely requires a publish-transaction durable
-intent, persisted per-provider claims, current-recipient checks and recovery
-semantics for uncertain/unstarted sends. Announcements currently have no such
-claims; just enqueuing inline from a tick would repeat pushes on a crash/retry.
-That is a separate change rather than a small safe R-2 move. The runner does not
-scan old announcement notifications or replay historical pushes.
+`bundle exec rails scheduled:status` reports each task's last successful time,
+school date, last attempted time and saved `last_result` with those counts,
+including failed attempts. Dry runs and skips do not overwrite stored results.
+Render history supplies whole-tick attempts. Keep `/health` database-free and
+Render's health path unchanged; no API response shape or client types change.
 
-#### Adding a scheduled task (U-3.6 / AS-1 / AS-4 hook)
+#### Activation pre-check and optional approved follow-up baseline
 
-Add a stable `ScheduledTick::Task` to `TASKS` with `name`, `daily_hour` (local
-0..23, or nil for every quarter-hour) and a callable `(now, last_school_date)`.
-The callable runs synchronously, returns only after successful processing, and
-raises on failure. Use the supplied time for eligibility, batch queries, and
-commit durable recipient/event claims before external effects. Never put task
-work on the lock connection or wrap sends/claims in one rollbackable transaction.
-A dry run never invokes the callable. Renaming a task resets its checkpoint and
-must have an explicit catch-up decision. Add overlap, retry, catch-up, query-budget
-and time-zone tests. Scheduled Updates and drip/nudges are not implemented here.
+A first real run can send every overdue unnotified follow-up. Before enabling
+real sends, save a dry-run summary and inspect both total due and older-than-seven-
+days counts, plus unlock recipient/lesson counts and the three-day cap. The lead
+must reconcile an unexpectedly large or stale backlog with Leon before activation.
+Do not treat a green dry-run exit as approval to send it.
+
+To report a one-time cutoff, choose an exact activation timestamp and a positive
+N approved with Leon (example below uses N=7; replace the timestamp). This report
+makes no writes:
+
+```bash
+SCHEDULED_ACTIVATION_AT=2026-11-18T20:50:00Z \
+SCHEDULED_FOLLOW_UP_MAX_AGE_DAYS=7 \
+bundle exec rails scheduled:baseline_follow_ups
+```
+
+Only **after Leon approves that exact report, timestamp and N**, rerun it with:
+
+```bash
+SCHEDULED_ACTIVATION_AT=2026-11-18T20:50:00Z \
+SCHEDULED_FOLLOW_UP_MAX_AGE_DAYS=7 \
+CONFIRM_FOLLOW_UP_BASELINE=mark-old-follow-ups-without-sending \
+bundle exec rails scheduled:baseline_follow_ups
+```
+
+This marks active, unnotified follow-ups due **strictly more than N days before
+activation** with `follow_up_notified_at=activation_at`. It creates no notices and
+sends nothing; equality at the cutoff, recent/future dates and previously notified
+items are untouched. The UPDATE rechecks eligibility after concurrent edits;
+repeating the baseline is a no-op. This is an approved rollout operation, never
+an automatic migration or routine tick. Run it before real cron activation,
+with no tick running, and retain its candidate/marked counts. Do not execute it
+against production as part of development QA.
+
+#### Manual triggers, rollout and rollback
+
+**Render manual triggers cancel an active cron run.** The application advisory
+lock cannot prevent that platform cancellation. Wait until the previous Render
+run has finished before triggering anything; inspect run history first. Avoid
+the top of any hour and the scheduled 07:00/08:00 Guam runs. Cancelling a run
+after a durable claim can lose an external notification. Do not trigger a second
+run to check progress or prove idempotency while one is active.
+
+1. Merge/deploy the API and both migrations; verify the exact source and
+   `/api/v1/ready` (`queue: not_required`). Keep the old worker suspended with
+   automatic deploys disabled.
+2. The lead creates the hourly cron with `SCHEDULED_TICK_DRY_RUN=true`. After
+   any prior run has finished, manually preview away from the hour boundary.
+   Save and reconcile all backlog counts. If needed, perform the exact approved
+   baseline above while real execution is still disabled, then preview again.
+3. Plan the **first real trigger at 06:45–06:50 Guam**, just before the 07:00
+   digest; never enable it with a casual midday trigger. Remove the dry-run
+   variable only when no run is active. That controlled trigger handles due
+   receipts while daily tasks wait for 07:00/08:00. If activation is instead
+   approved just before 08:00, use 07:45–07:50 and account for a due digest in
+   the preview. If a prior run is still active, postpone; do not cancel it.
+4. Let the scheduled 07:00 digest and 08:00 follow-ups finish naturally. Inspect
+   counts, `scheduled:status` and controlled recipient/receipt outcomes. Any
+   manual repeat must wait for completion and be away from the hour boundary.
+   Same-day successes skip and claimed/ambiguous work must not repeat. Observe
+   consecutive hourly runs, the next day's digest and actual Neon compute use.
+5. Once proven, the lead deletes suspended
+   `csg-learning-platform-background-worker`. Preserve old Solid Queue rows.
+   The historical recovery and inline-return sections remain the runbooks for
+   any future topology change.
+6. Roll back by suspending the cron. Requests stay inline; retain claims,
+   checkpoints and result columns. Fix the runner before resuming; never resume
+   an obsolete worker as a shortcut.
+
+#### Deliberately excluded work and restoring Solid Queue
+
+`MessageDeliveryRecoveryJob` remains outside the cron registry. Email lacks our
+own per-recipient durable results beyond Resend's 24-hour dedupe window, and its
+broadcasts cannot reach web sockets through process-local Action Cable. Hourly
+cadence changes latency, not those safety limits. Pending-state message delivery
+and shared broadcast transport remain separate work.
+
+Announcement in-app inserts stay atomic under the publish lock. Push remains
+after commit in the request: safe runner deferral needs a durable publish intent,
+provider claims, current-recipient checks and uncertain-send recovery semantics.
+The tick never scans/replays old announcement notifications.
+
+If Solid Queue is intentionally restored, first follow the queue inspection,
+source/environment and broadcast-transport recovery requirements above. Deploy
+this version of `config/recurring.yml`: its hourly **`ScheduledTickJob` calls the
+same registry**, including daily unlocks at the configured school hour,
+follow-ups and receipts. Suspend the Render cron and wait for any active run to
+finish before activating the worker's recurring scheduler; confirm that scheduler
+registers `scheduled_tick` and verify `scheduled:status` across 07:00/08:00.
+There is no gap in daily-unlock ownership: the worker takes over the same saved
+checkpoints at its next hourly run. Never enable both schedulers. Historical
+message recovery remains a separate worker-only schedule and requires its own
+transport/delivery readiness review before activation.
+
+#### Future task interface (U-3.6 / AS-1 / AS-4)
+
+Add a stable `ScheduledTick::Task(name:, daily_hour:, call:)`; hour is local
+0..23, or nil for hourly. The synchronous callable receives
+`(now, last_school_date, metrics)`; existing two-argument callables are supported.
+Update the mutable metrics hash (`claimed`, `sent`, `failed`) and raise on failure.
+Use supplied time, batch queries and committed event/recipient claims before
+external effects. Add a read-only preview and overlap/retry/catch-up/query/time-
+zone tests. Renaming a task resets its checkpoint and needs an explicit catch-up
+decision. Scheduled Updates and drip/nudge product behavior are not built here.
 
 ### Environment Variables (Render Dashboard)
 
@@ -747,7 +826,7 @@ After first deployment or major changes:
 - [ ] Verify health check: `curl https://learn-api.codeschoolofguam.com/health`
 - [ ] Verify dependencies once: `curl https://learn-api.codeschoolofguam.com/api/v1/ready`
 - [ ] Verify the scheduled cron summary and `bin/rails scheduled:status`; keep the worker suspended until the cron is proven and the lead deletes it
-- [ ] If Solid Queue is intentionally restored, suspend the cron first, confirm the worker command is `./bin/jobs` and `/api/v1/ready` reports `queue: ok`
+- [ ] If Solid Queue is intentionally restored, deploy the hourly `ScheduledTickJob` recurring registry (including daily unlocks), suspend/wait for the cron, then confirm `./bin/jobs`, scheduler registration and `/api/v1/ready` (`queue: ok`)
 - [ ] Verify frontend loads: `https://learn.codeschoolofguam.com`
 - [ ] Verify Clerk auth works (sign in with test account)
 - [ ] Run seed data if needed: `bin/rails db:seed` via Render Shell

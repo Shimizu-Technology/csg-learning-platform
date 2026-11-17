@@ -1,15 +1,29 @@
 class InterventionFollowUpJob < ApplicationJob
   queue_as :default
 
-  def perform(now = Time.current)
+  def self.pending(now)
+    Intervention.due(now).where("follow_up_notified_at IS NULL OR follow_up_notified_at < next_follow_up_at")
+  end
+
+  def self.eligible(now, lock: false)
+    scope = pending(now).order(:id)
+    scope = scope.lock if lock
+    interventions = scope.includes(:owner, enrollment: [ :user, :cohort ]).to_a
+    User.preload_assigned_cohort_ids(interventions.map(&:owner))
+    interventions.select(&:owner_valid?)
+  end
+
+  def self.preview(now)
+    interventions = eligible(now)
+    { follow_ups_due: interventions.size, older_than_7_days: interventions.count { |item| item.next_follow_up_at < now - 7.days }, would_claim: interventions.size }
+  end
+
+  def perform(now = Time.current, metrics: {})
+    metrics.merge!(claimed: 0, sent: 0, failed: 0)
     notifications = Intervention.transaction do
       # Lock and re-evaluate all due records together; row locks also serialize
       # staff date/owner edits and any intentionally restored queue runner.
-      interventions = Intervention.due(now)
-        .where("follow_up_notified_at IS NULL OR follow_up_notified_at < next_follow_up_at")
-        .order(:id).lock.includes(:owner, enrollment: [ :user, :cohort ]).to_a
-      User.preload_assigned_cohort_ids(interventions.map(&:owner))
-      interventions.select!(&:owner_valid?)
+      interventions = self.class.eligible(now, lock: true)
       next [] if interventions.empty?
 
       rows = interventions.map do |intervention|
@@ -27,14 +41,18 @@ class InterventionFollowUpJob < ApplicationJob
       Intervention.where(id: interventions.map(&:id)).update_all(follow_up_notified_at: now, updated_at: now)
       Notification.where(id: ids).to_a
     end
+    metrics[:claimed] = notifications.size
     return if notifications.empty?
 
     failure = nil
+    sent = false
     [ WebPushNotificationService, ExpoPushNotificationService ].each do |provider|
-      provider.intervention_follow_ups(notifications)
+      sent = !!provider.intervention_follow_ups(notifications) || sent
     rescue StandardError => error
       failure ||= error
     end
+    metrics[:sent] = notifications.size if sent
+    metrics[:failed] = notifications.size if failure
     raise failure if failure
   end
 end
