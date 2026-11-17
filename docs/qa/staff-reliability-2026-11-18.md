@@ -96,3 +96,27 @@ Final-source Chromium rerun: **20/20 entries passed in 53.5s** at the required d
 Final source ASUS prepared mode: **2,250 tests / 43,449 assertions; 0 failures, 0 errors, 1 existing pooler-canary skip**. The migration subprocess port adapter is unchanged.
 
 Final source ASUS unprepared mode: **2,250 tests / 43,449 assertions; 0 failures, 0 errors, 1 existing pooler-canary skip**. **778 RuboCop files clean; Brakeman 0 warnings; gate exit 0**. Both full runs used `7f53729d`, one job at a time. The wrapper removed its disposable Postgres and stopped WSL. The local test database was dropped; lifecycle cleanup/status reports **no active owned resources**. Borrowed local Postgres remains untouched. All eight CodeRabbit inline threads received replies citing the fix commit; the outside-diff Inspector finding received a separate PR comment. New-head review is not claimed complete.
+
+
+## Final CodeRabbit round (six comments)
+
+Source: `d6ba6c8e82f091a0e568f007fd9e58c273ce2306`, based on `103e1709`. Scope remains the staff lesson/update editors and their QA harness. The operational UI, shared attention projection and paused access rules are unchanged. Acceptance: keep unfinished new-block rubric text through save/move; make both save confirmations keyboard-accessible and complete the pending departure; leave successful update edits without a false warning while protecting subsequent Back/Cancel edits; run the documented video fixture and assert actual denied/learner-specific states.
+
+Four negative controls fail against the previous source: new-block rubric move, watched-video Save and leave, completed-lesson reopen Save and leave, and successful update edit with a normalized title. All pass against this source. The two confirmation cases also cancel, verify that the draft remains protected, retry and finish the original destination. The reopen regression includes the companion query parameters: post-save query cleanup must not replace the pending navigation.
+
+| Finding | Fix / evidence |
+| --- | --- |
+| New saved block loses rubric on move | Keep the draft’s saved ID-to-client-key map through the move reload, then reconcile/prune against the returned blocks. The regression verifies the exact rubric text, unload guard and departure question. |
+| Save confirmations below leave dialog | Put the watched-video/reopen dialogs last, above the leave question and all other editor dialogs. Keep the save-and-leave promise pending through confirmation; cancellation preserves the draft, confirmation completes the original navigation. Keyboard focus assertions cover both paths. |
+| False update save prompt | Expose the existing guard’s synchronous release through a shared hook and call it before leaving edit mode after success. Tests cover trimmed saved titles and later Back/Cancel edits; browser QA now saves the edit and verifies the persisted title at both widths. |
+| Harness flag / port note | Make `QA_STAFF_RELIABILITY=1 scripts/qa/run start` a separate, explicit command. No manual port-variable instruction remains. The flag was already present in the previous documentation commit; this round clarifies that it must be on startup. Fresh harness video signing passes. |
+| Premature absence assertion | Wait for the visible No access region before checking that the later lesson title is absent. |
+| Page-wide inactivity match | Scope multi-learner checks to the QA Behind attention row. On the single-student workspace, verify QA Behind’s visible identity and the Why flagged note. Both dimensions pass. |
+
+Final affected web gate: **5 files / 102 tests passed**, plus typecheck, ESLint and production build. Impeccable 4.6.0 advisory: `[]`. No API or contract changes; API/mobile gates were not rerun in this web-only round. The prior full API acceptance above remains the API evidence.
+
+The first stronger browser run exposed selector mistakes (No access is a region, and the phone breadcrumb is hidden); these were corrected without weakening the required assertions. The next 20-run matrix passed. Final-source rerun additionally checks successful update saves, with results below. Chromium uses synthetic local data and stub auth; native devices, Safari, live providers and production remain outside this round.
+
+This is the final requested CodeRabbit round. All six comments receive fix-commit replies. Any later review findings are residuals for the lead, not another automatic fix round; no new-head approval is claimed and the PR stays unmerged/unwatched.
+
+Final-source browser rerun: **20/20 entries passed in 54.7s** at 390×844 and 1280×844 (with the existing 700px attention-action check). It includes the stricter denial/identity assertions and successful edit-save exit with persisted normalized title. The owned preview tab, servers and QA database were cleaned; lifecycle status reports **no active owned resources**. Shared local Postgres was left untouched.
