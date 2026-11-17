@@ -9,6 +9,7 @@ import { formatHeaderDate, formatShortDate, formatTime } from '../../lib/format'
 import { shortAgo } from '../../lib/recordRelated'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { conversationPath } from '../../lib/routes'
+import { TERMS } from '../../lib/glossary'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useLearnerPaths } from '../../lib/useRecordPath'
 import { markdownExcerpt } from '../../lib/plainText'
@@ -165,7 +166,9 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
     return (
       <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="today-hero">
         {today.paused && <Badge tone="neutral" icon={<Lock className="h-3.5 w-3.5" aria-hidden="true" />}>{pausedSince ? `Paused since ${pausedSince}` : 'Paused'}</Badge>}
-        <h2 id="today-hero" className="mt-3 text-xl font-bold text-ink [overflow-wrap:anywhere]">{today.paused ? `Your enrollment in ${data.cohort?.name ?? 'this course'} is paused` : 'Past course · review only'}</h2>
+        <h2 id="today-hero" className="mt-3 text-xl font-bold text-ink [overflow-wrap:anywhere]">{today.paused
+          ? data.cohort ? <>Your enrollment in <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" returnLabel="Today">{data.cohort.name}</RecordLink> is paused</> : 'Your enrollment is paused'
+          : 'Past course · review only'}</h2>
         <p className="mt-2 text-sm leading-6 text-ink-secondary">
           {counts && counts.completed_lessons > 0
             ? <>Your work is saved: <span className="tabular-nums">{counts.completed_lessons}</span> {counts.completed_lessons === 1 ? 'lesson' : 'lessons'} completed and every submission and piece of feedback.</>
@@ -454,7 +457,7 @@ function Support({ data, today, messenger }: { data: DashboardData; today: Stude
       )}
       <p className="mt-3 text-sm text-ink-secondary">
         {ended
-          ? `Instructor support for this course ended${today.support.ends_on ? ` on ${formatShortDate(today.support.ends_on)}` : ''}. Your lessons stay open.`
+          ? `Your ${TERMS.helpPeriod.toLowerCase()} ended${today.support.ends_on ? ` on ${formatShortDate(today.support.ends_on)}` : ''}. Your lessons stay open.`
           : today.support.mode === 'guided_help'
             ? 'Stuck on a lesson? Use Ask for help on that lesson, or send a message.'
             : today.support.mode === 'course_question'

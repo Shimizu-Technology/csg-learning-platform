@@ -13,6 +13,7 @@ describe('document.title per page (README §2: "<Page> · CSG Learn")', () => {
     ['/terms', `Terms and community guidelines · ${PRODUCT_NAME}`],
     ['/dashboard', `Today · ${PRODUCT_NAME}`],
     ['/materials', `Learn · ${PRODUCT_NAME}`],
+    ['/my-work', `My work · ${PRODUCT_NAME}`],
     ['/cohorts/3', `My cohort · ${PRODUCT_NAME}`],
     ['/lessons/12', `Lesson · ${PRODUCT_NAME}`],
     ['/recordings', `Recordings · ${PRODUCT_NAME}`],

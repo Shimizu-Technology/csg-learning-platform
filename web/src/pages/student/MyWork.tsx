@@ -63,7 +63,7 @@ export function MyWorkPage() {
   if (loading && !work) return <LoadingSpinner message="Loading My work…" />
   if (notEnrolled) return <EmptyState icon={ClipboardCheck} title="No course yet" description="Work you hand in will appear here once you’re enrolled in a course." />
   if (error || !work) {
-    return <EmptyState icon={WifiOff} title="Could not load My work" description={error || 'Unable to load My work right now.'}
+    return <EmptyState icon={WifiOff} title="Could not load your work" description={error || 'Unable to load My work right now.'}
       action={<Button variant="secondary" onClick={load}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
   }
 
