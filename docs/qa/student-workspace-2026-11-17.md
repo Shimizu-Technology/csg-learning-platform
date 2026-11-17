@@ -1,6 +1,6 @@
 # Student workspace — W7 PR 7.5
 
-Current result: fix-round source `6e958c08` has passed focused red/green regressions and all **16 required fix-round browser scenarios**. The full ASUS gate, including both API prepared-statement modes, is running after waiting for the shared runner. Earlier full gates and 72-scenario passes below are historical evidence. PR #284 stays open without merging, watching or dismissing reviews.
+Current result: main through `6d33bc0a` (#287) is merged as `0bc61730`. Both API clients were regenerated. Focused integration checks pass; the complete post-#287 ASUS gate and fresh headless checks are in progress. PR #284 stays open without merging, watching or dismissing reviews. Earlier results below are historical evidence until repeated on this integration.
 
 ## Context and acceptance
 
@@ -190,3 +190,12 @@ Both complete final API modes passed on `6a784853`: **1,970 tests / 41,411 asser
 
 
 The complete post-#283 gate finished successfully on `6a784853`: both API modes 1,970 tests / 41,411 assertions each; RuboCop/Brakeman; web typecheck/lint, 2,487 tests / 217 files, build, bundle check and `api:check`; mobile typecheck/lint and 1,508 tests / 139 suites. All stages exited 0. ASUS wrapper 84526 was released and its helper removed the disposable database/container and stopped WSL. The subsequent #287 merge request supersedes this as final integration evidence; it is retained as a completed checkpoint.
+
+
+## Where-used integration requested during the fix round
+
+Main `6d33bc0a` was fetched and explicitly merged as **`0bc61730`**. The merge keeps the #281 queue and #283 delivery labels, adopts #287's staff curriculum/module/lesson record destinations, and composes Support's lesson/module filters with the student's filter. Profile curriculum names use `CurriculumName.new(viewer)`; cohort-owned names use `CurriculumName.in_cohort(cohort)`. Workspace enrollment names/counts and the media, Communication, Support and full-list cohort scopes use `StaffCohortScope`. Its relation method shares one memoized set of taught cohort ids across multi-curriculum payloads. Both generated type files were regenerated from the merged OpenAPI, without hand-merging. No task migration was added.
+
+A new regression gives a student two enrollments on a copied curriculum whose owner cohort is hidden from the instructor. It verifies the safe copy name, visible enrollment count/switcher, hidden-cohort number, and admin visibility. It failed against the old profile controller (the hidden cohort name leaked) and passed with the integrated controller. The student Support filter also composes with both shared content filters without including another student's requests. Focused green: **36 API tests / 303 assertions**, **260 web tests / 10 files**, web typecheck and targeted RuboCop. QueryCounter stayed flat for Communication **17→17**, profile **43→43** and cohort module/detail **32→32** as fixtures grew. The changed UI's Impeccable advisory returned `[]`.
+
+Owned focused DB: `csg_student_workspace_where_used_test_0117`. Fresh QA DB: `csg_qa_73794_1794887824`, API PID **73855 / 60929**, Vite **73901 / 60930**. Complete gate wrapper **73451** owns the ASUS invocation. The fresh browser run repeats the 16 fix-round cases and then rechecks curriculum/module/objective/lesson record links and profile milestone/media lesson Back paths at both widths/themes as both staff roles. Resource cleanup follows those runs.
