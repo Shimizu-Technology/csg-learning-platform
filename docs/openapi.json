@@ -14929,7 +14929,7 @@
                 "type": "null"
               }
             ],
-            "description": "On GET /announcements/{id} only, for staff who manage a posted or archived update (admins; instructors on its cohort): aggregate counts, never who. Null in lists, on drafts and for everyone else."
+            "description": "Aggregate read counts for a posted or archived update the viewer manages (admins; instructors on its cohort), from GET /announcements/{id}. Never names who read it. Null in lists, on drafts and for viewers who don't manage the update."
           },
           "created_at": {
             "type": "string"

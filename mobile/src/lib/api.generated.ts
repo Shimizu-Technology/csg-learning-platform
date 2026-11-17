@@ -7327,7 +7327,7 @@ export interface components {
             scheduled_send_push: boolean;
             /** @description IANA zone send times are chosen and shown in: the school's (Pacific/Guam by default). Cohorts have no zone of their own. */
             schedule_time_zone: string;
-            /** @description On GET /announcements/{id} only, for staff who manage a posted or archived update (admins; instructors on its cohort): aggregate counts, never who. Null in lists, on drafts and for everyone else. */
+            /** @description Aggregate read counts for a posted or archived update the viewer manages (admins; instructors on its cohort), from GET /announcements/{id}. Never names who read it. Null in lists, on drafts and for viewers who don't manage the update. */
             read_summary: {
                 /** @description People the update was sent to (in-app notifications written when it posted). */
                 notified: number;
