@@ -554,8 +554,6 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   return (
     <div className="-mx-4 -mt-4 flex flex-col sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
       {suggestedSubmission && selectedBlock?.id === auditBlockId && <p role="status" className="border-b border-line bg-surface-sunken p-4 text-sm text-ink">Suggested submission: {({ text_submission: 'Text submission', repo_url_submission: 'Repository link', repo_and_live_url_submission: 'Repository and live links' } as Record<string, string>)[suggestedSubmission] || 'Choose a submission type'}. Review the block settings and save your decision. Opening this suggestion does not change the block.</p>}
-      <UnsavedChangesGuard dirty={Object.values(rubricDrafts).some((item) => Boolean(item.title.trim() || item.criteria.some((criterion) => criterion.trim())))} />
-      <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} onDiscard={() => clearLocalDraft(backupKey)} problem={firstProblem} />
       <p aria-live="polite" className="sr-only">{announcement}</p>
 
       <header className="sticky top-14 z-30 flex min-h-15 items-center gap-2 border-b border-line bg-surface-raised px-2 py-2 sm:gap-3 sm:px-5 lg:top-0">
@@ -817,6 +815,9 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
           <Button variant="danger" onClick={() => void archive(false)}>Archive lesson</Button>
         </>}
       />
+      {/* Leave questions must sit above Settings and every other editor dialog. */}
+      <UnsavedChangesGuard dirty={Object.values(rubricDrafts).some((item) => Boolean(item.title.trim() || item.criteria.some((criterion) => criterion.trim())))} />
+      <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} onDiscard={() => clearLocalDraft(backupKey)} problem={firstProblem} />
     </div>
   )
 }
