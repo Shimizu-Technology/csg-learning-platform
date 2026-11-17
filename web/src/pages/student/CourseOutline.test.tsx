@@ -60,7 +60,7 @@ async function render(outline: Outline, path = '/materials?cohort_id=3') {
   })
 }
 const rows = () => Array.from(container.querySelectorAll('li[data-lesson-kind]'))
-const titles = () => rows().map((row) => row.querySelector('.truncate')?.textContent)
+const titles = () => rows().map((row) => row.querySelector('[data-lesson-title]')?.textContent)
 const button = (name: string) => Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.trim().startsWith(name))!
 
 it('puts Continue first, opens only the current week and shows real kinds and server statuses', async () => {

@@ -9,11 +9,11 @@
 #   the same numbering staff schedule by. A week opens on its first lesson's
 #   unlock date for this learner.
 # - "self_paced": modules as numbered sections, lessons numbered in course
-#   order, and no dates or weekdays (self-paced ignores unlock dates). A module
-#   that spans several curriculum weeks is split into parts so a long section
-#   still collapses.
+#   order, and no dates or weekdays (self-paced ignores unlock dates).
 # - "library" (CSG Alumni): modules to browse. No progress counts, no next
 #   step and no filters (U-5.10).
+# Outside programs, a module that spans several curriculum weeks is split into
+# undated parts, so a long section still collapses.
 #
 # The current group is the one holding the next lesson; Learn opens it. A
 # read-only enrollment (paused, ended) has no next step: past lessons stay
@@ -38,8 +38,14 @@ class CourseOutline
     modules = @content.modules.each_with_index.map do |mod, index|
       module_json(mod, index + 1, numbers, redo_blocks, next_lesson)
     end
-    lessons = modules.flat_map { |mod| mod[:groups].flat_map { |group| group[:lessons] } }
-    current = modules.flat_map { |mod| mod[:groups] }.find { |group| group[:current] }
+    groups = modules.flat_map { |mod| mod[:groups] }
+    lessons = groups.flat_map { |group| group[:lessons] }
+    current = groups.find { |group| group[:current] }
+    # This week: the program week that opened most recently, across the course. Paused learners aren't on the schedule.
+    if program? && !read_only
+      latest = groups.select { |group| group[:opens_on] && group[:opens_on] <= @today }.max_by.with_index { |group, index| [ group[:opens_on], index ] }
+      latest[:this_week] = true if latest
+    end
 
     {
       mode: mode,
@@ -73,8 +79,7 @@ class CourseOutline
   def module_json(mod, number, numbers, redo_blocks, next_lesson)
     entries = @content.lessons_for(mod).map { |lesson| @progress.lesson_progress(lesson) }
     grouped = entries.group_by { |entry| (mod.day_offset.to_i + entry.lesson.release_day) / 7 + 1 }
-    grouped = { 1 => entries } if library? || (mode == "self_paced" && grouped.size < 2)
-    this_week = program? ? grouped.map { |week, items| [ week, opens_on(mod, items) ] }.select { |_, date| date && date <= @today }.max_by { |_, date| date }&.first : nil
+    grouped = { 1 => entries } if !program? && grouped.size < 2
     groups = grouped.sort.each_with_index.map do |(week, items), index|
       lessons = items.map { |entry| lesson_json(mod, entry, numbers, redo_blocks) }
       {
@@ -84,7 +89,7 @@ class CourseOutline
         opens_on: program? ? opens_on(mod, items) : nil,
         available: items.any?(&:available),
         current: next_lesson.present? && items.any? { |entry| entry.lesson.id == next_lesson.id },
-        this_week: week == this_week,
+        this_week: false,
         counts: library? ? nil : counts(items),
         lessons: lessons
       }
@@ -99,8 +104,8 @@ class CourseOutline
     }
   end
 
-  # "Week 3" in programs; "Part 2 · lessons 21–40" in a split self-paced
-  # section; nothing when a section is one group.
+  # "Week 3" in programs; "Part 2 · lessons 21–40" in a split self-paced or
+  # library section; nothing when a section is one group.
   def group_label(week, index, group_count, lessons)
     return "Week #{week}" if program?
     return nil if group_count < 2

@@ -49,6 +49,7 @@ class CourseOutlineTest < ActionDispatch::IntegrationTest
     assert_equal @cohort.start_date.to_s, week1["opens_on"]
     assert_equal [ "exercise", "checkpoint" ], week2["lessons"].map { |item| item["kind"] }
     assert week2["this_week"], "the week that opened most recently is this week"
+    assert_equal 1, outline["modules"].flat_map { |mod| mod["groups"] }.count { |group| group["this_week"] }, "one this week across the course"
 
     # The redo is the first required lesson the learner can act on, so it is next and its week opens.
     assert_equal @redo.id, outline.dig("next_lesson", "id")
@@ -94,7 +95,9 @@ class CourseOutlineTest < ActionDispatch::IntegrationTest
     assert_nil outline["counts"]
     assert_nil outline["next_lesson"]
     assert_equal({ "todo" => 0, "redo" => 1 }, outline["filters"])
-    assert outline["modules"].all? { |mod| mod["counts"].nil? && mod["groups"].size == 1 && mod["groups"].sole["label"].nil? }
+    assert outline["modules"].all? { |mod| mod["counts"].nil? }
+    assert_equal [ "Part 1 · lessons 1–3", "Part 2 · lessons 4–5", nil ], outline["modules"].flat_map { |mod| mod["groups"].map { |group| group["label"] } }, "a long library section splits into undated parts"
+    assert outline["modules"].flat_map { |mod| mod["groups"] }.none? { |group| group["this_week"] || group["opens_on"] }
   end
 
   test "a paused learner reads past lessons without a next step" do
@@ -106,6 +109,7 @@ class CourseOutlineTest < ActionDispatch::IntegrationTest
     assert_equal LearningCalendar.today.to_s, outline["paused_since"]
     assert_nil outline["next_lesson"]
     assert_equal 0, outline.dig("filters", "todo")
+    refute outline["modules"].flat_map { |mod| mod["groups"] }.any? { |group| group["this_week"] }, "a paused learner is not on this week's schedule"
     titles = outline["modules"].flat_map { |mod| mod["groups"].flat_map { |group| group["lessons"].map { |item| item["title"] } } }
     refute_includes titles, @locked.title, "newer content stays hidden while paused"
   end

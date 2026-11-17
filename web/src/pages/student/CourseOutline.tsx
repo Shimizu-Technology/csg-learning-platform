@@ -306,7 +306,7 @@ function LessonRows({ group, outline, lessonPath, linkState }: { group: CourseOu
             )}
             <KindIcon className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-semibold text-ink">{lesson.title}</span>
+              <span data-lesson-title className="block line-clamp-2 text-[15px] font-semibold leading-5 text-ink [overflow-wrap:anywhere] sm:truncate">{lesson.title}</span>
               <span className="block truncate text-xs text-ink-muted">{meta}</span>
             </span>
             {current && <span className="hidden rounded-xl bg-action-primary px-3 py-1.5 text-sm font-semibold text-on-action sm:inline-flex">Continue</span>}
