@@ -14,7 +14,7 @@ vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => false }))
 vi.mock('../../components/shared/ActivityTimeline', () => ({ ActivityTimeline: () => null }))
 vi.mock('../../components/shared/ContentBlockRenderer', () => ({ ContentBlockRenderer: ({ readOnly }: { readOnly: boolean }) => <div data-readonly={String(readOnly)} /> }))
 vi.mock('../../components/shared/VideoPlayer', () => ({ VideoPlayer: ({ title, trackProgress }: { title: string; trackProgress: boolean }) => <div data-tracking={String(trackProgress)}>{title}</div> }))
-vi.mock('../../components/shared/Modal', () => ({ Modal: ({ open, children }: { open: boolean; children: ReactNode }) => open ? <div role="dialog">{children}</div> : null }))
+vi.mock('../../components/shared/Modal', () => ({ Modal: ({ open, title, children }: { open: boolean; title?: ReactNode; children: ReactNode }) => open ? <div role="dialog"><h2 data-modal-title="">{title}</h2>{children}</div> : null }))
 vi.mock('../../lib/api', () => ({ api: {
   getLesson: vi.fn(), getProfile: vi.fn(), getHelpRequests: vi.fn(), getPushConfig: vi.fn(), getBlockedUsers: vi.fn(),
   getRecordings: vi.fn(), getDashboard: vi.fn(), getWeeklyPlan: vi.fn(), createHelpRequest: vi.fn(), createDirectConversation: vi.fn(), updateHelpRequest: vi.fn(),
@@ -238,6 +238,15 @@ it('On calls an active legacy staff_response answered without replies', async ()
   await click('View response')
   expect(container.textContent).toContain('Your instructor replied')
   expect(container.textContent).toContain('Use an index.')
+})
+it('On, a help link to one exercise opens on that exercise with its reply showing (W8 PR 8.2)', async () => {
+  const replies = [{ id: 7, body: 'Return inside the loop.', resolved_request: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' }]
+  const requests = [request({ id: 21, context_type: 'exercise', context_id: 52, status: 'acknowledged', owner: { id: 9, full_name: 'Ina Teacher' } as never, staff_response: 'Return inside the loop.', replies }), request({ id: 22, status: 'resolved', staff_response: 'Lesson response' })]
+  await render(<StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" contexts={[{ type: 'lesson', id: 42, label: 'Lists' }, { type: 'exercise', id: 51, label: 'First exercise' }, { type: 'exercise', id: 52, label: 'Second exercise' }]} requests={requests} requestsLoading={false} /></StudentExperienceProvider>, '/lessons/42?cohort_id=4&help_request=21')
+  const dialog = container.querySelector('[role="dialog"]')!
+  expect(dialog.querySelector('[data-modal-title]')?.textContent).toBe('Your help request')
+  expect(dialog.textContent).toContain('Return inside the loop.')
+  expect((dialog.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement | null)?.value ?? 'exercise:52').toBe('exercise:52')
 })
 it('On asks which exercise new help concerns and keeps every older response reachable', async () => {
   const requests = [request({ id: 11, context_type: 'exercise', context_id: 51, staff_response: 'First response' }), request({ id: 12, context_type: 'exercise', context_id: 52, status: 'resolved', staff_response: 'Second response' }), request({ id: 13, status: 'resolved', staff_response: 'Lesson response' })]

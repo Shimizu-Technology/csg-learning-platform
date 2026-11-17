@@ -5,7 +5,7 @@ import type { components } from './api.generated'
 export type RecordDestination = components['schemas']['RecordDestination']
 const numeric = (value: unknown): string | null => (typeof value === 'string' || typeof value === 'number') && /^(?:[1-9]\d*)$/.test(String(value)) ? String(value) : null
 const keys: Record<string, string[]> = {
-  student: ['cohort_id'], staff: [], curriculum: ['cohort_id'], resource: ['cohort_id'], lesson: ['cohort_id'], module: ['cohort_id'], submission: ['cohort_id', 'student_id'],
+  student: ['cohort_id'], staff: [], curriculum: ['cohort_id'], resource: ['cohort_id'], lesson: ['cohort_id', 'help_request'], module: ['cohort_id'], submission: ['cohort_id', 'student_id'],
   help_request: ['cohort_id', 'student_id'], follow_up: [], channel: [], dm: [], announcement: ['cohort_id'],
   recording: ['cohort_id'], meeting: ['cohort_id', 'booking_id', 'week'], cohort: [],
   // Admin-only Safety items. Web only: native clients have no Safety page and fall back to Updates.

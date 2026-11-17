@@ -286,7 +286,7 @@ export function Layout({ children }: LayoutProps) {
     onFocus: () => preloadRoute(path),
     onTouchStart: () => preloadRoute(path),
   })
-  const bottomNav = navItems.filter((item) => (isStaff ? ['/admin', '/admin/grading', '/admin/support', '/messages'] : ['/dashboard', '/materials', '/messages']).includes(item.to.split('?')[0]))
+  const bottomNav = navItems.filter((item) => (isStaff ? ['/admin', '/admin/grading', '/admin/support', '/messages'] : ['/dashboard', '/materials', '/my-work', '/messages']).includes(item.to.split('?')[0]))
   const pageContentClassName = isMessagesRoute
     ? 'h-full p-0 lg:p-4'
     : isStaff

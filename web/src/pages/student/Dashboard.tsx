@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink, MessageCircle, Hourglass, Pin } from 'lucide-react'
 import { SUPPORT_EMAIL } from '../../lib/brand'
 import { api } from '../../lib/api'
+import { takeDashboardRequest } from '../../lib/dashboardRequest'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -80,7 +81,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getDashboard(selectedCohortId ?? undefined)
+    takeDashboardRequest(selectedCohortId)
       .then((res) => {
         if (request !== dashboardRequest.current) return
         if (res.data) {

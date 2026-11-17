@@ -214,3 +214,31 @@ It checks On/Off, light/dark, 390/1280, persisted submissions and completion,
 redo history, drafts, help and instructor actions. The synthetic video is a
 placeholder; it does not establish provider playback. Evidence is under
 `docs/qa/lesson-page-2026-11-17/`.
+
+### Student Today and My work (W8 PR 8.2)
+
+After `start`, load the course outline fixture and then the Today fixture, from `api/`:
+
+```sh
+DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/course-outline-fixtures.rb setup
+DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/student-today-fixtures.rb setup
+```
+
+The Today fixture adds, on the canonical program: a graded exercise, an answered help request with its
+unread notification, an open question, an unread instructor message and next week's live class for
+persona 3; seven redos for persona 4 (behind); a behind learner with an agreed catch-up plan
+("QA Blair Plan"); and two submissions waiting for review for persona 6. Run one pass per switch
+state, from the repo root:
+
+```sh
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch off)
+QA_TODAY=off QA_SPEC=student-today.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch on)
+QA_TODAY=on QA_SPEC=student-today.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+Off is today's Today (the "before", and Lance's shape). Each pass measures Today's height and the first
+actionable item for seven persona setups at 1280/390 in light/dark and writes captures to
+`docs/qa/student-today-2026-11-17/`. The On pass also walks View response, the redo link, My work's tabs
+and Ask about this feedback; it marks persona 3's help answer unread again afterwards
+(`student-today-fixtures.rb unread`). See `docs/qa/student-today-2026-11-17.md`.

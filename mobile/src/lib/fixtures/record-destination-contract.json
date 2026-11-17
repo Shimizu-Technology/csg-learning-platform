@@ -16,6 +16,21 @@
   },
   {
     "descriptor": {
+      "kind": "lesson",
+      "id": "42",
+      "context": {
+        "cohort_id": "2",
+        "help_request": "9"
+      },
+      "anchor": {
+        "block_id": "8"
+      }
+    },
+    "web": "/lessons/42?cohort_id=2&help_request=9#block-8",
+    "native": "/lesson/42?cohort_id=2&help_request=9&block_id=8"
+  },
+  {
+    "descriptor": {
       "kind": "module",
       "id": "7",
       "context": {},

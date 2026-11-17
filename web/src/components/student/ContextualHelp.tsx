@@ -1,5 +1,6 @@
 import { useStudentExperience } from '../../lib/studentExperience'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CheckCircle2, CircleHelp, Clock3, Send, ShieldAlert, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { captureProductEvent } from '../../lib/analytics'
@@ -87,6 +88,32 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
 
   const canRequest = capabilities?.support_mode === 'guided_help'
 
+  // New student experience (L-1.3): a link with ?help_request=:id (the learner's
+  // notification, Today) opens that request's dialog, once, when it belongs here.
+  const location = useLocation()
+  const linkedRequestId = v2 ? Number(new URLSearchParams(location.search).get('help_request')) || null : null
+  const autoOpened = useRef<number | null>(null)
+  // The linked request is the one shown, even when a newer one was resolved on this lesson.
+  const linkedRequest = linkedRequestId ? history.find((request) => request.id === linkedRequestId) : undefined
+  const shownResolved = linkedRequest?.status === 'resolved' ? linkedRequest : latestResolved
+  // A new link on a lesson that is already open (the page didn't remount) fetches the requests again,
+  // so a reply sent since the page loaded is there. The first link is covered by the page's own load.
+  const refreshedFor = useRef(linkedRequestId)
+  useEffect(() => {
+    if (!linkedRequestId || refreshedFor.current === linkedRequestId) return
+    refreshedFor.current = linkedRequestId
+    if (onRequestsRefresh) void onRequestsRefresh()
+    else void loadRequests().catch(() => {})
+  }, [linkedRequestId, loadRequests, onRequestsRefresh])
+  useEffect(() => {
+    if (!linkedRequestId || loading || autoOpened.current === linkedRequestId || !linkedRequest) return
+    autoOpened.current = linkedRequestId
+    // With several contexts (the lesson and its exercises), open on the linked request's own one, so its reply shows.
+    const linkedChoice = choices?.find(item => item.type === linkedRequest.context_type && item.id === linkedRequest.context_id)
+    if (linkedChoice) setChosenContext(`${linkedChoice.type}:${linkedChoice.id}`)
+    setOpen(true)
+  }, [linkedRequestId, loading, linkedRequest, choices])
+
   async function submitRequest(event: React.FormEvent) {
     event.preventDefault()
     const cleanMessage = message.trim()
@@ -172,19 +199,19 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
               {choices.map(item => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}
             </select>
           </label>}
-          {choices && history.filter(request => request.id !== activeRequest?.id && request.id !== latestResolved?.id).map(request => <details key={request.id} className="rounded-xl border border-line bg-surface-sunken p-3">
+          {choices && history.filter(request => request.id !== activeRequest?.id && request.id !== shownResolved?.id).map(request => <details key={request.id} className="rounded-xl border border-line bg-surface-sunken p-3">
             <summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">{choices.find(item => item.type === request.context_type && item.id === request.context_id)?.label} · {formatShortDateTime(request.created_at)}</summary>
             <p className="my-3 whitespace-pre-wrap text-sm text-ink [overflow-wrap:anywhere]">{request.message}</p>
             <dl className="space-y-3 text-sm"><HelpReplies request={request} /></dl>
           </details>)}
-          {!loading && latestResolved && (
+          {!loading && shownResolved && (
             <div className="rounded-2xl border border-success-line bg-success-soft p-4">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-ink" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-success-ink">{(latestResolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</p>
+                  <p className="font-semibold text-success-ink">{(shownResolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</p>
                   {/* Every reply, not only the last one, so a hint sent before resolving isn't lost. */}
-                  <dl className="mt-1 space-y-3 text-sm"><HelpReplies request={latestResolved} /></dl>
+                  <dl className="mt-1 space-y-3 text-sm"><HelpReplies request={shownResolved} /></dl>
                   {canRequest && <p className="mt-2 text-xs font-medium text-success-ink">You can send a new request if you still need help.</p>}
                 </div>
               </div>

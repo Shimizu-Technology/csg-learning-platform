@@ -319,6 +319,47 @@ class LearnerProgress
     !entry.completed && entry.lesson.completion_blocks.none?(&:student_work_block?)
   end
 
+  # Where a program learner stands against the cohort's schedule (U-5.1).
+  # Overdue work is required lessons scheduled before this week (Monday) that
+  # are open and not handed in; a redo is not handed in, so it counts. "About N
+  # weeks behind" is that work measured in the course's typical required week
+  # (the median number of required lessons scheduled per week), so one old
+  # straggler doesn't read as months behind. Self-paced courses, the alumni
+  # library and read-only enrollments (paused, ended) have no schedule to keep,
+  # so they have no pace. Personal-plan exceptions decide what is required.
+  def pace
+    return @pace if defined?(@pace)
+    return @pace = nil if @cohort.self_paced? || @cohort.alumni? || !@enrollment.active?
+
+    week_start = @today.beginning_of_week(:monday)
+    # A lesson with no steps has nothing to finish (lesson_counts), so it is in
+    # neither the overdue work nor the scheduled weeks it is measured against.
+    scheduled = @lessons.select { |lesson| required?(lesson) && lesson_progress(lesson).total_blocks.positive? }.filter_map do |lesson|
+      on = scheduled_on(lesson)
+      [ lesson, on ] if on
+    end
+    overdue = scheduled.filter_map do |lesson, on|
+      entry = lesson_progress(lesson)
+      lesson if on < week_start && entry.available && !entry.completed
+    end
+    per_week = scheduled.group_by { |_, on| on.beginning_of_week(:monday) }.values.map(&:size).sort
+    typical = per_week.empty? ? 1 : [ per_week[(per_week.size - 1) / 2], 1 ].max
+    weeks = (overdue.size.to_f / typical).round
+    this_week = scheduled.select { |_, on| on >= week_start && on <= week_start + 6.days }.map(&:first)
+    @pace = {
+      behind: weeks >= 1,
+      weeks_behind: weeks,
+      overdue_lessons: overdue,
+      this_week: { total: this_week.size, completed: this_week.count { |lesson| lesson_progress(lesson).completed }, ends_on: week_start + 6.days }
+    }
+  end
+
+  # The day the cohort schedule puts a lesson on for this learner (its unlock
+  # date), or nil when it has none.
+  def scheduled_on(lesson)
+    lesson.assigned_unlock_date(@cohort, @content.module_assignments[lesson.module_id], @content.lesson_assignments[lesson.id])
+  end
+
   # Latest attempts graded Redo on reviewed work, newest grade first: exactly
   # the "redo_requested" steps, which the learner has to act on.
   def redo_submissions
@@ -329,6 +370,27 @@ class LearnerProgress
   # It does not hold the lesson open, so it is past feedback, not work to do.
   def historical_redo_submissions
     @historical_redo_submissions ||= redo_graded.reject { |submission| submission.content_block.gradable_work_block? }
+  end
+
+  # Latest attempts on reviewed work with no grade yet, oldest first: exactly
+  # the "submitted" steps, waiting for an instructor.
+  def awaiting_review_submissions
+    @awaiting_review_submissions ||= @latest_submissions.values
+      .select { |submission| submission.grade.nil? && submission.content_block.gradable_work_block? }
+      .sort_by { |submission| [ submission.created_at, submission.id ] }
+  end
+
+  # Latest attempts with a final grade, newest first, plus Redo on work that
+  # isn't reviewed (past feedback, not work to do). Together with the redo and
+  # awaiting lists this is every latest attempt the learner has graded or not.
+  def graded_submissions
+    @graded_submissions ||= begin
+      historical = historical_redo_submissions.to_set
+      @latest_submissions.values
+        .select { |submission| submission.grade.present? && (submission.grade != "R" || historical.include?(submission)) }
+        .sort_by { |submission| [ submission.graded_at || Time.zone.at(0), submission.id ] }
+        .reverse
+    end
   end
 
   private

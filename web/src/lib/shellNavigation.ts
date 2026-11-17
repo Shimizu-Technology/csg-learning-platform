@@ -1,4 +1,4 @@
-import { Sun, Layers3, Users, ClipboardCheck, LifeBuoy, Library, MessageCircle, Bell, PlayCircle, CalendarDays, Activity, ShieldAlert, Contact, BookOpenText, Link2, Ellipsis, Settings } from 'lucide-react'
+import { Sun, Layers3, Users, ClipboardCheck, LifeBuoy, Library, MessageCircle, Bell, PlayCircle, CalendarDays, Activity, ShieldAlert, Contact, BookOpenText, Link2, Ellipsis, Settings, FileCheck2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { AccessibleCohort } from '../types/api'
 import { learnerCohortPath } from './routes'
@@ -37,6 +37,9 @@ export function shellNavigation({ staff, admin, cohort, cohorts, schoolFeatures,
     primary: [
       { to: '/dashboard', icon: Sun, label: 'Today', exact: true },
       { to: '/materials', icon: BookOpenText, label: 'Learn' },
+      // My work is part of the redesign (L-1.2); only an explicit on shows it.
+      // Only the cohort's own resolved switch counts, never the school default: a link that redirects away is no link.
+      ...(cohort && (cohort.capabilities?.features || cohort.features)?.student_experience_v2 === true ? [{ to: `/my-work?cohort_id=${cohort.id}`, icon: FileCheck2, label: 'My work' }] : []),
       { to: cohort?.workspace_id ? `/messages?workspace_id=${cohort.workspace_id}` : '/messages', icon: MessageCircle, label: 'Messages' },
     ],
     more: [

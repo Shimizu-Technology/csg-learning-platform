@@ -1,0 +1,229 @@
+# Student Today and My work: W8 PR 8.2
+
+Branch `feat/student-today`, from `main` at `5fa85024`, merged with `origin/main` at `59c4a3a8` (#291). Implementation worker, 2026-11-17. Open a PR for the lead; don't merge or watch it.
+
+## Context and acceptance
+
+CSG Learn's Today is where students land. The audit measured a behind student's Today at 18,552px: "Week 37 · This week" listed about 200 "Open from earlier" items, with no catch-up plan and no help-request status. The API already returned `recently_graded`, but Today never showed it. There was no page for submitted work, and support copy contradicted itself between pages.
+
+Sources: `docs/design/2026-11-platform-redesign/README.md` (§§1–7, decisions 4, 5 and 7 in §12), mockups `07-student-today.html` and `11-my-work.html`, PR #293 (the `student_experience_v2` switch), `LearnerProgress` (#266, #272) and the learning-plan model from #285.
+
+Backlog items: U-5.1, U-5.2, L-1.2, S-11, U-5.5, U-6.7, L-1.3, L-1.4.
+
+Acceptance:
+
+- Only an explicit, resolved `student_experience_v2: true` shows the new Today and My work. Off, unknown or a failed lookup keeps today's views. Cohort 3 (Lance) is Off and stays byte-identical, on web and native.
+- Every status, count and "next" comes from `LearnerProgress`. My work's counts equal its lists. Students see no staff data beyond the names of the people who graded or answered them.
+- Switched-off features disappear: help requests, office hours, learning plans and private meetings. Paused and alumni keep their rules.
+- 390/1280, light and dark, no horizontal scroll, 44px phone targets, reduced motion respected.
+- Query counts stay flat as fixtures grow.
+
+## What changed
+
+**Server.** The dashboard adds `student_today` only when the cohort's switch is explicitly on, so an Off cohort's payload is unchanged. It's built by `StudentToday` from `LearnerProgress`:
+
+- `LearnerProgress#pace` gives the overdue required work: lessons scheduled before this Monday that are open and not handed in. It's measured in the course's typical week, the median number of required lessons scheduled per week, so one old straggler doesn't read as months behind. Self-paced, alumni and read-only enrollments have no pace.
+- `awaiting_review_submissions` and `graded_submissions` join `redo_submissions`. `MyWork` (`GET /api/v1/my_work`) serves all three lists, and Today reuses them, so Today's "Waiting on your instructor (n)" equals My work's Waiting count.
+- Needs you holds three kinds of item: redos with feedback, help answers whose notification is still unread, and the newest unread staff message per conversation. Blocked people are left out.
+- "Your questions" lists help requests still waiting for a first reply.
+- Next session is the first upcoming office hour or live class, past this week, with its `meeting_url`.
+- Lesson submissions now carry `grader` (id and name), and the lesson payload carries `reviewer`, the cohort's support instructor or else its first instructor.
+- Help-answer notifications and Today link to `/lessons/:id?cohort_id&help_request=:id` (L-1.3). The `help_request` lesson context is in the shared web/native destination contract. Other links to the lesson stay plain.
+
+**Web.** `/dashboard` goes through `StudentExperienceSwitch`: the new `StudentTodayPage` when On, the untouched `Dashboard` otherwise. `/my-work` exists only when On; Off sends it to Today. With the switch On:
+
+- My work joins the nav, with a phone tab: Today, Learn, My work, Messages.
+- The lesson's help button reads "View response" after a reply, and the link from Today opens that request's dialog.
+- Lesson blocks name who graded the work and who will review it.
+- The personal plan's "waiting for review" count links to My work.
+
+None of this renders when Off.
+
+**Native.** No visual change. A jest test proves the native Today renders the same tree whether or not the payload carries `student_today`. Native ignores the new `help_request` param.
+
+**Migrations.** None. The catch-up plan reuses `learning_plans` and `learning_plan_revisions`.
+
+### Catch-up plan (Leon's decision 4)
+
+- A plan counts as agreed when staff saved it: an active learning plan with the `learning_plans` switch on. That's the only plan a student sees. Today shows its target date, who saved it last and when (from the latest revision), and its remaining required lessons in milestone order. Five show at first, with "Show all n" in place. "Ask Audreana to change it" opens the conversation with a link to Learn.
+- With no agreed plan, a behind student sees "You're about N weeks behind", the next required lesson as the one primary action, and "Ask Audreana for a catch-up plan". No unreviewed suggestion is generated or sent.
+- **Follow-up:** the instructor-side "suggest a plan" generator. It would build milestones from the remaining required work and a target date, for staff to adjust in the #285 editor. It isn't in this PR.
+
+## Measurements: page height and first actionable item, before and after
+
+The harness ran 7 persona setups × 2 widths × 2 themes in each state. "Before" is the switch Off (today's Dashboard), "after" is On. Light and dark gave identical numbers. y is the top of the first button or link in the next-action area; the phone viewport is 390×844, with the tab bar from y≈776. Raw numbers are in [`student-today-2026-11-17/measurements.json`](student-today-2026-11-17/measurements.json).
+
+| Persona (cohort) | Width | Before: first action y / page height | After: first action y / page height |
+| --- | --- | --- | --- |
+| Behind, 0 of 127, seven redos, no plan | 390 | 354 / **12,662** | 405 / **2,262** |
+| | 1280 | 274 / 9,603 | 309 / 1,324 |
+| Redo with feedback, help answer, message (Alex) | 390 | 354 / 8,737 | 405 / 2,342 |
+| | 1280 | 274 / 6,646 | 337 / 1,436 |
+| Behind with an agreed catch-up plan | 390 | 382 / 1,875 | 342 / 1,452 |
+| Personal plan, work waiting for review | 390 | 326 / 1,807 | 342 / 1,640 |
+| Self-paced, halfway, two waiting | 390 | 772 / 1,516 | 695 / 1,445 |
+| Paused | 390 | 416 / 844 | 213 / 1,117 (the cohort link in the heading; Message CSG staff at 469) |
+| Alumni library | 390 | 324 / 1,650 | 245 / 844 |
+
+The first actionable item is on the first phone screen for every persona, before the tab bar. The longest Today fell from 12,662px to 2,342px. Pages got shorter because lists are capped at five and the module list and stat rows are gone.
+
+The paused page grew by 273px because it now says what stays open and offers "View your past work". The self-paced Continue sits at y=695 because the existing Start here card comes first; W8 PR 8.4 redesigns first run.
+
+The audit's 18,552px came from production's longer course and "Week 37" schedule. The harness's 127-lesson canonical program gives 12,662px for the same layout.
+
+## Scenarios
+
+| Case | Behavior | Status |
+| --- | --- | --- |
+| T01 | Switch Off: `/dashboard` renders `Dashboard` with markup identical to rendering it directly; a stored snapshot of Lance's shape guards it. A cohort list without the key is not "on". The API payload has no `student_today` and its keys are otherwise unchanged. Browser Off pass at 1280/390, light/dark: no `data-today="v2"` and no My work link (28/28). | passed (unit, API, browser) |
+| T02 | One primary action (S-11): only Continue and Join use the primary style. The hero shows module, week, "Lesson 4 of 5" and "155 of 243 lessons". | passed (unit, browser) |
+| T03 | Needs you quotes the redo feedback as Markdown with the grader and when; its link opens `#block-:id`. On the lesson, the feedback card is the first thing in the block, 153px from the top at 1280 and 200px at 390. | passed (browser journey) |
+| T04 | View response links to `?help_request=:id`, marks the notification read and opens the dialog with the reply. After a reload the answer has left Needs you. The help button reads "View response". | passed (unit, browser journey) |
+| T05 | An unread instructor message shows under Needs you with Reply, which opens that conversation. A message from someone the student blocked never shows. | passed (API, unit, browser) |
+| T06 | Waiting on your instructor (n) links to My work's Waiting tab and names the reviewer: "QA usually reviews within 2 days". | passed (unit, browser) |
+| T07 | My work: Needs you, Waiting for review and Graded tabs, with the tab in the URL. Each count equals its rows (API test, plus the browser journey on every tab). The grader is named. Ask about this feedback opens the grader's DM with "Question about: [Feedback on …](lesson#block)" in the composer, and nothing is sent. Graded shows ten at a time. Empty tabs say what counts as work. | passed (API, unit, browser) |
+| T08 | Behind without a plan: "You're about N weeks behind", Continue on the next required lesson, and "Ask QA for a catch-up plan" opening the DM. No plan card or suggestion. | passed (API, unit, browser) |
+| T09 | Behind with an agreed plan: "Catch-up plan · agreed with QA", the target date, who and when, five lessons, Show all 14 expanding in place, and Ask to change it. With learning plans switched off, there's no plan. | passed (API, unit, browser) |
+| T10 | Next live class past this week, with Join to its `meeting_url`. Office hours off means no card. Help requests off means no questions or answers, and the instructor card offers a message instead of Ask for help. | passed (API, unit) |
+| T11 | Paused: since when, work saved, what's open, how to resume, Message CSG staff, View your past work, and "Where you left off" (read only). No pace, Join or Continue. | passed (API, unit, browser) |
+| T12 | Alumni: the library card and recently added. No progress, next step, Needs you or instructor card. Self-paced: no pace or weeks. | passed (API, unit, browser) |
+| T13 | U-5.5: one support message, built from the same rules lessons use. "Asking an instructor for help isn't available" no longer appears on Today when On. | passed (unit) |
+| T14 | Long lists show five rows plus Show all n. Show all n expands in place: the 200ms accordion, instant under reduced motion. | passed (unit, browser) |
+| T15 | No horizontal scroll at 390/1280. No phone tap target under 44px. No console errors. | passed (56 page checks) |
+| T16 | Native Today renders the same tree with or without `student_today` in the payload. | passed (jest); device UI not_run |
+
+## Automated verification
+
+Focused local runs, before the full gate:
+
+- API: `student_today_test.rb` (11 tests) plus the adjacent suites (lessons, query counts, destinations, notifications, OpenAPI contract, help requests): 152 runs, 0 failures. A full local API run passed except three `MigrationDatabaseProcessTest` cases that need the ASUS port adapter. One push-destination expectation was updated for the new `help_request` param.
+- Query counts: `GET /dashboard` with `student_today` and `GET /my_work` cost the same queries for 3 submissions or 15, and for 1 help answer and message or 5. The test checks the fixture really grew.
+- Web: typecheck, lint, and vitest for `Today.test.tsx` (10), `MyWork.test.tsx` (7) and `shellNavigation.test.ts`, plus the student and shared component suites.
+- Mobile: typecheck, the destination-contract suites, and `assigned-content-screens.test.tsx` (17).
+- RuboCop and Brakeman are clean on the changed files. Impeccable 4.6.0 advisory: `[]`.
+- Each fix has a test that fails on the old code: the routes, page, `student_today` and `my_work` didn't exist, the help button had no "View response", lesson blocks had no names, and the destination contract had no `help_request` row.
+
+### Full gate
+
+The ASUS runner was unreachable (the MacBook was on a phone hotspot, and `asus-test` timed out, which also cut off an earlier run). So the full gate ran **locally on the MacBook**, one stage at a time, on `5ae11cbc`. That commit is this branch merged with `origin/main` at `59c4a3a8`, and `main` hadn't moved when the PR was opened.
+
+- API, `PARALLEL_WORKERS=1 OPENAPI_COVERAGE=1`, against the owned local database `csg_student_today_test` (schema freshly loaded): with prepared statements on (`postgres://localhost/csg_student_today_test`) and off (`?prepared_statements=false`), **2,067 runs and 42,240 assertions** each, with 0 failures, errors or skips. The migration-process tests ran against the local server (`MIGRATION_PROCESS_TEST_DATABASE_URL=postgresql://<user>@localhost/postgres`).
+  - A first prepared run with that URL missing its user failed those 2 tests: the production guard requires a user in the URL. With the user added, the file and then the full suite passed.
+- RuboCop: 734 files, no offenses. Brakeman: no warnings.
+- Web: typecheck, lint, vitest (229 files, 2,582 tests), build, `test:bundle` and `api:check` passed.
+- Mobile: typecheck, lint (0 errors; the same 74 warnings as `main`) and jest (141 suites, 1,544 tests) passed.
+
+An earlier ASUS run on `e4fe4507`, before the guard fixes, passed every stage except web vitest. Four repo-wide guards failed there:
+
+- a retired name ("Instructor support");
+- sentence case in "Could not load My work";
+- no page title for `/my-work`;
+- a cohort name not rendered as a record link.
+
+They're fixed in `5ae11cbc`, and the local gate above covers that commit.
+
+## Fix round 1 (independent Codex review and CodeRabbit, head `d497231a`)
+
+The Codex review rated the PR not ready, with seven P2s, all reproduced. It confirmed these hold:
+
+- The Off dashboard JSON, markup, nav, `/my-work` fallback and help behaviour are unchanged.
+- Own-work isolation, latest attempts, counts, copied-cohort destinations and paused learners.
+- Inactive plans are excluded, query growth is flat, and the next session follows its rules.
+
+CodeRabbit raised 12 findings, all valid. Where they overlapped with the review they were fixed once. Every fix has a test that fails on `d497231a`. The new tests were run against that commit in a temporary worktree: all 6 new API tests and all 12 new web tests failed there.
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| P2 1: Today waited for the cohort list before requesting `/dashboard`, even for Lance. | `TodayRoute` starts the dashboard request during render (`lib/dashboardRequest.ts`), while the switch is still resolving. Whichever view renders takes it, so there's one request and no wait. Until the switch is known only the loading state shows, so Off never flashes the new view. W8.3 (#294) can use the same pattern for the lesson request. | `Today.test.tsx`: a hanging cohort list (switch Off and On) gets exactly one request at once and no view until known. |
+| P2 2, 3: Ask about this feedback offered blocked graders and former instructors, so it ended in a 403/404 and support email. | `StaffContact` applies the conversation-creation rules: the cohort workspace's people, staff, not archived, no block either way. My work rows carry `ask_to` (the grader while reachable, else the cohort's `contact`, else nothing). The grader stays named. Today's Message, Ask to change it and Ask for a plan use `contact`. | API: a former instructor's row asks a current one, and blocked means no action. The offered contact really can be messaged (201). `MyWork.test.tsx`: the server-chosen person, no button when null. |
+| P2 4 / CodeRabbit 6: a link to an older answer showed the newest, and an open lesson didn't refresh. | The dialog shows the linked request. A new `help_request` on a lesson that's already open refetches the requests. Switch On only. | `MyWork.test.tsx`: older answer shown, refresh on query-only navigation. |
+| P2 5: the plan's Continue could target a redo in a closed week. | Continue uses the server's next step (`LearnerProgress#next_lesson`, in plan order). | `Today.test.tsx`. |
+| P2 6 / CodeRabbit 3: only five questions and three conversations were sent. | Every waiting question and every conversation with an unread staff message is sent, one row per conversation picked in SQL. Today shows five, then Show all. Counts equal what's reachable. | API: 6 of 6 questions, and a busy conversation doesn't hide a quiet one. `Today.test.tsx`: Show all 6. |
+| P2 7: with learning plans Off, Today still offered to ask for one. | `can_ask_for_plan` needs an active program enrollment, learning plans on and a reachable contact. The explanatory copy follows it. | API and `Today.test.tsx`. |
+| CodeRabbit 1, 2: the previous cohort's Today or My work stayed on screen while a new cohort loaded, or after it failed. | Both clear their data when a load starts. | `Today.test.tsx`, `MyWork.test.tsx`. |
+| CodeRabbit 4: zero-step lessons counted in the scheduled pace totals. | They're excluded from the scheduled weeks and this week, as well as from overdue. `pace` is new and only Today reads it, so no Off count changes. | API: empty lessons in weeks 1–4 no longer change the typical week. |
+| CodeRabbit 5: a locked redo offered resubmit. | `can_resubmit` requires the lesson to be open. | API. |
+| CodeRabbit 7: My work's nav link could come from the school default. | It follows only the cohort's own resolved switch. | `shellNavigation.test.ts`. |
+| CodeRabbit 8, 9: the message hook didn't fall back on rejection, and could navigate after unmount. | A rejected request opens the support email; a result after unmount is ignored. | `MyWork.test.tsx`. |
+| CodeRabbit 10, 11: the spec checked only target height, and could leave state read after a failure. | It checks width too. The journey restores the help answer and the instructor conversation to unread in a `finally`. | Browser pass. |
+
+The QA harness now also resets the instructor conversation to unread. The 1280 journey's Ask about this feedback opens the conversation, which reads its messages, so the 390 pass had lost its unread message.
+
+### Fix-round gate (local MacBook; the ASUS is still unreachable)
+
+On `cb0a2f73`, this branch with `origin/main` at `59c4a3a8` (unchanged). Stages ran one at a time, each starting with the 1-minute load under 25:
+
+- API, `PARALLEL_WORKERS=1`, owned database `csg_student_today_test`, prepared statements on and off: **2,073 runs and 42,273 assertions** each, 0 failures, errors or skips.
+- RuboCop: 735 files, no offenses. Brakeman: no warnings.
+- Web: typecheck, lint, vitest (229 files, 2,594 tests), build, `test:bundle` and `api:check` passed.
+- Mobile: typecheck, lint (0 errors, 74 warnings as on `main`) and jest (141 suites, 1,544 tests) passed.
+
+### Fix-round browser matrix
+
+A fresh harness on `cb0a2f73` (servers `68050`/`68089`, claimed, then stopped and dropped with `run clean`):
+
+- Switch Off, Lance's shape and the "before": **28/28**.
+- Switch On: **32/32**. That's 7 personas × 390/1280 × light/dark, plus the journeys at both widths and Show all under reduced motion. Phone targets were checked for width as well as height.
+- Measurements match the table above. The paused learner's first link is now the cohort record link in the heading.
+
+### Merged with #294 (W8.3 lesson page), `186fed5d`
+
+#294 landed during the fix round. I merged `origin/main` and resolved the conflicts:
+
+- **`ContextualHelp.tsx`:** keeps #294's single help entry, exercise targeting, "View response" rule and legacy `staff_response` handling, plus this branch's deep-link fixes. The linked request is looked up across the lesson's whole help history (exercises included) and shown in the dialog. A new link on an open lesson refetches the requests.
+- **`ContentBlockRenderer.tsx` and `LessonView.tsx`:** these are `main`'s, unchanged; W8.3 owns them. The redesigned lesson page names its instructor through #294's own `instructor` field. So this branch's lesson-payload `reviewer`, submission `grader` and the renderer edits are dropped rather than shipped as a second, overlapping concept. Grader names stay on Today and My work.
+- **Message eligibility:** one rule, `Workspace#messageable_users_for` (available people minus blocks either way). The direct-message directory (`GET /direct_conversations/available_users`, used by #294's `PersonActions` and `InstructorMessageAction`) and `StaffContact` both read it. My work keeps its own "Ask about this feedback" action rather than `PersonActions`. `PersonActions` has a fixed "Message <name>" label, no lesson-link prefill, and one directory request per instance, so a page of rows would make N requests. The server's `ask_to` decides eligibility once for all rows.
+- Both type files were regenerated, not hand-merged. The OpenAPI document was merged three ways with no field conflicts.
+
+**Gate on the merged head `4e7d1bc9`** (local MacBook; the ASUS is unreachable). Stages ran one at a time; the unprepared API run waited for the load to drop from 45 to under 25:
+
+- API, prepared statements on and off: **2,082 runs and 42,341 assertions** each, 0 failures.
+- RuboCop: 736 files, clean. Brakeman: 0 warnings, plus the 1 long-standing ignored entry from `main`.
+- Web: typecheck, lint, vitest (234 files, 2,635 tests), build, `test:bundle` and `api:check` passed.
+- Mobile: typecheck, lint (0 errors) and jest (1,544 tests) passed.
+
+**Browser matrix on the merged head** (servers `64006`/`64279`, claimed, then cleaned): switch Off **28/28**, switch On **32/32**.
+
+- The journeys pass on #294's lesson page. The redo feedback lands 169px from the top at 1280 and 194px at 390.
+- The other measurements match the table.
+
+### Final round (CodeRabbit review 5937232843 and two follow-ups, head `95521be9`)
+
+| Finding | Fix | Test (fails on `95521be9`) |
+| --- | --- | --- |
+| Unread staff thread replies were left out of Today's unread list, though the conversation's badge counts them. | The `parent_message_id` restriction is gone. The author, membership, read-cursor and block filters stay, as does one row per conversation. | API: a read root with an unread staff reply now shows that reply. |
+| A `help_request` link opened the dialog on the lesson context, so an exercise request's reply stayed collapsed. | On auto-open, the dialog selects the linked request's own context (compatible with #294's exercise targeting). | `LearnerEntitlements.test.tsx`: three contexts and a linked acknowledged request on one exercise. The title reads "Your help request" and the reply shows. |
+| The redo-landing check passed a card above the viewport. | It also requires `feedbackTop >= 0`. | Browser journey. |
+| The message hook could use a pending result after the user or cohort changed while still mounted. | Each request belongs to a user-and-cohort context. A result for an old context writes no draft and doesn't navigate, and "Opening" resets for the new context. | `useMessageInstructor.test.tsx`: cohort change and user change while pending. |
+| The refresh test only checked that refresh was called. | It now starts unanswered, follows the link without remounting, and asserts the refreshed reply is in the dialog. | `MyWork.test.tsx`. |
+
+Verification:
+
+- API: the affected files (`student_today_test.rb`, the OpenAPI contract and communication), 45 runs each with prepared statements on and off, 0 failures. RuboCop is clean on the changed files.
+- Web: typecheck and lint passed. Vitest over `src/pages/student`, `src/components/student` and `src/lib` passed (98 files, 1,252 tests).
+- Browser, on a fresh harness: Off 28/28, On 32/32.
+  - The first On attempt (servers `9407`/`9424`) failed the 390 Alex row twice. The 1280 journey ends on the instructor conversation, which marks it read in the background, and that could land after the `finally` reset.
+  - The journey's `finally` now waits for the page to settle and leaves it before resetting. The rerun (servers `26219`/`26277`) passed.
+  - Both harnesses were claimed, then stopped and dropped with `run clean`.
+
+## Not run
+
+- Native device UI and native visual parity (follow-up).
+- Safari/WebKit and real phones; Chromium sizes the phone viewport.
+- Real Clerk, push delivery and production data.
+
+## Follow-ups
+
+- Suggest a catch-up plan: generate milestones from the remaining required work and a target date, for staff to adjust (decision 4). Students keep seeing only the agreed plan.
+- Staff "View as student" still previews today's Dashboard for Today; it doesn't build `student_today` for a previewed learner.
+- Native Today and My work in the redesign (W10), reading `student_today` and `/my_work`, and opening `help_request` on the lesson.
+- Cohort home lists sessions without Join (`StudentCohortHome`). When On, cohort home redirects to Learn and Today has the Join card, so that page only exists for Off cohorts and stays unchanged for Lance.
+- The weekly-plan projection still lists only this week's events. Today no longer reads it when On.
+- The self-paced Start here card sits above Today's hero (W8 PR 8.4).
+
+## Resources
+
+- Lifecycle session `2a22c646-2f4f-4bc8-acaa-b14cad908eea`.
+- Five harness runs: servers `93920`/`93952`, `84921`/`85052`, `3626`/`3696`, `68050`/`68089` (fix round) and `64006`/`64279` (merged with #294). Each was claimed, then stopped and its database dropped with `scripts/qa/run clean`. Playwright pages were claimed and released per test by the spec.
+- The owned local test database `csg_student_today_test` was dropped at the end.
+- The ASUS wrapper removes its own container; its retry loop was stopped once the ASUS was known to be unreachable. Shared PostgreSQL and other sessions' worktrees were left untouched.

@@ -9,6 +9,7 @@ import {
 } from './unread'
 import type {
   CourseOutlineResponse,
+  MyWorkResponse,
   MessageDestination,
   ThreadWindowOptions,
   ActivityEventsResponse,
@@ -523,6 +524,9 @@ export const api = {
   /** Learn's course outline (redesigned student experience). Staff pass `studentId` to view one enrolled learner's. */
   getCourseOutline: (cohortId?: number | null, studentId?: number | null) =>
     fetchApi<CourseOutlineResponse>(`/api/v1/course_outline${queryString({ cohort_id: cohortId, student_id: studentId })}`),
+  /** My work: the learner's own redos, work waiting for review and graded work in one cohort. */
+  getMyWork: (cohortId?: number | null) =>
+    fetchApi<MyWorkResponse>(`/api/v1/my_work${queryString({ cohort_id: cohortId })}`),
   getRecordings: (cohortId?: number) =>
     fetchApi<RecordingsResponse>(`/api/v1/recordings${queryString({ cohort_id: cohortId })}`),
   getResources: (cohortId?: number) =>

@@ -58,6 +58,13 @@ class Workspace < ApplicationRecord
     paused_for?(current_user) ? scope.where(role: [ :instructor, :admin ]) : scope
   end
 
+  # People this user can open a direct conversation with now: the available
+  # people, minus anyone they block or who blocks them. The direct-message
+  # directory and learner pages' message actions (StaffContact) both read it.
+  def messageable_users_for(current_user)
+    available_users_for(current_user).where.not(id: current_user.blocked_relationship_user_ids)
+  end
+
   def recipient_users
     available_users_scope(nil)
   end

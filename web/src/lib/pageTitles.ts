@@ -36,6 +36,7 @@ export const ROUTE_TITLES: Array<[path: string, name: string]> = [
   ['/cohorts/:id', 'My cohort'],
   ['/meetings', 'My meetings'],
   ['/materials', TERMS.learn],
+  ['/my-work', TERMS.myWork],
   ['/modules/:id', 'Module'],
   ['/lessons/:id', 'Lesson'],
   ['/profile', 'Profile'],

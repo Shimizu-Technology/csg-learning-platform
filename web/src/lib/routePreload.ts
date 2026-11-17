@@ -16,6 +16,8 @@ const dashboardLoader = () => import('../pages/student/Dashboard').then((module)
 const privateMeetingsLoader = () => import('../pages/student/PrivateMeetings').then((module) => ({ default: module.PrivateMeetings }))
 const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.MaterialsRoute }))
 const moduleViewLoader = () => import('../pages/student/ModuleView').then((module) => ({ default: module.ModuleView }))
+const studentTodayLoader = () => import('../pages/student/Today').then((module) => ({ default: module.StudentTodayPage }))
+const myWorkLoader = () => import('../pages/student/MyWork').then((module) => ({ default: module.MyWorkPage }))
 const courseOutlineLoader = () => import('../pages/student/CourseOutline').then((module) => ({ default: module.CourseOutlineRoute }))
 const lessonViewLoader = () => import('../pages/student/LessonView').then((module) => ({ default: module.LessonView }))
 const recordingsLoader = () => import('../pages/student/Recordings').then((module) => ({ default: module.Recordings }))
@@ -52,6 +54,8 @@ export const PrivateMeetings = lazyWithPreload(privateMeetingsLoader)
 export const Materials = lazyWithPreload(materialsLoader)
 export const ModuleView = lazyWithPreload(moduleViewLoader)
 export const CourseOutline = lazyWithPreload(courseOutlineLoader)
+export const StudentToday = lazyWithPreload(studentTodayLoader)
+export const MyWork = lazyWithPreload(myWorkLoader)
 export const LessonView = lazyWithPreload(lessonViewLoader)
 export const Recordings = lazyWithPreload(recordingsLoader)
 export const Resources = lazyWithPreload(resourcesLoader)
@@ -86,7 +90,8 @@ export const SignInPage = lazyWithPreload(signInLoader)
 export const SignUpPage = lazyWithPreload(signUpLoader)
 
 const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
-  '/dashboard': [dashboardLoader],
+  '/dashboard': [dashboardLoader, studentTodayLoader],
+  '/my-work': [myWorkLoader, lessonViewLoader],
   '/meetings': [privateMeetingsLoader],
   '/materials': [materialsLoader, courseOutlineLoader, moduleViewLoader, lessonViewLoader],
   '/recordings': [recordingsLoader],
