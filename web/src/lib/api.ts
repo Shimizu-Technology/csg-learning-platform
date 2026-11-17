@@ -266,6 +266,9 @@ async function fetchApi<T>(
       }
 
       const data = JSON.parse(text) as T;
+      if (method === 'PATCH' && endpoint === '/api/v1/dashboard/start_here' && (data as { dismissed?: boolean }).dismissed === true) {
+        invalidateDashboardCache(cacheScope);
+      }
       if ((method !== 'GET' && /\/api\/v1\/(notifications|channels|direct_conversations)\/.*read/.test(endpoint)) ||
           (method !== 'GET' && endpoint === '/api/v1/message_preferences') ||
           (method === 'GET' && /^\/api\/v1\/announcements\/\d+$/.test(endpoint))) {
@@ -355,6 +358,16 @@ function waitForRetry(attempt: number) {
   return new Promise<void>((resolve) => {
     globalThis.setTimeout(resolve, 400 * attempt * attempt + jitter);
   });
+}
+
+function invalidateDashboardCache(scope: string | null) {
+  if (!scope) return;
+  try {
+    const prefix = `${CACHE_PREFIX}${scope}:`;
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith(prefix) && /^\/api\/v1\/dashboard(?:\?|$)/.test(key.slice(prefix.length))) localStorage.removeItem(key);
+    });
+  } catch { /* Storage may be unavailable; the successful dismissal still stands. */ }
 }
 
 function invalidateUnreadCache(scope: string | null) {

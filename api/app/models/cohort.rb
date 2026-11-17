@@ -103,14 +103,19 @@ class Cohort < ApplicationRecord
   def assign_public_slug
     return unless public_slug.nil? && public_title.present?
 
+    # One allocation lock also covers a title that equals another title's suffix.
+    self.class.connection.execute("SELECT pg_advisory_xact_lock(hashtext('public-course-slug'))")
+    stored_slug = self.class.uncached { self.class.where(id: id).pick(:public_slug) } if persisted?
+    if stored_slug.present?
+      self.public_slug = stored_slug
+      return
+    end
+
     base = public_title.to_s.parameterize
     if base.blank? || RESERVED_PUBLIC_SLUGS.include?(base)
       self.id ||= self.class.connection.select_value("SELECT nextval(#{self.class.connection.quote(self.class.sequence_name)})")
       base = "course-#{id}"
     end
-    # Serializes only competing titles, including across different curricula.
-    # The transaction-scoped lock is safe behind the transaction pooler.
-    self.class.connection.execute("SELECT pg_advisory_xact_lock(hashtext('public-course-slug'), hashtext(#{self.class.connection.quote(base)}))")
     candidate = base
     suffix = 1
     while self.class.exists?(public_slug: candidate)

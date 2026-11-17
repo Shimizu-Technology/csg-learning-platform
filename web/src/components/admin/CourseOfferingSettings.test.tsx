@@ -23,6 +23,18 @@ beforeEach(() => {
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
 const render = async (value = cohort) => act(async () => root.render(<TestRouter><CourseOfferingSettings cohort={value} onSaved={onSaved} /></TestRouter>))
+it.each(['error', 'rejection'])('stages marketing independently of instructor loading (%s)', async failure => {
+  if (failure === 'error') api.getCohortInstructorAssignments.mockResolvedValue({ error: 'Unavailable' })
+  else api.getCohortInstructorAssignments.mockRejectedValue(new Error('Offline'))
+  const onDraftChange = vi.fn()
+  await act(async () => root.render(<TestRouter><CourseOfferingSettings cohort={cohort} onSaved={onSaved} onDraftChange={onDraftChange} /></TestRouter>))
+  const field = [...container.querySelectorAll('label')].find(el => el.textContent?.startsWith('Public title'))!.querySelector('input')!
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'Keep this draft'); field.dispatchEvent(new Event('input', { bubbles: true })) })
+  expect(onDraftChange).toHaveBeenLastCalledWith({ public_title: 'Keep this draft' })
+  expect(container.textContent).toContain('Course copy can still be saved')
+  expect((container.querySelector('select') as HTMLSelectElement).disabled).toBe(true)
+  expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).disabled).toBe(true)
+})
 it('shows readiness and keeps checkout off by default', async () => {
   await render()
   expect(container.textContent).toContain('Ready: Selected modules contain a published lesson with content')

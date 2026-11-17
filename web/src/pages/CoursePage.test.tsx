@@ -11,10 +11,18 @@ let host: HTMLDivElement, root: ReturnType<typeof createRoot>
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.clearAllMocks(); state.auth.isSignedIn = false; state.auth.user = null; state.auth.enrollments = [] })
 const course = { id: 13, slug: 'course-counter', name: 'Build a counter', description: 'Learn programming', outcomes: 'Explain your code', prerequisites: 'A browser', duration: '4 hours', preview: 'Try a counter', lesson_count: 2, syllabus: [{ title: 'Section', lessons: ['First steps', 'A project'] }], checkout_available: true, price_cents: 14900, access_months: 12, instructor_message_weeks: 6, instructor_response_target: 'usually reviewed within 2 days' }
 beforeEach(() => state.api.getCourseOfferings.mockResolvedValue({ data: { public_catalog_mode: 'automatic', offerings: [course] } }))
-async function render() {
+async function render(search = '') {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
-  await act(async () => root.render(<MemoryRouter initialEntries={['/courses/course-counter']}><Routes><Route path="/courses/:slug" element={<CourseCatalog />} /></Routes></MemoryRouter>))
+  await act(async () => root.render(<MemoryRouter initialEntries={[`/courses/course-counter${search}`]}><Routes><Route path="/courses/:slug" element={<CourseCatalog />} /></Routes></MemoryRouter>))
 }
+it.each(['', '?utm_source=school&checkout=canceled'])('keeps the slug-selected course and query on the header Sign in link (%s)', async search => {
+  state.api.getCourseOffering.mockResolvedValue({ data: { offering: course } })
+  await render(search)
+  const href = host.querySelector('header a[href^="/sign-in"]')!.getAttribute('href')!
+  const params = new URLSearchParams(href.split('?')[1])
+  expect(params.get('offering_id')).toBe('13')
+  if (search) { expect(params.get('utm_source')).toBe('school'); expect(params.get('checkout')).toBe('canceled') }
+})
 it('shows public marketing, derived syllabus and a course-specific signup intent', async () => {
   state.api.getCourseOffering.mockResolvedValue({ data: { offering: course } })
   await render()

@@ -172,6 +172,19 @@ class CatalogCoursePagesTest < ActionDispatch::IntegrationTest
     assert_equal %w[python-fundamentals python-fundamentals-2], rows.map { |row| row.reload.public_slug }
   end
 
+  test "a stale instance keeps the first public slug assigned by another instance" do
+    row = Cohort.create!(name: "Wizard draft", curriculum: @curriculum, start_date: LearningCalendar.today)
+    first = Cohort.find(row.id)
+    stale = Cohort.find(row.id)
+    assert_nil stale.public_slug
+    first.update!(public_title: "Python")
+    stale.update!(public_title: "Ruby")
+    assert_equal "python", first.public_slug
+    assert_equal "python", stale.public_slug
+    assert_equal "python", row.reload.public_slug
+    assert_equal "Ruby", row.public_title
+  end
+
   test "a reserved title assigned after creation receives a stable ID fallback" do
     row = Cohort.create!(name: "Internal draft", curriculum: @curriculum, start_date: LearningCalendar.today)
     assert_nil row.public_slug

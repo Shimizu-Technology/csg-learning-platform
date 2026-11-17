@@ -83,9 +83,13 @@ export function CourseCatalog() {
 
   if (slug && notFound) return <CourseUnavailable />
 
+  const signInParams = new URLSearchParams(searchParams)
+  if (slug && offerings[0]) signInParams.set('offering_id', String(offerings[0].id))
+  const signInPath = slug && offerings[0] ? `/sign-in?${signInParams}` : courseAuthPath('/sign-in', searchParams.toString())
+
   return (
     <div className="flex min-h-svh flex-col bg-brand-cream text-ink">
-      <PublicHeader actions={<LinkButton to={isSignedIn ? '/dashboard' : courseAuthPath('/sign-in', searchParams.toString())} variant="quiet" shape="brand" className="px-3 text-ink">{isSignedIn ? 'My learning' : 'Sign in'}</LinkButton>} />
+      <PublicHeader actions={<LinkButton to={isSignedIn ? '/dashboard' : signInPath} variant="quiet" shape="brand" className="px-3 text-ink">{isSignedIn ? 'My learning' : 'Sign in'}</LinkButton>} />
       <main className="safe-px mx-auto w-full max-w-[1200px] flex-1 py-12 lg:py-20">
         <p className="brand-eyebrow">Focused courses</p>
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">{slug ? offerings[0]?.name || 'Course' : 'Learn one useful skill at a time.'}</h1>

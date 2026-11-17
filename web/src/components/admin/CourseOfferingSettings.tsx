@@ -40,8 +40,8 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
       if (response.data && !response.error && !response.fromCache) {
         setInstructors(response.data.instructors)
         setLoaded(true)
-      } else setError('Could not load assigned instructors. Refresh before saving.')
-    }).catch(() => { if (active) setError('Could not load assigned instructors. Refresh before saving.') })
+      } else setError('Could not load assigned instructors. Course copy can still be saved; refresh to edit the instructor or checkout.')
+    }).catch(() => { if (active) setError('Could not load assigned instructors. Course copy can still be saved; refresh to edit the instructor or checkout.') })
     return () => { active = false }
   }, [cohort.id])
 
@@ -64,7 +64,7 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
   }, [cohort.id, price, priceCents, stripePrice, instructor, marketing])
   const ready = serverReadiness !== null && Object.values(serverReadiness).every(Boolean)
   useEffect(() => {
-    if (!onDraftChange || !loaded) return
+    if (!onDraftChange) return
     const patch = { ...marketing, public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null, self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks), public_checkout_enabled: visible }
     onDraftChange(Object.fromEntries(Object.entries(patch).filter(([key, value]) => value !== ((cohort as unknown as Record<string, unknown>)[key] ?? (key.startsWith('public_') && key !== 'public_price_cents' && key !== 'public_checkout_enabled' ? '' : null)) && !(key === 'stripe_price_id' && value === (cohort.stripe_price_id || null)))))
   }, [price, priceCents, stripePrice, instructor, months, weeks, visible, ready, cohort, onDraftChange, loaded, marketing])

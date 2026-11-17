@@ -34,3 +34,19 @@ it('stages response edits for the cohort save instead of exposing an independent
   expect(host.querySelector('button')).toBeNull()
   expect(api.saveFeatureSettings).not.toHaveBeenCalled()
 })
+
+it('acknowledges an accepted save without overwriting a later edit', async () => {
+  host = document.createElement('div'); document.body.append(host); root = createRoot(host)
+  const draft = vi.fn()
+  api.getFeatureSettings.mockResolvedValue({ data: { review_response_time_override: 'usually reviewed within 2 days' } })
+  const render = (savedResponse?: { cohortId: number; value: string }) => act(async () => root.render(<ReviewResponseSettings cohortId={13} onDraftChange={draft} savedResponse={savedResponse} />))
+  await render()
+  const field = host.querySelector('input')!
+  const edit = async (value: string) => act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, value); field.dispatchEvent(new Event('input', { bubbles: true })) })
+  await edit('usually reviewed within 4 days')
+  await render({ cohortId: 13, value: 'usually reviewed within 3 days' })
+  expect(field.value).toBe('usually reviewed within 4 days')
+  expect(draft).toHaveBeenLastCalledWith('usually reviewed within 4 days')
+  await edit('usually reviewed within 2 days')
+  expect(draft).toHaveBeenLastCalledWith('usually reviewed within 2 days')
+})

@@ -10,6 +10,7 @@ import { originLabel } from '../../lib/recordOrigin'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { FeatureSettings } from '../../components/admin/FeatureSettings'
+import type { SavedReviewResponse } from '../../components/admin/ReviewResponseSettings'
 import { CourseOfferingSettings } from '../../components/admin/CourseOfferingSettings'
 import { useAuthContext } from '../../contexts/AuthContext'
 import type { CourseOfferingTerms } from '../../types/api'
@@ -183,6 +184,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
   const [cohort, setCohort] = useState<CohortData | null>(null)
   const [saving, setSaving] = useState(false)
   const [reviewResponseDraft, setReviewResponseDraft] = useState<string | null | undefined>(undefined)
+  const [savedReviewResponse, setSavedReviewResponse] = useState<SavedReviewResponse>()
   const [featureDraft, setFeatureDraft] = useState<Record<string, boolean | null> | null>(null)
   const [savedRevision, setSavedRevision] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -310,10 +312,11 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         if (featureDraft || reviewResponseDraft !== undefined) {
           const result = await api.saveFeatureSettings({ ...(featureDraft ? { features: featureDraft } : {}), ...(reviewResponseDraft !== undefined ? { review_response_time: reviewResponseDraft } : {}) }, Number(id))
           if (result.error || !result.data) throw new Error('Could not save features')
+          if (reviewResponseDraft !== undefined) setSavedReviewResponse({ cohortId: Number(id), value: reviewResponseDraft })
         }
         const fresh = await reloadCohort()
         if (!fresh) throw new Error('Could not refresh settings')
-        setOfferingDraft({}); setFeatureDraft(null); setReviewResponseDraft(undefined); setAssignedChanges({}); setSavedRevision(v => v + 1); notifySuccess('Cohort settings saved'); await onSaved?.()
+        setOfferingDraft({}); setFeatureDraft(null); setReviewResponseDraft(undefined); setSavedReviewResponse(undefined); setAssignedChanges({}); setSavedRevision(v => v + 1); notifySuccess('Cohort settings saved'); await onSaved?.()
       }
     } catch { notifyError('Some settings may have saved. Your edits are preserved; retry Save settings to finish.') }
     finally { try { await refreshCohorts() } catch { notifyError('Could not refresh the cohort list. Reload to see the latest status.') } finally { setSaving(false) } }
@@ -381,7 +384,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         <h2 className="text-lg font-bold">Cohort settings</h2>
         <div id="cohort-status"><SegmentedControl label="Cohort status">{COHORT_STATUS_OPTIONS.map(option => <SegmentButton key={option.value} disabled={option.value === 'upcoming' && editStartDate <= new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam' }).format(new Date())} selected={editStatus === option.value} onClick={() => void chooseStatus(option.value)} className={option.value === 'archived' ? 'text-danger-ink' : undefined}>{option.value === 'upcoming' && editStartDate <= new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam' }).format(new Date()) ? 'Upcoming (move start date)' : option.label}</SegmentButton>)}</SegmentedControl><p className="mt-2 text-sm text-ink-secondary">{COHORT_STATUS_OPTIONS.find(option => option.value === editStatus)?.description}</p></div>
         <label className="block text-sm font-semibold">Cohort start date<input aria-label="Cohort start date" type="date" className="app-control mt-1 block" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} /></label>
-        {user?.role === 'admin' && <FeatureSettings key={`features-${cohort.id}-${savedRevision}`} cohortId={cohort.id} onDraftChange={setFeatureDraft} onReviewResponseDraftChange={setReviewResponseDraft} />}
+        {user?.role === 'admin' && <FeatureSettings key={`features-${cohort.id}-${savedRevision}`} cohortId={cohort.id} onDraftChange={setFeatureDraft} onReviewResponseDraftChange={setReviewResponseDraft} savedReviewResponse={savedReviewResponse} />}
         {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && <CourseOfferingSettings key={`${cohort.id}-${savedRevision}`} cohort={cohort} onSaved={async () => {}} onDraftChange={setOfferingDraft} />}
         {cohort.course_delivery !== 'self_paced' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">

@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { Button } from '../ui/Button'
 
-export function ReviewResponseSettings({ cohortId, onDraftChange }: { cohortId?: number; onDraftChange?: (value: string | null | undefined) => void }) {
+export type SavedReviewResponse = { cohortId: number; value: string | null }
+
+export function ReviewResponseSettings({ cohortId, onDraftChange, savedResponse }: { cohortId?: number; onDraftChange?: (value: string | null | undefined) => void; savedResponse?: SavedReviewResponse }) {
   const [value, setValue] = useState('')
   const [saved, setSaved] = useState('')
   const [fallback, setFallback] = useState('')
@@ -20,6 +22,9 @@ export function ReviewResponseSettings({ cohortId, onDraftChange }: { cohortId?:
     }).catch(() => { if (active) setMessage('Could not load the response time. Reload to try again.') })
     return () => { active = false }
   }, [cohortId])
+  useEffect(() => {
+    if (loaded && savedResponse && savedResponse.cohortId === cohortId) setSaved(savedResponse.value || '')
+  }, [cohortId, loaded, savedResponse])
   useEffect(() => {
     if (loaded && onDraftChange) onDraftChange(value.trim() === saved.trim() ? undefined : value.trim() || null)
   }, [loaded, value, saved, onDraftChange])
