@@ -217,3 +217,33 @@ test('client On with a missing server navigation keeps legacy redo and completio
   await expect(page.getByRole('button', { name: 'Mark exercise complete', exact: true })).toHaveCount(1)
   await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(1)
 })
+
+test('self-paced author contact follows no-support, expiry and help-Off capabilities', async ({ page }) => {
+  const response = await page.request.post('/api/v1/direct_conversations', {
+    headers: { Authorization: 'Bearer test_token_7' }, data: { cohort_id: ids.self_paced_cohort, user_ids: [2] },
+  })
+  expect(response.ok()).toBe(true)
+  const conversationId = (await response.json()).direct_conversation.id
+  const message = await page.request.post(`/api/v1/direct_conversations/${conversationId}/messages`, {
+    headers: { Authorization: 'Bearer test_token_2' }, data: { body: 'Synthetic self-paced author profile check.' },
+  })
+  expect(message.ok()).toBe(true)
+  for (const mode of ['none', 'expired', 'help off']) {
+    await page.route('**/api/v1/cohorts/accessible', async route => {
+      const response = await route.fetch()
+      const body = await response.json()
+      const cohort = body.cohorts.find((entry: { id: number }) => entry.id === ids.self_paced_cohort)
+      cohort.capabilities.support_mode = mode === 'help off' ? 'course_question' : 'none'
+      cohort.capabilities.features.help_requests = mode !== 'help off'
+      if (mode === 'expired') cohort.capabilities.support_expires_at = '2026-01-01T00:00:00Z'
+      await route.fulfill({ response, json: body })
+    })
+    await page.goto(`/messages/dm/${conversationId}?cohort_id=${ids.self_paced_cohort}&qa_user=7`)
+    await page.getByRole('button', { name: /QA Instructor/ }).first().click()
+    const profile = page.getByRole('dialog', { name: 'Profile' })
+    await expect(profile).toBeVisible()
+    await expect(profile.getByRole('button', { name: 'Message QA Instructor', exact: true })).toHaveCount(0)
+    await expect(profile.getByRole('link', { name: 'Book a meeting' })).toHaveCount(0)
+    await page.unroute('**/api/v1/cohorts/accessible')
+  }
+})
