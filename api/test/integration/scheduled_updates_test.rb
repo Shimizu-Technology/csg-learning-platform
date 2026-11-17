@@ -225,6 +225,13 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
     @author.reload.cohort_instructor_assignments.destroy_all
     publisher = ScheduledAnnouncementPublisher.new
     assert_equal 1, publisher.call(now: Time.current)[:refused]
+    # Validation alone must not delete the persisted notice or clear the reason.
+    pending = Announcement.find(update.id)
+    pending.scheduled_for = 1.hour.from_now
+    pending.scheduled_by = @admin
+    assert pending.valid?
+    assert_equal 1, Notification.where(notifiable: update).count
+    assert Announcement.find(update.id).schedule_failure.present?
     @cohort.cohort_instructor_assignments.create!(user: @author)
     as_user(@author) do
       patch "/api/v1/announcements/#{update.id}", params: { scheduled_for: 1.hour.from_now.iso8601 }, headers: headers, as: :json
@@ -327,6 +334,25 @@ class ScheduledUpdatesTest < ActionDispatch::IntegrationTest
         assert_equal size, ids.size, "#{viewer.first_name} #{status} list at size #{size}"
         [ [ viewer.first_name, status ], count ]
       end
+    end
+    assert_equal counts.first, counts.last
+  end
+
+  test "refused drafts remain visible to their author with flat list query counts" do
+    @author.reload.cohort_instructor_assignments.destroy_all
+    counts = [ 1, 5 ].map do |size|
+      (size - Announcement.draft.where(author: @author).count).times { scheduled(at: 1.hour.ago) }
+      ScheduledAnnouncementPublisher.new.call(now: Time.current)
+      # Match the existing cardinality checks: warm request-global identity
+      # associations before measuring each response size; QueryCounter clears SQL caches.
+      as_user(@author) { get "/api/v1/announcements", params: { scope: "manage", status: "draft" }, headers: headers }
+      count = count_queries do
+        as_user(@author) { get "/api/v1/announcements", params: { scope: "manage", status: "draft" }, headers: headers }
+      end
+      assert_response :success
+      assert_equal size, ids.size
+      assert response.parsed_body["announcements"].all? { |row| row["schedule_failure"].present? && !row["can_edit"] }
+      count
     end
     assert_equal counts.first, counts.last
   end

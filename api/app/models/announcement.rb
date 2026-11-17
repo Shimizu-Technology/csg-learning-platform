@@ -27,7 +27,7 @@ class Announcement < ApplicationRecord
   validate :schedule_only_while_draft
   validate :schedule_ahead, if: -> { scheduled_for.present? && will_save_change_to_scheduled_for? }
 
-  before_validation :clear_schedule_failure
+  before_save :clear_schedule_failure
 
   def clear_schedule_failure
     return unless schedule_failure.present? && (published? || (scheduled_for.present? && will_save_change_to_scheduled_for?))
