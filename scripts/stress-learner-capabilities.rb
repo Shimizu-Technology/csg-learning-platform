@@ -24,6 +24,12 @@ if ENV["STRESS_SQL_DELAY"]
 end
 
 if ENV["STRESS_CLOCK_STEP"]
+  klass.prepend(Module.new do
+    define_method(:before_setup) do
+      clock_offset = 0.0
+      super()
+    end
+  end)
   ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
     sql = payload[:sql]
     if sql.start_with?('UPDATE "enrollments"') && sql.include?('"first_opened_at"') && sql.include?('"support_expires_at"')
