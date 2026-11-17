@@ -135,6 +135,15 @@ harness database and servers afterward. The full ASUS gate now runs the API
 suite with prepared statements enabled and disabled, retaining the loopback
 migration-process port adapter.
 
+After that media matrix, the record-route extension uses the same personal-plan
+fixtures but normal module assignments for the learner-boundary journey. Restore
+persona 6 with `User.find(6).enrollments.find_by!(cohort_id: 2).assign_cohort_content_defaults!`
+via the local QA boot script and owned database. Then run the workspace spec with
+`QA_WORKSPACE_FIX=1` and `--grep 'module cards|learner boundaries'`. Its 32 cases
+check the new staff record pages and exact Back paths, milestone/media lesson
+links, preview module/lesson containment and all six normal student personas.
+The separate 16-case media matrix retains the lesson-only assignment fixture.
+
 ### Catalog and course pages
 
 Start with `QA_CHECKOUT_READY=1 scripts/qa/run start`, then from `api/` run

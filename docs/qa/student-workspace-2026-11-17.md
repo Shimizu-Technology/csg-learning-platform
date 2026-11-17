@@ -1,6 +1,6 @@
 # Student workspace — W7 PR 7.5
 
-Current result: main through `6d33bc0a` (#287) is merged as `0bc61730`. Both API clients were regenerated. Focused integration checks pass; the complete post-#287 ASUS gate and fresh headless checks are in progress. PR #284 stays open without merging, watching or dismissing reviews. Earlier results below are historical evidence until repeated on this integration.
+Current result: main through `6d33bc0a` (#287) is merged. Both generated clients were regenerated. The complete ASUS gate passed, including both API prepared-statement modes and every web/mobile check. All **48 affected browser checks** passed at 1280/390 in light/dark. The final application change is `ff2b84d3`; subsequent changes document the checks and maintain the harness. All seven original review threads have fixing-commit replies and are resolved; the existing changes-requested review is retained for re-review. PR #284 stays open without merging or watching.
 
 ## Context and acceptance
 
@@ -202,3 +202,24 @@ Owned focused DB: `csg_student_workspace_where_used_test_0117`. Fresh QA DB: `cs
 
 
 The first record-link matrix reproduced an integration defect: objective evidence still forced `view: 'learn'`, bypassing #287's staff record destination and its full Back context. The new component assertion failed on `/lessons/12?cohort_id=4`; removing that override makes it open `/admin/lessons/12` with cohort and return path. All 13 cohort-workspace tests and web typecheck then passed. The initial broader learner-boundary checks also used the deliberately lesson-only media fixture for persona 6, while their Learn-page journey expects normal module assignments; that fixture will be reset before the acceptance rerun. The interrupted run is retained as failed/incomplete evidence and is not counted as accepted. The full web gate will repeat on ASUS for this last web change; the unchanged API/mobile source remains covered by the complete post-merge run.
+
+
+Complete post-#287 gate: **2,005 API tests / 41,789 assertions in each prepared-statement mode**, zero failures/errors/skips, with `OPENAPI_COVERAGE=1`; RuboCop/Brakeman; web typecheck/lint, **2,511 tests / 218 files**, build, bundle check and `api:check`; mobile typecheck/lint and **1,508 tests / 139 suites**. Every stage exited 0. API/mobile application source is the unchanged `0bc61730` integration. The final objective-link source/test from `ff2b84d3` reached ASUS before the web stages: remote SHA-256 hashes matched both local files, and the full Vitest output includes all **13** cohort-workspace tests, including the new regression. An extra queued web repeat was canceled before acquiring the runner because this complete run already checked that final web source. Its exact wrapper 26367 was stopped/released; the standard full-gate wrapper is 73451. Prepared statements and the migration-process port adapter remain intact. The final UI advisory scan returned `[]`.
+
+The expanded browser driver's preview module step initially looked for module anchors on Learn, whose module headings are accordions. It now follows the actual module link from preview Today. That driver failure and its traces are retained alongside the earlier objective-link failure; neither interrupted batch is counted as accepted. The original harness's staff milestone/module destinations were also updated for #287. The extended personal-plan/media path is opt-in (`QA_WORKSPACE_FIX=1`), preserving the ordinary workspace fixture contract.
+
+The first post-#287 harness (API 73855, Vite 73901) and exact DB `csg_qa_73794_1794887824` were cleaned. The focused DB `csg_student_workspace_where_used_test_0117` was dropped. Final record-route/learner acceptance uses fresh DB `csg_qa_26696_1794888302`, API **26866 / 57594**, Vite **26891 / 57595**. Its media fixture was seeded first, then persona 6's normal module assignments restored for the standard learner journey. The dedicated earlier 16-case media matrix had already tested that persona with lesson-only assignments.
+
+
+Final post-#287 browser acceptance passed on application source **`ff2b84d3`**:
+
+| Affected journey | Required dimensions | Result |
+| --- | --- | --- |
+| Media card/list and waiting/open-support queue agreement | Admin/instructor × 1280/390 × light/dark; three assignment variants per media check | 8/8 passed |
+| Blocked Communication and scoped full-list destinations | Both staff roles × both widths/themes; both block directions | 8/8 passed |
+| Staff curriculum/module/objective/milestone/media lesson links, exact Back paths and preview module/lesson containment | Both staff roles × both widths/themes | 8/8 passed |
+| Normal learner access and staff privacy boundaries | Six student personas × both widths/themes | 24/24 passed |
+
+The dedicated 16-case fix matrix passed in 3.6 minutes. The additional record-route/learner matrix passed **32/32** in 2.5 minutes after the documented source fix and driver/fixture corrections. These are **48 successful executions across four affected journeys**; interrupted runs and earlier 72-case implementation acceptance are historical, not added to this round's count. No required affected-flow check remains failed or pending. Native hardware, Safari, real media/provider delivery and production deployment remain not_run.
+
+Final cleanup: all browser pages and runner processes closed/released; API 26866 and Vite 26891 stopped; exact QA DB `csg_qa_26696_1794888302` dropped. SQL confirmed that both post-#287 QA databases and the focused DB are absent. ASUS wrapper 73451 completed successfully and was released; its helper removed the disposable PostgreSQL container/database and terminated its WSL runner. `dev-lifecycle cleanup --execute` and `status` report **no active owned resources**. Shared PostgreSQL/Redis, protected services and borrowed tabs/devices remain unchanged. No runtime handoff. The clean held worktree and branch are retained for PR review.
