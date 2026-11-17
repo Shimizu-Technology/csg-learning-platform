@@ -13,6 +13,7 @@ import { clearRecordSummaryCache } from '../lib/recordSummary'
 import { clearRecordQueueCache } from '../lib/recordQueueCache'
 import { clearRosters } from '../lib/recordQueue'
 import { clearViewerLocalDrafts } from '../pages/admin/lessonEditor/localDraft'
+import { applyServerEditorPreferences } from '../lib/editorPreferences'
 import type { SessionEnrollment, User } from '../types/api'
 
 type UserData = User
@@ -103,6 +104,8 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         applicationUserIdRef.current = res.data.user.id
         configureSchoolTime(res.data.school)
         setSchoolFeatures(res.data.school?.features || {})
+        // Before any editor opens: the account's editor mode and Enter-to-send become this browser's.
+        applyServerEditorPreferences(res.data.user.id, res.data.user.editor_preferences)
         setUser(res.data.user)
         setEnrollments(res.data.enrollments)
         if (isPostHogEnabled) {

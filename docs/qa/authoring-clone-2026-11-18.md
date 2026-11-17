@@ -276,8 +276,19 @@ pinning on a later kickoff edit. Source kickoff is unchanged.
 Focused clone/migration tests pass in **both modes: 15 tests / 192 assertions**,
 zero failures/errors/skips per mode. Changed Ruby files pass RuboCop. The wire
 contract and frontend are unchanged; the previously green web gate is not being
-rerun for this backend-only correction. A final-source full ASUS unprepared-mode
-run is pending. Main remains unchanged at `3a8b3ebf`.
+rerun for this backend-only correction before main moved. The pre-merge full
+ASUS unprepared-mode run on `ba5e9750` **passed: 2,265 tests / 43,659 assertions**, zero failures/errors,
+one existing skip (306.11 seconds). OpenAPI coverage passed; full RuboCop checked
+787 files without offenses, and Brakeman reported zero warnings (one existing
+ignored warning). The earlier scheduled-push assertion did not recur. Raw output
+is `.qa-local/authoring-clone-pinning-asus.log`. Main remains unchanged at
+`3a8b3ebf`.
+
+Local regression database `csg_authoring_clone_pinning_test` was dropped. ASUS
+exited through its disposable-container cleanup trap. Lifecycle session
+`manual-20261118-082939-27728-0182` has no unresolved owned resources. No server or
+browser was started for this backend-only follow-up. Keep the worktree and PR
+available for the lead; no merge or watch was performed.
 
 Clarification of the earlier “full-suite race failure”: on fix source `7d7b109b`,
 the ASUS **unprepared (prepared_statements=false)** full run, seed **42069**,
@@ -290,3 +301,28 @@ rerun of the unchanged class at the same seed **passed: 10 tests / 63 assertions
 zero failures/errors/skips**. No causal link to cloning was found. The original
 full failure remains in the historical record; its passing isolated retry was
 not presented as a green full run. The lead reports CI green on `6c70e3e7`.
+
+
+## Same-round merge of main e058b415 (#304 / #307)
+
+Main advanced during the final fetch, so `e058b415` was merged before pushing.
+The OpenAPI conflict combined both branches’ independent additions, preserving
+all three clone endpoints and `AuthoringCloneResult` alongside the incoming
+editor-preference endpoint, request/response schemas and SessionUser fields.
+`npm run api:generate` regenerated both web and mobile type files; no generated
+conflict hunk was resolved by hand. `api:check` passes.
+
+Main’s newest migration is #304’s `20261118120000_add_editor_preferences_to_users`.
+#306 is open with `20261118070000_add_fanout_outbox_to_announcements`. The two
+unmerged clone migrations were renamed to **20261118130000** (create receipts)
+and **20261118140000** (definition map / index cleanup); test require paths and
+schema version were updated. They are unique, later than main, and avoid #306’s
+reserved timestamp. No already-deployed migration was renamed.
+
+On the combined tree, focused clone, editor-preference and migration regressions
+pass in **both modes: 23 tests / 230 assertions**, zero failures/errors/skips per
+mode. Full RuboCop checks 791 files without offenses; Brakeman has zero warnings
+and one existing ignored warning. Post-merge web typecheck, lint, all **3,449
+tests / 247 files**, and build passed. The passing full ASUS result above belongs to the pre-merge clone fix;
+it is not claimed as a full run of the merged tree. Post-merge acceptance follows
+the lead’s explicit request for the focused suite in both modes.

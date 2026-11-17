@@ -331,3 +331,18 @@ on QA Self paced, and an imported course package used by "QA Package Cohort" (it
 `.qa-local/finish-package.json`). Then run, from the repo root:
 `QA_SPEC=connected-records-finish.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
 The report scenario marks one synthetic report Reviewing (saved). See `docs/qa/connected-records-finish-2026-11-18.md`.
+
+### Shared editor finish (U-6.8)
+
+After `start`, load the production-authored prework from `api/`:
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/student-workspace-course-fixtures.rb`.
+Then run `QA_SPEC=shared-editor-finish.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`
+from the repo root. At 1280/390 in light and dark it edits real lesson instructions in Rich and then Markdown mode and
+checks the saved Markdown through the API, saves another field and checks the lesson text is byte for byte unchanged,
+writes a plan description in Rich mode, and checks that editor preferences move to the account once and follow the
+person to a second browser. Before the preference cases it resets personas 2-4 to "never chosen" in the owned database
+only. Lesson edits accumulate across runs; each run computes its expected text from the stored text it starts with.
+Captures go to ignored `.qa-local/shared-editor-finish/`. See `docs/qa/shared-editor-finish-2026-11-18.md`.
+
+`scripts/qa/lesson-bodies-fixture.rb` regenerates `web/src/test/fixtures/prework-lesson-bodies.json` (the round-trip
+test fixture) from `scripts/prework_exercises.json` with the import task's own HTML-to-Markdown conversion.

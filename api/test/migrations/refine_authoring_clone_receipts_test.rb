@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261118080000_refine_authoring_clone_receipts").to_s
+require Rails.root.join("db/migrate/20261118140000_refine_authoring_clone_receipts").to_s
 
 class RefineAuthoringCloneReceiptsTest < ActiveSupport::TestCase
   test "definition provenance and redundant index round trip with pooled caches cleared" do

@@ -9,7 +9,8 @@ import {
   type MessageListBlock,
   type MessageListChild,
 } from '../../../lib/messageFormat'
-import { linkReferenceLines, writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
+import { isLessonHtml } from '../../../lib/lessonHtml'
+import { lessonMarkdownStructure, linkReferenceLines, writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
 
 /**
  * Markdown to the Rich editor's Tiptap JSON, the reverse of
@@ -27,8 +28,10 @@ import { linkReferenceLines, writtenMarkdownStructure } from '../../../lib/writt
  * Where the text is read. `message`: messages and class chat (the message
  * parser). `written`: updates, feedback, help replies and submissions
  * (`MarkdownText`, CommonMark + GFM), which must also read the same.
+ * `lesson`: lesson text and instructions (`MarkdownRenderer`'s lesson
+ * pipeline, GFM without line breaks), which must also read the same.
  */
-export type MarkdownTarget = 'message' | 'written'
+export type MarkdownTarget = 'message' | 'written' | 'lesson'
 
 export type MarkdownToEditorOptions = { target?: MarkdownTarget }
 
@@ -47,10 +50,22 @@ export type UnsupportedKind =
   | 'an HTML5 character reference'
   | 'Markdown Rich mode can\'t show exactly'
 
+/** A top-level piece of the source and how many of the document's first blocks it became, in order. */
+export type SourceSegment = { text: string; start: number; end: number; count: number }
+
 export type MarkdownToEditorResult = {
   doc: JSONContent
   /** Why each locked block was locked, in document order. */
   issues: UnsupportedKind[]
+  /**
+   * Where each block came from, so blocks nobody edited are written back
+   * exactly as they were typed (`editorJsonToMarkdownKeepingSource`).
+   * Offsets are in `source`, the Markdown with line endings normalized;
+   * `raw` is the Markdown exactly as given (CRLF and all).
+   */
+  source: string
+  raw: string
+  segments: SourceSegment[]
 }
 
 export const RAW_MARKDOWN_NODE = 'rawMarkdown'
@@ -157,10 +172,12 @@ export function markdownStructure(markdown: string): unknown[] {
   })
 }
 
-/** Do two Markdown strings read the same in the message parser and, for written text, in `MarkdownText`? */
+/** Do two Markdown strings read the same in the message parser and, for written or lesson text, where that text is shown? */
 export function sameMarkdownStructure(left: string, right: string, target: MarkdownTarget = 'message') {
   if (JSON.stringify(markdownStructure(left)) !== JSON.stringify(markdownStructure(right))) return false
-  return target !== 'written' || writtenMarkdownStructure(left) === writtenMarkdownStructure(right)
+  if (target === 'written') return writtenMarkdownStructure(left) === writtenMarkdownStructure(right)
+  if (target === 'lesson') return lessonMarkdownStructure(left) === lessonMarkdownStructure(right)
+  return true
 }
 
 /** `[label]: url`, a link reference definition. */
@@ -344,11 +361,17 @@ function withTrailingParagraph(content: JSONContent[]): JSONContent[] {
 }
 
 export function markdownToEditorDoc(markdown: string, { target = 'message' }: MarkdownToEditorOptions = {}): MarkdownToEditorResult {
-  const source = (markdown || '').replace(/\r\n?/g, '\n')
-  if (!source.trim()) return { doc: EMPTY_EDITOR_DOC, issues: [] }
+  const raw = markdown || ''
+  const source = raw.replace(/\r\n?/g, '\n')
+  if (!source.trim()) return { doc: EMPTY_EDITOR_DOC, issues: [], source, raw, segments: [] }
+
+  // A lesson body that starts with HTML is shown as HTML, all of it, so none of it may become
+  // Rich formatting (which would be written back as Markdown): it stays one locked block.
+  if (target === 'lesson' && isLessonHtml(source)) return wholeRaw(source, raw, ['HTML'])
 
   const content: JSONContent[] = []
   const issues: UnsupportedKind[] = []
+  const segments: SourceSegment[] = []
   /** The last locked block and where it ends in the source, so a locked neighbour joins it. */
   let lastRaw: { node: JSONContent; end: number; kinds: UnsupportedKind[] } | null = null
   const linkLabels = definedLinkLabels(source)
@@ -359,6 +382,7 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
       const blocks = blocksToJson(chunk.text)
       if (blocks.length && sameMarkdownStructure(chunk.text, editorJsonToMarkdown({ type: 'doc', content: blocks }), target)) {
         content.push(...blocks)
+        segments.push({ text: chunk.text, start: chunk.start, end: chunk.end, count: blocks.length })
         lastRaw = null
         continue
       }
@@ -372,10 +396,13 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
       const node = rawNode(markdownText, kinds)
       content[content.length - 1] = node
       lastRaw = { node, end: chunk.end, kinds }
+      const merged = segments[segments.length - 1]
+      segments[segments.length - 1] = { text: markdownText, start: merged.start, end: chunk.end, count: 1 }
     } else {
       const node = rawNode(chunk.text, [kind])
       content.push(node)
       lastRaw = { node, end: chunk.end, kinds: [kind] }
+      segments.push({ text: chunk.text, start: chunk.start, end: chunk.end, count: 1 })
     }
     issues.push(kind)
   }
@@ -383,10 +410,142 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
   const doc = { type: 'doc', content: withTrailingParagraph(content) }
   // The pieces must read the same together too (a list continuation split across chunks, say).
   if (!sameMarkdownStructure(source, editorJsonToMarkdown(doc), target)) {
-    const kinds = issues.length ? [...new Set(issues)] : [GENERIC_KIND]
-    return { doc: { type: 'doc', content: withTrailingParagraph([rawNode(source.replace(/^\n+|\n+$/g, ''), kinds)]) }, issues: kinds }
+    return wholeRaw(source, raw, issues.length ? [...new Set(issues)] : [GENERIC_KIND])
   }
-  return { doc, issues }
+  return { doc, issues, source, raw, segments }
+}
+
+/** The whole text as one locked block (blank lines at either end stay outside it, as stored). */
+function wholeRaw(source: string, raw: string, kinds: UnsupportedKind[]): MarkdownToEditorResult {
+  const text = source.replace(/^\n+|\n+$/g, '')
+  const start = source.length - source.replace(/^\n+/, '').length
+  return {
+    doc: { type: 'doc', content: withTrailingParagraph([rawNode(text, kinds)]) },
+    issues: kinds,
+    source,
+    raw,
+    segments: [{ text, start, end: start + text.length, count: 1 }],
+  }
+}
+
+/**
+ * Source segments keyed by their blocks exactly as the editor holds them,
+ * with each segment's text, the text between segments, and the whitespace
+ * before the first and after the last, all exactly as stored.
+ */
+export type KeyedSource = {
+  segments: (SourceSegment & { key: string; stored: string })[]
+  /** Exactly what was stored between segment i and segment i + 1. */
+  gaps: string[]
+  leading: string
+  trailing: string
+  /** The stored line ending, for text the editor writes fresh. */
+  lineEnding: '\n' | '\r\n'
+}
+
+/** For each offset in the line-ending-normalized text, the offset in the text as stored. */
+function storedOffsets(raw: string) {
+  const offsets: number[] = []
+  for (let index = 0; index < raw.length; index += 1) {
+    offsets.push(index)
+    if (raw[index] === '\r' && raw[index + 1] === '\n') index += 1
+  }
+  offsets.push(raw.length)
+  return offsets
+}
+
+/**
+ * Keys each segment by its blocks in `doc`, the document as the editor holds
+ * it once loaded (the schema fills in default attributes). Null when the
+ * editor's blocks don't line up with the segments one for one.
+ */
+export function keySourceSegments(result: Pick<MarkdownToEditorResult, 'raw' | 'segments'>, doc: JSONContent): KeyedSource | null {
+  const nodes = doc.content || []
+  const offsets = storedOffsets(result.raw)
+  const stored = (start: number, end: number) => result.raw.slice(offsets[start], offsets[end])
+  let index = 0
+  const segments: KeyedSource['segments'] = []
+  for (const segment of result.segments) {
+    const blocks = nodes.slice(index, index + segment.count)
+    if (blocks.length !== segment.count) return null
+    segments.push({ ...segment, key: JSON.stringify(blocks), stored: stored(segment.start, segment.end) })
+    index += segment.count
+  }
+  // Anything after the segments is the empty paragraph that keeps typing possible below a block.
+  if (nodes.slice(index).some((node) => node.type !== 'paragraph' || node.content?.length)) return null
+  if (segments.length === 0) return null
+  return {
+    segments,
+    gaps: segments.slice(1).map((segment, position) => stored(segments[position].end, segment.start)),
+    leading: result.raw.slice(0, offsets[segments[0].start]),
+    trailing: result.raw.slice(offsets[segments[segments.length - 1].end]),
+    lineEnding: result.raw.includes('\r\n') ? '\r\n' : '\n',
+  }
+}
+
+/**
+ * The Rich document as Markdown, with every block nobody edited written
+ * exactly as it was typed: an edit to one paragraph doesn't respell the rest
+ * (`*` to `_`, `\_` to `_`, `&nbsp;` to the character, blank lines). Edited
+ * and new blocks are written by `editorJsonToMarkdown`, in the stored line
+ * ending. The text between kept blocks and the whitespace before the first
+ * and after the last block stay exactly as stored. If the result would read
+ * differently from that plain serialization, the plain one is used.
+ */
+export function editorJsonToMarkdownKeepingSource(doc: JSONContent, kept: KeyedSource | null, target: MarkdownTarget = 'message'): string {
+  const plain = editorJsonToMarkdown(doc)
+  if (!kept || kept.segments.length === 0) return plain
+  const nodes = doc.content || []
+  const parts: { text: string; segment: number | null; raw: boolean }[] = []
+  let next = 0
+  for (let index = 0; index < nodes.length;) {
+    let matched = -1
+    for (let candidate = next; candidate < kept.segments.length; candidate += 1) {
+      const segment = kept.segments[candidate]
+      if (index + segment.count <= nodes.length && JSON.stringify(nodes.slice(index, index + segment.count)) === segment.key) {
+        matched = candidate
+        break
+      }
+    }
+    if (matched >= 0) {
+      const segment = kept.segments[matched]
+      parts.push({ text: segment.stored, segment: matched, raw: true })
+      index += segment.count
+      next = matched + 1
+    } else {
+      const node = nodes[index]
+      parts.push({ text: editorJsonToMarkdown(node), segment: null, raw: node.type === RAW_MARKDOWN_NODE })
+      index += 1
+    }
+  }
+  // The same trimming as the plain serializer: empty paragraphs at either end go.
+  const droppable = (part: (typeof parts)[number]) => (part.raw ? part.text === '' : !part.text.trim())
+  while (parts.length && droppable(parts[0])) parts.shift()
+  while (parts.length && droppable(parts[parts.length - 1])) parts.pop()
+  if (parts.length === 0) return plain
+  if (!parts[0].raw) parts[0].text = parts[0].text.trimStart()
+  const last = parts[parts.length - 1]
+  if (!last.raw) last.text = last.text.trimEnd()
+  const eol = kept.lineEnding
+  // Text the editor writes fresh uses the stored line ending; kept text is already as stored.
+  for (const part of parts) if (part.segment === null && eol !== '\n') part.text = part.text.replace(/\n/g, eol)
+  /** The blank lines the source had after segment `index`, or null past the last one. */
+  const gapAfter = (index: number) => kept.gaps[index] ?? null
+  let markdown = parts[0].text
+  for (let index = 1; index < parts.length; index += 1) {
+    const before = parts[index - 1]
+    const part = parts[index]
+    // A kept block keeps the blank lines it had on each side (only blank lines: the
+    // check below still guards the result); between two new blocks, one blank line.
+    const gap = (before.segment !== null && (part.segment === null || part.segment === before.segment + 1) ? gapAfter(before.segment) : null)
+      ?? (part.segment !== null && part.segment > 0 && before.segment === null ? gapAfter(part.segment - 1) : null)
+      ?? eol + eol
+    markdown += gap + part.text
+  }
+  const written = kept.leading + markdown + kept.trailing
+  if (sameMarkdownStructure(written.replace(/\r\n?/g, '\n'), plain, target)) return written
+  // Fresh everywhere, still with the stored line ending and outer whitespace.
+  return kept.leading + plain.replace(/\n/g, eol) + kept.trailing
 }
 
 /** Kinds of locked block in a document, for the warning under the toolbar. */

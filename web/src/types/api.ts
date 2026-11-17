@@ -341,6 +341,9 @@ export type AvailableDirectUsersResponse = components['schemas']['AvailableDirec
 export type MessageAttachmentPresignResponse = components['schemas']['MessageAttachmentPresignResponse'];
 
 export type MessagePreferenceResponse = components['schemas']['MessagePreferenceResponse'];
+export type EditorPreferences = components['schemas']['EditorPreferences'];
+export type EditorPreferencesInput = components['schemas']['EditorPreferencesInput'];
+export type EditorPreferencesResponse = components['schemas']['EditorPreferencesResponse'];
 
 export type MessageSearchResponse = components['schemas']['MessageSearchResponse'];
 

@@ -83,6 +83,8 @@ import type {
   AvailableDirectUsersResponse,
   MessageAttachmentPresignResponse,
   MessagePreferenceResponse,
+  EditorPreferencesInput,
+  EditorPreferencesResponse,
   MessageSearchResponse,
   HelpRequestsResponse,
   HelpRequestResponse,
@@ -711,6 +713,8 @@ export const api = {
       method: 'DELETE',
       body: JSON.stringify({ emoji }),
     }),
+  updateEditorPreferences: (preferences: EditorPreferencesInput) =>
+    fetchApi<EditorPreferencesResponse>('/api/v1/editor_preferences', { method: 'PATCH', body: JSON.stringify(preferences) }),
   updateMessagePreference: (targetType: 'Channel' | 'DirectConversation', targetId: number, muted: boolean) =>
     fetchApi<MessagePreferenceResponse>('/api/v1/message_preferences', {
       method: 'PATCH',

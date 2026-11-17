@@ -4127,6 +4127,43 @@
           }
         }
       }
+    },
+    "/api/v1/editor_preferences": {
+      "patch": {
+        "summary": "Save the signed-in person's editor mode and Enter-to-send choice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditorPreferencesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "EditorPreferencesResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorPreferencesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An unknown mode, a non-boolean enter_sends, or neither field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9387,6 +9424,9 @@
           },
           "community_policy": {
             "$ref": "#/components/schemas/CommunityPolicy"
+          },
+          "editor_preferences": {
+            "$ref": "#/components/schemas/EditorPreferences"
           }
         },
         "required": [
@@ -9403,7 +9443,8 @@
           "last_name",
           "github_username",
           "last_seen_at",
-          "community_policy"
+          "community_policy",
+          "editor_preferences"
         ],
         "additionalProperties": false
       },
@@ -24710,6 +24751,70 @@
             }
           }
         }
+      },
+      "EditorPreferences": {
+        "type": "object",
+        "description": "The shared editor's per-person preferences (U-6.8). null means the person hasn't chosen on the server yet: clients use their default (Rich, Enter sends) or upload a choice they remembered locally.",
+        "properties": {
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rich",
+                  "markdown"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enter_sends": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "enter_sends"
+        ],
+        "additionalProperties": false
+      },
+      "EditorPreferencesInput": {
+        "type": "object",
+        "description": "Either field alone; a field that isn't sent keeps its value. With initialize: true each field is set only if the account has no value for it yet, so a browser's one-time upload of a choice it remembered never overwrites a choice made on another device. The response always carries the account's values.",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "rich",
+              "markdown"
+            ]
+          },
+          "enter_sends": {
+            "type": "boolean"
+          },
+          "initialize": {
+            "type": "boolean"
+          }
+        },
+        "minProperties": 1,
+        "additionalProperties": false
+      },
+      "EditorPreferencesResponse": {
+        "type": "object",
+        "properties": {
+          "editor_preferences": {
+            "$ref": "#/components/schemas/EditorPreferences"
+          }
+        },
+        "required": [
+          "editor_preferences"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {

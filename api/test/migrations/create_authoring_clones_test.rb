@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261118070000_create_authoring_clones").to_s
+require Rails.root.join("db/migrate/20261118130000_create_authoring_clones").to_s
 
 class CreateAuthoringClonesTest < ActiveSupport::TestCase
   test "receipt migration round trips with actor-scoped uniqueness" do

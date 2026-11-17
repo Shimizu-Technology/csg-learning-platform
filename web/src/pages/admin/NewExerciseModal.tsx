@@ -180,7 +180,7 @@ export function NewExerciseModal({
               onChange={setInstructions}
               placeholder="What should students build or answer?"
               variant="field"
-              target="written"
+              target="lesson"
               renderPreview={renderLessonPreview}
               minHeight={160}
               maxHeight={420}
