@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-const state = vi.hoisted(() => ({ v2: true, receipt: vi.fn(), profile: vi.fn(), auth: { user: { id: 1, role: 'student', is_staff: false }, enrollments: [] } }))
+const state = vi.hoisted(() => ({ v2: true, receipt: vi.fn(), profile: vi.fn(), auth: { isSignedIn: true, user: { id: 1, role: 'student', is_staff: false } as { id: number; role: string; is_staff: boolean } | null, enrollments: [] } }))
 vi.mock('../../lib/studentExperience', () => ({ useStudentExperience: () => ({ ready: true, v2: state.v2 }) }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
@@ -20,6 +20,8 @@ let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
   state.v2 = true
+  state.auth.isSignedIn = true
+  state.auth.user = { id: 1, role: 'student', is_staff: false }
   state.profile.mockResolvedValue({ data: { user: { id: 1, full_name: 'Eli Santos', email: 'eli@example.invalid', role: 'student' }, enrollments: [{ id: 1, cohort_id: 2, cohort_name: 'Python', curriculum_name: 'Python', can_open: true, enrolled_at: '2026-11-18', status: 'active', purchase_id: 3, access_expires_at: '2027-05-18' }] } })
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
 })
@@ -28,6 +30,7 @@ async function render(node: ReactNode) { await act(async () => root.render(<Memo
 it('public legal pages have a way back and deletion stays visible at phone widths', async () => {
   await render(<PrivacyPolicyPage />)
   expect(container.querySelector('a[href="/dashboard"]')?.textContent).toBe('Back to Today')
+  expect(container.querySelector('main h1')?.textContent).toBe('Privacy policy')
   const deletion = container.querySelector('nav[aria-label="Legal navigation"] a[href="/account-deletion"]')!
   expect(deletion.className).not.toContain('hidden')
   expect(deletion.className).toContain('min-h-11')
@@ -44,6 +47,10 @@ it('new Profile has a 44px toggle, human activity copy, access dates and a recei
 })
 it('Off Profile keeps the old toggle and activity copy', async () => {
   state.v2 = false
+  const response = await state.profile()
+  delete response.data.enrollments[0].purchase_id
+  delete response.data.enrollments[0].access_expires_at
+  state.profile.mockResolvedValue(response)
   await render(<Profile />)
   expect(container.querySelector('[role="switch"]')?.className).toContain('h-7')
   expect(container.textContent).toContain('Earlier activity was not backfilled.')
@@ -74,4 +81,40 @@ it('Off student recovery states keep their old markup', async () => {
   await render(<Materials />)
   expect(container.textContent).toContain('No lessons yet')
   expect(container.querySelector('a[href="/courses"]')).toBeNull()
+})
+
+it('signed-out legal recovery points home without a protected Today link', async () => {
+  state.auth.user = null
+  state.auth.isSignedIn = false
+  await render(<PrivacyPolicyPage />)
+  expect(container.querySelector('main h1')?.textContent).toBe('Privacy policy')
+  expect(container.querySelector('main a[href="/"]')?.textContent).toBe('Back to home')
+  expect(container.querySelector('main a[href="/dashboard"]')).toBeNull()
+})
+it('Off learners keep legal recovery markup unchanged, with deletion still visible', async () => {
+  state.v2 = false
+  await render(<PrivacyPolicyPage />)
+  expect(container.querySelector('main h1')?.textContent).toBe('Privacy policy')
+  expect(container.querySelector('main a[href="/dashboard"]')).toBeNull()
+  expect(container.querySelector('main a[href="/"]')).toBeNull()
+  expect(container.querySelector('nav a[href="/account-deletion"]')?.className).not.toContain('hidden')
+})
+it('mixed Profile enrollments use their own server fields while the Off course is selected', async () => {
+  state.v2 = false
+  const response = await state.profile()
+  response.data.enrollments.push({ id: 2, cohort_id: 3, cohort_name: 'Off program', curriculum_name: 'Program', status: 'active', can_open: true })
+  state.profile.mockResolvedValue(response)
+  await render(<Profile />)
+  const enrollments = Array.from(container.querySelectorAll('li')).filter(row => row.textContent?.includes('Course:'))
+  expect(enrollments.find(row => row.textContent?.includes('Python'))?.textContent).toContain('View receipt')
+  expect(enrollments.find(row => row.textContent?.includes('Python'))?.textContent).toContain('Lesson access until')
+  expect(enrollments.find(row => row.textContent?.includes('Off program'))?.textContent).not.toContain('View receipt')
+  expect(enrollments.find(row => row.textContent?.includes('Off program'))?.textContent).not.toContain('Lesson access until')
+})
+
+it('authenticated legal loading does not flash a guest or On-only recovery link', async () => {
+  state.auth.user = null
+  await render(<PrivacyPolicyPage />)
+  expect(container.querySelector('main a[href="/"]')).toBeNull()
+  expect(container.querySelector('main a[href="/dashboard"]')).toBeNull()
 })

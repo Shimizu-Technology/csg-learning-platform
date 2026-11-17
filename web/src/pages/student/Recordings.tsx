@@ -2,7 +2,7 @@ import { activityReturnPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
@@ -17,7 +17,7 @@ import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import type { LearnerCapabilities, RecordingEntry, RecordingItem as ApiRecordingItem, StudentLibraryRecording as ApiS3Recording } from '../../types/api'
-import { useBackLink } from '../../lib/recordOrigin'
+import { useBackLink, legacyInboxReturnContext } from '../../lib/recordOrigin'
 import { useStudentExperience } from '../../lib/studentExperience'
 import { formatShortDate } from '../../lib/format'
 
@@ -149,6 +149,12 @@ export function Recordings() {
   const requestGeneration = useRef(0)
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  const navigate = useNavigate()
+  const legacyInbox = v2 ? legacyInboxReturnContext(location.state) : null
+  const legacyReturnTo = legacyInbox?.returnTo
+  useEffect(() => {
+    if (legacyReturnTo) navigate(`${location.pathname}${location.search}`, { replace: true, state: { returnTo: legacyReturnTo, returnLabel: 'Notifications' } })
+  }, [legacyReturnTo, location.pathname, location.search, navigate])
   const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
   const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' }, { legacyInbox: v2 })
   const backTo = v2 ? originBack.to : todayPath

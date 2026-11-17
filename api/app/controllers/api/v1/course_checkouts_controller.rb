@@ -46,6 +46,8 @@ module Api
         return render json: { error: "Receipt unavailable. Contact CSG for a copy." }, status: :not_found unless url.present? && URI.parse(url).is_a?(URI::HTTPS)
 
         render json: { url: url }
+      rescue URI::InvalidURIError
+        render json: { error: "Receipt unavailable. Contact CSG for a copy." }, status: :not_found
       rescue Stripe::StripeError
         render json: { error: "Receipt could not load. Try again or contact CSG for a copy." }, status: :service_unavailable
       end

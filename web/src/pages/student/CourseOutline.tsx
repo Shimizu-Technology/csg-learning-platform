@@ -98,19 +98,24 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
 
   useEffect(() => { load() }, [load])
 
+  const initializedOutline = useRef<{ outline: Outline; week: number | null } | null>(null)
+
   // Open the current week (the one holding the next lesson), the week named in the
   // URL, or the module a link asked for. Search and filters open every match instead.
   useEffect(() => {
     if (!outline) return
     const groups = outline.modules.flatMap((mod) => mod.groups)
     const initial = new Set<string>()
+    const initialLoad = initializedOutline.current?.outline !== outline
+    const newWeekHint = weekNumber && initializedOutline.current?.week !== weekNumber
+    initializedOutline.current = { outline, week: weekNumber }
     const requestedWeek = weekNumber ? groups.find((group) => group.week === weekNumber) : undefined
     const fallback = requestedWeek?.key ?? outline.current_group_key ?? groups.find((group) => group.this_week)?.key ?? (outline.mode === 'library' ? groups[0]?.key : undefined)
-    if (fallback) initial.add(fallback)
+    if ((initialLoad || newWeekHint) && fallback) initial.add(fallback)
     if (open && groups.some((group) => group.key === open)) initial.add(open)
     const linkedModule = moduleId ? outline.modules.find((mod) => mod.id === moduleId) : undefined
     if (linkedModule?.groups.length) initial.add((linkedModule.groups.find((group) => group.current) ?? linkedModule.groups[0]).key)
-    setOpenGroups(initial)
+    setOpenGroups(current => initialLoad ? initial : new Set([...current, ...initial]))
   }, [outline, open, moduleId, weekNumber])
 
   useEffect(() => {
@@ -128,8 +133,8 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
       return next
     })
     // Opening a week names it in the URL; closing the named week clears it. Replaces: it's like scrolling.
-    if (opening) setUrlState({ open: key }, { history: 'replace' })
-    else if (open === key) setUrlState({ open: '' }, { history: 'replace' })
+    if (opening) setUrlState({ open: key, week: null, module: null }, { history: 'replace' })
+    else setUrlState({ open: open === key ? '' : open, week: null, module: null }, { history: 'replace' })
   }
 
   const visible = useMemo(() => {

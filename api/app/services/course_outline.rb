@@ -78,7 +78,7 @@ class CourseOutline
 
   def module_json(mod, number, numbers, redo_blocks, next_lesson)
     entries = @content.lessons_for(mod).map { |lesson| @progress.lesson_progress(lesson) }
-    grouped = entries.group_by { |entry| (mod.day_offset.to_i + entry.lesson.release_day) / 7 + 1 }
+    grouped = entries.group_by { |entry| CourseWeeks.number(mod, entry.lesson) }
     grouped = { 1 => entries } if !program? && grouped.size < 2
     groups = grouped.sort.each_with_index.map do |(week, items), index|
       lessons = items.map { |entry| lesson_json(mod, entry, numbers, redo_blocks) }
@@ -137,7 +137,7 @@ class CourseOutline
   end
 
   def opens_on(mod, entries)
-    entries.filter_map { |entry| unlock_date(mod, entry.lesson) }.min
+    CourseWeeks.opens_on(@cohort, mod, entries.map(&:lesson), @content)
   end
 
   def unlock_date(mod, lesson)

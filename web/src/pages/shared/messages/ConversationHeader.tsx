@@ -6,7 +6,7 @@ import { useStudentExperience } from '../../../lib/studentExperience';
 import { IconButton } from '../../../components/ui/Button';
 import { OverflowMenu } from '../../../components/ui/OverflowMenu';
 import { isPlainLeftClick } from '../../../lib/links';
-import { backLinkText, originLabel, useBackLink } from '../../../lib/recordOrigin';
+import { backLinkText, originLabel, useBackLink, backLinkOrigin } from '../../../lib/recordOrigin';
 import { readReturnContext } from '../../../lib/navigationContext';
 import { channelRecordPath, cohortPath, cohortStudentPath, safeInternalReturnPath } from '../../../lib/routes';
 import type { ChannelSummary, DirectConversationSummary } from '../../../types/api';
@@ -39,8 +39,8 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
   const v2 = experience.v2 && (!selected.cohort_id || selected.cohort_id === selectedCohortId)
   const location = useLocation()
   const originBack = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
-  const hasOrigin = Boolean(location.state?.returnTo || location.state?.from)
-  const returnTo = safeInternalReturnPath(new URLSearchParams(location.search).get('return_to'), '') || (v2 && hasOrigin ? originBack.to : '')
+  const hasOrigin = !originBack.fallback
+  const returnTo = v2 ? hasOrigin ? originBack.to : '' : safeInternalReturnPath(new URLSearchParams(location.search).get('return_to'), '')
   const workspaceId = selected.workspace_id
   const listPath = v2 && workspaceId ? `/messages?workspace_id=${workspaceId}` : '/messages'
   const { navigate, sourceRecord, sourceRecordPath } = route
@@ -63,7 +63,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
 
   return (
     <header className="shrink-0 border-b border-line bg-surface-raised px-1.5 py-1.5 sm:px-3">
-      {returnTo && <Link to={returnTo} className="inline-flex min-h-11 items-center px-3 text-sm underline">{v2 && hasOrigin ? originBack.label : backLinkText(originLabel(returnTo) || 'Back')}</Link>}
+      {returnTo && (!v2 || !isDesktop || sidebarCollapsed) && <Link to={returnTo} className="inline-flex min-h-11 items-center px-3 text-sm underline">{v2 && hasOrigin ? originBack.label : backLinkText(originLabel(returnTo) || 'Back')}</Link>}
       <div className="flex min-h-11 min-w-0 items-center gap-1">
         {isDesktop && sidebarCollapsed && (
           <IconButton label="Show conversation list" size="sm" onClick={() => setSidebarCollapsed(false)}>
@@ -71,7 +71,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
           </IconButton>
         )}
         {!isDesktop && (
-          <IconButton label="Back to conversations" onClick={() => navigate(listPath, v2 ? { replace: true, state: location.state } : { replace: true })}>
+          <IconButton label="Back to conversations" onClick={() => navigate(listPath, v2 ? { replace: true, state: backLinkOrigin(location.state, location.search, { legacyInbox: true }) || undefined } : { replace: true })}>
             <ChevronLeft className="h-5 w-5" />
           </IconButton>
         )}

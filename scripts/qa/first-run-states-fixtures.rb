@@ -5,8 +5,12 @@ User.find(7).update!(first_name: "Eli", last_name: "Synthetic")
 program = Cohort.find_by!(name: "QA Program")
 solo = Cohort.find_by!(name: "QA Self paced")
 alumni = Cohort.find_by!(name: "QA Alumni")
+# Prove that every On fixture keeps its explicit cohort override.
+SchoolSetting.current.update!(features: SchoolSetting.current.features.merge("student_experience_v2" => false))
 Cohort.find_each { |cohort| cohort.update!(settings: (cohort.settings || {}).merge("features" => (cohort.settings&.dig("features") || {}).merge("student_experience_v2" => true))) }
+solo.reload
 solo.update!(settings: solo.settings.merge("class_resources" => [], "recordings" => []))
+raise "Solo fixture lost its explicit On override" unless solo.reload.settings.dig("features", "student_experience_v2") == true
 program.update!(name: "QA First day program", start_date: LearningCalendar.today, end_date: LearningCalendar.today + 100)
 first = program.curriculum.modules.order(:position).first.lessons.order(:release_day, :position).first
 first.update!(title: "Orientation")

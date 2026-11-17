@@ -377,6 +377,7 @@ it('a late dismissal cannot dismiss the next enrollment’s welcome', async () =
   state.cohort = { ready: true, selectedCohort: cohort(11, true), selectedCohortId: 11, error: null }
   await stable()
   expect(text()).toContain('Course 11')
+  expect(text()).toContain('Follow the class schedule')
   await act(async () => finish({ data: { dismissed: true } }))
   expect(text()).toContain('Here’s how your course works')
   expect(container.querySelector('[data-region="next-action"]')?.textContent).toContain('Dismiss welcome')

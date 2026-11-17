@@ -60,3 +60,18 @@ it('new recordings returns to the exact notification inbox and links its course 
     expect(container.querySelector('a[href="/materials?cohort_id=2&week=2"]')?.textContent).toBe('Open Week 2 in Learn')
   } finally { state.v2 = false; act(() => root.unmount()) }
 })
+
+it.each(['/announcements?tab=inbox&inbox_page=3', '/materials?cohort_id=2'])('selection upgrades only a legacy inbox origin: %s', async (from) => {
+  state.v2 = true
+  state.getRecordings.mockResolvedValue({ data: { items: [{ id: 8, cohort_id: 2, title: 'First replay', source: 'uploaded' }, { id: 9, cohort_id: 2, title: 'Second replay', source: 'uploaded' }] } })
+  const container = document.createElement('div'); const root = createRoot(container)
+  const router = createMemoryRouter([{ path: '/recordings', element: <Recordings /> }], { initialEntries: [{ pathname: '/recordings', search: '?cohort_id=2&recording=8', state: { from } }] })
+  try {
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const second = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Second replay'))!
+    expect(second).toBeTruthy()
+    await act(async () => second.click())
+    expect(container.querySelector('[data-testid="player"]')?.textContent).toBe('Second replay')
+    expect(container.querySelector(`a[href="${from}"]`)?.textContent ?? null).toBe(from.startsWith('/announcements') ? 'Back to Notifications' : null)
+  } finally { state.v2 = false; act(() => root.unmount()) }
+})

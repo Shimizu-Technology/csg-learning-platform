@@ -54,6 +54,9 @@ class FirstRunStatesTest < ActionDispatch::IntegrationTest
   end
 
   test "recordings link their dated course week and do not invent a lesson association" do
+    mod = @curriculum.modules.create!(name: "Second week", position: 0, day_offset: 7, schedule_days: "daily")
+    mod.lessons.create!(title: "Second week lesson", release_day: 0, position: 0)
+    @enrollment.module_assignments.create!(curriculum_module: mod)
     @cohort.recordings.create!(title: "Replay", source_kind: "external", source_url: "https://example.invalid/replay", status: :published, position: 0, recorded_date: @cohort.start_date + 7)
     get "/api/v1/recordings", params: { cohort_id: @cohort.id }, headers: headers
     assert_response :success
@@ -82,6 +85,62 @@ class FirstRunStatesTest < ActionDispatch::IntegrationTest
     other = User.create!(clerk_id: "first_run_other", email: "first-run-other@example.invalid", role: :student)
     get "/api/v1/course_checkouts/#{purchase.id}/receipt", headers: { "Authorization" => "Bearer test_token_#{other.id}" }
     assert_response :not_found
+  end
+
+  test "recording weeks follow Learn schedule overrides and breaks, not elapsed calendar weeks" do
+    @cohort.update!(start_date: LearningCalendar.today.beginning_of_week(:monday) - 42)
+    mod = @curriculum.modules.create!(name: "Curriculum week 3", position: 0, day_offset: 14, schedule_days: "daily")
+    lesson = mod.lessons.create!(title: "Moved lesson", release_day: 0, position: 0)
+    lesson.content_blocks.create!(title: "Read", block_type: :text, position: 0)
+    @enrollment.module_assignments.create!(curriculum_module: mod)
+    moved_start = @cohort.start_date + 7
+    @cohort.cohort_module_schedules.create!(curriculum_module: mod, start_date: moved_start)
+    @cohort.recordings.create!(title: "Moved week replay", source_kind: "external", source_url: "https://example.invalid/moved", status: :published, position: 0, recorded_date: moved_start + 1)
+    @cohort.recordings.create!(title: "Break replay", source_kind: "external", source_url: "https://example.invalid/break", status: :published, position: 1, recorded_date: moved_start + 14)
+    get "/api/v1/course_outline", params: { cohort_id: @cohort.id }, headers: headers
+    assert_response :success
+    group = response.parsed_body.fetch("outline").fetch("modules").sole.fetch("groups").sole
+    assert_equal 3, group["week"]
+    assert_equal moved_start.iso8601, group["opens_on"]
+    get "/api/v1/recordings", params: { cohort_id: @cohort.id }, headers: headers
+    assert_response :success
+    assert_equal [ "/materials?cohort_id=#{@cohort.id}&week=3" ] * 2, response.parsed_body.fetch("items").pluck("learning_path")
+  end
+
+  test "recording schedule query count stays flat while assigned cohorts and recordings grow" do
+    add = ->(index) do
+      curriculum = Curriculum.create!(name: "Scheduled #{index}")
+      cohort = Cohort.create!(name: "Scheduled #{index}", curriculum: curriculum, start_date: LearningCalendar.today - 14, settings: { "features" => { "student_experience_v2" => true } })
+      enrollment = Enrollment.create!(user: @student, cohort: cohort)
+      mod = curriculum.modules.create!(name: "Week", day_offset: 7, position: 0)
+      mod.lessons.create!(title: "Lesson", release_day: 0, position: 0)
+      enrollment.module_assignments.create!(curriculum_module: mod)
+      cohort.recordings.create!(title: "Replay #{index}", source_kind: "external", source_url: "https://example.invalid/#{index}", status: :published, position: 0, recorded_date: cohort.start_date + 7)
+    end
+    request = -> { get "/api/v1/recordings", headers: headers; assert_response :success }
+    add.call(0); request.call
+    small = count_queries(&request)
+    4.times { |index| add.call(index + 1) }
+    grown = count_queries(&request)
+    assert_equal 5, response.parsed_body.fetch("items").size
+    assert response.parsed_body.fetch("items").all? { |item| item["learning_path"].end_with?("week=2") }
+    assert_equal small, grown
+  end
+
+  test "malformed provider receipt URLs return not found" do
+    purchase = CoursePurchase.create!(user: @student, cohort: @cohort, status: "paid", stripe_price_id: "price_synthetic", stripe_payment_intent_id: "pi_synthetic", price_cents: 14900)
+    payments = Object.new
+    payments.define_singleton_method(:retrieve) { |*| Struct.new(:latest_charge).new(Struct.new(:receipt_url).new("https://pay.stripe.com/bad url")) }
+    client = Struct.new(:v1).new(Struct.new(:payment_intents).new(payments))
+    original = CourseCheckout.method(:client)
+    CourseCheckout.define_singleton_method(:client) { client }
+    begin
+      get "/api/v1/course_checkouts/#{purchase.id}/receipt", headers: headers
+      assert_response :not_found
+      assert_equal "Receipt unavailable. Contact CSG for a copy.", response.parsed_body["error"]
+    ensure
+      CourseCheckout.define_singleton_method(:client, original)
+    end
   end
 
   private

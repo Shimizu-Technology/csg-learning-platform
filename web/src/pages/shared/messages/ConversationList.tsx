@@ -1,5 +1,5 @@
 import { BellRing, ChevronDown, Hash, Lock, MessageCircle, MonitorSmartphone, PanelLeftClose, Plus, RefreshCw, Search, SquarePen, Users, X } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useBackLink } from '../../../lib/recordOrigin';
 import { useCohortContext } from '../../../contexts/CohortContext';
 import { useStudentExperience } from '../../../lib/studentExperience';
@@ -29,9 +29,8 @@ export function ConversationList({ directory, conversation, search, alerts, show
   const experience = useStudentExperience()
   const { selectedCohortId } = useCohortContext()
   const v2 = experience.v2 && (!directory.selectedWorkspace?.cohort_id || directory.selectedWorkspace.cohort_id === selectedCohortId)
-  const location = useLocation()
   const back = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
-  const hasOrigin = Boolean(location.state?.returnTo || location.state?.from || new URLSearchParams(location.search).get('return_to'))
+  const hasOrigin = !back.fallback
   const { isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
   const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation
   const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, setSearchResults } = search

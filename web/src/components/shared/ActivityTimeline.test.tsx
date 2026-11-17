@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityTimeline } from './ActivityTimeline'
 import type { ActivityEvent, ActivityEventsResponse } from '../../types/api'
 
-const { getActivityEvents } = vi.hoisted(() => ({ getActivityEvents: vi.fn() }))
+const { getActivityEvents, experience } = vi.hoisted(() => ({ getActivityEvents: vi.fn(), experience: { v2: false } }))
+vi.mock('../../lib/studentExperience', () => ({ useStudentExperience: () => experience }))
 vi.mock('../../lib/api', () => ({ api: { getActivityEvents } }))
 const base = { subject_user: { id: 20, name: 'Learner', role: 'student' }, actor: { id: 20, name: 'Learner', role: 'student' }, subject_user_id: 20, cohort_id: 4, cohort_name: 'Cohort 4', record_type: 'Submission', record_id: 800, record_label: 'Arrays', evidence: 'server_record' as const, created_at: '2026-10-22T00:00:00Z' }
 const rows: ActivityEvent[] = [
@@ -29,6 +30,7 @@ async function click(text: string) {
 }
 beforeEach(() => {
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
+  experience.v2 = false
   getActivityEvents.mockReset().mockResolvedValue({ data: { activity_events: rows, next_before_id: null } })
 })
 afterEach(async () => { await act(async () => root.unmount()); container.remove() })
@@ -69,4 +71,26 @@ describe('ActivityTimeline', () => {
     expect(container.textContent).toContain('Offline')
     expect(container.textContent).toContain('New cohort')
   })
+})
+
+it.each([undefined, 20])('On empty activity copy is scoped to the own learner view (userId=%s)', async (userId) => {
+  experience.v2 = true
+  getActivityEvents.mockResolvedValue({ data: { activity_events: [], next_before_id: null } })
+  await act(async () => root.render(<MemoryRouter><ActivityTimeline userId={userId} /></MemoryRouter>))
+  expect(container.textContent).toContain(userId ? 'Earlier activity was not backfilled.' : 'Your activity will appear here as you learn.')
+  if (userId) expect(container.textContent).not.toContain('as you learn')
+  await click('Work')
+  expect(container.textContent).toContain('No work activity recorded yet.')
+  expect(container.textContent).not.toContain('Your activity will appear')
+  if (userId) expect(container.textContent).toContain('Earlier activity was not backfilled.')
+  await click('Sign-ins')
+  expect(container.textContent).toContain('No sign-ins recorded yet.')
+})
+
+it('staff filters stay specific even when an Off course is selected', async () => {
+  getActivityEvents.mockResolvedValue({ data: { activity_events: [], next_before_id: null } })
+  await act(async () => render())
+  await click('Learning')
+  expect(container.textContent).toContain('No learning activity recorded yet. Earlier activity was not backfilled.')
+  expect(container.textContent).not.toContain('as you learn')
 })

@@ -25,7 +25,7 @@ export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss 
     <p className="text-xs font-semibold text-primary-ink">Start here</p>
     <h2 id="welcome-title" className="mt-1 text-xl font-bold text-ink">Here’s how your course works</h2>
     <ol className="mt-4 divide-y divide-line border-t border-line">
-      <Step number={1} title={today.mode === 'self_paced' ? 'Learn at your own pace' : 'Follow your learning plan'}>
+      <Step number={1} title={today.mode === 'self_paced' ? 'Learn at your own pace' : 'Follow the class schedule'}>
         {today.mode === 'self_paced' ? 'Read or watch lessons, try the exercises, and submit your work. There are no class times or deadlines.' : 'Learn has your lessons and release dates. Today shows your next step and work that needs you.'}
       </Step>
       <Step number={2} title="Your instructor reviews your exercises">

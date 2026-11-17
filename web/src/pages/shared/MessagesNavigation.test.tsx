@@ -495,3 +495,25 @@ it.each([true, false])('phone Back keeps workspace and origin only when the rede
   expect(router.state.location.pathname + router.state.location.search).toBe(v2 ? '/messages?workspace_id=1' : '/messages')
   expect(router.state.location.state).toEqual(v2 ? { returnTo: '/announcements?tab=inbox', returnLabel: 'Notifications' } : null)
 })
+
+it.each(['return_to', 'from'])('phone Back preserves a query-only %s origin in the scoped inbox', async (key) => {
+  fixture.v2 = true; fixture.staff = false
+  window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  const router = createMemoryRouter([{ path: '/messages/:channelId', element: <Messages /> }, { path: '/messages', element: <Messages /> }], { initialEntries: [`/messages/2?workspace_id=1&${key}=${encodeURIComponent('/announcements?tab=inbox')}`] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  await act(async () => (container.querySelector('button[aria-label="Back to conversations"]') as HTMLButtonElement).click())
+  expect(router.state.location.pathname + router.state.location.search).toBe('/messages?workspace_id=1')
+  expect(container.querySelector('a[href="/announcements?tab=inbox"]')?.textContent).toBe('Back to Notifications')
+})
+it.each(['/materials?cohort_id=1', 'https://evil.example', '//evil.example', 'javascript:alert(1)'])('list visibility follows validated from=%s', async (from) => {
+  fixture.v2 = true; fixture.staff = false
+  const router = createMemoryRouter([{ path: '/messages', element: <Messages /> }], { initialEntries: [`/messages?workspace_id=1&from=${encodeURIComponent(from)}`] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.querySelector('aside[aria-label="Conversations"] > a')?.getAttribute('href') ?? null).toBe(from.startsWith('/materials') ? from : null)
+})
+it('desktop has one Notifications Back while the conversation list is visible', async () => {
+  fixture.v2 = true; fixture.staff = false
+  const router = createMemoryRouter([{ path: '/messages/:channelId', element: <Messages /> }], { initialEntries: ['/messages/2?workspace_id=1&return_to=%2Fannouncements%3Ftab%3Dinbox'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.querySelectorAll('a[href="/announcements?tab=inbox"]')).toHaveLength(1)
+})

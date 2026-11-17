@@ -183,3 +183,20 @@ it('module mentions are links to their place in this course outline', async () =
   const link = container.querySelector('h2 a[href="/materials?cohort_id=3&module=5"]')
   expect(link?.textContent).toContain('JavaScript')
 })
+
+it.each([1, 2])('a week hint is consumed so Week %s stays collapsed', async (week) => {
+  await render(program(), `/materials?cohort_id=3&week=${week}&open=m5-${week}`)
+  expect(button(`Week ${week}`).getAttribute('aria-expanded')).toBe('true')
+  await act(async () => button(`Week ${week}`).click())
+  expect(button(`Week ${week}`).getAttribute('aria-expanded')).toBe('false')
+})
+
+it('collapsing a hinted week preserves the other expanded week', async () => {
+  await render(program(), '/materials?cohort_id=3&week=1&open=m5-1')
+  await act(async () => button('Week 2').click())
+  expect(button('Week 1').getAttribute('aria-expanded')).toBe('true')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
+  await act(async () => button('Week 1').click())
+  expect(button('Week 1').getAttribute('aria-expanded')).toBe('false')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('true')
+})

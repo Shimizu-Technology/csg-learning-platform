@@ -366,8 +366,8 @@ export function Profile() {
                     ? <RecordLink record={{ type: 'cohort', id: enrollment.cohort_id }} returnLabel="Profile" touchTarget className="text-sm [overflow-wrap:anywhere]">{enrollment.cohort_name}</RecordLink>
                     : <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{enrollment.cohort_name}</p>}
                   <p className="text-xs text-ink-secondary [overflow-wrap:anywhere]">Course: {enrollment.curriculum_name}{enrollment.enrolled_at ? ` · joined ${formatShortDate(enrollment.enrolled_at, '')}` : ''}</p>
-                  {v2 && enrollment.access_expires_at && <p className="mt-1 text-xs text-ink-secondary">Lesson access until {formatShortDate(enrollment.access_expires_at)}</p>}
-                  {v2 && enrollment.purchase_id && <PurchaseReceipt purchaseId={enrollment.purchase_id} />}
+                  {enrollment.access_expires_at && <p className="mt-1 text-xs text-ink-secondary">Lesson access until {formatShortDate(enrollment.access_expires_at)}</p>}
+                  {enrollment.purchase_id && <PurchaseReceipt purchaseId={enrollment.purchase_id} />}
                 </div>
                 <Badge tone={ENROLLMENT_TONES[enrollment.status] || 'neutral'}>{humanize(enrollment.status, ENROLLMENT_LABELS)}</Badge>
               </li>
