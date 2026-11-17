@@ -120,6 +120,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
 
   const [objectives, setObjectives] = useState<LearningObjective[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
+  const suggestedSubmission = new URLSearchParams(window.location.search).get('suggest_submission')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('lesson')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -162,6 +163,15 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
       else if (backup) clearLocalDraft(backupKey)
       setReadOnlyBackup(null)
       setBackupChecked(true)
+    }
+    if (firstLoad) {
+      const blockId = Number(new URLSearchParams(window.location.search).get('block'))
+      const block = draftRef.current?.blocks.find((item) => item.id === blockId)
+      if (block) {
+        setSelectedKey(block.key)
+        setInspectorTab('block')
+        if (window.innerWidth < 1024) setSettingsOpen(true)
+      }
     }
     const curriculumId = response.data.lesson.curriculum_id
     if (!editable) return
@@ -491,6 +501,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
 
   return (
     <div className="-mx-4 -mt-4 flex flex-col sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+      {suggestedSubmission && selectedBlock && <p role="status" className="border-b border-line bg-surface-sunken p-4 text-sm text-ink">Suggested submission: {({ text_submission: 'Text submission', repo_url_submission: 'Repository link', repo_and_live_url_submission: 'Repository and live links' } as Record<string, string>)[suggestedSubmission] || 'Choose a submission type'}. Review the block settings and save your decision. Opening this suggestion does not change the block.</p>}
       <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} onDiscard={() => clearLocalDraft(backupKey)} problem={firstProblem} />
       <p aria-live="polite" className="sr-only">{announcement}</p>
 

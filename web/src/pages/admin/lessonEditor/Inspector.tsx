@@ -251,7 +251,7 @@ function BlockSettings({ block, onBlock, activity, objectives, rubrics, onRubric
             </select>
           </label>
         )}
-        {(isExercise || block.block_type === 'checkpoint') && (
+        {(
           <>
             <label className="text-sm font-semibold text-ink-secondary" htmlFor={`${id}-submission`}>Submission type</label>
             <select id={`${id}-submission`} value={block.submission_type || ''} disabled={readOnly} className="app-control -mt-1.5 block w-full min-w-0 truncate" onChange={(event) => {

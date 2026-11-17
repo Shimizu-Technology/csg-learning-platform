@@ -46,6 +46,7 @@ export const ROUTE_TITLES: Array<[path: string, name: string]> = [
   ['/messages/dm/:dmId', TERMS.messages],
   ['/messages/:channelId', TERMS.messages],
   ['/admin', TERMS.today],
+  ['/admin/content/submission-audit', 'Submission audit'],
   ['/admin/meetings', TERMS.meetings],
   ['/admin/students', 'Students'],
   ['/admin/students/:id', 'Student'],

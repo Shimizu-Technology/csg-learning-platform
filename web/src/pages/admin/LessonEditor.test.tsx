@@ -125,6 +125,17 @@ const type = async (input: HTMLInputElement | HTMLTextAreaElement, value: string
 const sentLesson = () => save.mock.calls.at(-1)![1] as { blocks: Array<{ id?: number; client_id?: string; block_type: string; title: string | null }>; removed_block_ids: number[]; title: string; release_day: number }
 
 describe('block lesson editor', () => {
+  it('lets an audit reviewer configure submission settings on instructional blocks without changing their kind', async () => {
+    await mount()
+    await act(async () => cards()[0].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+    await settle()
+    const aside = container.querySelector('aside[aria-label="Settings"]')!
+    const label = Array.from(aside.querySelectorAll('label')).find((item) => item.textContent === 'Submission type')
+    expect(label).toBeTruthy()
+    expect(document.getElementById(label!.htmlFor)?.querySelector('option[value="repo_url_submission"]')).not.toBeNull()
+    expect(cards()[0].getAttribute('aria-label')).toBe('Text block, 1 of 6')
+  })
+
   it('shows every block in order as an editable card with the two-mode editor on formatted text', async () => {
     await mount()
     expect(cardLabels()).toEqual([

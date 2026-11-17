@@ -8,6 +8,8 @@ class ContentBlock < ApplicationRecord
     repo_and_live_url_submission: 4
   }, prefix: true
 
+  has_one :submission_audit_review, dependent: :destroy
+
   belongs_to :lesson
   belongs_to :rubric, optional: true
   belongs_to :s3_video_uploaded_by, class_name: "User", optional: true

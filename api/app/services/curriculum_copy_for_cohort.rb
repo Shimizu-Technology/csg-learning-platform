@@ -142,6 +142,7 @@ class CurriculumCopyForCohort
     "learning_plans" => :remap, "learning_plan_revisions" => :remap, "help_requests" => :remap,
     "messages" => :remap, "notifications" => :remap, "activity_events" => :remap,
     # Kept as they are
+    "submission_audit_reviews" => :keep, # staff decision stays on the original; copies need their own review
     "github_check_runs" => :keep,      # keyed by submission, whose id doesn't change
     "watch_progresses" => :keep,       # class recordings belong to the cohort, not the curriculum
     "interventions" => :keep,          # evidence_snapshot is a dated record; its links still resolve
