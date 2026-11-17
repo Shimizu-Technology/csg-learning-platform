@@ -1,5 +1,5 @@
 {
- "tested_commit": "e847426f (application) on main e0af0801",
+ "tested_commit": "fa61aa91 (fix round) on main cfb5b058",
  "harness": "scripts/qa course-outline.spec.ts",
  "pages": [
   {
@@ -829,12 +829,12 @@
    "width": 1280,
    "firstLessonY": 352,
    "continueY": 32,
-   "pageHeight": 962,
+   "pageHeight": 1190,
    "overflowX": 0,
    "kinds": [
     "exercise"
    ],
-   "rows": 6,
+   "rows": 18,
    "console_errors": 0,
    "small_phone_targets": 1
   },
@@ -1028,12 +1028,12 @@
    "width": 1280,
    "firstLessonY": 352,
    "continueY": 32,
-   "pageHeight": 962,
+   "pageHeight": 1190,
    "overflowX": 0,
    "kinds": [
     "exercise"
    ],
-   "rows": 6,
+   "rows": 18,
    "console_errors": 0,
    "small_phone_targets": 1
   },
@@ -1064,11 +1064,49 @@
   },
   {
    "mode": "off",
+   "case": "cached no-flag payload",
+   "theme": "light",
+   "width": 1280,
+   "passed": true
+  },
+  {
+   "mode": "off",
+   "case": "cached no-flag payload",
+   "theme": "dark",
+   "width": 1280,
+   "passed": true
+  },
+  {
+   "mode": "off",
+   "case": "offline cold start with retry",
+   "passed": true
+  },
+  {
+   "mode": "off",
    "case": "manual completion controls",
    "count": 2,
    "passed": true
   },
   {
+   "mode": "off",
+   "case": "cached no-flag payload",
+   "theme": "light",
+   "width": 390,
+   "passed": true
+  },
+  {
+   "mode": "off",
+   "case": "cached no-flag payload",
+   "theme": "dark",
+   "width": 390,
+   "passed": true
+  },
+  {
+   "mode": "off",
+   "case": "offline cold start with retry",
+   "passed": true
+  },
+  {
    "mode": "on",
    "case": "program interactions",
    "passed": true
@@ -1081,6 +1119,25 @@
   },
   {
    "mode": "on",
+   "case": "cached no-flag payload",
+   "theme": "light",
+   "width": 1280,
+   "passed": true
+  },
+  {
+   "mode": "on",
+   "case": "cached no-flag payload",
+   "theme": "dark",
+   "width": 1280,
+   "passed": true
+  },
+  {
+   "mode": "on",
+   "case": "offline cold start with retry",
+   "passed": true
+  },
+  {
+   "mode": "on",
    "case": "program interactions",
    "passed": true
   },
@@ -1088,6 +1145,25 @@
    "mode": "on",
    "case": "manual completion controls",
    "count": 1,
+   "passed": true
+  },
+  {
+   "mode": "on",
+   "case": "cached no-flag payload",
+   "theme": "light",
+   "width": 390,
+   "passed": true
+  },
+  {
+   "mode": "on",
+   "case": "cached no-flag payload",
+   "theme": "dark",
+   "width": 390,
+   "passed": true
+  },
+  {
+   "mode": "on",
+   "case": "offline cold start with retry",
    "passed": true
   }
  ]

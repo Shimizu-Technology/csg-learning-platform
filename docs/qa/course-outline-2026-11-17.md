@@ -102,3 +102,32 @@ The advisory `impeccable detect` returned `[]`.
 - The ASUS wrapper can't be claimed: its command line matches the protected `postgres` pattern. `asus-test` removes its own container.
 - Owned local databases `csg_course_outline_dev` and `csg_course_outline_test` were dropped at the end.
 - Shared PostgreSQL, other sessions' worktrees and the other ASUS run were left untouched.
+
+## Fix round 1 (independent Codex review, 2026-11-17)
+
+The review rated `4d0db6ba` not ready and confirmed four findings. Each fix has a test that fails on the old code. Before the fixes I merged `origin/main` at `cfb5b058` (#292 `expo-updates`, #289 staff components) and regenerated both type files rather than hand-merging them.
+
+| Finding | Fix | Tests |
+| --- | --- | --- |
+| P1: a missing flag turned the redesign on, on web and native. | Only an explicit, resolved `student_experience_v2: true` for the cohort shows the new experience. A missing key, no cohort, loading or a failed lookup keeps today's views. This covers the web hook, nav and preview, and native `studentExperienceV2`, the only native reader of `kind`. | `studentExperience.test.tsx`: cached payload without the key; cohort key missing with the school setting Off (and On); offline cold start. Native `student-experience.test.tsx`: `kind` present with no flag (cached pre-rollout session), and a stale offline cohort list. `shellNavigation.test.ts`: a missing key keeps My cohort. `StudentExperienceRoutes.test.tsx`: cached cohort without the key. |
+| P2: a failed refresh carried On across cohorts. | A kept decision is scoped to `{userId, cohortId}`. Another cohort, or another user, with no resolved flag gets today's view. Native doesn't cache decisions. | `studentExperience.test.tsx`: the reviewer's reproduction with the real `CohortProvider` (On cohort, failed focus refresh, then `/materials?cohort_id=3`), plus a user change. |
+| P2: announcement `cohort_id` was dropped downstream. | The `cohort_id` context goes through the server `RecordDestination`, the web and native adapters and the shared fixtures. `/announcements/80?cohort_id=3` now opens `/updates?cohort_id=3&announcement_id=80` on native. Installed builds keep reading the stored bare `path`. | New rows in `record-destination-contract.json` and `notification-wire-contract.json`, exercised by the API, web and native contract tests; the notification model test asserts the descriptor and native href. |
+| P3: the alumni library showed a "1 redo" badge. | The library shows no redo, progress or next badges. The server sends `filters.redo = 0` for the library. | `CourseOutline.test.tsx` (library with a historical redo), `course_outline_test.rb`. |
+| "Loading Learn…" | `StudentExperienceSwitch`, now shared by `LearnRoute`, `ModuleRoute` and `CohortHomeRoute`, shows today's view with a notice and Try again when the switch lookup fails, or when it takes over 10 seconds. It never shows an endless spinner. | `StudentExperienceRoutes.test.tsx`: a failed lookup with Retry calling `refreshCohorts`, and a slow lookup with fake timers. |
+
+Browser matrix rerun at `fa61aa91` with a fresh owned harness:
+
+- Switch Off (today's views and Lance's shape): **40/40**.
+- Switch On: **42/42**.
+- New cases in both passes: a cached cohort list without the key keeps today's Learn at 1280/390 in light and dark. An offline cold start (cohort list request aborted) shows today's Learn with the notice. Try again then opens the outline when the switch is On.
+- The measurements match the table above (`measurements.json` updated). There was no horizontal scroll and there were no console errors.
+- The harness servers (`35123`/`35162`) were claimed, then stopped and dropped with `run clean`, then released.
+
+Fix-round full gate: `asus-test --postgres csg_learning_platform_test <repo> -- bash scripts/qa/student-workspace-gate.sh` passed with **0 failed stages** on `fa61aa91`, which is merged with `origin/main` at `cfb5b058`.
+
+- API with prepared statements on and off: 2,016 runs and 41,917 assertions each, with 0 failures, errors or skips. The port adapter was kept.
+- RuboCop: 715 files, no offenses. Brakeman: 0 warnings.
+- Web: typecheck, lint, vitest (227 files), build, `test:bundle` and `api:check` passed.
+- Mobile: typecheck, lint (0 errors) and jest (141 suites, 1,536 tests) passed.
+
+The owned local test database `csg_course_outline_test` was recreated for this round and dropped at the end.
