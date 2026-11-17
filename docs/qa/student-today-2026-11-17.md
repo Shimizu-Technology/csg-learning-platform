@@ -187,6 +187,25 @@ A fresh harness on `cb0a2f73` (servers `68050`/`68089`, claimed, then stopped an
 - The journeys pass on #294's lesson page. The redo feedback lands 169px from the top at 1280 and 194px at 390.
 - The other measurements match the table.
 
+### Final round (CodeRabbit review 5937232843 and two follow-ups, head `95521be9`)
+
+| Finding | Fix | Test (fails on `95521be9`) |
+| --- | --- | --- |
+| Unread staff thread replies were left out of Today's unread list, though the conversation's badge counts them. | The `parent_message_id` restriction is gone. The author, membership, read-cursor and block filters stay, as does one row per conversation. | API: a read root with an unread staff reply now shows that reply. |
+| A `help_request` link opened the dialog on the lesson context, so an exercise request's reply stayed collapsed. | On auto-open, the dialog selects the linked request's own context (compatible with #294's exercise targeting). | `LearnerEntitlements.test.tsx`: three contexts and a linked acknowledged request on one exercise. The title reads "Your help request" and the reply shows. |
+| The redo-landing check passed a card above the viewport. | It also requires `feedbackTop >= 0`. | Browser journey. |
+| The message hook could use a pending result after the user or cohort changed while still mounted. | Each request belongs to a user-and-cohort context. A result for an old context writes no draft and doesn't navigate, and "Opening" resets for the new context. | `useMessageInstructor.test.tsx`: cohort change and user change while pending. |
+| The refresh test only checked that refresh was called. | It now starts unanswered, follows the link without remounting, and asserts the refreshed reply is in the dialog. | `MyWork.test.tsx`. |
+
+Verification:
+
+- API: the affected files (`student_today_test.rb`, the OpenAPI contract and communication), 45 runs each with prepared statements on and off, 0 failures. RuboCop is clean on the changed files.
+- Web: typecheck and lint passed. Vitest over `src/pages/student`, `src/components/student` and `src/lib` passed (98 files, 1,252 tests).
+- Browser, on a fresh harness: Off 28/28, On 32/32.
+  - The first On attempt (servers `9407`/`9424`) failed the 390 Alex row twice. The 1280 journey ends on the instructor conversation, which marks it read in the background, and that could land after the `finally` reset.
+  - The journey's `finally` now waits for the page to settle and leaves it before resetting. The rerun (servers `26219`/`26277`) passed.
+  - Both harnesses were claimed, then stopped and dropped with `run clean`.
+
 ## Not run
 
 - Native device UI and native visual parity (follow-up).

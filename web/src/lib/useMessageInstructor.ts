@@ -23,22 +23,29 @@ export interface MessageTopic {
 export function useMessageInstructor(cohortId: number | null | undefined) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
-  const [opening, setOpening] = useState(false)
-  // A result that arrives after the page is gone is ignored: no navigation, no state.
-  const active = useRef(true)
+  // Everything a pending request belongs to: the signed-in user and the cohort.
+  const context = `${user?.id ?? ''}:${cohortId ?? ''}`
+  // "Opening" belongs to one context, so it resets on its own when the user or cohort changes.
+  const [openingFor, setOpeningFor] = useState<string | null>(null)
+  const opening = openingFor === context
+  // A result is used only while its page and its context are still current:
+  // after unmount, or once the user or cohort changed, it writes no draft and doesn't navigate.
+  const current = useRef<string | null>(context)
   useEffect(() => {
-    active.current = true
-    return () => { active.current = false }
-  }, [])
+    current.current = context
+    return () => { current.current = null }
+  }, [context])
   const open = useCallback(async (instructorId: number | null | undefined, topic?: MessageTopic) => {
     if (opening) return
-    const email = () => { if (active.current) window.location.href = `mailto:${SUPPORT_EMAIL}` }
+    const requestedFor = context
+    const stillCurrent = () => current.current === requestedFor
+    const email = () => { if (stillCurrent()) window.location.href = `mailto:${SUPPORT_EMAIL}` }
     if (!user || !cohortId || !instructorId) { email(); return }
-    setOpening(true)
+    setOpeningFor(requestedFor)
     try {
       // A rejected request (no session token, offline) falls back the same way a refused one does.
       const result = await Promise.resolve().then(() => api.createDirectConversation({ cohort_id: cohortId, user_ids: [instructorId] })).catch(() => null)
-      if (!active.current) return
+      if (!stillCurrent()) return
       const conversation = result?.data?.direct_conversation
       if (!conversation || result?.fromCache) { email(); return }
       if (topic) {
@@ -46,8 +53,8 @@ export function useMessageInstructor(cohortId: number | null | undefined) {
       }
       navigate(conversationPath({ type: 'dm', id: conversation.id }, { cohortId }))
     } finally {
-      if (active.current) setOpening(false)
+      setOpeningFor((value) => (value === requestedFor ? null : value))
     }
-  }, [cohortId, navigate, opening, user])
+  }, [cohortId, context, navigate, opening, user])
   return { open, opening }
 }

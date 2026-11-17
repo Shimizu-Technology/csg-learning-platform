@@ -226,7 +226,8 @@ class StudentToday
       @student.id
     ])
     conversations = DirectConversation.visible_for(@student).where(cohort_id: @cohort.id).select(:id)
-    scope = Message.visible.where(direct_conversation_id: conversations, parent_message_id: nil)
+    # Thread replies count too, as in the conversation's unread badge.
+    scope = Message.visible.where(direct_conversation_id: conversations)
       .where.not(author_id: [ @student.id, *@student.blocked_relationship_user_ids ])
       .where(author_id: User.where(role: %i[instructor admin]).select(:id))
       .joins(member_join)

@@ -274,6 +274,17 @@ class StudentTodayTest < ActionDispatch::IntegrationTest
     assert_equal "Busy 14", messages.first["excerpt"]
   end
 
+  test "an unread staff reply in a thread counts, like the conversation's unread badge" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @teacher, @student ])
+    root = Message.create!(direct_conversation: conversation, author: @teacher, body: "Root note")
+    conversation.direct_conversation_members.find_by!(user: @student).mark_read!(root)
+    assert_empty fetch_today.dig("needs_you", "items").select { |item| item["kind"] == "message" }, "the read root alone is nothing to do"
+    travel 1.minute
+    reply = Message.create!(direct_conversation: conversation, author: @teacher, body: "Reply in the thread", parent_message_id: root.id)
+    messages = fetch_today.dig("needs_you", "items").select { |item| item["kind"] == "message" }
+    assert_equal [ [ conversation.id, reply.id, "Reply in the thread" ] ], messages.map { |item| item.values_at("direct_conversation_id", "message_id", "excerpt") }
+  end
+
   test "lessons with no steps are left out of the pace and this week" do
     # Two empty lessons a week in weeks 1-4 would make the typical week 5 lessons, not 3.
     (0..3).each { |week| 2.times { |index| @course.lessons.create!(title: "Week #{week + 1} notice #{index}", position: 90 + index, release_day: week * 7 + 3, lesson_type: :exercise, required: true) } }

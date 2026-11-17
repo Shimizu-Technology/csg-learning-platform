@@ -106,11 +106,13 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     else void loadRequests().catch(() => {})
   }, [linkedRequestId, loadRequests, onRequestsRefresh])
   useEffect(() => {
-    if (!linkedRequestId || loading || autoOpened.current === linkedRequestId) return
-    if (!history.some((request) => request.id === linkedRequestId)) return
+    if (!linkedRequestId || loading || autoOpened.current === linkedRequestId || !linkedRequest) return
     autoOpened.current = linkedRequestId
+    // With several contexts (the lesson and its exercises), open on the linked request's own one, so its reply shows.
+    const linkedChoice = choices?.find(item => item.type === linkedRequest.context_type && item.id === linkedRequest.context_id)
+    if (linkedChoice) setChosenContext(`${linkedChoice.type}:${linkedChoice.id}`)
     setOpen(true)
-  }, [linkedRequestId, loading, history])
+  }, [linkedRequestId, loading, linkedRequest, choices])
 
   async function submitRequest(event: React.FormEvent) {
     event.preventDefault()

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useEffect, type ReactNode } from 'react'
+import { act, useEffect, useState, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -178,18 +178,26 @@ describe('help answers (L-1.3)', () => {
     expect(dialog.textContent).not.toContain('Newer answer.')
   })
 
-  it('on: a new link on a lesson that is already open fetches the requests again (fix round)', async () => {
+  it('on: a new link on a lesson that is already open fetches the requests again and shows the new reply (fix round)', async () => {
+    const unanswered = request({ status: 'open', staff_response: null, owner: null, replies: [], acknowledged_at: null })
+    const answered = request({ replies: [{ id: 9, body: 'Your loop never updates i.', resolved_request: false, author: person(2, 'Audreana Synthetic'), created_at: '2026-11-17T03:00:00Z' }] })
     const refresh = vi.fn()
     function Lesson() {
-      const location = useLocation()
-      return <><StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={9} contextType="lesson" contextId={42} contextLabel="Loops" requests={[request()]} requestsLoading={false} onRequestsRefresh={refresh} /></StudentExperienceProvider><a href="#" data-to="next" onClick={(event) => { event.preventDefault() }}>{location.search}</a></>
+      const [requests, setRequests] = useState<HelpRequest[]>([unanswered])
+      refresh.mockImplementation(async () => { setRequests([answered]) })
+      return <StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={9} contextType="lesson" contextId={42} contextLabel="Loops" requests={requests} requestsLoading={false} onRequestsRefresh={refresh} /></StudentExperienceProvider>
     }
     const nav: { go?: (path: string) => void } = {}
     function Nav() { const navigate = useNavigate(); useEffect(() => { nav.go = navigate }); return null }
-    await act(async () => { root.render(<MemoryRouter key={++renders} initialEntries={['/lessons/42?cohort_id=9&help_request=31']}><Nav /><Routes><Route path="/lessons/:id" element={<Lesson />} /></Routes></MemoryRouter>) })
+    await act(async () => { root.render(<MemoryRouter key={++renders} initialEntries={['/lessons/42?cohort_id=9']}><Nav /><Routes><Route path="/lessons/:id" element={<Lesson />} /></Routes></MemoryRouter>) })
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
     expect(refresh).not.toHaveBeenCalled()
-    await act(async () => { nav.go!('/lessons/42?cohort_id=9&help_request=32') })
+    // The notification links here while the lesson is open: no remount.
+    await act(async () => { nav.go!('/lessons/42?cohort_id=9&help_request=31') })
+    await act(async () => { await Promise.resolve() })
     expect(refresh).toHaveBeenCalledTimes(1)
+    const dialog = container.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Your loop never updates i.')
   })
 
   it('off: the dialog stays closed and the labels are today’s', async () => {

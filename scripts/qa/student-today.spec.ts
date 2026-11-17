@@ -185,6 +185,7 @@ if (mode === 'on') {
       await page.waitForTimeout(600)
       const feedbackTop = await feedback.evaluate((element) => Math.round(element.getBoundingClientRect().top))
       journey.redoFeedbackTop = feedbackTop
+      expect(feedbackTop, 'the feedback is on the first screen after the jump, not above it').toBeGreaterThanOrEqual(0)
       expect(feedbackTop, 'the feedback is on the first screen after the jump').toBeLessThan(500)
       await expect(feedback).toContainText('Add the missing edge case.')
       await page.screenshot({ path: new URL(`journey-redo-landing-${width}.jpg`, shots).pathname, type: 'jpeg', quality: 70 })
@@ -210,7 +211,11 @@ if (mode === 'on') {
       const metrics = await measure(page)
       expect(metrics.overflowX).toBeLessThanOrEqual(0)
     } finally {
-      // Even when an assertion fails, the next pass sees persona 3's answer unread.
+      // The conversation page marks its messages read in the background: let it
+      // settle and leave it first, so the reset can't be overtaken.
+      await page.waitForLoadState('networkidle').catch(() => {})
+      await page.goto('about:blank').catch(() => {})
+      // Even when an assertion fails, the next pass sees persona 3's answer and message unread.
       markAnswerUnread()
     }
     results.push({ mode, journey })
