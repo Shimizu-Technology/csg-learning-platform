@@ -14,3 +14,5 @@ class ActiveSupport::TestCase
 end
 
 require_relative "support/openapi_contract"
+
+require_relative "support/pooler_migration_connections"

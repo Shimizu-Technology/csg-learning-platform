@@ -2,6 +2,9 @@ require "test_helper"
 
 class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
   setup do
+    # Expiry fixtures and all three requests must share one clock, even when
+    # a VM host corrects wall time while this test is running.
+    travel_to Time.utc(2026, 11, 18, 1, 0, 0) unless ENV["STRESS_REAL_CLOCK"]
     @curriculum = Curriculum.create!(name: "P8 entitlement course")
     @mod = @curriculum.modules.create!(name: "Foundations", position: 0, schedule_days: "daily")
     @lesson = @mod.lessons.create!(title: "Practice", position: 0, release_day: 0)
@@ -93,8 +96,12 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
   test "self-paced support expiry or missing assigned instructor never advertises course questions" do
     self_paced!
     @enrollment.update!(first_opened_at: 2.months.ago, support_expires_at: 1.second.ago)
+    expired_at = @enrollment.support_expires_at
+    opened_at = @enrollment.first_opened_at
     assert_contract(can_submit: true, support_mode: "none")
     assert_previous_response_readable(previous_request)
+    assert_equal expired_at, @enrollment.reload.support_expires_at
+    assert_equal opened_at, @enrollment.first_opened_at
 
     @enrollment.update!(support_expires_at: 1.month.from_now)
     @cohort.update!(support_instructor: nil)
