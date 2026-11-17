@@ -58,3 +58,13 @@ it('keeps blocked rows as hidden previews without a DM link or an unavailable co
   expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Open direct message')?.disabled).toBe(true)
   expect(container.querySelector('a[href^="/messages/6?"]')).not.toBeNull()
 })
+it('waits for the server permission before enabling direct messages', async () => {
+  let resolve!: (value: unknown) => void
+  vi.mocked(api.getStudentCommunication).mockImplementationOnce(() => new Promise(done => { resolve = done as never }))
+  await mount()
+  const action = () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Open direct message')!
+  expect(action().disabled).toBe(true)
+  expect(container.textContent).not.toContain('this student is blocked')
+  await act(async () => resolve({ data: { communication: history }, error: null }))
+  expect(action().disabled).toBe(false)
+})

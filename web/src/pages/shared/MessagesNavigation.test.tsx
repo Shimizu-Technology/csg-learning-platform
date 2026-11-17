@@ -471,3 +471,10 @@ it('keeps student and cohort filters on initial and refreshed full-message lists
   await act(async () => new Promise(resolve => setTimeout(resolve, 350)))
   expect(fixture.calls).toHaveBeenCalledWith('getDirectConversations', { cohort_id: 1, student_id: 3 })
 })
+it('keeps unrelated realtime DMs out of the student-filtered full list', async () => {
+  await open('/messages/2?cohort_id=1&student_id=3')
+  const latest = { ...message(901), channel_id: null, direct_conversation_id: 8 }
+  const summary = { ...summaryFixtures().base, latest_message: latest }
+  await act(async () => fixture.emit?.({ event: 'created', direct_conversation_id: 8, message: latest, direct_conversation: summary }))
+  expect(summaryRow('dm')).toBeUndefined()
+})

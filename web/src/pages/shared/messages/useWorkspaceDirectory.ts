@@ -355,6 +355,8 @@ export function useWorkspaceDirectory(
   }
 
   const updateTargetSummaryFromEvent = (event: ChannelMessageEvent, message: ChannelMessage, markRead = false) => {
+    const incomingDm = event.direct_conversation
+    if (requestedStudentId && incomingDm && (!incomingDm.users.some(member => member.id === requestedStudentId) || (requestedCohortId && incomingDm.cohort_id !== requestedCohortId))) return
     if (event.channel_id || event.channel) summaryFreshness.recordRealtime('channel', event.channel?.id || event.channel_id!)
     if (event.direct_conversation_id || event.direct_conversation) summaryFreshness.recordRealtime('dm', event.direct_conversation?.id || event.direct_conversation_id!)
     if (event.channel) {
