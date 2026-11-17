@@ -8181,7 +8181,7 @@ export interface components {
             available: boolean;
             /** @description Unlock date of a locked lesson in a dated program; null when open or self-paced. */
             opens_on: string | null;
-            /** @description The learner can act on it now (LearnerProgress#actionable?). Always false when read-only or in the library. */
+            /** @description The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library. */
             todo: boolean;
             /** @description The block a Redo was requested on, for a #block- anchor. */
             redo_block_id: number | null;
@@ -8197,7 +8197,7 @@ export interface components {
             available: boolean;
             /** @description Unlock date of a locked lesson in a dated program; null when open or self-paced. */
             opens_on: string | null;
-            /** @description The learner can act on it now (LearnerProgress#actionable?). Always false when read-only or in the library. */
+            /** @description The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library. */
             todo: boolean;
             /** @description The block a Redo was requested on, for a #block- anchor. */
             redo_block_id: number | null;

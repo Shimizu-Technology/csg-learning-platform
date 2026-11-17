@@ -19839,7 +19839,7 @@
           },
           "todo": {
             "type": "boolean",
-            "description": "The learner can act on it now (LearnerProgress#actionable?). Always false when read-only or in the library."
+            "description": "The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library."
           },
           "redo_block_id": {
             "anyOf": [
@@ -19905,7 +19905,7 @@
           },
           "todo": {
             "type": "boolean",
-            "description": "The learner can act on it now (LearnerProgress#actionable?). Always false when read-only or in the library."
+            "description": "The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library."
           },
           "redo_block_id": {
             "anyOf": [

@@ -155,3 +155,22 @@ from `web/`. The spec covers light/dark at both widths, restores its own onboard
 fixture, and writes screenshots under `docs/qa/catalog-course-pages-2026-11-17/`.
 The checkout spec intercepts the purchase request and hosted page; it never calls
 Stripe. Existing API regressions cover actual checkout/session/webhook logic.
+
+### Course outline (W8 PR 8.1)
+
+After `start`, load the course outline fixture once from `api/` (the canonical
+production-authored prework in three synthetic cohorts, with personas part-way through it):
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/course-outline-fixtures.rb setup`.
+Then run one pass per state of the "New student experience" switch, from the repo root:
+
+```sh
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch off)
+QA_OUTLINE=off QA_SPEC=course-outline.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch on)
+QA_OUTLINE=on QA_SPEC=course-outline.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+Off is today's Learn (the "before", and Lance's shape); On is the outline. Each pass
+measures the first lesson's position and the page height for eight persona setups at
+1280/390 in light/dark, and writes captures to `docs/qa/course-outline-2026-11-17/`.
+See `docs/qa/course-outline-2026-11-17.md`.
