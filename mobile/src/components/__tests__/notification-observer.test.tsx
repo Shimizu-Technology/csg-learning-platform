@@ -1,3 +1,4 @@
+import { queueIncomingLink, takeIncomingLink } from '@/lib/incoming-link';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, render, waitFor } from '@testing-library/react-native';
@@ -7,7 +8,7 @@ import { notificationStack, type NavigationState } from '@/lib/notification-navi
 
 let mockState: NavigationState;
 let mockAuth = { loaded: true, signedIn: true };
-let mockSession: { loading: boolean; accessDenied: boolean; user: null | { id?: number; community_policy?: { accepted: boolean } } };
+let mockSession: { loading: boolean; accessDenied: boolean; user: null | { id?: number; is_staff?: boolean; community_policy?: { accepted: boolean } } };
 const mockDispatch = jest.fn();
 const mockClear = jest.fn(async () => {});
 let mockLast: unknown;
@@ -23,8 +24,8 @@ function root(app: NavigationState = { routes: [{ name: '(tabs)' }] }): Navigati
   return { key: 'wrapper', routes: [{ name: '__root', state: { key: 'app-root', index: 0, routeNames: ['(auth)', '(app)'], routes: [{ name: '(app)', state: { ...app, key: 'app-stack' } }] } }] };
 }
 beforeEach(async () => {
-  jest.clearAllMocks(); await AsyncStorage.clear(); await AsyncStorage.setItem('csg.notification.last-user.v1', '1'); mockLast = null;
-  mockAuth = { loaded: true, signedIn: true }; mockSession = { loading: false, accessDenied: false, user: { id: 1 } };
+  takeIncomingLink(); jest.clearAllMocks(); await AsyncStorage.clear(); await AsyncStorage.setItem('csg.notification.last-user.v1', '1'); mockLast = null;
+  mockAuth = { loaded: true, signedIn: true }; mockSession = { loading: false, accessDenied: false, user: { id: 1, is_staff: true } };
   mockState = root(); mockDispatch.mockImplementation(() => {});
 });
 // Web-only kinds (staff, Safety items) have no native screen; see the Updates fallback test below.
@@ -55,7 +56,7 @@ it('retains signed-out taps across remount, session loading and policy acceptanc
   screen.unmount();
   const next = render(<NotificationObserver />);
   await act(async () => {});
-  mockAuth.signedIn = true; mockSession = { loading: true, accessDenied: false, user: { id: 1 } };
+  mockAuth.signedIn = true; mockSession = { loading: true, accessDenied: false, user: { id: 1, is_staff: true } };
   next.rerender(<NotificationObserver />); expect(mockDispatch).not.toHaveBeenCalled();
   mockSession = { loading: false, accessDenied: false, user: { id: 1, community_policy: { accepted: false } } };
   next.rerender(<NotificationObserver />); expect(mockDispatch).not.toHaveBeenCalled();
@@ -75,11 +76,11 @@ it('drops expired descriptors, including a matching OS last response', async () 
   render(<NotificationObserver />); await act(async () => {});
   expect(mockDispatch).not.toHaveBeenCalled(); expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
 });
-it.each(fixtures.filter(f => !f.native))('opens Updates for a web-only $descriptor.kind alert, as the API payload says', async fixture => {
+it.each(fixtures.filter(f => !f.native))('offers a web fallback for a web-only $descriptor.kind alert', async fixture => {
   render(<NotificationObserver />);
   await act(async () => receive(response({ destination: fixture.descriptor, path: '/updates', destination_path: '/updates' })));
   await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
-  expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack('/updates')));
+  expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack(`/link-unavailable?path=${encodeURIComponent(fixture.web)}`)));
 });
 it('keeps legacy notification paths and exact anchors', async () => {
   render(<NotificationObserver />);
@@ -94,7 +95,7 @@ it.each(['/updates?announcement_id=12', '/recording/recording-12', '/recording/u
   first.unmount();
   const next = render(<NotificationObserver />);
   await act(async () => {});
-  mockAuth.signedIn = true; mockSession.user = { id: 1 };
+  mockAuth.signedIn = true; mockSession.user = { id: 1, is_staff: true };
   next.rerender(<NotificationObserver />);
   await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
   expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack(path)));
@@ -130,7 +131,7 @@ it.each(nativeFixtures)('persists the validated $descriptor.kind wire descriptor
   first.unmount();
   const next = render(<NotificationObserver />);
   await act(async () => {});
-  mockAuth.signedIn = true; mockSession.user = { id: 1 };
+  mockAuth.signedIn = true; mockSession.user = { id: 1, is_staff: true };
   next.rerender(<NotificationObserver />);
   await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
   expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack(fixture.native!)));
@@ -150,7 +151,7 @@ it('binds a first-install cold tap to the signed-in Clerk subject before session
   const screen = render(<NotificationObserver />);
   await act(async () => {});
   expect(mockDispatch).not.toHaveBeenCalled();
-  mockSession = { loading: false, accessDenied: false, user: { id: 1 } };
+  mockSession = { loading: false, accessDenied: false, user: { id: 1, is_staff: true } };
   screen.rerender(<NotificationObserver />);
   await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
 });
@@ -172,4 +173,26 @@ it('rejects another recipient’s tray notification even when tapped while signe
   render(<NotificationObserver />);
   await act(async () => receive(response({ path: '/lesson/42', recipient_user_id: 2 })));
   expect(mockDispatch).not.toHaveBeenCalled(); expect(mockClear).toHaveBeenCalled();
+});
+
+it('never sends learners to a staff screen from a push', async () => {
+  mockSession.user = { id: 1, is_staff: false };
+  render(<NotificationObserver />);
+  await act(async () => receive(response({ path: '/staff/student/18?cohort_id=4' })));
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+  expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack('/link-unavailable')));
+});
+
+it('holds an incoming universal link across the sign-in remount and policy gate', async () => {
+  mockAuth.signedIn = false; mockSession.user = null;
+  queueIncomingLink('https://learn.codeschoolofguam.com/lessons/42?cohort_id=2');
+  const first = render(<NotificationObserver />); await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled(); first.unmount();
+  mockAuth.signedIn = true; mockSession.user = { id: 1, community_policy: { accepted: false } };
+  const next = render(<NotificationObserver />); await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled();
+  mockSession.user.community_policy!.accepted = true; next.rerender(<NotificationObserver />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+  expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack('/lesson/42?cohort_id=2')));
+  expect(takeIncomingLink()).toBeNull();
 });

@@ -3,7 +3,7 @@ export function notificationStack(path: string, current?: NavigationState): Navi
   const [pathname, query] = path.split('?');
   const params = Object.fromEntries(new URLSearchParams(query));
   const parts = pathname.split('/').filter(Boolean);
-  const tab = ['/', '/learn', '/updates'].includes(pathname) ? (parts[0] || 'index') : null;
+  const tab = ['/', '/learn', '/updates', '/messages'].includes(pathname) ? (parts[0] || 'index') : null;
   const home = /^\/(lesson|module|staff\/curriculum|staff\/lesson)\//.test(pathname) ? 'learn' : /^\/(conversation|thread)\//.test(pathname) ? 'messages' : 'index';
   // Preserve the mounted tab route identity. Remounting tabs during a reset can
   // emit a focus event that pops the newly opened detail on SDK 57.
@@ -17,6 +17,7 @@ export function notificationStack(path: string, current?: NavigationState): Navi
   if (tab) return { index: 0, routes: [tabs(tab, params)] };
   let name = pathname.slice(1);
   if (parts[0] === 'conversation') { name = 'conversation/[kind]/[id]'; params.kind = parts[1]; params.id = parts[2]; }
+  else if (parts[0] === 'cohort' && parts[2] === 'schedule') { name = 'cohort/[id]/schedule'; params.id = parts[1]; }
   else if (parts.length > 1 && !['grading', 'support'].includes(parts.at(-1)!)) {
     params.id = parts.at(-1)!;
     name = [...parts.slice(0, -1), '[id]'].join('/');

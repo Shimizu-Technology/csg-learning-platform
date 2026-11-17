@@ -27,6 +27,17 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     )
   end
 
+  test "enrolling an existing user queues the existing system notice for push" do
+    assert_enqueued_with(job: PushNotificationJob) do
+      as_user(@admin) do
+        post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: @student.id }, headers: auth_headers, as: :json
+      end
+    end
+    assert_response :created
+    notification = @student.notifications.find_by!(notification_type: :system)
+    assert_equal "/cohorts/#{@cohort.id}", notification.path
+  end
+
   test "creating enrollment auto-generates module assignments for all curriculum modules" do
     as_user(@admin) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments",

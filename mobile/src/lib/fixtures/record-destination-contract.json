@@ -253,7 +253,12 @@
       "anchor": {}
     },
     "web": "/admin/students/18?cohort_id=4",
-    "native": "/staff/student/18?cohort_id=4"
+    "native": "/staff/student/18?cohort_id=4",
+    "native_inputs": [
+      "/staff/student/18?cohort_id=4",
+      "/admin/cohorts/4/students/18"
+    ],
+    "native_expected": "/staff/student/18?cohort_id=4"
   },
   {
     "descriptor": {
@@ -284,5 +289,33 @@
     },
     "web": "/admin/moderation#deletion-6",
     "native": null
+  },
+  {
+    "descriptor": {
+      "kind": "curriculum",
+      "id": "3",
+      "context": {
+        "staff": true,
+        "cohort_id": "4"
+      },
+      "anchor": {}
+    },
+    "web": "/admin/content?cohort_id=4#curriculum-3",
+    "native": "/staff/curriculum/3?cohort_id=4",
+    "native_inputs": [
+      "/staff/curriculum/3?cohort_id=4"
+    ]
+  },
+  {
+    "descriptor": {
+      "kind": "cohort",
+      "id": "2",
+      "context": {
+        "staff": true
+      },
+      "anchor": {}
+    },
+    "web": "/admin/cohorts/2",
+    "native": "/cohort/2"
   }
 ]

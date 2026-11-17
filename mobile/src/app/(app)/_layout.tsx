@@ -2,7 +2,7 @@ import { brand } from '../../lib/brand'
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { Redirect, Stack, useRouter, type Href } from 'expo-router';
+import { Redirect, Stack, useRouter, usePathname, type Href } from 'expo-router';
 import { X } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -20,6 +20,7 @@ export default function AppLayout() {
   const { loaded, signedIn } = useCsgAuth();
   const { api, user, loading, error, accessDenied, refresh, signOut } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   if (!loaded) return null;
   if (!signedIn) return <Redirect href="/(auth)/sign-in" />;
   if (loading) return <View style={styles.gate}><LoadingState label={`Opening your ${brand.schoolAbbreviation} account`} /></View>;
@@ -35,6 +36,7 @@ export default function AppLayout() {
   if (user.community_policy && !user.community_policy.accepted) {
     return <CommunityStandardsGate policy={user.community_policy} accountEmail={user.email} onSignOut={signOut} onAccept={async () => { await api.acceptCommunityPolicy(user.community_policy!.version); await refresh(); }} />;
   }
+  if (!user.is_staff && pathname.startsWith('/staff')) return <Redirect href={'/link-unavailable' as Href} />;
   const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={c.text.body} size={22} /></Pressable>;
   return (
     <Stack screenOptions={{ statusBarStyle: dark ? 'light' : 'dark', headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerBackButtonDisplayMode: 'minimal', headerBackTitle: 'Back', headerShadowVisible: false, contentStyle: { backgroundColor: c.surface.page } }}>

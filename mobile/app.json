@@ -22,7 +22,11 @@
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleName": "CSG Learn",
         "UIViewControllerBasedStatusBarAppearance": true
-      }
+      },
+      "appleTeamId": "4T358A5S74",
+      "associatedDomains": [
+        "applinks:learn.codeschoolofguam.com"
+      ]
     },
     "android": {
       "icon": "./assets/images/icon.png",

@@ -1,3 +1,4 @@
+import { clearIncomingLink } from '@/lib/incoming-link';
 import { clearHeldNotifications } from '@/lib/held-notification';
 import { configureSchoolTime } from '../lib/school-time';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -44,15 +45,23 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const sessionCacheWriteRef = useRef<Promise<void>>(Promise.resolve());
   const pushRegistrationRef = useRef<Promise<void>>(Promise.resolve());
   const authSubjectRef = useRef(auth.subject);
+  const lastLoadedIdentity = useRef({ subject: auth.loaded ? auth.subject : null, signedIn: auth.loaded && auth.signedIn });
   useLayoutEffect(() => {
+    if (auth.loaded) {
+      const previous = lastLoadedIdentity.current;
+      if ((previous.signedIn && !auth.signedIn) || (previous.subject && previous.subject !== auth.subject)) {
+        clearIncomingLink();
+        void clearHeldNotifications();
+      }
+      lastLoadedIdentity.current = { subject: auth.subject, signedIn: auth.signedIn };
+    }
     if (authSubjectRef.current === auth.subject) return;
-    if (authSubjectRef.current) void clearHeldNotifications();
     authSubjectRef.current = auth.subject;
     userIdRef.current = null;
     lastUserIdRef.current = null;
     setEnrollments([]);
     refreshGenerationRef.current += 1;
-  }, [auth.subject]);
+  }, [auth.subject, auth.signedIn, auth.loaded]);
   useEffect(() => {
     userIdRef.current = user?.id ?? null;
     if (user?.id) lastUserIdRef.current = user.id;
@@ -62,7 +71,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const refreshGeneration = ++refreshGenerationRef.current;
     const refreshSubject = auth.subject;
     const isCurrentRefresh = () => refreshGenerationRef.current === refreshGeneration && authSubjectRef.current === refreshSubject;
-    if (!auth.signedIn) { await clearHeldNotifications(); if (!isCurrentRefresh()) return; setUser(null); setEnrollments([]); setSessionSubject(null); setError(null); setAccessDenied(false); setLoading(false); return; }
+    if (!auth.signedIn) { if (!isCurrentRefresh()) return; setUser(null); setEnrollments([]); setSessionSubject(null); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (auth.demo) { setUser(demoUser); setEnrollments([]); setSessionSubject('demo'); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (!refreshSubject) {
       setUser(null); setEnrollments([]); setSessionSubject(null); setError('We could not verify the signed-in account. Please sign in again.'); setAccessDenied(false); setLoading(false); return;
@@ -157,6 +166,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     };
   }, [auth.loaded, auth.signedIn, auth.subject, refresh]);
   const signOut = useCallback(async () => {
+    clearIncomingLink();
     refreshGenerationRef.current += 1;
     try {
       await clearHeldNotifications();

@@ -3,6 +3,15 @@ require "test_helper"
 class NotificationDeliveryServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
+  test "existing system notices enqueue both meeting and enrollment records through the existing job" do
+    record = Curriculum.create!(name: "System notices")
+    notifications = [ Struct.new(:id).new(1), Struct.new(:id).new(2) ]
+    assert_enqueued_with(job: PushNotificationJob, args: [ "Curriculum", record.id, [ 1, 2 ] ]) do
+      NotificationDeliveryService.system_notice(record, notifications)
+    end
+    assert_no_enqueued_jobs { NotificationDeliveryService.system_notice(record, []) }
+  end
+
   test "staff help notifications name the student and open the exact request" do
     curriculum = Curriculum.create!(name: "Help notifications")
     cohort = Cohort.create!(curriculum: curriculum, name: "Help cohort", start_date: Date.current, status: :active)
