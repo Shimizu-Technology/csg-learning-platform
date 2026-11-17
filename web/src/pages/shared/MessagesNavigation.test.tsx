@@ -8,10 +8,10 @@ import { Messages } from './Messages'
 import { StudentWorkspace } from '../admin/StudentWorkspace'
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => async () => false }))
 
-const fixture = vi.hoisted(() => ({ responses: {} as Record<string, unknown>, calls: vi.fn(), emit: null as null | ((event: unknown) => void) }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, full_name: 'Staff', role: 'admin', is_staff: true } }) }))
+const fixture = vi.hoisted(() => ({ v2: false, staff: true, responses: {} as Record<string, unknown>, calls: vi.fn(), emit: null as null | ((event: unknown) => void) }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, full_name: 'Staff', role: fixture.staff ? 'admin' : 'student', is_staff: fixture.staff } }) }))
 const setCohort = vi.fn()
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ loading: false, selectedCohortId: 1, setSelectedCohort: setCohort }) }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ loading: false, selectedCohortId: 1, selectedCohort: { id: 1, features: { student_experience_v2: fixture.v2 } }, setSelectedCohort: setCohort }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 vi.mock('../../lib/realtime', () => ({ subscribeToUserMessages: vi.fn(async (receive) => { fixture.emit = receive; return Object.assign(vi.fn(), { perform: vi.fn() }) }), isMessageTypingEvent: () => false }))
 vi.mock('../../lib/api', () => ({ api: new Proxy({}, { get: (_, key) => async (...args: unknown[]) => { fixture.calls(key, ...args); return { data: await (fixture.responses[String(key)] ?? null), error: null } } }) }))
@@ -24,6 +24,8 @@ const scroll = vi.fn()
 const anchorScroll = vi.fn()
 beforeEach(() => {
   fixture.calls.mockClear(); setCohort.mockClear(); frames = []
+  fixture.v2 = false
+  fixture.staff = true
   fixture.responses = {
     getWorkspaces: { workspaces: [{ id: 1, cohort_id: 1, name: 'Cohort', workspace_type: 'cohort', member_count: 2 }] },
     getChannels: { channels: [{ id: 2, workspace_id: 1, cohort_id: 1, name: 'General', unread_count: 200, last_read_at: null, muted: false }] },
@@ -477,4 +479,18 @@ it('keeps unrelated realtime DMs out of the student-filtered full list', async (
   const summary = { ...summaryFixtures().base, latest_message: latest }
   await act(async () => fixture.emit?.({ event: 'created', direct_conversation_id: 8, message: latest, direct_conversation: summary }))
   expect(summaryRow('dm')).toBeUndefined()
+})
+
+it('new phone conversation Back keeps workspace and the instructor cohort mention links to Learn', async () => {
+  fixture.v2 = true
+  fixture.staff = false
+  ;(fixture.responses.getChannel as { channel: { workspace_name?: string } }).channel.workspace_name = 'Cohort'
+  window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  const router = createMemoryRouter([{ path: '/messages/:channelId', element: <Messages /> }, { path: '/messages', element: <p>Scoped inbox</p> }], { initialEntries: ['/messages/2?workspace_id=1'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  const back = container.querySelector('button[aria-label="Back to conversations"]') as HTMLButtonElement
+  expect(back).not.toBeNull()
+  expect(container.querySelector('a[href="/materials?cohort_id=1"]')?.textContent).toBe('Cohort')
+  await act(async () => back.click())
+  expect(router.state.location.pathname + router.state.location.search).toBe('/messages?workspace_id=1')
 })

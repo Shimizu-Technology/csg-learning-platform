@@ -4809,6 +4809,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course_checkouts/{id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getCourseReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5297,6 +5313,8 @@ export interface components {
             cohort_name: string;
             /** @description Present only when supplied by a library item. */
             legacy_item_key?: null | string;
+            learning_path?: string;
+            learning_label?: string;
         };
         RecordingItem: {
             /** @description Present for library items; omitted for legacy external links. */
@@ -5330,6 +5348,8 @@ export interface components {
             destination: components["schemas"]["RecordDestination"] | null;
             destination_path: string;
             cohort_name: string;
+            learning_path?: string;
+            learning_label?: string;
         };
         S3RecordingWatchProgress: {
             last_position_seconds: number;
@@ -5364,6 +5384,8 @@ export interface components {
             uploaded_by?: null | string;
             /** @description Present for students with saved watch progress. */
             watch_progress?: null | components["schemas"]["S3RecordingWatchProgress"];
+            learning_path?: string;
+            learning_label?: string;
         };
         CohortRecordingsResponse: {
             recordings: components["schemas"]["S3Recording"][];
@@ -5433,6 +5455,8 @@ export interface components {
             destination: components["schemas"]["RecordDestination"] | null;
             destination_path: string;
             cohort_name: string;
+            learning_path?: string;
+            learning_label?: string;
         };
         VideoStreamProgress: {
             last_position: number | null;
@@ -5846,6 +5870,8 @@ export interface components {
             enrolled_at: string | null;
             /** @description Whether the learner can still open this cohort (false once withdrawn or expired). */
             can_open: boolean;
+            purchase_id?: number | null;
+            access_expires_at?: string | null;
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -6850,6 +6876,8 @@ export interface components {
             title: string;
             recorded_on: string | null;
             progress_percentage: number;
+            learning_path?: string;
+            learning_label?: string;
         };
         DashboardDataPendingPurchasesItem: {
             id: number;
@@ -6999,6 +7027,10 @@ export interface components {
             status?: string;
             cohort_type?: string;
             curriculum_name?: string;
+            available_features?: {
+                recordings: boolean;
+                resources: boolean;
+            };
         };
         SetupReadinessResponse: {
             readiness: {
@@ -8540,6 +8572,16 @@ export interface components {
             contact: components["schemas"]["PersonName"] | null;
             /** @description Offer Ask for a catch-up plan: an active program enrollment, learning plans on and a reachable contact. */
             can_ask_for_plan: boolean;
+            /** @description Enrollment welcome is undismissed and LearnerProgress has no completed lessons or submissions. */
+            first_run?: boolean;
+            continue_watching?: {
+                title: string;
+                path: string;
+            } | null;
+        };
+        CourseReceiptResponse: {
+            /** Format: uri */
+            url: string;
         };
     };
     responses: {
@@ -8635,6 +8677,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccessibleCohortsResponse"];
+                };
+            };
+        };
+    };
+    getCourseReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The signed-in student’s hosted payment receipt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseReceiptResponse"];
                 };
             };
         };

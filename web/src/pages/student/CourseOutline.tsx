@@ -31,7 +31,7 @@ import type { CourseOutline as Outline, CourseOutlineGroup, CourseOutlineLesson,
 const SHOW_FILTERS = ['all', 'todo', 'redo'] as const
 type ShowFilter = typeof SHOW_FILTERS[number]
 // Search, the filter and the open week live in the URL (L-0.6), so Back from a lesson restores them.
-const OUTLINE_URL = { show: urlParsers.oneOf(SHOW_FILTERS, 'all'), open: urlParsers.text(40), module: urlParsers.id() }
+const OUTLINE_URL = { show: urlParsers.oneOf(SHOW_FILTERS, 'all'), open: urlParsers.text(40), module: urlParsers.id(), week: urlParsers.id() }
 
 const KINDS: Record<LessonKind, { label: string; icon: LucideIcon }> = {
   exercise: { label: 'Exercise', icon: Code2 },
@@ -72,7 +72,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
   const [error, setError] = useState<string | null>(null)
   const [notEnrolled, setNotEnrolled] = useState(false)
   const [query, setQuery] = useUrlSearch('q')
-  const [{ show, open, module: moduleId }, setUrlState] = useUrlState(OUTLINE_URL)
+  const [{ show, open, module: moduleId, week: weekNumber }, setUrlState] = useUrlState(OUTLINE_URL)
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
   const request = useRef(0)
   useListScrollMemory(!loading && Boolean(outline))
@@ -104,13 +104,14 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
     if (!outline) return
     const groups = outline.modules.flatMap((mod) => mod.groups)
     const initial = new Set<string>()
-    const fallback = outline.current_group_key ?? groups.find((group) => group.this_week)?.key ?? (outline.mode === 'library' ? groups[0]?.key : undefined)
+    const requestedWeek = weekNumber ? groups.find((group) => group.week === weekNumber) : undefined
+    const fallback = requestedWeek?.key ?? outline.current_group_key ?? groups.find((group) => group.this_week)?.key ?? (outline.mode === 'library' ? groups[0]?.key : undefined)
     if (fallback) initial.add(fallback)
     if (open && groups.some((group) => group.key === open)) initial.add(open)
     const linkedModule = moduleId ? outline.modules.find((mod) => mod.id === moduleId) : undefined
     if (linkedModule?.groups.length) initial.add((linkedModule.groups.find((group) => group.current) ?? linkedModule.groups[0]).key)
     setOpenGroups(initial)
-  }, [outline, open, moduleId])
+  }, [outline, open, moduleId, weekNumber])
 
   useEffect(() => {
     if (!outline || scrolledToTarget.current || !moduleId) return
@@ -151,7 +152,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
     return <EmptyState icon={WifiOff} title="Could not load Learn" description={error} action={<Button onClick={load}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
   }
   if (notEnrolled || !outline || !visible) {
-    return <EmptyState icon={BookOpen} title="No lessons yet" description="Your modules and lessons will appear here once you are enrolled in a course." />
+    return <EmptyState icon={BookOpen} title="No lessons yet" description="Your modules and lessons will appear here once you are enrolled in a course." action={<Link to="/courses" className="app-link inline-flex min-h-11 items-center">Browse courses</Link>} />
   }
 
   const library = outline.mode === 'library'
@@ -230,7 +231,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
             return (
               <section key={mod.id} id={`learn-module-${mod.id}`} aria-labelledby={`learn-module-title-${mod.id}`} className="scroll-mt-36 space-y-2 lg:scroll-mt-24">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1">
-                  <h2 id={`learn-module-title-${mod.id}`} className="text-lg font-bold text-ink [overflow-wrap:anywhere]">{selfPaced ? `${mod.number}. ${mod.name}` : mod.name}</h2>
+                  <h2 id={`learn-module-title-${mod.id}`} className="text-lg font-bold text-ink [overflow-wrap:anywhere]"><Link to={`/materials?cohort_id=${outline.cohort.id}&module=${mod.id}`} className="app-link inline-flex min-h-11 items-center">{selfPaced ? `${mod.number}. ${mod.name}` : mod.name}</Link></h2>
                   {mod.counts && <span className="text-sm tabular-nums text-ink-muted">{selfPaced ? '' : `Module ${mod.number} · `}{mod.counts.completed_lessons} of {mod.counts.total_lessons}</span>}
                   {!mod.available && !outline.read_only && <Lock className="h-4 w-4 text-ink-muted" aria-label="Not open yet" />}
                 </div>

@@ -29,6 +29,7 @@ Rails.application.routes.draw do
       get "course_offerings/:slug", to: "course_offerings#show"
       get "course_offerings", to: "course_offerings#index"
       get "course_checkouts", to: "course_checkouts#index"
+      get "course_checkouts/:id/receipt", to: "course_checkouts#receipt"
       get "course_checkouts/:id/status", to: "course_checkouts#status"
       post "course_checkouts", to: "course_checkouts#create"
       post "course_checkout_webhooks", to: "course_checkout_webhooks#create"

@@ -505,6 +505,7 @@ export const api = {
     fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: PublicCourse[] }>('/api/v1/course_offerings', {}, false),
   getCourseOffering: (slug: string) => fetchApi<{ offering: PublicCourse }>(`/api/v1/course_offerings/${encodeURIComponent(slug)}`, {}, false),
   dismissStartHere: (cohortId: number) => fetchApi<{ dismissed: boolean }>('/api/v1/dashboard/start_here', { method: 'PATCH', body: JSON.stringify({ cohort_id: cohortId }) }),
+  getCourseReceipt: (id: number) => fetchApi<{ url: string }>(`/api/v1/course_checkouts/${id}/receipt`, { cache: 'no-store' }),
   getCourseCheckoutStatus: (id: string | number) =>
     fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
   getPendingCoursePurchases: () =>

@@ -26,6 +26,7 @@ describe('originLabel', () => {
     ['/modules/7', 'Module'],
     ['/messages/dm/12', 'conversation'],
     ['/announcements?scope=manage', 'Updates'],
+    ['/announcements?tab=inbox&inbox_page=3', 'Notifications'],
   ])('names %s "%s"', (path, label) => {
     expect(originLabel(path)).toBe(label)
   })
@@ -127,4 +128,11 @@ describe('useBackLink', () => {
     expect(render('/admin/cohorts/3?return_to=%2Fadmin%2Fsupport', 'activity').label).toBe('Back to Support')
     expect(render('/admin/cohorts/3?return_to=%2Fadmin%2Factivity', 'activity').label).toBe('Back to Activity')
   })
+  it('legacy inbox state is a safe return origin for every record', () => {
+    let result: BackLink | undefined
+    function Record() { result = useBackLink({ returnTo: '/materials', returnLabel: 'Learn' }); return null }
+    act(() => root.render(<MemoryRouter initialEntries={[{ pathname: '/lessons/2', state: { from: '/announcements?tab=inbox&inbox_page=3' } }]}><Record /></MemoryRouter>))
+    expect(result).toMatchObject({ to: '/announcements?tab=inbox&inbox_page=3', label: 'Back to Notifications' })
+  })
+
 })

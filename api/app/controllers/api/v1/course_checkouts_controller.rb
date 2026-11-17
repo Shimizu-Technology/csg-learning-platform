@@ -36,6 +36,20 @@ module Api
           enrollment_id: state == "fulfilled" ? enrollment.id : nil }
       end
 
+      # Only an explicit click asks Stripe; profile loading remains local and batched.
+      def receipt
+        purchase = current_user.course_purchases.find(params[:id])
+        return render json: { error: "Receipt unavailable. Contact CSG for a copy." }, status: :not_found unless purchase.status == "paid" && purchase.stripe_payment_intent_id.present?
+
+        intent = CourseCheckout.client.v1.payment_intents.retrieve(purchase.stripe_payment_intent_id, { expand: [ "latest_charge" ] })
+        url = intent.latest_charge&.receipt_url
+        return render json: { error: "Receipt unavailable. Contact CSG for a copy." }, status: :not_found unless url.present? && URI.parse(url).is_a?(URI::HTTPS)
+
+        render json: { url: url }
+      rescue Stripe::StripeError
+        render json: { error: "Receipt could not load. Try again or contact CSG for a copy." }, status: :service_unavailable
+      end
+
       def create
         cohort = Cohort.find(params.require(:cohort_id))
         render json: { url: CourseCheckout.start!(user: current_user, cohort: cohort) }

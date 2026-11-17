@@ -1,3 +1,4 @@
+import { PurchaseReceipt } from '../../components/student/PurchaseReceipt'
 import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -20,6 +21,7 @@ import { formatShortDate } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import type { ProfileResponse as ProfileData, BlockedUser } from '../../types/api'
 import { handleProblem, normalizeHandle } from '../../lib/handles'
+import { useStudentExperience } from '../../lib/studentExperience'
 import { humanize } from '../../lib/glossary'
 
 
@@ -28,6 +30,7 @@ const ENROLLMENT_TONES: Record<string, BadgeTone> = { active: 'success', complet
 const ENROLLMENT_LABELS: Record<string, string> = { dropped: 'Withdrawn' }
 
 export function Profile() {
+  const { v2 } = useStudentExperience()
   const toast = useToast()
   const confirmAction = useConfirm()
   const { user: sessionUser } = useAuthContext()
@@ -293,9 +296,10 @@ export function Profile() {
               aria-busy={savingNotifications}
               onClick={toggleEmailNotifications}
               disabled={savingNotifications}
-              className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ease-out before:absolute before:-inset-2 before:content-[''] disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-ink' : 'bg-line ring-1 ring-inset ring-line-control'}`}
+              className={`relative mt-0.5 ${v2 ? 'h-11 w-12' : 'h-7 w-12'} shrink-0 rounded-full transition-colors duration-200 ease-out before:absolute before:-inset-2 before:content-[''] disabled:opacity-50 ${v2 ? '' : emailNotificationsEnabled ? 'bg-ink' : 'bg-line ring-1 ring-inset ring-line-control'}`}
             >
-              <span className={`absolute left-0 top-0.5 h-6 w-6 rounded-full bg-surface-raised shadow-sm transition-transform duration-200 ease-out ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+              {v2 && <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-2 h-7 rounded-full transition-colors duration-200 ${emailNotificationsEnabled ? 'bg-ink' : 'bg-line ring-1 ring-inset ring-line-control'}`} />}
+              <span className={`absolute left-0 ${v2 ? 'top-2.5' : 'top-0.5'} h-6 w-6 rounded-full bg-surface-raised shadow-sm transition-transform duration-200 ease-out ${v2 ? 'motion-reduce:transition-none ' : ''}${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
             </button>
           )}
         </div>
@@ -362,6 +366,8 @@ export function Profile() {
                     ? <RecordLink record={{ type: 'cohort', id: enrollment.cohort_id }} returnLabel="Profile" touchTarget className="text-sm [overflow-wrap:anywhere]">{enrollment.cohort_name}</RecordLink>
                     : <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{enrollment.cohort_name}</p>}
                   <p className="text-xs text-ink-secondary [overflow-wrap:anywhere]">Course: {enrollment.curriculum_name}{enrollment.enrolled_at ? ` · joined ${formatShortDate(enrollment.enrolled_at, '')}` : ''}</p>
+                  {v2 && enrollment.access_expires_at && <p className="mt-1 text-xs text-ink-secondary">Lesson access until {formatShortDate(enrollment.access_expires_at)}</p>}
+                  {v2 && enrollment.purchase_id && <PurchaseReceipt purchaseId={enrollment.purchase_id} />}
                 </div>
                 <Badge tone={ENROLLMENT_TONES[enrollment.status] || 'neutral'}>{humanize(enrollment.status, ENROLLMENT_LABELS)}</Badge>
               </li>

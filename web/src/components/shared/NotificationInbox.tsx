@@ -1,3 +1,4 @@
+import { useStudentExperience } from '../../lib/studentExperience'
 import { useInsertedKeys } from '../../lib/motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -13,6 +14,7 @@ import { UpdatesTabs } from './UpdatesTabs'
 import { notificationDestination } from '../../lib/notificationDestination'
 
 export function NotificationInbox() {
+  const { v2 } = useStudentExperience()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const page = Math.max(1, Number(params.get('inbox_page')) || 1)
@@ -57,7 +59,7 @@ export function NotificationInbox() {
     }
     setBusy(false)
     const path = notificationDestination(item)
-    if (open && path) navigate(path, { state: { from: `/announcements?${params}` } })
+    if (open && path) navigate(path, { state: v2 ? { returnTo: `/announcements?${params}`, returnLabel: 'Notifications' } : { from: `/announcements?${params}` } })
     else await load()
   }
   // A notification that arrives while the inbox is open slides in; loads and page changes don't.

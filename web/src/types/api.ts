@@ -1072,6 +1072,7 @@ export interface CohortResponse {
 }
 
 export interface AccessibleCohort {
+  available_features?: { recordings: boolean; resources: boolean };
   curriculum_id?: number;
   review_response_time?: string;
   course_delivery?: 'program' | 'guided' | 'self_paced';

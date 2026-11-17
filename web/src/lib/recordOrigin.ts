@@ -65,7 +65,8 @@ export function originLabel(path: string): string | null {
   if (/^\/cohorts\/\d+$/.test(pathname)) return 'Cohort'
   if (pathname === '/messages' || /^\/messages\/\d+$/.test(pathname)) return 'Messages'
   if (/^\/messages\/dm\/\d+$/.test(pathname)) return 'conversation'
-  if (pathname === '/announcements' || /^\/announcements\/\d+$/.test(pathname)) return 'Updates'
+  if (pathname === '/announcements') return query.get('tab') === 'inbox' ? 'Notifications' : 'Updates'
+  if (/^\/announcements\/\d+$/.test(pathname)) return 'Updates'
   if (pathname === '/recordings') return 'Recordings'
   return null
 }
@@ -111,7 +112,8 @@ export interface BackLink {
 export function useBackLink(fallback: ReturnContext, options: { scope?: string; accept?: 'any' | 'activity' } = {}): BackLink {
   const location = useLocation()
   const remembered = useReturnContext(fallback, options.scope)
-  const fromState = readReturnContext(location.state)
+  const legacyFrom = typeof location.state?.from === 'string' ? safeInternalReturnPath(location.state.from, '') : ''
+  const fromState = readReturnContext(location.state) || (legacyFrom && originLabel(legacyFrom) ? { returnTo: legacyFrom, returnLabel: originLabel(legacyFrom)! } : null)
   const fromParams = originFromParams(location.search, options.accept)
   // Router state wins when it points at the same place as the URL (or the URL says nothing).
   const chosen = fromState && (!fromParams || fromParams.returnTo === fromState.returnTo)

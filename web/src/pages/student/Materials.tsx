@@ -264,6 +264,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
         icon={BookOpen}
         title="No lessons yet"
         description="Your modules and lessons will appear here once you are enrolled in a cohort."
+        action={<Link to="/courses" className="app-link inline-flex min-h-11 items-center">Browse courses</Link>}
       />
     )
   }

@@ -45,6 +45,7 @@ module Api
               cohort_id: cohort.id,
               cohort_name: cohort.name,
               title: r["title"],
+              **learning_link(cohort, r["date"]),
               url: r["url"],
               date: r["date"],
               description: r["description"],
@@ -76,6 +77,7 @@ module Api
             cohort_id: r.cohort_id,
             cohort_name: r.cohort.name,
             title: r.title,
+            **learning_link(r.cohort, r.recorded_date),
             description: r.description,
             duration_seconds: r.duration_seconds,
             duration_display: r.duration_display,
@@ -103,6 +105,18 @@ module Api
       end
 
       private
+
+      # A recording has no lesson foreign key. Link its dated course week,
+      # never guess a lesson from its title. Undated recordings link to Learn.
+      def learning_link(cohort, date)
+        return {} unless FeatureSwitches.for(cohort: cohort)["student_experience_v2"] == true
+
+        recorded_on = Date.parse(date.to_s) if date.present?
+        week = ((recorded_on - cohort.start_date).to_i / 7) + 1 if recorded_on && cohort.start_date && recorded_on >= cohort.start_date && !cohort.self_paced? && !cohort.alumni?
+        { learning_path: "/materials?cohort_id=#{cohort.id}#{week ? "&week=#{week}" : ""}", learning_label: week ? "Open Week #{week} in Learn" : "Open Learn" }
+      rescue Date::Error
+        { learning_path: "/materials?cohort_id=#{cohort.id}", learning_label: "Open Learn" }
+      end
 
       def normalized_recording_items(library, external)
         library_items = library.map do |recording|

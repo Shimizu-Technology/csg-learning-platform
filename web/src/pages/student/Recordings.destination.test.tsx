@@ -3,7 +3,8 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider, MemoryRouter, Routes, Route } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
-const state = vi.hoisted(() => ({ getRecordings: vi.fn() }))
+const state = vi.hoisted(() => ({ getRecordings: vi.fn(), v2: false }))
+vi.mock('../../lib/studentExperience', () => ({ useStudentExperience: () => ({ v2: state.v2 }) }))
 vi.mock('../../lib/api', () => ({ api: { getRecordings: state.getRecordings, getDashboard: vi.fn(async () => ({ data: { dashboard: { capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 1 } } }, error: null })) } }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 }, enrollments: [] }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: 2 }) }))
@@ -46,4 +47,16 @@ it.each(['//evil.example/admin/activity', '/\\evil.example/admin/activity', '/da
     await act(async () => root.render(<MemoryRouter initialEntries={[`/recordings?cohort_id=2&return_to=${encodeURIComponent(returnTo)}`]}><Routes><Route path="/recordings" element={<Recordings />} /></Routes></MemoryRouter>))
     expect(container.textContent).not.toContain('Back to activity')
   } finally { act(() => root.unmount()) }
+})
+
+it('new recordings returns to the exact notification inbox and links its course week', async () => {
+  state.v2 = true
+  state.getRecordings.mockResolvedValue({ data: { items: [{ id: 9, cohort_id: 2, title: 'Replay', source: 'uploaded', learning_path: '/materials?cohort_id=2&week=2', learning_label: 'Open Week 2 in Learn' }] } })
+  const container = document.createElement('div'); const root = createRoot(container)
+  try {
+    const router = createMemoryRouter([{ path: '/recordings', element: <Recordings /> }], { initialEntries: [{ pathname: '/recordings', search: '?cohort_id=2&recording=9', state: { returnTo: '/announcements?tab=inbox&inbox_page=3', returnLabel: 'Notifications' } }] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.querySelector('a[href="/announcements?tab=inbox&inbox_page=3"]')?.textContent).toContain('Back to Notifications')
+    expect(container.querySelector('a[href="/materials?cohort_id=2&week=2"]')?.textContent).toBe('Open Week 2 in Learn')
+  } finally { state.v2 = false; act(() => root.unmount()) }
 })

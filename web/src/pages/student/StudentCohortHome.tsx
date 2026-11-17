@@ -39,7 +39,7 @@ export function StudentCohortHome() {
 
   if (noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading your cohort…" />
-  if (!home || error) return <EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} />
+  if (!home || error) return <EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} action={<LinkButton to="/dashboard" variant="secondary">Back to Today</LinkButton>} />
 
   const progress = Math.min(100, Math.max(0, Math.round(home.own_progress_percentage ?? 0)))
   const rowLink = 'pressable inline-flex min-h-11 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold text-ink hover:border-line-strong hover:bg-surface-sunken'

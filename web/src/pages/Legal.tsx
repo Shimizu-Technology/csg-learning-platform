@@ -17,11 +17,12 @@ function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; titl
           <nav className="flex flex-wrap justify-end text-sm font-semibold text-ink-secondary" aria-label="Legal navigation">
             <Link className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink sm:px-3" to="/privacy">Privacy</Link>
             <Link className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink sm:px-3" to="/terms">Terms</Link>
-            <Link className="hidden min-h-11 items-center rounded-md px-3 hover:text-ink sm:flex" to="/account-deletion">Delete account</Link>
+            <Link className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink sm:px-3" to="/account-deletion">Delete account</Link>
           </nav>
         }
       />
       <main className="safe-px mx-auto w-full max-w-4xl flex-1 py-10 lg:py-14">
+        <Link to="/dashboard" className="app-link mb-4 inline-flex min-h-11 items-center">Back to Today</Link>
         <header className="border-b border-brand-line pb-8">
           <p className="brand-eyebrow">{eyebrow}</p>
           <h1 className="mt-4 font-display text-4xl font-medium leading-tight tracking-[-0.02em] sm:text-5xl">{title}</h1>

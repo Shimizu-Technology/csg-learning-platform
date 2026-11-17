@@ -171,3 +171,15 @@ it('tells a paused learner their past lessons stay open, without a next step', a
   expect(container.querySelector('[data-testid="continue-bar"]')).toBeNull()
   expect(Array.from(container.querySelectorAll('[role="group"][aria-label="Show"] button')).map((item) => item.textContent)).toEqual(['All', 'Needs redo1'])
 })
+
+it('a recording week link opens its named week instead of the current week', async () => {
+  await render(program(), '/materials?cohort_id=3&week=1')
+  expect(button('Week 1').getAttribute('aria-expanded')).toBe('true')
+  expect(button('Week 2').getAttribute('aria-expanded')).toBe('false')
+})
+
+it('module mentions are links to their place in this course outline', async () => {
+  await render(program())
+  const link = container.querySelector('h2 a[href="/materials?cohort_id=3&module=5"]')
+  expect(link?.textContent).toContain('JavaScript')
+})
