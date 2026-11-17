@@ -26,7 +26,7 @@ Automated gate, screenshots, execution results, tested head and resource cleanup
 
 ## Execution and evidence
 
-Implementation: `000c6be47ff2f4049e793384ac14d281c5423a89`, from `5fa85024`. Agent-executed Chromium on the MacBook, synthetic `scripts/qa/run` harness. The final head will also contain this record and the corrected QA selectors; runtime code is unchanged. Fixtures are created by `scripts/qa/lesson-page-fixtures.rb`; each journey resets only its own program enrollment. No production data or provider credentials were used.
+Implementation: `000c6be47ff2f4049e793384ac14d281c5423a89`, from `5fa85024`. Main integration: `8cf8da5d030cb96c2fbd578d4aaaac72ec635e2e`, merging current main `59c4a3a86ff61bd3cc587abe3f62ec4aeecb7970` (scheduled jobs). Agent-executed Chromium on the MacBook, synthetic `scripts/qa/run` harness. Final code `0d7694fe9e6c8aa04c0924f46a00c69a867bba6d` adds the footer hierarchy refinement: Mark complete is secondary whenever Next is present. Its regression test passes. All 16 browser cases were rerun on that head; the 48 screenshots below are from that final run. Later evidence commits change only this record and screenshots. Fixtures are created by `scripts/qa/lesson-page-fixtures.rb`; each journey resets only its own program enrollment. No production data or provider credentials were used.
 
 The journey exercises real UI actions and then reads the API to verify saved answers, prior redo feedback and completion. It covers a fresh text attempt, a synthetic 503 followed by retry, Keep editing in the leave guard, a hard reload, resubmission creating attempt 2, manual completion, the module boundary and a refreshable course-complete page. Course completion comes from lessons handed in, including work waiting for review; no certificate is issued or claimed. Self-paced lessons show numbered sections without dates. A running program with the switch Off represents Lance's shape.
 
@@ -68,14 +68,14 @@ Desktop Monaco: [light](lesson-page-2026-11-17/light-monaco-1280.jpg), [dark](le
 
 ## Automated gate
 
-**Final run: 0 failed stages.**
+**Final merged run: 0 failed stages.**
 
-Command: `asus-test --postgres csg_learning_platform_test <this worktree> -- bash scripts/qa/student-workspace-gate.sh`. The loopback migration-process port adapter was retained; prepared statements ran both enabled and disabled. The 29 changed API/web/native source and unit-test files were SHA-256 checked against the ASUS snapshot, with no differences. The `RecordLink` prop correction was synced before the web stages; the final snapshot matches implementation commit `000c6be4`.
+Command: `asus-test --postgres csg_learning_platform_test <this worktree> -- bash scripts/qa/student-workspace-gate.sh`. The loopback migration-process port adapter was retained; prepared statements ran both enabled and disabled. The pre-integration gate passed on the lesson implementation, with all 29 changed API/web/native source and unit-test files SHA-256 checked against the ASUS snapshot (no differences). After main advanced, the entire gate was started again on the committed integration head `8cf8da5d`; the footer refinement and regression were synced and hash-checked before the web stages. The final tested source matches `0d7694fe`; the totals below are from that run. Main adds optional clock/feature arguments to scopes and `LearnerProgress.for_all`; web, native and OpenAPI source are unchanged by the merge.
 
 | Stage | Final result |
 | --- | --- |
-| API, prepared | 2,022 runs, 41,962 assertions; 0 failures/errors/skips |
-| API, unprepared | 2,022 runs, 41,962 assertions; 0 failures/errors/skips |
+| API, prepared | 2,062 runs, 42,174 assertions; 0 failures/errors/skips |
+| API, unprepared | 2,062 runs, 42,174 assertions; 0 failures/errors/skips |
 | RuboCop | passed |
 | Brakeman | passed, 0 warnings |
 | Web typecheck and lint | passed |
@@ -88,4 +88,6 @@ There are no migrations. `docs/openapi.json` and both generated API type files w
 
 ## Resource disposition
 
-The owned Rails/Vite processes were stopped, the exact synthetic database `csg_qa_47957_1794900661` was dropped, every Playwright page was closed, and the T3 preview tab was closed/released. `dev-lifecycle status --session 01a1e861-7f3f-75f0-a3d7-f78a7f62d412` reports no active owned resources. Shared services and the borrowed simulator were left unchanged. The held PR's branch/worktree are retained; no runtime resource is handed off.
+The owned Rails/Vite processes were stopped, the exact synthetic databases `csg_qa_47957_1794900661`, `csg_qa_96044_1794903208` and `csg_qa_78203_1794903712` were dropped, every Playwright page was closed, and the T3 preview tab was closed/released. `dev-lifecycle status --session 01a1e861-7f3f-75f0-a3d7-f78a7f62d412` reports no active owned resources. Shared services and the borrowed simulator were left unchanged. The held PR's branch/worktree are retained; no runtime resource is handed off.
+
+Final integrated result: 2,062 API tests / 42,174 assertions in each prepared mode; 232 web files / 2,578 tests; 141 native suites / 1,536 tests; all named gate stages passed. The final browser run on `0d7694fe` passed 16/16 cases and refreshed all 48 screenshots. The task-created local `web/node_modules` was removed after verification. No owned runtime resource remains.
