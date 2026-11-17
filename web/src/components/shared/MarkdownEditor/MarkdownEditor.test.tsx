@@ -403,6 +403,41 @@ describe('lesson text (U-6.8)', () => {
   })
 })
 
+describe('lossless follow-ups (#304 review), through real editor transactions', () => {
+  const sameContent = '*same*\n\n_same_\n\nEnd.'
+  const finish = async (onChange: ReturnType<typeof vi.fn>) => {
+    act(() => root!.unmount())
+    root = null
+    return onChange.mock.lastCall?.[0]
+  }
+
+  it('changing the first of two equal blocks leaves the second with its own spelling', async () => {
+    const { editor, onChange } = await mount({ defaultValue: sameContent, target: 'lesson' })
+    act(() => { editor().chain().insertContentAt({ from: 1, to: 1 + 'same'.length }, { type: 'text', text: 'Changed.' }).run() })
+    // The replacement keeps the italic it replaced, and is written fresh; the untouched block keeps `_same_`.
+    expect(await finish(onChange)).toBe('_Changed._\n\n_same_\n\nEnd.')
+  })
+
+  it('deleting the first of two equal blocks never gives its spelling to the second', async () => {
+    const { editor, onChange } = await mount({ defaultValue: sameContent, target: 'lesson' })
+    act(() => { editor().chain().deleteRange({ from: 0, to: editor().state.doc.child(0).nodeSize }).run() })
+    expect(await finish(onChange)).toBe('_same_\n\nEnd.')
+  })
+
+  it('a block typed above an equal block does not take its spelling', async () => {
+    const { editor, onChange } = await mount({ defaultValue: '_same_\n\nEnd.', target: 'lesson' })
+    act(() => { editor().chain().insertContentAt(0, { type: 'paragraph', content: [{ type: 'text', text: 'same', marks: [{ type: 'italic' }] }] }).run() })
+    expect(await finish(onChange)).toBe('_same_\n\n_same_\n\nEnd.')
+  })
+
+  it.each(['## *Title*', '## Title ##', '## Title  '])('editing the paragraph right under %j keeps the heading as stored', async (heading) => {
+    const { editor, onChange } = await mount({ defaultValue: `${heading}\nBody.`, target: 'lesson' })
+    act(() => { editor().commands.setTextSelection(editor().state.doc.child(0).nodeSize + 1 + 'Body.'.length) })
+    type(editor(), ' Edited.')
+    expect(await finish(onChange)).toBe(`${heading}\nBody. Edited.`)
+  })
+})
+
 describe('review round 1', () => {
   it.each(['rich', 'markdown'] as const)('ignores composing keys in %s mode: no send, no onKeyDown', async (mode) => {
     writeEditorPreferences(undefined, { mode })

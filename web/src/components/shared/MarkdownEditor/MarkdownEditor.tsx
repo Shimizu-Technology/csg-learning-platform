@@ -244,10 +244,33 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
    */
   const keptSourceRef = useRef<KeyedSource | null>(null)
   const pendingSourceRef = useRef<MarkdownToEditorResult | null>(null)
-  const toMarkdown = useCallback((json: JSONContent) => editorJsonToMarkdownKeepingSource(json, keptSourceRef.current, targetRef.current), [])
+  /**
+   * Where each kept segment's first block starts in the document, mapped
+   * through every change (null once that block is gone), so a block keeps
+   * its own stored text even when another block has the same content.
+   */
+  const segmentStartsRef = useRef<(number | null)[]>([])
+  const toMarkdown = useCallback((editor: Editor, json: JSONContent) => {
+    const indexAt = new Map<number, number>()
+    editor.state.doc.forEach((_node, offset, index) => { indexAt.set(offset, index) })
+    const identity = segmentStartsRef.current.map((start) => (start === null ? null : indexAt.get(start) ?? null))
+    return editorJsonToMarkdownKeepingSource(json, keptSourceRef.current, targetRef.current, identity)
+  }, [])
   /** Records where a loaded document came from; null for a document not read from Markdown (a restored draft). */
   const keepSource = useCallback((editor: Editor, result: MarkdownToEditorResult | null) => {
-    keptSourceRef.current = result ? keySourceSegments(result, editor.getJSON()) : null
+    const kept = result ? keySourceSegments(result, editor.getJSON()) : null
+    keptSourceRef.current = kept
+    const starts: number[] = []
+    if (kept) {
+      const offsets: number[] = []
+      editor.state.doc.forEach((_node, offset) => { offsets.push(offset) })
+      let index = 0
+      for (const segment of kept.segments) {
+        starts.push(offsets[index])
+        index += segment.count
+      }
+    }
+    segmentStartsRef.current = starts
   }, [])
   /** True from compositionstart until just after compositionend (Safari sends the IME's Enter after compositionend). */
   const composingRef = useRef(false)
@@ -324,7 +347,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     if (modeRef.current === 'rich' && richDirtyRef.current && editor && !editor.isDestroyed) {
       richDirtyRef.current = false
       const json = editor.getJSON()
-      emit(toMarkdown(json), json)
+      emit(toMarkdown(editor, json), json)
     }
     return markdownRef.current
   }, [emit, toMarkdown])
@@ -537,6 +560,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       }
       // Not cleared: an editor created again (Strict Mode) loads the same content.
       keepSource(created, pendingSourceRef.current)
+    },
+    onTransaction: ({ transaction }) => {
+      if (!transaction.docChanged || segmentStartsRef.current.length === 0) return
+      // assoc 1: a block inserted just before a kept one doesn't take its place.
+      segmentStartsRef.current = segmentStartsRef.current.map((start) => {
+        if (start === null) return null
+        const mapped = transaction.mapping.mapResult(start, 1)
+        return mapped.deletedAfter ? null : mapped.pos
+      })
     },
     onUpdate: ({ editor: updated }) => {
       editorRef.current = updated

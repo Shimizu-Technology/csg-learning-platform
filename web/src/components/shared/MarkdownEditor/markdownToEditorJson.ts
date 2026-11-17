@@ -382,7 +382,7 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
       const blocks = blocksToJson(chunk.text)
       if (blocks.length && sameMarkdownStructure(chunk.text, editorJsonToMarkdown({ type: 'doc', content: blocks }), target)) {
         content.push(...blocks)
-        segments.push({ text: chunk.text, start: chunk.start, end: chunk.end, count: blocks.length })
+        segments.push(...blockSegments(chunk, blocks))
         lastRaw = null
         continue
       }
@@ -413,6 +413,38 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
     return wholeRaw(source, raw, issues.length ? [...new Set(issues)] : [GENERIC_KIND])
   }
   return { doc, issues, source, raw, segments }
+}
+
+/**
+ * One segment per block when the chunk's lines divide into the blocks one for
+ * one (a heading with its paragraph right below it), so an edit to one keeps
+ * the others as stored. Otherwise the chunk is one segment for all its blocks.
+ */
+function blockSegments(chunk: MarkdownChunk, blocks: JSONContent[]): SourceSegment[] {
+  const whole = [{ text: chunk.text, start: chunk.start, end: chunk.end, count: blocks.length }]
+  if (blocks.length < 2) return whole
+  const lines = chunk.text.split('\n')
+  const same = (text: string, expected: JSONContent[]) => JSON.stringify(blocksToJson(text)) === JSON.stringify(expected)
+  const segments: SourceSegment[] = []
+  let line = 0
+  let offset = chunk.start
+  for (let block = 0; block < blocks.length; block += 1) {
+    const last = block === blocks.length - 1
+    let end = last ? lines.length : -1
+    for (let candidate = line + 1; !last && candidate < lines.length; candidate += 1) {
+      if (same(lines.slice(line, candidate).join('\n'), [blocks[block]]) && same(lines.slice(candidate).join('\n'), blocks.slice(block + 1))) {
+        end = candidate
+        break
+      }
+    }
+    if (end < 0) return whole
+    const text = lines.slice(line, end).join('\n')
+    if (last && !same(text, [blocks[block]])) return whole
+    segments.push({ text, start: offset, end: offset + text.length, count: 1 })
+    offset += text.length + 1
+    line = end
+  }
+  return segments
 }
 
 /** The whole text as one locked block (blank lines at either end stay outside it, as stored). */
@@ -491,20 +523,34 @@ export function keySourceSegments(result: Pick<MarkdownToEditorResult, 'raw' | '
  * ending. The text between kept blocks and the whitespace before the first
  * and after the last block stay exactly as stored. If the result would read
  * differently from that plain serialization, the plain one is used.
+ *
+ * `identity` is where each segment's first block is now (its top-level index,
+ * or null once it was removed), tracked through the editor's transactions.
+ * With it, a block keeps its own stored text even when another block has the
+ * same content (`*same*` and `_same_`). Without it, blocks are matched in
+ * order by content.
  */
-export function editorJsonToMarkdownKeepingSource(doc: JSONContent, kept: KeyedSource | null, target: MarkdownTarget = 'message'): string {
+export function editorJsonToMarkdownKeepingSource(doc: JSONContent, kept: KeyedSource | null, target: MarkdownTarget = 'message', identity?: (number | null)[]): string {
   const plain = editorJsonToMarkdown(doc)
   if (!kept || kept.segments.length === 0) return plain
   const nodes = doc.content || []
   const parts: { text: string; segment: number | null; raw: boolean }[] = []
+  const unchangedAt = (segment: KeyedSource['segments'][number], index: number) => index + segment.count <= nodes.length && JSON.stringify(nodes.slice(index, index + segment.count)) === segment.key
+  /** With identity: the segment whose block is at each index and is unchanged. */
+  const placed = new Map<number, number>()
+  identity?.forEach((at, candidate) => {
+    if (at !== null && at !== undefined && unchangedAt(kept.segments[candidate], at)) placed.set(at, candidate)
+  })
   let next = 0
   for (let index = 0; index < nodes.length;) {
     let matched = -1
-    for (let candidate = next; candidate < kept.segments.length; candidate += 1) {
-      const segment = kept.segments[candidate]
-      if (index + segment.count <= nodes.length && JSON.stringify(nodes.slice(index, index + segment.count)) === segment.key) {
-        matched = candidate
-        break
+    if (identity) matched = placed.get(index) ?? -1
+    else {
+      for (let candidate = next; candidate < kept.segments.length; candidate += 1) {
+        if (unchangedAt(kept.segments[candidate], index)) {
+          matched = candidate
+          break
+        }
       }
     }
     if (matched >= 0) {

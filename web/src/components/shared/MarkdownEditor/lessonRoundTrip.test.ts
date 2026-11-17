@@ -237,3 +237,68 @@ describe('lesson bodies stored as HTML (old editors)', () => {
   })
 })
 
+/** #304 follow-up: blocks that share a chunk, and blocks with the same content, each keep their own stored bytes. */
+const HEADING_ABOVE_PARAGRAPH: [string, string][] = [
+  ['emphasis spelled with *', '## *Title*\nBody.'],
+  ['a closing #', '## Title ##\nBody.'],
+  ['trailing spaces', '## Title  \nBody.'],
+  ['strong spelled with __', '### __Bold__ title\nBody.'],
+  ['an escape', '## Title\\_x\nBody.'],
+  ['a closing # and CRLF', '## Title ##\r\nBody.'],
+  ['a Setext heading (locked) then a paragraph', 'Title\n=====\n\nBody.'],
+]
+
+describe('lossless follow-ups (#304 review)', () => {
+  it.each(HEADING_ABOVE_PARAGRAPH.flatMap(([name, stored]) => (['lesson', 'written'] as MarkdownTarget[]).map((target) => [name, target, stored] as const)))(
+    'a heading with %s (%s) keeps its bytes when only the paragraph under it is edited',
+    (_name, target, stored) => {
+      const { json, kept } = load(stored, target)
+      const paragraph = json.content!.findIndex((node) => node.type === 'paragraph' && node.content)
+      const heading = stored.slice(0, stored.indexOf('Body.'))
+      expect(editorJsonToMarkdownKeepingSource(json, kept, target)).toBe(stored)
+      expect(editorJsonToMarkdownKeepingSource(typeAtEnd(json, paragraph, ' Edited.'), kept, target)).toBe(`${heading}Body. Edited.`)
+    },
+  )
+
+  it('keeps a Setext heading and the paragraph right under it locked together, as stored', () => {
+    const { result, json, kept } = load('Title\n=====\nBody.')
+    expect(lockedKinds(result.doc)).toEqual(['a heading Rich mode can\'t show'])
+    expect(json.content!.map((node) => node.type)).toEqual([RAW_MARKDOWN_NODE, 'paragraph'])
+    expect(editorJsonToMarkdownKeepingSource(typeAtEnd(json, 1, 'Added below.'), kept, 'lesson')).toBe('Title\n=====\nBody.\n\nAdded below.')
+  })
+
+  const sameContent = '*same*\n\n_same_\n\nEnd.'
+  const replaced = (doc: JSONContent, index: number): JSONContent => ({ ...doc, content: doc.content!.map((node, at) => (at === index ? { type: 'paragraph', content: [{ type: 'text', text: 'Changed.' }] } : node)) })
+
+  it('loads blocks with the same content and different spelling as equal blocks, so only identity tells them apart', () => {
+    const { json, kept } = load(sameContent)
+    expect(JSON.stringify(json.content![0])).toBe(JSON.stringify(json.content![1]))
+    expect(kept!.segments.map((segment) => segment.stored)).toEqual(['*same*', '_same_', 'End.'])
+  })
+
+  it.each([
+    ['the first is edited', 0, 'Changed.\n\n_same_\n\nEnd.'],
+    ['the second is edited', 1, '*same*\n\nChanged.\n\nEnd.'],
+  ] as const)('with block identity, when %s the other keeps its own spelling', (_name, index, expected) => {
+    const { json, kept } = load(sameContent)
+    expect(editorJsonToMarkdownKeepingSource(replaced(json, index), kept, 'lesson', [0, 1, 2])).toBe(expected)
+  })
+
+  it('with block identity, a removed block\'s spelling never moves to the equal block after it', () => {
+    const { json, kept } = load(sameContent)
+    const removed: JSONContent = { ...json, content: json.content!.slice(1) }
+    expect(editorJsonToMarkdownKeepingSource(removed, kept, 'lesson', [null, 0, 1])).toBe('_same_\n\nEnd.')
+  })
+
+  it('falls back to the plain writer when kept spelling would change list grouping beside a new block', () => {
+    // "1)" and "1." lists are separate lists; plain writing would make one list of both.
+    const stored = '1) first\n\nText.'
+    const { json, kept } = load(stored)
+    expect(editorJsonToMarkdownKeepingSource(json, kept, 'lesson')).toBe(stored)
+    const inserted: JSONContent = { ...json, content: [json.content![0], { type: 'orderedList', attrs: { start: 1 }, content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'new' }] }] }] }, ...json.content!.slice(1)] }
+    const plain = editorJsonToMarkdown(inserted)
+    expect(lessonMarkdownStructure("1) first\n\n1. new\n\nText.")).not.toBe(lessonMarkdownStructure(plain))
+    expect(editorJsonToMarkdownKeepingSource(inserted, kept, 'lesson')).toBe(plain)
+  })
+})
+
