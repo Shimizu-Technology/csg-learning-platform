@@ -16,7 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 
-import { AppErrorBoundary } from '@/components/app-error-boundary';
+import { AppRecovery } from '@/components/app-recovery';
 import { NotificationObserver } from '@/components/notification-observer';
 import { AnalyticsProvider } from '@/providers/analytics-provider';
 import { ClerkAuthProvider, DemoAuthProvider, isDemoMode } from '@/providers/auth-provider';
@@ -56,5 +56,5 @@ export default function RootLayout() {
   const app = isDemoMode
     ? <DemoAuthProvider><AppProviders /></DemoAuthProvider>
     : <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}><ClerkAuthProvider><AppProviders /></ClerkAuthProvider></ClerkProvider>;
-  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><ThemeProvider><NavigationAppearance><AppErrorBoundary>{app}</AppErrorBoundary></NavigationAppearance></ThemeProvider></SafeAreaProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><ThemeProvider><NavigationAppearance><AppRecovery>{app}</AppRecovery></NavigationAppearance></ThemeProvider></SafeAreaProvider></GestureHandlerRootView>;
 }

@@ -141,6 +141,14 @@ Additional required iPhone checks (not run on this host):
    `exp+csg-connect://oauth-callback` redirect. Verify the lesson survives and opens
    after sign-in. Repeat the production `csgconnect` OAuth path.
 
+N-3 release prerequisite update (2026-11-17): no dev-client or iOS ad hoc/internal
+binary is currently available. Check 5's production `csgconnect` half can run on
+the next production-channel TestFlight build; its `exp+csg-connect` half remains
+blocked until a separately provisioned dev-client build exists. Do not count
+the whole check as passed from TestFlight alone. The current OTA verification
+lane is the TestFlight production-channel tester group with an agreed harmless
+copy update, not an assumed preview build; see `MOBILE_APP.md`.
+
 Automated fix-round results: 139 mobile suites / 1,506 tests, 208 web suites /
 2,421 tests, and 1,933 API tests / 41,141 assertions in each prepared-statement
 mode. Typecheck, lint (existing warnings), public Expo config, Netlify/AASA
