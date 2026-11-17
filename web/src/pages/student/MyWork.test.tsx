@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react'
+import { act, useEffect, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
@@ -186,11 +186,11 @@ describe('help answers (L-1.3)', () => {
       const location = useLocation()
       return <><StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={9} contextType="lesson" contextId={42} contextLabel="Loops" requests={[request()]} requestsLoading={false} onRequestsRefresh={refresh} /></StudentExperienceProvider><a href="#" data-to="next" onClick={(event) => { event.preventDefault() }}>{location.search}</a></>
     }
-    let go!: (path: string) => void
-    function Nav() { const navigate = useNavigate(); go = navigate; return null }
+    const nav: { go?: (path: string) => void } = {}
+    function Nav() { const navigate = useNavigate(); useEffect(() => { nav.go = navigate }); return null }
     await act(async () => { root.render(<MemoryRouter key={++renders} initialEntries={['/lessons/42?cohort_id=9&help_request=31']}><Nav /><Routes><Route path="/lessons/:id" element={<Lesson />} /></Routes></MemoryRouter>) })
     expect(refresh).not.toHaveBeenCalled()
-    await act(async () => { go('/lessons/42?cohort_id=9&help_request=32') })
+    await act(async () => { nav.go!('/lessons/42?cohort_id=9&help_request=32') })
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
