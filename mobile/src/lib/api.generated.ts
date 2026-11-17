@@ -8340,7 +8340,7 @@ export interface components {
             members: {
                 count: number;
                 staff_count: number;
-                /** @description Admins only (first 50); instructors get the counts. */
+                /** @description The first 50 members for admins; null for instructors, who get the counts. */
                 list: {
                     id: number;
                     name: string;
@@ -8404,7 +8404,7 @@ export interface components {
                 graded: number;
             }[];
             cohorts: components["schemas"]["RecordDetailCohort"][];
-            /** @description Cohorts on the curriculum the viewer doesn't teach, as a number only. */
+            /** @description Cohorts on the curriculum the viewer doesn't teach, as a number, never named. */
             other_cohorts_count: number;
         };
         ActivityEventDetail: {

@@ -20539,7 +20539,7 @@
                     "type": "null"
                   }
                 ],
-                "description": "Admins only (first 50); instructors get the counts."
+                "description": "The first 50 members for admins; null for instructors, who get the counts."
               }
             },
             "required": [
@@ -20804,7 +20804,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the curriculum the viewer doesn't teach, as a number only."
+            "description": "Cohorts on the curriculum the viewer doesn't teach, as a number, never named."
           }
         },
         "required": [
