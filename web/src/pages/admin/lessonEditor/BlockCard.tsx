@@ -186,7 +186,7 @@ export function BlockCard({
               onChange={(markdown) => onChange({ body: markdown })}
               placeholder={block.block_type === 'text' ? 'Write the lesson text' : isExercise ? 'What should students build or answer?' : 'What should students do at this checkpoint?'}
               variant="field"
-              target="written"
+              target="lesson"
               renderPreview={renderLessonPreview}
               disabled={readOnly}
               minHeight={block.block_type === 'text' ? 140 : 110}

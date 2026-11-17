@@ -13,6 +13,10 @@ class User < ApplicationRecord
   # presence shows "online" for 2 minutes after last_seen_at, and the mobile
   # app sends no presence heartbeat, so this must stay well under 2 minutes.
   LAST_SEEN_WRITE_INTERVAL = 1.minute
+  # The shared editor's two modes (U-6.8). A nil editor_mode or
+  # editor_enter_sends means the person hasn't chosen yet: clients use their
+  # default, or upload a choice they remembered locally.
+  EDITOR_MODES = %w[rich markdown].freeze
 
   enum :role, { student: 0, instructor: 1, admin: 2 }
 
@@ -81,6 +85,7 @@ class User < ApplicationRecord
   validates :email, presence: true, uniqueness: { case_sensitive: false }
   validates :role, presence: true
   validates :invite_delivery_status, inclusion: { in: INVITE_DELIVERY_STATUSES }
+  validates :editor_mode, inclusion: { in: EDITOR_MODES }, allow_nil: true
   normalizes :handle, with: ->(value) { value.to_s.strip.delete_prefix("@").downcase.presence }
   validates :handle, allow_nil: true, uniqueness: true,
     format: { with: HANDLE_FORMAT, message: "must be 3-30 lowercase letters, numbers or underscores, starting with a letter or number" },
@@ -186,6 +191,11 @@ class User < ApplicationRecord
   # Only never-accepted invites with no history are deleted; anything else is archived.
   def safe_to_hard_delete?
     invite_pending? && hard_delete_blockers.empty?
+  end
+
+  # What every client reads to open its editors (session and preference responses).
+  def editor_preferences
+    { mode: editor_mode, enter_sends: editor_enter_sends }
   end
 
   def full_name

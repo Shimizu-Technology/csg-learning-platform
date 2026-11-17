@@ -32,13 +32,17 @@ import {
   selectionInCodeBlock,
 } from './extensions'
 import {
+  editorJsonToMarkdownKeepingSource,
   EMPTY_EDITOR_DOC,
+  keySourceSegments,
   lockedKinds,
   lockedWarning,
   looksLikeMarkdown,
   markdownToEditorDoc,
   RAW_MARKDOWN_NODE,
+  type KeyedSource,
   type MarkdownTarget,
+  type MarkdownToEditorResult,
 } from './markdownToEditorJson'
 import { markdownEnterAddsLine, markdownSourceEdit, markdownSourceIsActive, normalizeEditorLink, replaceTextareaRange, type FormatAction } from './markdownSource'
 import { useEnterToSend, useInitialEditorMode, type EditorMode } from './preferences'
@@ -229,6 +233,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   targetRef.current = target
   /** Markdown to the Rich document for this editor's readers. */
   const toDoc = useCallback((markdown: string) => markdownToEditorDoc(markdown, { target: targetRef.current }).doc, [])
+  /**
+   * Where the Rich document's blocks came from in the Markdown it was loaded
+   * from, so blocks nobody edits are written back exactly as typed.
+   * `pendingSourceRef` holds a conversion until the editor has the document.
+   */
+  const keptSourceRef = useRef<KeyedSource | null>(null)
+  const pendingSourceRef = useRef<MarkdownToEditorResult | null>(null)
+  const toMarkdown = useCallback((json: JSONContent) => editorJsonToMarkdownKeepingSource(json, keptSourceRef.current, targetRef.current), [])
+  /** Records where a loaded document came from; null for a document not read from Markdown (a restored draft). */
+  const keepSource = useCallback((editor: Editor, result: MarkdownToEditorResult | null) => {
+    keptSourceRef.current = result ? keySourceSegments(result, editor.getJSON()) : null
+  }, [])
   /** True from compositionstart until just after compositionend (Safari sends the IME's Enter after compositionend). */
   const composingRef = useRef(false)
   const startComposing = useCallback(() => { composingRef.current = true }, [])
@@ -297,10 +313,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     if (modeRef.current === 'rich' && richDirtyRef.current && editor && !editor.isDestroyed) {
       richDirtyRef.current = false
       const json = editor.getJSON()
-      emit(editorJsonToMarkdown(json), json)
+      emit(toMarkdown(json), json)
     }
     return markdownRef.current
-  }, [emit])
+  }, [emit, toMarkdown])
 
   const scheduleFlush = useCallback(() => {
     if (flushFrameRef.current !== null) return
@@ -345,7 +361,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const initialDoc = useMemo<JSONContent>(() => {
     if (defaultRichContent?.type === 'doc' && Array.isArray(defaultRichContent.content)) return defaultRichContent
-    return toDoc(initialMarkdown)
+    const result = markdownToEditorDoc(initialMarkdown, { target })
+    pendingSourceRef.current = result
+    return result.doc
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- initial content only
 
   const handlePaste = (view: EditorView, event: ClipboardEvent) => {
@@ -506,6 +524,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           .setContent(pending, { emitUpdate: false })
           .run()
       }
+      // Not cleared: an editor created again (Strict Mode) loads the same content.
+      keepSource(created, pendingSourceRef.current)
     },
     onUpdate: ({ editor: updated }) => {
       editorRef.current = updated
@@ -542,7 +562,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false))
   }, [editor, label, placeholder, describedBy])
 
-  const applyRichDoc = useCallback((target: Editor, doc: JSONContent) => {
+  /** Loads a document into Rich mode; `result` is the Markdown conversion it came from, if any. */
+  const applyRichDoc = useCallback((target: Editor, doc: JSONContent, result: MarkdownToEditorResult | null = null) => {
     target.chain()
       .command(({ tr }) => {
         tr.setMeta('addToHistory', false)
@@ -550,15 +571,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       })
       .setContent(doc, { emitUpdate: false })
       .run()
-  }, [])
+    keepSource(target, result)
+  }, [keepSource])
 
   const replaceAll = useCallback((markdown: string, richContent?: JSONContent | null, emitChange = true) => {
     const current = editorRef.current
-    const doc = richContent?.type === 'doc' && Array.isArray(richContent.content) ? richContent : toDoc(markdown)
+    const restored = richContent?.type === 'doc' && Array.isArray(richContent.content)
+    const result = restored ? null : markdownToEditorDoc(markdown, { target: targetRef.current })
+    const doc = result ? result.doc : richContent as JSONContent
     if (current && !current.isDestroyed) {
-      if (modeRef.current === 'rich') applyRichDoc(current, doc)
+      if (modeRef.current === 'rich') applyRichDoc(current, doc, result)
     } else {
       pendingDocRef.current = doc
+      pendingSourceRef.current = result
     }
     setSource(markdown)
     sourceRef.current = markdown
@@ -612,7 +637,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const caret = textareaRef.current?.selectionStart ?? markdown.length
       modeRef.current = 'rich'
       if (current && !current.isDestroyed) {
-        applyRichDoc(current, toDoc(markdown))
+        const result = markdownToEditorDoc(markdown, { target: targetRef.current })
+        applyRichDoc(current, result.doc, result)
         // Switching is never an edit: the Markdown stays exactly as typed until Rich mode changes it.
         markdownRef.current = markdown
         richDirtyRef.current = false
@@ -1015,7 +1041,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               </span>
             </button>
           </div>
-          <p className="mt-2 text-xs text-ink-muted">In a list or code block, Enter always adds a line. Saved for you on this browser.</p>
+          <p className="mt-2 text-xs text-ink-muted">In a list or code block, Enter always adds a line. Saved to your account.</p>
           <table className="mt-3 w-full text-left text-xs text-ink-secondary">
             <tbody>
               {[

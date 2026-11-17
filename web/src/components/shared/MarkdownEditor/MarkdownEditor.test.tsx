@@ -340,6 +340,37 @@ describe('controlled value', () => {
   })
 })
 
+describe('lesson text (U-6.8)', () => {
+  const lesson = 'Practice using `ls` and `cd`.\n\n- [https://pine.fm/LearnToProgram/chap\\_01.html](https://pine.fm/LearnToProgram/chap_01.html)\n\n&nbsp;View -\\> Developer -\\> JavaScript Console\n\n```ruby\nputs "hi"\n```\n\n\n\nCommit your code.'
+
+  it('saves nothing when a lesson is opened and closed in Rich mode', async () => {
+    const { onChange } = await mount({ defaultValue: lesson, target: 'lesson' })
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps every block nobody edited exactly as typed when one block changes in Rich mode', async () => {
+    const { editor, onChange } = await mount({ defaultValue: lesson, target: 'lesson' })
+    act(() => { editor().commands.setTextSelection(editor().state.doc.content.size - 1) })
+    type(editor(), ' Then push.')
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).toHaveBeenLastCalledWith(lesson.replace('Commit your code.', 'Commit your code. Then push.'), expect.objectContaining({ type: 'doc' }))
+  })
+
+  it('keeps the original text when the lesson goes to Markdown mode and back', async () => {
+    const { button, onChange, editor } = await mount({ defaultValue: lesson, target: 'lesson' })
+    act(() => button('Markdown').click())
+    act(() => button('Rich').click())
+    act(() => { editor().commands.setTextSelection(1) })
+    type(editor(), 'Now: ')
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).toHaveBeenLastCalledWith(`Now: ${lesson}`, expect.objectContaining({ type: 'doc' }))
+  })
+})
+
 describe('review round 1', () => {
   it.each(['rich', 'markdown'] as const)('ignores composing keys in %s mode: no send, no onKeyDown', async (mode) => {
     writeEditorPreferences(undefined, { mode })

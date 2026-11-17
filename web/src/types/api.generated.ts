@@ -1699,6 +1699,55 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/editor_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Save the signed-in person's editor mode and Enter-to-send choice */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EditorPreferencesInput"];
+                };
+            };
+            responses: {
+                /** @description EditorPreferencesResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EditorPreferencesResponse"];
+                    };
+                };
+                /** @description An unknown mode, a non-boolean enter_sends, or neither field */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/message_attachments/presign": {
         parameters: {
             query?: never;
@@ -6092,6 +6141,7 @@ export interface components {
             github_username: string | null;
             last_seen_at: string | null;
             community_policy: components["schemas"]["CommunityPolicy"];
+            editor_preferences: components["schemas"]["EditorPreferences"];
         };
         ProfileUser: {
             id: number;
@@ -9398,6 +9448,20 @@ export interface components {
         };
         CoursePackagePreviewResponse: {
             preview: components["schemas"]["CoursePackagePreview"];
+        };
+        /** @description The shared editor's per-person preferences (U-6.8). null means the person hasn't chosen on the server yet: clients use their default (Rich, Enter sends) or upload a choice they remembered locally. */
+        EditorPreferences: {
+            mode: ("rich" | "markdown") | null;
+            enter_sends: boolean | null;
+        };
+        /** @description Either field alone; a field that isn't sent keeps its value. */
+        EditorPreferencesInput: {
+            /** @enum {string} */
+            mode?: "rich" | "markdown";
+            enter_sends?: boolean;
+        };
+        EditorPreferencesResponse: {
+            editor_preferences: components["schemas"]["EditorPreferences"];
         };
     };
     responses: {
