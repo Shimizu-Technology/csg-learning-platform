@@ -126,3 +126,15 @@ are synthetic; no external media is played. Claim the runner and clean the exact
 harness database and servers afterward. The full ASUS gate now runs the API
 suite with prepared statements enabled and disabled, retaining the loopback
 migration-process port adapter.
+
+### Catalog and course pages
+
+Start with `QA_CHECKOUT_READY=1 scripts/qa/run start`, then from `api/` run
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/catalog-fixtures.rb`.
+This explicitly lists a synthetic offering, adds buyer persona 9, and creates a
+synthetic paid purchase for persona 7. Run
+`QA_SPEC=catalog-course-pages.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts`
+from `web/`. The spec covers light/dark at both widths, restores its own onboarding
+fixture, and writes screenshots under `docs/qa/catalog-course-pages-2026-11-17/`.
+The checkout spec intercepts the purchase request and hosted page; it never calls
+Stripe. Existing API regressions cover actual checkout/session/webhook logic.

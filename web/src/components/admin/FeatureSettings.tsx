@@ -1,9 +1,10 @@
+import { ReviewResponseSettings, type SavedReviewResponse } from './ReviewResponseSettings'
 import { useEffect, useState } from 'react'
 import { api, type FeatureSettingsData } from '../../lib/api'
 import { Button } from '../ui/Button'
 
 const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans' }
-export function FeatureSettings({ cohortId, onDraftChange }: { cohortId?: number; onDraftChange?: (values: Record<string, boolean | null> | null) => void }) {
+export function FeatureSettings({ cohortId, onDraftChange, onReviewResponseDraftChange, savedReviewResponse }: { cohortId?: number; onDraftChange?: (values: Record<string, boolean | null> | null) => void; onReviewResponseDraftChange?: (value: string | null | undefined) => void; savedReviewResponse?: SavedReviewResponse }) {
   const [data, setData] = useState<FeatureSettingsData | null>(null)
   const [values, setValues] = useState<Record<string, boolean | null>>({})
   const [mode, setMode] = useState('automatic')
@@ -40,6 +41,7 @@ export function FeatureSettings({ cohortId, onDraftChange }: { cohortId?: number
     </select></label>)}</div>
     {!cohortId && <label className="flex flex-col gap-1 text-sm font-semibold text-ink">Public course catalog link<select disabled={saving} className="min-h-11 rounded-xl border border-line bg-surface-raised px-3" value={mode} onChange={e => setMode(e.target.value)}><option value="automatic">Automatic</option><option value="always">Always show</option><option value="hidden">Hidden</option></select></label>}
     {!onDraftChange && <Button disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save features'}</Button>}</>}
+    <ReviewResponseSettings key={cohortId || "school"} cohortId={cohortId} onDraftChange={onReviewResponseDraftChange} savedResponse={savedReviewResponse} />
     {message && <p role="status" className="text-sm text-ink-secondary">{message}</p>}
   </section>
 }

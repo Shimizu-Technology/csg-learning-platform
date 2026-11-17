@@ -26,6 +26,7 @@ function routePattern(path: string): RegExp {
 export const ROUTE_TITLES: Array<[path: string, name: string]> = [
   ['/', PRODUCT_NAME],
   ['/courses', 'Focused courses'],
+  ['/courses/:slug', 'Course'],
   ['/sign-in', 'Sign in'],
   ['/sign-up', 'Create account'],
   ['/privacy', 'Privacy policy'],

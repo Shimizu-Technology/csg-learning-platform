@@ -26,6 +26,7 @@ Rails.application.routes.draw do
 
       # Auth
       post "sessions", to: "sessions#create"
+      get "course_offerings/:slug", to: "course_offerings#show"
       get "course_offerings", to: "course_offerings#index"
       get "course_checkouts", to: "course_checkouts#index"
       get "course_checkouts/:id/status", to: "course_checkouts#status"
@@ -50,6 +51,7 @@ Rails.application.routes.draw do
       resources :data_deletion_requests, only: [ :index, :show, :create, :update ]
 
       # Dashboard / student hubs
+      patch "dashboard/start_here", to: "dashboard#dismiss_start_here"
       get "dashboard", to: "dashboard#show"
       resources :private_meetings, only: [ :index, :create, :update, :destroy ]
       get "staff/private_meetings", to: "staff_private_meetings#index"

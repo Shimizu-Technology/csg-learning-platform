@@ -318,7 +318,7 @@ module Api
       def cohort_params
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status,
-                       :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
+                       :public_outcomes, :public_duration, :public_prerequisites, :public_preview, :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
                        :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on)
       end
 
@@ -687,6 +687,11 @@ module Api
           public_checkout_enabled: cohort.public_checkout_enabled?,
           offering_readiness: cohort.offering_readiness,
           instructor_assigned: cohort.instructors.not_archived.exists?,
+          public_slug: cohort.public_slug,
+          public_outcomes: cohort.public_outcomes,
+          public_duration: cohort.public_duration,
+          public_prerequisites: cohort.public_prerequisites,
+          public_preview: cohort.public_preview,
           public_title: cohort.public_title,
           public_description: cohort.public_description,
           public_image_url: cohort.public_image_url,

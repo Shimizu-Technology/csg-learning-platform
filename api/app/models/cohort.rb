@@ -87,6 +87,53 @@ class Cohort < ApplicationRecord
   before_validation :default_status_by_start_date, on: :create
   validates :public_image_url, format: { with: /\Ahttps:\/\/[^\s]+\z/ }, allow_blank: true
 
+  before_save :assign_public_slug
+  validates :public_slug, uniqueness: true, format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/ }, allow_nil: true
+  validate :public_slug_is_stable
+  validates :public_duration, :review_response_time, length: { maximum: 200 }
+
+  def effective_review_response_time
+    review_response_time.presence || SchoolSetting.current.review_response_time
+  end
+
+  # These names remain available for course collection/actions as routes grow.
+  RESERVED_PUBLIC_SLUGS = %w[new edit checkout return canceled success status].freeze
+  validates :public_slug, exclusion: { in: RESERVED_PUBLIC_SLUGS }, allow_nil: true
+
+  # parameterize keeps underscores, which the slug format rejects.
+  def self.public_slug_base(title)
+    title.to_s.parameterize.tr("_", "-").squeeze("-").delete_prefix("-").delete_suffix("-")
+  end
+
+  def assign_public_slug
+    return unless public_slug.nil? && public_title.present?
+
+    # One allocation lock also covers a title that equals another title's suffix.
+    self.class.connection.execute("SELECT pg_advisory_xact_lock(hashtext('public-course-slug'))")
+    stored_slug = self.class.uncached { self.class.where(id: id).pick(:public_slug) } if persisted?
+    if stored_slug.present?
+      self.public_slug = stored_slug
+      return
+    end
+
+    base = self.class.public_slug_base(public_title)
+    if base.blank? || RESERVED_PUBLIC_SLUGS.include?(base)
+      self.id ||= self.class.connection.select_value("SELECT nextval(#{self.class.connection.quote(self.class.sequence_name)})")
+      base = "course-#{id}"
+    end
+    candidate = base
+    suffix = 1
+    while self.class.exists?(public_slug: candidate)
+      suffix += 1
+      candidate = "#{base}-#{suffix}"
+    end
+    self.public_slug = candidate
+  end
+
+  def public_slug_is_stable
+    errors.add(:public_slug, "cannot change") if persisted? && public_slug_in_database.present? && will_save_change_to_public_slug?
+  end
+
   def setup_readiness
     offering_readiness.merge(
       catalog_copy: public_title.present? && public_description.present? && public_image_url.present?,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_17_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -200,8 +200,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_050000) do
     t.string "public_title"
     t.text "public_description"
     t.string "public_image_url"
+    t.string "public_slug"
+    t.text "public_outcomes"
+    t.string "public_duration"
+    t.text "public_prerequisites"
+    t.text "public_preview"
+    t.string "review_response_time"
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
+    t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
     t.index ["status"], name: "index_cohorts_on_status"
     t.index ["support_instructor_id"], name: "index_cohorts_on_support_instructor_id"
     t.check_constraint "course_delivery::text = ANY (ARRAY['program'::character varying::text, 'guided'::character varying::text, 'self_paced'::character varying::text])", name: "cohort_course_delivery_valid"
@@ -417,6 +424,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_050000) do
     t.datetime "paused_at"
     t.datetime "read_cutoff_at"
     t.datetime "content_moved_at"
+    t.datetime "start_here_dismissed_at"
     t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
@@ -1061,6 +1069,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_050000) do
     t.string "public_catalog_mode", default: "automatic", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "review_response_time", default: "usually reviewed within 2 days", null: false
     t.check_constraint "id = 1", name: "school_settings_singleton"
   end
 

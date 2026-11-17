@@ -1,3 +1,4 @@
+import { reviewTiming } from '../../lib/reviewCopy'
 import { effectiveSubmissionType } from '../../lib/submissionType'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
@@ -100,7 +101,8 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
 
 export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, readOnly = false, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
-  const { user } = useAuthContext()
+  const { user, enrollments } = useAuthContext()
+  const reviewResponseTime = enrollments?.find(entry => entry.cohort.id === cohortId)?.cohort.review_response_time || 'usually reviewed within 2 days'
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
   const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null)
   const [savedAttempt, setSavedAttempt] = useState<{ key: string; value: NonNullable<ContentBlock['submissions']>[number] } | null>(null)
@@ -602,12 +604,10 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         block_type: block.block_type,
         source: 'submission',
       })
-      const message = editing
-        ? 'Updated. Your instructor will review it and reply here.'
-        : latestSubmission ? 'Resubmitted. Your instructor will review it and reply here.'
-        : 'Submitted. Your instructor will review it and reply here.'
-      setSubmissionSuccess(message)
-      toast.success(message)
+      const message = editing ? 'Updated.' : latestSubmission ? 'Resubmitted.' : 'Submitted.'
+      const reviewMessage = `${message} Your instructor will review it — ${reviewTiming(reviewResponseTime)}. Feedback will appear here.`
+      setSubmissionSuccess(reviewMessage)
+      toast.success(reviewMessage)
       onProgressUpdate?.()
     }
     setIsSubmitting(false)
@@ -958,7 +958,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             {latestStatus === 'awaiting_review' && (
               <div className="flex items-start gap-2 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary" role="status">
                 <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p><span className="font-semibold">Submitted · waiting for review.</span> Your instructor will reply here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
+                <p><span className="font-semibold">Submitted · waiting for review.</span> Your instructor will review it — {reviewTiming(reviewResponseTime)}. Feedback will appear here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
               </div>
             )}
             {block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (
