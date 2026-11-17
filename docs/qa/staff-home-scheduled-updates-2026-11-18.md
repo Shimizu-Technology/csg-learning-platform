@@ -77,10 +77,28 @@ ignored `.qa-local/staff-home-scheduled/`.
 | --- | --- |
 | Focused API (local, prepared statements on) | `scheduled_updates_test` 14, `scheduled_update_races_test` 3 (two connections: a second publisher and a cancel each wait on the row lock and then post nothing, or get 422), migration test, `update_drafts`/`updates`/`update_races`/`scheduled_tick`/`user_hard_delete`/`record_related`/`record_detail_query_counts`: all passing |
 | Query counts | Tick posting to 1 or 10 recipients: same count. Manage › Scheduled with 1 or 5: same count (author and admin). Update page read count with 1 or 10 recipients: same count. |
-| Full API, both prepared-statement modes (ASUS) | See "ASUS gate" below |
-| Web | typecheck, lint, `api:check`, vitest 240 files / 2,771 tests, build, `test:bundle`: pass |
-| Mobile | `tsc`, lint (0 errors), jest 142 suites / 1,546 tests: pass |
+| Full API, both prepared-statement modes (ASUS) | Passed on `2c19b5d1` (see "ASUS gate" below) |
+| Web (on merged `2c19b5d1`) | typecheck, lint, `api:check`, vitest 242 files / 2,776 tests, build, `test:bundle`: pass |
+| Mobile (on merged `2c19b5d1`) | `tsc`, lint (0 errors), jest 142 suites / 1,546 tests: pass |
 | Impeccable 4.6.0 (advisory), changed UI files | No findings |
+
+## ASUS gate
+
+`asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/scheduled-jobs-gate.sh` on head
+`2c19b5d1` (this branch merged with main `096cc89a`, #298). `OPENAPI_COVERAGE=1` and `PARALLEL_WORKERS=1`
+were set, the 55432 migration-process port adapter was kept, and nothing was excluded.
+
+| Stage | Result |
+| --- | --- |
+| Prepared statements enabled (asserted), seed 60296 | 2,204 runs / 43,032 assertions, 0 failures/errors/skips |
+| Prepared statements disabled (asserted), seed 33438 | 2,204 runs / 43,032 assertions, 0 failures/errors/skips |
+| RuboCop | 765 files, no offenses |
+| Brakeman | 0 security warnings (1 existing ignored) |
+
+The first gate, on `d6f27bf0`, failed one test in both modes: the OpenAPI contract rule rejected
+`read_summary`'s description because it used conditional wording ("only … for staff"). The key stays
+required and nullable, as #279's contract expects; the description was reworded in `777c9ecf`. That
+run's other 2,203 tests passed in both modes. The gate was rerun once after the fix and the merge with main.
 
 ## Not run
 
@@ -96,4 +114,6 @@ ignored `.qa-local/staff-home-scheduled/`.
 The harness servers (PIDs 30913, 30985) and their database were claimed under lifecycle session
 `18fefdff-f751-4de3-98c5-0d32cab88632` and stopped with `scripts/qa/run clean`. The scratch schema
 database `csg_shsu_schema_20261118` was dropped. Borrowed local Postgres and other sessions' QA
-databases were left alone.
+databases were left alone. The ASUS wrapper can't be claimed (the lifecycle helper protects
+commands containing `postgres`); each run was tracked by PID, exited on its own, and the helper
+removed its container and database. No `asus-test` process of this task is left running.
