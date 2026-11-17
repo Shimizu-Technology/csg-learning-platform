@@ -136,7 +136,13 @@ The branch/worktree and unmerged PR remain for the lead; no watch or merge.
 
 All eleven worker-owned backend scenarios are accepted; S12 is the deliberate
 post-merge lead rollout. No browser/native transport or production delivery is
-claimed. `origin/main` stayed at `e0af0801` through final verification; rechecked
-immediately before push. The clean task branch/worktree remains available for
+claimed. `origin/main` stayed at `e0af0801` through the ASUS run, then the final fetch
+found `ca370b52` (#289, staff mobile layout). Merged it without conflicts as
+`e971290b` immediately before push. The merge changes only web layout, its QA
+scripts and evidence: `git diff ffaa7f96 HEAD -- api fixtures docs/openapi.json
+.github/workflows/ci.yml` is empty. Thus the exact API application, tests,
+fixtures, schema and API CI inputs tested in both modes are unchanged. No
+scheduler/browser integration path was altered, so no further API rerun was
+needed. The PR diff against current main contains only this worker's 26 files. The clean task branch/worktree remains available for
 review. The PR is intentionally left unmerged and unwatched; GitHub CI and
 CodeRabbit review are reported at handback, not treated as already passed.
