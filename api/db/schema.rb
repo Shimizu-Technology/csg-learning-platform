@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -1294,6 +1294,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_060000) do
     t.datetime "community_terms_accepted_at"
     t.string "community_terms_version"
     t.datetime "created_at", null: false
+    t.boolean "editor_enter_sends"
+    t.string "editor_mode"
     t.string "email", null: false
     t.string "first_name"
     t.string "github_username"
@@ -1316,6 +1318,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_060000) do
     t.index ["handle"], name: "index_users_on_handle", unique: true, where: "(handle IS NOT NULL)"
     t.index ["invite_delivery_status"], name: "index_users_on_invite_delivery_status"
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
+    t.check_constraint "editor_mode IS NULL OR (editor_mode::text = ANY (ARRAY['rich'::character varying, 'markdown'::character varying]::text[]))", name: "users_editor_mode_known"
     t.check_constraint "handle::text = lower(handle::text)", name: "users_handle_lowercase"
   end
 

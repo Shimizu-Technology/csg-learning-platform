@@ -100,6 +100,7 @@ Rails.application.routes.draw do
       post "message_attachments/presign", to: "message_attachments#presign"
       post "transcriptions", to: "transcriptions#create"
       patch "message_preferences", to: "message_preferences#update"
+      patch "editor_preferences", to: "editor_preferences#update"
       get "messages/search", to: "messages_search#index"
       # Peek cards (L-0.5)
       get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
