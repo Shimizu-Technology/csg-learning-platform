@@ -29,6 +29,8 @@ const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   failed: { label: 'Failed', tone: 'danger' },
   expired: { label: 'Expired', tone: 'neutral' },
 }
+/** How the status counts read in the overview: "27 paid · 3 not finished". */
+const COUNT_WORDS: Record<string, string> = { paid: 'paid', pending: 'not finished', refunded: 'refunded', disputed: 'disputed', failed: 'failed', expired: 'expired' }
 const money = (cents: number | null | undefined) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
 
 /** A self-paced course's offering and purchases (L-3.2, admins): each purchase, its buyer and the enrollment it gave them. */
@@ -106,7 +108,7 @@ function OfferingPage({ detail }: { detail: OfferingDetail }) {
           { label: 'Paid so far', value: <span className="tabular-nums">{money(detail.paid_cents)} from {plural(counts.paid, 'purchase')}</span> },
           { label: 'Access', value: `${plural(detail.access_months, 'month')} of lessons, ${plural(detail.support_weeks, 'week')} of support` },
           { label: 'Support instructor', value: detail.support_instructor ? <RecordLink record={{ type: 'staff', id: detail.support_instructor.id }} variant="plain">{detail.support_instructor.name}</RecordLink> : 'None' },
-          { label: 'Checkouts', value: <span className="tabular-nums">{Object.entries(counts).filter(([, count]) => count > 0).map(([status, count]) => `${count} ${(STATUS[status]?.label || humanize(status)).toLowerCase()}`).join(' · ') || 'None yet'}</span> },
+          { label: 'Checkouts', value: <span className="tabular-nums">{Object.entries(counts).filter(([, count]) => count > 0).map(([status, count]) => `${count} ${COUNT_WORDS[status] || humanize(status).toLowerCase()}`).join(' · ') || 'None yet'}</span> },
         ]} />
       </Section>
 

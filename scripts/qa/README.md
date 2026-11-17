@@ -299,3 +299,14 @@ can't see it, then calls the fixture's `due` and `tick` commands. These run the 
 (only its `scheduled_updates` task) against the harness database, with push on the test adapter, and
 check it posts once. It also covers the staff home links, School activity, the update page and the
 submission page. See `docs/qa/staff-home-scheduled-updates-2026-11-18.md`.
+
+### Connected records, finish (L-5.2, L-3.2, L-2.9)
+
+After `start`, load the fixture once from `api/`:
+`DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/connected-records-finish-fixtures.rb`.
+It adds a return plan with check-ins for the behind student, two community reports and a block, lesson activity,
+"QA Finish Other Program" (same curriculum, another instructor) with its own plan and report, 30 synthetic purchases
+on QA Self paced, and an imported course package used by "QA Package Cohort" (its JSON goes to
+`.qa-local/finish-package.json`). Then run, from the repo root:
+`QA_SPEC=connected-records-finish.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
+The report scenario marks one synthetic report Reviewing (saved). See `docs/qa/connected-records-finish-2026-11-18.md`.
