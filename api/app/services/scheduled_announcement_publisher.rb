@@ -9,10 +9,9 @@
 # that the row is still a scheduled draft that is due, so a second tick, a
 # rerun, or a "Post now" racing the tick finds it already posted and does
 # nothing. The tick's advisory lock keeps ticks from overlapping as well.
-# The in-app notifications are written in the posting transaction. Push is
-# requested through PushNotificationJob, which ApplicationJob defers until
-# every open transaction (the tick's lock included) has committed, so a rolled
-# back post never pushes and a push failure never undoes the post (#258).
+# Each publication records a fan-out intent. Small audiences are written in
+# the posting transaction; larger ones are written in bounded job transactions.
+# Push waits until fan-out settles and is deferred until all locks commit.
 # Announcements send no email.
 #
 # The push outbox. Posting with push sets `push_requested_at` in the same
@@ -48,11 +47,15 @@ class ScheduledAnnouncementPublisher
   end
 
   def self.push_due(now)
-    Announcement.push_pending.where(push_requested_at: ..(now - PUSH_GRACE))
+    Announcement.push_pending.where("fanout_requested_at IS NULL OR fanout_settled_at IS NOT NULL").where(push_requested_at: ..(now - PUSH_GRACE))
+  end
+
+  def self.fanout_due(now)
+    Announcement.fanout_pending.where(fanout_requested_at: ..(now - PUSH_GRACE))
   end
 
   def self.preview(now)
-    { would_publish: due(now).count, would_requeue_push: push_due(now).count }
+    { would_publish: due(now).count, would_requeue_push: push_due(now).count, would_requeue_fanout: fanout_due(now).count }
   end
 
   def initialize(logger: Rails.logger, batch_size: BATCH_SIZE, time_budget: TIME_BUDGET)
@@ -64,7 +67,7 @@ class ScheduledAnnouncementPublisher
   # scheduler can no longer post there; now an unscheduled draft),
   # push_requeued and push_expired (the outbox).
   def call(now:, metrics: {})
-    %i[claimed sent failed refused push_requeued push_expired].each { |key| metrics[key] ||= 0 }
+    %i[claimed sent failed refused push_requeued push_expired fanout_requeued].each { |key| metrics[key] ||= 0 }
     @started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     failed_ids = []
     drained = drain(self.class.due(now).order(:scheduled_for, :id)) do |relation|
@@ -82,6 +85,16 @@ class ScheduledAnnouncementPublisher
     end
     # A requested job may only run once the tick's lock commits, so this run
     # skips the updates it has already requested.
+    fanout_ids = []
+    drained &&= drain(self.class.fanout_due(now).order(:id)) do |relation|
+      relation.where.not(id: fanout_ids).limit(@batch_size).pluck(:id).each do |id|
+        fanout_ids << id
+        metrics[:fanout_requeued] += 1
+        # Perform after the tick commits its outer lock, on the durable cron
+        # process rather than its async thread pool (which exits with the CLI).
+        ActiveRecord.after_all_transactions_commit { AnnouncementFanoutJob.perform_now(id) }
+      end
+    end
     requested_ids = []
     drained &&= drain(self.class.push_due(now).order(:push_requested_at, :id)) do |relation|
       relation.where.not(id: requested_ids).limit(@batch_size).pluck(:id, :push_requested_at).each do |id, requested_at|
@@ -125,7 +138,7 @@ class ScheduledAnnouncementPublisher
 
       # The push intent commits in the same UPDATE as the post (the outbox).
       announcement.update!(status: :published, push_requested_at: (Time.current if announcement.scheduled_send_push))
-      NotificationDeliveryService.announcement_published(announcement, push: announcement.scheduled_send_push)
+      NotificationDeliveryService.announcement_published(announcement, push: announcement.scheduled_send_push, async: false)
       :published
     end
   end

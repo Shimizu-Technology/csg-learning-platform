@@ -16,3 +16,6 @@ end
 require_relative "support/openapi_contract"
 
 require_relative "support/pooler_migration_connections"
+
+# Keep the dedicated async fan-out deterministic; tests drain it explicitly.
+AnnouncementFanoutJob.queue_adapter = :test

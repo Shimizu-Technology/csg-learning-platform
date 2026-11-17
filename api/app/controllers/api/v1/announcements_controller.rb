@@ -84,11 +84,8 @@ module Api
           return
         end
 
-        # The in-app notifications are written in the same transaction as the
-        # update, so it is posted with every recipient's notification or not
-        # at all. Push is requested here and runs after the commit (#258); its
-        # intent (push_requested_at) commits with the post, so the tick can
-        # re-request it if this process dies before the push runs.
+        # Push and fan-out intents commit with the publication. Large audiences
+        # are delivered asynchronously and recovered by the hourly tick.
         announcement.push_requested_at = Time.current if announcement.published? && send_push?
         saved = Announcement.transaction do
           next false unless announcement.save
@@ -118,10 +115,9 @@ module Api
       # under the row lock, against the row as it is now: another request
       # (an admin moving a draft to another cohort, say) may have changed it
       # since this request loaded it. Posting notifies the audience once: the
-      # lock makes a double click or retry see the update already posted. The
-      # in-app notifications are written under the lock, from the locked row,
-      # so they carry the words that were posted and an edit waiting on the
-      # lock updates them afterwards. Push runs after the commit (#258).
+      # lock makes a double click or retry see the update already posted.
+      # Each fan-out batch takes the same lock, so edits and archive operations
+      # serialize with inserts; push runs only after fan-out settles.
       # Edits after posting notify nobody again; the audience is fixed.
       #
       # On a draft, `scheduled_for` schedules it, moves its time, or (null)
@@ -285,11 +281,7 @@ module Api
         end
       end
 
-      # Posting fans out in the request (no job runner, AS-6). Called inside
-      # the posting transaction: the in-app notifications (unique per
-      # recipient) commit with the post or roll back with it. Push is
-      # requested through PushNotificationJob, which ApplicationJob defers
-      # until the commit, so a push failure never undoes the notifications.
+      # Record durable delivery work inside the publish transaction.
       def announce(announcement)
         NotificationDeliveryService.announcement_published(announcement, push: announcement.push_requested_at.present?)
       end

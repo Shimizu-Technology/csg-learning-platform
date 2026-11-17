@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -71,11 +71,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_060000) do
     t.datetime "updated_at", null: false
     t.jsonb "web_push_attempted_notification_ids", default: [], null: false
     t.string "schedule_failure"
+    t.datetime "fanout_requested_at"
+    t.datetime "fanout_settled_at"
+    t.jsonb "fanout_recipient_ids", default: [], null: false
+    t.bigint "fanout_cursor", default: 0, null: false
     t.index "to_tsvector('simple'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(body, ''::text)))", name: "index_announcements_search_document", using: :gin
     t.index ["audience", "cohort_id"], name: "index_announcements_on_audience_and_cohort_id"
     t.index ["author_id", "client_request_id"], name: "index_announcements_on_author_and_client_request_id", unique: true, where: "(client_request_id IS NOT NULL)"
     t.index ["author_id"], name: "index_announcements_on_author_id"
     t.index ["cohort_id"], name: "index_announcements_on_cohort_id"
+    t.index ["fanout_requested_at"], name: "index_announcements_on_fanout_pending", where: "((fanout_requested_at IS NOT NULL) AND (fanout_settled_at IS NULL))"
     t.index ["push_requested_at"], name: "index_announcements_on_push_pending", where: "((push_requested_at IS NOT NULL) AND (push_settled_at IS NULL))"
     t.index ["scheduled_for"], name: "index_announcements_on_scheduled_for_due", where: "((status = 0) AND (scheduled_for IS NOT NULL))"
     t.index ["status", "published_at"], name: "index_announcements_on_status_and_published_at"

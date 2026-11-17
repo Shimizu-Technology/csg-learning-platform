@@ -314,59 +314,43 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     assert_equal [ @student.id, second.id ].sort, Notification.where(notifiable: draft).pluck(:user_id).sort
   end
 
-  # The publish transaction holds the announcement's row lock, so its
-  # statements must not grow with the audience: recipients come from one
-  # query and notifications go in one INSERT per 500 rows.
-  test "posting sends the same statements to 10 or 500 recipients and one more INSERT per extra batch" do
-    enrolled = 0
-    grow_to = lambda do |size|
+  test "publishing query fixtures grow to 1 50 and 500 with bounded request work" do
+    enrolled = 1
+    samples = []
+    [ 1, 50, 500 ].each do |size|
       now = Time.current
       users = (enrolled...size).map do |i|
-        { clerk_id: "fanout_#{i}", email: "fanout-#{i}@example.com", first_name: "Fan", last_name: "Out #{i}", role: User.roles[:student], created_at: now, updated_at: now }
+        { clerk_id: "fanout_#{i}", email: "fanout-#{i}@example.com", role: 0, created_at: now, updated_at: now }
       end
-      ids = User.insert_all!(users, returning: %w[id]).rows.flatten
-      Enrollment.insert_all!(ids.map { |user_id| { user_id: user_id, cohort_id: @cohort.id, status: Enrollment.statuses[:active], created_at: now, updated_at: now } })
+      if users.any?
+        ids = User.insert_all!(users, returning: %w[id]).rows.flatten
+        Enrollment.insert_all!(ids.map { |id| { user_id: id, cohort_id: @cohort.id, status: 0, created_at: now, updated_at: now } })
+      end
       enrolled = size
-    end
-
-    measure = lambda do |size|
-      grow_to.call(size - 1) # @student is enrolled too
       draft = Announcement.create!(draft_attributes(author: @author, title: "Fan-out #{size}"))
-      statements = []
-      callback = ->(*, payload) { statements << payload[:sql] unless payload[:name] == "SCHEMA" }
-      as_user(@author) do
-        ActiveRecord::Base.connection_pool.clear_query_cache
-        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
-          patch "/api/v1/announcements/#{draft.id}", params: { status: "published", send_push: true }, headers: headers, as: :json
+      assert_equal size, draft.recipients.count, "fixtures must actually grow"
+      as_user(@author) { get "/api/v1/announcements", headers: headers }
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      queries = capture_queries do
+        as_user(@author) do
+          patch "/api/v1/announcements/#{draft.id}", params: { status: "published", send_push: false }, headers: headers, as: :json
         end
       end
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
       assert_response :success
-      assert_equal size, Notification.where(notifiable: draft).count
-      statements
+      inserts = queries.count { |sql| sql.start_with?('INSERT INTO "notifications"') }
+      assert_equal size <= 50 ? 1 : 0, inserts
+      assert_equal size <= 50 ? size : 0, draft.notifications.count
+      samples << [ size, queries.size, elapsed ]
+      if size > 50
+        delivery_queries = capture_queries { AnnouncementFanoutJob.perform_now(draft.id) }
+        assert_equal 5, delivery_queries.count { |sql| sql.start_with?('INSERT INTO "notifications"') }
+      end
+      assert_equal size, draft.notifications.count
     end
-
-    # Sign in once, so the first measured request isn't also the first sign-in.
-    as_user(@author) { get "/api/v1/announcements", headers: headers }
-    small = measure.call(10)
-    large = measure.call(500)
-    over = measure.call(501)
-    inserts = ->(sql) { sql.count { |statement| statement.start_with?("INSERT INTO \"notifications\"") } }
-    # The publish transaction: from the announcement's row lock to its release.
-    locked = lambda do |sql|
-      start = sql.index { |statement| statement.match?(/FROM "announcements" .* FOR UPDATE\z/) }
-      sql[start...sql.index.with_index { |statement, i| i > start && statement.start_with?("RELEASE SAVEPOINT") }]
-    end
-
-    assert_equal small.size, large.size, "10 then 500 recipients sent #{small.size} then #{large.size} statements"
-    # Without prepared statements (the pooler, as in production) ids and
-    # timestamps are inlined, so compare with literals masked.
-    shape = lambda do |sql|
-      locked.call(sql).map { |statement| statement.sub(/ VALUES .*/m, " VALUES ...").gsub(/'[^']*'/, "?").gsub(/\b\d+\b/, "?") }
-    end
-    assert_equal shape.call(small), shape.call(large), "the same statements under the lock"
-    assert_equal 5, locked.call(large).size, "lock, cohort, post, recipients, one INSERT"
-    assert_equal [ 1, 1, 2 ], [ small, large, over ].map(&inserts)
-    assert_equal large.size + 1, over.size, "a second batch adds only its INSERT"
+    assert_equal samples.first[1], samples[1][1], "the small-audience fast path must stay flat"
+    assert_operator samples.last[1], :<=, samples.first[1] + 1
+    puts "[publish measurements] #{samples.inspect}" if ENV["FAN_OUT_TIMING"]
   end
 
   test "posting writes each notification as a created one would be, and reuses rows already written" do
