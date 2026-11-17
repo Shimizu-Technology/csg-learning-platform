@@ -2939,7 +2939,7 @@
     },
     "/api/v1/announcements": {
       "get": {
-        "description": "The updates feed. Readers get posted updates for their cohorts and the school; `scope=manage` gives staff the updates they can manage, with drafts only for their author and admins.",
+        "description": "The updates feed. Readers get posted updates for their cohorts and the school; `scope=manage` gives staff the updates they can manage, with drafts only for their author and admins. With `scope=manage`, `status=draft` lists unscheduled drafts and `status=scheduled` lists scheduled ones (`sort=scheduled_asc`: next to go out first).",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -2954,7 +2954,7 @@
         }
       },
       "post": {
-        "description": "Posts an update (`status` `published`, the default) or saves a draft (`draft`). Posting notifies the audience; a draft notifies nobody.",
+        "description": "Posts an update (`status` `published`, the default) or saves a draft (`draft`). Posting notifies the audience; a draft notifies nobody. A draft with `scheduled_for` is scheduled: the hourly tick posts it, notifying the audience once, at the first run at or after that time.",
         "responses": {
           "201": {
             "description": "Created",
@@ -3002,10 +3002,11 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "description": "One update; opening it marks the viewer's notification read. Staff who manage a posted update also get `read_summary`."
       },
       "patch": {
-        "description": "The author or an admin edits a draft, posts it (`status` `published`, notifying the audience once), or edits a posted update's title and body without notifying anyone again. A posted update's audience can't change.",
+        "description": "The author or an admin edits a draft, posts it (`status` `published`, notifying the audience once), or edits a posted update's title and body without notifying anyone again. A posted update's audience can't change. On a draft, `scheduled_for` schedules or reschedules it and `scheduled_for: null` cancels the schedule; posting a scheduled draft now clears it. Once posted, a schedule change returns 422.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -14756,7 +14757,8 @@
               "draft",
               "published",
               "archived"
-            ]
+            ],
+            "description": "A scheduled update is a `draft` with `scheduled_for` set; it stays hidden from readers until the tick posts it."
           },
           "pinned": {
             "type": "boolean"
@@ -14884,6 +14886,51 @@
             "type": "boolean",
             "description": "The viewer may archive this posted update: an admin, or staff on its cohort. False for drafts (deleted instead, see can_edit), archived updates and learners."
           },
+          "scheduled_for": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A scheduled draft's send time (ISO 8601). The hourly tick posts it at the first run at or after this time, so it goes out within the hour. Null when not scheduled, and on every posted update."
+          },
+          "scheduled_send_push": {
+            "type": "boolean",
+            "description": "Whether a scheduled draft sends push when the tick posts it. False when not scheduled."
+          },
+          "schedule_time_zone": {
+            "type": "string",
+            "description": "IANA zone send times are chosen and shown in: the school's (Pacific/Guam by default). Cohorts have no zone of their own."
+          },
+          "read_summary": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "notified": {
+                    "type": "number",
+                    "description": "People the update was sent to (in-app notifications written when it posted)."
+                  },
+                  "read": {
+                    "type": "number",
+                    "description": "How many of them have opened it."
+                  }
+                },
+                "required": [
+                  "notified",
+                  "read"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On GET /announcements/{id} only, for staff who manage a posted or archived update (admins; instructors on its cohort): aggregate counts, never who. Null in lists, on drafts and for everyone else."
+          },
           "created_at": {
             "type": "string"
           },
@@ -14909,6 +14956,10 @@
           "edited_by",
           "can_edit",
           "can_archive",
+          "scheduled_for",
+          "scheduled_send_push",
+          "schedule_time_zone",
+          "read_summary",
           "created_at",
           "updated_at"
         ],
@@ -15508,6 +15559,13 @@
             "maxLength": 64,
             "pattern": "^[A-Za-z0-9_-]{8,64}$",
             "description": "One ID per composition, retained across retries. A replay returns the original record; reconcile changed fields with PATCH before accepting the save."
+          },
+          "scheduled_for": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `status` `draft`: schedule the update for this time (ISO 8601 with a UTC offset, in the future, within a year). Refused with `status` `published`."
           }
         },
         "additionalProperties": false

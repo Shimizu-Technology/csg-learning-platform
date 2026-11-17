@@ -64,7 +64,8 @@ class RecordRelated
         can_edit: LessonEditAccess.for(@viewer, lesson.curriculum_module.curriculum).can_edit?),
       item("module_grid", value: lesson.curriculum_module.name, cohort_id: cohort.id, module_id: lesson.module_id)
     ]
-    items << item("rubric", count: block.rubric.rubric_criteria.size, value: block.rubric.title) if block.rubric
+    # Any staff member may open a rubric's page (RecordDetail::RubricPage).
+    items << item("rubric", count: block.rubric.rubric_criteria.size, value: block.rubric.title, rubric_id: block.rubric.id) if block.rubric
     # Every learner's latest attempt at this lesson's work in this cohort (the Grading queue, "All").
     lesson_work = Submission.joins(:enrollment, :content_block)
       .where(enrollments: { cohort_id: cohort.id }, content_blocks: { lesson_id: lesson.id })

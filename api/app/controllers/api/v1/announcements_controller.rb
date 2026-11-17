@@ -44,7 +44,7 @@ module Api
 
         notification = current_user.notifications.find_by(notifiable: @announcement)
         notification&.mark_read!
-        render json: { announcement: announcement_json(@announcement, notification) }
+        render json: { announcement: announcement_json(@announcement, notification, read_summary: read_summary(@announcement)) }
       end
 
       # POST /api/v1/announcements
@@ -54,6 +54,11 @@ module Api
       # `client_request_id` (8-64 letters, digits, "-" or "_"); a retry or a
       # second click with the same id returns the update the first request
       # made instead of posting, and notifying everyone, twice.
+      #
+      # A draft with `scheduled_for` (ISO 8601 with a UTC offset) is a
+      # scheduled update: the hourly tick posts it at the first run at or
+      # after that time (ScheduledAnnouncementPublisher). Until then it is a
+      # draft, seen only by its author and admins.
       def create
         announcement = Announcement.new(announcement_params)
         announcement.author = current_user
@@ -61,6 +66,14 @@ module Api
         unless announcement.draft? || announcement.published?
           render json: { errors: [ "A new update is posted or saved as a draft" ] }, status: :unprocessable_entity
           return
+        end
+        return if schedule_invalid?
+        if schedule_param.present?
+          unless announcement.draft?
+            render json: { errors: [ "Post an update now or schedule it as a draft, not both" ] }, status: :unprocessable_entity
+            return
+          end
+          schedule(announcement)
         end
         if params[:client_request_id].present? && client_request_id.nil?
           render json: { errors: [ "Client request id must be 8 to 64 letters, digits, dashes or underscores" ] }, status: :unprocessable_entity
@@ -107,7 +120,14 @@ module Api
       # so they carry the words that were posted and an edit waiting on the
       # lock updates them afterwards. Push runs after the commit (#258).
       # Edits after posting notify nobody again; the audience is fixed.
+      #
+      # On a draft, `scheduled_for` schedules it, moves its time, or (null)
+      # cancels the schedule so it is an ordinary draft again. Posting a
+      # scheduled draft now clears its schedule. Once the tick has posted it,
+      # a schedule change is refused (422): the update has gone out.
       def update
+        return if schedule_invalid?
+
         outcome = Announcement.transaction do
           @announcement.lock!
           refresh_management_authorization!
@@ -115,9 +135,19 @@ module Api
           next :cannot_manage unless can_manage?(@announcement)
 
           never_posted = @announcement.draft? || @announcement.published_at.nil?
+          # The tick may have posted it while this request waited for the lock.
+          next :already_posted if params.key?(:scheduled_for) && !@announcement.draft?
+
           @announcement.assign_attributes(announcement_params)
           # The audience it would have after this request.
           next :cannot_manage unless can_manage?(@announcement)
+
+          if never_posted && @announcement.published?
+            # Posted now, not at the scheduled time.
+            @announcement.assign_attributes(scheduled_for: nil, scheduled_by: nil, scheduled_send_push: false)
+          elsif params.key?(:scheduled_for)
+            schedule(@announcement)
+          end
 
           @announcement.record_edit(current_user)
           copy_changed = !@announcement.draft? && (@announcement.will_save_change_to_title? || @announcement.will_save_change_to_body?)
@@ -136,6 +166,7 @@ module Api
         when :saved then render json: { announcement: announcement_json(@announcement) }
         when :not_editor then render_forbidden("Only the author or an admin can change this update")
         when :cannot_manage then render_forbidden("Cannot manage this announcement")
+        when :already_posted then render json: { errors: [ "This update has already been posted, so its schedule can't change" ] }, status: :unprocessable_entity
         else render json: { errors: @announcement.errors.full_messages }, status: :unprocessable_entity
         end
       end
@@ -250,8 +281,57 @@ module Api
         Announcement.find_by(author_id: current_user.id, client_request_id: client_request_id)
       end
 
-      # No published_at: posting time is when the update is posted. Scheduled
-      # posting waits for a job runner (AS-6).
+      # The requested send time: nil when absent or null (cancels a schedule
+      # on update), a Time when valid, or :invalid. It must carry a UTC
+      # offset, so "9:00" can't silently mean the server's zone.
+      def schedule_param
+        return @schedule_param if defined?(@schedule_param)
+
+        raw = params[:scheduled_for]
+        @schedule_param = if raw.blank?
+          nil
+        elsif raw.is_a?(String) && Iso8601TimeInput.explicit_offset?(raw)
+          begin
+            Time.iso8601(raw.strip)
+          rescue ArgumentError
+            :invalid
+          end
+        else
+          :invalid
+        end
+      end
+
+      def schedule_invalid?
+        return false unless schedule_param == :invalid
+
+        render json: { errors: [ "Send time must be an ISO 8601 time with a UTC offset" ] }, status: :unprocessable_entity
+        true
+      end
+
+      # Applies `scheduled_for` (or its removal) and records who scheduled it;
+      # the tick checks that person can still post there when it posts.
+      def schedule(announcement)
+        if schedule_param
+          announcement.scheduled_for = schedule_param
+          announcement.scheduled_by = current_user
+          announcement.scheduled_send_push = send_push? if params.key?(:send_push) || announcement.new_record?
+        else
+          announcement.assign_attributes(scheduled_for: nil, scheduled_by: nil, scheduled_send_push: false)
+        end
+      end
+
+      # Staff who manage a posted update see how many of the people it was
+      # sent to have read it (L-5.1): two counts in one query, never a list of
+      # who. Admins see it for every update; instructors for their cohorts'.
+      def read_summary(announcement)
+        return nil if announcement.draft? || !can_manage_view?(announcement)
+
+        notified, read = Notification.where(notifiable: announcement).pick(Arel.sql("COUNT(*)"), Arel.sql("COUNT(read_at)"))
+        { notified: notified.to_i, read: read.to_i }
+      end
+
+      # No published_at: posting time is when the update is posted, or the
+      # tick posts a scheduled draft (`scheduled_for`, handled by `schedule`).
       def announcement_params
         permitted = params.permit(:title, :body, :audience, :cohort_id, :status, :pinned)
         permitted[:cohort_id] = nil if permitted.key?(:audience) && permitted[:audience] != "cohort"
@@ -282,7 +362,13 @@ module Api
         scoped = scoped.where(audience: params[:audience]) if Announcement.audiences.key?(params[:audience].to_s)
 
         if current_user.staff? && params[:scope] == "manage"
-          scoped = scoped.where(status: params[:status]) if Announcement.statuses.key?(params[:status].to_s)
+          # Drafts and Scheduled are separate lists: a scheduled update is a
+          # draft with a send time.
+          case params[:status].to_s
+          when "scheduled" then scoped = scoped.scheduled
+          when "draft" then scoped = scoped.unscheduled_drafts
+          else scoped = scoped.where(status: params[:status]) if Announcement.statuses.key?(params[:status].to_s)
+          end
         else
           scoped = scoped.where.not(status: :archived)
         end
@@ -323,6 +409,9 @@ module Api
           scope.order(updated_at: :desc)
         when "updated_asc"
           scope.order(updated_at: :asc)
+        when "scheduled_asc"
+          # Scheduled: the next to go out first.
+          scope.order(scheduled_for: :asc, id: :asc)
         else
           scope.ordered
         end
@@ -353,7 +442,7 @@ module Api
         Announcement.visible_for(current_user).where(id: announcement.id).exists?
       end
 
-      def announcement_json(announcement, notification = nil)
+      def announcement_json(announcement, notification = nil, read_summary: nil)
         {
           id: announcement.id,
           title: announcement.title,
@@ -379,6 +468,11 @@ module Api
           },
           can_edit: can_edit?(announcement),
           can_archive: can_archive?(announcement),
+          # Only while it waits: once posted, published_at says when it went out.
+          scheduled_for: announcement.draft? ? announcement.scheduled_for : nil,
+          scheduled_send_push: announcement.scheduled? && announcement.scheduled_send_push,
+          schedule_time_zone: Announcement.schedule_time_zone,
+          read_summary: read_summary,
           created_at: announcement.created_at,
           updated_at: announcement.updated_at
         }

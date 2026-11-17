@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -60,6 +60,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_030000) do
     t.bigint "edited_by_id"
     t.boolean "pinned", default: false, null: false
     t.datetime "published_at"
+    t.bigint "scheduled_by_id"
+    t.datetime "scheduled_for"
+    t.boolean "scheduled_send_push", default: false, null: false
     t.integer "status", default: 1, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
@@ -68,6 +71,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_030000) do
     t.index ["author_id", "client_request_id"], name: "index_announcements_on_author_and_client_request_id", unique: true, where: "(client_request_id IS NOT NULL)"
     t.index ["author_id"], name: "index_announcements_on_author_id"
     t.index ["cohort_id"], name: "index_announcements_on_cohort_id"
+    t.index ["scheduled_for"], name: "index_announcements_on_scheduled_for_due", where: "((status = 0) AND (scheduled_for IS NOT NULL))"
     t.index ["status", "published_at"], name: "index_announcements_on_status_and_published_at"
   end
 
@@ -1357,6 +1361,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_030000) do
   add_foreign_key "announcements", "cohorts"
   add_foreign_key "announcements", "users", column: "author_id"
   add_foreign_key "announcements", "users", column: "edited_by_id", name: "fk_announcements_edited_by", on_delete: :nullify
+  add_foreign_key "announcements", "users", column: "scheduled_by_id", name: "fk_announcements_scheduled_by", on_delete: :nullify
   add_foreign_key "auth_sessions", "users"
   add_foreign_key "cable_token_nonces", "users"
   add_foreign_key "channel_read_states", "channels"
