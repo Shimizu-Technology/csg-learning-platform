@@ -48,11 +48,13 @@ module Api
 
       # GET /api/v1/records/:type/:id/detail — a staff record page for a
       # recording, office-hour session, private-meeting booking, learning plan,
-      # channel, rubric or activity event (RecordDetail). Staff only;
+      # channel, rubric, activity event or return plan, and for admins a
+      # community report or an offering's purchases (RecordDetail). Staff only;
       # instructors open only records in cohorts they teach. Same 404 rule.
-      # `watchers_after` continues a recording's watcher list (a cursor).
+      # `watchers_after` continues a recording's watcher list and
+      # `purchases_before` an offering's purchases (cursors).
       def detail
-        detail = RecordDetail.for(viewer: current_user, type: params[:type], id: params[:id], watchers_after: params[:watchers_after])
+        detail = RecordDetail.for(viewer: current_user, type: params[:type], id: params[:id], watchers_after: params[:watchers_after], purchases_before: params[:purchases_before])
         response.headers["Cache-Control"] = "private, no-store"
         if detail
           render json: { detail: detail }

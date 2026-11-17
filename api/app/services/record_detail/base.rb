@@ -3,11 +3,12 @@ class RecordDetail
   # (the record's cohort from its id alone, or nil when it has none or doesn't
   # exist) and `build` (the payload, once authorized).
   class Base
-    def initialize(viewer:, id:, now:, after: nil)
+    def initialize(viewer:, id:, now:, after: nil, before: nil)
       @viewer = viewer
       @id = id
       @now = now
       @after = after
+      @before = before
     end
 
     def call
