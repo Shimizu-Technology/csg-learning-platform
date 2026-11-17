@@ -95,6 +95,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
     t.index ["user_id"], name: "index_auth_sessions_on_user_id"
   end
 
+  create_table "authoring_clones", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "client_request_id", null: false
+    t.string "fingerprint", null: false
+    t.string "record_type", null: false
+    t.bigint "record_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "definition_map", default: {}, null: false
+    t.index ["user_id", "client_request_id"], name: "index_authoring_clones_on_user_id_and_client_request_id", unique: true
+  end
+
   create_table "cable_token_nonces", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "expires_at", null: false
@@ -1379,6 +1391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
   add_foreign_key "announcements", "users", column: "edited_by_id", name: "fk_announcements_edited_by", on_delete: :nullify
   add_foreign_key "announcements", "users", column: "scheduled_by_id", name: "fk_announcements_scheduled_by", on_delete: :nullify
   add_foreign_key "auth_sessions", "users"
+  add_foreign_key "authoring_clones", "users"
   add_foreign_key "cable_token_nonces", "users"
   add_foreign_key "channel_read_states", "channels"
   add_foreign_key "channel_read_states", "messages", column: "last_read_message_id"

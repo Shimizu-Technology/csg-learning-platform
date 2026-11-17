@@ -984,6 +984,9 @@ export const api = {
   importCoursePackage: (packageData: unknown) =>
     fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: coursePackageBody(packageData) }),
 
+  cloneAuthoring: (kind: 'curricula' | 'modules' | 'cohorts', id: number, data: { name: string; client_request_id: string; curriculum_id?: number; position?: number; start_date?: string; clone_curriculum?: boolean }) =>
+    fetchApi<components['schemas']['AuthoringCloneResult']>(`/api/v1/${kind}/${id}/clone`, { method: 'POST', body: JSON.stringify(data) }),
+
   createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string }) =>
     fetchApi<components['schemas']['CurriculumResponseMutation']>('/api/v1/curricula', {
       method: 'POST',

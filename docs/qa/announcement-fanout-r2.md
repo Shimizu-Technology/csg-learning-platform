@@ -231,3 +231,27 @@ The final migration is `20261118150000_add_fanout_outbox_to_announcements.rb`,
 reserving 130000 and 140000 for #305. The migration test requires the new path;
 its Rails class remains `AddFanoutOutboxToAnnouncements`. No hand-edited schema
 resolution, prepared-statement workaround, merge of the PR, or PR watch was used.
+
+## Main #305 integration and released-claim determinism
+
+Merged main `693f1eaa` (#305); migration 150000 stays after its 130000/140000
+migrations. Regenerated the conflicted schema by loading main's 140000 baseline
+into a fresh local database, executing 150000 and dumping the schema. No schema
+lines were hand-combined.
+
+The released-claim race previously queued an extra initial publication push and
+advanced a moving clock. The assertion that the tick must enqueue exactly once
+is invalid if that other job gets to recover the released claims first. The
+fixture now records the published intent/in-app rows without queuing that extra
+job, freezes time, and advances from persisted `push_requested_at` beyond the
+exact grace boundary. It asserts `push_due` explicitly before recovery and checks
+worker `.value` so background exceptions cannot be silently swallowed. Provider
+stubs and time are restored only after all worker threads finish. Production
+`push_due`/delivery behavior is unchanged; this removes fixture timing/ordering
+dependencies rather than weakening the recovery assertions.
+
+Opt-in stress cases (`SCHEDULED_PUSH_STRESS_RUNS=50`) rerun the same scenario with
+independent setup/teardown for each iteration. The gate supports
+`FANOUT_REVIEW_GATE=1 FANOUT_FOCUSED_ONLY=1 SCHEDULED_PUSH_STRESS=1` for focused
+coverage plus 50 repetitions in each real pooler mode. Focused coverage now also
+includes main's two authoring-clone migration tests. Final pooler results pending.

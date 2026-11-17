@@ -1,3 +1,4 @@
+import { AuthoringCloneDialog } from './AuthoringCloneDialog'
 import { useId, useMemo, useState } from 'react'
 import { urlParsers, useUrlParam } from '../../lib/useUrlState'
 import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
@@ -38,6 +39,7 @@ const COHORT_TYPES = [
 ]
 
 export function CohortManagement() {
+  const [cloneSource, setCloneSource] = useState<CohortSummary | null>(null)
   const { user } = useAuthContext()
   const { refreshCohorts } = useCohortContext()
   const navigate = useNavigate()
@@ -263,8 +265,8 @@ export function CohortManagement() {
           ) : (
             <div className="space-y-3">
               {visibleCohorts.map((cohort) => (
+            <div key={cohort.id} className="space-y-2">
             <Link
-              key={cohort.id}
               to={cohortPath(cohort.id)}
               state={cohortLinkState}
               className="pressable flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface-raised p-5 shadow-raised hover:border-line-strong hover:bg-surface-sunken"
@@ -290,11 +292,18 @@ export function CohortManagement() {
               </div>
               <ChevronRight className="h-5 w-5 text-ink-muted shrink-0" />
             </Link>
+            {user?.is_admin && <Button variant="secondary" size="sm" aria-label={`Clone ${cohort.name}`} onClick={() => setCloneSource(cohort)}>Clone cohort</Button>}
+            </div>
               ))}
             </div>
           )}
         </div>
       )}
+      {cloneSource && <AuthoringCloneDialog kind="cohorts" source={cloneSource} onClose={() => setCloneSource(null)} onCloned={async (copy) => {
+        await refreshCohorts()
+        setCloneSource(null)
+        navigate(cohortPath(copy.id))
+      }} />}
     </div>
   )
 }

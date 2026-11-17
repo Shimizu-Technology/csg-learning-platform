@@ -1699,55 +1699,6 @@ export interface paths {
         };
         trace?: never;
     };
-    "/api/v1/editor_preferences": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Save the signed-in person's editor mode and Enter-to-send choice */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["EditorPreferencesInput"];
-                };
-            };
-            responses: {
-                /** @description EditorPreferencesResponse */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EditorPreferencesResponse"];
-                    };
-                };
-                /** @description An unknown mode, a non-boolean enter_sends, or neither field */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiError"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/api/v1/message_attachments/presign": {
         parameters: {
             query?: never;
@@ -5071,6 +5022,106 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{id}/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clone a curriculum (admin only; no learner data) */
+        post: operations["clone_curriculum"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/{id}/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clone a module (admin only; no learner data) */
+        post: operations["clone_module"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{id}/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clone a cohort (admin only; no learner data) */
+        post: operations["clone_cohort"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/editor_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Save the signed-in person's editor mode and Enter-to-send choice */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EditorPreferencesInput"];
+                };
+            };
+            responses: {
+                /** @description EditorPreferencesResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EditorPreferencesResponse"];
+                    };
+                };
+                /** @description An unknown mode, a non-boolean enter_sends, or neither field */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
 }
@@ -9449,6 +9500,26 @@ export interface components {
         CoursePackagePreviewResponse: {
             preview: components["schemas"]["CoursePackagePreview"];
         };
+        AuthoringCloneResult: {
+            replayed: boolean;
+            clone: {
+                id: number;
+                name: string;
+                status?: string;
+                curriculum_id?: number;
+                /** Format: date */
+                start_date?: string;
+                /** Format: date */
+                end_date?: string | null;
+                enrolled_count?: number;
+                features?: {
+                    [key: string]: boolean;
+                };
+                feature_overrides?: {
+                    [key: string]: boolean | null;
+                };
+            };
+        };
         /** @description The shared editor's per-person preferences (U-6.8). null means the person hasn't chosen on the server yet: clients use their default (Rich, Enter sends) or upload a choice they remembered locally. */
         EditorPreferences: {
             mode: ("rich" | "markdown") | null;
@@ -9581,6 +9652,209 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CourseReceiptResponse"];
                 };
+            };
+        };
+    };
+    clone_curriculum: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    client_request_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Previously completed request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringCloneResult"];
+                };
+            };
+            /** @description Independent clone created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringCloneResult"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Source or previous clone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Busy or request ID reused with different options */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid options */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    clone_module: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    client_request_id: string;
+                    curriculum_id: number;
+                    position: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Previously completed request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringCloneResult"];
+                };
+            };
+            /** @description Independent clone created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringCloneResult"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Source or previous clone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Busy or request ID reused with different options */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid options */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    clone_cohort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    client_request_id: string;
+                    /** Format: date */
+                    start_date: string;
+                    clone_curriculum: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Previously completed request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringCloneResult"];
+                };
+            };
+            /** @description Independent clone created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringCloneResult"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Source or previous clone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Busy or request ID reused with different options */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid options */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

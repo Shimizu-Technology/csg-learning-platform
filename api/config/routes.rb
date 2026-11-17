@@ -152,6 +152,10 @@ Rails.application.routes.draw do
       post "course_packages/preview", to: "course_packages#preview"
       resources :course_packages, only: [ :create ]
 
+      post "curricula/:id/clone", to: "authoring_clones#create", defaults: { kind: "curriculum" }
+      post "modules/:id/clone", to: "authoring_clones#create", defaults: { kind: "module" }
+      post "cohorts/:id/clone", to: "authoring_clones#create", defaults: { kind: "cohort" }
+
       # Curricula with nested modules
       resources :curricula, only: [ :index, :show, :create, :update, :destroy ] do
         resources :resources, only: [ :index, :create, :destroy ], controller: "curriculum_resources" do

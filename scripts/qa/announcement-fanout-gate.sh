@@ -70,10 +70,14 @@ for prepared in false true; do
       test/integration/announcement_fanout_races_test.rb test/integration/update_drafts_test.rb \
       test/integration/scheduled_updates_test.rb test/integration/scheduled_update_races_test.rb \
       test/integration/sends_after_commit_test.rb test/models/announcement_test.rb \
-      test/services/scheduled_tick_test.rb test/migrations/add_fanout_outbox_to_announcements_test.rb
+      test/services/scheduled_tick_test.rb test/migrations/add_fanout_outbox_to_announcements_test.rb \
+      test/migrations/create_authoring_clones_test.rb test/migrations/refine_authoring_clone_receipts_test.rb
     [[ ${FANOUT_FOCUSED_ONLY:-0} == 1 || $prepared == true ]] || run_suite full
   else
     run_suite full
+  fi
+  if [[ ${SCHEDULED_PUSH_STRESS:-0} == 1 ]]; then
+    SCHEDULED_PUSH_STRESS_RUNS=50 run_suite released-claim-stress test/integration/scheduled_update_races_test.rb --include '/released_claim_stress/'
   fi
   kill "$(cat "$scratch/pooler.pid")"
   for attempt in {1..50}; do
