@@ -105,7 +105,22 @@ Focused local runs, before the full gate:
 
 ### Full gate
 
-GATE_RESULT_PLACEHOLDER
+The ASUS runner was unreachable (the MacBook was on a phone hotspot, and `asus-test` timed out, which also cut off an earlier run). So the full gate ran **locally on the MacBook**, one stage at a time, on `5ae11cbc`. That commit is this branch merged with `origin/main` at `59c4a3a8`, and `main` hadn't moved when the PR was opened.
+
+- API, `PARALLEL_WORKERS=1 OPENAPI_COVERAGE=1`, against the owned local database `csg_student_today_test` (schema freshly loaded): with prepared statements on (`postgres://localhost/csg_student_today_test`) and off (`?prepared_statements=false`), **2,067 runs and 42,240 assertions** each, with 0 failures, errors or skips. The migration-process tests ran against the local server (`MIGRATION_PROCESS_TEST_DATABASE_URL=postgresql://<user>@localhost/postgres`).
+  - A first prepared run with that URL missing its user failed those 2 tests: the production guard requires a user in the URL. With the user added, the file and then the full suite passed.
+- RuboCop: 734 files, no offenses. Brakeman: no warnings.
+- Web: typecheck, lint, vitest (229 files, 2,582 tests), build, `test:bundle` and `api:check` passed.
+- Mobile: typecheck, lint (0 errors; the same 74 warnings as `main`) and jest (141 suites, 1,544 tests) passed.
+
+An earlier ASUS run on `e4fe4507`, before the guard fixes, passed every stage except web vitest. Four repo-wide guards failed there:
+
+- a retired name ("Instructor support");
+- sentence case in "Could not load My work";
+- no page title for `/my-work`;
+- a cohort name not rendered as a record link.
+
+They're fixed in `5ae11cbc`, and the local gate above covers that commit.
 
 ## Not run
 
@@ -125,6 +140,6 @@ GATE_RESULT_PLACEHOLDER
 ## Resources
 
 - Lifecycle session `2a22c646-2f4f-4bc8-acaa-b14cad908eea`.
-- Two harness runs: servers `93920`/`93952` and `84921`/`85052`. Each was claimed, then stopped and its database dropped with `scripts/qa/run clean`. Playwright pages were claimed and released per test by the spec.
+- Three harness runs: servers `93920`/`93952`, `84921`/`85052` and `3626`/`3696` (the last on the merged head). Each was claimed, then stopped and its database dropped with `scripts/qa/run clean`. Playwright pages were claimed and released per test by the spec.
 - The owned local test database `csg_student_today_test` was dropped at the end.
-- The ASUS wrapper removes its own container. Shared PostgreSQL and other sessions' worktrees were left untouched.
+- The ASUS wrapper removes its own container; its retry loop was stopped once the ASUS was known to be unreachable. Shared PostgreSQL and other sessions' worktrees were left untouched.
