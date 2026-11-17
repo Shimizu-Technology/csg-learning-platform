@@ -37,6 +37,9 @@ export function LessonExperience({
   setHelpRequests: (requests: HelpRequest[]) => void
   refreshHelp: () => Promise<void>
 }) {
+  const lessonKey = `${lesson.cohort_id}:${lesson.id}`
+  const currentLesson = useRef(lessonKey)
+  currentLesson.current = lessonKey
   const ownership = useRef(0)
   useEffect(() => {
     ownership.current += 1
@@ -58,8 +61,8 @@ export function LessonExperience({
   const nextLabel = navigation?.next_redo ? `Redo: ${next?.title}` : navigation?.next_module ? `Start next module: ${next?.title}` : `Next: ${next?.title}`
   async function markComplete() {
     if (saving || readOnly || !navigation) return
-    const request = ownership.current
-    const ownsRequest = () => ownership.current === request
+    const request = ++ownership.current
+    const ownsRequest = () => currentLesson.current === lessonKey && ownership.current === request
     setSaving(true)
     setSaveError(null)
     try {
@@ -84,7 +87,7 @@ export function LessonExperience({
       cohortId={lesson.cohort_id}
       contextType="lesson"
       contextId={lesson.id}
-      contexts={[{ type: 'lesson', id: lesson.id, label: `Lesson: ${lesson.title}` }, ...lesson.content_blocks.filter(block => ['exercise', 'project', 'checkpoint'].includes(block.block_type)).map((block, index) => ({ type: 'exercise' as const, id: block.id, label: `Exercise ${index + 1}: ${block.title || 'Your answer'}` }))]}
+      contexts={[{ type: 'lesson', id: lesson.id, label: `Lesson: ${lesson.title}` }, ...lesson.content_blocks.filter(block => ['exercise', 'code_challenge', 'project', 'checkpoint'].includes(block.block_type) || helpRequests.some(request => request.cohort.id === lesson.cohort_id && request.context_type === 'exercise' && request.context_id === block.id)).map((block, index) => ({ type: 'exercise' as const, id: block.id, label: `Exercise ${index + 1}: ${block.title || 'Your answer'}` }))]}
       contextLabel={lesson.title}
       contextPath={`${window.location.origin}${paths.lesson(lesson.id)}`}
       requests={helpRequests}

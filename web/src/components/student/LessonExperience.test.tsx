@@ -8,7 +8,7 @@ import type { LessonDetail } from '../../types/api'
 const update = vi.hoisted(() => vi.fn().mockResolvedValue({ data: { progress: { status: 'completed' } } }))
 vi.mock('../../lib/api', () => ({ api: { updateProgress: update } }))
 vi.mock('./PersonActions', () => ({ PersonActions: () => <button>Message Tia</button> }))
-vi.mock('./ContextualHelp', () => ({ ContextualHelp: () => <button>Ask for help</button> }))
+vi.mock('./ContextualHelp', () => ({ ContextualHelp: ({ contexts }: { contexts?: unknown }) => <button data-contexts={JSON.stringify(contexts)}>Ask for help</button> }))
 vi.mock('../shared/LearningObjectivesPanel', () => ({ LearningObjectivesPanel: () => null }))
 const lesson = {
   id: 2,
@@ -157,4 +157,13 @@ it('ignores a completion response after navigating away, including failures', as
 it.each(['course_question', 'none', 'expired', 'help off'])('does not duplicate or contradict the single support entry for %s', async mode => {
   const page = await render({ ...lesson, instructor: { id: 9, full_name: 'Tia', role: 'instructor', avatar_url: null }, capabilities: { live_support: true, can_submit: true, read_only: false, support_expires_at: null, access_expires_at: null, support_instructor_id: 9, support_mode: mode === 'help off' ? 'guided_help' : mode === 'course_question' ? 'course_question' : 'none', features: { help_requests: mode !== 'help off' } } } as LessonDetail)
   try { expect(page.host.textContent).not.toContain('Message Tia') } finally { await page.close() }
+})
+
+it('offers distinct lesson and exercise contexts, including code challenges', async () => {
+  const value = { ...lesson, content_blocks: [{ id: 7, block_type: 'code_challenge', title: 'Loops', position: 0 }, { id: 8, block_type: 'exercise', title: 'Loop more', position: 1 }] } as LessonDetail
+  const page = await render(value)
+  try {
+    const contexts = JSON.parse(page.host.querySelector('[data-contexts]')!.getAttribute('data-contexts')!)
+    expect(contexts).toEqual([{ type: 'lesson', id: 2, label: 'Lesson: Loops' }, { type: 'exercise', id: 7, label: 'Exercise 1: Loops' }, { type: 'exercise', id: 8, label: 'Exercise 2: Loop more' }])
+  } finally { await page.close() }
 })

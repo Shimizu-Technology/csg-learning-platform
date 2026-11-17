@@ -146,6 +146,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         size={v2 ? "md" : "sm"}
         fullWidth={compact}
         onClick={() => {
+          if (choices && !message.trim()) setChosenContext('')
           setOpen(true)
           if (onRequestsRefresh) void onRequestsRefresh()
           else void loadRequests()
@@ -166,7 +167,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
       >
         <div className="space-y-4">
           {choices && canRequest && <label className="block space-y-2 text-sm font-semibold text-ink">What is your question about?
-            <select aria-label="What is your question about?" className="min-h-11 w-full rounded-xl border border-line bg-surface-raised px-3" value={chosenContext} onChange={event => setChosenContext(event.target.value)}>
+            <select aria-label="What is your question about?" disabled={saving} className="min-h-11 w-full rounded-xl border border-line bg-surface-raised px-3" value={chosenContext} onChange={event => setChosenContext(event.target.value)}>
               {choices.length > 1 && <option value="">Choose the lesson or an exercise</option>}
               {choices.map(item => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}
             </select>

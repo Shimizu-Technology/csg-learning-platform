@@ -255,4 +255,6 @@ it('On asks which exercise new help concerns and keeps every older response reac
   await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'New question about the second exercise'); textarea.dispatchEvent(new Event('input', { bubbles: true })) })
   await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
   expect(api.createHelpRequest).toHaveBeenCalledWith(expect.objectContaining({ context_type: 'exercise', context_id: 52, message: 'New question about the second exercise' }))
+  await click('View response')
+  expect(select.value).toBe('')
 })
