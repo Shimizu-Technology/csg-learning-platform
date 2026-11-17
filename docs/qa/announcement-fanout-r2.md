@@ -254,4 +254,30 @@ Opt-in stress cases (`SCHEDULED_PUSH_STRESS_RUNS=50`) rerun the same scenario wi
 independent setup/teardown for each iteration. The gate supports
 `FANOUT_REVIEW_GATE=1 FANOUT_FOCUSED_ONLY=1 SCHEDULED_PUSH_STRESS=1` for focused
 coverage plus 50 repetitions in each real pooler mode. Focused coverage now also
-includes main's two authoring-clone migration tests. Final pooler results pending.
+includes main's two authoring-clone migration tests. Final pooler results are recorded below.
+
+Final #305 integration acceptance on implementation `ee119c19`, ASUS real
+transaction-mode PgBouncer, seed 5041:
+
+- Focused, prepared off: 119 tests / 977 assertions, zero failures/errors/skips
+  (18.994s), including migrations 130000, 140000 and 150000.
+- Released-claim stress, prepared off: 50 independent test cases / 650 assertions,
+  zero failures/errors/skips (6.864s).
+- Focused, prepared on: 119 tests / 977 assertions, zero failures/errors/skips
+  (20.874s).
+- Released-claim stress, prepared on: 50 independent test cases / 650 assertions,
+  zero failures/errors/skips (7.765s).
+- RuboCop: 796 files clean. Brakeman: zero active warnings, one existing ignored
+  warning. Bundler-audit passed. No prepared-statement workaround was used.
+
+The reported external full-suite failure was not reproduced deterministically;
+the two fixture dependencies above were removed, and the persisted-intent cutoff
+is asserted explicitly. These results support the deterministic test behavior,
+not a claim that the original external failure's exact cause was proven. No
+production push requeue logic changed in this integration round.
+
+Main remained `693f1eaa`. The schema remains migration-generated at 150000.
+The local schema/stress database was dropped; ASUS gate/wrapper cleanup completed
+normally. Lifecycle session `manual-20261118-085952-31061-dfd8` reports no active
+owned resources. No PR merge or watch was performed. Only this QA evidence record
+changed after the passing gate.
