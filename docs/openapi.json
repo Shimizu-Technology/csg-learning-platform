@@ -1129,43 +1129,6 @@
         }
       }
     },
-    "/api/v1/editor_preferences": {
-      "patch": {
-        "summary": "Save the signed-in person's editor mode and Enter-to-send choice",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditorPreferencesInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "EditorPreferencesResponse",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EditorPreferencesResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "An unknown mode, a non-boolean enter_sends, or neither field",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/message_attachments/presign": {
       "post": {
         "responses": {
@@ -3915,6 +3878,286 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CoursePackagePreviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/curricula/{id}/clone": {
+      "post": {
+        "summary": "Clone a curriculum (admin only; no learner data)",
+        "operationId": "clone_curriculum",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "client_request_id"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "client_request_id": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{8,64}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Previously completed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCloneResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Independent clone created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCloneResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Source or previous clone not found"
+          },
+          "409": {
+            "description": "Busy or request ID reused with different options"
+          },
+          "422": {
+            "description": "Invalid options"
+          }
+        }
+      }
+    },
+    "/api/v1/modules/{id}/clone": {
+      "post": {
+        "summary": "Clone a module (admin only; no learner data)",
+        "operationId": "clone_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "client_request_id",
+                  "curriculum_id",
+                  "position"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "client_request_id": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{8,64}$"
+                  },
+                  "curriculum_id": {
+                    "type": "integer"
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Previously completed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCloneResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Independent clone created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCloneResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Source or previous clone not found"
+          },
+          "409": {
+            "description": "Busy or request ID reused with different options"
+          },
+          "422": {
+            "description": "Invalid options"
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{id}/clone": {
+      "post": {
+        "summary": "Clone a cohort (admin only; no learner data)",
+        "operationId": "clone_cohort",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "client_request_id",
+                  "start_date",
+                  "clone_curriculum"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "client_request_id": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{8,64}$"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "clone_curriculum": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Previously completed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCloneResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Independent clone created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCloneResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Source or previous clone not found"
+          },
+          "409": {
+            "description": "Busy or request ID reused with different options"
+          },
+          "422": {
+            "description": "Invalid options"
+          }
+        }
+      }
+    },
+    "/api/v1/editor_preferences": {
+      "patch": {
+        "summary": "Save the signed-in person's editor mode and Enter-to-send choice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditorPreferencesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "EditorPreferencesResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorPreferencesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An unknown mode, a non-boolean enter_sends, or neither field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -24444,6 +24687,70 @@
           "preview"
         ],
         "additionalProperties": false
+      },
+      "AuthoringCloneResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clone",
+          "replayed"
+        ],
+        "properties": {
+          "replayed": {
+            "type": "boolean"
+          },
+          "clone": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "curriculum_id": {
+                "type": "integer"
+              },
+              "start_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "end_date": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "enrolled_count": {
+                "type": "integer"
+              },
+              "features": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "boolean"
+                }
+              },
+              "feature_overrides": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
       },
       "EditorPreferences": {
         "type": "object",

@@ -1,3 +1,4 @@
+import { AuthoringCloneDialog } from './AuthoringCloneDialog'
 import { LessonRow, SequenceLessons, type Lesson } from './contentStudio/LessonTable'
 import { flushSync } from 'react-dom'
 import { CurriculumStatusActions, ModuleActions, StructureEditor } from './StructureActions'
@@ -91,6 +92,7 @@ const SCHEDULE_PATTERN_OPTIONS = [
 ]
 
 export function ContentManagement() {
+  const [cloneTarget, setCloneTarget] = useState<{ kind: 'curricula' | 'modules'; source: { id: number; name: string; curriculum_id?: number } } | null>(null)
   const navigate = useNavigate()
   const confirm = useConfirm()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -677,6 +679,7 @@ export function ContentManagement() {
                         }}
                       />
                     )}
+                    {canManageModules && <Button variant="secondary" size="sm" onClick={() => setCloneTarget({ kind: 'curricula', source: curriculum })}>Clone curriculum</Button>}
                     {canManageModules && (
                       <Button
                         variant="secondary"
@@ -788,6 +791,7 @@ export function ContentManagement() {
                             onSaved={loadCurricula}
                           />
                         )}
+                        {canManageModules && <div className="px-4 pt-3"><Button variant="secondary" size="sm" onClick={() => setCloneTarget({ kind: 'modules', source: { ...mod, curriculum_id: curriculum.id } })}>Clone module</Button></div>}
                         <ModuleSection
                           mod={mod}
                           search={url.content}
@@ -840,6 +844,12 @@ export function ContentManagement() {
           )}
         </aside>
       </div>
+
+      {cloneTarget && <AuthoringCloneDialog kind={cloneTarget.kind} source={cloneTarget.source} curricula={summaries} onClose={() => setCloneTarget(null)} onCloned={async (copy) => {
+        await loadCurricula()
+        setCloneTarget(null)
+        jumpToCurriculum(cloneTarget.kind === 'modules' ? copy.curriculum_id! : copy.id, cloneTarget.kind === 'modules' ? copy.id : undefined)
+      }} />}
 
       {canManageModules && exerciseModal && (
         <NewExerciseModal
