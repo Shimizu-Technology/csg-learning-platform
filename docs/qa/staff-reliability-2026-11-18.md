@@ -1,0 +1,72 @@
+# Staff reliability — November 18, 2026
+
+Implementation source: `800d94bd` (API/web acceptance on `4245ee8f`; native refusal wording verified on the final source; includes `ed834928` for flat snapshot capture and `5c230eb1` for bound remapping/notification validation) on `fix/staff-reliability`, based on main `08236d2e` (#300). Agent-executed affected-flow QA; synthetic local data only. No production data, migrations, provider sends, deployments, merge or PR watch.
+
+## Context and acceptance
+
+CSG Learn serves students, instructors and admins. Staff author lessons and rubrics, customize personal plans, answer help requests and schedule updates. Students must retain readable paused history and never see a draft or scheduled update before publication. Staff surfaces must use the same attention reasons, with readable names and explanations on phones and desktop.
+
+Sources: repository `AGENTS.md`, `docs/PRODUCT_VISION.md`, `scripts/qa/README.md`, existing editor/attention/paused-access QA records, current projections and access rules, #222's complete PR body and #299's PR body. The Brain Dump audit is unavailable on this Mac mini; the full U-0.14 backlog wording could not be verified. The task explicitly permits the PR-history fallback. Installed skills resolve to the matching canonical `~/Shared-Guidance/skills` files.
+
+Required acceptance: all lesson exit paths warn or preserve text; other staff editors retain or warn about edits; resolving help leaves other attention reasons intact and visible; the manual-complete filename is honest with On and unchanged with Off; module/cohort schedule edits preserve the paused library; a refused scheduled update tells its author and remains visibly unsent in Drafts. Students remain denied; publication locking and push-outbox behavior remain covered; API changes are additive and both clients' types regenerate.
+
+## Reproduction and changes
+
+| Item | Baseline evidence | Result |
+| --- | --- | --- |
+| U-0.6 | Main already had lesson backups, the router blocker and unload protection (#267). Existing leave/save/restore tests passed. Browser checks also exposed a second-exit race after Keep editing. Update Cancel changed `?edit=1` without hitting its path-only guard. Plan Cancel directly closed its draft. New rubric text lived outside the lesson draft and was lost on inspector changes. | Observe each blocker instance; guard update query exits and plan Cancel/tab changes. Hold unfinished rubrics in the lesson editor, keyed by block, with a leave/unload guard. Leave dialogs render above the phone Settings inspector so its record-link warning can actually be answered. Phone inspector closure and tab/block changes retain them. |
+| U-0.7 | Main's `AttentionProjectionTest` already resolves help and checks inactivity across support scopes, dashboard and cohort home. Its shared projection remains the source of truth. Browser QA found the cohort attention row at 1280px squeezed the learner/reasons column to **0px** beside its buttons. | Let actions wrap in narrow cards. The same reason now has **230px** of width in that card. No duplicate attention calculation was added. |
+| U-0.12 | The renderer showed an unlabeled `practice.rb` chip with manual completion and no submission editor. The new reference-copy test fails against main's renderer and passes against this implementation (explicit negative/positive control). | Extracted `ManualCompleteBlock` shows “Exercise file” and “Work in your own editor. Nothing to upload here.” with On. Off retains the existing filename chip and completion copy. |
+| U-0.14 | New regression failed on main's availability logic: moving a module date to release a later lesson advanced the whole-module timestamp and hid an earlier paused lesson. | Capture readable lesson IDs with the pause cutoff. Later cohort/module/lesson scheduling cannot expand or shrink that frozen set. Archive, enrollment expiry, assignment containment and authorization still apply. Resume clears it. Curriculum copying remaps the IDs in one statement. |
+| #299 | Publisher explicitly returned a refused schedule to an unscheduled draft with no author notification. Removing the teaching assignment also excluded it from the author's Manage list. | Atomically record `schedule_failure` and one author system notification in the existing row-lock transaction. The author can read their failed draft even after removal; editing/posting still requires cohort access. Notifications and Drafts show the reason; native draft cards and detail show it through their existing status/date line. Reschedule/publication clears the refusal notice so it cannot consume the normal notification's unique source key. |
+
+**Already done on main:** the basic lesson exit/backups flow, the basic plan leave guard, shared server attention calculations and help-resolution inactivity retention. Tests prove these existing pieces; no entire backlog item is marked already done because remaining gaps were reproduced and fixed.
+
+## Browser acceptance
+
+Final uninterrupted run: **8 cases passed in both required dimensions, 16/16 viewport runs**, Chromium at 1280×844 and 390×844, one worker. `scripts/qa/staff-reliability.spec.ts`, with its prepared synthetic fixture; local harness API/Vite, Clerk stub and external requests blocked.
+
+| Case | Visible and persisted/downstream outcome | 1280 / 390 |
+| --- | --- | --- |
+| B1 Lesson exits | Type instructions; Back, a visible record link (the phone Settings inspector or desktop breadcrumb) and browser Back ask; Keep editing retains text. Native tab-close request asks and can be dismissed. Native reload asks; accepting reload and restoring backup returns the exact text. Address-bar lesson switching warns/preserves a backup. Explicit Discard leaves. | Passed / Passed |
+| B2 Manual filename | On shows the exercise-reference copy and no Submit; Off retains chip/copy. No horizontal overflow. | Passed / Passed |
+| B3 Paused history | Paused learner reads the earlier lesson, cannot complete it; actual API module override and cohort start-date changes to 2035 preserve that visible lesson after reload. Later lesson remains denied. Synthetic dates reset afterward. | Passed / Passed |
+| B4 Help resolution | Staff replies and resolves through the request page; Support, student workspace and cohort workspace retain the visible inactivity reason. Staff Today shows no remaining Help requests chip after the final request resolves, and its API retains the inactivity reason. | Passed / Passed |
+| B5 Update Cancel | Unsaved title triggers the query-exit question. Keep retains it; Discard closes editing. Reading the saved update through the API confirms its original title. | Passed / Passed |
+| B6 Plan Cancel | Personal-plan title survives Keep editing; only explicit Discard closes the draft. | Passed / Passed |
+| B7 Rubric | Unfinished rubric survives inspector tab changes; phone close/reopen retains it. Leaving asks explicitly. | Passed / Passed |
+| B8 Refused update | Removed instructor sees the refusal in Notifications and Manage › Drafts. Student detail request returns 404. | Passed / Passed |
+
+Selected screenshots: [desktop attention](staff-reliability-2026-11-18/help-chromium-1280.png), [phone lesson draft](staff-reliability-2026-11-18/lesson-chromium-390.png), [manual On](staff-reliability-2026-11-18/manual-on-chromium-390.png), [manual Off](staff-reliability-2026-11-18/manual-off-chromium-390.png), [paused lesson](staff-reliability-2026-11-18/paused-chromium-390.png). They accompany interaction assertions; screenshots alone are not acceptance.
+
+Initial failures are retained in the local traces/logs: incorrect API base paths and a nested test locator were repaired; the real 0px attention column and blocker race were fixed. Retesting the visible phone record link then exposed a leave dialog beneath Settings; moving the leave dialogs last in DOM order fixed pointer/focus access, and the entire 16-run matrix passed again. One combined attempt was invalidated by type generation triggering a page reload while a leave question was open (trace records beforeunload); the final 16/16 run happened after generation completed. Native keyboard/device behavior, installed PWA, Safari/WebKit, live Clerk and actual notification/push delivery were not tested. The real browser close/reload prompts above were Chromium automation, not native-mobile certification.
+
+## Engineering gates
+
+| Gate | Result |
+| --- | --- |
+| Full API on ASUS, prepared on/off | Prepared on: **2,229 runs / 43,289 assertions, 0 failures, 0 errors, 1 existing skip**, seed 32470. Unprepared: **2,229 runs / 43,289 assertions, 0 failures, 0 errors, 1 existing skip**, seed 47443. **771 RuboCop files clean; Brakeman 0 warnings; gate exit 0.** No test exclusions; unchanged migration-process port adapter. |
+| Focused pause/search/assignment | 57 runs / 364 assertions passed after cutoff-compatibility fix. |
+| Publisher/races/migration/progress | 50 runs / 487 assertions passed, including repeated refusal, reschedule, post and normal notification recovery. The final follow-up also passed 66 tests / 560 assertions in both modes, adds failed-draft list cardinality coverage, and verifies validation alone never deletes the stored notice. |
+| Curriculum copy | 33 runs / 198 assertions passed, including paused-library ID remapping. |
+| Migration | Unique `20261118060000`, later than main's latest `050000`. Additive nullable fields; explicit transaction with `SET LOCAL lock_timeout`; locked, idempotent backfill preserves pause/update timestamps. Down/up/repeated-up test clears every pool's caches and resets model columns. |
+| Snapshot/query follow-up | **92 tests / 574 assertions passed in each statement mode**. A new capture-cardinality regression reproduced 11 → 47 queries with 1 → 5 modules before preloading. The final method preloads schedules, modules/lessons and assignments and uses `LessonReadAccess`; the counts are now equal. |
+| Query counts / publication boundaries | Existing full-suite cardinality, row-lock race, rollback, retry, outbox and student invisibility regressions retained. Snapshot reads add no per-lesson query; curriculum snapshot remapping uses one UPDATE. |
+| Web final gate | Typecheck, ESLint, **243 files / 2,869 Vitest tests**, Netlify/service-worker checks, API contract/type check, build and initial-bundle check passed. Two Vitest workers to fit the mini. |
+| API types | `npm run api:generate` regenerated web and mobile. Added nullable `schedule_failure`; existing fields and requests remain compatible. |
+| Mobile | Typecheck passed; lint 0 errors / 74 warnings; **142 suites / 1,549 tests passed**. The additive transport field is also displayed on native draft cards and detail through the existing date/status line. A rendered-screen test covers both locations and denied editing; native devices were not run. |
+| Impeccable 4.6.0 | Advisory `[]` for changed editor/renderer screens. |
+
+The one API skip is the repository's transaction-pooler CI canary (`POOLER_CANARY` is not enabled by the requested direct-Postgres ASUS gate). Prepared-statement behavior was asserted explicitly before each full run. The initial pre-correction ASUS run failed five cutoff-compatibility cases in both modes; a later all-green API run was blocked by Brakeman flagging interpolated copy SQL. That SQL now uses a bound JSON map, and Brakeman reports 0 warnings locally. A final full run covers the correction and flat-query follow-up; those failures are superseded only by the final run's results, not hidden or excluded.
+
+## Limits, rollout and disposition
+
+The backfill preserves the set readable at migration time. It cannot reconstruct lessons already hidden by an earlier historical date edit; no dates or historical pause times are invented. A snapshot is tied to its exact stored pause cutoff; changed/legacy cutoffs fall back to the existing conservative rules. New pauses capture a fresh set, and resume removes it. Active learner release dates are untouched. A removed instructor may read the failed draft but cannot send or edit in an unauthorized cohort; an admin can restore/reassign it.
+
+The unavailable Brain Dump's other U-0.14 bullets remain unverified; this change covers the reproduced module-timestamp defect, cohort start dates and subsequent schedule changes. No claim of a complete historical audit is made.
+
+Deployment requires the new migration before the updated API; no production action was taken. PR is held for lead review: do not merge or watch. Source worktree is retained at `/Users/agent/work/csg-staff-reliability`. Resource cleanup and final ASUS results are recorded below before handback.
+
+Local resource cleanup: all owned harness servers and synthetic databases were removed; the preview tab and every Playwright page were closed. Lifecycle reports no active owned resources or runtime handoffs. The protected local PostgreSQL service was borrowed and remains running. The final ASUS wrapper exited successfully after its exact temporary-container cleanup and released the runner lock; no remote runtime handoff remains.
+
+Setup: the requested `~/work/csg-backend-hardening` worktree was absent; no unrelated worktree or shared checkout was removed or changed.
