@@ -23,6 +23,7 @@ import { checkExceptions, pageSources, scanPages, scanSource, type RecordNameExc
  */
 const EXCEPTIONS: Record<string, RecordNameException> = {
   // The record's own page title.
+  'src/components/student/LessonExperience.tsx lesson.title': 'The current lesson page title',
   'src/pages/admin/LessonEditor.tsx lesson.title': 'Title of the lesson editor',
   'src/pages/admin/CohortStudentView.tsx module.name': 'Type line of a previewed lesson; the learner preview has no module page',
   'src/pages/student/ModuleView.tsx mod.name': 'Title of the module page',

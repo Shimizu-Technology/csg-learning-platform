@@ -1328,6 +1328,19 @@ details[open] > :not(summary) {
   }
 }
 
+/* Lesson continuation remains reachable above the iOS keyboard; reserve space
+   in the article and retain the shared bottom navigation when it is closed. */
+@media (max-width: 1023.98px) {
+  html[data-keyboard='open'] .lesson-action-bar { bottom: var(--keyboard-inset, 0px); }
+}
+.lesson-outline-drawer { animation: lesson-drawer-in 240ms var(--ease-drawer); }
+[data-state='closing'] .lesson-outline-drawer { animation: lesson-drawer-out 180ms var(--ease-drawer) both; }
+@keyframes lesson-drawer-in { from { transform: translateX(100%); } }
+@keyframes lesson-drawer-out { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .lesson-outline-drawer, [data-state='closing'] .lesson-outline-drawer { animation: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .peek-card.peek-card {
     animation-name: overlay-enter !important;

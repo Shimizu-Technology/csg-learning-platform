@@ -147,6 +147,16 @@ module LessonSerialization
           json[:total_blocks] = current_progress&.total_blocks
           next_step = progress.next_lesson
           json[:next_step] = next_step && { id: next_step.id, title: next_step.title, module_id: next_step.module_id }
+          if json.dig(:capabilities, :features, "student_experience_v2") == true
+            json[:learning_navigation] = progress.lesson_navigation(current) if current
+            json[:content_blocks].each do |block|
+              source = current&.content_blocks&.find { |item| item.id == block[:id] }
+              block[:learner_state] = progress.block_state(source) if source
+            end
+            json[:outline] = CourseOutline.new(@lesson_enrollment, progress: progress).call
+            instructor = @lesson_enrollment.cohort.support_instructor || @lesson_enrollment.cohort.instructors.not_archived.order(:id).first
+            json[:instructor] = instructor && { id: instructor.id, full_name: instructor.full_name, role: instructor.role, avatar_url: instructor.avatar_url }
+          end
         else
           prev_lesson = nil
           next_lesson = nil

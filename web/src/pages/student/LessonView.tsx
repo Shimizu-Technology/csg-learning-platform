@@ -1,3 +1,5 @@
+import { StudentExperienceSwitch } from '../../lib/studentExperience'
+import { LessonExperience } from '../../components/student/LessonExperience'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { activityReturnPath, learnerPaths, recordPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
@@ -51,6 +53,12 @@ function scrollToBlock(blockId: number) {
 
 
 export function LessonView() {
+  const { user } = useAuthContext()
+  if (user?.is_staff) return <LegacyLessonView />
+  return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading lesson..." />} on={<LegacyLessonView redesigned />} off={<LegacyLessonView />} />
+}
+
+export function LegacyLessonView({ redesigned = false }: { redesigned?: boolean } = {}) {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const activityReturn = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
@@ -107,7 +115,7 @@ export function LessonView() {
       setLoading(false)
       return
     }
-    api.getLesson(Number(id), selectedCohortId ?? undefined).then((res) => {
+    return api.getLesson(Number(id), selectedCohortId ?? undefined).then((res) => {
       if (currentRequest !== requestId.current) return
       setNoAccess(unavailableResponse(res))
       if (unavailableResponse(res) || res.errorKind === 'auth' || res.status === 401) {
@@ -215,6 +223,13 @@ export function LessonView() {
   const rows = related.related && related.related.id === lesson.id
     ? relatedRows(related.related, { viewer: user, returnTo: `${location.pathname}${location.search}`, learnerLesson: (lessonId, anchor) => paths.lesson(lessonId, anchor), actions: { scrollTo: scrollToSection } })
     : []
+
+  if (redesigned) return <LessonExperience key={`${lesson.id}:${lesson.cohort_id}`} lesson={lesson} readOnly={readOnly} savedData={savedData} error={loadError} reload={() => loadLesson({ silent: true })} helpRequests={helpRequests} helpRequestsLoading={helpRequestsLoading} setHelpRequests={setHelpRequests} refreshHelp={loadHelpRequests}>
+    <div className="min-w-0 space-y-5">{visibleBlocks.map((block: any) => <section key={block.id} id={`block-${block.id}`} tabIndex={-1} className="min-w-0 scroll-mt-24 outline-none">
+      <RubricPanel rubric={block.rubric} />
+      <ContentBlockRenderer block={block} cohortId={lesson.cohort_id} isStaff={user?.is_staff} requiresGithub={lesson.requires_github} requiresSubmission={lesson.requires_submission} repositoryName={lesson.repository_name} readOnly={readOnly} submissionsLocked={lesson.submission_window?.submissions_closed || false} submissionsCloseAt={lesson.submission_window?.submissions_close_at || null} submissionWeekNumber={lesson.submission_window?.week_number} analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }} lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }} onProgressUpdate={() => loadLesson({ silent: true })} completionInFooter reviewerName={lesson.instructor?.full_name} />
+    </section>)}</div>
+  </LessonExperience>
 
   return (
     <article className="app-page max-w-3xl">

@@ -12,6 +12,7 @@ interface ModalProps {
   footer?: React.ReactNode
   size?: 'md' | 'lg' | 'xl'
   fixedHeight?: boolean
+  variant?: 'modal' | 'drawer'
 }
 
 /** Longest exit animation plus a margin; the ghost is removed by then even if animationend never fires. */
@@ -70,7 +71,7 @@ const sizeMap = {
   xl: 'max-w-4xl',
 }
 
-export function Modal({ open, onClose, title, subtitle, icon, children, footer, size = 'lg', fixedHeight = false }: ModalProps) {
+export function Modal({ open, onClose, title, subtitle, icon, children, footer, size = 'lg', fixedHeight = false, variant = 'modal' }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement | null>(null)
   // When the dialog leaves the DOM (closed or unmounted), animate a copy of its last frame out.
   const setOverlay = useCallback((node: HTMLDivElement | null) => {
@@ -159,7 +160,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     <div
       ref={setOverlay}
       data-state="open"
-      className="app-modal-overlay fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-scrim p-0 sm:items-start sm:p-4 sm:pt-[8vh]"
+      className={variant === 'drawer' ? 'app-modal-overlay fixed inset-0 z-50 flex justify-end bg-scrim' : 'app-modal-overlay fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-scrim p-0 sm:items-start sm:p-4 sm:pt-[8vh]'}
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}
@@ -172,7 +173,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={`app-modal flex w-full flex-col ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] shadow-overlay outline-none sm:max-h-[84dvh] sm:rounded-2xl sm:pb-0`}
+        className={variant === 'drawer' ? `lesson-outline-drawer flex h-dvh w-full max-w-md flex-col overflow-hidden bg-surface-overlay shadow-overlay outline-none` : `app-modal flex w-full flex-col ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] shadow-overlay outline-none sm:max-h-[84dvh] sm:rounded-2xl sm:pb-0`}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
@@ -188,7 +189,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         </div>
 
         {children && (
-          <div className={`min-h-0 overflow-y-auto px-5 py-4 sm:px-6 ${fixedHeight ? 'h-[70dvh] flex flex-col sm:h-[64vh]' : 'max-h-[68dvh] sm:max-h-[60vh]'}`}>
+          <div className={`min-h-0 overflow-y-auto px-5 py-4 sm:px-6 ${variant === 'drawer' ? 'flex-1 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]' : fixedHeight ? 'h-[70dvh] flex flex-col sm:h-[64vh]' : 'max-h-[68dvh] sm:max-h-[60vh]'}`}>
             {children}
           </div>
         )}

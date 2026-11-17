@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { MemoryRouter } from 'react-router-dom'
+import { ConfirmProvider } from '../../contexts/ConfirmContext'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -420,4 +422,33 @@ describe('written text submissions', () => {
 it('promises instructor review and the default response time for waiting work', () => {
   const html = renderToStaticMarkup(<ContentBlockRenderer cohortId={13} isStaff={false} block={{ id: 9001, block_type: 'exercise', position: 0, title: 'Practice', body: null, video_url: null, filename: null, metadata: {}, submission_type: 'text_submission', submissions: [{ id: 1, text: 'My answer', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-11-17' }] }} />)
   expect(html).toContain('Your instructor will review it — usually within 2 days')
+})
+
+it('On shows one server-derived success and hides the revision editor behind an action', () => {
+  const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: 'submitted', submissions: [submission()] })} cohortId={2} reviewerName="Audreana" /></StudentExperienceProvider>)
+  expect(html.match(/Waiting for review\./g)).toHaveLength(1)
+  expect(html).toContain('Audreana will review it')
+  expect(html).toContain('View submission #1')
+  expect(html).toContain('Edit and resubmit')
+  expect(html).not.toContain('data-editor="editable"')
+  expect(html).not.toContain('Revise your answer')
+  expect(html).not.toContain('Submitted · waiting')
+})
+it('On keeps redo feedback and exactly one editor while the prior answer is collapsed', () => {
+  const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: 'redo_requested', submissions: [submission({ grade: 'R', feedback: 'Keep this important feedback.' })] })} cohortId={2} /></StudentExperienceProvider>)
+  expect(html.match(/data-editor="editable"/g)).toHaveLength(1)
+  expect(html.match(/Keep this important feedback\./g)).toHaveLength(1)
+  expect(html).toContain('View submission #1')
+  expect(html).not.toContain('<details open')
+})
+
+it('On flushes a fresh draft on pagehide before the debounce or React unmount', async () => {
+  localStorage.clear()
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter><ConfirmProvider><StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint()} cohortId={2} /></StudentExperienceProvider></ConfirmProvider></MemoryRouter>))
+    await act(async () => (host.querySelector('[data-editor="editable"]') as HTMLElement).click())
+    window.dispatchEvent(new Event('pagehide'))
+    expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toContain('# edited')
+  } finally { await act(async () => root.unmount()); localStorage.clear() }
 })

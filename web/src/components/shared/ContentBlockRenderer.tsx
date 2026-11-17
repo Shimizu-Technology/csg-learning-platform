@@ -1,3 +1,5 @@
+import { useMediaQuery } from '../../lib/useMediaQuery'
+import { SubmissionDraftGuard } from '../student/SubmissionDraftGuard'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { effectiveSubmissionType } from '../../lib/submissionType'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
@@ -46,6 +48,7 @@ interface ContentBlock {
   metadata: Record<string, any>
   knowledge_check?: import('../../types/api').KnowledgeCheck | null
   s3_video_key?: string | null
+  learner_state?: string
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number }
   submissions?: Array<{
     id: number
@@ -86,6 +89,8 @@ interface ContentBlockRendererProps {
   lessonReturn?: LessonReturn
   /** Always open Hafa Code starters in a new tab (editor preview keeps unsaved edits). */
   starterOpensNewTab?: boolean
+  reviewerName?: string
+  completionInFooter?: boolean
   onProgressUpdate?: () => void
 }
 
@@ -100,10 +105,13 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, readOnly = false, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, readOnly = false, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, completionInFooter = false, reviewerName, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const { user, enrollments } = useAuthContext()
   const studentExperience = useStudentExperience()
+  const v2 = studentExperience.v2
+  const touch = useMediaQuery('(any-pointer: coarse)')
+  const [revisionOpen, setRevisionOpen] = useState(false)
   const reviewResponseTime = enrollments?.find(entry => entry.cohort.id === cohortId)?.cohort.review_response_time || 'usually reviewed within 2 days'
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
   const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null)
@@ -118,7 +126,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     ? [savedAttempt.value, ...serverSubmissions.filter((submission) => submission.id !== savedAttempt.value.id)]
     : serverSubmissions
   const latestSubmission = submissions[0] || null
-  const hasRedoRequest = latestSubmission?.grade === 'R'
+  const hasRedoRequest = v2 ? block.learner_state === 'redo_requested' : latestSubmission?.grade === 'R'
   const canEditSubmission = !latestSubmission?.grade || hasRedoRequest
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
@@ -198,7 +206,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     () => (lessonReturnUrl ? { lessonReturn: { url: lessonReturnUrl, label: lessonReturnLabel }, hint: starterHint, newTab: starterOpensNewTab } : undefined),
     [lessonReturnUrl, lessonReturnLabel, starterHint, starterOpensNewTab],
   )
-  const latestStatus = submissionStatus(latestSubmission)
+  const latestStatus = v2 ? ({ submitted: 'awaiting_review', redo_requested: 'redo', complete: 'done' } as const)[block.learner_state as 'submitted' | 'redo_requested' | 'complete'] : submissionStatus(latestSubmission)
+  const editAnswer = !v2 || !latestSubmission || hasRedoRequest || revisionOpen || hasEditedSubmissionDraft
   const lockCopy = readOnly ? 'Review only' : submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])
   const deepLinkedPosition = useMemo(() => {
@@ -301,10 +310,23 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   // Debounced draft saving; anything still pending is flushed on unmount so
   // leaving the lesson right after typing does not lose the last edits.
   const pendingDraftRef = useRef<{ key: string; draft: Parameters<typeof writeSubmissionDraft>[1] } | null>(null)
-  useEffect(() => () => {
-    const pending = pendingDraftRef.current
-    if (pending) writeSubmissionDraft(pending.key, pending.draft)
-  }, [])
+  useEffect(() => {
+    const flush = () => {
+      const pending = pendingDraftRef.current
+      if (pending) writeSubmissionDraft(pending.key, pending.draft)
+    }
+    // A hard reload does not unmount React. Flush before the browser leaves,
+    // including when the student reloads inside the 300ms debounce window.
+    if (v2) {
+      window.addEventListener('beforeunload', flush)
+      window.addEventListener('pagehide', flush)
+    }
+    return () => {
+      flush()
+      window.removeEventListener('beforeunload', flush)
+      window.removeEventListener('pagehide', flush)
+    }
+  }, [v2])
   useEffect(() => {
     if (isStaff || !hasEditedSubmissionDraft || !(usesTextSubmission || usesRepoArtifactSubmission)) return
     const pending = {
@@ -471,7 +493,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         source: 'manual',
       })
       onProgressUpdate?.()
-      toast.success(newStatus === 'completed' ? 'Marked complete' : 'Marked incomplete')
+      if (!v2) toast.success(newStatus === 'completed' ? 'Marked complete' : 'Marked incomplete')
     } else {
       toast.error(res.error)
     }
@@ -608,8 +630,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       })
       const message = editing ? 'Updated.' : latestSubmission ? 'Resubmitted.' : 'Submitted.'
       const reviewMessage = `${message} Your instructor will review it — ${reviewTiming(reviewResponseTime)}. Feedback will appear here.`
-      setSubmissionSuccess(reviewMessage)
-      toast.success(reviewMessage)
+      setRevisionOpen(false)
+      if (!v2) { setSubmissionSuccess(reviewMessage); toast.success(reviewMessage) }
       onProgressUpdate?.()
     }
     setIsSubmitting(false)
@@ -741,14 +763,14 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           {header.typeLabel && header.title && <span className="text-ink-muted"> · </span>}
           {header.title && <span className={header.typeLabel ? 'text-ink-muted' : 'font-semibold text-ink'}>{header.title}</span>}
         </span>
-        {latestStatus && <StatusBadge status={latestStatus} />}
+        {!v2 && latestStatus && <StatusBadge status={latestStatus} />}
         {workLocked && (
           readOnly ? <span className="text-xs font-semibold text-ink-muted">Review only</span> : <StatusBadge status="closed" />
         )}
         <div className="ml-auto">
           {isStaff ? (
             <span className="text-xs font-semibold text-ink-muted">Preview</span>
-          ) : readOnly ? null : usesManualExerciseCompletion && studentExperience.v2 ? (
+          ) : completionInFooter || readOnly ? null : usesManualExerciseCompletion && studentExperience.v2 ? (
             // One completion control per manual exercise (S-14): the button below. The header only shows where it stands.
             isCompleted
               ? <span role="img" aria-label="Exercise complete"><CheckCircle2 className="h-5 w-5 text-success-ink" aria-hidden="true" /></span>
@@ -790,6 +812,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       </div>
 
       <div className="p-4 lg:p-6">
+        {v2 && !isStaff && hasEditedSubmissionDraft && <SubmissionDraftGuard dirty />}
         {latestSubmission?.grade && (
           /* One card for the latest review: the feedback lives inside it; the status badge is in the block header. */
           <section
@@ -915,7 +938,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           </div>
         )}
 
-        {!isStaff && !readOnly && usesManualExerciseCompletion && (
+        {!completionInFooter && !isStaff && !readOnly && usesManualExerciseCompletion && (
           <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-line bg-success-soft' : 'border-line bg-surface-sunken/60'}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
@@ -967,12 +990,16 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               </div>
             )}
             {latestStatus === 'awaiting_review' && (
-              <div className="flex items-start gap-2 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary" role="status">
-                <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p><span className="font-semibold">Submitted · waiting for review.</span> Your instructor will review it — {reviewTiming(reviewResponseTime)}. Feedback will appear here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
+              <div className={v2 ? 'flex items-start gap-2 rounded-xl border border-success-line bg-success-soft px-4 py-3 text-sm text-success-ink' : 'flex items-start gap-2 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary'} role="status">
+                {v2 ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+                <p><span className="font-semibold">{v2 ? 'Waiting for review.' : 'Submitted · waiting for review.'}</span> {v2 && reviewerName ? reviewerName : 'Your instructor'} will review it — {reviewTiming(reviewResponseTime)}. Feedback will appear here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
               </div>
             )}
-            {block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (
+            {v2 && submissions.length > 0 && <div className="min-w-0 space-y-2">{submissions.map((sub, index) => <details key={sub.id} className="min-w-0 rounded-xl border border-line bg-surface-raised">
+              <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-ink">View submission #{sub.num_submissions}</summary>
+              <div className="min-w-0 space-y-3 px-4 pb-4">{sub.text && (writtenSubmission ? <MarkdownRenderer content={sub.text} /> : <CodeBlock code={sub.text} language={detectedLang} surface="submission" lineNumbers className="my-0" />)}{submissionArtifacts(sub)}{index > 0 && sub.feedback && <FeedbackBody feedback={sub.feedback} />}</div>
+            </details>)}{canEditSubmission && !workLocked && !editAnswer && (usesTextSubmission || usesRepoArtifactSubmission) && <Button variant="secondary" onClick={() => setRevisionOpen(true)}>Edit and resubmit</Button>}</div>}
+            {!v2 && block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-ink">
                   {block.submissions.length === 1 ? 'Your submission' : <>Your submissions <span className="font-normal tabular-nums text-ink-muted">({block.submissions.length})</span></>}
@@ -1044,7 +1071,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               </div>
             ) : submissionType === 'manual_complete' ? null : !canEditSubmission ? (
               <p className="text-sm text-ink-secondary">Review complete. You can inspect your submitted work and feedback above.</p>
-            ) : usesTextSubmission ? (
+            ) : !editAnswer ? null : usesTextSubmission ? (
               <div className="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-ink">
@@ -1068,12 +1095,15 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     minHeight={200}
                     maxHeight={560}
                   />
+                ) : v2 && touch ? (
+                  <label className="block text-sm font-semibold text-ink">Your code<textarea aria-label="Your code" value={submissionText} onChange={(event) => handleDraftChange(() => setSubmissionText(event.target.value))} disabled={workLocked || isSubmitting} autoCapitalize="off" autoCorrect="off" spellCheck={false} wrap="off" className="mt-2 min-h-60 w-full min-w-0 overflow-x-auto rounded-xl border border-code-line bg-code-bg p-3 font-mono text-base leading-relaxed text-code-ink" /></label>
                 ) : (
                   <CodeEditor
                     value={submissionText}
                     onChange={(value) => handleDraftChange(() => setSubmissionText(value))}
                     language={detectedLang}
                     minHeight={240}
+                    wordWrap={v2 ? 'off' : 'on'}
                     readOnly={workLocked}
                     // Freeze the draft while it is being sent so a later edit can't be dropped on success.
                     busy={isSubmitting}

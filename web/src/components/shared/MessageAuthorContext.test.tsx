@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { MemoryRouter } from 'react-router-dom'
+import { StudentExperienceProvider } from '../../lib/studentExperience'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -6,6 +8,8 @@ import { MessageAuthorContext } from './MessageAuthorContext'
 import type { MessageView as ChannelMessage } from '../../types/api'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+const features = vi.hoisted(() => ({ private_meetings: false }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: { id: 1, features } }) }))
 const getUser = vi.hoisted(() => vi.fn())
 vi.mock('../../lib/api', () => ({ api: { getUser } }))
 vi.mock('../admin/StudentContextDrawer', () => ({ StudentContextDrawer: ({ cohortId, studentId, onClose }: { cohortId: number; studentId: number; onClose: () => void }) => <div role="dialog">Student {studentId}, cohort {cohortId}<button onClick={onClose}>Close context</button></div> }))
@@ -43,4 +47,20 @@ it('offers retry on an unavailable lookup, and an honest empty state', async () 
   expect(document.body.textContent).toContain('Offline')
   await act(async () => (document.querySelector('[aria-label="Retry Student enrollments"]') as HTMLButtonElement).click())
   expect(document.body.textContent).toContain('No accessible enrollments')
+})
+
+// An Off or unresolved experience keeps the old name-and-role-only popover.
+it('adds actions only On and respects the resolved private-meetings switch', async () => {
+  const instructor = { ...author, role: 'instructor' as const }
+  const tree = (v2: boolean) => <MemoryRouter><StudentExperienceProvider v2={v2}><MessageAuthorContext author={instructor} staff={false} cohortId={1} onClose={() => {}} /></StudentExperienceProvider></MemoryRouter>
+  features.private_meetings = false
+  await act(async () => root.render(tree(false)))
+  expect(document.body.textContent).not.toContain('Message Maya Santos')
+  await act(async () => root.render(tree(true)))
+  expect(document.body.textContent).toContain('Message Maya Santos')
+  expect(document.body.textContent).not.toContain('Book a meeting')
+  features.private_meetings = true
+  await act(async () => root.render(tree(true)))
+  expect(document.querySelector('a[href="/meetings?cohort_id=1&instructor_id=7"]')).not.toBeNull()
+  features.private_meetings = false
 })

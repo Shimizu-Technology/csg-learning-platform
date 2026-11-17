@@ -4976,6 +4976,15 @@ export interface components {
                     [key: string]: number;
                 };
             };
+            learning_navigation?: components["schemas"]["LessonNavigation"];
+            outline?: components["schemas"]["CourseOutline"];
+            instructor?: {
+                id: number;
+                full_name: string;
+                /** @enum {string} */
+                role: "admin" | "instructor";
+                avatar_url: string | null;
+            } | null;
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -5068,6 +5077,11 @@ export interface components {
             s3_video_uploaded_at?: string | null;
             /** @description Present for staff readers. */
             s3_video_uploaded_by?: string | null;
+            /**
+             * @description Lesson block evidence from LearnerProgress for the new student experience.
+             * @enum {string}
+             */
+            learner_state?: "not_started" | "in_progress" | "submitted" | "redo_requested" | "complete";
         };
         Rubric: {
             id: number;
@@ -8261,6 +8275,28 @@ export interface components {
         };
         CourseOutlineResponse: {
             outline: components["schemas"]["CourseOutline"];
+        };
+        /** @description LearnerProgress continuation, completion and course reading order for the new student experience. */
+        LessonNavigation: {
+            number: number;
+            total: number;
+            previous: {
+                id: number;
+                title: string;
+                module_id: number;
+            } | null;
+            next: {
+                id: number;
+                title: string;
+                module_id: number;
+            } | null;
+            next_module: boolean;
+            course_complete: boolean;
+            counts: {
+                completed_lessons: number;
+                total_lessons: number;
+            };
+            manual_block_ids: number[];
         };
     };
     responses: {

@@ -1,3 +1,4 @@
+import { useStudentExperience } from '../../lib/studentExperience'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, CircleHelp, Clock3, Send, ShieldAlert, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -36,6 +37,7 @@ interface ContextualHelpProps {
 }
 
 export function ContextualHelp({ capabilities, contextPath, cohortId, contextType, contextSource = 'primary', contextId, contextLabel, compact = false, requests: controlledRequests, requestsLoading, onRequestsChange, onRequestsRefresh }: ContextualHelpProps) {
+  const { v2 } = useStudentExperience()
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [localRequests, setLocalRequests] = useState<HelpRequest[]>([])
@@ -132,7 +134,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
       {!canRequest && <CourseSupport capabilities={capabilities} cohortId={cohortId} contextLabel={contextLabel} contextPath={contextPath} />}
       {(canRequest || relevantRequests.length > 0) && <Button
         variant="secondary"
-        size="sm"
+        size={v2 ? "md" : "sm"}
         fullWidth={compact}
         onClick={() => {
           setOpen(true)
@@ -142,7 +144,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         className={activeRequest ? 'border-line! bg-surface-sunken! text-ink-secondary!' : 'text-ink-secondary!'}
       >
         {activeRequest ? <Clock3 className="h-4 w-4" aria-hidden="true" /> : <CircleHelp className="h-4 w-4" aria-hidden="true" />}
-        {!canRequest ? 'View previous help' : activeRequest ? statusLabel : 'Ask for help'}
+        {!canRequest ? 'View previous help' : v2 && (replied || latestResolved?.replies?.length || latestResolved?.staff_response) ? 'View response' : activeRequest ? statusLabel : 'Ask for help'}
       </Button>}
 
       <Modal
