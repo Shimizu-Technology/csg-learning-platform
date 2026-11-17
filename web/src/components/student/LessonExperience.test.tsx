@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import { LessonExperience } from './LessonExperience'
 import type { LessonDetail } from '../../types/api'
@@ -142,7 +142,7 @@ it('keeps reading completion after submissions close', async () => {
     expect(page.reload).toHaveBeenCalledOnce()
   } finally { await page.close() }
 })
-it('ignores a completion response after navigating away, including failures', async () => {
+it('ignores a completion response after unmount, including failures', async () => {
   for (const failure of [false, true]) {
     let resolve!: (value: unknown) => void
     update.mockImplementationOnce(() => new Promise(done => { resolve = done }))
@@ -152,6 +152,63 @@ it('ignores a completion response after navigating away, including failures', as
     await act(async () => resolve(failure ? { error: 'Offline' } : { data: { progress: {} } }))
     expect(page.reload).not.toHaveBeenCalled()
   }
+})
+
+it.each(['success', 'failure'] as const)('keeps lesson B after a real route change when lesson A completion returns %s', async outcome => {
+  let resolve!: (value: unknown) => void
+  update.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  const lessonB: LessonDetail = {
+    ...lesson,
+    id: 1,
+    title: 'Reading',
+    learning_navigation: { ...lesson.learning_navigation!, previous: null, manual_block_ids: [] },
+  }
+  const reloadA = vi.fn()
+  const reloadB = vi.fn()
+  const unmount = vi.fn()
+  function RoutedLesson() {
+    const { id } = useParams()
+    const location = useLocation()
+    const destination = id === String(lesson.id) ? lesson : lessonB
+    const [loadedLesson, setLoadedLesson] = useState(destination)
+    useEffect(() => { setLoadedLesson(destination) }, [destination])
+    useEffect(() => () => { unmount() }, [])
+    // Like the page loader, a stale reload can overwrite the displayed data
+    // without changing the new URL. Keep this component mounted across routes.
+    function reload() {
+      if (destination.id === lesson.id) reloadA()
+      else reloadB()
+      setLoadedLesson(destination)
+    }
+    return <>
+      <output data-location>{location.pathname}{location.search}</output>
+      <LessonExperience lesson={loadedLesson} readOnly={false} savedData={false} error={null} reload={reload} helpRequests={[]} helpRequestsLoading={false} setHelpRequests={() => {}} refreshHelp={async () => {}}>
+        <p>{loadedLesson.title} content</p>
+      </LessonExperience>
+    </>
+  }
+  const host = document.createElement('div'); document.body.append(host)
+  const root = createRoot(host)
+  try {
+    await act(async () => root.render(<MemoryRouter initialEntries={['/lessons/2?cohort_id=1']}><Routes><Route path="/lessons/:id" element={<RoutedLesson />} /></Routes></MemoryRouter>))
+    await act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === 'Mark complete')!.click())
+    expect(update).toHaveBeenLastCalledWith(4, 'completed', 1)
+    expect(host.textContent).toContain('Saving…')
+    await act(async () => (host.querySelector('a[href="/lessons/1?cohort_id=1"]') as HTMLAnchorElement).click())
+    expect(host.querySelector('[data-location]')?.textContent).toBe('/lessons/1?cohort_id=1')
+    expect(host.querySelector('h1')?.textContent).toBe('Reading')
+    expect(unmount).not.toHaveBeenCalled()
+    await act(async () => resolve(outcome === 'success' ? { data: { progress: { status: 'completed' } } } : { error: 'Lesson A completion failed' }))
+    expect(host.querySelector('[data-location]')?.textContent).toBe('/lessons/1?cohort_id=1')
+    expect(host.querySelector('h1')?.textContent).toBe('Reading')
+    expect(host.textContent).toContain('Reading content')
+    expect(host.textContent).not.toContain('Loops content')
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+    expect(host.textContent).not.toContain('Lesson A completion failed')
+    expect(reloadA).not.toHaveBeenCalled()
+    expect(reloadB).not.toHaveBeenCalled()
+    expect(unmount).not.toHaveBeenCalled()
+  } finally { await act(async () => root.unmount()); host.remove() }
 })
 
 it.each(['course_question', 'none', 'expired', 'help off'])('does not duplicate or contradict the single support entry for %s', async mode => {

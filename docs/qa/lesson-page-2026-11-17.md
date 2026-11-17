@@ -135,3 +135,10 @@ The full local gate passed **all 13 stages** on this implementation. The gate ra
 The native and real-device limitations above remain unchanged. The final self-paced author regression passes at both widths for no support, expired support and help Off. Together with the 16-case matrix and two mixed-flag cases, **20 distinct browser cases passed**; four full-journey rechecks also passed. The final guard changes only unsupported self-paced profiles, and its 10 focused profile tests and the full web suite pass.
 
 All owned Rails/Vite processes and browser pages are closed. The fix-round databases `csg_lesson_fix_20261117`, `csg_qa_38750_1794907076`, `csg_qa_5484_1794907568` and `csg_qa_23308_1794909342` were dropped. The task-installed web/native dependencies, stray root test cache and generated web build were removed. Lifecycle session `01a1e861-7f3f-75f0-a3d7-f78a7f62d412` reports no active owned resources. Shared services and the borrowed simulator remain untouched. The branch/worktree are retained for the held PR. No review is dismissed, and this worker does not merge or watch the PR.
+
+
+## Route-change regression follow-up
+
+Test-only follow-up to `43e8c744`; production code is unchanged. Two cases start a deferred completion on lesson A, click its Previous link to lesson B through a real `/lessons/:id` route, then resolve A with success or failure. The routed component stays mounted. Both verify B's URL, heading and content, no reload from A, and no leaked error. The original unmount case remains separately named.
+
+For the negative check, temporarily replaced `ownsRequest` with an always-true function. Both route cases failed: A's heading replaced B's while the URL remained B's. Restored the exact guard, then ran the affected Vitest file (13 passed), web typecheck and web lint (both passed). Task-installed web dependencies were removed afterward; no servers, browsers or databases were started for this test-only follow-up.
