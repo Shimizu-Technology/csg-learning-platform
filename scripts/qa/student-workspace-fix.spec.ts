@@ -82,6 +82,13 @@ for (const theme of ['light', 'dark'] as const) for (const user of [1, 2]) {
     await page.getByRole('link', { name: 'See all in #qa-class', exact: true }).click()
     await expect(page.getByRole('main')).toContainText('QA permitted class activity')
     expect(new URL(page.url()).searchParams.get('cohort_id')).toBe('1')
+    await page.goto(`/admin/cohorts/1/student-view/materials?student_id=4&qa_user=${user}`)
+    const exit = page.getByRole('link', { name: 'Back to student overview', exact: true }).last()
+    await expect(exit).toBeVisible()
+    await expect(exit).toHaveAttribute('href', '/admin/cohorts/1/students/4/overview')
+    await exit.click()
+    await expect(page).toHaveURL(/\/admin\/cohorts\/1\/students\/4\/overview/)
+    await expect(page.getByRole('heading', { level: 1, name: 'QA Behind', exact: true })).toBeVisible()
     expect(forbidden).toEqual([])
   })
 }

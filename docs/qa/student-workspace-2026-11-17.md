@@ -158,3 +158,11 @@ The first fix-round ASUS default API run reported one failure in the unchanged m
 
 
 The first combined run also caught the sentence-case contract rejecting the new preview label’s capitalized “Overview.” Both preview exits now read “Back to student overview”; the naming and preview subset passed 17 tests. The other 2,450 web tests, build, bundle check and `api:check` passed in that run. Mobile typecheck/lint and all 1,508 tests / 139 suites passed; Jest is allowed to exit normally after its delayed-exit warning. The full gate will be repeated after the fixture and copy corrections; the earlier failed stages are preserved here rather than presented as a pass.
+
+
+All seven original CodeRabbit threads were answered with their fixing commits and resolved via `resolveReviewThread`. The underlying review was not dismissed. The existing fixes are in `1e43ae0d`; the blocked-preview behavior was refined in `6e958c08`. Replies link those immutable commits.
+
+Before the final repeat, two focused Communication edge assertions also failed: direct-message compose was enabled while its permission request was pending, and an unrelated realtime DM could enter a student-filtered directory. Commit `26a083ea` waits for permission and rejects realtime summaries outside the requested student/cohort. Both regressions and the complete 39-test Communication/navigation subset passed; typecheck passed. No API schema changed after its regeneration in `6e958c08`. The final complete gate is queued as owned wrapper 53994. A fresh affected-flow retest uses QA DB `csg_qa_54031_1794884181`, API 54173 / port 65342 and Vite 54212 / port 65343, all claimed. It repeats the eight Communication role/viewport/theme journeys and adds the accurately labelled preview exit.
+
+
+The affected Communication retest passed **8/8** on `26a083ea` in 1.1 minutes at all four width/theme combinations for admin/instructor. The same journeys now also click “Back to student overview” from preview and verify the exact student Overview destination. There were no 403 responses. These are repeated cases, not eight extra distinct acceptance scenarios. Servers 54173/54212 were stopped, QA database `csg_qa_54031_1794884181` dropped, and each page/runner released. The only remaining owned resource is the queued ASUS wrapper 53994. Both focused databases have been dropped.
