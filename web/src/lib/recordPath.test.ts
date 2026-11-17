@@ -79,12 +79,14 @@ describe('recordPath', () => {
     const admin = { viewer: viewers.admin, returnTo }
     expect(recordPath(refs.submission, admin)).toBe('/admin/submissions/812?cohort_id=7&student_id=12&return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
     expect(recordPath(refs.help_request, admin)).toBe('/admin/help-requests/9?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
+    // An update returns to where it was opened from (L-1.5) and keeps its cohort (L-2.9).
+    expect(recordPath(refs.announcement, admin)).toBe('/announcements/5?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
+    expect(recordPath({ type: 'announcement', id: 5, cohortId: 7 }, { viewer: viewers.student, returnTo: '/dashboard' })).toBe('/announcements/5?cohort_id=7&return_to=%2Fdashboard')
     expect(recordPath(refs.intervention, admin)).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
     // These destinations ignore return_to (or honor Activity only), so the URL stays clean.
     expect(recordPath(refs.cohort, admin)).toBe('/admin/cohorts/7')
     expect(recordPath(refs.student, admin)).toBe('/admin/cohorts/7/students/12/work')
     expect(recordPath(refs.lesson, { viewer: viewers.instructor, returnTo })).toBe('/lessons/42?cohort_id=7')
-    expect(recordPath(refs.announcement, admin)).toBe('/announcements/5')
   })
 
   it('carries an Activity return path to destinations that offer Back to Activity', () => {

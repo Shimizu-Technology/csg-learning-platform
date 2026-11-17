@@ -221,6 +221,13 @@ export interface Announcement {
     full_name: string;
     email: string;
   } | null;
+  /** When a posted update's title or body last changed; readers see "Edited". */
+  edited_at?: string | null;
+  edited_by?: { id: number; full_name: string } | null;
+  /** The viewer may edit, post or delete it (its author or an admin). */
+  can_edit?: boolean;
+  /** The viewer may archive this posted update: an admin, or staff on its cohort. */
+  can_archive?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -229,15 +236,9 @@ export type NotificationEntry = components['schemas']['NotificationEntry'];
 
 export type PaginationMeta = components['schemas']['PaginationMeta'];
 
-export interface AnnouncementsResponse {
-  announcements: Announcement[];
-  unread_count: number;
-  meta: PaginationMeta;
-}
+export type AnnouncementsResponse = components['schemas']['AnnouncementsResponse'];
 
-export interface AnnouncementResponse {
-  announcement: Announcement;
-}
+export type AnnouncementResponse = components['schemas']['AnnouncementResponse'];
 
 export type NotificationsResponse = components['schemas']['NotificationsResponse'];
 

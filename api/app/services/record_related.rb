@@ -309,7 +309,8 @@ class RecordRelated
       items << item("follow_ups", count: Intervention.active.joins(:enrollment).where(enrollments: { cohort_id: cohort.id }).count, cohort_id: cohort.id)
     end
     items << item("recordings", count: cohort.recordings.count, cohort_id: cohort.id) if features["recordings"]
-    items << item("updates", count: cohort.announcements.count, cohort_id: cohort.id) if features["announcements"]
+    # Posted updates only: a draft is private to its author and admins.
+    items << item("updates", count: cohort.announcements.published.count, cohort_id: cohort.id) if features["announcements"]
 
     result("cohort", cohort.id, items, cohort: cohort)
   end

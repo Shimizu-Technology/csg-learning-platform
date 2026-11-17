@@ -20,7 +20,7 @@ import { AnchorButton, Button, LinkButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
 import { useLearnerPaths } from '../../lib/useRecordPath'
-import { announcementPath, conversationPath } from '../../lib/routes'
+import { conversationPath } from '../../lib/routes'
 import { RecordLink } from '../../components/shared/RecordLink'
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -422,7 +422,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         <section className="app-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-ink">Updates</h2>
-            <Link to="/announcements" className="app-link inline-flex min-h-11 items-center px-1 text-sm">
+            <Link to={data.cohort.id ? `/announcements?cohort_id=${data.cohort.id}` : '/announcements'} className="app-link inline-flex min-h-11 items-center px-1 text-sm">
               View all
             </Link>
           </div>
@@ -430,16 +430,21 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             .slice()
             .sort((a, b) => Number(b.pinned) - Number(a.pinned) || announcementTimestamp(b.published_at) - announcementTimestamp(a.published_at))
             .map((announcement, idx) => (
-              <Link key={`${announcement.published_at}-${idx}`} to={announcement.id ? announcementPath(announcement.id) : "/announcements"} className="pressable block rounded-xl border border-line bg-surface-raised px-4 py-3 hover:border-line-strong hover:bg-surface-sunken">
+              <article key={`${announcement.published_at}-${idx}`} className="rounded-xl border border-line bg-surface-raised px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-ink">{announcement.title || 'Update'}</p>
+                  {announcement.id
+                    ? <RecordLink record={{ type: 'announcement', id: announcement.id, cohortId: announcement.cohort_id ?? data.cohort?.id }} returnLabel="Today" variant="unstyled" touchTarget className="text-sm font-semibold text-ink hover:underline">{announcement.title || 'Update'}</RecordLink>
+                    : <p className="text-sm font-semibold text-ink">{announcement.title || 'Update'}</p>}
                   {announcement.pinned && <Badge tone="info" icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-ink-muted">
-                  {announcement.author?.full_name || announcement.cohort_name || `${brand.schoolAbbreviation}`} · <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
+                  {announcement.author?.full_name || brand.schoolAbbreviation}
+                  {/* The cohort is a real link that keeps the learner's cohort (L-1.9, L-2.9). */}
+                  {announcement.cohort_name && announcement.cohort_id ? <> · <RecordLink record={{ type: 'cohort', id: announcement.cohort_id }} returnLabel="Today" variant="plain" className="font-normal text-ink-muted">{announcement.cohort_name}</RecordLink></> : null}
+                  {' · '}<span className="tabular-nums">{formatDate(announcement.published_at)}</span>
                 </p>
                 {announcement.body && <p className="mt-1 line-clamp-3 text-sm text-ink-secondary">{markdownExcerpt(announcement.body)}</p>}
-              </Link>
+              </article>
             ))}
         </section>
       )}

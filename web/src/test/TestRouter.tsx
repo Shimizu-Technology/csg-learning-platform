@@ -4,7 +4,10 @@ import { LeaveGuardProvider } from '../lib/useLeaveGuard'
 
 const ChildrenContext = createContext<ReactNode>(null)
 function CurrentChildren() { return useContext(ChildrenContext) }
-export function TestRouter({ children, initialEntries = ['/'] }: { children: ReactNode; initialEntries?: string[] }) {
+type InitialEntries = NonNullable<NonNullable<Parameters<typeof createMemoryRouter>[1]>['initialEntries']>
+
+/** `initialEntries` may carry router state, e.g. `{ pathname, state: { returnTo, returnLabel } }`. */
+export function TestRouter({ children, initialEntries = ['/'] }: { children: ReactNode; initialEntries?: InitialEntries }) {
   const [router] = useState(() => createMemoryRouter([{ path: '*', element: <LeaveGuardProvider><CurrentChildren /></LeaveGuardProvider> }], { initialEntries }))
   return <ChildrenContext.Provider value={children}><RouterProvider router={router} /></ChildrenContext.Provider>
 }
