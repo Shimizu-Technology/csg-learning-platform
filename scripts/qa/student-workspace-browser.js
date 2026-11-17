@@ -16,7 +16,7 @@
   const press = element => { if (!element) throw new Error('Control missing'); element.scrollIntoView({ block: 'center', inline: 'center' }); element.click() }
   const section = async tab => {
     press(document.querySelector(`nav[aria-label="Student page sections"] a[href$="/${tab}"]`))
-    await wait(() => location.pathname.endsWith(`/${tab}`), tab)
+    await wait(() => location.pathname.endsWith(`/${tab}`) && document.querySelector(`nav[aria-label="Student page sections"] a[href$="/${tab}"][aria-current="page"]`), tab)
   }
   const backTo = async path => {
     await wait(() => links().some(a => a.textContent.trim().startsWith('Back') && new URL(a.href).pathname === path), 'Back control')
