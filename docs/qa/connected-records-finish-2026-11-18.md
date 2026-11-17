@@ -50,7 +50,7 @@ Spec fixes during the run (not app defects): Back labels carry the origin's own 
 
 ## Automated checks
 
-- API: new `ConnectedRecordsFinishTest` (10 tests); QueryCounter tests whose fixtures really grow for the return plan (15 → 15 queries), report (19 → 19) and offering (13 → 13, past one page); lesson usage and the team member page now also grow activity, reports and blocks and stay flat. OpenAPI updated and contract tests pass. Full suite both modes on ASUS: see the PR.
+- API: new `ConnectedRecordsFinishTest` (10 tests); QueryCounter tests whose fixtures really grow for the return plan (15 → 15 queries), report (19 → 19) and offering (13 → 13, past one page); lesson usage and the team member page now also grow activity, reports and blocks and stay flat. OpenAPI updated and contract tests pass. Full ASUS gate (`scripts/qa/scheduled-jobs-gate.sh`, migration-process port adapter kept) at `474aafe4`: 2,236 runs, 0 failures, 1 skip with prepared statements on, and the same with them off; RuboCop (775 files) and Brakeman clean.
 - Web: typecheck, lint, 244 files / 2,888 Vitest tests, build. Advisory Impeccable scan of the changed pages: no findings.
 - Mobile: typecheck, lint (existing warnings only), 142 suites / 1,551 Jest tests, including the permalink round trip.
 
