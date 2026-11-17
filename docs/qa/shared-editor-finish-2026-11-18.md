@@ -56,6 +56,24 @@ Browser, on a fresh owned harness (`csg_qa_55455_1794953867`):
 
 The harness was stopped and its database dropped afterwards.
 
+### HTML lesson bodies (lead note, production has 212)
+
+Production has 212 lesson bodies that start with HTML: Trix class archives, imported lessons, Python lessons written as `<p>` + `<pre><code>`, and single edits. Before this fix, the converter checked such a body chunk by chunk at blank lines. A chunk that didn't start with a tag, such as `y = 2` between blank lines inside a `<pre>` block or a Markdown paragraph in a mixed body, became editable Rich text and would have been written back as Markdown on save, even though lessons show the whole body as HTML.
+
+- **Fix:** in lesson text, a body that `isLessonHtml` matches (the renderer's own test, now shared from `web/src/lib/lessonHtml.ts`) is one locked HTML block with the "can't edit HTML" warning. It's never converted and is saved byte for byte. Messages and written text are unchanged; HTML shows as typed there.
+- **Round-trip suite:**
+  - **What's covered:** all 127 production Trix bodies from the prework export, exactly as exported, added to the fixture by `lesson-bodies-fixture.rb`. 26 of them have links and 103 have `<pre><code>`.
+  - **Extra bodies:** a Python `<p>` + `<pre><code>` body with blank lines inside the code, a mixed HTML-then-Markdown body, and a CRLF Trix body with outer blank lines.
+  - **Checks:** each body becomes exactly one locked block plus the empty paragraph below it, gets the HTML warning, and round-trips byte for byte. Typing below it adds text after the stored HTML and never rewrites it. 531 cases pass.
+- **Browser (fresh harness `csg_qa_11267_1794954316`, 1280 and 390, dark):**
+  - **Setup:** a CRLF Trix body with links is stored in a lesson text block.
+  - **Editor:** it opens in Rich mode with the warning, and its links and lists don't become Rich formatting. Switching to Markdown and back changes nothing.
+  - **Saving:** another block's title is saved, and the Trix body comes back byte for byte through the API.
+  - **Learners:** the learner page still shows real links.
+  - **Result:** passed (`shared-editor-finish-2026-11-18/trix-locked-chromium-390-dark.png`). This and the CRLF case passed 16 of 16 over four runs.
+- **Spec fix:** the CRLF case once lost its first keystrokes because the spec typed before Tiptap's next-frame focus landed (a request log showed no reload). The helper now waits until the surface has keyboard focus, as after a click.
+- **Other checks:** web typecheck, lint, build and `api:check` pass, and the full Vitest suite passes 3,447 of 3,447. One earlier full run had a single failure in an unrelated plan-editor keyboard test; it passed 13 of 13 three times on its own and in the full rerun. The harness was stopped and its database dropped.
+
 ## Residuals
 
 - **Mobile Rich mode: not built.** The native composer keeps Markdown mode. Rich mode needs Tiptap, which is DOM-only, so the plan is: build the web editor's Tiptap extensions and the shared converters (`markdownToEditorDoc`, `editorJsonToMarkdownKeepingSource`, `editorJsonToMarkdown`) into one self-contained HTML page, load it in `react-native-webview` (already shipped, so no new native build or EAS quota), and bridge `setMarkdown`, Markdown changes, toolbar state and mode over `postMessage`. Read `editor_preferences` from the session for the starting mode. Test it on real iOS and Android keyboards. The app doesn't read `editor_preferences` yet.

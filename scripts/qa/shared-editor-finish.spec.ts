@@ -67,6 +67,9 @@ async function caretAfterParagraph(page: Page, phrase: string) {
     surface.editor.commands.focus()
     surface.editor.commands.setTextSelection(at)
   }, phrase)
+  // Tiptap focuses on the next frame: type only once the surface has keyboard focus, as after a click.
+  await expect(page.locator('[data-md-editor] .ProseMirror').first()).toBeFocused()
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 }
 
 const LESSONS = {
@@ -318,6 +321,49 @@ test('CRLF lesson text keeps its line endings and outer blank lines through Rich
   await expect.poll(async () => JSON.stringify((await textBlock()).body)).toBe(JSON.stringify(afterMarkdown))
   await page.screenshot({ path: `${shots}/crlf-${info.project.name}.png`, fullPage: false })
   await setMode(page.locator('[data-md-editor]').first(), 'Rich')
+  await release(page)
+  await page.context().close()
+})
+
+// Lead note on #304: lesson bodies still stored as HTML (Trix archives) stay whole, locked and byte for byte.
+const TRIX_STORED = '<div class="trix-content">\r\n  <ul>\r\n<li><a href="https://developer.mozilla.org/en-US/docs/Learn/JavaScript">https://developer.mozilla.org/en-US/docs/Learn/JavaScript</a></li>\r\n<li><a href="https://www.w3schools.com/js/js_intro.asp">https://www.w3schools.com/js/js_intro.asp</a></li>\r\n</ul>\r\n\r\n<div>Then try <code>console.log(1)</code>.</div>\r\n</div>\r\n'
+const TRIX_LESSON: Record<string, number> = { 'chromium-1280': 4, 'chromium-390': 5 }
+
+test('a Trix HTML lesson body is locked with a warning and saved byte for byte when other blocks change', async ({ browser, request }, info) => {
+  test.setTimeout(90_000)
+  const lessonId = TRIX_LESSON[info.project.name]
+  const blocks = async () => (await (await request.get(`${API}/lessons/${lessonId}/block_editor`, { headers: headers(1) })).json() as { lesson: { content_blocks: { id: number; block_type: string; title: string; body: string }[] } }).lesson.content_blocks
+  if (!/^csg_qa_/.test(state.database)) throw new Error(`Refusing to write ${state.database}`)
+  const text = (await blocks()).find(block => block.block_type === 'text')!
+  const set = spawnSync('psql', ['-v', 'ON_ERROR_STOP=1', '-d', state.database, '-v', `body=${TRIX_STORED}`, '-v', `id=${text.id}`], { encoding: 'utf8', input: "UPDATE content_blocks SET body = :'body' WHERE id = :id;\n" })
+  if (set.status !== 0) throw new Error(set.stderr)
+  await request.patch(`${API}/editor_preferences`, { headers: headers(1), data: { mode: 'rich' } })
+
+  const page = await themedPage(browser, 'dark', `shared-editor-trix-${info.project.name}`, info.project.use.viewport!)
+  await page.goto(`/admin/lessons/${lessonId}/edit?qa_user=1`)
+  const editor = page.locator('[data-md-editor]').first()
+  await expect(editor).toHaveAttribute('data-mode', 'rich')
+  await expect(editor.getByRole('status')).toContainText('can\'t edit HTML')
+  // Nothing in it became Rich formatting: no links or lists in the Rich surface, only the locked source.
+  await expect(editor.locator('.ProseMirror a, .ProseMirror ul')).toHaveCount(0)
+  await editor.getByRole('status').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: `${shots}/trix-locked-${info.project.name}.png`, fullPage: false })
+  await setMode(editor, 'Markdown')
+  await setMode(editor, 'Rich')
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+
+  // Change another block and save: the HTML body goes back exactly as stored.
+  const exercise = page.getByRole('article', { name: /^Exercise block/ }).first().getByLabel('Title', { exact: true })
+  const before = await exercise.inputValue()
+  await exercise.fill(`${before} (QA)`)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  await expect.poll(async () => (await blocks()).some(block => block.title === `${before} (QA)`)).toBe(true)
+  expect(JSON.stringify((await blocks()).find(block => block.id === text.id)!.body)).toBe(JSON.stringify(TRIX_STORED))
+
+  // Learners still see it as HTML: real links, not Markdown source.
+  await page.goto(`/lessons/${lessonId}?cohort_id=1&qa_user=3`)
+  await expect(page.getByRole('link', { name: 'https://www.w3schools.com/js/js_intro.asp' })).toBeVisible()
   await release(page)
   await page.context().close()
 })

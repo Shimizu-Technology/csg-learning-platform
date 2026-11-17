@@ -9,6 +9,7 @@ import {
   type MessageListBlock,
   type MessageListChild,
 } from '../../../lib/messageFormat'
+import { isLessonHtml } from '../../../lib/lessonHtml'
 import { lessonMarkdownStructure, linkReferenceLines, writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
 
 /**
@@ -364,6 +365,10 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
   const source = raw.replace(/\r\n?/g, '\n')
   if (!source.trim()) return { doc: EMPTY_EDITOR_DOC, issues: [], source, raw, segments: [] }
 
+  // A lesson body that starts with HTML is shown as HTML, all of it, so none of it may become
+  // Rich formatting (which would be written back as Markdown): it stays one locked block.
+  if (target === 'lesson' && isLessonHtml(source)) return wholeRaw(source, raw, ['HTML'])
+
   const content: JSONContent[] = []
   const issues: UnsupportedKind[] = []
   const segments: SourceSegment[] = []
@@ -405,18 +410,22 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
   const doc = { type: 'doc', content: withTrailingParagraph(content) }
   // The pieces must read the same together too (a list continuation split across chunks, say).
   if (!sameMarkdownStructure(source, editorJsonToMarkdown(doc), target)) {
-    const kinds = issues.length ? [...new Set(issues)] : [GENERIC_KIND]
-    const text = source.replace(/^\n+|\n+$/g, '')
-    const start = source.length - source.replace(/^\n+/, '').length
-    return {
-      doc: { type: 'doc', content: withTrailingParagraph([rawNode(text, kinds)]) },
-      issues: kinds,
-      source,
-      raw,
-      segments: [{ text, start, end: start + text.length, count: 1 }],
-    }
+    return wholeRaw(source, raw, issues.length ? [...new Set(issues)] : [GENERIC_KIND])
   }
   return { doc, issues, source, raw, segments }
+}
+
+/** The whole text as one locked block (blank lines at either end stay outside it, as stored). */
+function wholeRaw(source: string, raw: string, kinds: UnsupportedKind[]): MarkdownToEditorResult {
+  const text = source.replace(/^\n+|\n+$/g, '')
+  const start = source.length - source.replace(/^\n+/, '').length
+  return {
+    doc: { type: 'doc', content: withTrailingParagraph([rawNode(text, kinds)]) },
+    issues: kinds,
+    source,
+    raw,
+    segments: [{ text, start, end: start + text.length, count: 1 }],
+  }
 }
 
 /**

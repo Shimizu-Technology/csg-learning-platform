@@ -5,7 +5,8 @@ import { editorJsonToMarkdown } from '../../../lib/messageFormat'
 import { lessonMarkdownStructure } from '../../../lib/writtenMarkdown'
 import preworkBodies from '../../../test/fixtures/prework-lesson-bodies.json'
 import { createRichExtensions } from './extensions'
-import { editorJsonToMarkdownKeepingSource, keySourceSegments, markdownToEditorDoc, RAW_MARKDOWN_NODE, type MarkdownTarget } from './markdownToEditorJson'
+import { isLessonHtml } from '../../../lib/lessonHtml'
+import { editorJsonToMarkdownKeepingSource, keySourceSegments, lockedKinds, lockedWarning, markdownToEditorDoc, RAW_MARKDOWN_NODE, type MarkdownTarget } from './markdownToEditorJson'
 
 /**
  * U-6.8: lesson text and instructions through Rich mode. The bodies are the
@@ -13,7 +14,7 @@ import { editorJsonToMarkdownKeepingSource, keySourceSegments, markdownToEditorD
  * `curriculum:import_prework` stores them; regenerate them with
  * scripts/qa/lesson-bodies-fixture.rb.
  */
-const bodies = preworkBodies as { title: string; body: string }[]
+const bodies = preworkBodies as { title: string; body: string; html: string }[]
 
 let editor: Editor | null = null
 afterEach(() => {
@@ -185,6 +186,54 @@ describe('stored whitespace and line endings through a Rich edit (#304 review)',
     content.splice(1, 0, { type: 'paragraph', content: [{ type: 'text', text: 'New' }, { type: 'hardBreak' }, { type: 'text', text: 'lines' }] })
     const added: JSONContent = { ...json, content }
     expect(editorJsonToMarkdownKeepingSource(added, kept, 'lesson')).toBe('Intro.\r\n\r\nNew\r\nlines\r\n\r\nOutro.')
+  })
+})
+
+/**
+ * Lesson bodies still stored as HTML (Trix class archives, imported lessons,
+ * Python lessons written as <p> + <pre><code>). Lessons render them as HTML,
+ * so Rich mode keeps each one whole as a locked block: never converted to
+ * Markdown, and saved byte for byte.
+ */
+const HTML_BODIES: [string, string][] = [
+  ...bodies.map(({ title, html }): [string, string] => [`Trix: ${title}`, html]),
+  ['Python <p> + <pre><code>, blank lines inside the code', '<p>Write a function that adds two numbers.</p>\n<pre><code>def add(a, b):\n    return a + b\n\nx = 1\n\ny = *2*\n\nprint(add(x, y))\n</code></pre>\n<p>Run it with <code>python3 add.py</code>.</p>'],
+  ['mixed: HTML first, Markdown after', '<p>Intro in HTML with <a href="https://example.com/a_b">a link</a>.</p>\n\nThen some **Markdown** text with a [link](https://example.com).\n\n- a list item\n\n```ruby\nputs 1\n```\n'],
+  ['CRLF Trix with outer blank lines', '\r\n<div class="trix-content">\r\n  <div>Line one<br>Line two</div>\r\n\r\n<div>After a blank line</div>\r\n</div>\r\n\r\n'],
+]
+
+describe('lesson bodies stored as HTML (old editors)', () => {
+  it('covers every production Trix body in the prework export, links included', () => {
+    expect(bodies.filter(({ html }) => html.startsWith('<div class="trix-content">'))).toHaveLength(127)
+    expect(bodies.filter(({ html }) => html.includes('<a href=')).length).toBeGreaterThan(10)
+    expect(bodies.filter(({ html }) => html.includes('<pre><code>')).length).toBeGreaterThan(100)
+  })
+
+  it.each(HTML_BODIES)('%s: one locked HTML block with a warning, saved byte for byte, never converted', (_name, html) => {
+    expect(isLessonHtml(html)).toBe(true) // the lesson renderer shows it as HTML
+    const { result, json, kept } = load(html)
+    // Nothing became Rich formatting: one locked block (with the stored text inside it) and the empty paragraph after it.
+    expect(json.content!.map((node) => node.type)).toEqual([RAW_MARKDOWN_NODE, 'paragraph'])
+    expect(json.content![1].content).toBeUndefined()
+    const lockedText = String(json.content![0].attrs?.markdown)
+    expect(html.replace(/\r\n?/g, '\n')).toContain(lockedText)
+    expect(lockedKinds(result.doc)).toEqual(['HTML'])
+    expect(lockedWarning(lockedKinds(result.doc))).toContain('can\'t edit HTML')
+    // Untouched: exactly as stored, line endings and outer whitespace included.
+    expect(editorJsonToMarkdownKeepingSource(json, kept, 'lesson')).toBe(html)
+    // Text typed below it is added after the HTML; the HTML itself is not rewritten.
+    const typed = typeAtEnd(json, 1, 'Added below.')
+    const written = editorJsonToMarkdownKeepingSource(typed, kept, 'lesson')
+    const stored = html.trimEnd()
+    expect(written.startsWith(stored)).toBe(true)
+    expect(written.slice(stored.length).trim()).toBe('Added below.')
+  })
+
+  it('keeps an HTML-first body whole in lessons, where it is rendered as HTML, but not in written text', () => {
+    const mixed = HTML_BODIES.find(([name]) => name.startsWith('mixed'))![1]
+    expect(load(mixed).json.content!.filter((node) => node.type !== RAW_MARKDOWN_NODE && node.content).length).toBe(0)
+    // Written text shows HTML as typed, so there only the HTML paragraph is locked.
+    expect(load(mixed, 'written').json.content!.some((node) => node.type === 'paragraph' && node.content)).toBe(true)
   })
 })
 
