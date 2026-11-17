@@ -1,4 +1,4 @@
-import { StudentExperienceSwitch } from '../../lib/studentExperience'
+import { StudentExperienceProvider, StudentExperienceSwitch } from '../../lib/studentExperience'
 import { LessonExperience } from '../../components/student/LessonExperience'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { activityReturnPath, learnerPaths, recordPath } from '../../lib/routes'
@@ -371,5 +371,5 @@ export function LegacyLessonView() {
       </nav>
     </article>
   )
-  return user?.is_staff ? legacy : <StudentExperienceSwitch on={redesigned || legacy} off={legacy} loading={<LoadingSpinner message="Loading lesson..." />} />
+  return user?.is_staff ? legacy : <StudentExperienceSwitch on={redesigned || <StudentExperienceProvider v2={false}>{legacy}</StudentExperienceProvider>} off={legacy} loading={<LoadingSpinner message="Loading lesson..." />} />
 }

@@ -3,12 +3,13 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
+import { useStudentExperience } from '../../lib/studentExperience'
 const state = vi.hoisted(() => ({ getLesson: vi.fn(), cohort: 2, ready: true, v2: false }))
 vi.mock('../../lib/api', () => ({ api: { getLesson: state.getLesson, getHelpRequests: vi.fn().mockResolvedValue({ data: { help_requests: [] } }) } }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 } }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: state.cohort, ready: state.ready, selectedCohort: state.ready ? { id: state.cohort, features: { student_experience_v2: state.v2 } } : null }) }))
 vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => false }))
-vi.mock('../../components/shared/ContentBlockRenderer', () => ({ ContentBlockRenderer: ({ completionInFooter }: { completionInFooter?: boolean }) => <p data-footer={String(Boolean(completionInFooter))}>Exercise feedback</p> }))
+vi.mock('../../components/shared/ContentBlockRenderer', () => ({ ContentBlockRenderer: ({ completionInFooter }: { completionInFooter?: boolean }) => { const { v2 } = useStudentExperience(); return <p data-footer={String(Boolean(completionInFooter))} data-v2={String(v2)}>Exercise feedback</p> } }))
 vi.mock('../../components/shared/RubricPanel', () => ({ RubricPanel: () => null }))
 vi.mock('../../components/student/ContextualHelp', () => ({ ContextualHelp: () => null }))
 vi.mock('../../components/shared/LearningObjectivesPanel', () => ({ LearningObjectivesPanel: () => null }))
@@ -144,6 +145,6 @@ it('falls back to inline completion when client On has no server navigation', as
   try {
     await act(async () => root.render(<MemoryRouter initialEntries={['/lessons/42?cohort_id=2']}><Routes><Route path="/lessons/:id" element={<LessonView />} /></Routes></MemoryRouter>))
     expect(host.querySelector('[data-testid="lesson-experience"]')).toBeNull()
-    expect(host.querySelector('[data-footer="false"]')).not.toBeNull()
+    expect(host.querySelector('[data-footer="false"][data-v2="false"]')).not.toBeNull()
   } finally { await act(async () => root.unmount()); state.v2 = false }
 })
