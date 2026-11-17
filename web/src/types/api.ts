@@ -433,6 +433,10 @@ export interface GithubAccessResponse {
 }
 
 export interface CohortModule {
+  assigned_enrollment_ids?: components['schemas']['CohortModuleLearning']['assigned_enrollment_ids'];
+  completed_lessons?: number;
+  total_lessons?: number;
+  progress_percentage?: number;
   id: number;
   name: string;
   module_type: string;
@@ -802,20 +806,19 @@ export interface StudentProgressModule {
   lessons: StudentProgressLesson[];
 }
 
+export type StudentCommunication = components['schemas']['StudentCommunicationResponse']['communication'];
+
+/** Compatibility view model; the complete current wire contract is StudentWorkspaceProgressResponse. */
 export interface StudentProgressResponse {
+  can_message?: boolean
   weekly_plan?: WeeklyPlan | null;
   personal_plan?: PersonalLearningPlan | null;
   /** The server's one next step (LearnerProgress). */
   continue_lesson?: { id: number; title: string } | null;
   /** The status staff see for this learner on the Students list, Today and peek cards. */
-  status?: {
-    label: string;
-    needs_attention: boolean;
-    reasons: Array<Pick<AttentionReason, 'code' | 'label' | 'since'>>;
-    ungraded_count: number;
-    redo_count: number;
-    help_request_count: number;
-  } | null;
+  status?: components['schemas']['StudentWorkspaceStatus'] | null;
+  enrollments?: components['schemas']['StudentWorkspaceEnrollment'][];
+  media_summary?: components['schemas']['StudentMediaSummary'];
   enrollment: {
     restart_version?: string | null;
     first_opened_at?: string | null;
@@ -846,7 +849,7 @@ export interface StudentProgressResponse {
   };
   cohort: { id: number; name: string; start_date: string; status: string; course_delivery?: 'program' | 'guided' | 'self_paced' };
   learning_evidence_scope?: {
-    kind: 'curriculum';
+    kind: 'curriculum' | 'enrollment';
     curriculum_id: number;
     curriculum_name: string;
     enrollment_count: number;
@@ -865,6 +868,8 @@ export interface StudentProgressResponse {
 export type LearningEvidenceStatus = 'demonstrated' | 'developing' | 'needs_revision' | 'not_evidenced';
 
 export interface LearningEvidenceItem {
+  lesson_title?: string;
+  module_name?: string;
   id: string;
   kind: 'rubric_criterion' | 'aligned_submission' | 'knowledge_check';
   state: string;
@@ -927,7 +932,7 @@ export interface LearningRevisionPattern {
 
 export interface LearningInsights {
   generated_at: string;
-  evidence_scope: { kind: 'curriculum'; curriculum_id: number; curriculum_name: string; completion_and_watch_time_excluded: boolean };
+  evidence_scope: { kind: 'curriculum' | 'enrollment'; curriculum_id: number; curriculum_name: string; completion_and_watch_time_excluded: boolean };
   cohort: { id: number; name: string };
   summary: {
     objective_count: number;

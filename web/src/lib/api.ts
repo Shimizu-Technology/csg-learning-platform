@@ -650,8 +650,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  getDirectConversations: () =>
-    fetchUnreadList<DirectConversationsResponse>('/api/v1/direct_conversations'),
+  getDirectConversations: (params?: { cohort_id?: number; student_id?: number }) =>
+    fetchUnreadList<DirectConversationsResponse>(`/api/v1/direct_conversations${queryString(params || {})}`),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
   getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>
@@ -808,8 +808,8 @@ export const api = {
       body: JSON.stringify({ reply: data }),
     }),
   /** `lessonId` / `moduleId` narrow the help lists to that lesson or module (L-3.2). */
-  getSupportQueue: (cohortId?: number, signal?: AbortSignal, help: { lessonId?: number | null; moduleId?: number | null } = {}) =>
-    fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId, lesson_id: help.lessonId, module_id: help.moduleId })}`, signal ? { signal } : {}),
+  getSupportQueue: (cohortId?: number, signal?: AbortSignal, help: { lessonId?: number | null; moduleId?: number | null; studentId?: number | null } = {}) =>
+    fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId, lesson_id: help.lessonId, module_id: help.moduleId, student_id: help.studentId })}`, signal ? { signal } : {}),
   getInterventions: (params: { enrollment_id?: number; owner_id?: number; status?: InterventionStatus; due?: boolean } = {}) =>
     fetchApi<InterventionsResponse>(`/api/v1/interventions${queryString(params)}`),
   getIntervention: (id: number) => fetchApi<InterventionResponse>(`/api/v1/interventions/${id}`),
@@ -897,6 +897,8 @@ export const api = {
     fetchApi<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`),
   getStudentProgress: (userId: number, cohortId?: number) =>
     fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
+  getStudentCommunication: (userId: number, cohortId: number) =>
+    fetchApi<{ communication: import('../types/api').StudentCommunication }>(`/api/v1/progress/student/${userId}/communication${queryString({ cohort_id: cohortId })}`),
   getLearningInsights: (cohortId: number, userId?: number) =>
     fetchApi<LearningInsightsResponse>(`/api/v1/cohorts/${cohortId}/learning_insights${queryString({ user_id: userId })}`),
   restartEnrollment: (enrollmentId: number, confirmation: string, reason: string, restartVersion: string | null | undefined) =>
@@ -1049,8 +1051,8 @@ export const api = {
     fetchApi<unknown>(`/api/v1/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify({ slot_id: slotId }) }),
   cancelPrivateMeeting: (bookingId: number) =>
     fetchApi<unknown>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' }),
-  getStaffPrivateMeetings: () =>
-    fetchApi<StaffPrivateMeetingsResponse>('/api/v1/staff/private_meetings'),
+  getStaffPrivateMeetings: (params?: { cohort_id?: number; student_id?: number }) =>
+    fetchApi<StaffPrivateMeetingsResponse>(`/api/v1/staff/private_meetings${queryString(params || {})}`),
   configurePrivateMeetings: (cohortId: number, instructorId: number) =>
     fetchApi<unknown>('/api/v1/staff/private_meeting_configs', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, instructor_id: instructorId }) }),
   createPrivateMeetingSlot: (cohortId: number, startsAt: string, repeatWeeks: number) =>

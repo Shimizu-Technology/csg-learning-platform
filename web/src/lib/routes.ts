@@ -59,10 +59,12 @@ export function cohortStudentViewLessonPath(cohortId: number, lessonId: number) 
   return `${cohortPath(cohortId)}/student-view/lessons/${lessonId}`
 }
 
-export function conversationPath(target: { type: 'channel' | 'dm'; id: number }, context: { messageId?: number | null; cohortId?: number | null } = {}) {
+export function conversationPath(target: { type: 'channel' | 'dm'; id: number }, context: { messageId?: number | null; cohortId?: number | null; returnTo?: string | null } = {}) {
   const params = new URLSearchParams()
   if (context.cohortId) params.set('cohort_id', String(context.cohortId))
   if (context.messageId) params.set('message_id', String(context.messageId))
+  const returnTo = safeInternalReturnPath(context.returnTo || null, '')
+  if (returnTo) params.set('return_to', returnTo)
   const query = params.toString()
   return `${target.type === 'channel' ? '/messages' : '/messages/dm'}/${target.id}${query ? `?${query}` : ''}`
 }

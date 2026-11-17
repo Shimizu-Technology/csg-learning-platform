@@ -1,5 +1,6 @@
 import { brand } from '../../lib/brand'
-import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
+import { PreviewLink, PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
+import { studentPreviewPath } from '../../lib/studentPreviewPath'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import type { ContentBlock } from '../../types/api'
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
@@ -27,7 +28,7 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { formatShortDate } from '../../lib/format'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
-import { LinkButton } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { cohortPath, cohortStudentPath, cohortStudentViewPath } from '../../lib/routes'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
@@ -67,16 +68,19 @@ export function CohortStudentView() {
   const [selectedStudent, setSelectedStudent] = useState<CohortStudent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!id) return
 
+    let active = true
     setLoading(true)
     Promise.all([
       api.getCohortStudentView(Number(id)),
       api.getCohort(Number(id)),
       studentId ? api.getStudentProgress(studentId, Number(id)) : Promise.resolve(null),
     ]).then(([viewResult, cohortResult, progressResult]) => {
+      if (!active) return
       if (viewResult.data?.student_view && cohortResult.data?.cohort) {
         const cohortStudents = cohortResult.data.cohort.students
         const student = studentId ? cohortStudents.find((item) => item.user_id === studentId) || null : null
@@ -97,12 +101,16 @@ export function CohortStudentView() {
         setError(viewResult.error || cohortResult.error || 'Unable to load this cohort student view.')
       }
       setLoading(false)
+    }).catch(() => {
+      if (!active) return
+      setData(null); setError('Unable to load this student view. Try again.'); setLoading(false)
     })
-  }, [id, studentId])
+    return () => { active = false }
+  }, [id, studentId, attempt])
 
   const activeSection = useMemo<PreviewSection>(() => {
     const tail = location.pathname.split('/student-view/')[1]?.split('/')[0] || 'dashboard'
-    const requestedSection = tail === 'lessons' ? 'materials' : sections.includes(tail as PreviewSection) ? tail as PreviewSection : 'dashboard'
+    const requestedSection = ['lessons', 'modules'].includes(tail) ? 'materials' : sections.includes(tail as PreviewSection) ? tail as PreviewSection : 'dashboard'
     return previewSectionsForCohort(data?.cohort.cohort_type).includes(requestedSection) ? requestedSection : 'materials'
   }, [data?.cohort.cohort_type, location.pathname])
 
@@ -127,17 +135,17 @@ export function CohortStudentView() {
         icon={WifiOff}
         title="Could not load student view"
         description={error || 'The cohort student view is unavailable right now.'}
+        action={<Button onClick={() => setAttempt(value => value + 1)}>Retry student view</Button>}
       />
     )
   }
 
   return (
-    <PreviewShell data={data} activeSection={activeSection} students={students} selectedStudent={selectedStudent}>
-      <PreviewNavigationContext.Provider value={(path) => {
-        const match = path.match(/^\/lessons\/(\d+)/)
-        return match ? `/admin/cohorts/${data.cohort.id}/student-view/lessons/${match[1]}${location.search}` : path
-      }}><PreviewContent data={data} activeSection={activeSection} /></PreviewNavigationContext.Provider>
-    </PreviewShell>
+    <PreviewNavigationContext.Provider value={path => studentPreviewPath(path, data.cohort.id, studentId)}>
+      <PreviewShell data={data} activeSection={activeSection} students={students} selectedStudent={selectedStudent}>
+        <PreviewContent data={data} activeSection={activeSection} />
+      </PreviewShell>
+    </PreviewNavigationContext.Provider>
   )
 }
 
@@ -166,19 +174,12 @@ function PreviewShell({
     if (!link || link.target === '_blank' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     const url = new URL(link.href, window.location.origin)
     if (url.origin !== window.location.origin || url.pathname.startsWith(basePath) || url.pathname.startsWith('/admin/')) return
-    const section = url.pathname.startsWith('/recordings') ? 'recordings'
-      : url.pathname.startsWith('/resources') ? 'resources'
-      : url.pathname.startsWith('/announcements') ? 'announcements'
-      : url.pathname.startsWith('/messages') ? 'messages'
-      : url.pathname.startsWith('/profile') ? 'profile'
-      : url.pathname.startsWith('/dashboard') ? 'dashboard'
-      : 'materials'
     event.preventDefault()
-    navigate(sectionPath(section))
+    navigate(studentPreviewPath(`${url.pathname}${url.search}${url.hash}`, data.cohort.id, selectedStudent?.user_id))
   }
 
   return (
-    <div onClickCapture={keepPreviewNavigationContained} className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_46%)]">
+    <div onClickCapture={keepPreviewNavigationContained} className="min-h-screen bg-surface-page text-ink">
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-line lg:bg-surface-raised">
         <div className="flex h-14 items-center border-b border-line px-6">
           <div className="flex min-w-0 items-center gap-2 text-ink">
@@ -214,7 +215,7 @@ function PreviewShell({
             className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
           >
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-            Back to cohort
+            {selectedStudent ? "Back to student overview" : "Back to cohort"}
           </Link>
         </div>
         <div className="border-t border-line p-4">
@@ -282,7 +283,7 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
             {selectedStudent ? `${selectedStudent.full_name || selectedStudent.email} · actual learning progress and access, with private messages hidden` : `Shared student template for ${data.cohort.curriculum_name} · not a specific student's account`} · generated {formatDate(data.generated_at)}
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="app-control w-full font-semibold"><option value="">Cohort template</option>{students.map((student) => <option key={student.user_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><LinkButton to={selectedStudent ? cohortStudentPath(data.cohort.id, selectedStudent.user_id) : cohortPath(data.cohort.id)} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to cohort</LinkButton></div>
+        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="app-control w-full font-semibold"><option value="">Cohort template</option>{students.map((student) => <option key={student.user_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><LinkButton to={selectedStudent ? cohortStudentPath(data.cohort.id, selectedStudent.user_id) : cohortPath(data.cohort.id)} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />{selectedStudent ? "Back to student overview" : "Back to cohort"}</LinkButton></div>
       </div>
       </div>
     </div>
@@ -314,17 +315,15 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
     if (!actual) return module
     return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, required: actual.lessons.find((item) => item.id === lesson.id)?.required ?? lesson.required, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
   })
-  // The server's one next step (LearnerProgress); older payloads pick it here.
-  const nextId = progress.personal_plan?.next_lesson?.lesson_id
-  const allLessons = dashboardModules.flatMap((module) => module.lessons)
-  const continueLesson = progress.continue_lesson !== undefined ? progress.continue_lesson
-    : allLessons.find((lesson) => lesson.id === nextId) || allLessons.find((lesson) => lesson.required && lesson.available && !lesson.completed)
+  // LearnerProgress supplies the selected enrollment's next step.
+  const continueLesson = progress.continue_lesson
   return {
     ...view,
     modules,
     weekly_plan: progress.weekly_plan ?? view.weekly_plan,
     dashboard: {
       ...view.dashboard,
+      enrollment_status: progress.enrollment.status,
       personal_plan: progress.personal_plan,
       capabilities: progress.weekly_plan?.capabilities ?? view.dashboard.capabilities,
       action_items: progress.weekly_plan ? (progress.weekly_plan.redos || []).slice(0, 5).map((redo) => ({
@@ -349,7 +348,9 @@ function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; 
   const location = useLocation()
   const lessonPath = (id: number) => `/admin/cohorts/${data.cohort.id}/student-view/lessons/${id}${location.search}`
   const lessonId = Number(location.pathname.match(/\/student-view\/lessons\/(\d+)\/?$/)?.[1])
+  const moduleId = Number(location.pathname.match(/\/student-view\/modules\/(\d+)\/?$/)?.[1])
   if (lessonId) return <PreviewLesson key={`${lessonId}-${location.search}`} lessonId={lessonId} data={data} />
+  if (moduleId) return <PreviewModule moduleId={moduleId} data={data} />
   if (activeSection === 'dashboard') {
     return (
       <Dashboard
@@ -375,6 +376,15 @@ function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; 
   if (activeSection === 'announcements') return <AnnouncementsPreview data={data} />
   if (activeSection === 'messages') return <MessagesPreview data={data} />
   return <ProfilePreview data={data} />
+}
+
+function PreviewModule({ moduleId, data }: { moduleId: number; data: CohortStudentViewData }) {
+  const location = useLocation()
+  const module = data.dashboard.modules?.find(item => item.id === moduleId)
+  const base = cohortStudentViewPath(data.cohort.id)
+  const back = `${base}/materials${location.search}`
+  if (!module) return <EmptyState icon={BookOpenText} title="Module not assigned" description="This module is not assigned to this student." action={<LinkButton to={back} variant="secondary">Back to Learn</LinkButton>} />
+  return <section className="space-y-5"><RecordHeader back={{ to: back, label: 'Back to Learn', fallback: true }} type="Module" title={module.name} copyPath={false} /><div className="app-surface divide-y divide-line">{module.lessons.map(lesson => <div key={lesson.id} className="p-4">{lesson.available ? <PreviewLink to={`/lessons/${lesson.id}`} className="app-link inline-flex min-h-11 items-center">{lesson.title}</PreviewLink> : <p className="py-3 text-ink-muted">{lesson.title} · Not open yet</p>}</div>)}</div></section>
 }
 
 function ResourcesPreview({ data }: { data: CohortStudentViewData }) {

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
+  AlertTriangle,
   Activity,
   BookOpen,
   CheckCircle2,
@@ -28,6 +29,8 @@ import {
   UserRound,
   Video,
 } from 'lucide-react'
+import { StartFollowUpPlan } from '../../components/admin/StartFollowUpPlan'
+import { StudentCommunication } from '../../components/admin/StudentCommunication'
 import { StudentLearningPlan } from '../../components/admin/StudentLearningPlan'
 import { StudentAccess } from '../../components/admin/StudentAccess'
 import { requireSection, SectionBoundary, useSection, type Section } from '../../lib/useSection'
@@ -206,12 +209,22 @@ function Workspace() {
     }
   }, [cohortId, navigate, params.tab, studentId])
 
+  useEffect(() => {
+    if (loading || activeTab !== 'learning' || !['#recordings', '#lesson-videos'].includes(location.hash)) return
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(location.hash.slice(1))
+      target?.scrollIntoView({ block: 'start', behavior: 'instant' })
+      target?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [activeTab, loading, location.hash])
+
   async function openDirectMessage() {
     if (!data) return
     setOpeningMessage(true)
     const result = await api.createDirectConversation({ cohort_id: cohortId, user_ids: [studentId] })
     setOpeningMessage(false)
-    if (result.data) navigate(conversationPath({ type: 'dm', id: result.data.direct_conversation.id }))
+    if (result.data) navigate(conversationPath({ type: 'dm', id: result.data.direct_conversation.id }, { cohortId, returnTo: `${location.pathname}${location.search}` }), { state: { returnTo: `${location.pathname}${location.search}`, returnLabel: data.progress.user.full_name } })
     else toast.error(result.error || 'Could not open a direct message.')
   }
 
@@ -226,8 +239,8 @@ function Workspace() {
   }
 
   const { progress, cohort } = data
-  const blockIds = new Set(progress.modules.flatMap((mod) => mod.lessons.flatMap((lesson) => lesson.blocks.map((block) => block.id))))
-  const submissions = (submissionsSection.data || []).filter((item) => blockIds.has(item.content_block_id))
+  // The API scopes history to this enrollment, including work retained after a curriculum change.
+  const submissions = submissionsSection.data || []
   const helpRequests = helpSection.data || []
   const recordings = recordingsSection.data || []
   const lessonVideos = videosSection.data || []
@@ -236,10 +249,11 @@ function Workspace() {
   const studentIndex = cohort.students.findIndex((student) => student.user_id === studentId)
   const previousStudent = studentIndex > 0 ? cohort.students[studentIndex - 1] : null
   const nextStudent = studentIndex >= 0 && studentIndex < cohort.students.length - 1 ? cohort.students[studentIndex + 1] : null
-  const latestIds = getLatestSubmissionIds(submissions)
-  const ungraded = submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === null)
-  const openHelp = helpRequests.filter((request) => request.status === 'open' || request.status === 'acknowledged')
-  const latestSubmission = ungraded[0] || submissions.find(item => latestIds.has(item.id))
+  const ungraded = progress.status?.ungraded_count
+  const openHelp = progress.status?.help_request_count
+  const nextReview = progress.status?.next_review_submission_id
+  const currentPath = `${location.pathname}${location.search}`
+
 
   return (
     <ReturnOrigin label={progress.user.full_name}><div className="app-page-wide space-y-6">
@@ -269,11 +283,18 @@ function Workspace() {
           {'last_active_at' in progress.user && <><span aria-hidden="true">·</span><span className="tabular-nums">{progress.user.last_active_at ? `Last active ${formatShortDateTime(progress.user.last_active_at)}` : 'No learning activity yet'}</span></>}
         </>}
         actions={<>
-          <Button size="sm" variant={latestSubmission && ungraded.length ? 'secondary' : 'primary'} onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{openingMessage ? 'Opening…' : 'Message'}</Button>
-          {latestSubmission && <LinkButton size="sm" to={submissionPath(latestSubmission.id, { cohortId, userId: studentId, returnTo: location.pathname })} variant={ungraded.length ? 'primary' : 'secondary'}><FileCheck2 className="h-4 w-4" aria-hidden="true" />{ungraded.length ? 'Grade next' : 'View latest work'}</LinkButton>}
-          <LinkButton size="sm" to={cohortStudentViewPath(cohortId, studentId)} variant="secondary"><ExternalLink className="h-4 w-4" aria-hidden="true" />View as student</LinkButton>
+          <Button size="sm" onClick={() => void openDirectMessage()} disabled={openingMessage || progress.can_message === false}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{openingMessage ? 'Opening…' : 'Message'}</Button>
+          {nextReview && <LinkButton size="sm" to={`/admin/grading?${new URLSearchParams({ cohort_id: String(cohortId), student_id: String(studentId), submission: String(nextReview), return_to: currentPath })}`} variant="secondary"><FileCheck2 className="h-4 w-4" aria-hidden="true" />Grade next ({ungraded})</LinkButton>}
+          <StartFollowUpPlan activePlanId={progress.status?.active_intervention_id} enrollmentId={progress.enrollment.id} studentName={progress.user.full_name} returnTo={currentPath} />
         </>}
-      />
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <LinkButton size="sm" to={cohortStudentViewPath(cohortId, studentId)} variant="quiet"><ExternalLink className="h-4 w-4" aria-hidden="true" />View as student</LinkButton>
+          {(progress.enrollments?.length || 0) > 1 && <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold text-ink-secondary">Enrollment<select aria-label="Switch student enrollment" className="app-control max-w-full" value={cohortId} onChange={event => navigate(cohortStudentPath(Number(event.target.value), studentId, activeTab), { state: returnState })}>{progress.enrollments!.map(enrollment => <option key={enrollment.id} value={enrollment.cohort_id}>{enrollment.cohort_name} · {humanize(enrollment.status)}</option>)}</select></label>}
+        </div>
+      </RecordHeader>
+
+      {progress.status?.needs_attention && <section role="note" aria-labelledby="why-flagged" className="flex gap-3 rounded-2xl border border-warning-line bg-warning-soft p-4 sm:p-5"><AlertTriangle className="mt-1 h-5 w-5 shrink-0 text-warning-ink" aria-hidden="true" /><div className="min-w-0"><h2 id="why-flagged" className="font-bold text-warning-ink">Why flagged</h2><p className="mt-1 text-sm font-semibold text-ink">{progress.status.label}</p><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-secondary">{progress.status.reasons.map(reason => <li key={reason.code}>{reason.label}</li>)}</ul></div></section>}
 
       <section className="app-surface overflow-hidden">
         <div className="grid items-center gap-2 bg-surface-sunken px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6">
@@ -288,39 +309,45 @@ function Workspace() {
           {tabs.map(({ id, label, icon: Icon }) => (
             <NavLink key={id} to={cohortStudentPath(cohortId, studentId, id)} state={returnState} className={({ isActive }) => `inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold transition-colors duration-150 ${isActive || activeTab === id && !params.tab ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}>
               <Icon className="h-4 w-4" aria-hidden="true" />{label}
-              {id === 'work' && ungraded.length > 0 && <CountBadge count={ungraded.length} />}
-              {id === 'support' && openHelp.length > 0 && <CountBadge count={openHelp.length} tone="warning" />}
-              {id === 'support' && interventions.some((item) => !['resolved', 'canceled'].includes(item.status)) && <CountBadge count={interventions.filter((item) => !['resolved', 'canceled'].includes(item.status)).length} />}
+              {id === 'work' && ungraded !== undefined && ungraded > 0 && <CountBadge count={ungraded!} />}
+              {id === 'support' && openHelp !== undefined && openHelp > 0 && <CountBadge count={openHelp!} tone="warning" />}
+              {id === 'support' && Boolean(progress.status?.active_intervention_count) && <CountBadge count={progress.status!.active_intervention_count} />}
             </NavLink>
           ))}
         </div>
       </nav>
 
-      {activeTab === 'overview' && <OverviewTab aside={<RelatedPanel rows={related.related ? relatedRows(related.related, { viewer, returnTo: `${location.pathname}${location.search}`, actions: { message: () => void openDirectMessage() } }) : []} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={progress.user.full_name} />} sections={{ submissions: submissionsSection, help: helpSection, recordings: recordingsSection, videos: videosSection }} progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
+      {activeTab === 'overview' && <OverviewTab aside={<RelatedPanel rows={related.related ? relatedRows(related.related, { viewer, returnTo: `${location.pathname}${location.search}`, actions: { message: () => void openDirectMessage() } }) : []} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={progress.user.full_name} />} sections={{ submissions: submissionsSection, help: helpSection, recordings: recordingsSection, videos: videosSection }} progress={progress} submissions={submissions} helpRequests={helpRequests} cohortId={cohortId} studentId={studentId} />}
       {activeTab === 'activity' && <ActivityTimeline userId={studentId} cohortId={cohortId} />}
       {activeTab === 'work' && <SectionBoundary section={submissionsSection} label="Submissions"><WorkTab submissions={submissions} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} /></SectionBoundary>}
-      {activeTab === 'learning' && <><StudentLearningPlan key={progress.enrollment.id} enrollmentId={progress.enrollment.id} cohortId={cohortId} onSaved={refresh} /><LearningTab progress={progress} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} /></>}
+      {activeTab === 'learning' && <><StudentLearningPlan cohortId={cohortId} key={progress.enrollment.id} enrollmentId={progress.enrollment.id} onSaved={refresh} /><LearningTab recordingsSection={recordingsSection} videosSection={videosSection} recordings={recordings} lessonVideos={lessonVideos} progress={progress} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} /></>}
       {activeTab === 'support' && <SupportTab sections={{ help: helpSection, interventions: interventionsSection, recovery: recoverySection }} requests={helpRequests} interventions={interventions} recoveryPlans={recoveryPlans} cohortId={cohortId} studentId={studentId} onSaved={(plan) => recoverySection.update((plans) => plans.map((item) => item.id === plan.id ? plan : item))} />}
-      {activeTab === 'communication' && <CommunicationTab studentName={progress.user.full_name} opening={openingMessage} onOpen={() => void openDirectMessage()} />}
+      {activeTab === 'communication' && <StudentCommunication cohortId={cohortId} studentId={studentId} studentName={progress.user.full_name} opening={openingMessage} onOpen={() => void openDirectMessage()} />}
       {activeTab === 'access' && <StudentAccess progress={progress} cohort={cohort} onSaved={refresh} />}
     </div></ReturnOrigin>
   )
 }
 
-function OverviewTab({ aside, sections, progress, submissions, helpRequests, recordings, lessonVideos, cohortId, studentId }: { aside?: ReactNode; sections: { submissions: Section<Submission[]>; help: Section<HelpRequest[]>; recordings: Section<StudentRecordingProgress[]>; videos: Section<StudentLessonVideoProgress[]> }; progress: StudentProgressResponse; submissions: Submission[]; helpRequests: HelpRequest[]; recordings: StudentRecordingProgress[]; lessonVideos: StudentLessonVideoProgress[]; cohortId: number; studentId: number }) {
-  const latestIds = getLatestSubmissionIds(submissions)
-  // The same counts as the Students list and attention list (U-0.5); older payloads count here.
-  const ungraded = progress.status?.ungraded_count ?? submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === null).length
-  const redo = progress.status?.redo_count ?? submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === 'R').length
-  const openHelp = progress.status?.help_request_count ?? helpRequests.filter((request) => ['open', 'acknowledged'].includes(request.status)).length
+function OverviewTab({ aside, sections, progress, submissions, helpRequests, cohortId, studentId }: { aside?: ReactNode; sections: { submissions: Section<Submission[]>; help: Section<HelpRequest[]>; recordings: Section<StudentRecordingProgress[]>; videos: Section<StudentLessonVideoProgress[]> }; progress: StudentProgressResponse; submissions: Submission[]; helpRequests: HelpRequest[]; cohortId: number; studentId: number }) {
+  const ungraded = progress.status?.ungraded_count
+  const redo = progress.status?.redo_count
+  const openHelp = progress.status?.help_request_count
+  const learningPath = cohortStudentPath(cohortId, studentId, 'learning')
+  const workPath = cohortStudentPath(cohortId, studentId, 'work')
+  const location = useLocation()
+  const currentPath = `${location.pathname}${location.search}`
+  const queueParams = new URLSearchParams({ cohort_id: String(cohortId), student_id: String(studentId), return_to: currentPath })
+  const supportPath = `/admin/support?${queueParams}&view=active`
+  const media = progress.media_summary
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard icon={GraduationCap} label="Learning progress" value={`${progress.overall_progress.percentage}%`} detail={lessonsLabel(progress.overall_progress)} tone="neutral" />
-        <SectionBoundary section={sections.submissions} label="Submissions"><MetricCard icon={FileCheck2} label="Work waiting" value={String(ungraded)} detail={redo ? `${redo} redo requested` : 'No redo requests'} tone={ungraded ? 'pending' : 'success'} /></SectionBoundary>
-        <SectionBoundary section={sections.help} label="Help requests"><MetricCard icon={CircleHelp} label="Open support" value={String(openHelp)} detail={`${helpRequests.length} total requests`} tone={openHelp ? 'warning' : 'success'} /></SectionBoundary>
-        <SectionBoundary section={sections.recordings} label="Recordings"><MetricCard icon={Video} label="Recordings completed" value={`${recordings.filter((video) => video.completed).length}/${recordings.length}`} detail="Class recordings" tone="neutral" /></SectionBoundary>
-        <SectionBoundary section={sections.videos} label="Lesson videos"><MetricCard icon={Video} label="Lesson videos completed" value={`${lessonVideos.filter((video) => video.completed).length}/${lessonVideos.length}`} detail="Lesson videos" tone="neutral" /></SectionBoundary>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+        <MetricCard to={learningPath} icon={GraduationCap} label="Learning progress" value={`${progress.overall_progress.percentage}%`} detail={lessonsLabel(progress.overall_progress)} tone="neutral" />
+        <MetricCard to={`/admin/grading?${queueParams}&filter=ungraded`} icon={FileCheck2} label="Work waiting" value={ungraded === undefined ? 'Unavailable' : String(ungraded)} detail="Waiting for review" tone={ungraded ? 'pending' : 'neutral'} />
+        <MetricCard to={`${workPath}?filter=redo`} icon={RotateCcw} label="Redo open" value={redo === undefined ? 'Unavailable' : String(redo)} detail={redo ? 'Redo requested' : 'No redo requests'} tone={redo ? 'warning' : 'neutral'} />
+        <MetricCard to={supportPath} icon={CircleHelp} label="Open support" value={openHelp === undefined ? 'Unavailable' : String(openHelp)} detail="Help requests" tone={openHelp ? 'warning' : 'neutral'} />
+        <SectionBoundary section={sections.recordings} label="Recordings"><MetricCard to={`${learningPath}#recordings`} icon={Video} label="Recordings completed" value={media ? `${media.recordings_completed}/${media.recordings_total}` : 'Unavailable'} detail="Class recordings" tone="neutral" /></SectionBoundary>
+        <SectionBoundary section={sections.videos} label="Lesson videos"><MetricCard to={`${learningPath}#lesson-videos`} icon={Video} label="Lesson videos completed" value={media ? `${media.lesson_videos_completed}/${media.lesson_videos_total}` : 'Unavailable'} detail="Assigned lesson videos" tone="neutral" /></SectionBoundary>
       </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
         <section className="app-surface p-5 sm:p-6">
@@ -349,12 +376,19 @@ function ComposedTimeline({ incomplete, progress, submissions, helpRequests, coh
 }
 
 function WorkTab({ submissions, cohortId, studentId, returnTo }: { submissions: Submission[]; cohortId: number; studentId: number; returnTo: string }) {
-  if (!submissions.length) return <EmptyState icon={FileCheck2} title="No submitted work yet" description="Work this student submits in this curriculum will appear here." />
-  return <section className="app-surface overflow-hidden"><div className="border-b border-line px-5 py-4 sm:px-6"><h2 className="text-lg font-bold text-ink">All submitted work</h2><p className="mt-1 text-sm text-ink-muted">Open a submission. Back returns you to this page.</p></div><div className="divide-y divide-line">{submissions.map((submission) => <Link key={submission.id} to={submissionPath(submission.id, { cohortId, userId: studentId, returnTo })} className="group pressable grid min-h-11 gap-3 px-5 py-4 hover:bg-surface-sunken sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-center sm:px-6"><div className="min-w-0"><p className="font-semibold text-ink [overflow-wrap:anywhere]">{submission.content_block_title}</p><p className="text-sm text-ink-muted [overflow-wrap:anywhere]">{submission.module_name} · {submission.lesson_title}</p></div><div><SubmissionStatus submission={submission} /><p className="mt-1 text-xs tabular-nums text-ink-muted">{formatShortDateTime(submission.created_at)}</p></div><ChevronRight className="h-4 w-4 text-ink-muted transition-colors duration-150 group-hover:text-ink" aria-hidden="true" /></Link>)}</div></section>
+  const [params] = useSearchParams()
+  const latestIds = getLatestSubmissionIds(submissions)
+  const filter = params.get('filter')
+  const visible = ['ungraded', 'redo'].includes(filter || '') ? submissions.filter(item => latestIds.has(item.id) && (filter === 'redo' ? item.grade === 'R' : item.grade === null)) : submissions
+  const exactReturn = `${returnTo}${params.size ? `?${params.toString()}` : ''}`
+  if (!visible.length) return <EmptyState icon={FileCheck2} title={filter ? "No matching work" : "No submitted work yet"} description="Work this student submits in this curriculum will appear here." action={<LinkButton variant="secondary" to={returnTo}>All submitted work</LinkButton>} />
+  return <section className="app-surface overflow-hidden"><div className="border-b border-line px-5 py-4 sm:px-6"><h2 className="text-lg font-bold text-ink">All submitted work</h2><p className="mt-1 text-sm text-ink-muted">Open a submission. Back returns you to this page.</p><Link className="app-link inline-flex min-h-11 items-center text-sm" to={returnTo}>All submitted work</Link></div><div className="divide-y divide-line">{visible.map((submission) => <Link key={submission.id} to={submissionPath(submission.id, { cohortId, userId: studentId, returnTo: exactReturn })} className="group pressable grid min-h-11 gap-3 px-5 py-4 hover:bg-surface-sunken sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-center sm:px-6"><div className="min-w-0"><p className="font-semibold text-ink [overflow-wrap:anywhere]">{submission.content_block_title}</p><p className="text-sm text-ink-muted [overflow-wrap:anywhere]">{submission.module_name} · {submission.lesson_title}</p></div><div><SubmissionStatus submission={submission} /><p className="mt-1 text-xs tabular-nums text-ink-muted">{formatShortDateTime(submission.created_at)}</p></div><ChevronRight className="h-4 w-4 text-ink-muted transition-colors duration-150 group-hover:text-ink" aria-hidden="true" /></Link>)}</div></section>
 }
 
-function LearningTab({ progress, cohortId, studentId, returnTo }: { progress: StudentProgressResponse; cohortId: number; studentId: number; returnTo: string }) {
+function LearningTab({ recordingsSection, videosSection, recordings, lessonVideos, progress, cohortId, studentId, returnTo }: { recordingsSection: Section<StudentRecordingProgress[]>; videosSection: Section<StudentLessonVideoProgress[]>; recordings: StudentRecordingProgress[]; lessonVideos: StudentLessonVideoProgress[]; progress: StudentProgressResponse; cohortId: number; studentId: number; returnTo: string }) {
   return <div className="space-y-6">
+    <section tabIndex={-1} id="recordings" className="app-surface scroll-mt-24 p-5"><h2 className="font-bold text-ink">Class recordings</h2><SectionBoundary section={recordingsSection} label="Recordings">{recordings.length ? recordings.map(recording => <Link key={recording.recording_id} to={`/recordings?cohort_id=${cohortId}&recording=${recording.recording_id}`} className="app-link block min-h-11 py-3">{recording.recording_title} · {recording.completed ? 'Complete' : 'In progress'}</Link>) : <p className="mt-3 text-sm text-ink-muted">No class recordings yet.</p>}</SectionBoundary></section>
+    <section tabIndex={-1} id="lesson-videos" className="app-surface scroll-mt-24 p-5"><h2 className="font-bold text-ink">Lesson videos</h2><SectionBoundary section={videosSection} label="Lesson videos">{lessonVideos.length ? lessonVideos.map(video => { const lesson = progress.modules.flatMap(module => module.lessons).find(lesson => lesson.blocks.some(block => block.id === video.content_block_id)); return <p key={video.content_block_id} className="py-2 text-sm text-ink-secondary">{lesson ? <RecordLink record={{ type: 'lesson', id: lesson.id, cohortId, anchor: `block-${video.content_block_id}` }} touchTarget>{video.title}</RecordLink> : video.title} · {video.completed ? 'Complete' : 'In progress'}</p> }) : <p className="mt-3 text-sm text-ink-muted">No lesson videos yet.</p>}</SectionBoundary></section>
     <StudentObjectiveEvidence cohortId={cohortId} studentId={studentId} returnTo={returnTo} />
     <div className="space-y-4">{progress.modules.map((mod) => <details key={mod.id} className="app-surface overflow-hidden" open={mod.progress_percentage > 0 && mod.progress_percentage < 100}><summary className="min-h-16 cursor-pointer px-5 py-4 sm:px-6"><div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px_auto] sm:items-center"><div className="min-w-0"><h2 className="text-base font-semibold text-ink [overflow-wrap:anywhere]">{mod.name}</h2><p className="text-xs tabular-nums text-ink-muted">{lessonsLabel(mod)}</p></div><ProgressBar value={mod.progress_percentage} size="sm" /><span className="text-sm font-semibold tabular-nums text-ink-secondary">{mod.progress_percentage}%</span></div></summary><div className="divide-y divide-line border-t border-line">{mod.lessons.map((lesson) => <div key={lesson.id} className="px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><p className="font-semibold text-ink [overflow-wrap:anywhere]"><RecordLink record={{ type: 'lesson', id: lesson.id, cohortId }} variant="plain" touchTarget>{lesson.title}</RecordLink></p><p className="text-xs tabular-nums text-ink-muted">{lesson.assigned === false ? 'Not currently assigned · Saved evidence' : `${lesson.completed_blocks}/${lesson.total_blocks} checkpoints · ${lesson.available ? 'Available' : 'Locked'}`}</p></div>{lesson.learner_status ? <LessonStatusBadge status={lesson.learner_status} /> : lesson.completed && <Badge tone="success" icon={<CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}>Complete</Badge>}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{lesson.blocks.map((block) => block.submission ? <Link key={block.id} to={submissionPath(block.submission.id, { cohortId, userId: studentId, returnTo })} className="pressable flex min-h-11 items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm hover:border-line-strong hover:bg-surface-sunken"><span className="min-w-0 truncate font-semibold text-ink" title={block.title}>{block.title}</span><SubmissionStatus submission={{ grade: block.submission.grade } as Submission} /></Link> : <div key={block.id} className="flex min-h-11 items-center justify-between gap-2 rounded-xl bg-surface-sunken px-3 py-2 text-sm"><span className="min-w-0 truncate font-semibold text-ink-secondary" title={block.title}>{block.title}</span><span className="shrink-0 text-xs font-semibold capitalize text-ink-muted">{block.status.replace('_', ' ')}</span></div>)}</div></div>)}</div></details>)}</div>
   </div>
@@ -395,9 +429,9 @@ function SupportTab({ sections, requests, interventions, recoveryPlans, cohortId
   const [params] = useSearchParams()
   const selectedPlan = Number(params.get('plan_id'))
   const plans = selectedPlan ? recoveryPlans.filter((plan) => plan.id === selectedPlan) : recoveryPlans
-  if (Object.values(sections).every((section) => section.status === 'success') && !selectedPlan && !requests.length && !interventions.length && !recoveryPlans.length) return <EmptyState icon={LifeBuoy} title="No support history" description="Help requests, follow-up plans and return plans for this student in this cohort will appear here." action={<LinkButton to="/admin/support" variant="secondary"><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Open Support</LinkButton>} />
+  if (Object.values(sections).every((section) => section.status === 'success') && !selectedPlan && !requests.length && !interventions.length && !recoveryPlans.length) return <EmptyState icon={LifeBuoy} title="No support history" description="Help requests, follow-up plans and return plans for this student in this cohort will appear here." action={<LinkButton to={`/admin/support?cohort_id=${cohortId}`} variant="secondary"><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Open Support</LinkButton>} />
   return <div className="space-y-6">
-    <SectionBoundary section={sections.interventions} label="Follow-up plans"><section className="app-surface overflow-hidden"><div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6"><div className="min-w-0"><h2 className="text-lg font-bold text-ink">{TERMS.followUpPlans}</h2><p className="mt-1 text-sm text-ink-muted">Owners, next steps, follow-ups, notes and outcomes. Only staff see these.</p></div><Link className="app-link shrink-0 text-sm" to="/admin/support">Open Support</Link></div>{interventions.length ? <div className="divide-y divide-line">{interventions.map((item) => <Link to={interventionPath(item.id, returnTo)} key={item.id} className={`group pressable grid min-h-11 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_160px_auto] sm:items-center sm:px-6 ${item.follow_up_due ? 'bg-warning-soft hover:bg-warning-soft' : 'hover:bg-surface-sunken'}`}><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-ink group-hover:underline">{followUpLabel(item.trigger_type)}</p><Badge>{followUpLabel(item.status)}</Badge></div><p className="mt-1 line-clamp-2 text-sm text-ink-secondary">{item.action_summary || 'No next step yet.'}</p></div><div>{item.follow_up_due ? <Badge tone="warning">Follow-up due</Badge> : <p className="text-xs font-semibold text-ink-muted">Next follow-up</p>}<p className="mt-1 text-xs font-semibold tabular-nums text-ink-secondary">{formatShortDateTime(item.next_follow_up_at)}</p></div><ChevronRight className="h-4 w-4 text-ink-muted group-hover:text-ink" aria-hidden="true" /></Link>)}</div> : <p className="px-6 py-5 text-sm text-ink-muted">No follow-up plans for this student in this cohort.</p>}</section></SectionBoundary>
+    <SectionBoundary section={sections.interventions} label="Follow-up plans"><section className="app-surface overflow-hidden"><div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6"><div className="min-w-0"><h2 className="text-lg font-bold text-ink">{TERMS.followUpPlans}</h2><p className="mt-1 text-sm text-ink-muted">Owners, next steps, follow-ups, notes and outcomes. Only staff see these.</p></div><Link className="app-link inline-flex min-h-11 shrink-0 items-center text-sm" to={`/admin/support?cohort_id=${cohortId}`}>Open Support</Link></div>{interventions.length ? <div className="divide-y divide-line">{interventions.map((item) => <Link to={interventionPath(item.id, returnTo)} key={item.id} className={`group pressable grid min-h-11 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_160px_auto] sm:items-center sm:px-6 ${item.follow_up_due ? 'bg-warning-soft hover:bg-warning-soft' : 'hover:bg-surface-sunken'}`}><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-ink group-hover:underline">{followUpLabel(item.trigger_type)}</p><Badge>{followUpLabel(item.status)}</Badge></div><p className="mt-1 line-clamp-2 text-sm text-ink-secondary">{item.action_summary || 'No next step yet.'}</p></div><div>{item.follow_up_due ? <Badge tone="warning">Follow-up due</Badge> : <p className="text-xs font-semibold text-ink-muted">Next follow-up</p>}<p className="mt-1 text-xs font-semibold tabular-nums text-ink-secondary">{formatShortDateTime(item.next_follow_up_at)}</p></div><ChevronRight className="h-4 w-4 text-ink-muted group-hover:text-ink" aria-hidden="true" /></Link>)}</div> : <p className="px-6 py-5 text-sm text-ink-muted">No follow-up plans for this student in this cohort.</p>}</section></SectionBoundary>
     <SectionBoundary section={sections.recovery} label="Return plans">
     {selectedPlan > 0 && !plans.length && <p role="alert" className="app-surface p-5 text-sm text-danger-ink">This return plan isn't available for this student.</p>}
     {plans.map((plan) => <section key={plan.id} className={`rounded-2xl border p-5 shadow-raised sm:p-6 ${plan.check_in_due ? 'border-warning-line bg-warning-soft' : 'border-line bg-surface-raised'}`}><div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">{TERMS.returnPlan}</p><h2 className="mt-1 text-lg font-bold text-ink">{plan.target_pace}</h2></div><Badge>{followUpLabel(plan.status)}</Badge></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-semibold text-ink-muted">Required work</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{plan.required_scope}</p></div><div><p className="text-xs font-semibold text-ink-muted">Next follow-up</p><p className={`mt-1 text-sm font-semibold tabular-nums ${plan.check_in_due ? 'text-warning-ink' : 'text-ink-secondary'}`}>{plan.check_in_due ? 'Due now · ' : ''}{formatShortDateTime(plan.next_check_in_at)}</p><p className="mt-1 text-xs text-ink-muted">Owner: {plan.owner.full_name}</p></div></div>{plan.intervention_id && <Link to={interventionPath(plan.intervention_id, returnTo)} className="app-link mt-4 inline-flex min-h-11 items-center gap-1 text-sm">Open follow-up plan <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>}<RecoveryPlanActions plan={plan} onSaved={onSaved} /></section>)}
@@ -406,13 +440,9 @@ function SupportTab({ sections, requests, interventions, recoveryPlans, cohortId
   </div>
 }
 
-function CommunicationTab({ studentName, opening, onOpen }: { studentName: string; opening: boolean; onOpen: () => void }) {
-  return <section className="app-surface p-6"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-sunken text-ink-secondary"><MessageSquareText className="h-6 w-6" aria-hidden="true" /></span><h2 className="mt-5 text-lg font-bold text-ink [overflow-wrap:anywhere]">Conversation with {studentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-ink-secondary">Open your direct messages with this student in this cohort.</p><Button className="mt-5" onClick={onOpen} disabled={opening}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{opening ? 'Opening conversation…' : 'Open direct message'}</Button></section>
-}
-
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: typeof UserRound; label: string; value: string; detail: string; tone: 'neutral' | 'success' | 'pending' | 'warning' }) {
+function MetricCard({ to, icon: Icon, label, value, detail, tone }: { to: string; icon: typeof UserRound; label: string; value: string; detail: string; tone: 'neutral' | 'success' | 'pending' | 'warning' }) {
   const tones = { neutral: 'bg-surface-sunken text-ink-secondary', success: 'bg-success-soft text-success-ink', pending: 'bg-surface-sunken text-ink-secondary', warning: 'bg-warning-soft text-warning-ink' }
-  return <div className="app-surface p-4 sm:p-5"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><p className="mt-4 text-3xl font-bold tabular-nums text-ink">{value}</p><p className="mt-1 text-sm font-semibold text-ink-secondary">{label}</p><p className="mt-1 text-xs tabular-nums text-ink-muted">{detail}</p></div>
+  return <Link to={to} className="app-surface block min-h-11 p-4 hover:border-line-strong hover:bg-surface-hover sm:p-5"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><p className="mt-4 text-3xl font-bold tabular-nums text-ink">{value}</p><p className="mt-1 text-sm font-semibold text-ink-secondary">{label}</p><p className="mt-1 text-xs tabular-nums text-ink-muted">{detail}</p></Link>
 }
 
 function SubmissionStatus({ submission }: { submission: Submission }) {

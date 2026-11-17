@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
+import { studentPreviewPath } from '../../lib/studentPreviewPath'
 import { RecordLink } from './RecordLink'
 
 const auth = vi.hoisted(() => ({ user: { id: 1, is_staff: true, is_admin: false } as { id: number; is_staff: boolean; is_admin: boolean } | null }))
@@ -97,12 +98,12 @@ it('keeps caller styling, adds a 44px target on request, and passes a Back label
 it('opens learner pages inside a staff preview of the learner view', () => {
   auth.user = { id: 1, is_staff: true, is_admin: true }
   render(
-    <PreviewNavigationContext.Provider value={(path) => `/admin/cohorts/7/student-view${path}`}>
+    <PreviewNavigationContext.Provider value={(path) => studentPreviewPath(path, 7, 12)}>
       <RecordLink record={{ type: 'lesson', id: 42, cohortId: 7 }}>Loops</RecordLink>
     </PreviewNavigationContext.Provider>,
     '/admin/cohorts/7/student-view',
   )
-  expect(container.querySelector('a')!.getAttribute('href')).toBe('/admin/cohorts/7/student-view/lessons/42?cohort_id=7')
+  expect(container.querySelector('a')!.getAttribute('href')).toBe('/admin/cohorts/7/student-view/lessons/42?student_id=12')
 })
 
 it('opens the lesson page for staff, the editor on request, and the lesson for learners (L-5)', () => {

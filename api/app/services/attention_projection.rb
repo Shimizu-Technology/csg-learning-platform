@@ -154,6 +154,8 @@ class AttentionProjection
       invite_state: user.invite_state(now: @now), invite_delivery_status: user.invite_delivery_status,
       help_request_count: requests.size, urgent_help_count: requests.count(&:urgency_urgent?),
       redo_count: redos.size, ungraded_count: ungraded.size, inactive: inactive,
+      next_review_submission_id: ungraded.first&.id,
+      active_intervention_count: interventions.size,
       active_intervention_id: (due.first || interventions.first)&.id, intervention_status: (due.first || interventions.first)&.status,
       follow_up_due: due.any?, recovery_plan_id: (due_plans.first || plans.first)&.id, recovery_check_in_due: due_plans.any?,
       status: enrollment.status, enrollment_status: enrollment.status,

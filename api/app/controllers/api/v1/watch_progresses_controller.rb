@@ -79,13 +79,13 @@ module Api
         else
           user.enrollments.where(status: :active).pluck(:cohort_id)
         end
-        cohort_ids &= current_user.accessible_cohorts.pluck(:id)
+        cohort_ids &= staff_cohort_scope.visible_cohorts.pluck(:id)
         if params[:cohort_id].present? && cohort_ids.empty?
           render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
           return
         end
         progresses = progresses.where(recordings: { cohort_id: cohort_ids })
-        all_recordings = Recording.where(cohort_id: cohort_ids).includes(:cohort).order(:cohort_id, :position)
+        all_recordings = Recording.student_visible.where(cohort_id: cohort_ids).includes(:cohort).order(:cohort_id, :position)
         progress_by_recording = progresses.index_by(&:recording_id)
 
         render json: {
@@ -116,34 +116,20 @@ module Api
 
         user = User.find(params[:user_id])
         enrollments = if params[:cohort_id].present?
-          user.enrollments.where(cohort_id: params[:cohort_id]).includes(:cohort)
+          user.enrollments.where(cohort_id: params[:cohort_id]).where(cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).includes(:cohort)
         else
-          user.enrollments.where(status: :active).includes(:cohort)
+          user.enrollments.where(status: :active, cohort_id: staff_cohort_scope.visible_cohorts.select(:id)).includes(:cohort)
         end.to_a
-        enrollments.select! { |enrollment| current_user.can_teach_cohort?(enrollment.cohort) }
         if params[:cohort_id].present? && enrollments.empty?
           render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
           return
         end
-        curriculum_ids = enrollments.map { |e| e.cohort.curriculum_id }.uniq
-        video_blocks_by_curriculum = ContentBlock
-          .joins(lesson: :curriculum_module)
-          .includes(lesson: :curriculum_module)
-          .where(modules: { curriculum_id: curriculum_ids }, block_type: %w[video recording])
-          .where.not(s3_video_key: [ nil, "" ])
-          .order("modules.position ASC, lessons.position ASC, content_blocks.position ASC")
-          .group_by { |cb| cb.lesson.curriculum_module.curriculum_id }
-
-        # Keep the per-enrollment shape (a student in two cohorts with the same
-        # curriculum should still see two cohort-scoped rows), but fetch only the
-        # actual S3-backed video blocks instead of eager-loading the full
-        # curriculum tree into Ruby first.
-        rows = enrollments.flat_map { |enrollment|
-          cohort = enrollment.cohort
-          video_blocks_by_curriculum.fetch(cohort.curriculum_id, []).map { |cb|
-            [ cb, cb.lesson.curriculum_module, cb.lesson, cohort ]
-          }
-        }
+        learners = LearnerProgress.for_all(enrollments)
+        rows = enrollments.flat_map do |enrollment|
+          StudentMediaProgress.lesson_video_blocks(learners.fetch(enrollment.id)).map do |block|
+            [ block, block.lesson.curriculum_module, block.lesson, enrollment.cohort ]
+          end
+        end
 
         block_ids = rows.map { |cb, _m, _l, _c| cb.id }
         progress_by_block = user.progresses.where(enrollment_id: enrollments.map(&:id), content_block_id: block_ids)
@@ -170,7 +156,7 @@ module Api
               last_position_seconds: p&.video_last_position || 0,
               total_watched_seconds: p&.video_total_watched || 0,
               progress_percentage: pct,
-              completed: p&.status == "completed",
+              completed: learners.fetch(enrollment.id).block_state(cb) == LearnerProgress::BlockState::COMPLETE,
               completed_at: p&.completed_at,
               # For video progresses, updated_at advances on every player ping,
               # so it's the most accurate "last touched" signal we have.
@@ -326,6 +312,10 @@ module Api
           stored: progress.total_watched_seconds, reported: params[:total_watched_seconds], version: params[:watch_credit_version], duration: progress.duration_seconds)
         progress.last_watched_at = Time.current
         progress
+      end
+
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
       end
     end
   end

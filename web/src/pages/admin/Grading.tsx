@@ -46,7 +46,7 @@ import { FilterChip } from '../../components/ui/Choice'
 import { formatShortDateTime } from '../../lib/format'
 import { gradeLabel } from '../../lib/glossary'
 import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
-import { originLabel } from '../../lib/recordOrigin'
+import { originLabel, useBackLink } from '../../lib/recordOrigin'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { RowButton } from '../../components/ui/RowButton'
@@ -95,6 +95,8 @@ export function Grading() {
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
+  const back = useBackLink({ returnTo: '/admin/students', returnLabel: 'Students' }, { accept: 'any' })
+  const hasOrigin = new URLSearchParams(location.search).has('return_to') && !back.fallback
   const viewer = useRecordViewer()
   const [urlState, setUrlState] = useUrlState(GRADING_URL)
   const cohortId = urlState.cohort_id ?? undefined
@@ -279,6 +281,7 @@ export function Grading() {
 
   return (
     <div className="app-page-wide">
+      {hasOrigin && <Link to={back.to} onClick={event => guardLeave(event, back.to)} className="app-link mb-4 inline-flex min-h-11 items-center gap-1 text-sm"><ChevronLeft className="h-4 w-4" aria-hidden="true" />{back.label}</Link>}
       {/* On a phone the open review is the whole screen; the list comes back with Back to queue. */}
       <div className={selectedId ? 'hidden lg:block' : undefined}>
         <PageHeader

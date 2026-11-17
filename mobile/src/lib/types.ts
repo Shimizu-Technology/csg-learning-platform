@@ -323,16 +323,21 @@ export type StaffStudentSummary = Omit<Pick<components['schemas']['SupportQueueS
 export type StaffCohortDashboard = Omit<components['schemas']['StaffCohortDashboard'], 'students'> & { students: StaffStudentSummary[] };
 
 export interface StudentProgressDetail {
+  status?: components['schemas']['StudentWorkspaceStatus'] | null;
+  enrollments?: components['schemas']['StudentWorkspaceEnrollment'][];
+  media_summary?: components['schemas']['StudentMediaSummary'];
   enrollment: { id: number; status: string };
   user: { id: number; full_name: string; email: string; github_username: string | null; avatar_url: string | null; last_sign_in_at: string | null; last_seen_at: string | null };
   cohort: { id: number; name: string; start_date: string; status: string };
-  learning_evidence_scope?: { kind: 'curriculum'; curriculum_id: number; curriculum_name: string; enrollment_count: number; shared_across_enrollments: boolean };
-  overall_progress: { completed: number; total: number; percentage: number };
+  learning_evidence_scope?: { kind: 'curriculum' | 'enrollment'; curriculum_id: number; curriculum_name: string; enrollment_count: number; shared_across_enrollments: boolean };
+  overall_progress: { completed: number; total: number; percentage: number; completed_lessons?: number; total_lessons?: number };
   modules: StaffProgressModule[];
   recent_activity: { content_block_id: number; block_title: string | null; block_type: string; completed_at: string | null }[];
 }
 
 export interface StaffProgressModule {
+  completed_lessons?: number;
+  total_lessons?: number;
   id: number;
   name: string;
   module_type: string;

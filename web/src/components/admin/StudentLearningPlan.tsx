@@ -142,11 +142,10 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
         {plan.description && <div className="[overflow-wrap:anywhere]"><MarkdownText content={plan.description} /></div>}
         <p className="flex flex-wrap items-center gap-x-2 tabular-nums"><CalendarDays className="h-4 w-4 text-ink-muted" aria-hidden="true" />{plan.target_date ? `Target finish: ${formatShortDate(plan.target_date)}` : 'No target finish set'}{plan.next_check_in_on ? ` · Next follow-up: ${formatShortDate(plan.next_check_in_on)}` : ''}</p>
         {plan.milestones.length > 0 && <ol className="space-y-2">{plan.milestones.map((item, index) => {
-          const done = item.lesson_ids.filter((id) => lessonsById.get(id)?.completed).length
-          return <li key={index}><details className="group rounded-xl bg-surface-sunken"><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2"><span className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">{item.title}</span><span className="text-xs tabular-nums text-ink-muted">{formatShortDate(item.due_on)} · {done} of {lessonCountLabel(item.lesson_ids.length)} finished</span></summary>
+          return <li key={index}><details className="group rounded-xl bg-surface-sunken"><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2"><span className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">{item.title}</span><span className="text-xs tabular-nums text-ink-muted">{formatShortDate(item.due_on)} · {lessonCountLabel(item.lesson_ids.length)}</span></summary>
             <ul className="max-h-80 space-y-1 overflow-y-auto border-t border-line px-3 py-2">{item.lesson_ids.map((id) => {
               const lesson = lessonsById.get(id)
-              return <li key={id} className="flex min-h-9 flex-wrap items-center justify-between gap-2">{lesson ? <RecordLink record={{ type: 'lesson', id, cohortId }} variant="plain" className="min-w-0 [overflow-wrap:anywhere]">{lesson.title}</RecordLink> : <span>{lessonName(id)}</span>}{lesson && lesson.status !== 'open' && lesson.status !== 'upcoming' && <StatusBadge status={lesson.status} short />}</li>
+              return <li key={id} className="flex min-h-9 flex-wrap items-center justify-between gap-2">{lesson ? <RecordLink record={{ type: 'lesson', id, cohortId }} touchTarget variant="plain" className="min-w-0 [overflow-wrap:anywhere]">{lesson.title}</RecordLink> : <span>{lessonName(id)}</span>}{lesson && lesson.status !== 'open' && lesson.status !== 'upcoming' && <StatusBadge status={lesson.status} short />}</li>
             })}</ul>
           </details></li>
         })}</ol>}

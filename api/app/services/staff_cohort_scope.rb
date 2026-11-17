@@ -22,6 +22,12 @@ class StaffCohortScope
     @viewer&.admin? && !@viewer.archived?
   end
 
+  # A relation for staff workspaces spanning more than one curriculum.
+  # The same taught ids as split/visible?, loaded once for the whole payload.
+  def visible_cohorts
+    admin? ? Cohort.all : Cohort.where(id: taught_cohort_ids)
+  end
+
   # Cohort ids on the curriculum, split into [visible, hidden].
   def split(curriculum_id)
     @by_curriculum[curriculum_id] ||= begin

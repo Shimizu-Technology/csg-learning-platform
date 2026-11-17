@@ -96,23 +96,25 @@ export const demoStaffCurricula: StaffCurriculumSummary[] = [{
 }];
 
 export const demoStudentProgress: StudentProgressDetail = {
+  status: { label: 'Work to review', needs_attention: true, reasons: [{ code: 'review', label: '1 latest attempt waiting for review', since: ago(1) }], ungraded_count: 1, redo_count: 1, help_request_count: 0, active_intervention_count: 1, active_intervention_id: 61, next_review_submission_id: 31 },
+  media_summary: { recordings_completed: 1, recordings_total: 2, lesson_videos_completed: 0, lesson_videos_total: 1, videos_completed: 1 },
   enrollment: { id: 1, status: 'active' },
   user: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com', github_username: 'mayasantos', avatar_url: null, last_sign_in_at: ago(1), last_seen_at: ago(1) },
   cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active' },
-  learning_evidence_scope: { kind: 'curriculum', curriculum_id: 3, curriculum_name: 'Full-Stack Web Development', enrollment_count: 1, shared_across_enrollments: false },
+  learning_evidence_scope: { kind: 'enrollment', curriculum_id: 3, curriculum_name: 'Full-Stack Web Development', enrollment_count: 1, shared_across_enrollments: false },
   overall_progress: { completed: 19, total: 41, percentage: 46 },
   recent_activity: [
     { content_block_id: 203, block_title: 'Responsive card grid', block_type: 'exercise', completed_at: ago(1) },
     { content_block_id: 202, block_title: 'Layout checklist', block_type: 'checkpoint', completed_at: ago(2) },
   ],
   modules: [{
-    id: 10, name: 'Frontend Foundations', module_type: 'course', position: 1, total_blocks: 21, completed_blocks: 14, progress_percentage: 67,
+    id: 10, name: 'Frontend Foundations', module_type: 'course', position: 1, completed_lessons: 1, total_lessons: 2, total_blocks: 21, completed_blocks: 14, progress_percentage: 67,
     lessons: [
       { id: 100, title: 'HTML and semantic structure', lesson_type: 'lesson', available: true, total_blocks: 4, completed_blocks: 4, completed: true, blocks: [{ id: 198, title: 'Accessible form audit', block_type: 'exercise', status: 'completed', completed_at: ago(3), submission: { id: 30, grade: 'R', feedback: 'Connect every error message with aria-describedby.', submitted_at: ago(3), graded_at: ago(2) } }] },
       { id: 101, title: 'Responsive layouts with Grid', lesson_type: 'lesson', available: true, total_blocks: 5, completed_blocks: 3, completed: false, blocks: [{ id: 203, title: 'Responsive card grid', block_type: 'exercise', status: 'completed', completed_at: ago(1), submission: { id: 31, grade: null, feedback: null, submitted_at: ago(1), graded_at: null } }] },
     ],
   }, {
-    id: 11, name: 'JavaScript Applications', module_type: 'course', position: 2, total_blocks: 20, completed_blocks: 5, progress_percentage: 25, lessons: [],
+    id: 11, name: 'JavaScript Applications', module_type: 'course', position: 2, completed_lessons: 0, total_lessons: 0, total_blocks: 20, completed_blocks: 5, progress_percentage: 25, lessons: [],
   }],
 };
 

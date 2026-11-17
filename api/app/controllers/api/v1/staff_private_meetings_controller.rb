@@ -14,15 +14,24 @@ module Api
       # another host's slots, bookings or students.
       def index
         configs = PrivateMeetingConfig.includes(:cohort, :instructor).order(created_at: :desc)
-        configs = configs.where(instructor_id: current_user.id, cohort_id: current_user.accessible_cohorts.select(:id)) unless current_user.admin?
+        configs = configs.where(instructor_id: current_user.id, cohort_id: staff_cohort_scope.visible_cohorts.select(:id)) unless current_user.admin?
+        configs = configs.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
         configs = configs.to_a
         cohort_ids = configs.map(&:cohort_id)
         slots = PrivateMeetingSlot.active.where(private_meeting_config_id: configs.map(&:id)).includes(:instructor).order(:starts_at).to_a.group_by(&:private_meeting_config_id)
-        bookings = PrivateMeetingBooking.where(cohort_id: cohort_ids).includes(:instructor, :student).order(:starts_at).to_a.group_by(&:cohort_id)
+        # Capacity is independent of the student/history filter. Another
+        # learner's confirmed booking still occupies its slot.
+        occupied = PrivateMeetingBooking.where(cohort_id: cohort_ids, status: :confirmed)
+          .pluck(:cohort_id, :private_meeting_slot_id).group_by(&:first)
+          .transform_values { |pairs| pairs.map(&:last) }
+        booking_scope = PrivateMeetingBooking.where(cohort_id: cohort_ids)
+        booking_scope = booking_scope.where(instructor_id: current_user.id) unless current_user.admin?
+        booking_scope = booking_scope.where(student_id: params[:student_id]) if params[:student_id].present?
+        bookings = booking_scope.includes(:instructor, :student).order(:starts_at).to_a.group_by(&:cohort_id)
         render json: {
           cohorts: configs.map do |config|
             cohort_bookings = bookings.fetch(config.cohort_id, [])
-            booked_ids = cohort_bookings.select(&:confirmed?).map(&:private_meeting_slot_id)
+            booked_ids = occupied.fetch(config.cohort_id, [])
             {
               id: config.cohort_id,
               name: config.cohort.name,
@@ -45,7 +54,7 @@ module Api
 
       def update
         booking = PrivateMeetingBooking.includes(cohort: :private_meeting_config).find(params[:id])
-        unless current_user.admin? || (booking.instructor_id == current_user.id && current_user.can_teach_cohort?(booking.cohort))
+        unless current_user.admin? || (booking.instructor_id == current_user.id && staff_cohort_scope.visible?(booking.cohort_id))
           render_forbidden("This meeting belongs to another instructor")
           return
         end
@@ -70,13 +79,17 @@ module Api
 
       private
 
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
+      end
+
       # Running cohorts this instructor teaches with meetings switched on that
       # they don't host. Self-paced courses have no meetings.
       def other_cohorts(hosted_cohort_ids)
         return [] if current_user.admin?
 
         school = FeatureSwitches.school
-        current_user.accessible_cohorts.where(status: %i[upcoming active]).where.not(id: hosted_cohort_ids)
+        staff_cohort_scope.visible_cohorts.where(status: %i[upcoming active]).where.not(id: hosted_cohort_ids)
           .includes(private_meeting_config: :instructor).order(:start_date, :id).to_a
           .reject { |cohort| cohort.self_paced? || !FeatureSwitches.for(cohort: cohort, school: school)["private_meetings"] }
           .map do |cohort|

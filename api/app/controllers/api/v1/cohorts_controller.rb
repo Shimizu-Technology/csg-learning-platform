@@ -257,8 +257,12 @@ module Api
 
       private
 
+      def staff_cohort_scope
+        @staff_cohort_scope ||= StaffCohortScope.new(current_user)
+      end
+
       def authorize_staff_cohort!
-        return if current_user.can_teach_cohort?(@cohort)
+        return if staff_cohort_scope.visible?(@cohort.id)
 
         render_forbidden("Cannot access this cohort")
       end
@@ -763,7 +767,8 @@ module Api
         end
 
         if include_modules
-          active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module)
+          learning = CohortLearningProjection.new(cohort: cohort).call
+          active_enrollments = cohort.enrollments.active.joins(:user).merge(User.not_archived).includes(module_assignments: :curriculum_module)
           assignment_index = active_enrollments.each_with_object(Hash.new { |h, k| h[k] = [] }) do |enrollment, hash|
             enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
           end
@@ -792,7 +797,7 @@ module Api
               repository_name: mod_gh["repository_name"].presence || cohort.repository_name,
               week_count: mod.week_count,
               submission_windows: module_submission_windows_json(cohort, mod, module_start_date)
-            }
+            }.merge(learning.fetch(mod.id))
           end
         end
 

@@ -1,3 +1,4 @@
+import { useBackLink } from '../../lib/recordOrigin'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -34,6 +35,7 @@ import { TERMS } from '../../lib/glossary'
 import { FOLLOW_UP_TRIGGER_LABELS, followUpLabel } from '../../lib/followUpLabels'
 
 export function SupportQueue() {
+  const back = useBackLink({ returnTo: '/admin', returnLabel: 'Today' })
   const { selectedCohort, cohorts = [] } = useCohortContext()
   const { schoolFeatures } = useAuthContext()
   const interventionsEnabled = (selectedCohort?.features?.interventions ?? schoolFeatures?.interventions) !== false
@@ -43,8 +45,8 @@ export function SupportQueue() {
   const scopeFilters = supportFiltersFromSearch(searchParams)
   const cohortId = scopeFilters.cohortId ?? undefined
   // Help on one lesson or module, from a content page's "open help" count (L-3.2).
-  const help = { lessonId: scopeFilters.lessonId, moduleId: scopeFilters.lessonId ? null : scopeFilters.moduleId }
-  const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(`${cohortId ?? ''}|${help.lessonId ?? ''}|${help.moduleId ?? ''}`, async () => {
+  const help = { lessonId: scopeFilters.lessonId, moduleId: scopeFilters.lessonId ? null : scopeFilters.moduleId, ...(scopeFilters.studentId ? { studentId: scopeFilters.studentId } : {}) }
+  const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(`${cohortId ?? ''}|${help.lessonId ?? ''}|${help.moduleId ?? ''}|${help.studentId ?? ''}`, async () => {
     const result = await api.getSupportQueue(cohortId, undefined, help)
     return { data: result.data?.support_queue, error: result.error, fromCache: result.fromCache }
   })
@@ -151,6 +153,7 @@ export function SupportQueue() {
 
   return (
     <div className="app-page-wide">
+      {!back.fallback && <Link to={back.to} className="app-link mb-4 inline-flex min-h-11 items-center">{back.label}</Link>}
       <PageHeader
         title="Support"
         description={<>{queue.summary.open_help_count === 1 ? '1 open request' : `${queue.summary.open_help_count} open requests`}{cohortId ? <> in {cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort'}</> : null} · Student requests first, then signals from current learning activity</>}

@@ -9,7 +9,15 @@ module Api
 
       # GET /api/v1/direct_conversations
       def index
-        conversations = DirectConversation.visible_for(current_user)
+        scope = DirectConversation.visible_for(current_user)
+        if params[:cohort_id].present?
+          scope = scope.where(cohort_id: params[:cohort_id])
+          scope = scope.where(cohort_id: StaffCohortScope.new(current_user).visible_cohorts.select(:id)) if current_user.staff?
+        end
+        if params[:student_id].present?
+          scope = scope.where(id: DirectConversationMember.where(user_id: params[:student_id]).select(:direct_conversation_id))
+        end
+        conversations = scope
           .includes({ workspace: :cohort }, :cohort, :users)
           .to_a
         members = DirectConversationMember.where(direct_conversation_id: conversations.map(&:id), user: current_user)

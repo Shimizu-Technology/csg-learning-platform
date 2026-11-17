@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API — migrated transport contracts",
+    "title": "CSG Learning API \u2014 migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -694,7 +694,25 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       },
       "post": {
         "responses": {
@@ -3236,6 +3254,126 @@
         }
       }
     },
+    "/api/v1/progress/student/{user_id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful staff response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentWorkspaceProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/progress/student/{user_id}/communication": {
+      "get": {
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful staff response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentCommunicationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful staff response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortWorkspaceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/learning_insights": {
+      "get": {
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Learning evidence with link context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearningInsightContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/enrollments/{enrollment_id}/learning_plan": {
       "parameters": [
         {
@@ -3299,13 +3437,31 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       }
     },
     "/api/v1/help_requests/{help_request_id}/replies": {
       "post": {
         "summary": "Reply to a help request (staff)",
-        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
+        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8\u201364 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
         "responses": {
           "201": {
             "description": "Reply saved",
@@ -3323,6 +3479,33 @@
             "name": "help_request_id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/support_queue": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Scoped staff support queue"
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "integer"
             }
@@ -10615,7 +10798,7 @@
           },
           "status_label": {
             "type": "string",
-            "description": "The learner’s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
+            "description": "The learner\u2019s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
           },
           "released_blocks": {
             "type": "number"
@@ -10791,6 +10974,15 @@
             "type": "integer"
           },
           "submissions_this_week": {
+            "type": "integer"
+          },
+          "next_review_submission_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "active_intervention_count": {
             "type": "integer"
           }
         },
@@ -15276,6 +15468,2273 @@
           "students",
           "module_grids",
           "lesson"
+        ],
+        "additionalProperties": false
+      },
+      "StudentWorkspaceStatus": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "needs_attention": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "since": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "since"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "ungraded_count": {
+            "type": "integer"
+          },
+          "redo_count": {
+            "type": "integer"
+          },
+          "help_request_count": {
+            "type": "integer"
+          },
+          "next_review_submission_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "active_intervention_count": {
+            "type": "integer"
+          },
+          "active_intervention_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "needs_attention",
+          "reasons",
+          "ungraded_count",
+          "redo_count",
+          "help_request_count",
+          "next_review_submission_id",
+          "active_intervention_count",
+          "active_intervention_id"
+        ],
+        "additionalProperties": false
+      },
+      "StudentWorkspaceEnrollment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "cohort_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "cohort_name",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "StudentMediaSummary": {
+        "type": "object",
+        "properties": {
+          "recordings_completed": {
+            "type": "integer"
+          },
+          "recordings_total": {
+            "type": "integer"
+          },
+          "lesson_videos_completed": {
+            "type": "integer"
+          },
+          "lesson_videos_total": {
+            "type": "integer"
+          },
+          "videos_completed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "recordings_completed",
+          "recordings_total",
+          "lesson_videos_completed",
+          "lesson_videos_total",
+          "videos_completed"
+        ],
+        "additionalProperties": false
+      },
+      "StudentWorkspaceProgressResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudentWorkspaceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enrollments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentWorkspaceEnrollment"
+            }
+          },
+          "media_summary": {
+            "$ref": "#/components/schemas/StudentMediaSummary"
+          },
+          "personal_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalLearningPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "continue_lesson": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weekly_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WeeklyPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enrollment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "restart_version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "access_expires_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "support_expires_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "first_opened_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "module_assignments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "module_id": {
+                      "type": "integer"
+                    },
+                    "module_name": {
+                      "type": "string"
+                    },
+                    "module_type": {
+                      "type": "string"
+                    },
+                    "unlocked": {
+                      "type": "boolean"
+                    },
+                    "unlock_date_override": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "next_unlock_date": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "module_id",
+                    "module_name",
+                    "module_type",
+                    "unlocked",
+                    "unlock_date_override",
+                    "available",
+                    "next_unlock_date"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "restart_version",
+              "status",
+              "access_expires_at",
+              "support_expires_at",
+              "first_opened_at",
+              "module_assignments"
+            ],
+            "additionalProperties": false
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "github_username": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "avatar_url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "last_sign_in_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "last_seen_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "last_active_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "email",
+              "github_username",
+              "avatar_url",
+              "last_sign_in_at",
+              "last_seen_at",
+              "last_active_at"
+            ],
+            "additionalProperties": false
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "start_date": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "enum": [
+                  "program",
+                  "guided",
+                  "self_paced"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "start_date",
+              "status",
+              "course_delivery"
+            ],
+            "additionalProperties": false
+          },
+          "learning_evidence_scope": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "enrollment"
+              },
+              "curriculum_id": {
+                "type": "integer"
+              },
+              "curriculum_name": {
+                "type": "string"
+              },
+              "enrollment_count": {
+                "type": "integer"
+              },
+              "shared_across_enrollments": {
+                "const": false
+              }
+            },
+            "required": [
+              "kind",
+              "curriculum_id",
+              "curriculum_name",
+              "enrollment_count",
+              "shared_across_enrollments"
+            ],
+            "additionalProperties": false
+          },
+          "overall_progress": {
+            "type": "object",
+            "properties": {
+              "completed": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "completed_lessons": {
+                "type": "integer"
+              },
+              "total_lessons": {
+                "type": "integer"
+              },
+              "percentage": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "completed",
+              "total",
+              "completed_lessons",
+              "total_lessons",
+              "percentage"
+            ],
+            "additionalProperties": false
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "module_type": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "integer"
+                },
+                "total_blocks": {
+                  "type": "integer"
+                },
+                "completed_blocks": {
+                  "type": "integer"
+                },
+                "progress_percentage": {
+                  "type": "number"
+                },
+                "completed_lessons": {
+                  "type": "integer"
+                },
+                "total_lessons": {
+                  "type": "integer"
+                },
+                "lessons": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "lesson_type": {
+                        "type": "string"
+                      },
+                      "position": {
+                        "type": "integer"
+                      },
+                      "release_day": {
+                        "type": "integer"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "review_status": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "learner_status": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/LearnerLessonStatus"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "submission_window": {
+                        "$ref": "#/components/schemas/SubmissionWindowStatus"
+                      },
+                      "assigned": {
+                        "type": "boolean"
+                      },
+                      "available": {
+                        "type": "boolean"
+                      },
+                      "unlock_date": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "total_blocks": {
+                        "type": "integer"
+                      },
+                      "completed_blocks": {
+                        "type": "integer"
+                      },
+                      "completed": {
+                        "type": "boolean"
+                      },
+                      "lesson_assignment": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "unlocked": {
+                                "type": "boolean"
+                              },
+                              "unlock_date_override": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "unlocked",
+                              "unlock_date_override"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "blocks": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "title": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "block_type": {
+                              "type": "string"
+                            },
+                            "position": {
+                              "type": "integer"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "completed_at": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "submission": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "integer"
+                                    },
+                                    "grade": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "feedback": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "submitted_at": {
+                                      "type": "string"
+                                    },
+                                    "graded_at": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "grade",
+                                    "feedback",
+                                    "submitted_at",
+                                    "graded_at"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "block_type",
+                            "position",
+                            "status",
+                            "completed_at",
+                            "submission"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "lesson_type",
+                      "position",
+                      "release_day",
+                      "required",
+                      "review_status",
+                      "learner_status",
+                      "submission_window",
+                      "assigned",
+                      "available",
+                      "unlock_date",
+                      "total_blocks",
+                      "completed_blocks",
+                      "completed",
+                      "lesson_assignment",
+                      "blocks"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "module_type",
+                "position",
+                "total_blocks",
+                "completed_blocks",
+                "progress_percentage",
+                "completed_lessons",
+                "total_lessons",
+                "lessons"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "recent_activity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content_block_id": {
+                  "type": "integer"
+                },
+                "block_title": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "block_type": {
+                  "type": "string"
+                },
+                "completed_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "content_block_id",
+                "block_title",
+                "block_type",
+                "completed_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "can_message": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "enrollments",
+          "media_summary",
+          "personal_plan",
+          "continue_lesson",
+          "weekly_plan",
+          "enrollment",
+          "user",
+          "cohort",
+          "learning_evidence_scope",
+          "overall_progress",
+          "modules",
+          "recent_activity",
+          "can_message"
+        ],
+        "additionalProperties": false
+      },
+      "CohortModuleLearning": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "assigned_count": {
+            "type": "integer"
+          },
+          "assigned_enrollment_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "completed_lessons": {
+            "type": "integer"
+          },
+          "total_lessons": {
+            "type": "integer"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "module_type": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "lessons_count": {
+            "type": "integer"
+          },
+          "assigned": {
+            "type": "boolean"
+          },
+          "default_unlocked": {
+            "type": "boolean"
+          },
+          "unlocked_count": {
+            "type": "integer"
+          },
+          "accessible_count": {
+            "type": "integer"
+          },
+          "module_start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uses_default_start_date": {
+            "type": "boolean"
+          },
+          "requires_github": {
+            "type": "boolean"
+          },
+          "repository_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week_count": {
+            "type": "integer"
+          },
+          "submission_windows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionWindowStatus"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "assigned_count",
+          "assigned_enrollment_ids",
+          "completed_lessons",
+          "total_lessons",
+          "progress_percentage",
+          "name",
+          "module_type",
+          "position",
+          "lessons_count",
+          "assigned",
+          "default_unlocked",
+          "unlocked_count",
+          "accessible_count",
+          "module_start_date",
+          "uses_default_start_date",
+          "requires_github",
+          "repository_name",
+          "week_count",
+          "submission_windows"
+        ],
+        "additionalProperties": false
+      },
+      "CohortWorkspaceResponse": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "features": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "description": "Feature-switch map; feature names can evolve."
+              },
+              "name": {
+                "type": "string"
+              },
+              "cohort_type": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "type": "string"
+              },
+              "public_checkout_enabled": {
+                "type": "boolean"
+              },
+              "offering_readiness": {
+                "type": "object",
+                "properties": {
+                  "curriculum_assigned": {
+                    "type": "boolean"
+                  },
+                  "price_set": {
+                    "type": "boolean"
+                  },
+                  "support_instructor_set": {
+                    "type": "boolean"
+                  },
+                  "published_content": {
+                    "type": "boolean"
+                  },
+                  "cohort_active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "curriculum_assigned",
+                  "price_set",
+                  "support_instructor_set",
+                  "published_content",
+                  "cohort_active"
+                ],
+                "additionalProperties": false
+              },
+              "instructor_assigned": {
+                "type": "boolean"
+              },
+              "public_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "public_description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "public_image_url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stripe_price_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "public_price_cents": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "support_instructor_id": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "self_paced_access_months": {
+                "type": "integer"
+              },
+              "self_paced_support_weeks": {
+                "type": "integer"
+              },
+              "guided_access_ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "guided_support_ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "curriculum_id": {
+                "type": "integer"
+              },
+              "curriculum_name": {
+                "type": "string"
+              },
+              "start_date": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "end_date": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "github_organization_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "repository_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requires_github": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              },
+              "settings": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Stored cohort settings; intentionally arbitrary metadata."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enrolled_count": {
+                "type": "integer"
+              },
+              "active_count": {
+                "type": "integer"
+              },
+              "announcements": {
+                "type": "array",
+                "items": {
+                  "description": "Unstructured entries from legacy cohort settings; preserved as stored JSON."
+                }
+              },
+              "recordings": {
+                "type": "array",
+                "items": {
+                  "description": "Unstructured entries from legacy cohort settings; preserved as stored JSON."
+                }
+              },
+              "class_resources": {
+                "type": "array",
+                "items": {
+                  "description": "Unstructured entries from legacy cohort settings; preserved as stored JSON."
+                }
+              },
+              "office_hours": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "cohort_id": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "starts_at": {
+                      "type": "string"
+                    },
+                    "ends_at": {
+                      "type": "string"
+                    },
+                    "meeting_url": {
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "type": "string"
+                    },
+                    "recurrence": {
+                      "type": "string"
+                    },
+                    "event_kind": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "occurrences": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OfficeHourOccurrence"
+                      }
+                    },
+                    "created_by": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "full_name": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "full_name",
+                            "email"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "cohort_id",
+                    "title",
+                    "description",
+                    "starts_at",
+                    "ends_at",
+                    "meeting_url",
+                    "timezone",
+                    "recurrence",
+                    "event_kind",
+                    "active",
+                    "occurrences",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "office_hour_occurrences": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OfficeHourOccurrence"
+                }
+              },
+              "recording_library_count": {
+                "type": "integer"
+              },
+              "uploaded_recordings_count": {
+                "type": "integer"
+              },
+              "students": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "enrollment_id": {
+                      "type": "integer"
+                    },
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "full_name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "github_username": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "enrolled_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invited_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "joined_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "last_sign_in_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "last_seen_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "last_active_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invite_sent_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invite_expires_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invite_last_error": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invite_pending": {
+                      "type": "boolean"
+                    },
+                    "invite_delivery_status": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invite_state": {
+                      "type": "string"
+                    },
+                    "module_assignments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "module_id": {
+                            "type": "integer"
+                          },
+                          "module_name": {
+                            "type": "string"
+                          },
+                          "unlocked": {
+                            "type": "boolean"
+                          },
+                          "unlock_date_override": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "module_id",
+                          "module_name",
+                          "unlocked",
+                          "unlock_date_override"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "enrollment_id",
+                    "user_id",
+                    "full_name",
+                    "email",
+                    "github_username",
+                    "status",
+                    "enrolled_at",
+                    "invited_at",
+                    "joined_at",
+                    "last_sign_in_at",
+                    "last_seen_at",
+                    "last_active_at",
+                    "invite_sent_at",
+                    "invite_expires_at",
+                    "invite_last_error",
+                    "invite_pending",
+                    "invite_delivery_status",
+                    "invite_state",
+                    "module_assignments"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "modules": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CohortModuleLearning"
+                }
+              },
+              "public_slug": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "public_outcomes": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "public_duration": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "public_prerequisites": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "public_preview": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "features",
+              "name",
+              "cohort_type",
+              "course_delivery",
+              "public_checkout_enabled",
+              "offering_readiness",
+              "instructor_assigned",
+              "public_title",
+              "public_description",
+              "public_image_url",
+              "stripe_price_id",
+              "public_price_cents",
+              "support_instructor_id",
+              "self_paced_access_months",
+              "self_paced_support_weeks",
+              "guided_access_ends_on",
+              "guided_support_ends_on",
+              "curriculum_id",
+              "curriculum_name",
+              "start_date",
+              "end_date",
+              "github_organization_name",
+              "repository_name",
+              "requires_github",
+              "status",
+              "settings",
+              "enrolled_count",
+              "active_count",
+              "announcements",
+              "recordings",
+              "class_resources",
+              "office_hours",
+              "office_hour_occurrences",
+              "recording_library_count",
+              "uploaded_recordings_count",
+              "students",
+              "modules",
+              "public_slug",
+              "public_outcomes",
+              "public_duration",
+              "public_prerequisites",
+              "public_preview"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "cohort"
+        ],
+        "additionalProperties": false
+      },
+      "StudentCommunicationMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "direct_conversation_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "channel_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "parent_message_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "channel_name": {
+            "type": "string"
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "can_open": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "created_at",
+          "author_name",
+          "direct_conversation_id",
+          "channel_id",
+          "parent_message_id",
+          "blocked",
+          "can_open"
+        ],
+        "additionalProperties": false
+      },
+      "StudentCommunicationMeeting": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "starts_at": {
+            "type": "string"
+          },
+          "ends_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "instructor_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "starts_at",
+          "ends_at",
+          "status",
+          "instructor_name"
+        ],
+        "additionalProperties": false
+      },
+      "StudentCommunicationResponse": {
+        "type": "object",
+        "properties": {
+          "communication": {
+            "type": "object",
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StudentCommunicationMessage"
+                }
+              },
+              "channel_activity": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StudentCommunicationMessage"
+                }
+              },
+              "meetings": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StudentCommunicationMeeting"
+                }
+              },
+              "can_message": {
+                "type": "boolean"
+              },
+              "channels": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "messages",
+              "channel_activity",
+              "meetings",
+              "can_message",
+              "channels"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "communication"
+        ],
+        "additionalProperties": false
+      },
+      "LearningInsightEvidenceContext": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "rubric_criterion",
+              "aligned_submission",
+              "knowledge_check"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string"
+          },
+          "submission_id": {
+            "type": "integer"
+          },
+          "knowledge_check_id": {
+            "type": "integer"
+          },
+          "attempt_id": {
+            "type": "integer"
+          },
+          "attempt_count": {
+            "type": "integer"
+          },
+          "content_block_id": {
+            "type": "integer"
+          },
+          "lesson_id": {
+            "type": "integer"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "current_submission": {
+            "type": "boolean"
+          },
+          "github_checks": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "passed": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "total",
+                  "passed",
+                  "failed",
+                  "pending"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "module_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "label",
+          "value",
+          "occurred_at",
+          "content_block_id",
+          "lesson_id",
+          "module_id",
+          "current_submission",
+          "github_checks",
+          "lesson_title",
+          "module_name"
+        ],
+        "additionalProperties": false
+      },
+      "LearningInsightContextResponse": {
+        "type": "object",
+        "properties": {
+          "learning_insights": {
+            "type": "object",
+            "properties": {
+              "generated_at": {
+                "type": "string"
+              },
+              "evidence_scope": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "enrollment"
+                  },
+                  "curriculum_id": {
+                    "type": "integer"
+                  },
+                  "curriculum_name": {
+                    "type": "string"
+                  },
+                  "completion_and_watch_time_excluded": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "kind",
+                  "curriculum_id",
+                  "curriculum_name",
+                  "completion_and_watch_time_excluded"
+                ],
+                "additionalProperties": false
+              },
+              "cohort": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              "summary": {
+                "type": "object",
+                "properties": {
+                  "objective_count": {
+                    "type": "integer"
+                  },
+                  "learner_count": {
+                    "type": "integer"
+                  },
+                  "demonstrated_count": {
+                    "type": "integer"
+                  },
+                  "developing_count": {
+                    "type": "integer"
+                  },
+                  "needs_revision_count": {
+                    "type": "integer"
+                  },
+                  "not_evidenced_count": {
+                    "type": "integer"
+                  },
+                  "open_redo_count": {
+                    "type": "integer"
+                  },
+                  "revision_pattern_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "objective_count",
+                  "learner_count",
+                  "demonstrated_count",
+                  "developing_count",
+                  "needs_revision_count",
+                  "not_evidenced_count",
+                  "open_redo_count",
+                  "revision_pattern_count"
+                ],
+                "additionalProperties": false
+              },
+              "rule": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "string"
+                  },
+                  "demonstrated": {
+                    "type": "string"
+                  },
+                  "needs_revision": {
+                    "type": "string"
+                  },
+                  "developing": {
+                    "type": "string"
+                  },
+                  "not_evidenced": {
+                    "type": "string"
+                  },
+                  "automation_boundary": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "version",
+                  "demonstrated",
+                  "needs_revision",
+                  "developing",
+                  "not_evidenced",
+                  "automation_boundary"
+                ],
+                "additionalProperties": false
+              },
+              "objectives": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success_criteria": {
+                      "type": "string"
+                    },
+                    "demonstrated_count": {
+                      "type": "integer"
+                    },
+                    "learner_count": {
+                      "type": "integer"
+                    },
+                    "demonstrated_percentage": {
+                      "type": "number"
+                    },
+                    "status_counts": {
+                      "type": "object",
+                      "properties": {
+                        "demonstrated": {
+                          "type": "integer"
+                        },
+                        "developing": {
+                          "type": "integer"
+                        },
+                        "needs_revision": {
+                          "type": "integer"
+                        },
+                        "not_evidenced": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "demonstrated",
+                        "developing",
+                        "needs_revision",
+                        "not_evidenced"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "students": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "enrollment_id": {
+                            "type": "integer"
+                          },
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "full_name": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "full_name",
+                              "email"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "status": {
+                            "enum": [
+                              "demonstrated",
+                              "developing",
+                              "needs_revision",
+                              "not_evidenced"
+                            ]
+                          },
+                          "evidence_count": {
+                            "type": "integer"
+                          },
+                          "last_evidence_at": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/LearningInsightEvidenceContext"
+                            }
+                          }
+                        },
+                        "required": [
+                          "enrollment_id",
+                          "user",
+                          "status",
+                          "evidence_count",
+                          "last_evidence_at",
+                          "evidence"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "title",
+                    "description",
+                    "success_criteria",
+                    "demonstrated_count",
+                    "learner_count",
+                    "demonstrated_percentage",
+                    "status_counts",
+                    "students"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "revision_patterns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "content_block": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "lesson": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "module": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "objective_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "learners_with_work": {
+                      "type": "integer"
+                    },
+                    "affected_learner_count": {
+                      "type": "integer"
+                    },
+                    "open_redo_count": {
+                      "type": "integer"
+                    },
+                    "repeat_attempt_count": {
+                      "type": "integer"
+                    },
+                    "failed_check_count": {
+                      "type": "integer"
+                    },
+                    "redo_percentage": {
+                      "type": "number"
+                    },
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "submission_id": {
+                            "type": "integer"
+                          },
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "full_name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "full_name"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "grade": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "attempt_count": {
+                            "type": "integer"
+                          },
+                          "github_checks": {
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "integer"
+                              },
+                              "passed": {
+                                "type": "integer"
+                              },
+                              "failed": {
+                                "type": "integer"
+                              },
+                              "pending": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "total",
+                              "passed",
+                              "failed",
+                              "pending"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "submission_id",
+                          "user",
+                          "grade",
+                          "attempt_count",
+                          "github_checks",
+                          "updated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "content_block",
+                    "lesson",
+                    "module",
+                    "objective_ids",
+                    "learners_with_work",
+                    "affected_learner_count",
+                    "open_redo_count",
+                    "repeat_attempt_count",
+                    "failed_check_count",
+                    "redo_percentage",
+                    "records"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "generated_at",
+              "evidence_scope",
+              "cohort",
+              "summary",
+              "rule",
+              "objectives",
+              "revision_patterns"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "learning_insights"
         ],
         "additionalProperties": false
       },

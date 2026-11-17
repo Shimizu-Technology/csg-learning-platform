@@ -1000,7 +1000,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    cohort_id?: number;
+                    student_id?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4279,6 +4282,158 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/progress/student/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    cohort_id?: number;
+                };
+                header?: never;
+                path: {
+                    user_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful staff response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentWorkspaceProgressResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/progress/student/{user_id}/communication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    cohort_id: number;
+                };
+                header?: never;
+                path: {
+                    user_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful staff response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentCommunicationResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful staff response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortWorkspaceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/learning_insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Learning evidence with link context */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearningInsightContextResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/enrollments/{enrollment_id}/learning_plan": {
         parameters: {
             query?: never;
@@ -4352,7 +4507,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    cohort_id?: number;
+                    student_id?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4413,6 +4571,42 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support_queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    cohort_id?: number;
+                    student_id?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Scoped staff support queue */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6082,6 +6276,8 @@ export interface components {
             assigned_module_count: number;
             blocks_this_week: number;
             submissions_this_week: number;
+            next_review_submission_id?: number | null;
+            active_intervention_count?: number;
         };
         InterventionStatus: "open" | "contacted" | "waiting_on_student" | "monitoring" | "resolved" | "canceled";
         OfficeHourOccurrence: {
@@ -7053,6 +7249,433 @@ export interface components {
             module_grids: components["schemas"]["GradingQueueModuleGrid"][];
             /** @description The lesson filter's title, when one is set. */
             lesson: components["schemas"]["GradingQueueLesson"] | null;
+        };
+        StudentWorkspaceStatus: {
+            label: string;
+            needs_attention: boolean;
+            reasons: {
+                code: string;
+                label: string;
+                since: string | null;
+            }[];
+            ungraded_count: number;
+            redo_count: number;
+            help_request_count: number;
+            next_review_submission_id: number | null;
+            active_intervention_count: number;
+            active_intervention_id: number | null;
+        };
+        StudentWorkspaceEnrollment: {
+            id: number;
+            cohort_id: number;
+            cohort_name: string;
+            status: string;
+        };
+        StudentMediaSummary: {
+            recordings_completed: number;
+            recordings_total: number;
+            lesson_videos_completed: number;
+            lesson_videos_total: number;
+            videos_completed: number;
+        };
+        StudentWorkspaceProgressResponse: {
+            status: components["schemas"]["StudentWorkspaceStatus"] | null;
+            enrollments: components["schemas"]["StudentWorkspaceEnrollment"][];
+            media_summary: components["schemas"]["StudentMediaSummary"];
+            personal_plan: components["schemas"]["PersonalLearningPlan"] | null;
+            continue_lesson: {
+                id: number;
+                title: string;
+            } | null;
+            weekly_plan: components["schemas"]["WeeklyPlan"] | null;
+            enrollment: {
+                id: number;
+                restart_version: string | null;
+                status: string;
+                access_expires_at: string | null;
+                support_expires_at: string | null;
+                first_opened_at: string | null;
+                module_assignments: {
+                    id: number;
+                    module_id: number;
+                    module_name: string;
+                    module_type: string;
+                    unlocked: boolean;
+                    unlock_date_override: string | null;
+                    available: boolean;
+                    next_unlock_date: string | null;
+                }[];
+            };
+            user: {
+                id: number;
+                full_name: string;
+                email: string;
+                github_username: string | null;
+                avatar_url: string | null;
+                last_sign_in_at: string | null;
+                last_seen_at: string | null;
+                last_active_at: string | null;
+            };
+            cohort: {
+                id: number;
+                name: string;
+                start_date: string | null;
+                status: string;
+                /** @enum {unknown} */
+                course_delivery: "program" | "guided" | "self_paced";
+            };
+            learning_evidence_scope: {
+                /** @constant */
+                kind: "enrollment";
+                curriculum_id: number;
+                curriculum_name: string;
+                enrollment_count: number;
+                /** @constant */
+                shared_across_enrollments: false;
+            };
+            overall_progress: {
+                completed: number;
+                total: number;
+                completed_lessons: number;
+                total_lessons: number;
+                percentage: number;
+            };
+            modules: {
+                id: number;
+                name: string;
+                module_type: string;
+                position: number;
+                total_blocks: number;
+                completed_blocks: number;
+                progress_percentage: number;
+                completed_lessons: number;
+                total_lessons: number;
+                lessons: {
+                    id: number;
+                    title: string;
+                    lesson_type: string;
+                    position: number;
+                    release_day: number;
+                    required: boolean;
+                    review_status: string | null;
+                    learner_status: components["schemas"]["LearnerLessonStatus"] | null;
+                    submission_window: components["schemas"]["SubmissionWindowStatus"];
+                    assigned: boolean;
+                    available: boolean;
+                    unlock_date: string | null;
+                    total_blocks: number;
+                    completed_blocks: number;
+                    completed: boolean;
+                    lesson_assignment: {
+                        id: number;
+                        unlocked: boolean;
+                        unlock_date_override: string | null;
+                    } | null;
+                    blocks: {
+                        id: number;
+                        title: string | null;
+                        block_type: string;
+                        position: number;
+                        status: string;
+                        completed_at: string | null;
+                        submission: {
+                            id: number;
+                            grade: string | null;
+                            feedback: string | null;
+                            submitted_at: string;
+                            graded_at: string | null;
+                        } | null;
+                    }[];
+                }[];
+            }[];
+            recent_activity: {
+                content_block_id: number;
+                block_title: string | null;
+                block_type: string;
+                completed_at: string | null;
+            }[];
+            can_message: boolean;
+        };
+        CohortModuleLearning: {
+            id: number;
+            assigned_count: number;
+            assigned_enrollment_ids: number[];
+            completed_lessons: number;
+            total_lessons: number;
+            progress_percentage: number;
+            name: string;
+            module_type: string;
+            position: number;
+            lessons_count: number;
+            assigned: boolean;
+            default_unlocked: boolean;
+            unlocked_count: number;
+            accessible_count: number;
+            module_start_date: string | null;
+            uses_default_start_date: boolean;
+            requires_github: boolean;
+            repository_name: string | null;
+            week_count: number;
+            submission_windows: components["schemas"]["SubmissionWindowStatus"][];
+        };
+        CohortWorkspaceResponse: {
+            cohort: {
+                id: number;
+                /** @description Feature-switch map; feature names can evolve. */
+                features: {
+                    [key: string]: boolean;
+                };
+                name: string;
+                cohort_type: string;
+                course_delivery: string;
+                public_checkout_enabled: boolean;
+                offering_readiness: {
+                    curriculum_assigned: boolean;
+                    price_set: boolean;
+                    support_instructor_set: boolean;
+                    published_content: boolean;
+                    cohort_active: boolean;
+                };
+                instructor_assigned: boolean;
+                public_title: string | null;
+                public_description: string | null;
+                public_image_url: string | null;
+                stripe_price_id: string | null;
+                public_price_cents: number | null;
+                support_instructor_id: number | null;
+                self_paced_access_months: number;
+                self_paced_support_weeks: number;
+                guided_access_ends_on: string | null;
+                guided_support_ends_on: string | null;
+                curriculum_id: number;
+                curriculum_name: string;
+                start_date: string | null;
+                end_date: string | null;
+                github_organization_name: string | null;
+                repository_name: string | null;
+                requires_github: boolean;
+                status: string;
+                settings: {
+                    [key: string]: unknown;
+                } | null;
+                enrolled_count: number;
+                active_count: number;
+                announcements: unknown[];
+                recordings: unknown[];
+                class_resources: unknown[];
+                office_hours: {
+                    id: number;
+                    cohort_id: number;
+                    title: string;
+                    description: string | null;
+                    starts_at: string;
+                    ends_at: string;
+                    meeting_url: string;
+                    timezone: string;
+                    recurrence: string;
+                    event_kind: string;
+                    active: boolean;
+                    occurrences: components["schemas"]["OfficeHourOccurrence"][];
+                    created_by: {
+                        id: number;
+                        full_name: string;
+                        email: string;
+                    } | null;
+                }[];
+                office_hour_occurrences: components["schemas"]["OfficeHourOccurrence"][];
+                recording_library_count: number;
+                uploaded_recordings_count: number;
+                students: {
+                    enrollment_id: number;
+                    user_id: number;
+                    full_name: string;
+                    email: string;
+                    github_username: string | null;
+                    status: string;
+                    enrolled_at: string | null;
+                    invited_at: string | null;
+                    joined_at: string | null;
+                    last_sign_in_at: string | null;
+                    last_seen_at: string | null;
+                    last_active_at: string | null;
+                    invite_sent_at: string | null;
+                    invite_expires_at: string | null;
+                    invite_last_error: string | null;
+                    invite_pending: boolean;
+                    invite_delivery_status: string | null;
+                    invite_state: string;
+                    module_assignments: {
+                        id: number;
+                        module_id: number;
+                        module_name: string;
+                        unlocked: boolean;
+                        unlock_date_override: string | null;
+                    }[];
+                }[];
+                modules: components["schemas"]["CohortModuleLearning"][];
+                public_slug: string | null;
+                public_outcomes: string | null;
+                public_duration: string | null;
+                public_prerequisites: string | null;
+                public_preview: string | null;
+            };
+        };
+        StudentCommunicationMessage: {
+            id: number;
+            body: string | null;
+            created_at: string;
+            author_name: string;
+            direct_conversation_id: number | null;
+            channel_id: number | null;
+            parent_message_id: number | null;
+            channel_name?: string;
+            blocked: boolean;
+            can_open: boolean;
+        };
+        StudentCommunicationMeeting: {
+            id: number;
+            starts_at: string;
+            ends_at: string;
+            status: string;
+            instructor_name: string;
+        };
+        StudentCommunicationResponse: {
+            communication: {
+                messages: components["schemas"]["StudentCommunicationMessage"][];
+                channel_activity: components["schemas"]["StudentCommunicationMessage"][];
+                meetings: components["schemas"]["StudentCommunicationMeeting"][];
+                can_message: boolean;
+                channels: {
+                    id: number;
+                    name: string;
+                }[];
+            };
+        };
+        LearningInsightEvidenceContext: {
+            id: string;
+            /** @enum {unknown} */
+            kind: "rubric_criterion" | "aligned_submission" | "knowledge_check";
+            state: string;
+            label: string;
+            value: string;
+            occurred_at: string;
+            submission_id?: number;
+            knowledge_check_id?: number;
+            attempt_id?: number;
+            attempt_count?: number;
+            content_block_id: number;
+            lesson_id: number;
+            module_id: number;
+            current_submission: boolean;
+            github_checks: {
+                total: number;
+                passed: number;
+                failed: number;
+                pending: number;
+            } | null;
+            lesson_title: string;
+            module_name: string;
+        };
+        LearningInsightContextResponse: {
+            learning_insights: {
+                generated_at: string;
+                evidence_scope: {
+                    /** @constant */
+                    kind: "enrollment";
+                    curriculum_id: number;
+                    curriculum_name: string;
+                    /** @constant */
+                    completion_and_watch_time_excluded: true;
+                };
+                cohort: {
+                    id: number;
+                    name: string;
+                };
+                summary: {
+                    objective_count: number;
+                    learner_count: number;
+                    demonstrated_count: number;
+                    developing_count: number;
+                    needs_revision_count: number;
+                    not_evidenced_count: number;
+                    open_redo_count: number;
+                    revision_pattern_count: number;
+                };
+                rule: {
+                    version: string;
+                    demonstrated: string;
+                    needs_revision: string;
+                    developing: string;
+                    not_evidenced: string;
+                    automation_boundary: string;
+                };
+                objectives: {
+                    id: number;
+                    code: string;
+                    title: string;
+                    description: string | null;
+                    success_criteria: string;
+                    demonstrated_count: number;
+                    learner_count: number;
+                    demonstrated_percentage: number;
+                    status_counts: {
+                        demonstrated: number;
+                        developing: number;
+                        needs_revision: number;
+                        not_evidenced: number;
+                    };
+                    students: {
+                        enrollment_id: number;
+                        user: {
+                            id: number;
+                            full_name: string;
+                            email: string;
+                        };
+                        /** @enum {unknown} */
+                        status: "demonstrated" | "developing" | "needs_revision" | "not_evidenced";
+                        evidence_count: number;
+                        last_evidence_at: string | null;
+                        evidence: components["schemas"]["LearningInsightEvidenceContext"][];
+                    }[];
+                }[];
+                revision_patterns: {
+                    content_block: {
+                        id: number;
+                        title: string;
+                    };
+                    lesson: {
+                        id: number;
+                        title: string;
+                    };
+                    module: {
+                        id: number;
+                        name: string;
+                    };
+                    objective_ids: number[];
+                    learners_with_work: number;
+                    affected_learner_count: number;
+                    open_redo_count: number;
+                    repeat_attempt_count: number;
+                    failed_check_count: number;
+                    redo_percentage: number;
+                    records: {
+                        submission_id: number;
+                        user: {
+                            id: number;
+                            full_name: string;
+                        };
+                        grade: string | null;
+                        attempt_count: number;
+                        github_checks: {
+                            total: number;
+                            passed: number;
+                            failed: number;
+                            pending: number;
+                        };
+                        updated_at: string;
+                    }[];
+                }[];
+            };
         };
         LearningPlanMilestone: {
             title: string;

@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class LearningInsightsTest < ActionDispatch::IntegrationTest
+  include QueryCounter
   def setup
     @curriculum = Curriculum.create!(name: "Evidence curriculum")
     @objective = @curriculum.learning_objectives.create!(code: "WEB.1", title: "Ship a working interface", success_criteria: "I can ship and verify a working interface.", position: 0)
@@ -39,6 +41,8 @@ class LearningInsightsTest < ActionDispatch::IntegrationTest
     assert_equal 1, first.fetch("status_counts").fetch("needs_revision")
     redo_evidence = first.fetch("students").find { |student| student.dig("user", "id") == @redo_student.id }.fetch("evidence").first
     assert_equal "rubric_criterion", redo_evidence.fetch("kind")
+    assert_equal @lesson.title, redo_evidence.fetch("lesson_title")
+    assert_equal @mod.name, redo_evidence.fetch("module_name")
     assert redo_evidence.fetch("submission_id")
     assert_equal 1, redo_evidence.dig("github_checks", "failed")
     assert_equal redo_evidence.fetch("submission_id"), insights.fetch("revision_patterns").sole.fetch("records").sole.fetch("submission_id")
@@ -63,6 +67,30 @@ class LearningInsightsTest < ActionDispatch::IntegrationTest
 
     as_user(@staff) { get "/api/v1/cohorts/#{@cohort.id}/learning_insights", params: { user_id: @other_student.id }, headers: auth_headers }
     assert_response :not_found
+  end
+
+  test "objective name context stays flat across learners, modules and evidence" do
+    counts = [ 1, 5 ].map do |size|
+      size.times do |index|
+        mod = @curriculum.modules.create!(name: "Context #{size}-#{index}", position: size + index)
+        lesson = mod.lessons.create!(title: "Context lesson #{size}-#{index}", position: 0, release_day: 0)
+        block = lesson.content_blocks.create!(title: "Context work", block_type: :exercise, submission_type: :text_submission, position: 0)
+        ObjectiveAlignment.create!(learning_objective: @objective, lesson: lesson, content_block: block)
+        student = create_student("context_#{size}_#{index}", "context-#{size}-#{index}@example.com", "Test", "Context")
+        Submission.create!(user: student, enrollment: @cohort.enrollments.find_by!(user: student), content_block: block, text: "Work", grade: "A")
+      end
+      as_user(@staff) do
+        get "/api/v1/cohorts/#{@cohort.id}/learning_insights", headers: auth_headers
+        count_queries do
+          get "/api/v1/cohorts/#{@cohort.id}/learning_insights", headers: auth_headers
+          assert_response :success
+          evidence = response.parsed_body.fetch("learning_insights").fetch("objectives").flat_map { |objective| objective.fetch("students").flat_map { |student| student.fetch("evidence") } }
+          assert evidence.all? { |item| item["lesson_title"].present? && item["module_name"].present? }
+        end
+      end
+    end
+    puts "Learning insight context: #{counts.inspect}" if ENV["QUERY_COUNT_REPORT"]
+    assert_equal counts.first, counts.last, counts.inspect
   end
 
   private
