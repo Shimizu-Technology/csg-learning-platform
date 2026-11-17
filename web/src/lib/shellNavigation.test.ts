@@ -30,11 +30,14 @@ it('learner resolved switches override school defaults and hide optional feature
   expect(labels(nav)).not.toContain('My meetings')
 })
 
-it('the new student experience folds My cohort into Learn and keeps everything else', () => {
+it('the new student experience folds My cohort into Learn, adds My work and keeps everything else', () => {
   const before = labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: false }) }))
   const after = labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: true }) }))
   expect(before).toContain('My cohort')
-  expect(after).toEqual(before.filter(label => label !== 'My cohort'))
+  expect(before).not.toContain('My work')
+  const learn = before.indexOf('Learn')
+  expect(after).toEqual([...before.slice(0, learn + 1), 'My work', ...before.slice(learn + 1)].filter(label => label !== 'My cohort'))
+  expect(shellNavigation({ staff: false, admin: false, cohort: cohort(true, { student_experience_v2: true }) }).primary.find(item => item.label === 'My work')?.to).toMatch(/^\/my-work\?cohort_id=\d+$/)
   // A cached or older payload without the key keeps today's nav.
   expect(labels(shellNavigation({ staff: false, admin: false, cohort: cohort(true, {}), schoolFeatures: { student_experience_v2: true } }))).toEqual(before)
   expect(labels(shellNavigation({ staff: true, admin: true, cohort: cohort(true, { student_experience_v2: false }) }))).toEqual(labels(shellNavigation({ staff: true, admin: true, cohort: cohort(true) })))

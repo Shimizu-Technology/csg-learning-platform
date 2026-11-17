@@ -36,6 +36,8 @@ module LessonSerialization
         json[:required] = enrollment.lesson_required?(lesson)
         json[:cohort_id] = cohort.id
         json[:capabilities] = EnrollmentCapabilities.for(enrollment)
+        reviewer = MyWork.reviewer_for(cohort)
+        json[:reviewer] = reviewer && { id: reviewer.id, full_name: reviewer.full_name }
         mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
         requires_github = mod_gh["requires_github"] || false
         json[:requires_github] = requires_github
@@ -106,6 +108,8 @@ module LessonSerialization
               grade: s.grade,
               feedback: s.feedback,
               graded_at: s.graded_at,
+              # Who reviewed it, so feedback names the person (S-8); only an id and a name.
+              grader: s.grader && { id: s.grader.id, full_name: s.grader.full_name },
               github_issue_url: s.github_issue_url,
               github_code_url: s.github_code_url,
               repo_url: s.repo_url,

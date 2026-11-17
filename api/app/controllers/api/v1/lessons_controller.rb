@@ -43,6 +43,7 @@ module Api
 
           submission_map = current_user.submissions
             .where(enrollment_id: @lesson_enrollment.id, content_block_id: block_ids)
+            .includes(:grader)
             .order(created_at: :desc)
             .group_by(&:content_block_id)
 

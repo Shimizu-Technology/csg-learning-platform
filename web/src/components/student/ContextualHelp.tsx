@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CheckCircle2, CircleHelp, Clock3, Send, ShieldAlert, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { captureProductEvent } from '../../lib/analytics'
@@ -11,6 +12,7 @@ import { Badge } from '../ui/Badge'
 import { MarkdownText } from '../shared/MarkdownRenderer'
 import type { HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpUrgency, LearnerCapabilities } from '../../types/api'
 import { humanize } from '../../lib/glossary'
+import { useStudentExperience } from '../../lib/studentExperience'
 
 const categories: Array<{ value: HelpCategory; label: string; description: string }> = [
   { value: 'concept', label: 'Concept', description: 'I need the idea explained another way.' },
@@ -76,6 +78,19 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
 
   const canRequest = capabilities?.support_mode === 'guided_help'
 
+  // New student experience (L-1.3): a link with ?help_request=:id (the learner's
+  // notification, Today) opens that request's dialog, once, when it belongs here.
+  const { v2 } = useStudentExperience()
+  const location = useLocation()
+  const linkedRequestId = v2 ? Number(new URLSearchParams(location.search).get('help_request')) || null : null
+  const autoOpened = useRef<number | null>(null)
+  useEffect(() => {
+    if (!linkedRequestId || loading || autoOpened.current === linkedRequestId) return
+    if (!relevantRequests.some((request) => request.id === linkedRequestId)) return
+    autoOpened.current = linkedRequestId
+    setOpen(true)
+  }, [linkedRequestId, loading, relevantRequests])
+
   async function submitRequest(event: React.FormEvent) {
     event.preventDefault()
     const cleanMessage = message.trim()
@@ -124,6 +139,9 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
 
   const replied = Boolean(activeRequest?.replies?.length)
   const statusLabel = replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
+  // After a reply the button reads "View response" in the new student experience (glossary, L-1.3).
+  const answered = replied || Boolean(activeRequest?.staff_response) || (!activeRequest && Boolean(latestResolved))
+  const buttonLabel = v2 && answered ? 'View response' : !canRequest ? 'View previous help' : activeRequest ? statusLabel : 'Ask for help'
 
   if (capabilities?.features?.help_requests === false) return null
 
@@ -142,7 +160,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         className={activeRequest ? 'border-line! bg-surface-sunken! text-ink-secondary!' : 'text-ink-secondary!'}
       >
         {activeRequest ? <Clock3 className="h-4 w-4" aria-hidden="true" /> : <CircleHelp className="h-4 w-4" aria-hidden="true" />}
-        {!canRequest ? 'View previous help' : activeRequest ? statusLabel : 'Ask for help'}
+        {buttonLabel}
       </Button>}
 
       <Modal

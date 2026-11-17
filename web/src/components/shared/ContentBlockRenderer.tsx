@@ -54,6 +54,8 @@ interface ContentBlock {
     grade: string | null
     feedback: string | null
     graded_at: string | null
+    /** Who reviewed it (W8 PR 8.2); only an id and a name. */
+    grader?: { id: number; full_name: string } | null
     github_issue_url?: string | null
     github_code_url?: string | null
     repo_url?: string | null
@@ -86,6 +88,8 @@ interface ContentBlockRendererProps {
   lessonReturn?: LessonReturn
   /** Always open Hafa Code starters in a new tab (editor preview keeps unsaved edits). */
   starterOpensNewTab?: boolean
+  /** Who reviews this learner's work, named in the new student experience (S-8). */
+  reviewerName?: string | null
   onProgressUpdate?: () => void
 }
 
@@ -100,7 +104,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, readOnly = false, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, readOnly = false, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, reviewerName, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const { user, enrollments } = useAuthContext()
   const studentExperience = useStudentExperience()
@@ -118,6 +122,10 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     ? [savedAttempt.value, ...serverSubmissions.filter((submission) => submission.id !== savedAttempt.value.id)]
     : serverSubmissions
   const latestSubmission = submissions[0] || null
+  // The new student experience names the person (spec §1.8, S-8): who graded it, and who will review it.
+  const graderName = studentExperience.v2 ? latestSubmission?.grader?.full_name?.split(' ')[0] || null : null
+  const reviewerFirstName = studentExperience.v2 ? reviewerName?.split(' ')[0] || null : null
+  const willReview = reviewerFirstName ? `${reviewerFirstName} will review it, ${reviewTiming(reviewResponseTime)}` : `Your instructor will review it — ${reviewTiming(reviewResponseTime)}`
   const hasRedoRequest = latestSubmission?.grade === 'R'
   const canEditSubmission = !latestSubmission?.grade || hasRedoRequest
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
@@ -607,7 +615,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         source: 'submission',
       })
       const message = editing ? 'Updated.' : latestSubmission ? 'Resubmitted.' : 'Submitted.'
-      const reviewMessage = `${message} Your instructor will review it — ${reviewTiming(reviewResponseTime)}. Feedback will appear here.`
+      const reviewMessage = `${message} ${willReview}. Feedback will appear here.`
       setSubmissionSuccess(reviewMessage)
       toast.success(reviewMessage)
       onProgressUpdate?.()
@@ -798,7 +806,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           >
             <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-ink' : 'text-success-ink'}`}>
               {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
-              {hasRedoRequest ? (readOnly ? 'Your instructor asked for a redo. Your feedback remains available below.' : submissionType === 'prework_github_sync' ? 'Redo requested (R). Update your code on GitHub — your instructor will re-check it' : submissionType === 'manual_complete' ? 'Your instructor asked for a redo (R). Read the feedback — your instructor will re-check this' : canEditSubmission && !workLocked && (usesTextSubmission || usesRepoArtifactSubmission) ? 'Your instructor asked for a redo (R). Read the feedback, then resubmit below.' : 'Your instructor asked for a redo (R). Read the feedback and revise your work.') : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
+              {graderName ? (hasRedoRequest ? `${graderName} asked for a redo${readOnly ? '. Your feedback remains available below.' : submissionType === 'prework_github_sync' ? '. Update your code on GitHub, and they’ll re-check it.' : submissionType === 'manual_complete' ? '. Read the feedback; they’ll re-check this.' : canEditSubmission && !workLocked && (usesTextSubmission || usesRepoArtifactSubmission) ? '. Read the feedback, then resubmit below.' : '. Read the feedback and revise your work.'}` : `Reviewed by ${graderName}${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`) : hasRedoRequest ? (readOnly ? 'Your instructor asked for a redo. Your feedback remains available below.' : submissionType === 'prework_github_sync' ? 'Redo requested (R). Update your code on GitHub — your instructor will re-check it' : submissionType === 'manual_complete' ? 'Your instructor asked for a redo (R). Read the feedback — your instructor will re-check this' : canEditSubmission && !workLocked && (usesTextSubmission || usesRepoArtifactSubmission) ? 'Your instructor asked for a redo (R). Read the feedback, then resubmit below.' : 'Your instructor asked for a redo (R). Read the feedback and revise your work.') : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
             </p>
             {latestSubmission.feedback ? (
               <FeedbackBody feedback={latestSubmission.feedback} className="mt-2 text-ink" />
@@ -969,7 +977,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             {latestStatus === 'awaiting_review' && (
               <div className="flex items-start gap-2 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary" role="status">
                 <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p><span className="font-semibold">Submitted · waiting for review.</span> Your instructor will review it — {reviewTiming(reviewResponseTime)}. Feedback will appear here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
+                <p><span className="font-semibold">Submitted · waiting for review.</span> {reviewerFirstName ? <>{reviewerFirstName} will review it, {reviewTiming(reviewResponseTime)}</> : <>Your instructor will review it — {reviewTiming(reviewResponseTime)}</>}. Feedback will appear here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
               </div>
             )}
             {block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (

@@ -4771,6 +4771,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/my_work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    /** @description The cohort to read; the learner's first readable enrollment otherwise. */
+                    cohort_id?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The learner's own submitted work in one cohort */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MyWorkResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4976,6 +5014,8 @@ export interface components {
                     [key: string]: number;
                 };
             };
+            /** @description Learners only: who reviews work in this cohort (its support instructor, else its first instructor). */
+            reviewer?: components["schemas"]["PersonName"] | null;
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -5131,6 +5171,8 @@ export interface components {
             updated_at: string;
             github_issue_url: string | null;
             github_code_url: string | null;
+            /** @description Who graded the attempt. Present on the learner's lesson payload. */
+            grader?: components["schemas"]["PersonName"] | null;
         };
         LessonResponse: {
             lesson: components["schemas"]["LessonDetail"];
@@ -6530,6 +6572,8 @@ export interface components {
             today?: components["schemas"]["InstructorToday"];
             start_here?: boolean;
             review_response_time?: string;
+            /** @description Present for enrolled student dashboards only when the cohort's student_experience_v2 switch is explicitly on. */
+            student_today?: components["schemas"]["StudentToday"];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -8261,6 +8305,197 @@ export interface components {
         };
         CourseOutlineResponse: {
             outline: components["schemas"]["CourseOutline"];
+        };
+        /** @description A person named on a learner page: only an id and a name. */
+        PersonName: {
+            id: number;
+            full_name: string;
+        };
+        /** @description One latest attempt in My work, from LearnerProgress (redo_submissions, awaiting_review_submissions, graded_submissions). */
+        MyWorkItem: {
+            submission_id: number;
+            /** @enum {string} */
+            status: "redo" | "waiting" | "graded";
+            cohort_id: number;
+            lesson_id: number;
+            content_block_id: number;
+            lesson_title: string;
+            block_title: string;
+            module_name: string | null;
+            /** @description Curriculum week in a dated program; null when self-paced or in the library. */
+            week: number | null;
+            attempt: number;
+            grade: string | null;
+            /** @description Markdown. Null while waiting for review. */
+            feedback: string | null;
+            submitted_at: string;
+            graded_at: string | null;
+            grader: components["schemas"]["PersonName"] | null;
+            submission_type: string | null;
+            submissions_closed: boolean;
+            /** @description A redo the learner can resubmit here now (active enrollment, open window, a submission form). */
+            can_resubmit: boolean;
+        };
+        /** @description A learner's submitted work in one cohort (MyWork): redos, work waiting for review, and graded work. */
+        MyWork: {
+            cohort: {
+                id: number;
+                name: string;
+            };
+            read_only: boolean;
+            review_response_time: string;
+            reviewer: components["schemas"]["PersonName"] | null;
+            /** @description Each count is its list's length. */
+            counts: {
+                needs_you: number;
+                waiting: number;
+                graded: number;
+            };
+            needs_you: components["schemas"]["MyWorkItem"][];
+            waiting: components["schemas"]["MyWorkItem"][];
+            graded: components["schemas"]["MyWorkItem"][];
+        };
+        MyWorkResponse: {
+            my_work: components["schemas"]["MyWork"];
+        };
+        /** @description A redo with its feedback (MyWorkItem plus kind). */
+        StudentTodayRedo: {
+            submission_id: number;
+            /** @enum {string} */
+            status: "redo" | "waiting" | "graded";
+            cohort_id: number;
+            lesson_id: number;
+            content_block_id: number;
+            lesson_title: string;
+            block_title: string;
+            module_name: string | null;
+            /** @description Curriculum week in a dated program; null when self-paced or in the library. */
+            week: number | null;
+            attempt: number;
+            grade: string | null;
+            /** @description Markdown. Null while waiting for review. */
+            feedback: string | null;
+            submitted_at: string;
+            graded_at: string | null;
+            grader: components["schemas"]["PersonName"] | null;
+            submission_type: string | null;
+            submissions_closed: boolean;
+            /** @description A redo the learner can resubmit here now (active enrollment, open window, a submission form). */
+            can_resubmit: boolean;
+            /** @constant */
+            kind: "redo";
+        };
+        /** @description A staff reply to the learner's help request whose notification is unread. */
+        StudentTodayHelpAnswer: {
+            /** @constant */
+            kind: "help_answer";
+            help_request_id: number;
+            notification_id: number;
+            context_label: string;
+            /** @description The lesson with the request's dialog open (help_request=:id). */
+            path: string;
+            replied_by: components["schemas"]["PersonName"] | null;
+            replied_at: string | null;
+            excerpt: string;
+            resolved: boolean;
+        };
+        /** @description The newest unread message from staff in one of the learner's conversations for this cohort. */
+        StudentTodayMessage: {
+            /** @constant */
+            kind: "message";
+            message_id: number;
+            direct_conversation_id: number;
+            author: components["schemas"]["PersonName"];
+            excerpt: string;
+            sent_at: string;
+        };
+        StudentTodayLesson: {
+            lesson_id: number;
+            title: string;
+            kind: components["schemas"]["LessonKind"];
+            due_on: string | null;
+            available: boolean;
+            status: components["schemas"]["LearnerLessonStatus"];
+        };
+        /** @description The redesigned student Today (StudentToday). Every status, count and next step comes from LearnerProgress. */
+        StudentToday: {
+            /** @enum {string} */
+            mode: "program" | "self_paced" | "library";
+            read_only: boolean;
+            paused: boolean;
+            course_week: {
+                current: number;
+                total: number;
+            } | null;
+            counts: components["schemas"]["CourseOutlineCounts"] | null;
+            next_lesson: {
+                id: number;
+                title: string;
+                kind: components["schemas"]["LessonKind"];
+                module_id: number;
+                module_name: string;
+                week: number | null;
+                number: number;
+                position: number;
+                module_lesson_count: number;
+                status: components["schemas"]["LearnerLessonStatus"];
+            } | null;
+            this_week: {
+                total: number;
+                completed: number;
+                ends_on: string;
+            } | null;
+            pace: {
+                behind: boolean;
+                weeks_behind: number;
+                overdue_count: number;
+            } | null;
+            catch_up_plan: {
+                title: string;
+                target_date: string | null;
+                agreed_at: string;
+                agreed_by: components["schemas"]["PersonName"] | null;
+                remaining_count: number;
+                items: components["schemas"]["StudentTodayLesson"][];
+            } | null;
+            needs_you: {
+                count: number;
+                items: (components["schemas"]["StudentTodayRedo"] | components["schemas"]["StudentTodayHelpAnswer"] | components["schemas"]["StudentTodayMessage"])[];
+            };
+            /** @description count is every submission waiting for review (My work's Waiting count); items are the first five. */
+            waiting: {
+                count: number;
+                items: components["schemas"]["MyWorkItem"][];
+            };
+            recently_graded: components["schemas"]["MyWorkItem"][];
+            reviews_count: number;
+            /** @description The learner's help requests still waiting for a first reply. Empty when help requests are off. */
+            questions: {
+                count: number;
+                items: {
+                    id: number;
+                    status: components["schemas"]["HelpRequestStatus"];
+                    context_label: string;
+                    message: string;
+                    created_at: string;
+                    path: string;
+                }[];
+            };
+            next_session: components["schemas"]["OfficeHourOccurrence"] | null;
+            reviewer: components["schemas"]["PersonName"] | null;
+            review_response_time: string;
+            support: {
+                /** @enum {string} */
+                mode: "guided_help" | "course_question" | "none";
+                live_support: boolean;
+                ends_on: string | null;
+                ended: boolean;
+            };
+            recently_added: {
+                id: number;
+                title: string;
+                kind: components["schemas"]["LessonKind"];
+            }[];
         };
     };
     responses: {

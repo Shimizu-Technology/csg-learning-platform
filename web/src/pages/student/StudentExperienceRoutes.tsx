@@ -3,7 +3,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { StudentExperienceSwitch } from '../../lib/studentExperience'
-import { CourseOutline, Materials, ModuleView } from '../../lib/routePreload'
+import { CourseOutline, Dashboard, Materials, ModuleView, MyWork, StudentToday } from '../../lib/routePreload'
 import { StudentCohortHome } from './StudentCohortHome'
 
 /*
@@ -39,4 +39,20 @@ export function CohortHomeRoute() {
   const { id } = useParams<{ id: string }>()
   if (user?.is_staff || !id || !/^[1-9]\d*$/.test(id)) return <StudentCohortHome />
   return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading your cohort…" />} on={<Navigate replace to={learnPath(Number(id))} />} off={<StudentCohortHome />} />
+}
+
+/** Today: the redesigned student Today when on (W8 PR 8.2), today's Today otherwise. Staff go to their own Today. */
+export function TodayRoute() {
+  const { user } = useAuthContext()
+  if (user?.is_staff) return <Dashboard />
+  return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading Today…" />} on={<StudentToday />} off={<Dashboard />} />
+}
+
+/** My work exists only in the new student experience (L-1.2); otherwise the address goes to Today. */
+export function MyWorkRoute() {
+  const { user } = useAuthContext()
+  const location = useLocation()
+  const cohortId = Number(new URLSearchParams(location.search).get('cohort_id')) || null
+  if (user?.is_staff) return <Navigate replace to="/admin" />
+  return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading My work…" />} on={<MyWork />} off={<Navigate replace to={cohortId ? `/dashboard?cohort_id=${cohortId}` : '/dashboard'} />} />
 }

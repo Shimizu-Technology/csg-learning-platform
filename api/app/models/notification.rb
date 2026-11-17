@@ -57,7 +57,7 @@ class Notification < ApplicationRecord
 
   def destination_path
     return LearningDestination.submission(notifiable) if notifiable.is_a?(Submission) && !user.staff?
-    return LearningDestination.help_request(notifiable) if notifiable.is_a?(HelpRequest) && !user.staff?
+    return LearningDestination.help_request(notifiable, open: true) if notifiable.is_a?(HelpRequest) && !user.staff?
     # Older staff rows stored the bare request path; every row opens it with its cohort and student.
     return NotificationDeliveryService.staff_help_request_path(notifiable) if notifiable.is_a?(HelpRequest)
     if notifiable.is_a?(PrivateMeetingBookingEvent)

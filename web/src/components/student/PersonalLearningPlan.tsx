@@ -5,6 +5,7 @@ import type { PersonalLearningPlan as Plan, PersonalPlanLesson } from '../../typ
 import { LEARNER_STATUS, lessonStatus } from '../../lib/learningStatus'
 import { useLearnerPaths } from '../../lib/useRecordPath'
 import { MarkdownText } from '../shared/MarkdownRenderer'
+import { useStudentExperience } from '../../lib/studentExperience'
 
 // One status per lesson, from the server when the payload has it (AS-10).
 function planLessonLabel(lesson: PersonalPlanLesson) {
@@ -16,6 +17,8 @@ export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { 
   const current = plan.milestones.findIndex((milestone) => milestone.lessons.some((lesson) => lesson.required && !lesson.completed))
   const query = cohortId ? `?cohort_id=${cohortId}` : ''
   const paths = useLearnerPaths(cohortId)
+  // The new student experience links the waiting count to My work (L-1.2).
+  const { v2 } = useStudentExperience()
   return <section aria-label="Your personal learning plan" className="app-surface space-y-5 p-5 sm:p-6">
     <div>
       <p className="app-eyebrow">Your personal plan</p>
@@ -26,7 +29,9 @@ export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { 
         {plan.target_date && <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4" aria-hidden="true" />Target finish: {formatShortDate(plan.target_date)}</p>}
         {plan.next_check_in_on && <p>Next follow-up: {formatShortDate(plan.next_check_in_on)}</p>}
       </div>
-      <p className="mt-3 text-sm text-ink-secondary">{plan.completed_count} of {plan.required_count} required lessons done or submitted.{plan.awaiting_review_count > 0 && ` ${plan.awaiting_review_count} waiting for review.`}</p>
+      <p className="mt-3 text-sm text-ink-secondary">{plan.completed_count} of {plan.required_count} required lessons done or submitted.{plan.awaiting_review_count > 0 && (v2
+        ? <> <Link to={`/my-work?${new URLSearchParams({ ...(cohortId ? { cohort_id: String(cohortId) } : {}), tab: 'waiting' })}`} className="app-link inline-flex min-h-11 items-center tabular-nums">{plan.awaiting_review_count} waiting for review</Link>.</>
+        : ` ${plan.awaiting_review_count} waiting for review.`)}</p>
     </div>
     {showNextTask && plan.next_lesson && <Link className="pressable flex min-h-11 items-center justify-between gap-3 rounded-xl bg-surface-sunken p-4 font-semibold text-ink" to={paths.lesson(plan.next_lesson.lesson_id)}><span className="min-w-0 [overflow-wrap:anywhere]">Next required task: {plan.next_lesson.title}</span><ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>}
     {plan.milestones.length > 0 && <div className="space-y-3">{plan.milestones.map((milestone, index) => <details key={`${index}:${milestone.title}`} open={index === current} className="rounded-xl border border-line">

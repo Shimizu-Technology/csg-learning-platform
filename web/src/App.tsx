@@ -29,7 +29,6 @@ import {
   CohortStudentView,
   CohortWatchProgress,
   ContentManagement,
-  Dashboard,
   PrivateMeetings,
   StaffPrivateMeetings,
   Grading,
@@ -56,7 +55,7 @@ import {
   TeamMemberDetail,
 } from './lib/routePreload'
 import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
-import { CohortHomeRoute, LearnRoute, ModuleRoute } from './pages/student/StudentExperienceRoutes'
+import { CohortHomeRoute, LearnRoute, ModuleRoute, MyWorkRoute, TodayRoute } from './pages/student/StudentExperienceRoutes'
 import { CourseCatalog } from './pages/CourseCatalog'
 
 export function RouteLoadingFallback() {
@@ -124,7 +123,8 @@ function AppRoutes() {
         {/* Authenticated routes with shared layout */}
         <Route element={<Layout />}>
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<SuspendedRoute><Dashboard /></SuspendedRoute>} />
+            <Route path="/dashboard" element={<SuspendedRoute><TodayRoute /></SuspendedRoute>} />
+            <Route path="/my-work" element={<SuspendedRoute><MyWorkRoute /></SuspendedRoute>} />
             <Route path="/cohorts/:id" element={<CohortHomeRoute />} />
             <Route path="/meetings" element={<SuspendedRoute><PrivateMeetings /></SuspendedRoute>} />
             <Route path="/materials" element={<SuspendedRoute><LearnRoute /></SuspendedRoute>} />

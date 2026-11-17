@@ -338,7 +338,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       ExpoPushNotificationService.help_request_changed(help_request, Notification.where(id: notifications.map(&:id)))
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
       assert_includes paths, "/lesson/42"
-      assert_includes JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "destination_path") }, "/lesson/42?cohort_id=#{cohort.id}"
+      assert_includes JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "destination_path") }, "/lesson/42?cohort_id=#{cohort.id}&help_request=#{help_request.id}"
       assert_includes paths, "/staff/support/#{help_request.id}"
       assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
     end

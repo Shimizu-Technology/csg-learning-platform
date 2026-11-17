@@ -309,6 +309,7 @@ export function LessonView() {
               submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
               submissionWeekNumber={lesson.submission_window?.week_number}
               analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }}
+              reviewerName={lesson.reviewer?.full_name}
               lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }}
               onProgressUpdate={() => loadLesson({ silent: true })}
             />

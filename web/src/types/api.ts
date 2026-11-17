@@ -973,6 +973,12 @@ export type CourseOutlineGroup = components['schemas']['CourseOutlineGroup'];
 export type CourseOutlineLesson = components['schemas']['CourseOutlineLesson'];
 export type CourseOutlineResponse = components['schemas']['CourseOutlineResponse'];
 export type LessonKind = components['schemas']['LessonKind'];
+/** The redesigned student Today (W8 PR 8.2), sent only when the cohort's new student experience is on. */
+export type StudentToday = components['schemas']['StudentToday'];
+export type StudentTodayNeedsYou = StudentToday['needs_you']['items'][number];
+export type MyWork = components['schemas']['MyWork'];
+export type MyWorkItem = components['schemas']['MyWorkItem'];
+export type MyWorkResponse = components['schemas']['MyWorkResponse'];
 
 export type ProfileResponse = components['schemas']['ProfileResponse'];
 

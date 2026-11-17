@@ -1,0 +1,142 @@
+// @vitest-environment jsdom
+import { act, type ReactNode } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/*
+ * W8 PR 8.2: My work (L-1.2), help answers that open on the lesson (L-1.3)
+ * and the reviewer named on a lesson block (S-8). New behavior shows only with
+ * the new student experience on; off keeps today's labels and copy.
+ */
+const state = vi.hoisted(() => ({ cohortId: 9, user: { id: 5, full_name: 'Alex Rivera', is_staff: false } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: state.user, enrollments: [{ cohort: { id: state.cohortId, review_response_time: 'usually reviewed within 2 days' } }] }) }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: state.cohortId }) }))
+vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
+vi.mock('../../components/shared/Modal', () => ({ Modal: ({ open, children }: { open: boolean; children: ReactNode }) => open ? <div role="dialog">{children}</div> : null }))
+vi.mock('../../components/shared/FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
+vi.mock('../../components/shared/LazyMarkdownEditor', () => ({ LazyMarkdownEditor: () => null }))
+vi.mock('../../lib/api', () => ({ api: { getMyWork: vi.fn(), createDirectConversation: vi.fn(), getHelpRequests: vi.fn() } }))
+
+import { api } from '../../lib/api'
+import { MyWorkPage } from './MyWork'
+import { ContextualHelp } from '../../components/student/ContextualHelp'
+import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
+import { StudentExperienceProvider } from '../../lib/studentExperience'
+import { composerDestinationKey, readComposerDraft } from '../../lib/messageComposerState'
+import type { HelpRequest, LearnerCapabilities } from '../../types/api'
+
+const person = (id: number, full_name: string) => ({ id, full_name })
+const item = (submission_id: number, status: 'redo' | 'waiting' | 'graded') => ({
+  submission_id, status, cohort_id: 9, lesson_id: 100 + submission_id, content_block_id: 700 + submission_id, lesson_title: `Lesson ${submission_id}`, block_title: `Lesson ${submission_id}`,
+  module_name: 'JavaScript Foundations', week: 8, attempt: 1, grade: status === 'redo' ? 'R' : status === 'graded' ? 'A' : null,
+  feedback: status === 'waiting' ? null : `Feedback for ${submission_id}: return the string.`, submitted_at: '2026-11-11T00:00:00Z', graded_at: status === 'waiting' ? null : '2026-11-16T00:00:00Z',
+  grader: status === 'waiting' ? null : person(status === 'graded' && submission_id % 2 ? 6 : 2, status === 'graded' && submission_id % 2 ? 'Leon Shimizu' : 'Audreana Synthetic'),
+  submission_type: 'text_submission', submissions_closed: false, can_resubmit: status === 'redo',
+})
+const myWork = (graded = 3) => ({
+  cohort: { id: 9, name: 'Cohort 4' }, read_only: false, review_response_time: 'usually reviewed within 2 days', reviewer: person(2, 'Audreana Synthetic'),
+  counts: { needs_you: 1, waiting: 2, graded },
+  needs_you: [item(1, 'redo')], waiting: [item(2, 'waiting'), item(3, 'waiting')], graded: Array.from({ length: graded }, (_, index) => item(10 + index, 'graded')),
+})
+
+function Destination() { const location = useLocation(); return <div data-destination="">{location.pathname}{location.search}</div> }
+let root: Root
+let container: HTMLDivElement
+let renders = 0
+async function render(node: ReactNode, path: string, route: string) {
+  await act(async () => { root.render(<MemoryRouter key={++renders} initialEntries={[path]}><Routes><Route path={route} element={node} /><Route path="*" element={<Destination />} /></Routes></MemoryRouter>) })
+  await act(async () => { await Promise.resolve() })
+}
+const button = (label: string) => Array.from(container.querySelectorAll('button')).find((element) => element.textContent?.includes(label))
+beforeEach(() => {
+  vi.resetAllMocks(); localStorage.clear()
+  container = document.createElement('div'); document.body.append(container); root = createRoot(container)
+})
+afterEach(() => { act(() => root.unmount()); container.remove() })
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+describe('My work', () => {
+  it('opens the first tab with work, shows each count as its list and keeps the tab in the URL', async () => {
+    vi.mocked(api.getMyWork).mockResolvedValue({ data: { my_work: myWork() } as never, error: null })
+    await render(<MyWorkPage />, '/my-work?cohort_id=9', '/my-work')
+    expect(api.getMyWork).toHaveBeenCalledWith(9)
+    const tabs = Array.from(container.querySelectorAll('[role="tab"]')).map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])
+    expect(tabs).toEqual([['Needs you1', 'true'], ['Waiting for review2', 'false'], ['Graded3', 'false']])
+    expect(container.querySelectorAll('[data-work-status="redo"]')).toHaveLength(1)
+    expect(container.textContent).toContain('Feedback for 1: return the string.')
+    expect(container.textContent).toContain('reviewed by Audreana Synthetic')
+    expect([...container.querySelectorAll('a[href="/lessons/101?cohort_id=9#block-701"]')].map((link) => link.textContent)).toEqual(['Lesson 1', 'Open and resubmit'])
+
+    await act(async () => { (container.querySelectorAll('[role="tab"]')[1] as HTMLButtonElement).click() })
+    expect(container.querySelectorAll('[data-work-status="waiting"]')).toHaveLength(2)
+    expect(container.textContent).toContain('Audreana usually reviews within 2 days')
+    expect(container.textContent).not.toContain('Ask about this feedback')
+  })
+
+  it('Ask about this feedback opens the grader’s conversation with the lesson linked', async () => {
+    vi.mocked(api.getMyWork).mockResolvedValue({ data: { my_work: myWork() } as never, error: null })
+    vi.mocked(api.createDirectConversation).mockResolvedValue({ data: { direct_conversation: { id: 44, cohort_id: 9 } } as never, error: null })
+    await render(<MyWorkPage />, '/my-work?cohort_id=9&tab=graded', '/my-work')
+    expect(container.querySelectorAll('[data-work-status="graded"]')).toHaveLength(3)
+    expect(container.textContent).toContain('reviewed by Leon Shimizu')
+    await act(async () => { button('Ask about this feedback')!.click() })
+    await act(async () => { await Promise.resolve() })
+    expect(api.createDirectConversation).toHaveBeenCalledWith({ cohort_id: 9, user_ids: [2] })
+    expect(container.querySelector('[data-destination]')?.textContent).toBe('/messages/dm/44?cohort_id=9')
+    const draft = readComposerDraft(composerDestinationKey(5, { type: 'dm', id: 44 }, null), localStorage)
+    expect(draft?.body).toContain('[Feedback on Lesson 10](')
+    expect(draft?.body).toContain('/lessons/110?cohort_id=9#block-710')
+  })
+
+  it('shows graded work ten at a time and says what counts as work when a tab is empty', async () => {
+    vi.mocked(api.getMyWork).mockResolvedValue({ data: { my_work: { ...myWork(38), counts: { needs_you: 0, waiting: 0, graded: 38 }, needs_you: [], waiting: [] } } as never, error: null })
+    await render(<MyWorkPage />, '/my-work?cohort_id=9', '/my-work')
+    expect(container.querySelectorAll('[data-work-status="graded"]')).toHaveLength(10)
+    expect(button('more')?.textContent).toBe('Show 28 more')
+    await act(async () => { (container.querySelectorAll('[role="tab"]')[0] as HTMLButtonElement).click() })
+    expect(container.textContent).toContain('Nothing needs you right now')
+  })
+})
+
+const capabilities: LearnerCapabilities = { live_support: true, features: {}, can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 2 }
+const request = (overrides: Partial<HelpRequest> = {}): HelpRequest => ({ destination: null, context_destination: null, id: 31, cohort: { id: 9, name: 'Cohort 4' }, context_type: 'lesson', context_source: 'primary', context_id: 42, context_label: 'Loops', context_path: '/lessons/42', category: 'concept', urgency: 'normal', status: 'acknowledged', message: 'My loop never stops', staff_response: 'Check the condition.', acknowledged_at: '2026-11-17T00:00:00Z', resolved_at: null, canceled_at: null, created_at: '2026-11-17T00:00:00Z', updated_at: '2026-11-17T00:00:00Z', owner: person(2, 'Audreana Synthetic'), replies: [{ id: 1, body: 'Check the condition.', resolved_request: false, author: person(2, 'Audreana Synthetic'), created_at: '2026-11-17T01:00:00Z' }], ...overrides })
+const help = (v2: boolean, requests: HelpRequest[]) => <StudentExperienceProvider v2={v2}><ContextualHelp capabilities={capabilities} cohortId={9} contextType="lesson" contextId={42} contextLabel="Loops" requests={requests} requestsLoading={false} /></StudentExperienceProvider>
+
+describe('help answers (L-1.3)', () => {
+  it('on: the link from Today opens the request’s dialog and the button reads View response', async () => {
+    await render(help(true, [request()]), '/lessons/42?cohort_id=9&help_request=31', '/lessons/:id')
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('Check the condition.')
+    expect(button('View response')).toBeTruthy()
+    // A resolved answer reads View response too; another request's id opens nothing.
+    await render(help(true, [request({ status: 'resolved', resolved_at: '2026-11-17T02:00:00Z' })]), '/lessons/42?cohort_id=9&help_request=99', '/lessons/:id')
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(button('View response')).toBeTruthy()
+  })
+
+  it('off: the dialog stays closed and the labels are today’s', async () => {
+    await render(help(false, [request()]), '/lessons/42?cohort_id=9&help_request=31', '/lessons/:id')
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(button('Your instructor replied')).toBeTruthy()
+    await render(help(false, [request({ status: 'resolved', resolved_at: '2026-11-17T02:00:00Z' })]), '/lessons/42?cohort_id=9', '/lessons/:id')
+    expect(button('Ask for help')).toBeTruthy()
+  })
+})
+
+describe('the reviewer is named on a lesson block (S-8)', () => {
+  const block = (submission: Record<string, unknown>) => ({ id: 701, block_type: 'exercise', position: 0, title: 'Practice', body: null, video_url: null, filename: null, submission_type: 'text_submission', metadata: {}, submissions: [{ id: 1, text: 'Answer', feedback: 'Return the string.', graded_at: null, num_submissions: 1, created_at: '2026-11-11T00:00:00Z', ...submission }] })
+  const markup = (v2: boolean, submission: Record<string, unknown>) => renderToStaticMarkup(<MemoryRouter><StudentExperienceProvider v2={v2}><ContentBlockRenderer block={block(submission) as never} cohortId={9} reviewerName="Audreana Synthetic" /></StudentExperienceProvider></MemoryRouter>)
+
+  it('on: who graded it and who will review it', () => {
+    expect(markup(true, { grade: 'R', grader: person(2, 'Audreana Synthetic') })).toContain('Audreana asked for a redo. Read the feedback, then resubmit below.')
+    expect(markup(true, { grade: 'A', grader: person(6, 'Leon Shimizu') })).toContain('Reviewed by Leon · A (Excellent)')
+    expect(markup(true, { grade: null })).toContain('Audreana will review it, usually within 2 days. Feedback will appear here.')
+  })
+
+  it('off: today’s copy, unchanged', () => {
+    expect(markup(false, { grade: 'R', grader: person(2, 'Audreana Synthetic') })).toContain('Your instructor asked for a redo (R). Read the feedback, then resubmit below.')
+    expect(markup(false, { grade: 'A', grader: person(6, 'Leon Shimizu') })).toContain('Reviewed by your instructor · A (Excellent)')
+    expect(markup(false, { grade: null })).toContain('Your instructor will review it — usually within 2 days. Feedback will appear here.')
+  })
+})
