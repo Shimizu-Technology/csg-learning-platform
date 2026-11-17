@@ -17,7 +17,7 @@ import { LessonObjectives } from '@/components/lesson-objectives';
 import { RubricPanel } from '@/components/rubric-panel';
 import { StaffCodeRunnerSettings } from '@/components/staff-code-runner-settings';
 import { StaffLearningDesignEditor } from '@/components/staff-learning-design-editor';
-import { StaffRichTextEditor } from '@/components/staff-rich-text-editor';
+import { StaffMarkdownEditor } from '@/components/staff-markdown-editor';
 import { StaffVideoSourceEditor } from '@/components/staff-video-source-editor';
 import { fonts, monoFont } from '@/constants/csg-theme';
 import { ApiError } from '@/lib/api';
@@ -284,7 +284,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
           />
         </EditorSection>
         <EditorSection eyebrow="3 · BUILD" title="Exercise and submission" copy="Write the student-facing task first, then keep the answer in the instructor-only solution.">
-          <Field label="INSTRUCTIONS"><StaffRichTextEditor value={fields.instructions} onChange={(value) => update('instructions', value)} /></Field>
+          <Field label="INSTRUCTIONS"><StaffMarkdownEditor value={fields.instructions} onChange={(value) => update('instructions', value)} /></Field>
           <Field label="FILENAME"><View style={styles.inputWithIcon}><FileCode2 color={c.text.muted} size={17} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Exercise filename" autoCapitalize="none" autoCorrect={false} value={fields.filename} onChangeText={(value) => update('filename', value)} placeholder="e.g. 111.rb or styles.css" placeholderTextColor={c.text.body} style={styles.inlineInput} /></View></Field>
           <Field label="SUBMISSION"><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{lessonSubmissionOptions.map((option) => <Pressable key={option.value} accessibilityRole="button" accessibilityState={{ selected: fields.submission_type === option.value }} onPress={() => updateSubmissionType(option.value)} style={[styles.chip, fields.submission_type === option.value && styles.chipActive]}><Text style={[styles.chipText, fields.submission_type === option.value && styles.chipTextActive]}>{option.label}</Text></Pressable>)}</ScrollView><Text style={styles.helper}>{selectedSubmission.description}</Text></Field>
           {fields.submission_type === 'text_submission' && <StaffCodeRunnerSettings value={fields.runner} onChange={(runner) => update('runner', runner)} />}

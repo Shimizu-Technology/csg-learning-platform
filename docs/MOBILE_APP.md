@@ -92,6 +92,20 @@ The native channel and direct-message composers now support reviewed voice-to-te
 
 The implementation uses one app-lifetime `expo-audio` recorder for foreground-only, cache-backed M4A recording and an authenticated Rails endpoint for server-side transcription and conservative cleanup. Recorder shutdown is serialized across navigation/background/cancel paths, failed audio is retained only for an explicit in-session retry, and native crash capture records content-free diagnostic state. It requires a new native binary. Internal TestFlight activation and public release gates are tracked separately in `VOICE_TO_TEXT_PLAN.md`.
 
+## Staff lesson Markdown source
+
+The native lesson editor and New lesson prompt use a monospace Markdown input,
+with a preview through the same `LessonMarkdown` renderer learners use. Opening
+or previewing does not generate HTML. Saves retain authored source exactly,
+including surrounding whitespace; validation does not normalize the body.
+Existing HTML bodies and device drafts remain unchanged source, without an
+automatic repair. Learner display is unchanged.
+
+Bundling the shared web Rich editor into the existing WebView remains a
+follow-up. The N-6 corpus checks, runtime comparison, device limits, and
+operator-only production detection query are recorded in
+[the QA record](qa/mobile-lesson-markdown-2026-11-18.md).
+
 ## Release and OTA updates
 
 N-3 prepares EAS Update for Expo SDK **57** (`expo ~57.0.33`, SDK-matched

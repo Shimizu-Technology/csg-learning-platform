@@ -14,12 +14,6 @@ jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return { AlertCircle: Icon, Archive: Icon, CalendarDays: Icon, Check: Icon, Plus: Icon, RotateCcw: Icon, Save: Icon, X: Icon };
 });
-jest.mock('../staff-rich-text-editor', () => {
-  const React = jest.requireActual('react');
-  const { TextInput } = jest.requireActual('react-native');
-  return { StaffRichTextEditor: ({ value, onChange, accessibilityLabel }: { value: string; onChange: (value: string) => void; accessibilityLabel: string }) => React.createElement(TextInput, { accessibilityLabel, value, onChangeText: onChange }) };
-});
-
 // Native dependencies must be mocked before loading the component.
 // eslint-disable-next-line import/first
 import { ExerciseEditorModal, LessonSettingsModal, ModuleEditorModal } from '../staff-curriculum-management';
@@ -32,11 +26,11 @@ describe('staff curriculum management', () => {
     const screen = render(<ExerciseEditorModal visible module={module} defaultWeek={2} onClose={jest.fn()} onSave={onSave} />);
 
     fireEvent.changeText(screen.getByLabelText('New lesson title'), 'CSS layout lab');
-    fireEvent.changeText(screen.getByLabelText('New lesson instructions'), 'Build a responsive card layout.');
+    fireEvent.changeText(screen.getByLabelText('New lesson instructions'), '\nBuild a **responsive** card layout.  \n');
     fireEvent.press(screen.getByText('Wednesday'));
     fireEvent.press(screen.getByLabelText('Create and continue'));
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'CSS layout lab', instructions: 'Build a responsive card layout.', release_day: 9, required: true, submission_type: 'manual_complete' })));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'CSS layout lab', instructions: '\nBuild a **responsive** card layout.  \n', release_day: 9, required: true, submission_type: 'manual_complete' })));
   });
 
   it('rejects structural rich-text markup that has no student-visible content', async () => {
