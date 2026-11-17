@@ -21,7 +21,7 @@ class AddCourseMarketingAndOrientation < ActiveRecord::Migration[8.1]
     select_all("SELECT id, public_title FROM cohorts WHERE public_slug IS NULL ORDER BY id").each do |row|
       next if row["public_title"].blank?
 
-      base = row["public_title"].to_s.parameterize
+      base = row["public_title"].to_s.parameterize.tr("_", "-").squeeze("-").delete_prefix("-").delete_suffix("-")
       base = "course-#{row['id']}" if base.blank? || reserved.include?(base)
       candidate = base
       suffix = 1

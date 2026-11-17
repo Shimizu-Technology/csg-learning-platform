@@ -185,6 +185,20 @@ class CatalogCoursePagesTest < ActionDispatch::IntegrationTest
     assert_equal "Ruby", row.public_title
   end
 
+  test "titles with underscores get a valid slug and the course stays savable" do
+    row = Cohort.create!(name: "Internal", public_title: "Intro_to_Python", curriculum: @curriculum, start_date: LearningCalendar.today)
+    assert_equal "intro-to-python", row.public_slug
+    edge = Cohort.create!(name: "Internal", public_title: "__x__", curriculum: @curriculum, start_date: LearningCalendar.today)
+    assert_equal "x", edge.public_slug
+    assert row.reload.update(public_description: "Still savable"), row.errors.full_messages.to_sentence
+
+    Cohort.where(id: [ row.id, edge.id ]).update_all(public_slug: nil)
+    AddCourseMarketingAndOrientation.new.send(:backfill_public_slugs)
+    assert_equal %w[intro-to-python x], [ row.reload.public_slug, edge.reload.public_slug ]
+  ensure
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
+  end
+
   test "a reserved title assigned after creation receives a stable ID fallback" do
     row = Cohort.create!(name: "Internal draft", curriculum: @curriculum, start_date: LearningCalendar.today)
     assert_nil row.public_slug

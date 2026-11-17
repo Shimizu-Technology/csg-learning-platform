@@ -100,6 +100,11 @@ class Cohort < ApplicationRecord
   RESERVED_PUBLIC_SLUGS = %w[new edit checkout return canceled success status].freeze
   validates :public_slug, exclusion: { in: RESERVED_PUBLIC_SLUGS }, allow_nil: true
 
+  # parameterize keeps underscores, which the slug format rejects.
+  def self.public_slug_base(title)
+    title.to_s.parameterize.tr("_", "-").squeeze("-").delete_prefix("-").delete_suffix("-")
+  end
+
   def assign_public_slug
     return unless public_slug.nil? && public_title.present?
 
@@ -111,7 +116,7 @@ class Cohort < ApplicationRecord
       return
     end
 
-    base = public_title.to_s.parameterize
+    base = self.class.public_slug_base(public_title)
     if base.blank? || RESERVED_PUBLIC_SLUGS.include?(base)
       self.id ||= self.class.connection.select_value("SELECT nextval(#{self.class.connection.quote(self.class.sequence_name)})")
       base = "course-#{id}"
