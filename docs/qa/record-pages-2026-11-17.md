@@ -52,3 +52,13 @@ Two cases failed on the first run and were spec problems, not app defects: a lin
 - Native app: no native pages for these records. Native destinations are unchanged, and the new `/admin/...` URLs are not claimed by universal links, so they open on the web.
 - Attendance for office hours and notes on bookings: not recorded by the app, so not shown. See follow-ups in the PR.
 - Real meeting links and video playback: fixture links point at `example.invalid`.
+
+## Fix round 1 (review of `d0763c64`)
+
+An independent review found two P2 issues and one P3 issue. The branch also merged main `c290e00a` (#289, #291, #294, #295). After #289's split of the workspace pages, the recording link moved to `studentWorkspace/LearningTab.tsx`, the cohort's group conversation list to `cohortWorkspace/Communication.tsx`, and the `edit_recording` deep link to `CohortWorkspace.tsx`.
+
+- **P2, activity labels.** An event in cohort A whose record is a recording, submission or block belonging elsewhere now returns neither `record` nor `record_label`, for admins and instructors alike. The page says "Not available". Regression tests build each mismatch directly on the model.
+- **P2, watcher size.** A recording's watchers come 25 per page (`?page=`), most recently watched first, with `watchers_count` and `completed_count` from aggregate queries and `watchers_next_page`. The page shows "Show more" and "Showing n of m". The query-count test grows to 30 watchers (13 queries at 1 and at 30) and checks the page stays at 25 rows. An integration test with 61 watchers keeps page 1 under 12 KB and checks that every watcher appears exactly once across three pages.
+- **P3, Back on failed loads.** Loading, error and No access states keep the page's Back link, from router state, `return_to` or the record type's list. Try again still recovers.
+
+Browser re-check after the fixes and merge, on fresh fixtures (now with 30 watchers): **48 of 48 passed** at 1280 and 390, light and dark. These are the 44 earlier cases plus a new scenario: a forced 500 on the recording keeps "Back to Grading · Redo" from `return_to`, Try again loads the page, and a missing rubric shows No access with "Back to Curriculum". The admin recording case now also loads the second page of watchers with Show more.

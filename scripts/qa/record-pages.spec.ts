@@ -29,7 +29,8 @@ const STUDENT = 3
 async function open(page: Page, path: string, user: number, theme: 'light' | 'dark') {
   await page.route('**/*', (route) => {
     const url = new URL(route.request().url())
-    return ['127.0.0.1', 'localhost'].includes(url.hostname) ? route.continue() : route.abort()
+    // fallback(), not continue(): a test's own route (a forced failure) registered earlier still runs.
+    return ['127.0.0.1', 'localhost'].includes(url.hostname) ? route.fallback() : route.abort()
   })
   await page.addInitScript((choice) => {
     try { if (choice) localStorage.setItem('csg-learn:theme', choice); else localStorage.removeItem('csg-learn:theme') } catch { /* ignore */ }
@@ -88,6 +89,13 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.locator('#watchers')).toContainText('QA Program')
       await expect(page.locator('#watchers')).toContainText('Finished')
       await record(page, 'admin-recording', theme, info.project.name)
+      // Fix round 1: watchers come 25 at a time; Show more loads the rest, and the totals cover everyone.
+      await expect(page.locator('#watchers')).toContainText(/30 of \d+ learners/)
+      await expect(page.locator('#watchers li')).toHaveCount(25)
+      await page.locator('[data-show-more-watchers]').click()
+      await expect(page.locator('#watchers li')).toHaveCount(30)
+      await expect(page.locator('#watchers')).toContainText('Showing 30 of 30')
+      await expect(page.locator('[data-show-more-watchers]')).toHaveCount(0)
       // The lesson that plays it opens its staff page, which comes back here.
       await page.locator('#lessons a[href^="/admin/lessons/"]').first().click()
       await expect(page).toHaveURL(new RegExp(`/admin/lessons/${ids.recording_lesson_id}`))
@@ -103,6 +111,26 @@ for (const theme of ['light', 'dark'] as const) {
       await back(page).click()
       await expect(page).toHaveURL(new RegExp(`/admin/cohorts/${ids.program_cohort_id}\\?tab=recordings`))
       expect(errors).toEqual([])
+    })
+
+    test('admin: a failed or refused load keeps Back, and Try again recovers', async ({ page }, info) => {
+      let fail = true
+      await page.route('**/api/v1/records/recording/*/detail*', (route) => fail ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"Synthetic failure"}' }) : route.fallback())
+      await open(page, `/admin/recordings/${ids.recording_id}?return_to=${encodeURIComponent('/admin/grading?filter=redo')}`, ADMIN, theme)
+      await expect(page.getByText("Couldn't load this recording")).toBeVisible()
+      await expect(back(page)).toHaveText('Back to Grading · Redo')
+      await expect(back(page)).toHaveAttribute('href', '/admin/grading?filter=redo')
+      await record(page, 'admin-error-state', theme, info.project.name)
+      fail = false
+      await page.getByRole('button', { name: 'Try again' }).click()
+      await expect(page.locator('h1')).toHaveText('QA counter walkthrough')
+
+      await open(page, `/admin/rubrics/999999?return_to=${encodeURIComponent(`/admin/curricula/${ids.curriculum_id}`)}`, ADMIN, theme)
+      await expect(page.locator('body')).toContainText('No access')
+      await expect(back(page)).toHaveText('Back to Curriculum')
+      await record(page, 'admin-no-access-back', theme, info.project.name)
+      await back(page).click()
+      await expect(page).toHaveURL(new RegExp(`/admin/curricula/${ids.curriculum_id}`))
     })
 
     test('instructor: session from Schedule, booking from Meetings, and Back', async ({ page }, info) => {

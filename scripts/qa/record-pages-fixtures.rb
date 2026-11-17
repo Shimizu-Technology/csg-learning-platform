@@ -41,6 +41,12 @@ ActiveRecord::Base.transaction do
                                                                   { 'label' => 'Optional: count by twos', 'start_seconds' => 800, 'end_seconds' => 1100, 'required' => false } ] })
   WatchProgress.create!(user: program_student, recording: recording, total_watched_seconds: 1200, duration_seconds: 2400, last_watched_at: 2.hours.ago)
   WatchProgress.create!(user: behind, recording: recording, total_watched_seconds: 2400, duration_seconds: 2400, completed: true, last_watched_at: 3.days.ago)
+  # 28 more watchers (watched longer ago), so the list runs past one page of 25 and "Show more" loads the rest.
+  28.times do |i|
+    watcher = person("record_watcher_#{i}", format('Watcher %02d', i), :student)
+    Enrollment.create!(user: watcher, cohort: program, status: :active).assign_cohort_content_defaults!
+    WatchProgress.create!(user: watcher, recording: recording, total_watched_seconds: 600, duration_seconds: 2400, last_watched_at: (5 + i).days.ago)
+  end
 
   # Office hours: the seeded weekly session.
   office_hour = program.office_hours.find_by!(title: 'QA weekly support')
