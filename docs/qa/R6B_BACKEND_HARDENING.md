@@ -22,7 +22,7 @@ Agent-executed affected-flow checks use disposable ASUS PostgreSQL fixtures and 
 
 `EnrollmentCapabilities` has no capabilities cache or saved `now`; it delegates to `Enrollment#instructor_support_active?`, which compares the persisted expiry directly with `Time.current`. Request-start time is used for learning-write guards, not this comparison. `record_first_course_open!` locks/reloads and exits when `first_opened_at` exists. `previous_request` creates/resolves help records without updating enrollment timestamps. PostgreSQL microsecond timestamp precision cannot make a value a full second in the past become future under a forward-moving clock.
 
-The old test uses an adjustable wall clock and a one-second margin. A backwards VM clock correction could reverse that comparison, but the original reported failure has not yet been reproduced or attributed conclusively. The test now fixes time before fixture creation and asserts that reads preserve both persisted timestamps. This removes the wall-clock dependency without changing application entitlement behavior. Do not describe the VM-clock hypothesis as a proven historical cause.
+The old test uses an adjustable wall clock and a one-second margin. A controlled two-second backwards host-clock step after its expiry UPDATE reproduces the exact `none` → `course_question` failure, with the expiry unchanged. With the fixed clock, the same experiment passes. This establishes the test’s wall-clock sensitivity; whether a host correction caused the historical ASUS failure remains unconfirmed. The test now fixes time before fixture creation and asserts that reads preserve both persisted timestamps. This removes the wall-clock dependency without changing application entitlement behavior. Do not describe the VM-clock hypothesis as a proven historical cause.
 
 Profile now preloads `curriculum.cohort_copy.cohort`, using the resolver's existing loaded-association path. No privacy/name logic changes. The growth fixture includes a copy at both sizes: transitioning from zero copies to copies introduces a legitimate extra cohort-preload query and would measure association shape rather than per-record growth.
 
@@ -32,4 +32,17 @@ Other `CurriculumName` list call sites were inspected: cohorts index/accessible 
 
 Initial targeted run: expiry test passed; first profile fixture measured 9 → 10 because only the larger fixture contained copies. Fixture corrected to include a copy at both sizes. Two stress harness startup errors (missing test load path, then Minitest seed initialization) occurred before cases executed and were fixed.
 
-Final ASUS runs, PR check evidence, reviewer status, and cleanup will be recorded before handback.
+Prepared stress: 200 cases / 3,800 assertions passed on ASUS with a 1 ms delay per SQL event; original-clock baseline: 50 / 950 passed. Local controlled clock rollback: the original clock path failed at the first contract comparison (`course_question` instead of `none`); the frozen path passed 1 case / 19 assertions. The local disposable database was dropped, and the pre-existing protected PostgreSQL server was left running.
+
+Reproduce from `api/` with a disposable test DATABASE_URL and PARALLEL_WORKERS=1:
+
+```sh
+# Expected failure: simulate a backwards host-clock step using the old clock.
+STRESS_REAL_CLOCK=1 STRESS_REPEATS=1 STRESS_CLOCK_STEP=-2 bundle exec ruby ../scripts/stress-learner-capabilities.rb
+# Expected pass: Rails' fixed clock ignores that host-clock step.
+STRESS_REPEATS=1 STRESS_CLOCK_STEP=-2 bundle exec ruby ../scripts/stress-learner-capabilities.rb
+# Full delayed stress (repeat with prepared_statements=false in DATABASE_URL).
+STRESS_SQL_DELAY=0.001 bundle exec ruby ../scripts/stress-learner-capabilities.rb
+```
+
+The remaining run results, final head/check links, review status, and cleanup are maintained in the [PR #297 description](https://github.com/Shimizu-Technology/csg-learning-platform/pull/297), so recording evidence does not repeatedly restart the complete CI matrix. At this source checkpoint the unprepared stress, full ASUS suites, and PR CI are still running. CodeRabbit initially reported a review rate limit; no completed review is claimed.

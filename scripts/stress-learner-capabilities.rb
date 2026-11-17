@@ -1,4 +1,12 @@
 # Run from api/: PARALLEL_WORKERS=1 bundle exec ruby ../scripts/stress-learner-capabilities.rb
+# Optionally simulate a host wall-clock step after the expiry UPDATE. Installing
+# this before Rails' time helpers lets a frozen test ignore the host adjustment.
+clock_offset = 0.0
+if ENV["STRESS_CLOCK_STEP"]
+  wall_now = Time.method(:now)
+  Time.define_singleton_method(:now) { wall_now.call + clock_offset }
+end
+
 $LOAD_PATH.unshift(File.expand_path("../api/test", __dir__))
 require_relative "../api/test/integration/learner_capabilities_test"
 
@@ -12,5 +20,14 @@ end
 if ENV["STRESS_SQL_DELAY"]
   ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
     sleep(Float(ENV.fetch("STRESS_SQL_DELAY"))) unless payload[:name] == "SCHEMA"
+  end
+end
+
+if ENV["STRESS_CLOCK_STEP"]
+  ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+    sql = payload[:sql]
+    if sql.start_with?('UPDATE "enrollments"') && sql.include?('"first_opened_at"') && sql.include?('"support_expires_at"')
+      clock_offset = Float(ENV.fetch("STRESS_CLOCK_STEP"))
+    end
   end
 end
