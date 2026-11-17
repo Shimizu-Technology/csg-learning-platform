@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { SubmissionAudit } from './SubmissionAudit'
+import * as routes from '../../lib/routes'
 
 const mocks = vi.hoisted(() => ({ getSubmissionAudit: vi.fn(), reviewSubmissionAudit: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
@@ -15,7 +16,7 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
   mocks.getSubmissionAudit.mockResolvedValue({ data: { blocks: [block] } })
 })
-afterEach(() => { act(() => root.unmount()); container.remove() })
+afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks() })
 async function mount() { await act(async () => root.render(<MemoryRouter><SubmissionAudit /></MemoryRouter>)) }
 async function click(text: string) {
   const button = Array.from(container.querySelectorAll('button')).find((item) => item.textContent === text)!
@@ -36,6 +37,19 @@ it('shows which cohorts already have sync and which have no submission', async (
   await mount()
   expect(container.textContent).toContain('Sync class: GitHub sync')
   expect(container.textContent).toContain('Manual class: No submission')
+})
+it('preserves encoded audit parameters on registry-based links', async () => {
+  vi.spyOn(routes, 'lessonEditorPath').mockImplementation((id) => `/registry/lessons/${id}/edit`)
+  vi.spyOn(routes, 'cohortPath').mockImplementation((id) => `/registry/cohorts/${id}`)
+  mocks.getSubmissionAudit.mockResolvedValue({ data: { blocks: [{ ...block, cohort_submissions: [{ id: 8, name: 'Sync class', submission_type: 'prework_github_sync' }] }] } })
+  await mount()
+  const link = Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Needs a submission')!
+  const url = new URL(link.href)
+  expect(url.pathname).toBe('/registry/lessons/2/edit')
+  expect(url.searchParams.get('block')).toBe('1')
+  expect(url.searchParams.get('return_to')).toBe('/admin/content/submission-audit')
+  expect(url.searchParams.get('suggest_submission')).toBe('text_submission')
+  expect(Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Sync class')!.getAttribute('href')).toBe('/registry/cohorts/8')
 })
 it('drops a delayed reload captured before a successful practice review', async () => {
   await mount()

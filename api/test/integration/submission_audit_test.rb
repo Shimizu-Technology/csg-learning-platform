@@ -34,6 +34,8 @@ class SubmissionAuditTest < ActionDispatch::IntegrationTest
       assert_equal [ @block.id ], response.parsed_body["blocks"].map { |item| item["id"] }
       patch "/api/v1/submission_audits/#{@block.id}", params: { content_digest: row["content_digest"] }, headers: headers, as: :json
       assert_response :conflict
+      assert_equal({ "error" => "This block changed. Reload the audit before reviewing it." }, response.parsed_body)
+      assert OpenapiContract::DOCUMENT.dig("paths", "/api/v1/submission_audits/{id}", "patch", "responses", "409"), "stale-digest recovery must be documented"
     end
   end
 
@@ -108,6 +110,9 @@ class SubmissionAuditTest < ActionDispatch::IntegrationTest
     missing = Cohort.create!(name: "Manual cohort", curriculum: @curriculum, start_date: Date.current)
     row = SubmissionAudit.rows.sole
     assert_equal({ cohort.id => "text_submission", missing.id => "manual_complete" }, row[:cohort_submissions].to_h { |item| [ item[:id], item[:submission_type] ] })
+    cohort.update!(settings: cohort.settings.deep_merge("features" => { "github_sync" => true }))
+    row = SubmissionAudit.rows.sole
+    assert_equal({ cohort.id => "prework_github_sync", missing.id => "manual_complete" }, row[:cohort_submissions].to_h { |item| [ item[:id], item[:submission_type] ] })
   end
 
   test "draft and archived curricula are excluded" do

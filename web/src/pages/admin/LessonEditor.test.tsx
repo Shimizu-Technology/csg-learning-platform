@@ -596,6 +596,35 @@ describe('lesson editing access', () => {
     ]
   }
 
+  it('consumes the companion audit request across add save and move reloads', async () => {
+    let saved = response()
+    vi.mocked(api.getLessonBlockEditor).mockImplementation(async () => ({ data: saved, error: null }))
+    save.mockImplementation(async (_id: number, payload: { blocks: Array<{ id?: number; block_type: string; position: number; title?: string; body?: string; submission_type?: string }> }) => {
+      saved = response({ updated_at: '2026-11-16T00:00:05.000000Z', content_blocks: payload.blocks.map((block, index) => ({ ...base, ...block, id: block.id || 100 + index, submission_type_explicit: block.submission_type })) as LessonBlockEditorResponse['lesson']['content_blocks'] })
+      return { data: saved, error: null }
+    })
+    mockModules(moveModules())
+    const impact = { learners_losing_access: 0, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
+    const move = vi.spyOn(api, 'moveLesson').mockImplementation(async (_id, input) => {
+      if (!input.dry_run) saved = { ...saved, lesson: { ...saved.lesson, release_day: 1 } }
+      return { data: input.dry_run ? { impact } : { lesson: saved.lesson, impact }, error: null }
+    })
+    await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    expect(cards()).toHaveLength(7)
+    await click(button('Save'))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(router.state.location.search).not.toContain('add_companion')
+    const dialog = await openMoveDialog()
+    const day = dialog.querySelectorAll<HTMLSelectElement>('select')[1]
+    await act(async () => { day.value = '1'; day.dispatchEvent(new Event('change', { bubbles: true })) })
+    await click(button('Move lesson', dialog))
+    expect(move).toHaveBeenCalledTimes(2)
+    expect(cards()).toHaveLength(7)
+    expect(cards().filter((card) => card.querySelector<HTMLInputElement>('input')?.value === 'Exercise: Your work').length).toBe(1)
+    expect(button('Save')!.disabled).toBe(true)
+    expect(vi.mocked(api.getLessonBlockEditor).mock.calls.length).toBeGreaterThan(1)
+  })
+
   it('moves the lesson to another day and place, checking a module change with a dry run first', async () => {
     const modules = moveModules()
     vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Synthetic Web Lab', description: null, total_weeks: null, status: 'active', updated_at: '', modules_count: 2, modules } }, error: null } as never)

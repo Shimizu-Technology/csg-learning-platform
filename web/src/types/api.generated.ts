@@ -4883,6 +4883,15 @@ export interface paths {
                         "application/json": components["schemas"]["SubmissionAuditReviewResponse"];
                     };
                 };
+                /** @description The content digest is stale. Reload the audit before reviewing the changed block. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmissionAuditConflictResponse"];
+                    };
+                };
             };
         };
         trace?: never;
@@ -8644,6 +8653,10 @@ export interface components {
         SubmissionAuditReviewResponse: {
             reviewed_by_id: number;
             reviewed_at: string;
+        };
+        SubmissionAuditConflictResponse: {
+            /** @constant */
+            error: "This block changed. Reload the audit before reviewing it.";
         };
     };
     responses: {

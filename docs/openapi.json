@@ -3715,6 +3715,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The content digest is stale. Reload the audit before reviewing the changed block.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAuditConflictResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -21632,6 +21642,19 @@
         "required": [
           "reviewed_by_id",
           "reviewed_at"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionAuditConflictResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "const": "This block changed. Reload the audit before reviewing it."
+          }
+        },
+        "required": [
+          "error"
         ],
         "additionalProperties": false
       }

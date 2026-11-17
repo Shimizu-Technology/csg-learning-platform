@@ -74,3 +74,20 @@ Cleanup: QA harness PIDs 97514/97519 and its `csg_qa_97505_1794917651` database 
 Interim integration check while the ASUS was occupied: full local API with OpenAPI coverage in both prepared-statement modes passed, 2,126 tests / 42,480 assertions per mode, zero failures/errors/skips. This supplements, rather than replaces, the requested ASUS run.
 
 The first ASUS run used its reused `csg-learning-platform-c` mirror, which contained obsolete record-detail tests absent from this checkout. It ran 2,146 tests instead of 2,126, with failures on missing record-detail routes. The runner helper copies tracked files but does not remove obsolete ones in a reused Git mirror. A fresh secret-free source snapshot was therefore prepared at `/tmp/csg-submission-audit-asus.nx2yl97i`; its Ruby test inventory was compared with this checkout and matched exactly. The clean-snapshot run below is the required acceptance run; the contaminated mirror run is retained as failed runner evidence.
+
+### Final additions requested by the lead
+
+At `873b0357`, CI passed. The lead capped the CodeRabbit cycle after three new findings and one coverage addition:
+
+- The review PATCH now documents HTTP 409 with a named `SubmissionAuditConflictResponse` schema containing the controller's exact stale-digest message. Both clients were regenerated. The existing stale-input integration flow now asserts the recovery body and explicit contract entry.
+- The companion request ref is consumed immediately when an exercise is inserted, independently of draft hydration. The regression adds, saves, moves and reloads the lesson, checking seven blocks and a clean draft rather than an eighth unsaved companion.
+- Audit lesson-editor/cohort links use the route registry and `URLSearchParams`. A test changes the registry helper bases and verifies both those bases and the preserved audit parameters.
+- The mixed-cohort test additionally asserts `prework_github_sync` plus `manual_complete` with GitHub sync enabled; its disabled-sync text/manual assertion remains.
+
+The clean ASUS source run on `873b0357` exposed a pre-existing time-dependent fixture in `StudentWorkspaceTest`: a synthetic one-hour booking created at 23:xx in the course zone crossed a course-week boundary. The fixture now uses noon in its config's saved zone; a late-night regression demonstrates the old failure. No booking validation or production scheduling code changed. The final-source gate rerun below includes this fixture repair and the lead's additions.
+
+No more CodeRabbit review rounds are requested after these fixes. Residuals remain the explicitly deferred copy-review carry-over, repeat-review history, empty-day authoring toggle, pre-existing `tth` date shift, and full live-content seed coverage. Repository-wide OpenAPI security lint annotations are outside these targeted response-contract changes; admin-only API authorization remains enforced and tested.
+
+Final local API integration checks passed in both prepared-statement modes with OpenAPI coverage: 2,127 tests / 42,484 assertions each, zero failures/errors/skips. Final web: 236 files / 2,647 tests; final mobile: 141 suites / 1,544 tests. All requested web/mobile static/build gates passed. Final browser rerun: 4/4 passed, with source progress/reviews/types unchanged and no companion draft saved. Its QA PIDs 15039/15049, shared preview tab and `csg_qa_14962_1794920836` database were cleaned.
+
+The next ASUS prepared pass had one pre-existing post-copy override regression return `content_moved` (2,127 tests / 42,479 assertions, 1 failure). The same source's unprepared full pass succeeded (2,127 / 42,484). That routing test now explicitly starts its requests one second after the copy's database timestamp, making its intended post-copy phase independent of clock timing; the adjacent in-flight-write regression still verifies refusal. Focused copy/audit/workspace coverage passed in both modes: 48 tests / 353 assertions each. Production copy and enrollment guard logic is unchanged. A final complete-source ASUS rerun is used for acceptance below.

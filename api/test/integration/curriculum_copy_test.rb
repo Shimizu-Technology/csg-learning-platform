@@ -332,16 +332,21 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     new_week2 = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "CurriculumModule", old_id: @f.modules.second.id).new_id
     new_project = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "Lesson", old_id: @f.lessons[:project].id).new_id
 
-    as_user(@f.admin) { post "/api/v1/enrollments/#{enrollment.id}/module_assignments", params: { module_id: @f.modules.second.id, unlocked: true }, headers: auth_headers, as: :json }
-    assert_response :created
-    assert_equal new_week2, response.parsed_body.dig("module_assignment", "module_id")
-    assert ModuleAssignment.find_by!(enrollment_id: enrollment.id, module_id: new_week2).unlocked
+    # These requests begin after the copy. Pin that phase relative to its DB
+    # timestamp so this routing test does not depend on application/DB clock jitter.
+    # The following test separately verifies the in-flight write is refused.
+    travel_to(enrollment.content_moved_at + 1.second) do
+      as_user(@f.admin) { post "/api/v1/enrollments/#{enrollment.id}/module_assignments", params: { module_id: @f.modules.second.id, unlocked: true }, headers: auth_headers, as: :json }
+      assert_response :created
+      assert_equal new_week2, response.parsed_body.dig("module_assignment", "module_id")
+      assert ModuleAssignment.find_by!(enrollment_id: enrollment.id, module_id: new_week2).unlocked
 
-    as_user(@f.admin) { post "/api/v1/enrollments/#{enrollment.id}/lesson_assignments", params: { lesson_id: @f.lessons[:project].id, unlocked: true }, headers: auth_headers, as: :json }
-    assert_response :created
-    assert_equal new_project, response.parsed_body.dig("lesson_assignment", "lesson_id")
-    assert_empty ModuleAssignment.where(enrollment_id: enrollment.id, module_id: @f.modules.map(&:id))
-    assert_empty LessonAssignment.where(enrollment_id: enrollment.id, lesson_id: @f.lessons.values.map(&:id))
+      as_user(@f.admin) { post "/api/v1/enrollments/#{enrollment.id}/lesson_assignments", params: { lesson_id: @f.lessons[:project].id, unlocked: true }, headers: auth_headers, as: :json }
+      assert_response :created
+      assert_equal new_project, response.parsed_body.dig("lesson_assignment", "lesson_id")
+      assert_empty ModuleAssignment.where(enrollment_id: enrollment.id, module_id: @f.modules.map(&:id))
+      assert_empty LessonAssignment.where(enrollment_id: enrollment.id, lesson_id: @f.lessons.values.map(&:id))
+    end
   end
 
   test "a learning write that began before the copy committed is refused with reload, not lost" do

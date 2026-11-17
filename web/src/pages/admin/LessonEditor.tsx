@@ -178,6 +178,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       const block = draftRef.current?.blocks.find((item) => item.id === blockId)
       if (block) {
         if (editable && auditRequest.current.companion && draftRef.current!.blocks.length < MAX_BLOCKS && !['exercise', 'code_challenge', 'checkpoint'].includes(block.block_type)) {
+          auditRequest.current.companion = false
           const companion = newBlock('exercise')
           companion.title = `Exercise: ${block.title || 'Your work'}`
           companion.body = block.body || 'Describe the work learners should submit.'

@@ -325,6 +325,14 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal [ mine.id, other.id ].sort, response.parsed_body.fetch("cohorts").flat_map { |row| row["bookings"] }.pluck("id").sort
   end
 
+  test "communication fixtures stay inside one course week near local midnight" do
+    travel_to(Time.current.change(hour: 13, min: 30, sec: 0)) do
+      booking = book(@teacher, 17, status: :canceled)
+      config = @cohort.private_meeting_config
+      assert_equal config.week_for(booking.starts_at), config.week_for(booking.ends_at - 1.second)
+    end
+  end
+
   test "filtered full communication lists and media lists keep flat query counts" do
     conversation(@teacher).messages.create!(author: @student, body: "Scoped message")
     outsider = person("another_learner", :student)
@@ -429,7 +437,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   def book(teacher, offset, status: :confirmed)
     config = @cohort.private_meeting_config || @cohort.create_private_meeting_config!(instructor: teacher, weeks: 30)
-    starts = Time.current + offset.days
+    starts = Time.current.in_time_zone(config.timezone).advance(days: offset).change(hour: 12, min: 0, sec: 0)
     # A second instructor can retain canceled/historical bookings after reassignment.
     config.update!(instructor: teacher)
     slot = config.private_meeting_slots.create!(instructor: teacher, starts_at: starts, ends_at: starts + 1.hour)
