@@ -62,6 +62,12 @@ persona 4 enrolled, plus meetings hosted by the admin. Load it once after startu
 `DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/plan-editor-meetings-fixtures.rb`.
 See `docs/qa/plan-editor-meetings-2026-11-17.md`.
 
+Help requests and follow-up plans (W7 PR 7.4) have their own spec, outside the default run
+because Reply & resolve closes a request: after `start`, run
+`DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/help-followup-fixtures.rb`
+(from `api/`), then `QA_SPEC=help-followup.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts`
+(from `web/`). It can be re-run against the same database; each run asks a fresh synthetic question.
+
 Use `PARALLEL_WORKERS=1` for separate Rails tests on the mini, with a separate
 test database. In zsh, do not name a variable `path` (it changes PATH).
 Smoke covers four roles at 1280 and 390 using Chromium. It does not establish

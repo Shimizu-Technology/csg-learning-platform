@@ -95,6 +95,8 @@ export type HelpUrgency = components['schemas']['HelpUrgency'];
 export type HelpRequestStatus = components['schemas']['HelpRequestStatus'];
 
 export type HelpRequest = components['schemas']['HelpRequest'];
+export type HelpRequestReply = components['schemas']['HelpRequestReply'];
+export type HelpRequestReplyResponse = components['schemas']['HelpRequestReplyResponse'];
 
 export type AttentionAction = Preview<components['schemas']['AttentionAction'], 'web_handoff'>;
 
@@ -150,6 +152,8 @@ export interface Intervention {
   help_request_id: number | null;
   recovery_plan_id: number | null;
   notes?: InterventionNote[];
+  /** Record pages only: the evidence ids that still open, as destinations (L-2.5). */
+  evidence_links?: Array<{ key: 'submission_ids' | 'help_request_id' | 'context_id'; id: number; label: string; destination: components['schemas']['RecordDestination'] | null }>;
 }
 
 export interface RecoveryPlanCheckIn {

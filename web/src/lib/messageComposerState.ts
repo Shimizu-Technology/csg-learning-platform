@@ -22,7 +22,7 @@ export type StoredComposerDraft = {
 
 /** The record a failed direct message is about (L-1.8), resent unchanged on retry. */
 export type StoredMessageSource = {
-  type: 'lesson' | 'submission' | 'help_request'
+  type: 'lesson' | 'submission' | 'help_request' | 'intervention'
   id: number
   title: string
 }
@@ -45,7 +45,7 @@ export type StoredFailedSend = {
 function isStoredMessageSource(value: unknown): value is StoredMessageSource {
   if (!value || typeof value !== 'object') return false
   const source = value as Partial<StoredMessageSource>
-  return (source.type === 'lesson' || source.type === 'submission' || source.type === 'help_request')
+  return (source.type === 'lesson' || source.type === 'submission' || source.type === 'help_request' || source.type === 'intervention')
     && Number.isInteger(source.id)
     && (source.id as number) > 0
     && typeof source.title === 'string'

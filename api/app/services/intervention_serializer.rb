@@ -34,8 +34,69 @@ class InterventionSerializer
       help_request_id: intervention.help_request_id,
       recovery_plan_id: intervention.recovery_plan&.id
     }
-    payload[:notes] = intervention.notes.order(created_at: :asc).map { |note| note_json(note) } if include_notes
+    if include_notes
+      # Sorted in Ruby so the preloaded notes and authors are used, not queried again.
+      payload[:notes] = intervention.notes.sort_by { |note| [ note.created_at, note.id ] }.map { |note| note_json(note) }
+      payload[:evidence_links] = evidence_links(intervention)
+    end
     payload
+  end
+
+  # The records the saved evidence names (L-2.5), as destinations staff can
+  # open: submissions still in this enrollment, the source help request and
+  # the lesson it was asked from when they belong to this cohort. Ids that no
+  # longer resolve are left out, so the page shows them as plain text.
+  def self.evidence_links(intervention)
+    snapshot = intervention.evidence_snapshot || {}
+    enrollment = intervention.enrollment
+    cohort_id = enrollment.cohort_id
+    links = []
+
+    submission_ids = Array(snapshot["submission_ids"]).map(&:to_s).grep(/\A[1-9]\d{0,18}\z/).map(&:to_i).first(50)
+    if submission_ids.any?
+      found = Submission.where(id: submission_ids, enrollment_id: enrollment.id).pluck(:id).to_set
+      submission_ids.each do |id|
+        next unless found.include?(id)
+
+        links << { key: "submission_ids", id: id, label: "Submission ##{id}", destination: RecordDestination.build(kind: "submission", id: id, context: { cohort_id: cohort_id, student_id: enrollment.user_id }) }
+      end
+    end
+
+    help_request_id = snapshot["help_request_id"].to_s
+    if help_request_id.match?(/\A[1-9]\d{0,18}\z/)
+      request = HelpRequest.find_by(id: help_request_id.to_i, cohort_id: cohort_id)
+      if request
+        links << { key: "help_request_id", id: request.id, label: request.context_label, destination: RecordDestination.build(kind: "help_request", id: request.id, context: { cohort_id: cohort_id, student_id: request.student_id }) }
+        lesson = evidence_lesson(request, enrollment.cohort)
+        links << { key: "context_id", id: lesson.id, label: lesson.title, destination: RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort_id }) } if lesson
+        recording = evidence_recording(request, enrollment.cohort)
+        links << { key: "context_id", id: request.context_id, label: recording[:label], destination: RecordDestination.build(kind: "recording", id: recording[:id], context: { cohort_id: cohort_id }) } if recording
+      end
+    end
+    links
+  end
+
+  # The lesson a help request was asked from, when it's on the cohort's curriculum.
+  def self.evidence_lesson(request, cohort)
+    lesson = case request.context_type
+    when "lesson" then Lesson.includes(:curriculum_module).find_by(id: request.context_id)
+    when "exercise" then ContentBlock.includes(lesson: :curriculum_module).find_by(id: request.context_id)&.lesson
+    end
+    lesson if lesson&.curriculum_module&.curriculum_id == cohort.curriculum_id
+  end
+
+  # The recording a help request was asked from, when the cohort still has it.
+  # Legacy recordings live in the cohort's settings and use the "legacy-" id.
+  def self.evidence_recording(request, cohort)
+    return unless request.context_type_recording?
+
+    if request.context_source_legacy?
+      entry = Array((cohort.settings || {})["recordings"])[request.context_id]
+      entry && { id: "legacy-#{cohort.id}-#{request.context_id + 1}", label: entry["title"].presence || request.context_label }
+    else
+      recording = cohort.recordings.find_by(id: request.context_id)
+      recording && { id: recording.id, label: recording.title }
+    end
   end
 
   def self.note_json(note)
@@ -52,5 +113,5 @@ class InterventionSerializer
     { id: user.id, full_name: user.full_name }
   end
 
-  private_class_method :person
+  private_class_method :person, :evidence_lesson, :evidence_recording
 end

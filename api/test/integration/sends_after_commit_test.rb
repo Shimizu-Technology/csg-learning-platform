@@ -136,6 +136,26 @@ class SendsAfterCommitTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a reply that keeps the request open, and a reply that resolves it, each push the student once after commit" do
+    help_request = HelpRequest.create!(student: @student, cohort: @cohort, context_type: :lesson, context_source: :primary, context_id: @lesson.id,
+      context_label: @lesson.title, context_path: "/lessons/#{@lesson.id}", category: :concept, message: "Next step?")
+
+    with_inline_jobs do
+      [ false, true ].each do |resolve|
+        with_push_calls(:help_request_changed) do |calls|
+          as_user(@instructor) do
+            post "/api/v1/help_requests/#{help_request.id}/replies", params: { reply: { body: "Try the loop again.", resolve: resolve } }, headers: auth_headers, as: :json
+          end
+
+          assert_response :created
+          assert_sent_after_commit(calls, resolve ? "reply and resolve push" : "reply push")
+          assert_equal [ @student.id, @student.id ], pushed_user_ids(calls), "one web push and one native push, not one per step"
+        end
+      end
+    end
+    assert help_request.reload.status_resolved?
+  end
+
   test "help request notifications rolled back with their transaction push nobody" do
     help_request = HelpRequest.create!(student: @student, cohort: @cohort, context_type: :lesson, context_source: :primary, context_id: @lesson.id,
       context_label: @lesson.title, context_path: "/lessons/#{@lesson.id}", category: :concept, message: "Next step?")

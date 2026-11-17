@@ -92,7 +92,7 @@ export function interventionPath(interventionId: number, returnTo?: string) {
 
 export function directMessagePath(
   conversationId: number,
-  source?: { type: 'submission' | 'help_request'; id: number; label: string; returnTo?: string },
+  source?: { type: 'submission' | 'help_request' | 'intervention'; id: number; label: string; returnTo?: string },
 ) {
   const params = new URLSearchParams()
   if (source) {
@@ -107,10 +107,11 @@ export function directMessagePath(
   return `/messages/dm/${conversationId}${query ? `?${query}` : ''}`
 }
 
-/** Staff view of a message's source record (L-1.8). */
-export function staffMessageSourcePath(source: { type: 'lesson' | 'submission' | 'help_request'; id: number; cohort_id?: number | null }, returnTo?: string) {
+/** Staff view of a message's source record (L-1.8). A follow-up plan is a staff-only source (L-2.5). */
+export function staffMessageSourcePath(source: { type: 'lesson' | 'submission' | 'help_request' | 'intervention'; id: number; cohort_id?: number | null }, returnTo?: string) {
   if (source.type === 'submission') return submissionPath(source.id, { cohortId: source.cohort_id || undefined, returnTo })
   if (source.type === 'help_request') return helpRequestPath(source.id, returnTo)
+  if (source.type === 'intervention') return interventionPath(source.id, returnTo)
   return lessonLearnerPath(source.id, source.cohort_id)
 }
 
