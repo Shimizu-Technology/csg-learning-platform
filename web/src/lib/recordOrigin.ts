@@ -65,8 +65,7 @@ export function originLabel(path: string): string | null {
   if (/^\/cohorts\/\d+$/.test(pathname)) return 'Cohort'
   if (pathname === '/messages' || /^\/messages\/\d+$/.test(pathname)) return 'Messages'
   if (/^\/messages\/dm\/\d+$/.test(pathname)) return 'conversation'
-  if (pathname === '/announcements') return query.get('tab') === 'inbox' ? 'Notifications' : 'Updates'
-  if (/^\/announcements\/\d+$/.test(pathname)) return 'Updates'
+  if (pathname === '/announcements' || /^\/announcements\/\d+$/.test(pathname)) return 'Updates'
   if (pathname === '/recordings') return 'Recordings'
   return null
 }
@@ -109,15 +108,17 @@ export interface BackLink {
  * origin is remembered for this tab, so a round trip through a linked page
  * keeps it.
  */
-export function useBackLink(fallback: ReturnContext, options: { scope?: string; accept?: 'any' | 'activity' } = {}): BackLink {
+export function useBackLink(fallback: ReturnContext, options: { scope?: string; accept?: 'any' | 'activity'; legacyInbox?: boolean } = {}): BackLink {
   const location = useLocation()
   const remembered = useReturnContext(fallback, options.scope)
-  const legacyFrom = typeof location.state?.from === 'string' ? safeInternalReturnPath(location.state.from, '') : ''
+  // New student views opt in; standard views keep their existing return markup.
+  const legacyFrom = options.legacyInbox && typeof location.state?.from === 'string' ? safeInternalReturnPath(location.state.from, '') : ''
   const fromState = readReturnContext(location.state) || (legacyFrom && originLabel(legacyFrom) ? { returnTo: legacyFrom, returnLabel: originLabel(legacyFrom)! } : null)
   const fromParams = originFromParams(location.search, options.accept)
   // Router state wins when it points at the same place as the URL (or the URL says nothing).
   const chosen = fromState && (!fromParams || fromParams.returnTo === fromState.returnTo)
     ? fromState
     : fromParams || remembered
-  return { to: chosen.returnTo, label: backLinkText(chosen.returnLabel), fallback: chosen === fallback }
+  const inbox = options.legacyInbox && chosen.returnLabel === 'Updates' && chosen.returnTo.split('?')[0] === '/announcements' && queryOf(chosen.returnTo).get('tab') === 'inbox'
+  return { to: chosen.returnTo, label: backLinkText(inbox ? 'Notifications' : chosen.returnLabel), fallback: chosen === fallback }
 }

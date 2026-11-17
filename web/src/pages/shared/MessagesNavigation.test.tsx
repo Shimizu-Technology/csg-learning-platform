@@ -481,16 +481,17 @@ it('keeps unrelated realtime DMs out of the student-filtered full list', async (
   expect(summaryRow('dm')).toBeUndefined()
 })
 
-it('new phone conversation Back keeps workspace and the instructor cohort mention links to Learn', async () => {
-  fixture.v2 = true
+it.each([true, false])('phone Back keeps workspace and origin only when the redesign is On (%s)', async (v2) => {
+  fixture.v2 = v2
   fixture.staff = false
   ;(fixture.responses.getChannel as { channel: { workspace_name?: string } }).channel.workspace_name = 'Cohort'
   window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
-  const router = createMemoryRouter([{ path: '/messages/:channelId', element: <Messages /> }, { path: '/messages', element: <p>Scoped inbox</p> }], { initialEntries: ['/messages/2?workspace_id=1'] })
+  const router = createMemoryRouter([{ path: '/messages/:channelId', element: <Messages /> }, { path: '/messages', element: <p>Scoped inbox</p> }], { initialEntries: [{ pathname: '/messages/2', search: '?workspace_id=1', state: { returnTo: '/announcements?tab=inbox', returnLabel: 'Notifications' } }] })
   await act(async () => root.render(<RouterProvider router={router} />))
   const back = container.querySelector('button[aria-label="Back to conversations"]') as HTMLButtonElement
   expect(back).not.toBeNull()
-  expect(container.querySelector('a[href="/materials?cohort_id=1"]')?.textContent).toBe('Cohort')
+  expect(container.querySelector('a[href="/materials?cohort_id=1"]')?.textContent ?? null).toBe(v2 ? 'Cohort' : null)
   await act(async () => back.click())
-  expect(router.state.location.pathname + router.state.location.search).toBe('/messages?workspace_id=1')
+  expect(router.state.location.pathname + router.state.location.search).toBe(v2 ? '/messages?workspace_id=1' : '/messages')
+  expect(router.state.location.state).toEqual(v2 ? { returnTo: '/announcements?tab=inbox', returnLabel: 'Notifications' } : null)
 })

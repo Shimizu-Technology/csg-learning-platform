@@ -38,7 +38,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
   const { selectedCohortId } = useCohortContext()
   const v2 = experience.v2 && (!selected.cohort_id || selected.cohort_id === selectedCohortId)
   const location = useLocation()
-  const originBack = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' })
+  const originBack = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
   const hasOrigin = Boolean(location.state?.returnTo || location.state?.from)
   const returnTo = safeInternalReturnPath(new URLSearchParams(location.search).get('return_to'), '') || (v2 && hasOrigin ? originBack.to : '')
   const workspaceId = selected.workspace_id
@@ -71,7 +71,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
           </IconButton>
         )}
         {!isDesktop && (
-          <IconButton label="Back to conversations" onClick={() => navigate(listPath, { replace: true, state: location.state })}>
+          <IconButton label="Back to conversations" onClick={() => navigate(listPath, v2 ? { replace: true, state: location.state } : { replace: true })}>
             <ChevronLeft className="h-5 w-5" />
           </IconButton>
         )}

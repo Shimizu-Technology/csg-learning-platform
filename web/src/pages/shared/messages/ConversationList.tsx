@@ -30,7 +30,7 @@ export function ConversationList({ directory, conversation, search, alerts, show
   const { selectedCohortId } = useCohortContext()
   const v2 = experience.v2 && (!directory.selectedWorkspace?.cohort_id || directory.selectedWorkspace.cohort_id === selectedCohortId)
   const location = useLocation()
-  const back = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' })
+  const back = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
   const hasOrigin = Boolean(location.state?.returnTo || location.state?.from || new URLSearchParams(location.search).get('return_to'))
   const { isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
   const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation

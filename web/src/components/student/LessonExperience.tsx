@@ -39,7 +39,7 @@ export function LessonExperience({
   setHelpRequests: (requests: HelpRequest[]) => void
   refreshHelp: () => Promise<void>
 }) {
-  const back = useBackLink({ returnTo: `/materials?cohort_id=${lesson.cohort_id}`, returnLabel: 'Learn' })
+  const back = useBackLink({ returnTo: `/materials?cohort_id=${lesson.cohort_id}`, returnLabel: 'Learn' }, { legacyInbox: true })
   const backState = { returnTo: back.to, returnLabel: back.label }
   const lessonKey = `${lesson.cohort_id}:${lesson.id}`
   const currentLesson = useRef(lessonKey)

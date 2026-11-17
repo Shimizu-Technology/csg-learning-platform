@@ -150,7 +150,7 @@ export function Recordings() {
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
-  const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' })
+  const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' }, { legacyInbox: v2 })
   const backTo = v2 ? originBack.to : todayPath
   const backLabel = v2 ? originBack.label : 'Back to Today'
   const isStaff = Boolean(user?.is_staff)
