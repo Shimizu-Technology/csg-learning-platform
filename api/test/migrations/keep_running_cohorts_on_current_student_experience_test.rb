@@ -38,7 +38,7 @@ class KeepRunningCohortsOnCurrentStudentExperienceTest < ActiveSupport::TestCase
     assert_equal({ "student_experience_v2" => true }, explicit.reload.settings["features"])
     assert_empty FeatureSwitchChange.where(actor_id: nil)
   ensure
-    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
+    ActiveRecord::Base.connection_handler.connection_pool_list.each { |pool| pool.connections.each(&:clear_cache!) }
     FeatureSwitchChange.reset_column_information
   end
 

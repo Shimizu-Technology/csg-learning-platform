@@ -101,7 +101,7 @@ class LearnerProgress
   # number of queries however many enrollments there are: the preloads above,
   # one for progress, one for latest submissions (Submission.latest_attempts, the
   # grading authority's ordering) and one for school switches.
-  def self.for_all(enrollments, now: Time.current)
+  def self.for_all(enrollments, now: Time.current, school_features: nil)
     enrollments = enrollments.to_a
     return {} if enrollments.empty?
 
@@ -110,7 +110,7 @@ class LearnerProgress
     progress = Progress.joins(:enrollment).where(enrollment_id: ids).where("progresses.user_id = enrollments.user_id").to_a.group_by(&:enrollment_id)
     owned = Submission.joins(:enrollment).where(enrollment_id: ids).where("submissions.user_id = enrollments.user_id")
     submissions = owned.latest_attempts.to_a.group_by(&:enrollment_id)
-    school = FeatureSwitches.school
+    school = school_features || FeatureSwitches.school
     enrollments.to_h do |enrollment|
       [ enrollment.id, new(enrollment, now: now, progress: progress.fetch(enrollment.id, []), submissions: submissions.fetch(enrollment.id, []), school_features: school) ]
     end
