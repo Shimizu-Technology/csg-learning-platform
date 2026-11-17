@@ -52,3 +52,12 @@ it('settles a failed feed and only retries explicitly', async () => {
   await click('Try again')
   expect(api.getActivityEvents).toHaveBeenCalledTimes(2)
 })
+it('leaves the School activity heading to the page title, and keeps it on a cohort tab (U-3.5)', async () => {
+  const school = createMemoryRouter([{ path: '/admin/activity', element: <StaffActivityFeed /> }], { initialEntries: ['/admin/activity'] })
+  await act(async () => root.render(<RouterProvider router={school} />))
+  expect(container.querySelector('h2')).toBeNull()
+  expect(container.querySelector('section[aria-label="School activity"]')?.textContent).toContain('Recorded since')
+  const cohort = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <StaffActivityFeed cohort={{ id: 4, students: [] } as unknown as CohortDetail} /> }], { initialEntries: ['/admin/cohorts/4?tab=activity'] })
+  await act(async () => root.render(<RouterProvider router={cohort} />))
+  expect(container.querySelector('h2')?.textContent).toBe('Cohort activity')
+})

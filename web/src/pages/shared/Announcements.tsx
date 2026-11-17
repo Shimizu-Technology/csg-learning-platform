@@ -8,7 +8,7 @@ import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { UNREAD_CHANGED } from '../../lib/unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
-import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, PenLine, Pin, Trash2 } from 'lucide-react'
+import { Bell, CalendarClock, CalendarX, Check, ChevronLeft, ChevronRight, Eye, Megaphone, PenLine, Pin, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -27,21 +27,26 @@ import type { ReturnContext } from '../../lib/navigationContext'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 import { RecordHeader } from '../../components/shared/RecordHeader'
 import { useInsertedKeys } from '../../lib/motion'
+import { sendsAboutLabel } from '../../lib/scheduledUpdates'
 import { EMPTY_UPDATE_FORM, UpdateComposer, formFromUpdate, useUpdateRequest, type UpdateForm, type UpdateSaveOutcome } from './UpdateComposer'
 
-type ManageStatus = 'published' | 'draft' | 'archived'
+type ManageStatus = 'published' | 'scheduled' | 'draft' | 'archived'
 
 const STATUS_FILTERS: { value: ManageStatus; label: string }[] = [
   { value: 'published', label: 'Published' },
+  { value: 'scheduled', label: 'Scheduled' },
   { value: 'draft', label: 'Drafts' },
   { value: 'archived', label: 'Archived' },
 ]
 
-/** "2 drafts", "1 published update". */
+/** "2 drafts", "1 scheduled update", "1 published update". */
 function statusCount(status: ManageStatus, count: number) {
   if (status === 'draft') return `${count} ${count === 1 ? 'draft' : 'drafts'}`
   return `${count} ${status} ${count === 1 ? 'update' : 'updates'}`
 }
+
+/** A draft waiting for the hourly tick to post it (U-3.6). */
+const isScheduled = (announcement: Announcement) => announcement.status === 'draft' && Boolean(announcement.scheduled_for)
 
 const formatDate = (date?: string | null) => formatShortDateTime(date, 'Not posted')
 
@@ -67,6 +72,7 @@ function EditedMarker({ announcement }: { announcement: Announcement }) {
 
 /** When it went out, or for a draft when it was last saved. */
 function WhenLabel({ announcement }: { announcement: Announcement }) {
+  if (isScheduled(announcement)) return <span className="tabular-nums">{sendsAboutLabel(announcement.scheduled_for!, announcement.schedule_time_zone)}</span>
   if (announcement.status === 'draft') return <>Draft · saved <span className="tabular-nums">{formatShortDateTime(announcement.updated_at, 'just now')}</span></>
   return <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
 }
@@ -75,7 +81,8 @@ function StatusBadges({ announcement, unread }: { announcement: Announcement; un
   return <>
     {announcement.pinned && <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
     {unread && <Badge tone="info">Unread</Badge>}
-    {announcement.status === 'draft' && <Badge tone="warning">Draft</Badge>}
+    {isScheduled(announcement) ? <Badge tone="info" icon={<CalendarClock className="h-3 w-3" aria-hidden="true" />}>Scheduled</Badge>
+      : announcement.status === 'draft' && <Badge tone="warning">Draft</Badge>}
     {announcement.status === 'archived' && <Badge tone="neutral">Archived</Badge>}
   </>
 }
@@ -119,7 +126,8 @@ function audienceFilterIncludes(filter: string, update: Announcement) {
 /** Manage filters that show `update`: its status, and the current "Sent to" if it already includes it. */
 function manageParamsShowing(current: URLSearchParams, update: Announcement) {
   const next = new URLSearchParams(current)
-  if (update.status === 'draft' || update.status === 'archived') next.set('status', update.status)
+  if (isScheduled(update)) next.set('status', 'scheduled')
+  else if (update.status === 'draft' || update.status === 'archived') next.set('status', update.status)
   else next.delete('status')
   if (!audienceFilterIncludes(audienceFilterFrom(current), update)) {
     next.set('audience', update.audience || 'cohort')
@@ -186,7 +194,7 @@ function AnnouncementFeed() {
   // Readers get one feed, newest first with pinned on top, and one "Unread only" toggle (U-3.6).
   const unreadOnly = !manageMode && searchParams.get('read') === 'unread'
   const statusParam = searchParams.get('status')
-  const statusFilter: ManageStatus = statusParam === 'draft' || statusParam === 'archived' ? statusParam : 'published'
+  const statusFilter: ManageStatus = statusParam === 'draft' || statusParam === 'scheduled' || statusParam === 'archived' ? statusParam : 'published'
   const cohortParam = searchParams.get('cohort_id')
   const cohortFilter = cohortParam || (!isStaff && selectedCohortId ? String(selectedCohortId) : 'all')
   // Staff filter by who an update went to: everyone, staff, all cohorts, or one cohort.
@@ -228,8 +236,8 @@ function AnnouncementFeed() {
       status: manageMode ? statusFilter : undefined,
       cohort_id: manageMode ? manageCohort : cohortFilter === 'all' ? undefined : Number(cohortFilter),
       read: unreadOnly ? 'unread' : undefined,
-      // Drafts list the most recently saved first.
-      sort: manageMode && statusFilter === 'draft' ? 'updated_desc' : undefined,
+      // Drafts list the most recently saved first; Scheduled, the next to go out.
+      sort: manageMode && statusFilter === 'draft' ? 'updated_desc' : manageMode && statusFilter === 'scheduled' ? 'scheduled_asc' : undefined,
     })
 
     if (request !== listRequest.current) return
@@ -318,7 +326,7 @@ function AnnouncementFeed() {
 
   const handleComposerSaved = async (saved: Announcement, outcome: UpdateSaveOutcome) => {
     resetComposer()
-    toast.success(outcome === 'draft' ? 'Draft saved' : saved.status === 'published' ? 'Update posted' : 'Saved')
+    toast.success(outcome === 'draft' ? 'Draft saved' : outcome === 'scheduled' ? 'Update scheduled' : saved.status === 'published' ? 'Update posted' : 'Saved')
     // Show the update where it now lives: its status, and a "Sent to" that includes it.
     const current = searchParamsRef.current
     if (current.get('scope') !== 'manage') return
@@ -331,15 +339,39 @@ function AnnouncementFeed() {
     setDetail((current) => current && current.id === saved.id ? { ...current, ...saved } : current)
     setEditBaseline(JSON.stringify(formFromUpdate(saved)))
     setEditing(false)
-    setDetailNotice(outcome === 'posted' ? 'Update posted.' : outcome === 'draft' ? 'Draft saved.' : 'Changes saved. Readers see “Edited”; nobody was notified again.')
+    setDetailNotice(outcome === 'posted' ? 'Update posted.' : outcome === 'scheduled' ? 'Schedule saved. Nobody is notified until it posts.' : outcome === 'draft' ? 'Draft saved.' : 'Changes saved. Readers see “Edited”; nobody was notified again.')
     if (outcome === 'posted') toast.success('Update posted')
+    if (outcome === 'scheduled') toast.success('Update scheduled')
+    void loadAnnouncements({ background: true })
+  }
+
+  const [cancellingSchedule, setCancellingSchedule] = useState(false)
+  // Cancelling keeps the update as an ordinary draft; schedule it again from Edit.
+  const handleCancelSchedule = async (announcement: Announcement) => {
+    if (!announcement.id || cancellingSchedule) return
+    setCancellingSchedule(true)
+    const res = await api.updateAnnouncement(announcement.id, { scheduled_for: null })
+    setCancellingSchedule(false)
+    if (res.error || !res.data) {
+      toast.error(res.error || 'Could not cancel the schedule. Try again.')
+      setDetailAttempt((value) => value + 1)
+      return
+    }
+    const saved = res.data.announcement
+    setDetail((current) => current && current.id === saved.id ? { ...current, ...saved } : current)
+    setDetailNotice('Schedule cancelled. It’s a draft now, and nobody was notified.')
     void loadAnnouncements({ background: true })
   }
 
   const handleRemove = async (announcement: Announcement) => {
     if (!announcement.id || removingId) return
     const draft = announcement.status === 'draft'
-    if (!await confirmAction(draft ? {
+    if (!await confirmAction(isScheduled(announcement) ? {
+      title: 'Delete scheduled update?',
+      description: `“${announcement.title}” hasn’t been sent. Deleting it cancels the send and can’t be undone.`,
+      confirmLabel: 'Delete update',
+      tone: 'danger',
+    } : draft ? {
       title: 'Delete draft?',
       description: `“${announcement.title}” was never posted. Deleting it can’t be undone.`,
       confirmLabel: 'Delete draft',
@@ -484,11 +516,27 @@ function AnnouncementFeed() {
             headingLevel={2}
             status={<StatusBadges announcement={selected} unread={false} />}
             context={<span className="inline-flex flex-wrap items-center gap-x-1"><AnnouncementAuthor announcement={selected} /> · <WhenLabel announcement={selected} />{selected.edited_at && <> · <EditedMarker announcement={selected} /></>}</span>}
-            actions={selected.can_edit ? <Button variant="secondary" onClick={() => setEditing(true)}><PenLine className="h-4 w-4" aria-hidden="true" />{selected.status === 'draft' ? 'Edit draft' : 'Edit'}</Button> : undefined}
+            actions={selected.can_edit ? <>
+              <Button variant="secondary" onClick={() => setEditing(true)}><PenLine className="h-4 w-4" aria-hidden="true" />{isScheduled(selected) ? 'Edit or reschedule' : selected.status === 'draft' ? 'Edit draft' : 'Edit'}</Button>
+              {isScheduled(selected) && <Button variant="secondary" onClick={() => void handleCancelSchedule(selected)} disabled={cancellingSchedule}><CalendarX className="h-4 w-4" aria-hidden="true" />{cancellingSchedule ? 'Cancelling…' : 'Cancel schedule'}</Button>}
+            </> : undefined}
             copyPath={`/announcements/${selected.id}`}
           />
           {detailNotice && <p role="status" className="rounded-xl border border-success-line bg-success-soft px-3 py-2 text-sm text-success-ink">{detailNotice}</p>}
-          {selected.status === 'draft' && <p className="text-sm text-ink-secondary">Only you and admins can see this draft. Nobody is notified until you post it.</p>}
+          {isScheduled(selected) ? (
+            <div className="flex items-start gap-2 rounded-xl border border-info-line bg-info-soft px-3 py-2 text-sm text-info-ink" data-testid="scheduled-notice">
+              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p><strong>{sendsAboutLabel(selected.scheduled_for!, selected.schedule_time_zone)}.</strong> Scheduled updates go out with the hourly run, not to the minute. Until then only you and admins can see it, and nobody is notified.</p>
+            </div>
+          ) : selected.status === 'draft' && <p className="text-sm text-ink-secondary">Only you and admins can see this draft. Nobody is notified until you post it.</p>}
+          {selected.read_summary && (
+            <p className="flex items-center gap-2 text-sm text-ink-secondary" data-testid="read-summary">
+              <Eye className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+              {selected.read_summary.notified === 0
+                ? 'Nobody was notified when this posted.'
+                : <span><span className="tabular-nums font-semibold text-ink">{selected.read_summary.read} of {selected.read_summary.notified}</span> {selected.read_summary.notified === 1 ? 'person it went to has' : 'people it went to have'} read it</span>}
+            </p>
+          )}
           {selected.body ? <div className="leading-7 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={selected.body} /></div> : <p className="text-sm text-ink-muted">No text yet.</p>}
         </>) : <><Link to={back.to} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{back.label}</Link>{detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Try again</Button></div> : <p role="status">Loading update…</p>}</>}
       </section>}
@@ -559,8 +607,8 @@ function AnnouncementFeed() {
             {manageMode ? (
               <EmptyState
                 icon={Megaphone}
-                title={statusFilter === 'draft' ? 'No drafts' : statusFilter === 'archived' ? 'Nothing archived' : 'No updates posted yet'}
-                description={statusFilter === 'draft' ? 'Use Save draft to keep an update here until it’s ready to post.' : statusFilter === 'archived' ? 'Archived updates leave the feed and stay here.' : 'Post an update above. It appears here and in each reader’s feed.'}
+                title={statusFilter === 'draft' ? 'No drafts' : statusFilter === 'scheduled' ? 'Nothing scheduled' : statusFilter === 'archived' ? 'Nothing archived' : 'No updates posted yet'}
+                description={statusFilter === 'draft' ? 'Use Save draft to keep an update here until it’s ready to post.' : statusFilter === 'scheduled' ? 'Choose Schedule above to send an update later. It waits here until it goes out.' : statusFilter === 'archived' ? 'Archived updates leave the feed and stay here.' : 'Post an update above. It appears here and in each reader’s feed.'}
               />
             ) : unreadOnly ? (
               <EmptyState icon={Megaphone} title="No unread updates" description="You’ve read every update." action={<Button variant="secondary" onClick={() => updateQuery({ read: null, page: '1' })}>Show all updates</Button>} />

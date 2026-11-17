@@ -33,6 +33,8 @@ export interface RelatedItem {
   recording_id?: number | null
   direct_conversation_id?: number | null
   content_block_id?: number | null
+  /** Submission rubric rows: the rubric's staff page (L-5.2). */
+  rubric_id?: number | null
   work_count?: number
   open_count?: number
   last_message_at?: string | null
@@ -138,10 +140,18 @@ export function relatedRows(related: RecordRelated, options: RelatedRowOptions):
       }
       case 'module_grid': {
         const to = staffViewer && item.cohort_id && item.module_id ? cohortModuleGradingPath(item.cohort_id, item.module_id) : null
-        return [{ key: item.key, icon: Table2, label: `${item.value || 'Module'} grading`, value: 'Open', to }]
+        // The module itself (L-5.1), then its grading grid for this cohort.
+        const moduleTo = item.module_id ? recordPath({ type: 'module', id: item.module_id, cohortId: item.cohort_id ?? undefined }, { viewer, returnTo }) : null
+        return [
+          { key: `${item.key}:module`, icon: Layers3, label: 'Module', value: item.value || 'Open', to: moduleTo },
+          { key: item.key, icon: Table2, label: `${item.value || 'Module'} grading`, value: 'Open', to },
+        ]
       }
-      case 'rubric':
-        return [{ key: item.key, icon: ListChecks, label: 'Rubric', value: count ? plural(count, 'criterion', 'criteria') : null, onSelect: scrollRow('rubric') }]
+      case 'rubric': {
+        // Its own page when there is one to open (L-5.1); otherwise the rubric shown with the review.
+        const to = item.rubric_id ? recordPath({ type: 'rubric', id: item.rubric_id }, { viewer, returnTo }) : null
+        return [{ key: item.key, icon: ListChecks, label: 'Rubric', value: count ? plural(count, 'criterion', 'criteria') : null, to, onSelect: to ? undefined : scrollRow('rubric') }]
+      }
       case 'other_attempts':
         return [{ key: item.key, icon: History, label: 'Other attempts', count, to: count ? workspace(item, 'work') : null }]
       case 'help':
