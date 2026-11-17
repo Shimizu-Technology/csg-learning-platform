@@ -57,6 +57,11 @@ copy happens once: `DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby
 (from `api/`), then the three `QA_SPEC=copy-for-cohort.spec.ts` passes listed at the top of that spec,
 then `copy-fixtures.rb verify`.
 
+The learning-plan editor and instructor meetings checks use an extra fixture: a synthetic 240-lesson course with
+persona 4 enrolled, plus meetings hosted by the admin. Load it once after startup, from `api/`:
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/plan-editor-meetings-fixtures.rb`.
+See `docs/qa/plan-editor-meetings-2026-11-17.md`.
+
 Use `PARALLEL_WORKERS=1` for separate Rails tests on the mini, with a separate
 test database. In zsh, do not name a variable `path` (it changes PATH).
 Smoke covers four roles at 1280 and 390 using Chromium. It does not establish

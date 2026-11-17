@@ -14,6 +14,7 @@ import { openExternalPage } from '@/lib/external-links';
 import { weeklyItemStatus, type LearnerStatus } from '@/lib/learning-status';
 import { webLessonUrl } from '@/lib/hafa-starter-links';
 import { markdownExcerpt } from '@/lib/plain-text';
+import { AuthoredContent } from './authored-content';
 import { CourseSupportAction } from './course-support-action';
 import { StatusBadge, StatusIcon } from './learning-ui';
 import type { WeeklyPlan, WeeklyPlanLessonItem } from '@/lib/types';
@@ -71,7 +72,8 @@ function PersonalPlan({ plan }: { plan: WeeklyPlan }) {
     <View style={styles.header}>
       <Text style={styles.eyebrow}>YOUR PERSONAL PLAN</Text>
       <Text accessibilityRole="header" style={styles.heading}>{personal.title}</Text>
-      {!!personal.description && <Text style={styles.headerCopy}>{personal.description}</Text>}
+      {/* Staff write the note in the shared Markdown editor; render it the way web does. */}
+      {!!personal.description && <View testID="personal-plan-note"><AuthoredContent body={personal.description} compact written /></View>}
       {!!personal.target_date && <Text style={styles.headerCopy}>Target finish: {dateLabel(personal.target_date)}</Text>}
       {!!personal.next_check_in_on && <Text style={styles.headerCopy}>Next follow-up: {dateLabel(personal.next_check_in_on)}</Text>}
       <Text style={styles.headerCopy}>{personal.completed_count} of {personal.required_count} required lessons done or submitted. {personal.awaiting_review_count > 0 ? `${personal.awaiting_review_count} waiting for review.` : ''}</Text>

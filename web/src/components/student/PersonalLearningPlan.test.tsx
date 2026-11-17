@@ -19,3 +19,11 @@ it('shows current milestone, truthful review status and source-cohort task links
   expect(html).toContain('Milestone targets do not extend submission windows.')
   expect(html).toContain('Available after the core application')
 })
+
+it('reads the staff note as Markdown, the way the plan editor wrote it', () => {
+  const plan: Plan = { title: 'Catch up', description: 'Finish **JavaScript** first\n\n- then React', target_date: null, next_check_in_on: null, updated_at: '2026-11-17T00:00:00Z', required_count: 0, completed_count: 0, awaiting_review_count: 0, milestones: [], submission_deadlines: [], next_lesson: null, requirement_changes: [] }
+  const html = renderToStaticMarkup(<MemoryRouter><PersonalLearningPlan plan={plan} /></MemoryRouter>)
+  expect(html).toContain('<strong>JavaScript</strong>')
+  expect(html).toContain('<li>then React</li>')
+  expect(html).not.toContain('**')
+})

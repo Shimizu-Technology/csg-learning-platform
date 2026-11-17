@@ -1,6 +1,9 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class LearningPlansTest < ActionDispatch::IntegrationTest
+  include QueryCounter
+
   def setup
     @admin = person("Admin", :admin)
     @teacher = person("Teacher", :instructor)
@@ -67,6 +70,49 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     get "/api/v1/dashboard", headers: headers(@learner)
     assert_response :success
     assert_equal @first.id, response.parsed_body.dig("dashboard", "continue_lesson", "id")
+  end
+
+  test "editor lessons carry module, week and the student's own status" do
+    week_two = lesson("Week two project", 8, true)
+    @enrollment.progresses.create!(user: @learner, content_block: @first.content_blocks.first, status: :completed)
+    @other_enrollment.progresses.create!(user: @other, content_block: @second.content_blocks.first, status: :completed)
+    get @path, headers: headers(@teacher)
+    assert_response :success
+    lessons = response.parsed_body["lessons"].index_by { |item| item["id"] }
+    assert_equal [ @mod.id ], lessons.values.map { |item| item["module_id"] }.uniq
+    assert_equal({ "status" => "done", "completed" => true, "week" => 1 }, lessons[@first.id].slice("status", "completed", "week"))
+    # Another learner's progress never marks this student's lesson finished.
+    assert_equal({ "status" => "open", "completed" => false }, lessons[@second.id].slice("status", "completed"))
+    assert_equal 2, lessons[week_two.id]["week"]
+
+    @cohort.update!(course_delivery: "self_paced")
+    get @path, headers: headers(@teacher)
+    assert_equal [ nil ], response.parsed_body["lessons"].map { |item| item["week"] }.uniq, "self-paced modules show numbered sections, not weeks"
+  end
+
+  test "students cannot read the plan editor" do
+    get @path, headers: headers(@learner)
+    assert_response :forbidden
+    get @path, headers: headers(@outsider)
+    assert_response :forbidden
+  end
+
+  test "plan editor query count stays flat as lessons, modules and progress grow" do
+    put @path, params: { learning_plan: plan_input }, headers: headers(@teacher), as: :json
+    assert_response :success
+    small = count_queries { get @path, headers: headers(@teacher) }
+    assert_response :success
+    extra = @curriculum.modules.create!(name: "Projects", position: 1, schedule_days: "daily")
+    @enrollment.module_assignments.create!(curriculum_module: extra, unlocked: true)
+    6.times do |index|
+      added = extra.lessons.create!(title: "Project #{index}", position: index, release_day: index * 3, required: true)
+      block = added.content_blocks.create!(block_type: :checkpoint, position: 0, title: added.title)
+      @enrollment.progresses.create!(user: @learner, content_block: block, status: :completed)
+    end
+    large = count_queries { get @path, headers: headers(@teacher) }
+    assert_response :success
+    assert_equal 9, response.parsed_body["lessons"].size
+    assert_equal small, large
   end
 
   test "save uses shared lessons and affects only the selected enrollment" do
