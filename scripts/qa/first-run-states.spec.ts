@@ -210,7 +210,7 @@ for (const theme of ['light','dark']) {
     await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
     await page.goto(`/recordings?cohort_id=${ids.program}&recording=${ids.week_recording}&qa_user=4`)
     await expect(page.getByRole('heading', { name: 'Week-one replay', exact: true })).toBeVisible()
-    await page.getByRole('link', { name: 'Open Week 1', exact: true }).click()
+    await page.getByRole('link', { name: 'Open Week 1 in Learn', exact: true }).click()
     await expect(page).toHaveURL(url => url.pathname === '/materials' && url.searchParams.get('week') === '1')
     const weeks = page.getByRole('button', { name: /^Week 1/ })
     await expect(weeks).toHaveCount(2)
