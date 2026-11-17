@@ -54,6 +54,11 @@ motion. Browser resizing establishes responsive web coverage only.
   whereas module cloning restructures curricula and may cross curriculum
   boundaries. This PR does not expand those grants.
 
+Implementation evidence: browser/UI and locking/ordering checks used
+`b4374f90`; the SQL-sanitizer and hosted-storage regression change is
+`91fb915f`. The final full API gate uses `91fb915f`. Later documentation-only
+commits do not change the tested application.
+
 ## Browser scenarios
 
 Preflight: secret-free harness, eight synthetic personas, fresh local QA database;
@@ -114,14 +119,18 @@ the bundled Chromium harness. No passed result relies on the interrupted runs.
 - Hosted video tests stub storage only: missing objects roll back; verified
   objects reuse their keys and acquire one bulk advisory-lock query.
 - Changed Ruby files passed RuboCop. Impeccable's advisory scan returned `[]`.
-- ASUS full prepared/unprepared API gate: **pending**. Uses the existing
-  `scheduled-jobs-gate.sh`, including `MIGRATION_PROCESS_TEST_DATABASE_URL` port
-  adapter, OpenAPI coverage, RuboCop and Brakeman. Exit-75 lock contention was
-  respected; only one runner job was launched at a time. An earlier snapshot
-  passed both API modes (2,257 tests / 43,583 assertions each), but Brakeman
-  flagged its quoted video-key array. Rails SQL sanitization replaced that array;
-  local Brakeman then reported zero warnings (one existing ignored warning).
-  The final source rerun remains the acceptance gate.
+- Final ASUS full API gate on `91fb915f`: **passed in both modes**.
+  Prepared: **2,258 tests / 43,594 assertions**, 319.17 seconds.
+  Unprepared: **2,258 tests / 43,594 assertions**, 302.02 seconds.
+  Both had zero failures/errors and one existing pooler-canary skip.
+  OpenAPI inventory coverage, full RuboCop (785 files), and Brakeman passed.
+  Brakeman reported zero security warnings and one existing ignored warning.
+  `scheduled-jobs-gate.sh` retained the migration-process port adapter.
+  Exit-75 contention was respected, with one ASUS job at a time.
+  An earlier snapshot passed both API modes but failed Brakeman on a quoted
+  video-key array; Rails SQL sanitization fixed it without adding an ignore.
+  Raw final gate output is retained in
+  `.qa-local/authoring-clone-asus-final.log`.
 
 ## Limits and cleanup
 
@@ -142,3 +151,17 @@ Host setup issue: `dev-lifecycle` was absent from PATH, so the synced helper was
 used directly. The guidance freshness check could not load the missing
 `~/.config/shimizu-technology/agent-context.json`; relevant synced skill/guide
 files were read directly. No authentication/configuration state was copied.
+
+## Lead handoff
+
+Retain `~/work/csg-authoring-clone`, branch `feat/authoring-clone`, base
+`origin/main` at `3a8b3ebf`. Application implementation ends at `91fb915f`;
+subsequent documentation commits only record final evidence. Recheck the PR head,
+current main, checks and independent review before continuing. The worker was
+instructed to open the PR without merging or watching it.
+
+Next action: lead review of the final diff and CI/reviewer results. No production
+data migration, deployment or feature activation has been performed. No local
+runtime is handed off; the branch, source, QA scripts and ignored evidence are
+retained. The ASUS gate exited successfully through its temporary-container cleanup
+trap. Lifecycle cleanup/status confirmed no unresolved owned resource.
