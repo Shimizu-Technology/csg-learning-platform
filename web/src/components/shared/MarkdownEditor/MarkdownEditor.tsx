@@ -563,11 +563,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
     onTransaction: ({ transaction }) => {
       if (!transaction.docChanged || segmentStartsRef.current.length === 0) return
-      // assoc 1: a block inserted just before a kept one doesn't take its place.
+      // assoc 1: a block inserted just before a kept one doesn't take its place. Only `deleted`
+      // (the block's own opening token went: removed, or joined into the block above) ends its
+      // identity; `deletedAfter` is also set by a pure insertion at its start.
       segmentStartsRef.current = segmentStartsRef.current.map((start) => {
         if (start === null) return null
         const mapped = transaction.mapping.mapResult(start, 1)
-        return mapped.deletedAfter ? null : mapped.pos
+        return mapped.deleted ? null : mapped.pos
       })
     },
     onUpdate: ({ editor: updated }) => {

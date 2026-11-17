@@ -424,10 +424,24 @@ describe('lossless follow-ups (#304 review), through real editor transactions', 
     expect(await finish(onChange)).toBe('_same_\n\nEnd.')
   })
 
-  it('a block typed above an equal block does not take its spelling', async () => {
-    const { editor, onChange } = await mount({ defaultValue: '_same_\n\nEnd.', target: 'lesson' })
+  // `*same*` is not how Rich mode writes italics (`_same_`), so these tell a kept block from a rewritten one.
+  it('a block typed above an equal block does not take its spelling, and the original keeps its own', async () => {
+    const { editor, onChange } = await mount({ defaultValue: '*same*\n\nEnd.', target: 'lesson' })
     act(() => { editor().chain().insertContentAt(0, { type: 'paragraph', content: [{ type: 'text', text: 'same', marks: [{ type: 'italic' }] }] }).run() })
-    expect(await finish(onChange)).toBe('_same_\n\n_same_\n\nEnd.')
+    expect(await finish(onChange)).toBe('_same_\n\n*same*\n\nEnd.')
+  })
+
+  it('inserting a block right before a kept block leaves it with its identity (#308 review repro)', async () => {
+    const { editor, onChange } = await mount({ defaultValue: '*same*\n\nEnd.', target: 'lesson' })
+    act(() => { editor().chain().insertContentAt(0, { type: 'paragraph', content: [{ type: 'text', text: 'New.' }] }).run() })
+    expect(await finish(onChange)).toBe('New.\n\n*same*\n\nEnd.')
+  })
+
+  it('joining a kept block into the one above it ends its identity', async () => {
+    const { editor, onChange } = await mount({ defaultValue: 'First.\n\n*same*\n\nEnd.', target: 'lesson' })
+    // Backspace at the start of the second paragraph: its opening token goes, so it's written fresh.
+    act(() => { editor().chain().setTextSelection(editor().state.doc.child(0).nodeSize + 1).joinBackward().run() })
+    expect(await finish(onChange)).toBe('First._same_\n\nEnd.')
   })
 
   it.each(['## *Title*', '## Title ##', '## Title  '])('editing the paragraph right under %j keeps the heading as stored', async (heading) => {
