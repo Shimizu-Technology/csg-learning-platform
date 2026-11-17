@@ -2,6 +2,8 @@ import { BackButton } from '@/components/back-button';
 import { brand } from '../../../lib/brand'
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
+import { haptic } from '@/lib/haptics';
+import { messagePermalink } from '@/lib/message-route';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -578,6 +580,9 @@ export default function ThreadScreen() {
     const actions: { label: string; onPress: () => void; destructive?: boolean }[] = [];
     if (user?.is_staff && message.author.role === 'student') actions.push({ label: 'View student', onPress: () => { close(); setAuthorContext(message.author); } });
     if (message.body && !message.blocked) actions.push({ label: 'Copy message', onPress: () => { void Clipboard.setStringAsync(message.body); close(); } });
+    // The reply's web address (L-5.2): web Messages opens the thread at it, for anyone who can read the conversation.
+    const link = messagePermalink(kind, conversationId, message.id);
+    if (link) actions.push({ label: 'Copy link to message', onPress: () => { close(); void Clipboard.setStringAsync(link).then(() => haptic('success'), () => Alert.alert('Could not copy the link', 'Try again.')); } });
     if (user?.is_staff && message.id > 0) actions.push({ label: message.pinned_at ? 'Unpin message' : 'Pin message', onPress: () => void updateAction(() => api.pinMessage(message.id, Boolean(message.pinned_at))) });
     if (message.mine && message.id > 0) {
       if (!message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });

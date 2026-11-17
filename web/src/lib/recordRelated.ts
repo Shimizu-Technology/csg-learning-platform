@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { BookOpen, CalendarDays, ClipboardCheck, FileText, Files, History, Layers3, LifeBuoy, ListChecks, Megaphone, MessageCircle, PlayCircle, Table2, UserRoundCheck, Users } from 'lucide-react'
+import { BookOpen, CalendarDays, ClipboardCheck, FileText, Files, History, Layers3, LifeBuoy, ListChecks, Megaphone, MessageCircle, PlayCircle, Receipt, ShieldAlert, Table2, UserRoundCheck, Users } from 'lucide-react'
 import { useAuthContext } from '../contexts/AuthContext'
 import { loadRecordRelated } from './recordRelatedCache'
 import {
@@ -12,7 +12,9 @@ import {
   interventionPath,
   lessonEditorPath,
   lessonRecordPath,
+  offeringPath,
   recordPath,
+  safetyPersonPath,
   type RecordViewer,
 } from './routes'
 
@@ -41,6 +43,12 @@ export interface RelatedItem {
   starts_at?: string | null
   /** Lesson rows: whether the viewer may edit it (admins, and instructors with editing access). */
   can_edit?: boolean
+  /** Safety rows (admins, L-3.2): reports about and by the person, blocks they made and received. */
+  reports_about?: number
+  open_reports_about?: number
+  reports_by?: number
+  blocks_made?: number
+  blocked_by?: number
 }
 
 export interface RecordRelated {
@@ -216,6 +224,14 @@ export function relatedRows(related: RecordRelated, options: RelatedRowOptions):
         return [{ key: item.key, icon: Users, label: 'Active students', count, to: staffViewer && item.cohort_id ? cohortPath(item.cohort_id, 'students') : null }]
       case 'updates':
         return [{ key: item.key, icon: Megaphone, label: 'Updates', count, to: item.cohort_id ? `/announcements?scope=manage&audience=cohort&cohort_id=${item.cohort_id}` : null }]
+      case 'safety': {
+        // Admins only (the server sends it to no one else): open reports about the person, then the rest on Safety.
+        const total = (item.reports_about ?? 0) + (item.reports_by ?? 0) + (item.blocks_made ?? 0) + (item.blocked_by ?? 0)
+        const value = count ? null : total ? 'View' : 'Nothing reported'
+        return [{ key: item.key, icon: ShieldAlert, label: 'Open reports about them', ...(value ? { value } : { count }), attention: Boolean(count), to: item.user_id && total ? safetyPersonPath(item.user_id) : null }]
+      }
+      case 'purchases':
+        return [{ key: item.key, icon: Receipt, label: 'Paid purchases', count, to: item.cohort_id ? offeringPath(item.cohort_id) : null }]
       default:
         return []
     }

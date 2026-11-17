@@ -153,6 +153,49 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "return-plan page" do
+    plan = RecoveryPlan.create!(enrollment: @enrollment, source: :manual, status: :active, owner: @instructor, created_by: @instructor,
+      target_pace: "Steady", required_scope: "Week 2", check_in_cadence: "weekly", next_check_in_at: 2.days.from_now)
+    authors = [ @instructor, @admin ]
+    grow = ->(i) { plan.check_ins.create!(author: authors[i % 2], body: "Check-in #{i}", next_check_in_at: (i + 1).days.from_now) }
+    assert_flat(@instructor, "recovery_plan", plan.id, grow) { |detail| [ detail["check_ins"].size, detail["check_ins_count"] ] }
+  end
+
+  test "community-report page" do
+    channel = @cohort.workspace.channels.first
+    reported = person("reported", :student)
+    enroll(reported, @cohort)
+    report = ContentReport.create!(reporter: @student, reported_user: reported, reason: :spam,
+      message: Message.create!(channel: channel, author: reported, body: "Reported"))
+    UserBlock.create!(blocker: @student, blocked_user: reported)
+    grow = lambda do |i|
+      reporter = person("reporter#{i}", :student)
+      ContentReport.create!(reporter: reporter, reported_user: reported, reason: :other)
+      UserBlock.create!(blocker: reporter, blocked_user: reported)
+    end
+    assert_flat(@admin, "content_report", report.id, grow) do |detail|
+      [ detail["other_reports"].size, detail["other_reports_count"], detail.dig("reported_user_safety", "blocked_by") - 1 ]
+    end
+  end
+
+  test "offering page" do
+    offering = Cohort.create!(curriculum: @curriculum, name: "Self-paced", start_date: Date.new(2026, 11, 2), status: :active, course_delivery: "self_paced")
+    offering.cohort_instructor_assignments.create!(user: @instructor)
+    offering.update!(support_instructor: @instructor)
+    grow = lambda do |i|
+      buyer = person("buyer#{i}", :student)
+      CoursePurchase.create!(user: buyer, cohort: offering, stripe_price_id: "price_synthetic", price_cents: 100, status: i.even? ? "paid" : "pending")
+      enroll(buyer, offering) if i.even?
+    end
+    # Grows past one page of purchases: the page stays at 25 rows while the totals keep counting.
+    per_page = RecordDetail::OfferingPage::PURCHASES_PER_PAGE
+    assert_flat(@admin, "offering", offering.id, grow, sizes: [ 1, per_page + 5 ]) do |detail, size|
+      assert_equal [ size, per_page ].min, detail["purchases"].size, "purchases are one bounded page"
+      assert_operator response.body.bytesize, :<, 12_000, "the payload doesn't grow with purchases"
+      [ detail["purchases_count"] ]
+    end
+  end
+
   private
 
   # Measures the page with one row, grows to five and measures again. The block

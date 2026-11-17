@@ -44,6 +44,9 @@ import {
   ChannelRecord,
   RubricRecord,
   ActivityEventRecord,
+  RecoveryPlanRecord,
+  ContentReportRecord,
+  OfferingRecord,
   LessonView,
   Messages,
   Profile,
@@ -178,6 +181,7 @@ function AppRoutes() {
             <Route path="/admin/channels/:id" element={<SuspendedRoute><ChannelRecord /></SuspendedRoute>} />
             <Route path="/admin/rubrics/:id" element={<SuspendedRoute><RubricRecord /></SuspendedRoute>} />
             <Route path="/admin/activity/:id" element={<SuspendedRoute><ActivityEventRecord /></SuspendedRoute>} />
+            <Route path="/admin/recovery-plans/:id" element={<SuspendedRoute><RecoveryPlanRecord /></SuspendedRoute>} />
           </Route>
 
           {/* Admin-only routes */}
@@ -185,6 +189,8 @@ function AppRoutes() {
             <Route path="/admin/content/submission-audit" element={<SuspendedRoute><SubmissionAudit /></SuspendedRoute>} />
             <Route path="/admin/activity" element={<SuspendedRoute><AdminActivity /></SuspendedRoute>} />
             <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
+            <Route path="/admin/moderation/reports/:id" element={<SuspendedRoute><ContentReportRecord /></SuspendedRoute>} />
+            <Route path="/admin/offerings/:id" element={<SuspendedRoute><OfferingRecord /></SuspendedRoute>} />
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
             <Route path="/admin/team/:id" element={<SuspendedRoute><TeamMemberDetail /></SuspendedRoute>} />
           </Route>

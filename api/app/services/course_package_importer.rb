@@ -23,7 +23,8 @@ class CoursePackageImporter
       lessons: @package.fetch("modules").sum { |mod| mod.fetch("lessons").size },
       blocks: @package.fetch("modules").sum { |mod| mod.fetch("lessons").sum { |lesson| lesson.fetch("blocks").size } },
       existing_curriculum_id: existing&.id, unchanged: existing&.course_package_digest == @digest,
-      status: existing&.status || "draft", assigned: existing&.cohorts&.exists? || false
+      status: existing&.status || "draft", assigned: existing&.cohorts&.exists? || false,
+      **where_used(existing)
     }
   end
 
@@ -61,6 +62,23 @@ class CoursePackageImporter
   end
 
   private
+
+  # The curriculum this package already updates and the cohorts and offerings
+  # using it (L-3.2 "imported package → curriculum and cohorts"), so an admin
+  # sees what a re-import reaches before it runs. Importing is admin-only, so
+  # every cohort is named. One query, whatever the number of cohorts.
+  def where_used(existing)
+    return { curriculum: nil, cohorts: [] } unless existing
+
+    cohorts = existing.cohorts.order(:start_date, :id).to_a
+    {
+      curriculum: { id: existing.id, name: existing.name, revision: existing.course_package_revision },
+      cohorts: cohorts.map do |cohort|
+        { id: cohort.id, name: cohort.name, status: cohort.effective_status, course_delivery: cohort.course_delivery,
+          on_sale: cohort.self_paced? && cohort.public_checkout_enabled? }
+      end
+    }
+  end
 
   def import_lessons(mod, lessons)
     existing = mod.all_lessons.includes(:content_blocks).index_by { |lesson| lesson.content_blocks.first&.metadata&.fetch("package_lesson_key", nil) }

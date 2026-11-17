@@ -11,7 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { ArrowDownToLine, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, MoreHorizontal, UserRound, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownToLine, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, Link2, MessageSquareReply, MoreHorizontal, UserRound, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,6 +43,7 @@ import { REACTION_OPTIONS } from '@/lib/reactions';
 import { latestReaderPositions } from '@/lib/read-receipt-position';
 import { messageBodyForSend } from '@/lib/code-paste';
 import { firstUnreadMessageId } from '@/lib/unread-boundary';
+import { messagePermalink } from '@/lib/message-route';
 import type { TypingUser } from '@/lib/typing';
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageTypingEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -691,6 +692,12 @@ export default function ConversationScreen() {
   };
 
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); setPinnedMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
+  // The message's web address (L-5.2), which opens this conversation at the message for anyone who can read it.
+  const copyMessageLink = async (messageId: number) => {
+    const link = messagePermalink(kind, id, messageId);
+    if (!link) return;
+    try { await Clipboard.setStringAsync(link); haptic('success'); } catch { Alert.alert('Could not copy the link', 'Try again.'); }
+  };
   const reportMessage = (message: Message) => Alert.alert(
     'Report this message?',
     `A ${brand.schoolShortName} staff member will review the message and its context. The author is not notified who submitted the report.`,
@@ -872,6 +879,7 @@ export default function ConversationScreen() {
         {user?.is_staff && selectedMessage.author.role === 'student' && <Action icon={UserRound} label="View student" onPress={() => { setAuthorContext(selectedMessage.author); setSelectedMessage(null); }} />}
         {!selectedMessage.blocked && <Action icon={MessageSquareReply} label="Reply in thread" onPress={() => { openThread(selectedMessage); setSelectedMessage(null); }} />}
         {!!selectedMessage.body && !selectedMessage.blocked && <Action icon={ArrowDownToLine} label="Copy message" onPress={() => { void Clipboard.setStringAsync(selectedMessage.body); setSelectedMessage(null); }} />}
+        {!!messagePermalink(kind, id, selectedMessage.id) && <Action icon={Link2} label="Copy link to message" onPress={() => { void copyMessageLink(selectedMessage.id); setSelectedMessage(null); }} />}
         {canManage && <Action icon={Pin} label={selectedMessage.pinned_at ? 'Unpin message' : 'Pin message'} onPress={() => void togglePin(selectedMessage)} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}

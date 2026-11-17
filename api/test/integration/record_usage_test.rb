@@ -212,9 +212,10 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
       sizes = []
       counts = [ 1, 4 ].map do |size|
         grow(size)
-        sizes << [ Cohort.where(curriculum: @curriculum).count, Submission.count, Lesson.count, Rubric.count, CurriculumCopy.count ]
-        fetch(viewer, type, id)
+        sizes << [ Cohort.where(curriculum: @curriculum).count, Submission.count, Lesson.count, Rubric.count, CurriculumCopy.count, ActivityEvent.count ]
+        usage = fetch(viewer, type, id)
         assert_response :success
+        assert_equal size * 2, usage.dig("activity", "count"), "The lesson's activity grew" if type == "lesson"
         count_queries { fetch(viewer, type, id) }
       end
       assert_operator sizes.last.zip(sizes.first).map { |after, before| after - before }.min, :>=, 3, "Every kind of record grew by three: #{sizes.inspect}"
@@ -238,6 +239,7 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
     assert_equal 3, sizes.last - sizes.first, "Cohorts taught grew between the measurements"
     assert_equal counts.first, counts.last, "team member page sent #{counts.join(' then ')} queries"
     assert_equal 4, response.parsed_body.dig("team_member", "workload", "follow_ups_count")
+    assert_equal [ 4, 4 ], response.parsed_body.dig("team_member", "safety").values_at("reports_about", "blocked_by"), "Safety counts grew"
   end
 
   private
@@ -260,7 +262,13 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
       cohort.cohort_instructor_assignments.create!(user: @instructor)
       learner = person("grown#{i}", :student)
       enrollment = enroll(learner, cohort)
-      Submission.create!(user: learner, enrollment: enrollment, content_block: @exercise, submission_type: :text_submission, text: "Synthetic #{i}")
+      work = Submission.create!(user: learner, enrollment: enrollment, content_block: @exercise, submission_type: :text_submission, text: "Synthetic #{i}")
+      # The lesson's activity (L-3.2): a checkpoint on its block and work on its exercise.
+      ActivityEvent.record!(event_type: "checkpoint_completed", actor: learner, cohort: cohort, record: @exercise)
+      ActivityEvent.record!(event_type: "submission_created", actor: learner, cohort: cohort, record: work)
+      # The team member's safety counts: a report about them and a block of them.
+      ContentReport.create!(reporter: learner, reported_user: @instructor, reason: :other)
+      UserBlock.create!(blocker: learner, blocked_user: @instructor)
       help(learner, cohort)
       lesson = Lesson.create!(curriculum_module: @module, title: "Grown lesson #{i}", position: 10 + i, release_day: 0)
       block = lesson.content_blocks.create!(block_type: :exercise, title: "Grown exercise #{i}", position: 0, submission_type: :text_submission, rubric: @rubric)

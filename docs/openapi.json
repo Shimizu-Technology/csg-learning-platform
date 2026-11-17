@@ -895,6 +895,16 @@
               "minimum": 1,
               "maximum": 100
             }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Only records by or about this person. An id that names nobody lists nothing."
           }
         ]
       },
@@ -2895,6 +2905,16 @@
               "minimum": 1,
               "maximum": 100
             }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Only records by or about this person. An id that names nobody lists nothing."
           }
         ],
         "responses": {
@@ -3631,7 +3651,10 @@
               "learning_plan",
               "channel",
               "rubric",
-              "activity_event"
+              "activity_event",
+              "recovery_plan",
+              "content_report",
+              "offering"
             ]
           }
         },
@@ -3645,7 +3668,7 @@
         }
       ],
       "get": {
-        "summary": "A staff record page for a recording, office-hour session, private-meeting booking, learning plan, channel, rubric or activity event",
+        "summary": "A staff record page for a recording, office-hour session, private-meeting booking, learning plan, channel, rubric, activity event, return plan, community report or course offering",
         "parameters": [
           {
             "name": "watchers_after",
@@ -3656,9 +3679,19 @@
               "minimum": 1
             },
             "description": "Continue a recording's watchers after this cursor (the previous response's watchers_next_after). Other values start from the beginning."
+          },
+          {
+            "name": "purchases_before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Continue an offering's purchases before this cursor (the previous response's purchases_next_before). Other values start from the beginning."
           }
         ],
-        "description": "Staff only. Instructors open records in cohorts they teach, and a booking only when they host it; a rubric names only their cohorts and counts the rest. Students, other cohorts' staff and unknown records get 404. Cache-Control: private, no-store.",
+        "description": "Staff only. Instructors open records in cohorts they teach, and a booking only when they host it; a rubric names only their cohorts and counts the rest. A community report and an offering's purchases are for admins. Students, other cohorts' staff and unknown records get 404. Cache-Control: private, no-store.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -3827,6 +3860,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SubmissionAudit422Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/course_packages/preview": {
+      "post": {
+        "summary": "Preview a course package import (admins)",
+        "description": "Admin-only. Validates a schema-v1 package (`package` object or `package_base64`) and names the curriculum it would update and the cohorts using it. Writes nothing.",
+        "responses": {
+          "200": {
+            "description": "CoursePackagePreviewResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoursePackagePreviewResponse"
                 }
               }
             }
@@ -9511,6 +9562,23 @@
           },
           "meta": {
             "$ref": "#/components/schemas/PaginationMeta"
+          },
+          "person": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "full_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name"
+            ],
+            "additionalProperties": false,
+            "description": "The person a user_id filter names. Sent when the list is filtered."
           }
         },
         "required": [
@@ -14518,6 +14586,23 @@
           },
           "meta": {
             "$ref": "#/components/schemas/PaginationMeta"
+          },
+          "person": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "full_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name"
+            ],
+            "additionalProperties": false,
+            "description": "The person a user_id filter names. Sent when the list is filtered."
           }
         },
         "required": [
@@ -14696,6 +14781,9 @@
           },
           "workload": {
             "$ref": "#/components/schemas/TeamMemberWorkload"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/PersonSafety"
           }
         },
         "required": [
@@ -14714,7 +14802,8 @@
           "is_self",
           "teaching",
           "message_cohort_id",
-          "workload"
+          "workload",
+          "safety"
         ],
         "additionalProperties": false
       },
@@ -19644,6 +19733,13 @@
               "resources"
             ],
             "additionalProperties": false
+          },
+          "package_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The course package this curriculum was imported from."
           }
         },
         "required": [
@@ -19664,7 +19760,8 @@
           "other_copies_count",
           "rubrics",
           "objectives",
-          "totals"
+          "totals",
+          "package_key"
         ],
         "additionalProperties": false,
         "description": "Where a curriculum is used (staff)."
@@ -20040,6 +20137,58 @@
               "open_help"
             ],
             "additionalProperties": false
+          },
+          "activity": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "recent": {
+                "type": "array",
+                "description": "The newest ten events, newest first.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "event_type": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "cohort_id": {
+                      "type": "integer"
+                    },
+                    "actor": {
+                      "$ref": "#/components/schemas/RecordDetailPerson"
+                    },
+                    "subject": {
+                      "$ref": "#/components/schemas/RecordDetailPerson"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event_type",
+                    "created_at",
+                    "cohort_id",
+                    "actor",
+                    "subject"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "count",
+              "recent"
+            ],
+            "additionalProperties": false,
+            "description": "Learner activity on this lesson's blocks and exercises in the cohorts the viewer can see."
           }
         },
         "required": [
@@ -20060,7 +20209,8 @@
           "cohorts",
           "other_cohorts_count",
           "help_requests",
-          "totals"
+          "totals",
+          "activity"
         ],
         "additionalProperties": false,
         "description": "Where a lesson is used (staff)."
@@ -21388,6 +21538,15 @@
               },
               {
                 "$ref": "#/components/schemas/ActivityEventDetail"
+              },
+              {
+                "$ref": "#/components/schemas/RecoveryPlanDetail"
+              },
+              {
+                "$ref": "#/components/schemas/ContentReportDetail"
+              },
+              {
+                "$ref": "#/components/schemas/OfferingDetail"
               }
             ]
           }
@@ -23305,6 +23464,931 @@
         },
         "required": [
           "error"
+        ],
+        "additionalProperties": false
+      },
+      "PersonSafety": {
+        "type": "object",
+        "properties": {
+          "reports_about": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "open_reports_about": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reports_by": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blocks_made": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blocked_by": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "reports_about",
+          "open_reports_about",
+          "reports_by",
+          "blocks_made",
+          "blocked_by"
+        ],
+        "additionalProperties": false,
+        "description": "A person's community-safety counts for admins: reports about them (and how many are still pending or reviewing), reports they filed, people they blocked and people who blocked them. Counts, never report details."
+      },
+      "RecoveryPlanDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "recovery_plan"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "restart",
+              "extended_absence",
+              "manual"
+            ]
+          },
+          "status": {
+            "enum": [
+              "active",
+              "completed",
+              "canceled"
+            ]
+          },
+          "target_pace": {
+            "type": "string"
+          },
+          "required_scope": {
+            "type": "string"
+          },
+          "optional_scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "check_in_cadence": {
+            "type": "string"
+          },
+          "next_check_in_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_check_in_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "check_in_due": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/RecordDetailCohort"
+          },
+          "student": {
+            "$ref": "#/components/schemas/RecordDetailPerson"
+          },
+          "enrollment_status": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "valid": {
+                "type": "boolean",
+                "description": "False when the owner no longer teaches the cohort (or is an unaccepted invite), so the plan needs a new owner."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "valid"
+            ],
+            "additionalProperties": false
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/RecordDetailPerson"
+          },
+          "can_edit": {
+            "type": "boolean",
+            "description": "The viewer teaches the cohort (or is an admin), so the Support tab lets them edit the plan and add check-ins."
+          },
+          "follow_up": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "severity",
+                  "created_at"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restart": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "created_at"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "check_ins_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "check_ins": {
+            "type": "array",
+            "description": "The newest 20 check-ins, newest first.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "author": {
+                  "$ref": "#/components/schemas/RecordDetailPerson"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "next_check_in_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "body",
+                "author",
+                "created_at",
+                "next_check_in_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "source",
+          "status",
+          "target_pace",
+          "required_scope",
+          "optional_scope",
+          "check_in_cadence",
+          "next_check_in_at",
+          "last_check_in_at",
+          "check_in_due",
+          "outcome",
+          "completed_at",
+          "created_at",
+          "updated_at",
+          "cohort",
+          "student",
+          "enrollment_status",
+          "owner",
+          "created_by",
+          "can_edit",
+          "follow_up",
+          "restart",
+          "check_ins_count",
+          "check_ins"
+        ],
+        "additionalProperties": false,
+        "description": "A return plan (stored as a recovery plan) for one enrollment, for staff in its cohort."
+      },
+      "ContentReportDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "content_report"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "harassment",
+              "spam",
+              "inappropriate_content",
+              "safety_concern",
+              "other"
+            ]
+          },
+          "details": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "reviewing",
+              "actioned",
+              "dismissed"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolved_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reporter": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "student",
+                  "instructor",
+                  "admin"
+                ]
+              },
+              "archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "role",
+              "archived"
+            ],
+            "additionalProperties": false
+          },
+          "reported_user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "student",
+                  "instructor",
+                  "admin"
+                ]
+              },
+              "archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "role",
+              "archived"
+            ],
+            "additionalProperties": false
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDetailPerson"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "The reported message, cut to 500 characters, as Safety quotes it."
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deleted": {
+                    "type": "boolean"
+                  },
+                  "reply": {
+                    "type": "boolean",
+                    "description": "A reply in a thread."
+                  },
+                  "attachments_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "conversation": {
+                    "$ref": "#/components/schemas/ContentReportConversation"
+                  }
+                },
+                "required": [
+                  "id",
+                  "body",
+                  "created_at",
+                  "deleted",
+                  "reply",
+                  "attachments_count",
+                  "conversation"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reporter_safety": {
+            "$ref": "#/components/schemas/PersonSafety"
+          },
+          "reported_user_safety": {
+            "$ref": "#/components/schemas/PersonSafety"
+          },
+          "other_reports_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "other_reports": {
+            "type": "array",
+            "description": "The newest five other reports about the same person.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "reporter": {
+                  "$ref": "#/components/schemas/RecordDetailPerson"
+                }
+              },
+              "required": [
+                "id",
+                "reason",
+                "status",
+                "created_at",
+                "reporter"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "blocks_between": {
+            "type": "array",
+            "description": "Blocks between the reporter and the reported person, either way.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blocker_id": {
+                  "type": "integer"
+                },
+                "blocked_user_id": {
+                  "type": "integer"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "blocker_id",
+                "blocked_user_id",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "reason",
+          "details",
+          "status",
+          "created_at",
+          "resolved_at",
+          "reporter",
+          "reported_user",
+          "reviewed_by",
+          "message",
+          "reporter_safety",
+          "reported_user_safety",
+          "other_reports_count",
+          "other_reports",
+          "blocks_between"
+        ],
+        "additionalProperties": false,
+        "description": "One community report on Safety, for admins."
+      },
+      "OfferingDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "offering"
+          },
+          "id": {
+            "type": "integer",
+            "description": "The self-paced cohort's id."
+          },
+          "title": {
+            "type": "string"
+          },
+          "public_slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkout_enabled": {
+            "type": "boolean"
+          },
+          "price_cents": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "access_months": {
+            "type": "integer"
+          },
+          "support_weeks": {
+            "type": "integer"
+          },
+          "support_instructor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDetailPerson"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "curriculum": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/RecordDetailCohort"
+          },
+          "purchases_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status_counts": {
+            "type": "object",
+            "properties": {
+              "paid": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "refunded": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "disputed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expired": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "paid",
+              "pending",
+              "refunded",
+              "disputed",
+              "failed",
+              "expired"
+            ],
+            "additionalProperties": false
+          },
+          "paid_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "enrolled_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "purchases_next_before": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Pass as purchases_before for the next page; null on the last page."
+          },
+          "purchases": {
+            "type": "array",
+            "description": "Up to 25 purchases, newest first.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "status": {
+                  "enum": [
+                    "paid",
+                    "pending",
+                    "refunded",
+                    "disputed",
+                    "failed",
+                    "expired"
+                  ]
+                },
+                "checkout_state": {
+                  "enum": [
+                    "paid",
+                    "pending",
+                    "refunded",
+                    "disputed",
+                    "failed",
+                    "expired",
+                    "starting",
+                    "setup_failed"
+                  ]
+                },
+                "price_cents": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "access_months": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "support_weeks": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "buyer": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "email"
+                  ],
+                  "additionalProperties": false
+                },
+                "enrollment": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "checkout_state",
+                "price_cents",
+                "access_months",
+                "support_weeks",
+                "created_at",
+                "updated_at",
+                "buyer",
+                "enrollment"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "public_slug",
+          "checkout_enabled",
+          "price_cents",
+          "access_months",
+          "support_weeks",
+          "support_instructor",
+          "curriculum",
+          "cohort",
+          "purchases_count",
+          "status_counts",
+          "paid_cents",
+          "enrolled_count",
+          "purchases_next_before",
+          "purchases"
+        ],
+        "additionalProperties": false,
+        "description": "A self-paced course offering and its purchases, for admins."
+      },
+      "CoursePackageCurriculum": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "description": "The curriculum a course package was already imported as."
+      },
+      "CoursePackageCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "course_delivery": {
+            "type": "string"
+          },
+          "on_sale": {
+            "type": "boolean",
+            "description": "A self-paced cohort with public checkout switched on."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "course_delivery",
+          "on_sale"
+        ],
+        "additionalProperties": false,
+        "description": "A cohort using a package's curriculum."
+      },
+      "CoursePackagePreview": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "modules": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lessons": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blocks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "existing_curriculum_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "unchanged": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "assigned": {
+            "type": "boolean"
+          },
+          "curriculum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoursePackageCurriculum"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The curriculum this package already updates, or null for a new package."
+          },
+          "cohorts": {
+            "type": "array",
+            "description": "Cohorts using that curriculum, earliest first; empty for a new package.",
+            "items": {
+              "$ref": "#/components/schemas/CoursePackageCohort"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "revision",
+          "title",
+          "modules",
+          "lessons",
+          "blocks",
+          "existing_curriculum_id",
+          "unchanged",
+          "status",
+          "assigned",
+          "curriculum",
+          "cohorts"
+        ],
+        "additionalProperties": false,
+        "description": "What importing a course package would do. Writes nothing."
+      },
+      "CoursePackagePreviewResponse": {
+        "type": "object",
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/CoursePackagePreview"
+          }
+        },
+        "required": [
+          "preview"
         ],
         "additionalProperties": false
       }

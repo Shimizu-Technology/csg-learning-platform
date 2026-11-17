@@ -1,7 +1,7 @@
 import { useParams, useSearchParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Archive, BookOpen, ClipboardCheck, Code2, Copy, Eye, FileText, Files, FolderOpen, GitBranch, Layers, Layers3, LibraryBig,
+  Activity, Archive, BookOpen, ClipboardCheck, Code2, Copy, Eye, FileText, Files, FolderOpen, GitBranch, Layers, Layers3, LibraryBig,
   LifeBuoy, ListChecks, PencilLine, PlayCircle, RefreshCw, SquareTerminal, Target,
 } from 'lucide-react'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
@@ -20,6 +20,7 @@ import { cohortStudentViewLessonPath, curriculumPath, lessonEditorPath, moduleRe
 import { gradingPath, plural, supportPath, useRecordUsage, type UsageState } from '../../lib/recordUsage'
 import { formatShortDate } from '../../lib/format'
 import { humanize, TERMS } from '../../lib/glossary'
+import { ACTIVITY_EVENT_LABELS } from '../../lib/activityLabels'
 import { shortAgo, type RelatedRow } from '../../lib/recordRelated'
 import type { CurriculumUsage, LessonUsage, ModuleUsage, UsageLessonRef } from '../../types/api'
 
@@ -94,11 +95,14 @@ function LessonPage({ usage }: { usage: LessonUsage }) {
   const help = counts.open_help
   // The server sends up to five per cohort: the focused cohort's, or the newest five overall.
   const helpRequests = (cohortId ? usage.help_requests.filter((request) => request.cohort_id === cohortId) : usage.help_requests).slice(0, 5)
+  // Learner activity on this lesson (L-3.2): the newest ten events, each opening its event page.
+  const activity = usage.activity
   const rows: RelatedRow[] = [
     { key: 'used_in', icon: Layers3, label: 'Used in cohorts', count: usage.cohorts.length, onSelect: () => scrollToSection('used-in') },
     { key: 'submissions', icon: Files, label: inCohort('Submissions', focusName), count: counts.submissions, to: gradingPath({ cohortId, lessonId: usage.id, all: true }) },
     { key: 'waiting', icon: ClipboardCheck, label: inCohort(TERMS.waitingForReview, focusName), count: counts.waiting, attention: counts.waiting > 0, to: gradingPath({ cohortId, lessonId: usage.id }) },
     ...(typeof help === 'number' ? [{ key: 'help', icon: LifeBuoy, label: inCohort('Open help requests', focusName), count: help, attention: help > 0, to: supportPath(cohortId, { lessonId: usage.id }) }] : []),
+    { key: 'activity', icon: Activity, label: 'Learner activity', count: activity.count, onSelect: () => scrollToSection('activity') },
     { key: 'module', icon: Layers, label: 'Module', value: usage.module.name, to: moduleRecordPath(usage.module.id, cohortId) },
     { key: 'curriculum', icon: LibraryBig, label: 'Curriculum', value: usage.curriculum.name, to: curriculumPath(usage.curriculum.id) },
   ]
@@ -192,6 +196,32 @@ function LessonPage({ usage }: { usage: LessonUsage }) {
             ) : <p className="px-4 py-5 text-sm text-ink-muted sm:px-5">{help ? `${help} open ${help === 1 ? 'request' : 'requests'}. Open ${TERMS.support} to see ${help === 1 ? 'it' : 'them'}.` : 'No open help requests on this lesson.'}</p>}
           </Section>
         )}
+
+        <Section id="activity" title="Learner activity" count={activity.count > activity.recent.length ? `Newest ${activity.recent.length} of ${activity.count}` : String(activity.count)}>
+          {activity.recent.length ? (
+            <ul className="divide-y divide-line">
+              {activity.recent.map((event) => {
+                const cohort = usage.cohorts.find((item) => item.id === event.cohort_id)
+                const action = ACTIVITY_EVENT_LABELS[event.event_type] || humanize(event.event_type)
+                return (
+                  <li key={event.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 sm:px-5">
+                    <Activity className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <RecordLink record={{ type: 'activity_event', id: event.id }} returnLabel={label} variant="plain" touchTarget peek={false} className="font-semibold">{`${event.actor.name} · ${action}`}</RecordLink>
+                      <p className="text-xs text-ink-muted">
+                        {cohort && <><RecordLink record={{ type: 'student', id: event.subject.id, cohortId: cohort.id }} variant="plain" className="font-normal text-ink-muted">{event.subject.name}</RecordLink>{' · '}<RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" className="font-normal text-ink-muted">{cohort.name}</RecordLink></>}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold tabular-nums text-ink-muted" title={formatShortDate(event.created_at)}>{shortAgo(event.created_at)}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : <p className="px-4 py-5 text-sm text-ink-muted sm:px-5">No learner activity on this lesson yet.</p>}
+          {activity.count > activity.recent.length && usage.cohorts.length > 0 && (
+            <p className="border-t border-line px-4 py-3 text-xs text-ink-muted sm:px-5">Older activity is on each cohort's Activity tab{usage.cohorts.length === 1 ? <>: <RecordLink record={{ type: 'cohort', id: usage.cohorts[0].id, tab: 'activity' }} variant="inline">{usage.cohorts[0].name}</RecordLink></> : null}.</p>
+          )}
+        </Section>
       </div>
       <RelatedPanel rows={rows} returnLabel={label} className="lg:sticky lg:top-20" />
     </div>
@@ -322,7 +352,7 @@ function CurriculumPage({ usage }: { usage: CurriculumUsage }) {
     <RecordHeader
       back={back}
       breadcrumb={[{ label: TERMS.content, to: '/admin/content' }, { label: usage.name }]}
-      type={<span>Curriculum{usage.imported ? ` · Imported course package${usage.package_revision ? ` ${usage.package_revision}` : ''}` : ''}</span>}
+      type={<span>Curriculum{usage.imported ? ` · Imported course package${usage.package_key ? ` ${usage.package_key}` : ''}${usage.package_revision ? `, revision ${usage.package_revision}` : ''}` : ''}</span>}
       title={usage.name}
       titleText={usage.name}
       status={<Badge tone={STATUS_TONES[usage.status]}>{humanize(usage.status)}</Badge>}

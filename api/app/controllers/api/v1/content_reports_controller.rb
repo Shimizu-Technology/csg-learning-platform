@@ -16,10 +16,15 @@ module Api
       # GET /api/v1/content_reports
       # view=open: pending and reviewing, oldest first (the queue).
       # view=resolved: actioned and dismissed, most recently resolved first, paginated.
+      # user_id: only reports by or about that person (L-3.2 "person → reports"),
+      # with `person` naming them. An unknown person lists nothing.
       def index
         view = params[:view].to_s
         reports = ContentReport.all
         reports = reports.where(status: params[:status]) if ContentReport.statuses.key?(params[:status])
+        person = safety_person
+        reports = reports.where(reporter_id: person.id).or(reports.where(reported_user_id: person.id)) if person
+        reports = reports.none if person == false
         reports = case view
         when "open" then reports.where(status: OPEN_STATUSES).order(created_at: :asc, id: :asc)
         when "resolved" then reports.where(status: RESOLVED_STATUSES).order(resolved_at: :desc, id: :desc)
@@ -33,7 +38,8 @@ module Api
         access = conversation_access(page_reports)
         render json: {
           content_reports: page_reports.map { |report| report_json(report, access) },
-          meta: pagination_json(total_count, page, per_page)
+          meta: pagination_json(total_count, page, per_page),
+          **(person ? { person: { id: person.id, full_name: person.full_name } } : {})
         }
       end
 
@@ -93,6 +99,14 @@ module Api
 
       private
 
+      # The person in `user_id`: the user, false when the id names nobody, or nil when absent.
+      def safety_person
+        return nil if params[:user_id].blank?
+
+        id = Integer(params[:user_id].to_s, 10, exception: false)
+        (id&.positive? && User.find_by(id: id)) || false
+      end
+
       def page_param
         params.fetch(:page, 1).to_i.clamp(1, 10_000)
       end
@@ -106,30 +120,8 @@ module Api
         { page: page, per_page: per_page, total_count: total_count, total_pages: total_pages, has_next_page: page < total_pages, has_prev_page: page > 1 }
       end
 
-      # Which reported messages' conversations this admin can open, in two
-      # queries for the whole page. Admins see every class channel, but a direct
-      # conversation only opens for its members, so most reported DMs stay text.
       def conversation_access(reports)
-        messages = reports.filter_map(&:message)
-        channel_ids = messages.filter_map(&:channel_id).uniq
-        dm_ids = messages.filter_map(&:direct_conversation_id).uniq
-        {
-          channels: channel_ids.empty? ? Set.new : Channel.visible_for(current_user).where(id: channel_ids).pluck(:id).to_set,
-          dms: dm_ids.empty? ? Set.new : DirectConversation.visible_for(current_user).where(id: dm_ids).pluck(:id).to_set
-        }
-      end
-
-      def conversation_json(message, access)
-        if message.channel_id
-          channel = message.channel
-          available = access[:channels].include?(message.channel_id)
-          label = channel ? [ "##{channel.name}", channel.cohort&.name ].compact.join(" in ") : "A class channel"
-          { kind: "channel", label: label, available: available, destination: available ? RecordDestination.build(kind: "channel", id: message.channel_id, anchor: { message_id: message.id }) : nil }
-        else
-          available = access[:dms].include?(message.direct_conversation_id)
-          cohort_name = message.direct_conversation&.cohort&.name
-          { kind: "dm", label: [ "Direct conversation", cohort_name ].compact.join(" in "), available: available, destination: available ? RecordDestination.build(kind: "dm", id: message.direct_conversation_id, anchor: { message_id: message.id }) : nil }
-        end
+        ContentReportConversation.access(current_user, reports)
       end
 
       def report_params
@@ -178,7 +170,7 @@ module Api
             channel_id: report.message.channel_id,
             direct_conversation_id: report.message.direct_conversation_id,
             created_at: report.message.created_at,
-            conversation: conversation_json(report.message, access)
+            conversation: ContentReportConversation.json(report.message, access)
           },
           reviewed_by: report.reviewed_by && user_json(report.reviewed_by)
         }

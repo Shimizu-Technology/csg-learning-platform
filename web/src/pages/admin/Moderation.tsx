@@ -1,7 +1,7 @@
 import { useLocation } from 'react-router-dom'
 import { SafetyPersonLink } from '../../components/admin/SafetyPersonLink'
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Flag, History, MessageSquareText, RefreshCw, ShieldAlert, Trash2, XCircle } from 'lucide-react'
+import { Ban, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Flag, History, MessageSquareText, RefreshCw, ShieldAlert, Trash2, UserRound, X, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatShortDateTime } from '../../lib/format'
 import { urlParsers, useUrlParam } from '../../lib/useUrlState'
@@ -24,6 +24,8 @@ type SafetyView = 'open' | 'resolved' | 'blocks'
 // Open, resolved and blocks live in the URL (L-0.6), so Back and a copied link return to the same list and page.
 const SAFETY_VIEW = urlParsers.oneOf(['open', 'resolved', 'blocks'] as const, 'open')
 const SAFETY_PAGE = urlParsers.int(1, 10_000, 1)
+// One person's reports and blocks (L-3.2), from a student or team member page.
+const SAFETY_PERSON = urlParsers.id()
 const PER_PAGE = 25
 
 const OUTCOMES: Record<string, string> = { actioned: 'Actioned', dismissed: 'Dismissed', completed: 'Completed', declined: 'Declined' }
@@ -33,6 +35,8 @@ export function Moderation() {
   const location = useLocation()
   const [view, setView] = useUrlParam('view', SAFETY_VIEW)
   const [page, setPage] = useUrlParam('page', SAFETY_PAGE)
+  const [personId, setPersonId] = useUrlParam('person_id', SAFETY_PERSON)
+  const [person, setPerson] = useState<{ id: number; full_name: string } | null>(null)
   const returnTo = `${location.pathname}${location.search}`
   const [reports, setReports] = useState<ContentReport[]>([])
   const [reportMeta, setReportMeta] = useState<PaginationMeta | null>(null)
@@ -50,13 +54,14 @@ export function Moderation() {
   const load = useCallback(async () => {
     setError(null)
     setLoading(true)
+    const userId = personId ?? undefined
     if (view === 'blocks') {
-      const result = await api.getSafetyUserBlocks({ page, per_page: PER_PAGE })
-      if (result.data && !result.error) { setBlocks(result.data.user_blocks); setBlockMeta(result.data.meta) }
+      const result = await api.getSafetyUserBlocks({ page, per_page: PER_PAGE, user_id: userId })
+      if (result.data && !result.error) { setBlocks(result.data.user_blocks); setBlockMeta(result.data.meta); setPerson(result.data.person ?? null) }
       else setError(result.error || 'Could not load blocks.')
     } else {
       const [reportResult, deletionResult] = await Promise.all([
-        api.getContentReports({ view, page, per_page: PER_PAGE }),
+        api.getContentReports({ view, page, per_page: PER_PAGE, user_id: userId }),
         api.getDataDeletionRequests(),
       ])
       if (!reportResult.data || !deletionResult.data) {
@@ -64,11 +69,12 @@ export function Moderation() {
       } else {
         setReports(reportResult.data.content_reports)
         setReportMeta(reportResult.data.meta)
+        setPerson(reportResult.data.person ?? null)
         setDeletionRequests(deletionResult.data.data_deletion_requests)
       }
     }
     setLoading(false)
-  }, [view, page])
+  }, [view, page, personId])
 
   useEffect(() => { void load() }, [load])
 
@@ -101,6 +107,7 @@ export function Moderation() {
   }, [loading, location.hash, reports, deletionRequests, linkedReport, linkedDeletion])
 
   const changeView = (next: SafetyView) => { if (next !== view) { setView(next); setPage(1, { history: 'replace' }) } }
+  const clearPerson = () => { setPersonId(null); setPage(1, { history: 'replace' }) }
 
   const updateReport = async (report: ContentReport, status: 'reviewing' | 'actioned' | 'dismissed') => {
     const key = `report-${report.id}`
@@ -143,6 +150,11 @@ export function Moderation() {
       <SegmentButton dense selected={view === 'resolved'} onClick={() => changeView('resolved')}><History className="h-4 w-4" aria-hidden="true" />Resolved</SegmentButton>
       <SegmentButton dense selected={view === 'blocks'} onClick={() => changeView('blocks')}><Ban className="h-4 w-4" aria-hidden="true" />Blocks</SegmentButton>
     </SegmentedControl>
+    {personId && <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-sunken px-4 py-2 text-sm text-ink-secondary" role="status">
+      <UserRound className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{person ? <>Showing reports and blocks involving <span className="font-semibold text-ink">{person.full_name}</span>.</> : loading ? 'Loading this person…' : 'No one has this id, so nothing is listed.'}</span>
+      <Button variant="secondary" size="sm" onClick={clearPerson}><X className="h-4 w-4" aria-hidden="true" />Show everyone</Button>
+    </div>}
   </>
 
   if (loading && !reports.length && !blocks.length && !deletionRequests.length) return <div className="app-page">{header}<LoadingSpinner message="Loading Safety…" /></div>
@@ -207,7 +219,7 @@ function ReportCard({ report, returnTo, pinned, saving, onUpdate }: { report: Co
     <article id={`report-${report.id}`} tabIndex={-1} className={`p-5 sm:p-6 ${pinned ? 'bg-surface-selected' : ''}`}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge>{humanize(report.reason)}</Badge><span className="text-xs tabular-nums text-ink-muted">Reported {formatShortDateTime(report.created_at)}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge>{humanize(report.reason)}</Badge><span className="text-xs tabular-nums text-ink-muted">Reported {formatShortDateTime(report.created_at)}</span><RecordLink record={{ type: 'content_report', id: report.id }} returnLabel="Safety" variant="app" touchTarget peek={false} className="text-xs" aria-label={`Open report #${report.id}: ${report.reported_user.full_name} reported by ${report.reporter.full_name}`}>Open report</RecordLink></div>
           <div className="mt-3 flex min-w-0 items-center gap-3"><Avatar name={report.reported_user.full_name} size="sm" /><h3 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]"><SafetyPersonLink person={report.reported_user} returnTo={back} /> reported by <SafetyPersonLink person={report.reporter} returnTo={back} /></h3></div>
           {report.message && <blockquote className="mt-3 whitespace-pre-wrap rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.message.body || 'The message has an attachment or no text.'}</blockquote>}
           {conversation && <p className={`mt-2 flex min-w-0 gap-1.5 text-sm text-ink-secondary ${conversation.available ? 'items-center' : 'items-start'}`}>

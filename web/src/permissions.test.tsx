@@ -34,7 +34,8 @@ vi.mock('./lib/routePreload', () => ({
   CurriculumRecord: () => <p>Curriculum record</p>, ModuleRecord: () => <p>Module record</p>, LessonRecord: () => <p>Lesson record</p>,
   RecordingRecord: () => <p>Recording record</p>, OfficeHourRecord: () => <p>Session record</p>, PrivateMeetingRecord: () => <p>Meeting record</p>,
   LearningPlanRecord: () => <p>Plan record</p>, ChannelRecord: () => <p>Conversation record</p>, RubricRecord: () => <p>Rubric record</p>,
-  ActivityEventRecord: () => <p>Event record</p>,
+  ActivityEventRecord: () => <p>Event record</p>, RecoveryPlanRecord: () => <p>Return plan record</p>,
+  ContentReportRecord: () => <p>Report record</p>, OfferingRecord: () => <p>Offering record</p>,
 }))
 import App from './App'
 
@@ -74,6 +75,27 @@ it('team member pages are admin-only, like Team', async () => {
   expect(container.textContent).toContain('Team member record')
 })
 
+// L-5.2 / L-3.2: a community report and an offering's purchases are admin pages, like Safety and the offering settings.
+it.each([
+  ['/admin/moderation/reports/16', 'Report record'],
+  ['/admin/offerings/17', 'Offering record'],
+])('%s is admin-only', async (path, text) => {
+  for (const role of ['student', 'instructor']) {
+    window.history.replaceState({}, '', path)
+    state.role = role
+    await act(async () => root.render(<App />))
+    expect(container.textContent, role).toContain('No access')
+    expect(container.textContent, role).not.toContain(text)
+    act(() => root.unmount())
+    root = createRoot(container)
+  }
+  window.history.replaceState({}, '', path)
+  state.role = 'admin'
+  await act(async () => root.render(<App />))
+  expect(window.location.pathname).toBe(path)
+  expect(container.textContent).toContain(text)
+})
+
 // L-5: content record pages are staff pages. Students get No access before anything loads.
 it.each([
   ['/admin/curricula/3', 'Curriculum record'],
@@ -87,6 +109,7 @@ it.each([
   ['/admin/channels/12', 'Conversation record'],
   ['/admin/rubrics/13', 'Rubric record'],
   ['/admin/activity/14', 'Event record'],
+  ['/admin/recovery-plans/15', 'Return plan record'],
 ])('%s opens for staff and refuses students', async (path, text) => {
   window.history.replaceState({}, '', path)
   state.role = 'student'

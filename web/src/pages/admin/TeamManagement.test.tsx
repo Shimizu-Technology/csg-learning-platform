@@ -186,7 +186,7 @@ describe('Team invite status', () => {
     const router = createMemoryRouter([{ path: '/admin/team', element: <TeamManagement /> }, { path: '/admin/team/:id', element: <p>Member page</p> }], { initialEntries: ['/admin/team'] })
     await act(async () => root.render(<RouterProvider router={router} />))
     await flush()
-    expect(container.querySelector('a[data-record-link="staff"]')?.getAttribute('href')).toBe('/admin/team/10')
+    expect(container.querySelector('a[data-record-link="staff"]')?.getAttribute('href')).toMatch(/^\/admin\/team\/10\?return_to=/)
     const activity = container.querySelector<HTMLAnchorElement>('a[aria-label="Activity for Faye Failed"]')!
     expect(activity.getAttribute('href')).toBe('/admin/team/10#activity')
     await act(async () => activity.click())
