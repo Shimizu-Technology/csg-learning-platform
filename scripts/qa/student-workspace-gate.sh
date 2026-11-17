@@ -14,6 +14,7 @@ run() {
   printf '\nRESULT %s: %s\n' "$label" "$result"
   if [ "$result" -ne 0 ]; then failures=$((failures + 1)); fi
 }
+run qa-ownership node --test scripts/qa/ownership.test.mjs
 # asus-test intentionally excludes .git. Vite indexes the tracked school-brand
 # assets, so give this disposable source snapshot a local index (no remote/login).
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git init -q; fi

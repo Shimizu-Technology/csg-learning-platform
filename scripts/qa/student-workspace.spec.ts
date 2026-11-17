@@ -1,6 +1,6 @@
 import { test, expect } from '../../web/node_modules/@playwright/test/index.mjs'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
+import { checkedLifecycle } from './ownership.mjs'
 const session = process.env.DEV_LIFECYCLE_SESSION
 if (!session) throw new Error('Set DEV_LIFECYCLE_SESSION to the active dev-lifecycle session before running browser QA.')
 const walkthrough = readFileSync(new URL('./student-workspace-browser.js', import.meta.url), 'utf8')
@@ -11,13 +11,15 @@ test.setTimeout(90_000)
 const ownership = new Map<object, string>()
 test.beforeEach(async ({ page }, info) => {
   const tab = `student-workspace-${info.project.name}-${info.title.replace(/[^a-z0-9]+/gi, '-')}`
+  checkedLifecycle(session, 'claim', tab)
   ownership.set(page, tab)
-  spawnSync('dev-lifecycle', ['claim', '--session', session, 'browser-tab', tab, '--reason', 'Bundled Chromium student workspace UI QA'])
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort())
 })
 test.afterEach(async ({ page }) => {
   await page.close()
-  spawnSync('dev-lifecycle', ['release', '--session', session, 'browser-tab', ownership.get(page)!])
+  const tab = ownership.get(page)
+  if (tab) checkedLifecycle(session, 'release', tab)
+  ownership.delete(page)
 })
 test.afterAll(() => writeFileSync(new URL(`results-${process.pid}.json`, evidence), JSON.stringify(results, null, 2)))
 for (const theme of ['light', 'dark'] as const) {
@@ -78,6 +80,7 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page).toHaveURL(/\/modules\/1/)
       await expect(page.getByRole('heading', { name: 'QA Week 1', exact: true })).toBeVisible()
       await page.getByRole('link', { name: /^Back to (QA Program|Cohort)$/ }).click()
+      await expect(page.getByRole('link', { name: 'Back to QA Week 1', exact: true })).toHaveCount(0)
       await card.getByRole('link', { name: '2 students assigned', exact: true }).click()
       await expect(page).toHaveURL(/tab=students&module_id=1/)
       await expect(page.getByRole('main').getByText('QA Paused', { exact: true })).toHaveCount(0)

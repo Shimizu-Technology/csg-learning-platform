@@ -759,7 +759,7 @@ module Api
 
         if include_modules
           learning = CohortLearningProjection.new(cohort: cohort).call
-          active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module)
+          active_enrollments = cohort.enrollments.active.joins(:user).merge(User.not_archived).includes(module_assignments: :curriculum_module)
           assignment_index = active_enrollments.each_with_object(Hash.new { |h, k| h[k] = [] }) do |enrollment, hash|
             enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
           end

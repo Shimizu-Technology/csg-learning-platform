@@ -23,7 +23,7 @@ vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const progress: StudentProgressResponse = {
-  status: { label: 'Work to review', needs_attention: true, reasons: [{ code: 'review', label: '1 latest attempt awaiting review', since: null }], ungraded_count: 1, redo_count: 0, help_request_count: 0, next_review_submission_id: 21, active_intervention_count: 0 },
+  status: { label: 'Work to review', needs_attention: true, reasons: [{ code: 'review', label: '1 latest attempt awaiting review', since: null }], ungraded_count: 1, redo_count: 0, help_request_count: 0, next_review_submission_id: 21, active_intervention_count: 0, active_intervention_id: null },
   media_summary: { recordings_completed: 0, recordings_total: 0, lesson_videos_completed: 0, lesson_videos_total: 0, videos_completed: 0 },
   enrollment: { id: 11, status: 'active', module_assignments: [] },
   user: { id: 6, full_name: 'Learner', email: 'learner@example.com', github_username: null, avatar_url: null, last_sign_in_at: null, last_seen_at: null },
@@ -447,4 +447,28 @@ it('keeps enrollment work reviewable after its curriculum content changes', asyn
   await act(async () => root.render(<RouterProvider router={router} />))
   expect(container.textContent).toContain('Retained curriculum work')
   expect([...container.querySelectorAll('a')].some(link => link.textContent?.includes('Retained curriculum work') && link.href.includes('/submissions/21'))).toBe(true)
+})
+
+
+it('does not redirect to an old student plan when a save finishes after changing students', async () => {
+  let finish!: () => void
+  vi.mocked(api.createIntervention).mockImplementation(() => new Promise(resolve => { finish = () => resolve({ data: { intervention: { id: 42 } }, error: null } as never) }))
+  vi.mocked(api.getStudentProgress).mockImplementation(async (id) => ({ data: { ...progress, user: { ...progress.user, id, full_name: `Learner ${id}` } }, error: null }))
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }, { path: '/admin/interventions/:id', element: <p>Old saved plan</p> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Start follow-up plan')!.click())
+  const modal = document.querySelector('[role="dialog"]')!
+  await act(async () => {
+    const textarea = modal.querySelector('textarea')!
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'An old enrollment plan')
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const date = modal.querySelector('input')!
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(date, '2026-12-01T16:00')
+    date.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(async () => { modal.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+  await act(async () => { await router.navigate('/admin/cohorts/1/students/9/overview') })
+  await act(async () => finish())
+  expect(router.state.location.pathname).toBe('/admin/cohorts/1/students/9/overview')
+  expect(container.querySelector('h1')?.textContent).toBe('Learner 9')
 })

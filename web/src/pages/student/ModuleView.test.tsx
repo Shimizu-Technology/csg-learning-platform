@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ModuleView } from './ModuleView'
 
@@ -59,4 +59,13 @@ it('keeps widened M-F student schedules free of empty Tuesday and Thursday group
   await renderLessons([0, 2, 4].map((release_day, index) => ({ id: 100 + index, title: `MWF lesson ${index}`, lesson_type: 'exercise', release_day, available: true, content_blocks_count: 1 })))
   expect(Array.from(container.querySelectorAll('h3')).map(heading => heading.textContent)).toEqual(['Monday', 'Wednesday', 'Friday'])
   expect(container.textContent).not.toContain('Show empty days')
+})
+
+
+it('returns to cohort Learning without turning the module into the cohort return origin', async () => {
+  mocks.getModule.mockResolvedValue({ data: { module: { id: 1, name: 'Foundations', lessons: [] } } })
+  function Destination() { const location = useLocation(); return <pre data-state>{JSON.stringify(location.state)}</pre> }
+  await act(async () => root.render(<MemoryRouter initialEntries={['/modules/1?cohort_id=9&return_to=%2Fadmin%2Fcohorts%2F9%3Ftab%3Dlearning']}><Routes><Route path="/modules/:id" element={<ModuleView />} /><Route path="/admin/cohorts/:id" element={<Destination />} /></Routes></MemoryRouter>))
+  await act(async () => container.querySelector<HTMLAnchorElement>('a[href="/admin/cohorts/9?tab=learning"]')!.click())
+  expect(JSON.parse(container.querySelector('[data-state]')!.textContent!)).toEqual({ restoreList: true })
 })

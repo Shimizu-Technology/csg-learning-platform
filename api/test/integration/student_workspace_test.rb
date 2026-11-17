@@ -1,4 +1,5 @@
 require "test_helper"
+require "json_schemer"
 require_relative "../support/query_counter"
 
 class StudentWorkspaceTest < ActionDispatch::IntegrationTest
@@ -82,12 +83,14 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     archived_user = person("archived", :student)
     archived_user.update!(archived_at: Time.current)
     archived = Enrollment.create!(cohort: @cohort, user: archived_user)
-    archived.module_assignments.create!(curriculum_module: @module)
+    archived.module_assignments.create!(curriculum_module: @module, unlocked: true)
     get "/api/v1/cohorts/#{@cohort.id}", headers: headers(@teacher)
     assert_response :success
     mod = response.parsed_body.fetch("cohort").fetch("modules").sole
     assert_equal [ @enrollment.id, enrollment.id ].sort, mod.fetch("assigned_enrollment_ids").sort
     assert_equal 2, mod["assigned_count"]
+    assert_equal 1, mod["unlocked_count"], "archived learners do not inflate unlocked counts"
+    assert_equal 1, mod["accessible_count"], "assignment access uses the same live module-assignment scope"
     assert_equal [ 1, 2, 50.0 ], mod.values_at("completed_lessons", "total_lessons", "progress_percentage")
   end
 
@@ -120,6 +123,24 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     get communication_path, headers: headers(@teacher)
     assert_response :bad_request
+  end
+
+  test "communication hides blocked authors in either direction without hiding the viewer's own replies" do
+    own = conversation(@teacher)
+    own.messages.create!(author: @student, body: "Blocked private body")
+    reply = own.messages.create!(author: @teacher, body: "My permitted reply")
+    channel = @cohort.workspace.channels.create!(name: "blocked-activity", position: 5)
+    channel.messages.create!(author: @student, body: "Blocked class body")
+    [ [ @teacher, @student ], [ @student, @teacher ] ].each do |blocker, blocked|
+      block = UserBlock.create!(blocker: blocker, blocked_user: blocked)
+      get communication_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+      assert_response :success
+      assert_equal [ reply.id ], response.parsed_body.dig("communication", "messages").pluck("id")
+      assert_empty response.parsed_body.dig("communication", "channel_activity")
+      refute_includes response.body, "Blocked private body"
+      refute_includes response.body, "Blocked class body"
+      block.destroy!
+    end
   end
 
   test "communication is bounded and query counts stay flat as messages, channels and meetings grow" do
@@ -167,6 +188,34 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     end
     puts "Student workspace #{name}: #{counts.inspect}" if ENV["QUERY_COUNT_REPORT"]
     assert_equal counts.first, counts.last, counts.inspect
+  end
+
+  test "workspace wire contracts cover complete payloads and reject undocumented record fields" do
+    own = conversation(@teacher)
+    own.messages.create!(author: @student, body: "Contract example")
+    document = JSON.parse(File.read(Rails.root.join("..", "docs", "openapi.json")))
+    [
+      [ profile_path, "StudentWorkspaceProgressResponse", nil ],
+      [ "/api/v1/cohorts/#{@cohort.id}", "CohortWorkspaceResponse", "cohort" ],
+      [ communication_path, "StudentCommunicationResponse", "communication" ],
+      [ "/api/v1/cohorts/#{@cohort.id}/learning_insights", "LearningInsightContextResponse", "learning_insights" ]
+    ].each do |path, name, nested|
+      get path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+      assert_response :success
+      body = response.parsed_body
+      contract = JSONSchemer.schema({ "$ref" => "#/components/schemas/#{name}", "components" => document.fetch("components") })
+      assert contract.valid?(body), contract.validate(body).to_a.inspect
+      extra = body.deep_dup
+      (nested ? extra.fetch(nested) : extra)["undocumented_wire_field"] = true
+      refute contract.valid?(extra), "#{name} must reject extra fixed-record fields"
+      if nested == "cohort"
+        %w[id name students].each do |key|
+          incomplete = body.deep_dup
+          incomplete.fetch("cohort").delete(key)
+          refute contract.valid?(incomplete), "#{key} is a guaranteed cohort field"
+        end
+      end
+    end
   end
 
   private

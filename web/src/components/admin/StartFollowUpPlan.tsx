@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Flag } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -17,6 +17,11 @@ export function StartFollowUpPlan({ enrollmentId, studentName, returnTo, activeP
   const [followUp, setFollowUp] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const active = useRef(true)
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false }
+  }, [])
   const dirty = open && Boolean(summary || followUp)
   async function close() {
     if (saving || (dirty && !await confirm({ title: 'Discard follow-up draft?', description: 'The next step and follow-up date have not been saved.', confirmLabel: 'Discard', cancelLabel: 'Keep editing' }))) return
@@ -29,11 +34,12 @@ export function StartFollowUpPlan({ enrollmentId, studentName, returnTo, activeP
     setSaving(true); setError(null)
     try {
       const result = await api.createIntervention({ enrollment_id: enrollmentId, trigger_type: 'manual', severity: 'normal', action_summary: summary.trim(), next_follow_up_at: next })
+      if (!active.current) return
       if (!result.data) { setError(result.error || 'Could not start the follow-up plan.'); return }
       setOpen(false); setSummary(''); setFollowUp('')
       navigate(interventionPath(result.data.intervention.id, returnTo), { state: { returnTo, returnLabel: studentName } })
-    } catch { setError('Could not start the follow-up plan. Your draft is still here. Try again.') }
-    finally { setSaving(false) }
+    } catch { if (active.current) setError('Could not start the follow-up plan. Your draft is still here. Try again.') }
+    finally { if (active.current) setSaving(false) }
   }
   if (activePlanId) return <LinkButton size="sm" variant="secondary" to={interventionPath(activePlanId, returnTo)}><Flag className="h-4 w-4" aria-hidden="true" />Open follow-up plan</LinkButton>
   return <>

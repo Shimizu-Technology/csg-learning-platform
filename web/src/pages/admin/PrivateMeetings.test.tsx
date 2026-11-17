@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,6 +49,22 @@ describe('staff meetings order', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
+  })
+
+  it('keeps the exact profile origin while switching meeting cohorts', async () => {
+    const result = await state.meetings()
+    result.data.cohorts.push({ ...result.data.cohorts[0], id: 3, name: 'Other course', slots: [], bookings: [] })
+    state.meetings.mockResolvedValue(result)
+    const origin = '/admin/cohorts/2/students/41/communication?focus=meeting'
+    function Location() { const location = useLocation(); return <pre data-location>{JSON.stringify({ search: location.search, state: location.state })}</pre> }
+    await act(async () => root.render(<MemoryRouter initialEntries={[{ pathname: '/admin/meetings', search: `?cohort_id=2&booking_id=1&week=1&return_to=${encodeURIComponent(origin)}`, state: { returnTo: origin, returnLabel: 'Maria Santos' } }]}><StaffPrivateMeetings /><Location /></MemoryRouter>))
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Other course')!.click())
+    const location = JSON.parse(container.querySelector('[data-location]')!.textContent!)
+    expect(new URLSearchParams(location.search).get('return_to')).toBe(origin)
+    expect(new URLSearchParams(location.search).get('cohort_id')).toBe('3')
+    expect(new URLSearchParams(location.search).has('booking_id')).toBe(false)
+    expect(location.state.returnTo).toBe(origin)
+    expect(container.querySelector(`a[href="${origin}"]`)?.textContent).toBe('Back to Maria Santos')
   })
 
   afterEach(() => {

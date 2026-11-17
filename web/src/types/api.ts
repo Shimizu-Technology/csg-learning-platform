@@ -796,6 +796,7 @@ export interface StudentProgressModule {
 
 export type StudentCommunication = components['schemas']['StudentCommunicationResponse']['communication'];
 
+/** Compatibility view model; the complete current wire contract is StudentWorkspaceProgressResponse. */
 export interface StudentProgressResponse {
   weekly_plan?: WeeklyPlan | null;
   personal_plan?: PersonalLearningPlan | null;
@@ -835,7 +836,7 @@ export interface StudentProgressResponse {
   };
   cohort: { id: number; name: string; start_date: string; status: string; course_delivery?: 'program' | 'guided' | 'self_paced' };
   learning_evidence_scope?: {
-    kind: 'curriculum';
+    kind: 'curriculum' | 'enrollment';
     curriculum_id: number;
     curriculum_name: string;
     enrollment_count: number;
@@ -918,7 +919,7 @@ export interface LearningRevisionPattern {
 
 export interface LearningInsights {
   generated_at: string;
-  evidence_scope: { kind: 'curriculum'; curriculum_id: number; curriculum_name: string; completion_and_watch_time_excluded: boolean };
+  evidence_scope: { kind: 'curriculum' | 'enrollment'; curriculum_id: number; curriculum_name: string; completion_and_watch_time_excluded: boolean };
   cohort: { id: number; name: string };
   summary: {
     objective_count: number;

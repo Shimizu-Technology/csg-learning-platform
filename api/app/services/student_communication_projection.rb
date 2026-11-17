@@ -9,12 +9,15 @@ class StudentCommunicationProjection
   end
 
   def call
+    blocked = @viewer.blocked_relationship_user_ids - [ @viewer.id ]
     conversations = DirectConversation.visible_for(@viewer).where(cohort_id: @enrollment.cohort_id)
       .where(id: DirectConversationMember.where(user_id: @enrollment.user_id).select(:direct_conversation_id))
     messages = Message.visible.where(direct_conversation_id: conversations.select(:id))
+      .where.not(author_id: blocked)
       .includes(:author).order(created_at: :desc, id: :desc).limit(LIMIT)
     channels = Channel.visible_for(@viewer).where(cohort_id: @enrollment.cohort_id)
     activity = Message.visible.where(channel_id: channels.select(:id), author_id: @enrollment.user_id)
+      .where.not(author_id: blocked)
       .includes(:author, :channel).order(created_at: :desc, id: :desc).limit(LIMIT)
     meetings = PrivateMeetingBooking.where(enrollment_id: @enrollment.id)
     meetings = meetings.where(instructor_id: @viewer.id) unless @viewer.admin?

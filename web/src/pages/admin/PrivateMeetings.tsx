@@ -1,6 +1,7 @@
 import { useBackLink } from '../../lib/recordOrigin'
 import { schoolTimeDescription, schoolTimeGenericLabel, schoolWallTimeToIso } from '../../lib/schoolTime'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { forwardReturnState } from '../../lib/navigationContext'
 import { cohortStudentPath } from '../../lib/routes'
 import { useMeetingDestination } from '../../lib/useMeetingDestination'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -34,6 +35,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   const back = useBackLink({ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' })
   const { user } = useAuthContext()
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
   const confirm = useConfirm()
   const [cohorts, setCohorts] = useState<StaffPrivateMeetingCohort[]>([])
@@ -249,7 +251,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
       {cohorts.length === 0 ? <EmptyState icon={CalendarDays} title={cohortId ? "No meetings in this cohort" : "No cohorts have meetings yet"} description={user?.is_admin ? 'Enable meetings for a cohort above, then publish times that students can book.' : 'An admin can assign you to a course before you publish meeting times.'} /> : (
         <>
           <div hidden={Boolean(cohortId)} className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Choose cohort">
-            {cohorts.map((cohort) => <FilterChip key={cohort.id} selected={cohort.id === selected?.id} onClick={() => { setSelectedId(cohort.id); navigate(`/admin/meetings?cohort_id=${cohort.id}`, { replace: true }) }} title={cohort.name} className="max-w-[18rem]"><span className="truncate">{cohort.name}</span></FilterChip>)}
+            {cohorts.map((cohort) => <FilterChip key={cohort.id} selected={cohort.id === selected?.id} onClick={() => { setSelectedId(cohort.id); const params = new URLSearchParams(location.search); params.set('cohort_id', String(cohort.id)); params.delete('booking_id'); params.delete('week'); navigate(`/admin/meetings?${params}`, { replace: true, state: forwardReturnState(location.state) }) }} title={cohort.name} className="max-w-[18rem]"><span className="truncate">{cohort.name}</span></FilterChip>)}
           </div>
           {selected && (
             <section className="space-y-6" aria-label={`${selected.name} meetings`}>

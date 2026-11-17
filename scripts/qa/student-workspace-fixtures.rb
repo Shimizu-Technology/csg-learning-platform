@@ -32,3 +32,5 @@ review_block = ContentBlock.joins(lesson: :curriculum_module).where(modules: { c
 Submission.find_or_create_by!(enrollment: student.enrollments.find_by!(cohort: program), user: student, content_block: review_block) do |submission|
   submission.text = "Synthetic second reviewable attempt"
 end
+
+self_paced.create_private_meeting_config!(instructor: instructor, weeks: 8) unless self_paced.private_meeting_config
