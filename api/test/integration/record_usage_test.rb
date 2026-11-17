@@ -176,6 +176,24 @@ class RecordUsageTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Secret title"
   end
 
+  # Fix round 2 (P3): Cohort Coral's newer questions don't push Teal's out of the preview.
+  test "the lesson's help preview keeps up to five per cohort" do
+    travel_to 2.days.ago do
+      help(@student, @cohort)
+    end
+    teal_question = HelpRequest.where(cohort: @cohort).sole
+    6.times do |i|
+      learner = person("coral#{i}", :student)
+      enroll(learner, @other_cohort)
+      help(learner, @other_cohort)
+    end
+
+    preview = fetch(@admin, "lesson", @lesson.id)["help_requests"]
+    assert_includes preview.map { |request| request["id"] }, teal_question.id
+    assert_equal [ 5, 1 ], [ preview.count { |request| request["cohort_id"] == @other_cohort.id }, preview.count { |request| request["cohort_id"] == @cohort.id } ]
+    assert_equal preview.map { |request| request["created_at"] }.sort.reverse, preview.map { |request| request["created_at"] }, "Newest first"
+  end
+
   test "help counts are left out where help requests are switched off" do
     @cohort.update!(settings: { features: { help_requests: false } })
     help(@student, @cohort)

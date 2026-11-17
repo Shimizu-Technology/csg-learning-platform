@@ -7463,7 +7463,7 @@ export interface components {
             cohorts: components["schemas"]["LessonUsageCohort"][];
             /** @description Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
             other_cohorts_count: number;
-            /** @description The newest open help requests on this lesson in cohorts the viewer can see (no message text). */
+            /** @description The newest open help requests on this lesson, up to five per cohort the viewer can see (no message text), newest first. */
             help_requests: {
                 id: number;
                 status: string;

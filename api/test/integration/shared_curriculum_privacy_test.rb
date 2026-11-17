@@ -88,6 +88,65 @@ class SharedCurriculumPrivacyTest < ActionDispatch::IntegrationTest
     assert_equal "Cohort Birch", get_json(@admin, "/api/v1/curricula/#{copy.id}")["curriculum"]["editing"].dig("copy_of", "cohort", "name")
   end
 
+  # Fix round 2 (P1): an admin copies the curriculum for Birch. Its name never names Birch to
+  # Alder's instructor: Content, the curriculum page, a copied lesson's page and peek, the editor.
+  test "a copy made for Birch is named without Birch for Alder's instructor, and with it for the admin" do
+    copy = CurriculumCopyForCohort.new(cohort: @b, user: @admin, source_curriculum_id: @curriculum.id).copy!.copy.copy_curriculum
+    assert_equal "Shared synthetic lab (copy)", copy.reload.name, "New copies don't store the cohort's name"
+    copied_lesson = Lesson.joins(:curriculum_module).find_by!(modules: { curriculum_id: copy.id }, title: "Make decisions")
+
+    [
+      "/api/v1/curricula", "/api/v1/curricula/#{copy.id}", "/api/v1/records/curriculum/#{copy.id}/usage",
+      "/api/v1/records/module/#{copied_lesson.module_id}/usage", "/api/v1/records/lesson/#{copied_lesson.id}/usage",
+      "/api/v1/records/lesson/#{copied_lesson.id}/summary", "/api/v1/lessons/#{copied_lesson.id}/block_editor",
+      "/api/v1/records/curriculum/#{@curriculum.id}/usage"
+    ].each do |path|
+      get_json(@instructor, path)
+      refute_includes response.body, "Birch", path
+    end
+    names = get_json(@instructor, "/api/v1/curricula")["curricula"].map { |curriculum| curriculum["name"] }
+    assert_includes names, "Shared synthetic lab (copy)"
+    assert_equal "JavaScript basics · Shared synthetic lab (copy)", get_json(@instructor, "/api/v1/records/lesson/#{copied_lesson.id}/summary")["summary"]["subtitle"]
+    assert_equal "Shared synthetic lab (copy)", get_json(@instructor, "/api/v1/records/lesson/#{copied_lesson.id}/usage")["usage"]["curriculum"]["name"]
+
+    assert_equal "Shared synthetic lab (Cohort Birch)", get_json(@admin, "/api/v1/curricula/#{copy.id}")["curriculum"]["name"]
+    assert_equal [ "Shared synthetic lab (Cohort Birch)" ], get_json(@admin, "/api/v1/records/curriculum/#{@curriculum.id}/usage")["usage"]["copies"].map { |row| row.dig("copy_curriculum", "name") }
+    assert_equal "Shared synthetic lab (Cohort Birch)", get_json(@admin, "/api/v1/cohorts/#{@b.id}")["cohort"]["curriculum_name"]
+  end
+
+  test "names stored the old way, or renamed to include the cohort, are redacted for viewers who can't see it" do
+    legacy = Curriculum.create!(name: "Shared synthetic lab (Cohort Birch)", status: :active)
+    CurriculumCopy.create!(cohort: @b, source_curriculum: @curriculum, copy_curriculum: legacy, created_by: @admin)
+    renamed = Curriculum.create!(name: "Cohort Birch evening track", status: :active)
+    CurriculumCopy.create!(cohort: Cohort.create!(curriculum: renamed, name: "Cohort Birch evening", start_date: Date.current, status: :active),
+      source_curriculum: @curriculum, copy_curriculum: renamed, created_by: @admin)
+
+    names = get_json(@instructor, "/api/v1/curricula")["curricula"].map { |curriculum| curriculum["name"] }
+    assert_includes names, "Shared synthetic lab (copy)"
+    refute(names.any? { |name| name.include?("Birch") }, names.inspect)
+    assert_equal "Shared synthetic lab (Cohort Birch)", get_json(@admin, "/api/v1/curricula/#{legacy.id}")["curriculum"]["name"]
+    @b.cohort_instructor_assignments.create!(user: @instructor)
+    assert_equal "Shared synthetic lab (Cohort Birch)", get_json(@instructor, "/api/v1/curricula/#{legacy.id}")["curriculum"]["name"], "Birch's own instructor sees it"
+  end
+
+  # Fix round 2 (P2): a saved Support link with Alder's cohort and the shared lesson's (or module's)
+  # id still finds Alder's help after Alder moves to its own copy.
+  test "Support's lesson and module filters follow a cohort's copy" do
+    learner = Enrollment.find_by!(cohort: @a).user
+    question = HelpRequest.create!(student: learner, cohort: @a, category: :concept, context_type: :lesson, context_id: @lesson.id, status: :open,
+      context_label: "Make decisions", context_path: "/lessons/#{@lesson.id}", message: "Synthetic question")
+    CurriculumCopyForCohort.new(cohort: @a, user: @instructor, source_curriculum_id: @curriculum.id).copy!
+    refute_equal @lesson.id, question.reload.context_id, "The copy moved the question to Alder's lesson"
+
+    [ { lesson_id: @lesson.id }, { module_id: @module.id } ].each do |filter|
+      as_user(@instructor) { get "/api/v1/support_queue", params: { cohort_id: @a.id, **filter }, headers: auth_headers }
+      assert_response :success
+      queue = response.parsed_body["support_queue"]
+      assert_equal [ question.id ], queue["help_requests"].map { |request| request["id"] }, filter.inspect
+      assert_equal "Make decisions", queue.dig("help_filter", "name") if filter[:lesson_id]
+    end
+  end
+
   private
 
   def person(slug, role)

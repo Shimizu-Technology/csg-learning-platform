@@ -116,7 +116,7 @@ class LessonEditAccess
     visible = user&.admin? || user&.cohort_instructor_assignments&.exists?(cohort_id: record.cohort_id)
     {
       cohort: visible ? { id: record.cohort.id, name: record.cohort.name } : nil,
-      source_curriculum: record.source_curriculum && { id: record.source_curriculum.id, name: record.source_curriculum.name },
+      source_curriculum: CurriculumName.new(user).ref(record.source_curriculum),
       created_at: record.created_at.iso8601
     }
   end

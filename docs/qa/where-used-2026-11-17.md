@@ -82,6 +82,29 @@ Three #276 tests that asserted an instructor sees a cohort they don't teach by n
 
 All 5 scenarios passed at 1280 and 390, light and dark: 20 of 20, with no sideways scroll and no serious axe or contrast violations. The harness was stopped and its database dropped afterwards.
 
+## Fix round 2 (focused re-review: one P1, one P2, two P3)
+
+Base: `2a7f5bce`, merged with main `0d909047` (#283). The OpenAPI file was merged structurally (three-way, no conflicting keys), and both type files were regenerated.
+
+- **P1, copy names.** A cohort copy was stored as "<source> (<cohort>)", so after an admin copied the shared curriculum for B, A's instructor saw B's name in Content, the curriculum page and a copied lesson's peek.
+  - New copies are stored as "<source> (copy)".
+  - `CurriculumName` builds the name each viewer sees from the copy's `curriculum_copies` row: "<source> (<cohort>)" when the viewer can see that cohort, "<source> (copy)" otherwise.
+  - Names already stored the old way are redacted the same way. A copy an admin renamed keeps its name, with the cohort's name replaced by "another cohort" for viewers who can't see it.
+  - It is applied wherever the API serializes a curriculum name: the Content index and detail, usage (records, breadcrumbs, module and lesson pages, copy history), peek and summary subtitles, search, the editor context, edit access, the copy endpoints and their messages, and the cohort, profile, progress, insights, cohort home and weekly-plan payloads (named there for the cohort itself).
+  - Production has 0 curriculum copies, so no data migration is needed.
+- **P2.** Support's `lesson_id` / `module_id`, with a `cohort_id`, resolve through `MovedContent` for that cohort, as Grading does. A saved link still finds the cohort's help after it moves to its own copy.
+- **P3, help preview.** The lesson's help preview now holds up to five per visible cohort, from one windowed query. A focused page shows its cohort's newest, the unfocused page shows the newest five overall, and a positive count with nothing to preview says "1 open request. Open Support to see it" instead of "No open help requests".
+- **P3, query test.** The Support query-count test is split into one test per filter. `assert_flat_queries` now fails if a test calls it twice, which also caught round 0's two curriculum-usage measurements; they are split too.
+
+**Tests that fail on the round-1 code:** the copy-name test (the admin's real copy for Birch, checked through eight instructor payloads), the legacy and renamed redaction test, the Support-after-copy test, the per-cohort preview test (API and web), and the copy service's stored-name test.
+
+**Gates on the merged head:**
+- API, both prepared-statement modes: 1,983 runs / 41,598 assertions, 0 failures, coverage check passed. RuboCop (703 files) and Brakeman clean.
+- Web: 216 files / 2,478 tests pass, plus typecheck, lint, build, `test:bundle` and `api:check`.
+- Mobile: typecheck passes, lint has 0 errors (74 warnings, unchanged), Jest 139 suites / 1,506 tests pass.
+
+**Browser.** `where-used.spec.ts` passed 20 of 20 again. A new `where-used-copy.spec.ts` has the admin make QA Program 2's copy through the API. Then QA Program's instructor reads seven payloads (curricula, the copy, its usage, a copied lesson's usage, summary and editor, and search) and opens Content, the copy's curriculum page, a copied lesson's breadcrumb and its peek card. None of them names QA Program 2 or 3; the copy reads "QA Program Lab (copy)", and the admin sees "QA Program Lab (QA Program 2)". It passed 4 of 4 at 1280 and 390, light and dark, with no sideways scroll and no serious axe violations. The peek check is desktop only, since peek cards are pointer-only. The harness was stopped and its database dropped.
+
 ## Not run
 
 - WebKit / Safari: WebKit doesn't start on the Mac mini. Not run.

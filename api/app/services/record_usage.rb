@@ -21,7 +21,7 @@
 # lessons, submissions, rubrics, objectives or copies.
 class RecordUsage
   TYPES = %w[curriculum module lesson].freeze
-  HELP_LIST_LIMIT = 5
+  HELP_LIST_LIMIT = 5 # per cohort
 
   def self.for(viewer:, type:, id:)
     new(viewer: viewer, type: type, id: id).call
@@ -59,7 +59,7 @@ class RecordUsage
     {
       type: "curriculum",
       id: curriculum.id,
-      name: curriculum.name,
+      name: names.for(curriculum),
       description: curriculum.description,
       status: curriculum.status,
       total_weeks: curriculum.total_weeks,
@@ -99,7 +99,7 @@ class RecordUsage
     cohort = cohort_visible?(record.cohort_id) ? Cohort.find_by(id: record.cohort_id) : nil
     {
       cohort: cohort && { id: cohort.id, name: cohort.name },
-      source_curriculum: record.source_curriculum && { id: record.source_curriculum.id, name: record.source_curriculum.name },
+      source_curriculum: names.ref(record.source_curriculum),
       created_by: record.created_by && { id: record.created_by.id, name: record.created_by.full_name },
       created_at: record.created_at.iso8601
     }
@@ -110,12 +110,13 @@ class RecordUsage
     records = CurriculumCopy.includes(:cohort, :copy_curriculum, :created_by)
       .where(source_curriculum_id: curriculum.id).order(created_at: :desc, id: :desc).to_a
     shown = records.select { |record| cohort_visible?(record.cohort_id) }
+    names.preload(shown.map(&:copy_curriculum_id))
     {
       copies: shown.map do |record|
         {
           id: record.id,
           cohort: { id: record.cohort.id, name: record.cohort.name },
-          copy_curriculum: { id: record.copy_curriculum.id, name: record.copy_curriculum.name },
+          copy_curriculum: names.ref(record.copy_curriculum),
           created_by: record.created_by && { id: record.created_by.id, name: record.created_by.full_name },
           created_at: record.created_at.iso8601,
           lessons_count: record.counts.is_a?(Hash) ? record.counts["lessons"] : nil
@@ -185,7 +186,7 @@ class RecordUsage
       module_type: mod.module_type,
       scheduled_day_names: mod.scheduled_day_names,
       week_count: ((lessons.reject(&:archived?).map(&:release_day).max || 0) / 7) + 1,
-      curriculum: { id: mod.curriculum.id, name: mod.curriculum.name },
+      curriculum: names.ref(mod.curriculum),
       can_edit: LessonEditAccess.for(@viewer, mod.curriculum).can_edit?,
       lessons: lessons.map do |lesson|
         day = mod.week_and_day_for(lesson.release_day)
@@ -240,7 +241,7 @@ class RecordUsage
       release_day: lesson.release_day,
       week: day[:week],
       day_name: day[:day_name],
-      curriculum: { id: curriculum.id, name: curriculum.name },
+      curriculum: names.ref(curriculum),
       module: { id: mod.id, name: mod.name },
       can_edit: LessonEditAccess.for(@viewer, curriculum).can_edit?,
       blocks: blocks.map { |block| { id: block.id, block_type: block.block_type, title: block.title, has_work: block.gradable_work_block? } },
@@ -261,11 +262,17 @@ class RecordUsage
   end
 
   # The newest open help requests on this lesson in cohorts the viewer can see.
+  # Up to five per cohort, newest first, in one query: a page focused on one
+  # cohort shows that cohort's newest, and the unfocused page shows the newest
+  # five overall (always among these).
   def recent_help(scope, cohorts)
     ids = help_cohort_ids(cohorts)
     return [] if ids.empty?
 
-    scope.active_queue.where(cohort_id: ids).includes(:student).order(created_at: :desc, id: :desc).limit(HELP_LIST_LIMIT).map do |request|
+    ranked = scope.active_queue.where(cohort_id: ids)
+      .select("help_requests.id, ROW_NUMBER() OVER (PARTITION BY help_requests.cohort_id ORDER BY help_requests.created_at DESC, help_requests.id DESC) AS cohort_rank")
+    newest = HelpRequest.from(ranked, :ranked).where("ranked.cohort_rank <= ?", HELP_LIST_LIMIT).select("ranked.id")
+    HelpRequest.where(id: newest).includes(:student).order(created_at: :desc, id: :desc).map do |request|
       { id: request.id, status: request.status, urgency: request.urgency, category: request.category, cohort_id: request.cohort_id,
         created_at: request.created_at.iso8601, student: request.student && { id: request.student.id, name: request.student.full_name } }
     end
@@ -280,6 +287,11 @@ class RecordUsage
     @visible_ids = @viewer.admin? ? all_ids : all_ids & @viewer.cohort_instructor_assignments.pluck(:cohort_id)
     @other_cohorts_count = all_ids.size - @visible_ids.size
     Cohort.where(id: @visible_ids).includes(:cohort_module_schedules).order(:start_date, :id).to_a
+  end
+
+  # Curriculum names with a copy's cohort only when the viewer can see it.
+  def names
+    @names ||= CurriculumName.new(@viewer)
   end
 
   def cohort_visible?(cohort_id)

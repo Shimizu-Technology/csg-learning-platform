@@ -55,8 +55,8 @@ module Api
         {
           id: copy.id,
           cohort: { id: copy.cohort.id, name: copy.cohort.name },
-          source_curriculum: copy.source_curriculum && { id: copy.source_curriculum.id, name: copy.source_curriculum.name },
-          copy_curriculum: { id: copy.copy_curriculum.id, name: copy.copy_curriculum.name },
+          source_curriculum: CurriculumName.new(current_user).ref(copy.source_curriculum),
+          copy_curriculum: CurriculumName.new(current_user).ref(copy.copy_curriculum),
           created_by: copy.created_by && { id: copy.created_by.id, full_name: copy.created_by.full_name },
           created_at: copy.created_at.iso8601,
           already_copied: result.already_copied,

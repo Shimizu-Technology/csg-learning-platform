@@ -10,6 +10,7 @@ module Api
       # GET /api/v1/curricula
       def index
         curricula = Curriculum.includes(:cohorts).order(:name)
+        curriculum_names.preload(curricula.map(&:id))
         render json: {
           curricula: curricula.map { |c| curriculum_json(c, include_usage: true) }
         }
@@ -62,6 +63,10 @@ module Api
         @curriculum = Curriculum.find(params[:id])
       end
 
+      def curriculum_names
+        @curriculum_names ||= CurriculumName.new(current_user)
+      end
+
       def curriculum_params
         params.permit(:name, :description, :total_weeks, :status)
       end
@@ -69,7 +74,8 @@ module Api
       def curriculum_json(curriculum, include_modules: false, include_usage: false)
         json = {
           id: curriculum.id,
-          name: curriculum.name,
+          # A cohort copy names its cohort only for people who can see it (CurriculumName).
+          name: curriculum_names.for(curriculum),
           description: curriculum.description,
           total_weeks: curriculum.total_weeks,
           status: curriculum.status,

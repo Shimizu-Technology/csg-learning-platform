@@ -106,7 +106,8 @@ function LessonPage({ usage }: { usage: LessonUsage }) {
   const label = `Lesson · ${usage.title}`
   const work = usage.blocks.filter((block) => block.has_work).length
   const help = counts.open_help
-  const helpRequests = cohortId ? usage.help_requests.filter((request) => request.cohort_id === cohortId) : usage.help_requests
+  // The server sends up to five per cohort: the focused cohort's, or the newest five overall.
+  const helpRequests = (cohortId ? usage.help_requests.filter((request) => request.cohort_id === cohortId) : usage.help_requests).slice(0, 5)
   const rows: RelatedRow[] = [
     { key: 'used_in', icon: Layers3, label: 'Used in cohorts', count: usage.cohorts.length, onSelect: () => scrollToSection('used-in') },
     { key: 'submissions', icon: Files, label: inCohort('Submissions', focusName), count: counts.submissions, to: gradingPath({ cohortId, lessonId: usage.id, all: true }) },
@@ -202,7 +203,7 @@ function LessonPage({ usage }: { usage: LessonUsage }) {
                   )
                 })}
               </ul>
-            ) : <p className="px-4 py-5 text-sm text-ink-muted sm:px-5">No open help requests on this lesson.</p>}
+            ) : <p className="px-4 py-5 text-sm text-ink-muted sm:px-5">{help ? `${help} open ${help === 1 ? 'request' : 'requests'}. Open ${TERMS.support} to see ${help === 1 ? 'it' : 'them'}.` : 'No open help requests on this lesson.'}</p>}
           </Section>
         )}
       </div>

@@ -227,3 +227,31 @@ it('a focused lesson lists only that cohort’s open help, and its Support link 
   expect(help.textContent).toContain('No open help requests on this lesson.')
   expect(help.querySelector('a[href="/admin/support?cohort_id=5&lesson_id=40"]')).not.toBeNull()
 })
+
+// Fix round 2 (P3): newer questions in another cohort never hide the focused cohort's own.
+it('a focused lesson shows its cohort’s questions even when another cohort has five newer ones', async () => {
+  const ask = (id: number, cohortId: number, day: number) => ({ id, status: 'open', urgency: 'normal', category: 'concept', cohort_id: cohortId, created_at: `2026-11-${String(day).padStart(2, '0')}T09:00:00Z`, student: { id: 100 + id, name: `Learner ${id}` } })
+  const crowded: LessonUsage = {
+    ...twoCohortLesson,
+    cohorts: [{ ...twoCohortLesson.cohorts[0], open_help: 1 }, { ...twoCohortLesson.cohorts[1], open_help: 5 }],
+    // Server order: newest first, up to five per cohort.
+    help_requests: [ask(1, 5, 16), ask(2, 5, 15), ask(3, 5, 14), ask(4, 5, 13), ask(5, 5, 12), ask(6, 4, 2)],
+    totals: { submissions: 5, waiting: 3, open_help: 6 },
+  }
+  mocks.getRecordUsage.mockResolvedValue({ data: { usage: crowded }, error: null, status: 200 })
+  await mount('/admin/lessons/40?cohort_id=4')
+  const help = () => container.querySelector('#help')!
+  expect([...help().querySelectorAll('a[data-record-link="help_request"]')].map((link) => link.textContent)).toEqual(["Learner 6's question"])
+  expect(help().textContent).not.toContain('No open help requests')
+
+  act(() => root.unmount()); root = createRoot(container)
+  await mount('/admin/lessons/40')
+  expect(help().querySelectorAll('a[data-record-link="help_request"]')).toHaveLength(5)
+  expect(help().querySelector('a[href="/admin/support?lesson_id=40"]')?.textContent).toBe('See all 6 in Support')
+
+  // A positive count with nothing to preview never says there is nothing.
+  act(() => root.unmount()); root = createRoot(container)
+  mocks.getRecordUsage.mockResolvedValue({ data: { usage: { ...crowded, help_requests: [] } }, error: null, status: 200 })
+  await mount('/admin/lessons/40?cohort_id=4')
+  expect(help().textContent).toContain('1 open request. Open Support to see it.')
+})

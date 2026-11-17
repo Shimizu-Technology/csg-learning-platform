@@ -17094,7 +17094,7 @@
           },
           "help_requests": {
             "type": "array",
-            "description": "The newest open help requests on this lesson in cohorts the viewer can see (no message text).",
+            "description": "The newest open help requests on this lesson, up to five per cohort the viewer can see (no message text), newest first.",
             "items": {
               "type": "object",
               "properties": {

@@ -99,7 +99,7 @@ module Api
         submissions = Submission.where(content_block_id: block_ids, enrollment_id: Enrollment.where(cohort_id: visible_ids).select(:id))
         weeks = [ mod.week_count, @lesson.release_day / 7 + 1 ].max + 1
         {
-          curriculum: { id: curriculum.id, name: curriculum.name },
+          curriculum: CurriculumName.new(current_user).ref(curriculum),
           module: {
             id: mod.id,
             name: mod.name,

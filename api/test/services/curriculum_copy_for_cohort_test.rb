@@ -24,7 +24,9 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     cohort = @f.cohort.reload
     refute result.already_copied
     assert_equal copy.id, cohort.curriculum_id
-    assert_equal "#{@f.curriculum.name} (#{cohort.name})", copy.name
+    # Stored without the cohort's name; CurriculumName adds it for viewers who can see the cohort.
+    assert_equal "#{@f.curriculum.name} (copy)", copy.name
+    assert_equal "#{@f.curriculum.name} (#{cohort.name})", CurriculumName.new(@f.admin).for(copy)
     assert_nil copy.course_package_key, "the package key stays with the shared curriculum"
     assert_equal [ "rev-7", @f.curriculum.course_package_digest, "active" ], [ copy.course_package_revision, copy.course_package_digest, copy.status ]
 

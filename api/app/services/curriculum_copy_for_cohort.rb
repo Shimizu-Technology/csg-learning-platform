@@ -186,7 +186,7 @@ class CurriculumCopyForCohort
       blockers = existing ? [] : blockers_for(cohort, source)
       {
         cohort: { id: cohort.id, name: cohort.name },
-        source_curriculum: source && { id: source.id, name: source.name },
+        source_curriculum: source && { id: source.id, name: display_name(source) },
         copy_name: source && copy_name(source, cohort),
         **shared_with(source, cohort),
         already_copied: existing.present?,
@@ -313,7 +313,7 @@ class CurriculumCopyForCohort
 
   def copy_content!(cohort)
     @copy = Curriculum.create!(
-      @source.attributes.except("id", "course_package_key", "created_at", "updated_at").merge("name" => copy_name(@source, cohort))
+      @source.attributes.except("id", "course_package_key", "created_at", "updated_at").merge("name" => CurriculumName.stored_for_copy(@source.name))
     )
 
     @objective_map = copy_rows(LearningObjective, LearningObjective.where(curriculum_id: @source_id)) { |row| row["curriculum_id"] = @copy.id }
@@ -615,28 +615,28 @@ class CurriculumCopyForCohort
   # [[code, message], ...]; empty when the copy can go ahead.
   def blockers_for(cohort, source)
     return [ [ "source_missing", "That curriculum no longer exists." ] ] unless source
-    return [ [ "source_changed", "#{cohort.name} no longer uses #{source.name}. Reload to see its current curriculum." ] ] unless cohort.curriculum_id == source.id
+    return [ [ "source_changed", "#{cohort.name} no longer uses #{display_name(source)}. Reload to see its current curriculum." ] ] unless cohort.curriculum_id == source.id
 
     blockers = []
     access = @access || LessonEditAccess.for(@user, source)
     unless @user&.admin? && !@user.archived?
       unless access.reason == "shared" && access.copy_cohorts.any? { |granted| granted.id == cohort.id }
-        return [ [ "copy_not_needed", "#{cohort.name} is the only cohort using #{source.name}, so you can edit it directly." ] ] if access.reason == "granted"
+        return [ [ "copy_not_needed", "#{cohort.name} is the only cohort using #{display_name(source)}, so you can edit it directly." ] ] if access.reason == "granted"
 
         return [ [ "not_allowed", "Only admins and instructors with editing access for #{cohort.name} can make its copy." ] ]
       end
     end
     unless Cohort.where(curriculum_id: source.id).where.not(id: cohort.id).exists?
-      return [ [ "copy_not_needed", "#{cohort.name} is the only cohort using #{source.name}, so you can edit it directly." ] ]
+      return [ [ "copy_not_needed", "#{cohort.name} is the only cohort using #{display_name(source)}, so you can edit it directly." ] ]
     end
-    blockers << [ "source_archived", "#{source.name} is archived. Restore it before making a copy." ] if source.archived?
+    blockers << [ "source_archived", "#{display_name(source)} is archived. Restore it before making a copy." ] if source.archived?
     if CurriculumCopy.where(cohort_id: cohort.id, source_curriculum_id: source.id).exists?
-      blockers << [ "copied_before", "#{cohort.name} already has a copy of #{source.name}. Move the cohort to that copy instead of making another." ]
+      blockers << [ "copied_before", "#{cohort.name} already has a copy of #{display_name(source)}. Move the cohort to that copy instead of making another." ]
     end
     unclaimed = unclaimed_legacy_rows(cohort, source)
     if unclaimed.positive?
       blockers << [ "unassigned_learner_work",
-        "#{ActionController::Base.helpers.pluralize(unclaimed, 'older progress or work record')} in #{source.name} belong to learners who are also in another cohort using it, " \
+        "#{ActionController::Base.helpers.pluralize(unclaimed, 'older progress or work record')} in #{display_name(source)} belong to learners who are also in another cohort using it, " \
         "and they aren't linked to a cohort, so they can't be moved safely. Ask an admin to link them to a cohort first." ]
     end
     blockers
@@ -714,8 +714,15 @@ class CurriculumCopyForCohort
 
   # --- Helpers ----------------------------------------------------------------
 
+  # What the copy is called for the person making it, who can see the cohort.
+  # Stored as "<source> (copy)": the cohort's name is added only for viewers
+  # who can see that cohort (CurriculumName, L-3.2).
   def copy_name(source, cohort)
-    "#{source.name} (#{cohort.name})"
+    "#{display_name(source)} (#{cohort.name})"
+  end
+
+  def display_name(curriculum)
+    (@names ||= CurriculumName.new(@user)).for(curriculum)
   end
 
   # Learner rows of the cohort: its enrollments' rows, and rows without an

@@ -30,7 +30,7 @@ class CohortHomeProjection
       name: @cohort.name,
       status: @cohort.effective_status,
       cohort_type: @cohort.cohort_type,
-      curriculum_name: @cohort.curriculum.name,
+      curriculum_name: CurriculumName.in_cohort(@cohort),
       start_date: @cohort.start_date,
       end_date: @cohort.end_date,
       workspace_id: @cohort.workspace&.id

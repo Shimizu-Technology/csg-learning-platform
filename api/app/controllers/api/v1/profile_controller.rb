@@ -26,7 +26,7 @@ module Api
               id: e.id,
               cohort_id: e.cohort_id,
               cohort_name: e.cohort.name,
-              curriculum_name: e.cohort.curriculum.name,
+              curriculum_name: CurriculumName.in_cohort(e.cohort),
               status: e.status,
               enrolled_at: e.enrolled_at,
               # Withdrawn or expired enrollments no longer open the cohort, so they show as text.
