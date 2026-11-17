@@ -4030,6 +4030,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The updates feed. Readers get posted updates for their cohorts and the school; `scope=manage` gives staff the updates they can manage, with drafts only for their author and admins. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** @description Posts an update (`status` `published`, the default) or saves a draft (`draft`). Posting notifies the audience; a draft notifies nobody. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/announcements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** @description Deletes a draft (the response is its last state) or archives a posted update. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** @description The author or an admin edits a draft, posts it (`status` `published`, notifying the audience once), or edits a posted update's title and body without notifying anyone again. A posted update's audience can't change. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/cohorts/{cohort_id}/curriculum_copy": {
         parameters: {
             query?: never;
@@ -4119,6 +4260,60 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/grading_queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page of the Grading workbench's queue (staff)
+         * @description Attempts in the viewer's scope (the cohort named, or every cohort they teach; every cohort for an admin), filtered and counted on the server. Rows carry no answer text. Old module and lesson ids from before a cohort's copy resolve to the copy's when cohort_id is given.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    cohort_id?: number;
+                    /** @description ungraded (default): latest attempts with no grade. redo: latest attempts sent back. all: every attempt. */
+                    filter?: "ungraded" | "redo" | "all";
+                    module_id?: number;
+                    student_id?: number;
+                    lesson_id?: number;
+                    /** @description oldest (default) or newest first; ids break ties. */
+                    sort?: "oldest" | "newest";
+                    /** @description 1-based; past the end serves the last page. */
+                    page?: number;
+                    /** @description Default 50, at most 100. */
+                    per_page?: number;
+                    /** @description Serve the page that holds this submission, when it is in the list. */
+                    focus_id?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GradingQueueResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4520,6 +4715,7 @@ export interface components {
             lesson_title: string;
             module_id: number;
             module_name: string;
+            module_position: number | null;
             filename: null | string;
             submission_config: {
                 [key: string]: unknown;
@@ -4535,6 +4731,9 @@ export interface components {
             /** @description Present in detail, create, update and grade responses; omitted in lists. */
             github_checks?: components["schemas"]["GithubChecks"];
             cohort_name: string | null;
+            /** @enum {string|null} */
+            course_delivery: "program" | "guided" | "self_paced" | null;
+            week_number: number | null;
         };
         GithubChecks: {
             head_sha: null | string;
@@ -6386,6 +6585,49 @@ export interface components {
         TeamMemberResponse: {
             team_member: components["schemas"]["TeamMember"];
         };
+        Announcement: {
+            id: number;
+            title: string;
+            /** @description Markdown. A draft's body may be empty. */
+            body: string;
+            /** @enum {string} */
+            audience: "cohort" | "global" | "staff";
+            /** @enum {string} */
+            status: "draft" | "published" | "archived";
+            pinned: boolean;
+            /** @description When the update was posted; null on a draft. */
+            published_at: string | null;
+            archived_at: string | null;
+            cohort_id: number | null;
+            cohort_name: string | null;
+            author: {
+                id: number;
+                full_name: string;
+                email: string;
+            } | null;
+            read_at: string | null;
+            unread: boolean;
+            /** @description When the title or body last changed after posting. Readers see "Edited". */
+            edited_at: string | null;
+            edited_by: {
+                id: number;
+                full_name: string;
+            } | null;
+            /** @description The viewer may edit, post or delete it: its author or an admin, who can still post to its audience. False for learners. */
+            can_edit: boolean;
+            /** @description The viewer may archive this posted update: an admin, or staff on its cohort. False for drafts (deleted instead, see can_edit), archived updates and learners. */
+            can_archive: boolean;
+            created_at: string;
+            updated_at: string;
+        };
+        AnnouncementsResponse: {
+            announcements: components["schemas"]["Announcement"][];
+            unread_count: number;
+            meta: components["schemas"]["PaginationMeta"];
+        };
+        AnnouncementResponse: {
+            announcement: components["schemas"]["Announcement"];
+        };
         InstructorToday: {
             items: {
                 id: number | string;
@@ -6503,6 +6745,85 @@ export interface components {
             error: string;
             /** @enum {string} */
             code: "busy" | "content_moved";
+        };
+        AnnouncementCreateRequest: {
+            title: string;
+            body: string;
+            /** @enum {string} */
+            audience: "cohort" | "global" | "staff";
+            cohort_id?: number | null;
+            /** @enum {string} */
+            status?: "draft" | "published";
+            pinned?: boolean;
+            send_push?: boolean;
+            /** @description One ID per composition, retained across retries. A replay returns the original record; reconcile changed fields with PATCH before accepting the save. */
+            client_request_id?: string;
+        };
+        /** @description One row of the Grading workbench's queue. No answer text: the review loads GET /api/v1/submissions/{id}. */
+        GradingQueueItem: {
+            id: number;
+            enrollment_id: number | null;
+            latest_submission_id: number | null;
+            content_block_id: number;
+            user_id: number;
+            user_name: string;
+            /** @enum {string|null} */
+            grade: "A" | "B" | "C" | "R" | null;
+            graded_at: string | null;
+            num_submissions: number;
+            created_at: string;
+            updated_at: string;
+            content_block_title: string;
+            content_block_type: string;
+            lesson_id: number;
+            lesson_title: string;
+            module_id: number;
+            module_name: string;
+            module_position: number | null;
+            cohort_id: number | null;
+            cohort_name: string | null;
+            /** @enum {string|null} */
+            course_delivery: "program" | "guided" | "self_paced" | null;
+            /** @description The lesson's program week; null for a self-paced cohort. */
+            week_number: number | null;
+        };
+        /** @description Status chip counts inside the module, student and lesson filters. */
+        GradingQueueCounts: {
+            ungraded: number;
+            redo: number;
+            all: number;
+        };
+        /** @description A module or student with work in the chosen status (inside the other filters). The chosen one stays listed with count 0. */
+        GradingQueueOption: {
+            id: number;
+            name: string;
+            count: number;
+        };
+        /** @description A cohort and module in scope with any submissions, and how many latest attempts wait for review there. */
+        GradingQueueModuleGrid: {
+            cohort_id: number;
+            cohort_name: string;
+            module_id: number;
+            module_name: string;
+            waiting: number;
+        };
+        GradingQueueLesson: {
+            id: number;
+            title: string;
+        };
+        GradingQueueResponse: {
+            submissions: components["schemas"]["GradingQueueItem"][];
+            meta: components["schemas"]["PaginationMeta"];
+            /** @description The item just before this page, so Previous keeps walking the list. */
+            previous: components["schemas"]["GradingQueueItem"] | null;
+            /** @description The item just after this page. */
+            next: components["schemas"]["GradingQueueItem"] | null;
+            counts: components["schemas"]["GradingQueueCounts"];
+            modules: components["schemas"]["GradingQueueOption"][];
+            students: components["schemas"]["GradingQueueOption"][];
+            module_grids: components["schemas"]["GradingQueueModuleGrid"][];
+            /** @description The lesson filter's title, when one is set. */
+            lesson: components["schemas"]["GradingQueueLesson"] | null;
         };
         /** @description One staff reply (U-4.7). `resolved_request` is true for the reply sent with Reply & resolve. */
         HelpRequestReply: {

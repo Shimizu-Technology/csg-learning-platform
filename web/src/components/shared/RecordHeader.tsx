@@ -10,7 +10,7 @@ import type { BackLink } from '../../lib/recordOrigin'
 import { Button, IconButton } from '../ui/Button'
 import { OverflowMenu, type OverflowMenuItem } from '../ui/OverflowMenu'
 
-/** One step of a record's breadcrumb. The last one is the record itself and is not a link. */
+/** One step of a record's breadcrumb. The last one is the record itself: a link only when it has `to` (a workbench names the lesson). */
 export interface Crumb {
   label: string
   /** Where the step goes, or null when the viewer has no page for it (rendered as text). */
@@ -72,7 +72,7 @@ const SLUG = /^[a-z][a-z_-]{0,31}$/
 const PAGE_PARAMS: [RegExp, Record<string, RegExp>][] = [
   [/^\/admin\/cohorts\/[1-9]\d*$/, { tab: SLUG }],
   [/^\/admin\/cohorts\/[1-9]\d*\/students\/[1-9]\d*(?:\/[a-z-]+)?$/, { objective: ID, plan_id: ID }],
-  [/^\/admin\/cohorts\/[1-9]\d*\/modules\/[1-9]\d*\/grading$/, { view: SLUG, filter: SLUG, student: ID, review: ID }],
+  [/^\/admin\/cohorts\/[1-9]\d*\/modules\/[1-9]\d*\/grading$/, { view: SLUG, filter: SLUG, student: ID, review: ID, week: /^(?:[1-9]\d{0,2}|all)$/ }],
 ]
 
 /**
@@ -149,7 +149,7 @@ export function RecordHeader({ back, onBack, headingRef, breadcrumb = [], type, 
                 return (
                   <li key={`${index}:${crumb.label}`} className="inline-flex min-w-0 items-center gap-1">
                     {index > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-disabled" aria-hidden="true" />}
-                    {current || !crumb.to
+                    {!crumb.to
                       ? <span aria-current={current ? 'page' : undefined} className={`max-w-[16rem] truncate ${current ? 'text-ink-secondary' : ''}`} title={crumb.label}>{crumb.label}</span>
                       : <PreviewLink to={crumb.to} className="max-w-[16rem] truncate font-semibold text-ink-secondary hover:text-ink hover:underline" title={crumb.label} onClick={onBack ? (event) => onBack(event, crumb.to!) : undefined}>{crumb.label}</PreviewLink>}
                   </li>

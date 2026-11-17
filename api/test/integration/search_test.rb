@@ -167,9 +167,17 @@ class SearchTest < ActionDispatch::IntegrationTest
     staff_channel = @cohort.workspace.channels.create!(name: "Secretneedle staff", visibility: :staff_only)
     Message.create!(channel: staff_channel, author: @instructor, body: "Secretneedle staff message")
     @recording.update!(status: :draft, title: "Secretneedle draft")
-    @update.update!(status: :draft, title: "Secretneedle draft")
+    Announcement.create!(author: @instructor, cohort: @cohort, audience: :cohort, title: "Secretneedle draft", body: "Draft body", status: :draft)
     search(@student, "Secretneedle")
     assert_empty groups
+  end
+
+  test "a draft update is found by nobody, its author and admins included" do
+    Announcement.create!(author: @instructor, cohort: @cohort, audience: :cohort, title: "Draftneedle plan", body: "Draft body", status: :draft)
+    [ @student, @instructor, @admin ].each do |viewer|
+      search(viewer, "Draftneedle")
+      assert_nil groups["announcement"], "#{viewer.role} found a draft"
+    end
   end
 
   test "module assignment and readable enrollment are required even for empty modules" do

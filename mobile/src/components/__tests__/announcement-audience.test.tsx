@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Modal } from 'react-native';
 import { themedAlert } from '@/lib/alerts';
@@ -6,7 +6,7 @@ import UpdatesScreen from '../../app/(app)/(tabs)/updates';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
-const mockApi = { announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), createAnnouncement: jest.fn(), updateAnnouncement: jest.fn() };
+const mockApi = { announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), createAnnouncement: jest.fn(), updateAnnouncement: jest.fn(), archiveAnnouncement: jest.fn() };
 let mockSelectedCohortId: number | null = 4;
 let mockRoutedCohort: string | undefined;
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), setParams: jest.fn() }), useLocalSearchParams: () => ({ cohort_id: mockRoutedCohort }), useFocusEffect: () => undefined }));
@@ -26,12 +26,12 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta });
   mockApi.notifications.mockResolvedValue({ notifications: [], unread_count: 0, meta });
-  mockApi.createAnnouncement.mockResolvedValue({ announcement: { id: 1, title: 'Hi', body: 'Body', audience: 'cohort', cohort_id: 4, status: 'published' } });
+  mockApi.createAnnouncement.mockImplementation(async (data) => ({ announcement: { id: 1, ...data } }));
 });
 afterEach(() => client.clear());
 
-type Seed = { id: number; title: string; body: string; audience: 'cohort' | 'global' | 'staff'; cohort_id: number | null; status: 'draft' | 'published'; pinned: boolean };
-const seed = (overrides: Partial<Seed>): Seed => ({ id: 9, title: 'Saved post', body: 'Saved body', audience: 'cohort', cohort_id: 4, status: 'published', pinned: false, ...overrides });
+type Seed = { id: number; title: string; body: string; audience: 'cohort' | 'global' | 'staff'; cohort_id: number | null; status: 'draft' | 'published'; pinned: boolean; can_edit: boolean; can_archive: boolean };
+const seed = (overrides: Partial<Seed>): Seed => ({ id: 9, title: 'Saved post', body: 'Saved body', audience: 'cohort', cohort_id: 4, status: 'published', pinned: false, can_edit: true, can_archive: true, ...overrides });
 async function openEditor(announcement: Seed) {
   mockApi.announcements.mockResolvedValue({ announcements: [announcement], unread_count: 0, meta });
   mockApi.updateAnnouncement.mockResolvedValue({ announcement });
@@ -104,7 +104,7 @@ it('confirms a post to a different cohort or the whole school before sending', a
 
 it('asks before publishing a saved cohort draft to the whole school, and cancelling changes nothing', async () => {
   const view = await openEditor(seed({ status: 'draft' }));
-  fireEvent(view.getByLabelText('Publish now'), 'valueChange', true);
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', true);
   fireEvent.press(view.getByText('global'));
   await save(view);
   expect(themedAlert.alert).toHaveBeenCalledWith('Post to everyone?', expect.stringContaining('every student and staff member'), expect.any(Array), expect.anything());
@@ -118,7 +118,7 @@ it('asks before publishing a saved cohort draft to the whole school, and cancell
 
 it('publishes a draft that already targets the viewed cohort without a prompt, and saving it as a draft never asks', async () => {
   let view = await openEditor(seed({ status: 'draft' }));
-  fireEvent(view.getByLabelText('Publish now'), 'valueChange', true);
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', true);
   await save(view);
   expect(mockApi.updateAnnouncement).toHaveBeenLastCalledWith(9, expect.objectContaining({ status: 'published', audience: 'cohort', cohort_id: 4 }));
   expect(themedAlert.alert).not.toHaveBeenCalled();
@@ -131,14 +131,18 @@ it('publishes a draft that already targets the viewed cohort without a prompt, a
   view.unmount();
 });
 
-it('asks when editing a published announcement moves it to another cohort', async () => {
+it('keeps a posted update\'s audience: no audience, cohort, post or push controls, and nobody is asked or notified again', async () => {
   const view = await openEditor(seed({}));
-  fireEvent.press(view.getByText('Cohort 3'));
+  expect(view.getByText('Edit update')).toBeTruthy();
+  expect(view.queryByText('Cohort 3')).toBeNull();
+  expect(view.queryByText('global')).toBeNull();
+  expect(view.queryByLabelText('Post now')).toBeNull();
+  expect(view.queryByLabelText('Send a push notification')).toBeNull();
+  expect(view.getByText(/can’t change after it’s posted/)).toBeTruthy();
+  fireEvent.changeText(view.getByLabelText('Update title'), 'Saved post, corrected');
   await save(view);
-  expect(themedAlert.alert).toHaveBeenCalledWith('Change who sees this?', expect.stringContaining('Cohort 3'), expect.any(Array), expect.anything());
-  expect(mockApi.updateAnnouncement).not.toHaveBeenCalled();
-  await act(async () => { confirmButton('Change audience').onPress!(); });
-  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ audience: 'cohort', cohort_id: 5 }));
+  expect(themedAlert.alert).not.toHaveBeenCalled();
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, { title: 'Saved post, corrected', body: 'Saved body', pinned: false });
   view.unmount();
 });
 
@@ -147,7 +151,30 @@ it('does not ask when editing only the body of a published announcement, even a 
   fireEvent.changeText(view.getByLabelText('Update message'), 'Updated details');
   await save(view);
   expect(themedAlert.alert).not.toHaveBeenCalled();
-  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ body: 'Updated details', audience: 'global' }));
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ body: 'Updated details' }));
+  expect(mockApi.updateAnnouncement.mock.calls[0][1]).not.toHaveProperty('audience');
+  view.unmount();
+});
+
+it('offers no Edit on an update the viewer cannot edit, and no Archive without can_archive', async () => {
+  mockApi.announcements.mockResolvedValue({ announcements: [seed({ can_edit: false, can_archive: false })], unread_count: 0, meta });
+  const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent(await view.findByLabelText('Open update: Saved post'), 'longPress');
+  expect(view.queryByText('Edit')).toBeNull();
+  expect(view.queryByText('Archive')).toBeNull();
+  view.unmount();
+});
+
+it('lets cohort staff archive a posted update they cannot edit', async () => {
+  mockApi.announcements.mockResolvedValue({ announcements: [seed({ can_edit: false, can_archive: true })], unread_count: 0, meta });
+  mockApi.archiveAnnouncement.mockResolvedValue({ announcement: { ...seed({ can_edit: false, can_archive: false }), status: 'archived' } });
+  const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent(await view.findByLabelText('Open update: Saved post'), 'longPress');
+  expect(view.queryByText('Edit')).toBeNull();
+  await act(async () => { fireEvent.press(view.getByText('Archive')); });
+  expect(mockApi.archiveAnnouncement).toHaveBeenCalledWith(9);
   view.unmount();
 });
 
@@ -162,4 +189,100 @@ it('offers the message Markdown toolbar and previews the same source saved in an
   expect(view.getByTestId('composer-preview')).toBeTruthy();
   await save(view);
   expect(mockApi.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ body: '**Hello**' }));
+});
+
+
+it.each(['Cancel', 'Delete draft'])('confirms deleting a draft: %s', async (choice) => {
+  const draft = seed({ status: 'draft' });
+  mockApi.announcements.mockResolvedValue({ announcements: [draft], unread_count: 0, meta });
+  mockApi.archiveAnnouncement.mockImplementation(async () => {
+    mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta });
+    return { announcement: draft };
+  });
+  const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
+  fireEvent(await view.findByLabelText('Open update: Saved post'), 'longPress');
+  fireEvent.press(view.getByText('Delete draft'));
+  expect(mockApi.archiveAnnouncement).not.toHaveBeenCalled();
+  expect(themedAlert.alert).toHaveBeenCalledWith('Delete draft?', expect.stringContaining('can’t be undone'), expect.any(Array), expect.anything());
+  expect(confirmButton('Delete draft').style).toBe('destructive');
+  await act(async () => { confirmButton(choice).onPress!(); });
+  if (choice === 'Cancel') {
+    expect(mockApi.archiveAnnouncement).not.toHaveBeenCalled();
+    expect(view.getByLabelText('Close')).toBeTruthy();
+    expect(view.getByText('Delete draft')).toBeTruthy();
+  } else {
+    expect(mockApi.archiveAnnouncement).toHaveBeenCalledWith(9);
+    await waitFor(() => expect(view.queryByLabelText('Close')).toBeNull());
+    expect(view.queryByLabelText('Open update: Saved post')).toBeNull();
+  }
+  view.unmount();
+});
+
+it('reuses one valid client request id on retry, and draws a new id after success or close', async () => {
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost'));
+  const view = await openComposer();
+  await post(view);
+  await save(view);
+  const calls = mockApi.createAnnouncement.mock.calls;
+  expect(calls[0][0].client_request_id).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+  expect(calls[1][0].client_request_id).toBe(calls[0][0].client_request_id);
+  fireEvent.press(view.getByLabelText('Post update'));
+  await act(async () => { view.UNSAFE_getAllByType(Modal).find((modal) => modal.props.onShow)!.props.onShow(); });
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost'));
+  await post(view);
+  const afterSuccess = calls[2][0].client_request_id;
+  expect(afterSuccess).not.toBe(calls[0][0].client_request_id);
+  fireEvent.press(view.getByLabelText('Close update editor'));
+  fireEvent.press(view.getByLabelText('Post update'));
+  await act(async () => { view.UNSAFE_getAllByType(Modal).find((modal) => modal.props.onShow)!.props.onShow(); });
+  await post(view);
+  expect(calls[3][0].client_request_id).not.toBe(afterSuccess);
+  view.unmount();
+});
+
+it('reconciles edited content and posting after a lost draft response before closing', async () => {
+  const draft = seed({ id: 1, title: 'Class moved', body: 'Room 4 today', status: 'draft' });
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValue({ announcement: draft });
+  let finish!: (value: unknown) => void;
+  mockApi.updateAnnouncement.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  const view = await openComposer();
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', false);
+  await post(view);
+  fireEvent.changeText(view.getByLabelText('Update title'), 'New title');
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Room 3 with more details');
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', true);
+  await save(view);
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'New title', body: 'Room 3 with more details', status: 'published' }));
+  expect(view.getByLabelText('Update title').props.value).toBe('New title');
+  expect(view.getByText('Saving')).toBeTruthy();
+  await act(async () => { finish({ announcement: { ...draft, title: 'New title', body: 'Room 3 with more details', status: 'published' } }); });
+  expect(view.queryByLabelText('Update title')).toBeNull();
+  expect(mockApi.createAnnouncement.mock.calls[1][0].client_request_id).toBe(mockApi.createAnnouncement.mock.calls[0][0].client_request_id);
+  view.unmount();
+});
+
+it('retains reconciliation failures and text typed during a pending mobile save', async () => {
+  const draft = seed({ id: 1, title: 'Class moved', body: 'Room 4 today', status: 'draft' });
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValue({ announcement: draft });
+  mockApi.updateAnnouncement.mockRejectedValueOnce(new Error('PATCH failed'));
+  const view = await openComposer();
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', false);
+  await post(view);
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Edited before retry');
+  await save(view);
+  expect(themedAlert.alert).toHaveBeenLastCalledWith('Could not save update', 'PATCH failed');
+  expect(view.getByLabelText('Update message').props.value).toBe('Edited before retry');
+  let finish!: (value: unknown) => void;
+  mockApi.updateAnnouncement.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  await save(view);
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Typed while PATCH pending');
+  await act(async () => { finish({ announcement: { ...draft, body: 'Edited before retry' } }); });
+  expect(view.getByLabelText('Update message').props.value).toBe('Typed while PATCH pending');
+  expect(new Set(mockApi.createAnnouncement.mock.calls.map(([data]) => data.client_request_id)).size).toBe(1);
+  mockApi.updateAnnouncement.mockImplementation(async (id, data) => ({ announcement: { ...draft, id, ...data } }));
+  await save(view);
+  expect(mockApi.updateAnnouncement).toHaveBeenLastCalledWith(1, expect.objectContaining({ body: 'Typed while PATCH pending' }));
+  expect(mockApi.createAnnouncement).toHaveBeenCalledTimes(3);
+  expect(view.queryByLabelText('Update title')).toBeNull();
+  view.unmount();
 });

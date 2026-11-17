@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
-import { DISCARD_DRAFT_CONFIRMATION, feedbackDraftDiffers } from '../../lib/submissionQueue'
+import { DISCARD_DRAFT_CONFIRMATION, REDO_NEEDS_FEEDBACK, feedbackDraftDiffers, isBlankFeedback } from '../../lib/submissionQueue'
 import { isPreviousAttempt } from '../shared/AttemptReview'
 import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
 import { invalidateRecordQueues } from '../../lib/recordQueueCache'
@@ -98,19 +98,30 @@ export function useSubmissionReview(
   })
   const confirmLeave = async () => !saving.current && (await guard.confirmLeave())
 
-  async function grade(value: string) {
+  // The Redo message goes as soon as there is feedback to send.
+  useEffect(() => {
+    if (!isBlankFeedback(feedback)) setError((current) => (current === REDO_NEEDS_FEEDBACK ? null : current))
+  }, [feedback])
+
+  /** Saves a grade. Resolves to 'needs_feedback' when a Redo was refused for having no written feedback. */
+  async function grade(value: string): Promise<'saved' | 'needs_feedback' | 'not_saved'> {
     if (!submission || loading || conflict || saving.current || isPreviousAttempt(submission))
-      return
+      return 'not_saved'
     const rubricCriteria = submission.rubric?.criteria || []
     const redo = value === 'R'
+    // A redo needs written feedback so the student knows what to change; rubric ratings stay optional (U-0.4).
+    if (redo && isBlankFeedback(feedback)) {
+      setError(REDO_NEEDS_FEEDBACK)
+      return 'needs_feedback'
+    }
     if (!redo && rubricCriteria.some((criterion) => !criteria[criterion.id]?.rating)) {
       setError('Rate every rubric criterion before grading A, B, or C. A redo only needs written feedback.')
-      return
+      return 'not_saved'
     }
     // A redo may leave criteria unrated, but a comment needs a rating to be stored.
     if (redo && rubricCriteria.some((criterion) => !criteria[criterion.id]?.rating && criteria[criterion.id]?.feedback.trim())) {
       setError('Rate the criteria you commented on, or clear those comments, before requesting a redo.')
-      return
+      return 'not_saved'
     }
     const ratedCriteria = rubricCriteria
       .filter((criterion) => criteria[criterion.id]?.rating)
@@ -124,14 +135,6 @@ export function useSubmissionReview(
     setGrading(true)
     const request = generation.current
     try {
-      if (value === 'R' && !feedback.trim()) {
-        const accepted = await confirm({
-          title: 'Request a redo without feedback?',
-          description: "The student won't know what to change.",
-          confirmLabel: 'Request redo',
-        })
-        if (!accepted || request !== generation.current) return
-      }
       const result = await api.gradeSubmission(submission.id, {
         grade: value,
         feedback,
@@ -139,13 +142,13 @@ export function useSubmissionReview(
         // No ratings on a redo: omit the field so the server keeps any earlier evidence.
         criterion_results: ratedCriteria.length || !redo ? ratedCriteria : undefined,
       })
-      if (request !== generation.current) return
+      if (request !== generation.current) return 'not_saved'
       if (!result.data || result.error) {
         setError(result.error || 'Could not save this grade.')
         if (result.latestSubmissionId && result.latestSubmissionId !== submission.id)
           setSubmission({ ...submission, latest_submission_id: result.latestSubmissionId })
         else if (result.status === 409) setConflict(true)
-        return
+        return 'not_saved'
       }
       setSubmission(result.data.submission)
       setFeedback(result.data.submission.feedback || '')
@@ -156,9 +159,11 @@ export function useSubmissionReview(
       // Every queue that listed this submission is out of date; the next record asks again.
       invalidateRecordQueues()
       onSaved?.(result.data.submission)
+      return 'saved'
     } catch (cause) {
       if (request === generation.current)
         setError(cause instanceof Error ? cause.message : 'Could not save this grade.')
+      return 'not_saved'
     } finally {
       if (request === generation.current) {
         saving.current = false

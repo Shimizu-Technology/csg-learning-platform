@@ -11,7 +11,7 @@ import { ProgressBar } from '../../components/shared/ProgressBar'
 import { Badge } from '../../components/ui/Badge'
 import { LinkButton } from '../../components/ui/Button'
 import type { CohortHome } from '../../types/api'
-import { announcementPath } from '../../lib/routes'
+import { RecordLink } from '../../components/shared/RecordLink'
 import { humanize } from '../../lib/glossary'
 
 export function StudentCohortHome() {
@@ -70,7 +70,7 @@ export function StudentCohortHome() {
         <p className="mt-2 text-sm leading-6 text-ink-secondary">Questions and class conversation stay with this cohort.</p>
         <div className="mt-5 grid gap-2">
           <Link to={`/messages?workspace_id=${home.cohort.workspace_id || ''}`} className={rowLink}><MessageSquareText className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />Class chat</Link>
-          <Link to={`/announcements?audience=cohort&cohort_id=${cohortId}`} className={rowLink}><Megaphone className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />Updates</Link>
+          <Link to={`/announcements?cohort_id=${cohortId}`} className={rowLink}><Megaphone className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />Updates</Link>
         </div>
       </section>
     </div>
@@ -81,7 +81,7 @@ export function StudentCohortHome() {
       </section>
       <section className="app-surface p-5 sm:p-6">
         <div className="flex items-center gap-2"><Megaphone className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" /><h2 className="text-lg font-bold text-ink">Latest updates</h2></div>
-        <div className="mt-4 space-y-2">{home.recent_announcements.length ? home.recent_announcements.map((announcement) => <Link key={announcement.id} to={announcementPath(announcement.id)} className="pressable block min-h-11 rounded-xl border border-line p-3 text-sm font-semibold text-ink [overflow-wrap:anywhere] hover:border-line-strong hover:bg-surface-sunken">{announcement.title}</Link>) : <p className="text-sm text-ink-secondary">No updates yet.</p>}</div>
+        <div className="mt-4 space-y-2">{home.recent_announcements.length ? home.recent_announcements.map((announcement) => <RecordLink key={announcement.id} record={{ type: 'announcement', id: announcement.id, cohortId }} returnLabel={home.cohort.name} variant="unstyled" className="pressable block min-h-11 rounded-xl border border-line p-3 text-sm font-semibold text-ink [overflow-wrap:anywhere] hover:border-line-strong hover:bg-surface-sunken">{announcement.title}</RecordLink>) : <p className="text-sm text-ink-secondary">No updates yet.</p>}</div>
       </section>
     </div>
   </div>

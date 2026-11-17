@@ -1,0 +1,143 @@
+# Updates: drafts, editing and a simpler feed — November 16, 2026
+
+W6 PR 6.4a (U-3.6, L-1.5, L-1.9, L-2.9). Branch `feat/updates-composer`, tested at `e4b1dc75` (the feature commit `59fcb69a` merged with main `b0d3309e`, which brought in #272 and #278). Synthetic data only. Executed by the implementation agent on the Mac mini.
+
+## Acceptance
+
+1. Staff save a draft. Only its author and admins see it, in lists, detail and search. Students and other staff never do, and nobody is notified.
+2. The author or an admin reopens the draft, edits it and posts it through the existing audience check (U-0.3). The audience is notified once, after the commit, even after a double click or a retry.
+3. The author or an admin edits a posted update's title and body. Readers see "Edited" with the time. Nobody is notified again, and the audience can't change; the UI says so.
+4. Another instructor can't edit an update they didn't write; an admin can.
+5. Readers get one feed: pinned first, then newest, with an unread marker and one "Unread only" toggle. There are no selects, no sort menu and no side explainer, and the unread count and "You're all caught up" never appear together.
+6. Back from an update returns where the reader came from: Today, a cohort page, Notifications or the filtered list.
+7. Mobile shows the same feed with "Edited". Drafts are filtered on the server, so installed builds never receive them.
+
+## Automated
+
+| Gate | Result |
+| --- | --- |
+| API suite, `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1` | 1742 runs, 0 failures; coverage check passed |
+| RuboCop / Brakeman | no offenses / 0 warnings |
+| Web typecheck, lint, vitest, build, `test:bundle`, `api:check` | all pass (vitest: 193 files, 2311 tests) |
+| Mobile `tsc --noEmit`, jest | pass (135 suites, 1410 tests) |
+
+New API tests are in `api/test/integration/update_drafts_test.rb`:
+
+- A draft is absent for students from the list (reader and `scope=manage`), detail (403), search, notifications and Today. Another instructor on the same cohort doesn't get it in Manage or detail. The author and an admin do, with `can_edit`.
+- Posting a draft calls the fan-out once, outside any open transaction (`assert_sent_after_commit`), and enqueues one push job. Two more `PATCH` requests with the same body add nothing.
+- A colleague's `PATCH` (edit or post) and draft `DELETE` return 403. Admin and author succeed. An author removed from the cohort can't edit their update any more.
+- Editing a posted update sets `edited_at` and `edited_by` and enqueues nothing. Existing notifications take the new title and body but keep `read_at`. Pinning is not an edit.
+- After posting, changes to `audience`, `cohort_id` or `status: draft` return 422. Sending the unchanged audience back is accepted.
+- `published_at` is ignored; `status: archived` on create returns 422.
+- Query counts: the student feed and the instructor and admin Manage feeds send the same number of queries with one update as with five (each with an author, an editor, notifications, drafts and school-wide updates).
+
+`search_test.rb` also checks that drafts don't appear in search for students, the author or admins. `updates_test.rb` now covers draft privacy in management detail, and `user_hard_delete_test.rb` covers the new `announcements.edited_by_id` reference.
+
+## Browser (QA harness, Chromium)
+
+`scripts/qa/updates-composer.spec.ts`, at 1280 and 390 px, in light and dark themes, ran 12 of 12 passing. `smoke.spec.ts` (8) also passed on the merged tree. Screenshots are in the ignored `.qa-local/updates/`.
+
+- **Instructor (persona 2):** saved one draft that stays private and one that will be posted. Saving switched the list to Drafts with the "Draft" badge and an "N drafts" count. Edit opened "Edit draft" with the saved text. Post update showed "Post to QA Program?", since the page had no cohort scope, and confirming showed "Update posted." without the Draft badge. Edit after posting showed the locked-audience note, with no audience select and no push option. Saving showed "Changes saved… nobody was notified again" and the Edited marker. "Back to Updates" returned to the Drafts list. On the admin's seeded update, the instructor got no Edit action, even with `?edit=1` in the URL.
+- **Student (persona 3):** Today listed the new update with `href=/announcements/:id?cohort_id=…&return_to=%2Fdashboard`, and the detail's "Back to Today" returned to Today. The feed has no selects and no "On Today", sort or "Clear filters" text, and the private draft is absent. The posted update shows Edited in the list and in the detail, with no Edit button. "Back to Updates" returned to the feed. The Unread only toggle turns on and off through the URL. Neither width scrolls sideways.
+- **Admin (persona 1):** sees the instructor's private draft under Drafts and has Edit on the instructor's posted update.
+
+Layout problems found and fixed during the pass: the update page repeated the list's "N drafts" count in its header, the "Unread only" chip stretched to full width on phones, and the unread dot wrapped onto its own line above long titles.
+
+## Not run or not covered
+
+- WebKit / mobile Safari: WebKit doesn't start on this machine, so it wasn't run.
+- No native device or simulator run. The mobile change is covered by jest (Edited marker on card and detail, locked audience, no Edit without `can_edit`).
+- Real push delivery and the confirmation sheet animation on a real phone.
+- Two posting requests that truly run at the same moment were not tested (no two-connection test). Exactly-once posting relies on the row lock plus the draft-to-posted check under it. Sequential retries are tested.
+- Screen readers.
+
+## Cleanup
+
+The QA harness was started twice (DBs `csg_qa_58313_1794811361` and `csg_qa_67365_1794812296`) and cleaned both times: owned PIDs stopped and DBs dropped. The test database `csg_updates_composer_test` is dropped at the end of the task.
+
+## Fix round 1 (review of e03c351f)
+
+Tested at merge `dfd9890c` (fixes in `d975e680`, origin/main with #275 merged in), plus the harness scenario added in the next commit.
+
+**Two-connection API tests** (`test/integration/update_races_test.rb`, non-transactional). A second connection acts at a fixed point inside the first request. It waits until that request either finishes or is shown in `pg_locks` as waiting for a lock.
+
+| Race | Result | On the old controller |
+| --- | --- | --- |
+| Admin moves an instructor's draft to a cohort the instructor doesn't teach, after the early check and before the lock | Post refused (403), still a draft in the new cohort, nobody notified | 200, posted, the other cohort notified |
+| Admin edits the title and body while the author's post is fanning out | Every notification carries the new title and body | Notifications kept the old text |
+| Two creates with one `client_request_id` at the same moment | One update, one fan-out, both 201 with the same id | Two updates |
+| Two posts of one draft at the same moment | One fan-out, one notification per recipient | Passed (row lock already held) |
+
+**Transactional API tests** (`update_drafts_test.rb`, `updates_test.rb`):
+- Fan-out fails on the second recipient: the request raises, the update stays a draft with no notifications, and posting again notifies both recipients. Old code: posted, with one recipient left out and no way to retry.
+- The push job raises with inline jobs: 200, posted, every in-app notification in place. Old code: the request failed after commit.
+- The same `client_request_id` twice: one update, one push job. Another author may reuse the id, and a malformed id gets 422.
+- Hidden drafts: a student and another instructor get the same status and body for `GET` as for a missing id (`404 {"error":"Update not found"}`). `PATCH` and `DELETE` also get 404.
+- `can_archive`: true for a cohort colleague on a posted update they can't edit, false on drafts, on archived updates and for students.
+- Query counts: the data grows once per size (1, then 5), and the student, instructor and admin feeds are each measured at both sizes.
+
+**Web (vitest):** six new tests, all failing on the old page and composer. A post stays pending across Updates → Manage, and a second submit sends nothing. Fields are disabled while a save is pending. One `client_request_id` per new update is kept for a retry. `cohort_id` without `audience` becomes the Manage "Sent to" filter. Saving a draft switches to Drafts with a "Sent to" that includes it. Archive is shown by `can_archive`.
+
+**Mobile (jest):** a cohort colleague sees Archive without Edit; with neither permission, neither appears. The archive test fails on the old screen.
+
+**Browser (QA harness, Chromium 1280 and 390, light and dark):** `updates-composer.spec.ts` ran 16 of 16 passing, including the new scenario "a slow post is sent once, and the fields are locked while it saves". The POST is held, then sent to the server twice (`route.fetch()` twice). While it is held, the button reads "Posting…" and is disabled, the title is disabled and the editor is `contenteditable=false`. After leaving Manage and coming back, the composer still shows "Posting…" with the title kept. After release, one POST left the browser and a reload shows exactly one update with that title. The screenshot also shows the instructor with Archive and no Edit on the admin's seeded update.
+
+| Gate | Result |
+| --- | --- |
+| API `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`, seed 27901 | 1771 runs, 0 failures |
+| API, seed 61473 | 1771 runs, 0 failures |
+| RuboCop / Brakeman | no offenses / 0 warnings |
+| Web typecheck, lint, vitest (2324), build, `test:bundle`, `api:check` | pass |
+| Mobile `tsc`, jest (1411) | pass |
+
+Not run in this round: WebKit and mobile Safari, native devices, real push delivery, screen readers.
+
+Cleanup: one harness run (`scripts/qa/run clean`: owned servers stopped, its DB dropped). Test databases `csg_d_upd279_dev` and `csg_d_upd279_test` were dropped. Another task's QA database, `csg_qa_94020_1794814162` (created before this run), was left untouched.
+
+
+## Fix round 3 — November 17, 2026
+
+Scope: the seven CodeRabbit threads dated November 16 at 08:17Z on PR #279. Started at `fe64de8d`; merged `origin/main` (`51b0d7ce`, instructor Today / #280) as `7d3ea1de`. The OpenAPI conflict was merged as a specification and both generated clients were regenerated. This section records the code in the round-3 implementation commit and its subsequent evidence-only updates.
+
+Context: instructors and admins write cohort or school updates; learners read the feed and Today links. Sources: `docs/PRODUCT_VISION.md`, `docs/API_REFERENCE.md` announcements contract, this note's earlier acceptance, and the current controller/composers. Drafts stay private; author/admin edits and current cohort authority are separate checks; a post and its in-app notifications commit atomically. Real push delivery remains outside this test environment.
+
+Agent-executed affected-flow acceptance, using synthetic fixtures:
+
+| Case | Required outcome | Evidence / status |
+| --- | --- | --- |
+| R3-1 | Assignment removed after the early authorization check refuses publish, edit, archive and draft deletion; role revocation also refuses publishing | New two-connection API regressions; old controller fails all five |
+| R3-2 | A different backend's ungranted lock cannot satisfy the race helper | Helper captures the competing backend PID; regression creates an unrelated lock waiter |
+| R3-3 | Mobile draft deletion confirms; Cancel keeps detail open without DELETE; confirmation removes the record/cache | Jest tests for both buttons |
+| R3-4 | Mobile retries keep one valid create ID; success and closing start a new composition | Jest regression |
+| R3-5 | An admin edits another author's published update and reload sees the saved change | Extended Playwright admin journey at 1280/390, light/dark; all four combinations passed |
+| R3-6 | Request rejection shows an error and unlocks; callback rejection propagates after cleanup | Vitest regressions |
+| R3-7 | Lost create response, edited retry and Post preserve the latest words and notify once; a failed PATCH retains the form/id | API protocol test, web/mobile regression tests, new Playwright journey; browser execution passed |
+| R3-8 | Pending-save protection survives reconciliation: web fields stay locked, mobile typing remains open on the saved record for PATCH | Existing and new web tests, mobile pending-PATCH typing regression, existing slow-post Playwright journey |
+
+Design: keep the submitted snapshot and reconcile a deduplicated create through the existing PATCH endpoint before accepting the save. This preserves existing API replay behavior and uses the same row lock and draft-to-published transition that already prevent a second fan-out. Both clients retain the create ID if reconciliation fails. Mobile keeps later keystrokes in the editor and binds the next save to the saved record.
+
+Regression evidence so far: on the old clients, all three new web request/reconciliation cases and all five new mobile deletion/retry cases fail. With fixes, the focused web run passes 43 tests and mobile passes 15. The advisory Impeccable scan returned no findings. Full merged gates and ASUS browser execution are recorded below.
+
+Limits: Jest exercises native components without proving installed iOS/Android modal, keyboard or gesture behavior. Native hardware/simulator, WebKit/Safari, screen readers and real push delivery are not run in this round.
+
+Runner note: the ASUS wrapper exposes its disposable PostgreSQL on port 55432. The full-suite command changes only the remote copy of the migration subprocess test's explicit 5432 URL to 55432, then restores that file; PG environment variables route its other connections. This adapter is not a repository change.
+
+Gate correction: the first ASUS full suite ran 1,870 tests / 40,486 assertions with no test failures, but its coverage exit check rejected the new request-only `AnnouncementCreateRequest` schema. Added it to the harness's existing request-schema exception list. The race helper also refreshes its backend PID after each BEGIN, since transaction pooling can replace the backend selected by its initial query. Focused update/race tests pass directly (27 tests / 245 assertions) and through a task-owned PgBouncer transaction pool with round-robin backends (27 / 245). Both local test databases were dropped, and the exact owned pooler on port 15179 stopped. The corrected full remote gate is rerun below.
+
+Corrected engineering gates (`d22b2451`, application changes in `a280a7ed`):
+
+| Gate | Result |
+| --- | --- |
+| ASUS full API, `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`, seed 27903 | 1,870 tests / 40,486 assertions; zero failures/errors/skips; coverage exit check passed |
+| ASUS update/race/fan-out/model files, `prepared_statements=false`, seed 46872 | 36 tests / 371 assertions; zero failures/errors/skips; existing fan-out budget passes |
+| ASUS RuboCop / Brakeman | 678 files, no offenses / zero security warnings (one existing ignored warning) |
+| Web typecheck, lint, vitest, build, bundle, generated API check, Netlify checks | Passed; 198 test files / 2,355 tests |
+| Mobile typecheck, lint, Jest | Passed; 136 suites / 1,426 tests; lint has 74 warnings and no errors |
+| Impeccable advisory scan | No findings |
+
+Browser startup initially failed because the secret-free ASUS working copy omits `.git`, but the brand plugin enumerates tracked public templates. The browser-only rerun creates a disposable Git index for `web/brand-public` in that remote copy. No repository code changes are needed for this runner adapter. The failed startup cleaned its exact servers and QA database; the full gate also dropped `csg_learning_platform_test` before the wrapper removed its temporary PostgreSQL container.
+
+
+Final browser result: `updates-composer.spec.ts` passed **20/20** on ASUS Chromium, 1280×844 and 390×844, light and dark. The admin changed the instructor’s published title, saved and reloaded it successfully. In the lost-response journey the first draft POST committed and its response was aborted; after editing the title/body, Post sent a second deduplicated POST and exactly one PATCH, then reload showed one update with the latest words. The existing delayed/double-POST journey still kept the fields locked across leaving and returning to Manage and persisted one update. Instructor draft/privacy, student Today/Back/feed and Edited journeys also passed. Screenshots and the Playwright JSON result remain in the ASUS copy’s `.qa-local/`.
+
+Final disposition: application code `a280a7ed`, test harness `d22b2451`; the final evidence commit changes only this note. The browser harness stopped its exact API/Vite processes (1918/1930) and dropped `csg_qa_1893_1794871225`. The wrapper dropped the unused initial test database, removed its owned PostgreSQL container and stopped WSL. Local test databases and the owned PgBouncer were cleaned as recorded above. Local dependency/build artifacts created for validation were removed; shared PostgreSQL, services and the borrowed simulator were left available. PR #279 and its worktree remain for review; no merge, review dismissal or PR watch was performed.

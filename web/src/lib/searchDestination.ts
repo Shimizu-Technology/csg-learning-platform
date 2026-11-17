@@ -21,7 +21,7 @@ export function recordRefFromDestination(d: RecordDestination): RecordRef | null
     case 'follow_up': return { type: 'intervention', id }
     case 'channel': return { type: 'channel', id, messageId }
     case 'dm': return { type: 'direct_conversation', id, messageId }
-    case 'announcement': return { type: 'announcement', id }
+    case 'announcement': return { type: 'announcement', id, cohortId }
     case 'recording': return { type: 'recording', id, cohortId }
     default: return null
   }

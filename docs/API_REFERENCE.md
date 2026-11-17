@@ -129,7 +129,7 @@ one enrollment) or `cohort`. Returns
 
 | Type | Item keys |
 | --- | --- |
-| `submission` | `lesson`, `module_grid`, `rubric` (when the exercise has one), `other_attempts`, `help`, `conversation` |
+| `submission` | `lesson` (with `can_edit`: admins, and instructors with lesson editing access for the curriculum), `module_grid`, `rubric` (when the exercise has one), `lesson_submissions` (every learner's latest attempt at this lesson in this cohort), `other_attempts`, `help`, `conversation` |
 | `help_request` | `lesson` or `recording`, `follow_up`, `conversation`, `other_requests` |
 | `intervention` | `evidence`, `recovery_plan`, `help_request`, `conversation` |
 | `lesson` (learner view) | `your_work`, `help`, `recordings` |
@@ -458,12 +458,12 @@ Snippet text is always inserted into an editable feedback draft; it never grades
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/announcements` | Any signed-in user | List announcements visible to the current user |
-| `GET` | `/api/v1/announcements?scope=manage` | Staff | List all announcements for staff management |
-| `GET` | `/api/v1/announcements/:id` | Visible user / Staff | Show announcement and mark its notification read for the current user |
-| `POST` | `/api/v1/announcements` | Staff | Publish or draft an announcement |
-| `PATCH` | `/api/v1/announcements/:id` | Staff | Update an announcement |
-| `DELETE` | `/api/v1/announcements/:id` | Staff | Archive an announcement |
+| `GET` | `/api/v1/announcements` | Any signed-in user | List posted updates visible to the current user |
+| `GET` | `/api/v1/announcements?scope=manage` | Staff | List the updates this staff member can manage; drafts only for their author and admins |
+| `GET` | `/api/v1/announcements/:id` | Visible user / Staff | Show an update and mark its notification read for the current user |
+| `POST` | `/api/v1/announcements` | Staff | Post an update or save a draft |
+| `PATCH` | `/api/v1/announcements/:id` | Author or admin | Edit a draft, post it, or edit a posted update's title and body |
+| `DELETE` | `/api/v1/announcements/:id` | Staff (drafts: author or admin) | Archive a posted update; delete a draft |
 
 **Create body:**
 ```json
@@ -479,6 +479,18 @@ Snippet text is always inserted into an editable feedback draft; it never grades
 ```
 
 `audience` may be `cohort`, `global`, or `staff`. `send_push` fans out to configured browser Web Push subscriptions and active Expo mobile device tokens for eligible recipients.
+
+**Drafts, posting and edits (U-3.6):**
+
+- `status` on create is `published` (the default, posts now) or `draft`. A draft notifies nobody and may have an empty `body`; it needs a title. Drafts are visible only to their author and admins: never to students, other staff, search, Today, cohort pages or the related panel's update count. For anyone else, `GET`, `PATCH` and `DELETE` on a draft return the same `404` (`{ "error": "Update not found" }`) as an id that doesn't exist.
+- `client_request_id` on create (optional; 8-64 letters, digits, `-` or `_`, else `422`) makes the create safe to retry. A second create by the same author with the same id returns the update the first one made (`201`) and posts or notifies nothing. The web composer sends one id per update it writes, and keeps it when a save fails so trying again can't post twice.
+- `PATCH` with `status: "published"` posts a draft. The row is locked while the status changes, so a double click or a retry finds it already posted, and the audience is notified exactly once. Every permission check (author or admin, the audience the row has now, and the audience requested) runs again under that lock, so a change another request made in the meantime, such as an admin moving the draft to another cohort, is checked too. Posting checks that the author can still post to the audience (instructors: their cohorts; admins: anywhere). `published_at` is the time it was posted.
+- The in-app notifications are written in the same transaction as the post, from the locked row: the update is posted with every recipient's notification or, if writing them fails, stays a draft with none, and posting again tells everyone. An edit waiting on the lock then updates their text. Push is requested through `PushNotificationJob` and runs after the commit (#258); a push failure is logged and leaves the post and its notifications in place. Push is requested only by the request that posts, so each recipient is pushed at most once.
+- Only the author (while they can still post to its audience) or an admin may `PATCH` an update, draft or posted. Others get `403`.
+- After posting, `audience` and `cohort_id` can't change (`422`, "Audience can't change after an update is posted…") and `status` can't go back to `draft`. Changing the title or body sets `edited_at` and `edited_by` and updates the text of notifications already sent, without marking them unread or sending anything new. Pinning is not an edit.
+- `published_at` is not accepted: updates post when they are posted. Scheduling waits for a job runner (AS-6).
+- `DELETE` on a draft removes it (the response is its last state, `status: "draft"`); on a posted update it archives it. Both re-check, under the row lock, that the viewer can still manage the update's audience.
+- Each update in a response carries `edited_at`, `edited_by` (`{ id, full_name }` or null), `can_edit` (whether the viewer may edit, post or delete it) and `can_archive` (whether the viewer may archive it: a posted update, for admins and staff on its cohort, including instructors who can't edit it). Schemas: `Announcement`, `AnnouncementsResponse`, `AnnouncementResponse` in `docs/openapi.json`.
 
 ### Notifications
 
@@ -799,8 +811,9 @@ The staff student response keeps operational fields scoped to the selected enrol
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/submissions` | Staff | List submissions (filterable) |
-| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission, including `lesson_id`, `module_id`, and `module_name` relationship fields |
+| `GET` | `/api/v1/submissions` | Staff | List submissions (filterable by `cohort_id`, `user_id`, `module_id`, `ungraded`). Staff see only cohorts they can access. Each row carries the Grading queue's context: `cohort_name`, `module_position`, `course_delivery` and `week_number` (null for self-paced cohorts) |
+| `GET` | `/api/v1/grading_queue` | Staff | One page of the Grading workbench's queue: `filter` (`ungraded` default, `redo`, `all`), `cohort_id`, `module_id`, `student_id`, `lesson_id`, `sort` (`oldest` default, `newest`), `page`, `per_page` (50 default, 100 at most) and `focus_id` (serve the page holding that submission). Returns `submissions` (no answer text; open one with `GET /submissions/:id`), `meta` (page, total), the items just outside the page (`previous`, `next`), the status `counts`, `modules` and `students` options with counts, `module_grids` and the `lesson` filter's title, all filtered and counted on the server. Inside a cohort, module and lesson ids from before its copy resolve to the copy's. A chosen filter's label (student name, module name, lesson title) comes only from records in the viewer's scope; an id outside it is answered like one that doesn't exist |
+| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission, including `lesson_id`, `module_id`, `module_name`, `module_position`, `course_delivery` and `week_number` |
 | `POST` | `/api/v1/submissions` | Authenticated | Create submission |
 | `PATCH` | `/api/v1/submissions/:id` | Staff | Update submission |
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission |
@@ -817,7 +830,7 @@ The staff student response keeps operational fields scoped to the selected enrol
 }
 ```
 
-`base_submission_updated_at` is required and must be the exact `updated_at` value returned with the submission. The API returns `409 Conflict` with code `stale_submission` if the record changed before the grade was saved.
+`grade` must be one of the strings `A`, `B`, `C` or `R`; anything else (including the enum's integers) returns `422` with “Grade must be A, B, C or R.” before anything is written. `base_submission_updated_at` is required and must be the exact `updated_at` value returned with the submission. The API returns `409 Conflict` with code `stale_submission` if the record changed before the grade was saved.
 
 The shared web and native review panels send complete rubric evidence. When supplying `criterion_results`, include each current criterion exactly once:
 
@@ -833,7 +846,7 @@ The shared web and native review panels send complete rubric evidence. When supp
 }
 ```
 
-Ratings are `exceeds`, `meets`, `developing`, or `redo`; criterion feedback is optional. Explicitly supplied null, empty (for a nonempty rubric), incomplete, duplicate or foreign criterion results return `422` with “Rate every rubric criterion before grading” and leave the grade, feedback, criterion evidence and progress unchanged. For compatibility with already-open legacy clients, omitting `criterion_results` saves the grade and overall feedback while leaving existing criterion evidence unchanged. A Redo (`grade: "R"`) needs written feedback, not ratings: it may omit `criterion_results`, send `[]`, or send any subset of the rubric's criteria (still no duplicates, foreign criteria or invalid ratings). A, B and C keep the rule above. The shared web panel and native quick review block A, B and C until every criterion has a rating, and show that message beside the grade buttons. For a submission without a rubric, omit `criterion_results` or send `[]`. Only the latest attempt can be graded; a superseded attempt returns `409` with `latest_submission_id`. Clients should retain the draft on conflicts, explicitly reload/review the saved record before retrying a stale write, and offer the latest-attempt destination for superseded work.
+Ratings are `exceeds`, `meets`, `developing`, or `redo`; criterion feedback is optional. Explicitly supplied null, empty (for a nonempty rubric), incomplete, duplicate or foreign criterion results return `422` with “Rate every rubric criterion before grading” and leave the grade, feedback, criterion evidence and progress unchanged. For compatibility with already-open legacy clients, omitting `criterion_results` saves the grade and overall feedback while leaving existing criterion evidence unchanged. A Redo (`grade: "R"`) needs written feedback, not ratings: without it (missing, empty, or only whitespace, including Unicode spaces such as NBSP and zero-width characters) the API returns `422` with “Write feedback before choosing Redo, so the student knows what to change.” before anything is written. It may omit `criterion_results`, send `[]`, or send any subset of the rubric's criteria (still no duplicates, foreign criteria or invalid ratings). A, B and C keep the rule above. The shared web panel and native quick review block A, B and C until every criterion has a rating, and show that message beside the grade buttons. For a submission without a rubric, omit `criterion_results` or send `[]`. Only the latest attempt can be graded; a superseded attempt returns `409` with `latest_submission_id`. Clients should retain the draft on conflicts, explicitly reload/review the saved record before retrying a stale write, and offer the latest-attempt destination for superseded work.
 
 Grade values: `A` (0), `B` (1), `C` (2), `R` (3 — redo required)
 
@@ -857,7 +870,7 @@ An optional `user_id` filters the projection to one learner and must identify an
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/cohorts/:id/modules/:module_id/submissions` | Staff | All submissions for a module in a cohort |
+| `GET` | `/api/v1/cohorts/:id/modules/:module_id/submissions` | Staff | All submissions for a module in a cohort (the module grading grid); each exercise and submission carries its `lesson_id`. A module id from before the cohort's copy opens the copy's grid |
 | `POST` | `/api/v1/cohorts/:id/modules/:module_id/sync_github` | Staff | Sync all students' GitHub repos |
 | `POST` | `/api/v1/cohorts/:id/modules/:module_id/sync_github/:user_id` | Staff | Sync one student's GitHub repo |
 

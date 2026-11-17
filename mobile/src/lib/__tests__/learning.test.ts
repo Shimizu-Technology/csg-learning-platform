@@ -100,7 +100,7 @@ describe('learning helpers', () => {
 });
 
 function submission(overrides: Partial<Submission>): Submission {
-  return { cohort_id: null, enrollment_id: null, latest_submission_id: null, submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, submission_config: {}, rubric: null, cohort_name: null,
+  return { module_position: null, course_delivery: null, week_number: null, cohort_id: null, enrollment_id: null, latest_submission_id: null, submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, submission_config: {}, rubric: null, cohort_name: null,
     id: 1, content_block_id: 1, user_id: 1, user_name: 'Student', text: null, grade: null, feedback: null,
     graded_by: null, graded_at: null, github_issue_url: null, github_code_url: null, num_submissions: 1,
     created_at: '2026-07-20T00:00:00Z', updated_at: '2026-07-20T00:00:00Z', content_block_title: 'Exercise', content_block_type: 'exercise',

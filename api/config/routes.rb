@@ -265,6 +265,7 @@ Rails.application.routes.draw do
       get "progress/student/:user_id", to: "progress#student"
 
       # Submissions
+      get "grading_queue", to: "grading_queue#index"
       resources :submissions, only: [ :index, :show, :create, :update ] do
         resource :github_checks, only: [ :show, :create ], controller: "submission_github_checks"
         member do

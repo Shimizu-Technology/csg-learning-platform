@@ -289,7 +289,7 @@ export class CsgApi {
   directConversations = () => this.request<components['schemas']['DirectConversationsResponse']>('/api/v1/direct_conversations');
   announcements = (params: { scope?: 'manage'; page?: number; per_page?: number; audience?: Announcement['audience']; status?: Announcement['status']; cohort_id?: number; read?: 'read' | 'unread'; sort?: string } = {}) => this.request<{ announcements: Announcement[]; unread_count: number; meta: PaginationMeta }>(`/api/v1/announcements${queryString(params)}`);
   announcement = (id: number) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`);
-  createAnnouncement = (data: { title: string; body: string; audience: Announcement['audience']; cohort_id?: number | null; status?: Announcement['status']; pinned?: boolean; send_push?: boolean }) => this.request<{ announcement: Announcement }>('/api/v1/announcements', { method: 'POST', body: JSON.stringify(data) });
+  createAnnouncement = (data: components['schemas']['AnnouncementCreateRequest']) => this.request<{ announcement: Announcement }>('/api/v1/announcements', { method: 'POST', body: JSON.stringify(data) });
   updateAnnouncement = (id: number, data: Partial<Pick<Announcement, 'title' | 'body' | 'audience' | 'cohort_id' | 'status' | 'pinned'>> & { send_push?: boolean }) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   archiveAnnouncement = (id: number) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`, { method: 'DELETE' });
   markAnnouncementsRead = () => this.request<{ unread_count: number }>('/api/v1/notifications/mark_all_read?notification_type=announcement', { method: 'PATCH' });

@@ -12,7 +12,9 @@ import {
 import { moduleReviewQueue, orderSubmissionQueue, withFreshSubmission, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
-import { moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
+import { gradingQueueSource, moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
+import { GRADING_QUEUE_PAGE_SIZE } from '../../lib/useGradingQueue'
+import type { GradingQueueItem } from '../../types/api'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { useRecordQueue } from '../../lib/useRecordQueue'
@@ -29,6 +31,13 @@ import {
 } from '../../components/admin/SubmissionReviewPanel'
 import { useToast } from '../../contexts/ToastContext'
 import type { Submission } from '../../types/api'
+
+/** The queue this record steps through: a whole list, or one server page (offset and total). */
+interface QueueWindow {
+  items: (Submission | GradingQueueItem)[]
+  offset: number
+  total: number | null
+}
 
 export function SubmissionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -106,34 +115,69 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
   const returnTo = back.to
   // A record opened from a module grading page walks that page's queue, read from its URL (L-0.7).
   const moduleSource = !queueMode && !back.fallback ? moduleQueueSource(back.to) : null
+  // Opened from the Grading workbench: its filters and order come from its URL, the same list it showed.
+  const gradingSource = queueMode && !back.fallback ? gradingQueueSource(back.to) : null
+  const gradingKey = gradingSource ? JSON.stringify(gradingSource) : ''
   // Shared by viewer and source, and briefly remembered, so stepping through the queue fetches it
   // once; leaving aborts a request still in flight, and grading invalidates it (recordQueueCache).
+  // The workbench's queue is paged on the server: this record fetches the page that holds it,
+  // with the items just outside that page, so Previous and Next cross page edges.
   const queueSource = moduleSource
     ? `module:${moduleSource.cohortId}:${moduleSource.moduleId}`
-    : queueMode
-      ? `submissions:${queueCohortId ?? ''}`
-      : null
-  const queueLoad = useRecordQueue<Submission[]>(queueSource, async (signal) => {
+    : gradingSource
+      ? `grading:${gradingKey}:${submissionId}`
+      : queueMode
+        ? `submissions:${queueCohortId ?? ''}`
+        : null
+  const queueLoad = useRecordQueue<QueueWindow>(queueSource, async (signal) => {
     // Fetched with the viewer's own access: a queue for a cohort they can't see is simply unavailable.
+    if (gradingSource) {
+      const result = await api.getGradingQueue({
+        cohort_id: gradingSource.cohortId,
+        filter: gradingSource.filter,
+        module_id: gradingSource.moduleId,
+        student_id: gradingSource.studentId,
+        lesson_id: gradingSource.lessonId,
+        sort: gradingSource.sort,
+        per_page: GRADING_QUEUE_PAGE_SIZE,
+        focus_id: submissionId,
+      }, signal)
+      const page = result.data
+      if (!page || result.error || result.fromCache)
+        return { status: 'error', error: result.error || 'Queue unavailable. Return to the list to retry.' }
+      const items = [page.previous, ...page.submissions, page.next].filter((item): item is GradingQueueItem => Boolean(item))
+      return { status: 'ready', items: { items, offset: (page.meta.page - 1) * page.meta.per_page - (page.previous ? 1 : 0), total: page.meta.total_count } }
+    }
     const result = moduleSource
       ? await api.getCohortModuleSubmissions(moduleSource.cohortId, moduleSource.moduleId, signal)
       : await api.getSubmissions(queueCohortId ? { cohort_id: String(queueCohortId) } : undefined, signal)
     const items = result.data?.submissions as Submission[] | undefined
     return items && !result.error && !result.fromCache
-      ? { status: 'ready', items }
+      ? { status: 'ready', items: { items, offset: 0, total: null } }
       : { status: 'error', error: result.error || 'Queue unavailable. Return to the list to retry.' }
   }, {
     // Graded (or resubmitted) elsewhere since the queue was fetched: fetch it again.
-    staleToken: (items) => (withFreshSubmission(items, submission) && submission ? `${submission.id}:${submission.grade}:${submission.latest_submission_id}` : null),
+    staleToken: (load) => (withFreshSubmission(load.items, submission) && submission ? `${submission.id}:${submission.grade}:${submission.latest_submission_id}` : null),
   })
   const moduleKey = moduleSource ? JSON.stringify(moduleSource) : ''
-  const queue = useMemo(() => {
+  const queueWindow = useMemo((): QueueWindow | null => {
     if (queueLoad?.status !== 'ready') return null
     // Until the refetch lands, the fresh record's own state decides whether it is still in the queue.
-    const items = withFreshSubmission(queueLoad.items, submission) ?? queueLoad.items
+    const items = withFreshSubmission(queueLoad.items.items, submission) ?? queueLoad.items.items
     const source = moduleKey ? (JSON.parse(moduleKey) as NonNullable<typeof moduleSource>) : null
-    return source ? moduleReviewQueue(items, source) : queueMode ? orderSubmissionQueue(items, queueMode) : null
-  }, [queueLoad, moduleKey, queueMode, submission])
+    const grading = gradingKey ? (JSON.parse(gradingKey) as NonNullable<typeof gradingSource>) : null
+    if (source) return { items: moduleReviewQueue(items, source), offset: 0, total: null }
+    // The Grading workbench's queue: filtered and ordered on the server; a record graded since drops out.
+    if (grading) {
+      const kept = items.filter((item) => {
+        const latest = item.latest_submission_id == null || item.latest_submission_id === item.id
+        return grading.filter === 'all' || (latest && (grading.filter === 'ungraded' ? item.grade === null : item.grade === 'R'))
+      })
+      return { items: kept, offset: queueLoad.items.offset, total: (queueLoad.items.total ?? kept.length) - (items.length - kept.length) }
+    }
+    return queueMode ? { items: orderSubmissionQueue(items, queueMode), offset: 0, total: null } : null
+  }, [queueLoad, moduleKey, gradingKey, queueMode, submission])
+  const queue = queueWindow?.items ?? null
   const queueError = queueLoad?.status === 'error' ? queueLoad.error : null
   const navigationContext = {
     cohortId: context?.cohortId,
@@ -143,6 +187,11 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     queueCohortId,
   }
   const step = queue ? queueStep(queue, (item) => item.id === submissionId) : null
+  const positionLabel = step && queueWindow
+    ? queueWindow.total === null
+      ? queuePositionLabel(step)
+      : queuePositionLabel({ index: step.index < 0 ? -1 : queueWindow.offset + step.index, total: queueWindow.total })
+    : null
   const index = step?.index ?? -1
   const previousId = step?.previous?.id
   // When this submission left the queue (graded by someone else), Next opens the first one still waiting.
@@ -241,8 +290,8 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           <span aria-hidden="true">·</span>
           <span className="tabular-nums">submitted {formatShortDateTime(submission.created_at)}</span>
         </> : null}
-        queue={step ? {
-          position: queuePositionLabel(step),
+        queue={step && positionLabel ? {
+          position: positionLabel,
           onPrevious: guardedStep(previousId),
           onNext: guardedStep(nextId),
           previousLabel: 'Previous submission',

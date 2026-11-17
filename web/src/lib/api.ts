@@ -24,6 +24,7 @@ import type {
   LessonBlockEditorInput,
   ProgressUpdateResponse,
   SubmissionsListResponse,
+  GradingQueueResponse,
   SubmissionResponse,
   StudentProgressResponse,
   UsersListResponse,
@@ -100,6 +101,18 @@ import type {
   LearningInsightsResponse,
   GithubChecksResponse,
 } from '../types/api';
+
+export interface GradingQueueParams {
+  cohort_id?: number | null
+  filter?: 'ungraded' | 'redo' | 'all'
+  module_id?: number | null
+  student_id?: number | null
+  lesson_id?: number | null
+  sort?: 'oldest' | 'newest'
+  page?: number | null
+  per_page?: number | null
+  focus_id?: number | null
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -528,7 +541,7 @@ export const api = {
     })()}`),
   getAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`),
-  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean }) =>
+  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean; client_request_id?: string }) =>
     fetchApi<AnnouncementResponse>('/api/v1/announcements', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -538,6 +551,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  /** Archives a posted update; deletes a draft (the response is its last state). */
   archiveAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, { method: 'DELETE' }),
   getNotifications: (params: { limit?: number; page?: number; per_page?: number; notification_type?: string; read?: 'read' | 'unread'; sort?: 'created_desc' | 'created_asc' | 'read_desc' | 'read_asc' } = {}) =>
@@ -809,6 +823,16 @@ export const api = {
   getSubmissions: (params?: Record<string, string>, signal?: AbortSignal) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     return fetchApi<SubmissionsListResponse>(`/api/v1/submissions${query}`, signal ? { signal } : {});
+  },
+  /** One page of the Grading workbench's queue, filtered and counted on the server. */
+  getGradingQueue: (params: GradingQueueParams, signal?: AbortSignal) => {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      searchParams.set(key, String(value));
+    });
+    const query = searchParams.toString();
+    return fetchApi<GradingQueueResponse>(`/api/v1/grading_queue${query ? `?${query}` : ''}`, signal ? { signal } : {});
   },
   getSubmission: (id: number) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),

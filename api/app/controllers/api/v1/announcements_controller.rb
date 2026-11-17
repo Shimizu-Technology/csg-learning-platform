@@ -37,7 +37,7 @@ module Api
         require_feature!("announcements", @announcement.cohort || announcement_context_cohort)
         return if performed?
 
-        unless can_view?(@announcement) || can_manage?(@announcement)
+        unless can_view?(@announcement) || can_manage_view?(@announcement)
           render_forbidden("Announcement is not visible")
           return
         end
@@ -48,41 +48,123 @@ module Api
       end
 
       # POST /api/v1/announcements
+      #
+      # A new update is either posted (status "published", the default) or
+      # saved as a draft. Drafts notify nobody. A client may send
+      # `client_request_id` (8-64 letters, digits, "-" or "_"); a retry or a
+      # second click with the same id returns the update the first request
+      # made instead of posting, and notifying everyone, twice.
       def create
         announcement = Announcement.new(announcement_params)
         announcement.author = current_user
+        announcement.client_request_id = client_request_id
+        unless announcement.draft? || announcement.published?
+          render json: { errors: [ "A new update is posted or saved as a draft" ] }, status: :unprocessable_entity
+          return
+        end
+        if params[:client_request_id].present? && client_request_id.nil?
+          render json: { errors: [ "Client request id must be 8 to 64 letters, digits, dashes or underscores" ] }, status: :unprocessable_entity
+          return
+        end
+        if (replayed = replayed_announcement)
+          render json: { announcement: announcement_json(replayed) }, status: :created
+          return
+        end
 
-        if announcement.save
-          NotificationDeliveryService.announcement_published(announcement, push: send_push?)
+        # The in-app notifications are written in the same transaction as the
+        # update, so it is posted with every recipient's notification or not
+        # at all. Push is requested here and runs after the commit (#258).
+        saved = Announcement.transaction do
+          next false unless announcement.save
+
+          announce(announcement) if announcement.published?
+          true
+        end
+
+        if saved
           render json: { announcement: announcement_json(announcement) }, status: :created
         else
           render json: { errors: announcement.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue ActiveRecord::RecordNotUnique
+        # Another request with the same client id committed first; its
+        # transaction, notifications included, is the one that counts.
+        replayed = replayed_announcement
+        raise unless replayed
+
+        render json: { announcement: announcement_json(replayed) }, status: :created
       end
 
       # PATCH /api/v1/announcements/:id
+      #
+      # The author or an admin edits a draft, posts it (status "published"),
+      # or edits a posted update's title and body. Every check runs again
+      # under the row lock, against the row as it is now: another request
+      # (an admin moving a draft to another cohort, say) may have changed it
+      # since this request loaded it. Posting notifies the audience once: the
+      # lock makes a double click or retry see the update already posted. The
+      # in-app notifications are written under the lock, from the locked row,
+      # so they carry the words that were posted and an edit waiting on the
+      # lock updates them afterwards. Push runs after the commit (#258).
+      # Edits after posting notify nobody again; the audience is fixed.
       def update
-        proposed = @announcement.dup
-        proposed.assign_attributes(announcement_params)
-        unless (proposed.cohort? && current_user.can_teach_cohort?(proposed.cohort)) || (!proposed.cohort? && current_user.admin?)
-          render_forbidden("Cannot manage this announcement")
-          return
-        end
-        was_published = @announcement.published?
+        outcome = Announcement.transaction do
+          @announcement.lock!
+          refresh_management_authorization!
+          next :not_editor unless @announcement.editable_by?(current_user)
+          next :cannot_manage unless can_manage?(@announcement)
 
-        if @announcement.update(announcement_params)
-          if !was_published && @announcement.published?
-            NotificationDeliveryService.announcement_published(@announcement, push: send_push?)
+          never_posted = @announcement.draft? || @announcement.published_at.nil?
+          @announcement.assign_attributes(announcement_params)
+          # The audience it would have after this request.
+          next :cannot_manage unless can_manage?(@announcement)
+
+          @announcement.record_edit(current_user)
+          copy_changed = !@announcement.draft? && (@announcement.will_save_change_to_title? || @announcement.will_save_change_to_body?)
+          next :invalid unless @announcement.save
+
+          if never_posted && @announcement.published?
+            announce(@announcement)
+          elsif copy_changed
+            # Notifications already sent show the current words; nobody is told again.
+            Notification.where(notifiable: @announcement).update_all(title: @announcement.title, body: @announcement.body, updated_at: Time.current)
           end
-          render json: { announcement: announcement_json(@announcement) }
-        else
-          render json: { errors: @announcement.errors.full_messages }, status: :unprocessable_entity
+          :saved
+        end
+
+        case outcome
+        when :saved then render json: { announcement: announcement_json(@announcement) }
+        when :not_editor then render_forbidden("Only the author or an admin can change this update")
+        when :cannot_manage then render_forbidden("Cannot manage this announcement")
+        else render json: { errors: @announcement.errors.full_messages }, status: :unprocessable_entity
         end
       end
 
       # DELETE /api/v1/announcements/:id
+      #
+      # Archives a posted update. A draft was never sent, so deleting it
+      # removes it; the response carries its last state.
       def destroy
-        @announcement.update!(status: :archived, archived_at: Time.current)
+        # Under the row lock, so a draft being posted at the same moment is
+        # archived after it posts rather than deleted, and the checks see the
+        # audience the row has now.
+        refusal = Announcement.transaction do
+          @announcement.lock!
+          refresh_management_authorization!
+          if !can_manage?(@announcement)
+            "Cannot manage this announcement"
+          elsif !@announcement.draft?
+            @announcement.update!(status: :archived, archived_at: Time.current)
+            nil
+          elsif @announcement.editable_by?(current_user)
+            @announcement.destroy!
+            nil
+          else
+            "Only the author or an admin can delete this draft"
+          end
+        end
+        return render_forbidden(refusal) if refusal
+
         render json: { announcement: announcement_json(@announcement) }
       end
 
@@ -95,18 +177,83 @@ module Api
         render_forbidden("Cannot manage this announcement")
       end
 
+      # Can post to this audience: admins anywhere, instructors in their cohorts.
       def can_manage?(announcement)
-        return false unless current_user.staff?
+        return false unless current_user.staff? && !current_user.archived?
+        return true if current_user.admin?
 
-        announcement.cohort? ? current_user.can_teach_cohort?(announcement.cohort) : current_user.admin?
+        announcement.cohort? && teachable_cohort_ids.include?(announcement.cohort_id)
       end
 
+      # Management detail: posted and archived updates for their audience's
+      # staff; drafts only for their author and admins.
+      def can_manage_view?(announcement)
+        can_manage?(announcement) && (!announcement.draft? || announcement.editable_by?(current_user))
+      end
+
+      def can_edit?(announcement)
+        announcement.editable_by?(current_user) && can_manage?(announcement)
+      end
+
+      # Archiving a posted update stays with its audience's staff (the
+      # documented decision): any instructor on the cohort, not only the author.
+      def can_archive?(announcement)
+        announcement.published? && can_manage?(announcement)
+      end
+
+      def teachable_cohort_ids
+        @teachable_cohort_ids ||= current_user.cohort_instructor_assignments.pluck(:cohort_id).to_set
+      end
+
+      def refresh_management_authorization!
+        # Both the identity's role/archive state and its cohort assignments
+        # may have changed since the before_action. Read both afresh in one
+        # statement, bypassing the early check's query and association caches.
+        @current_user = User.uncached do
+          User.eager_load(cohort_instructor_assignments: :cohort).where(id: current_user.id).load.first!
+        end
+        assignments = current_user.cohort_instructor_assignments
+        @teachable_cohort_ids = assignments.map(&:cohort_id).to_set
+        # Reuse the cohort loaded by the fresh check for validation and
+        # fan-out, keeping publishing at five statements under the row lock.
+        if (assignment = assignments.find { |item| item.cohort_id == @announcement.cohort_id })
+          @announcement.cohort = assignment.cohort
+        end
+      end
+
+      # Posting fans out in the request (no job runner, AS-6). Called inside
+      # the posting transaction: the in-app notifications (unique per
+      # recipient) commit with the post or roll back with it. Push is
+      # requested through PushNotificationJob, which ApplicationJob defers
+      # until the commit, so a push failure never undoes the notifications.
+      def announce(announcement)
+        NotificationDeliveryService.announcement_published(announcement, push: send_push?)
+      end
+
+      # A draft someone may not see is "not found", exactly as a missing id
+      # is, so the response doesn't reveal that it exists.
       def set_announcement
-        @announcement = Announcement.find(params[:id])
+        @announcement = Announcement.drafts_visible_to(current_user).find_by(id: params[:id])
+        render json: { error: "Update not found" }, status: :not_found unless @announcement
       end
 
+      CLIENT_REQUEST_ID = /\A[A-Za-z0-9_-]{8,64}\z/
+
+      def client_request_id
+        value = params[:client_request_id]
+        value if value.is_a?(String) && CLIENT_REQUEST_ID.match?(value)
+      end
+
+      def replayed_announcement
+        return unless client_request_id
+
+        Announcement.find_by(author_id: current_user.id, client_request_id: client_request_id)
+      end
+
+      # No published_at: posting time is when the update is posted. Scheduled
+      # posting waits for a job runner (AS-6).
       def announcement_params
-        permitted = params.permit(:title, :body, :audience, :cohort_id, :status, :pinned, :published_at)
+        permitted = params.permit(:title, :body, :audience, :cohort_id, :status, :pinned)
         permitted[:cohort_id] = nil if permitted.key?(:audience) && permitted[:audience] != "cohort"
         permitted
       end
@@ -121,12 +268,13 @@ module Api
 
       def base_announcements_scope
         scope = if current_user.staff? && params[:scope] == "manage"
-          current_user.admin? ? Announcement.all : Announcement.where(audience: :cohort, cohort_id: current_user.cohort_instructor_assignments.select(:cohort_id))
+          managed = current_user.admin? ? Announcement.all : Announcement.where(audience: :cohort, cohort_id: current_user.cohort_instructor_assignments.select(:cohort_id))
+          managed.drafts_visible_to(current_user)
         else
           Announcement.visible_for(current_user)
         end
 
-        scope.includes(:cohort, :author)
+        scope.includes(:cohort, :author, :edited_by)
       end
 
       def apply_audience_filters(scope)
@@ -224,6 +372,13 @@ module Api
           },
           read_at: notification&.read_at,
           unread: notification.present? && !notification.read?,
+          edited_at: announcement.edited_at,
+          edited_by: announcement.edited_by && {
+            id: announcement.edited_by.id,
+            full_name: announcement.edited_by.full_name
+          },
+          can_edit: can_edit?(announcement),
+          can_archive: can_archive?(announcement),
           created_at: announcement.created_at,
           updated_at: announcement.updated_at
         }

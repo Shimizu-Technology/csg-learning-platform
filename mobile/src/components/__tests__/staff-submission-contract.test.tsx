@@ -49,7 +49,7 @@ it('requires rubric ratings and sends the complete server contract from the nati
   expect(mockMarkSent).toHaveBeenCalledWith('Reviewed voice draft');
 });
 
-it.each(['admin', 'instructor'])('confirms a blank-feedback redo before saving for %s', async (role) => {
+it.each(['admin', 'instructor'])('refuses a redo with no written feedback for %s', async (role) => {
   mockRole = role;
   const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null, updated_at: '2026-10-22T00:00:00.123456Z' };
   mockApi.submission.mockResolvedValue({ submission });
@@ -58,14 +58,52 @@ it.each(['admin', 'instructor'])('confirms a blank-feedback redo before saving f
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
   const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
   await act(async () => {});
-  expect(screen.getByText('Feedback is recommended for redo requests. You can confirm a redo without it. Passing grades may include concise feedback.')).toBeTruthy();
+  expect(screen.getByText('A redo needs written feedback so the student knows what to change. Passing grades may include concise feedback.')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Request redo'));
   await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  // A redo needs written feedback (U-0.4): no way to send one without it.
   expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
-  expect(themedAlert.alert).toHaveBeenCalledWith('Request redo without feedback?', expect.stringContaining("won’t know what to change"), expect.any(Array));
-  const buttons = jest.mocked(themedAlert.alert).mock.calls.at(-1)![2]!;
-  await act(async () => { buttons.find(button => button.text === 'Request redo')!.onPress!(); });
-  expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'R', '', submission.updated_at, []);
+  expect(themedAlert.alert).toHaveBeenCalledWith('Add feedback first', 'Write feedback before choosing Redo, so the student knows what to change.');
+});
+
+it('treats feedback of only Unicode spaces or zero-width characters as blank for a redo (fix round 2)', async () => {
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null, updated_at: '2026-10-22T00:00:00.123456Z' };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Request redo'));
+  fireEvent.changeText(screen.getByLabelText('Feedback for student'), '\u200B\u00A0\u2003\uFEFF');
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
+  expect(themedAlert.alert).toHaveBeenCalledWith('Add feedback first', 'Write feedback before choosing Redo, so the student knows what to change.');
+});
+
+// The server refuses a Redo without written feedback (422, W7 PR 7.3 fix round 1). If one gets
+// through (an older build, or feedback the server reads as blank), the review shows the
+// server's message and keeps the grade, the feedback and the draft.
+it('shows the server refusal of a blank redo and keeps the review', async () => {
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null, updated_at: '2026-10-22T00:00:00.123456Z' };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  const { ApiError } = jest.requireActual('@/lib/api');
+  const message = 'Write feedback before choosing Redo, so the student knows what to change.';
+  mockApi.gradeSubmission.mockRejectedValue(new ApiError(message, 422));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Request redo'));
+  fireEvent.changeText(screen.getByLabelText('Feedback for student'), 'Look again');
+  const storage = jest.requireMock('@/lib/submission-storage');
+  storage.clearGradingDraft.mockClear();
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  expect(mockApi.gradeSubmission).toHaveBeenCalledTimes(1);
+  expect(themedAlert.alert).toHaveBeenCalledWith('Could not save grade', message);
+  expect(screen.getByLabelText('Save redo request')).toBeTruthy();
+  expect(screen.getByLabelText('Feedback for student').props.value).toBe('Look again');
+  expect(storage.clearGradingDraft).not.toHaveBeenCalled();
+  expect(mockMarkSent).not.toHaveBeenCalled();
 });
 
 it('lets a redo with written feedback skip the rubric, and keeps unrated comments from being dropped', async () => {

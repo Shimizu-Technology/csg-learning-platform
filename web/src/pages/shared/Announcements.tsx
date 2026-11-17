@@ -1,18 +1,15 @@
 import { RecordLink } from '../../components/shared/RecordLink'
-import { Modal } from '../../components/shared/Modal'
 import { brand } from '../../lib/brand'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
 import { markdownExcerpt } from '../../lib/plainText'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
-import { LazyMarkdownEditor } from '../../components/shared/LazyMarkdownEditor'
 import { UNREAD_CHANGED } from '../../lib/unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
-import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, PenLine, Pin, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { trimBlankLines } from '../../lib/messageFormat'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -21,53 +18,66 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { FilterChip, SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { formatShortDateTime } from '../../lib/format'
+import { listLinkState } from '../../lib/navigationContext'
+import { useBackLink } from '../../lib/recordOrigin'
+import type { ReturnContext } from '../../lib/navigationContext'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 import { RecordHeader } from '../../components/shared/RecordHeader'
 import { useInsertedKeys } from '../../lib/motion'
+import { EMPTY_UPDATE_FORM, UpdateComposer, formFromUpdate, useUpdateRequest, type UpdateForm, type UpdateSaveOutcome } from './UpdateComposer'
 
-type AnnouncementAudience = 'cohort' | 'global' | 'staff'
-type AnnouncementStatus = 'draft' | 'published' | 'archived'
-type AnnouncementSort = 'published_desc' | 'published_asc' | 'created_desc' | 'created_asc' | 'updated_desc' | 'updated_asc'
-type AnnouncementReadFilter = 'all' | 'read' | 'unread'
+type ManageStatus = 'published' | 'draft' | 'archived'
 
-function formatDate(date?: string | null) {
-  return formatShortDateTime(date, 'Draft')
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  published: 'Published',
-  archived: 'Archived',
-}
-
-const STATUS_FILTERS: { value: AnnouncementStatus | 'all'; label: string }[] = [
+const STATUS_FILTERS: { value: ManageStatus; label: string }[] = [
   { value: 'published', label: 'Published' },
   { value: 'draft', label: 'Drafts' },
   { value: 'archived', label: 'Archived' },
-  { value: 'all', label: 'All statuses' },
 ]
 
-const AUDIENCE_FILTERS: { value: AnnouncementAudience | 'all'; label: string }[] = [
-  { value: 'all', label: 'All audiences' },
-  { value: 'cohort', label: 'Cohorts' },
-  { value: 'global', label: 'Everyone' },
-  { value: 'staff', label: 'Staff only' },
-]
+/** "2 drafts", "1 published update". */
+function statusCount(status: ManageStatus, count: number) {
+  if (status === 'draft') return `${count} ${count === 1 ? 'draft' : 'drafts'}`
+  return `${count} ${status} ${count === 1 ? 'update' : 'updates'}`
+}
+
+const formatDate = (date?: string | null) => formatShortDateTime(date, 'Not posted')
 
 /** The audience; a cohort audience links to that cohort. */
 function AudienceLabel({ announcement }: { announcement: Announcement }) {
-  if (announcement.cohort_name && announcement.cohort_id) return <RecordLink record={{ type: 'cohort', id: announcement.cohort_id, tab: 'communication' }} variant="plain" touchTarget>{announcement.cohort_name}</RecordLink>
+  if (announcement.cohort_name && announcement.cohort_id) return <RecordLink record={{ type: 'cohort', id: announcement.cohort_id, tab: 'communication' }} returnLabel="Updates" variant="plain" touchTarget>{announcement.cohort_name}</RecordLink>
   if (announcement.cohort_name) return <>{announcement.cohort_name}</>
   return <>{announcement.audience === 'staff' ? 'Staff' : 'School-wide'}</>
 }
 
+/** The author: their team page for admins (L-2.9), plain text for everyone else. */
 function AnnouncementAuthor({ announcement }: { announcement: Announcement }) {
-  const [open, setOpen] = useState(false)
   if (!announcement.author) return <>Staff</>
-  return <><button type="button" className="app-link inline-flex min-h-11 items-center" onClick={() => setOpen(true)}>{announcement.author.full_name}</button>{open && <Modal open title={announcement.author.full_name} onClose={() => setOpen(false)}><p className="text-sm text-ink-secondary">Posted this update for <AudienceLabel announcement={announcement} />.</p></Modal>}</>
+  return <RecordLink record={{ type: 'staff', id: announcement.author.id }} returnLabel="Updates" variant="plain" touchTarget>{announcement.author.full_name}</RecordLink>
+}
+
+/** "Edited Nov 14, 2026, 9:00 AM", with the editor in the tooltip. */
+function EditedMarker({ announcement }: { announcement: Announcement }) {
+  if (!announcement.edited_at) return null
+  const when = formatShortDateTime(announcement.edited_at)
+  return <span data-testid="edited-marker" title={announcement.edited_by ? `Edited by ${announcement.edited_by.full_name}` : undefined}>Edited <time dateTime={announcement.edited_at} className="tabular-nums">{when}</time></span>
+}
+
+/** When it went out, or for a draft when it was last saved. */
+function WhenLabel({ announcement }: { announcement: Announcement }) {
+  if (announcement.status === 'draft') return <>Draft · saved <span className="tabular-nums">{formatShortDateTime(announcement.updated_at, 'just now')}</span></>
+  return <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
+}
+
+function StatusBadges({ announcement, unread }: { announcement: Announcement; unread: boolean }) {
+  return <>
+    {announcement.pinned && <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
+    {unread && <Badge tone="info">Unread</Badge>}
+    {announcement.status === 'draft' && <Badge tone="warning">Draft</Badge>}
+    {announcement.status === 'archived' && <Badge tone="neutral">Archived</Badge>}
+  </>
 }
 
 function emptyPagination(): PaginationMeta {
@@ -86,18 +96,67 @@ export function Announcements() {
   return params.get('tab') === 'inbox' ? <NotificationInbox /> : <AnnouncementFeed />
 }
 
+/**
+ * Manage's "Sent to" filter from the URL: everyone, staff, all cohorts, or one
+ * cohort. A `cohort_id` without `audience` (a link from a cohort page) means
+ * that cohort.
+ */
+function audienceFilterFrom(params: URLSearchParams) {
+  const audience = params.get('audience')
+  const cohortId = params.get('cohort_id')
+  if (audience === 'global' || audience === 'staff') return audience
+  if (audience === 'cohort') return cohortId ? `cohort:${cohortId}` : 'cohort'
+  return cohortId ? `cohort:${cohortId}` : 'all'
+}
+
+function audienceFilterIncludes(filter: string, update: Announcement) {
+  if (filter === 'all') return true
+  if (filter === 'cohort') return update.audience === 'cohort'
+  if (filter.startsWith('cohort:')) return update.audience === 'cohort' && String(update.cohort_id) === filter.slice(7)
+  return update.audience === filter
+}
+
+/** Manage filters that show `update`: its status, and the current "Sent to" if it already includes it. */
+function manageParamsShowing(current: URLSearchParams, update: Announcement) {
+  const next = new URLSearchParams(current)
+  if (update.status === 'draft' || update.status === 'archived') next.set('status', update.status)
+  else next.delete('status')
+  if (!audienceFilterIncludes(audienceFilterFrom(current), update)) {
+    next.set('audience', update.audience || 'cohort')
+    if (update.audience === 'cohort' && update.cohort_id) next.set('cohort_id', String(update.cohort_id))
+    else next.delete('cohort_id')
+  }
+  next.set('page', '1')
+  return next
+}
+
+/** This page's URL without the detail-only keys, for "Back to Updates". */
+function feedSearch(search: string) {
+  const next = new URLSearchParams(search)
+  next.delete('edit')
+  next.delete('return_to')
+  const query = next.toString()
+  return query ? `?${query}` : ''
+}
+
 function AnnouncementFeed() {
   const { id } = useParams()
   const toast = useToast()
   const confirmAction = useConfirm()
   const selectedId = id ? Number(id) : null
   const location = useLocation()
-  const returnPath = typeof location.state?.from === 'string' && location.state.from.startsWith('/announcements?') ? location.state.from : `/announcements${location.search}`
+  // The notification inbox (and older links) hand over `{ from }`; record links hand over `{ returnTo, returnLabel }` or `return_to` (L-1.5).
+  const legacyFrom = typeof location.state?.from === 'string' && location.state.from.startsWith('/announcements?') ? location.state.from as string : null
+  const fallback: ReturnContext = legacyFrom
+    ? { returnTo: legacyFrom, returnLabel: legacyFrom.includes('tab=inbox') ? 'Notifications' : 'Updates' }
+    : { returnTo: `/announcements${feedSearch(location.search)}`, returnLabel: 'Updates' }
+  const back = useBackLink(fallback)
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthContext()
-  const { selectedCohortId, setSelectedCohort } = useCohortContext()
+  const { selectedCohortId } = useCohortContext()
   const isStaff = Boolean(user?.is_staff)
   const manageMode = isStaff && searchParams.get('scope') === 'manage'
+  const editing = searchParams.get('edit') === '1'
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -109,45 +168,32 @@ function AnnouncementFeed() {
   const [detail, setDetail] = useState<Announcement | null>(null)
   const [detailError, setDetailError] = useState({ id: 0, message: '' })
   const [detailAttempt, setDetailAttempt] = useState(0)
+  const [detailNotice, setDetailNotice] = useState('')
   const listRequest = useRef(0)
-  const [saving, setSaving] = useState(false)
-  const [archivingId, setArchivingId] = useState<number | null>(null)
+  const [removingId, setRemovingId] = useState<number | null>(null)
   const [pushMessage, setPushMessage] = useState('')
   const [pushEnabled, setPushEnabled] = useState(false)
-  const [formError, setFormError] = useState('')
-  const [form, setForm] = useState({
-    title: '',
-    body: '',
-    audience: 'cohort',
-    // null follows the page/sidebar cohort until the poster picks one explicitly.
-    cohort_id: null as string | null,
-    pinned: false,
-    send_push: true,
-  })
+  const [form, setForm] = useState<UpdateForm>(EMPTY_UPDATE_FORM)
+  const [editForm, setEditForm] = useState<UpdateForm>(EMPTY_UPDATE_FORM)
+  const [editBaseline, setEditBaseline] = useState('')
 
-  const resetComposer = () => setForm({ title: '', body: '', audience: 'cohort', cohort_id: null, pinned: false, send_push: true })
+  const resetComposer = () => setForm(EMPTY_UPDATE_FORM)
+  // Held here so leaving Manage mid-save can't clear the guard against a second post.
+  const composerRequest = useUpdateRequest()
+  const editRequest = useUpdateRequest()
 
   const page = Number(searchParams.get('page') || '1')
-  const readFilter: AnnouncementReadFilter = searchParams.get('read') === 'read' ? 'read' : searchParams.get('read') === 'unread' ? 'unread' : 'all'
-  const audienceFilter: AnnouncementAudience | 'all' = searchParams.get('audience') === 'cohort' || searchParams.get('audience') === 'global' || searchParams.get('audience') === 'staff'
-    ? searchParams.get('audience') as AnnouncementAudience
-    : 'all'
-  const statusFilter: AnnouncementStatus | 'all' = searchParams.get('status') === 'draft' || searchParams.get('status') === 'published' || searchParams.get('status') === 'archived'
-    ? searchParams.get('status') as AnnouncementStatus
-    // Manage mode opens on published; "any" in the URL keeps "All statuses" selected.
-    : manageMode && searchParams.get('status') !== 'any' ? 'published' : 'all'
-  const cohortFilter = searchParams.get('cohort_id') || (!isStaff && selectedCohortId ? String(selectedCohortId) : 'all')
-  const sortFilter: AnnouncementSort = (() => {
-    const value = searchParams.get('sort')
-    if (value === 'published_asc' || value === 'created_desc' || value === 'created_asc' || value === 'updated_desc' || value === 'updated_asc') {
-      return value as AnnouncementSort
-    }
-    return 'published_desc'
-  })()
+  // Readers get one feed, newest first with pinned on top, and one "Unread only" toggle (U-3.6).
+  const unreadOnly = !manageMode && searchParams.get('read') === 'unread'
+  const statusParam = searchParams.get('status')
+  const statusFilter: ManageStatus = statusParam === 'draft' || statusParam === 'archived' ? statusParam : 'published'
+  const cohortParam = searchParams.get('cohort_id')
+  const cohortFilter = cohortParam || (!isStaff && selectedCohortId ? String(selectedCohortId) : 'all')
+  // Staff filter by who an update went to: everyone, staff, all cohorts, or one cohort.
+  const audienceFilter = audienceFilterFrom(searchParams)
 
   const selected = detail?.id === selectedId ? detail : null
   const contextCohort = cohortFilter === 'all' ? null : cohorts.find((cohort) => String(cohort.id) === cohortFilter) || null
-  const audienceCohort = cohorts.find((cohort) => String(cohort.id) === (form.cohort_id ?? cohortFilter)) || null
 
   const updateQuery = useCallback((patch: Record<string, string | null | undefined>) => {
     const next = new URLSearchParams(searchParams)
@@ -161,27 +207,29 @@ function AnnouncementFeed() {
     setSearchParams(next)
   }, [searchParams, setSearchParams])
 
-  const updateCohortFilter = useCallback((value: string) => {
+  const setEditing = useCallback((on: boolean) => {
     const next = new URLSearchParams(searchParams)
-    if (value === 'all') next.delete('cohort_id')
-    else next.set('cohort_id', value)
-    next.set('page', '1')
-    setSelectedCohort(value === 'all' ? null : Number(value), { searchParams: next })
-  }, [searchParams, setSelectedCohort])
+    if (on) next.set('edit', '1')
+    else next.delete('edit')
+    // Keep the router state so "Back to …" still points where the reader came from.
+    setSearchParams(next, { replace: true, state: location.state })
+  }, [location.state, searchParams, setSearchParams])
 
   const loadAnnouncements = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     const request = ++listRequest.current
     if (!background) setLoading(true)
 
+    const manageCohort = audienceFilter.startsWith('cohort:') ? Number(audienceFilter.slice(7)) : undefined
     const res = await api.getAnnouncements({
       scope: manageMode ? 'manage' : undefined,
       page,
       per_page: 12,
-      audience: audienceFilter === 'all' ? undefined : audienceFilter,
-      status: manageMode && statusFilter !== 'all' ? statusFilter : undefined,
-      cohort_id: cohortFilter === 'all' || (manageMode && audienceFilter !== 'cohort') ? undefined : Number(cohortFilter),
-      read: !manageMode && readFilter !== 'all' ? readFilter : undefined,
-      sort: sortFilter,
+      audience: manageMode && audienceFilter !== 'all' ? (audienceFilter.startsWith('cohort') ? 'cohort' : audienceFilter as 'global' | 'staff') : undefined,
+      status: manageMode ? statusFilter : undefined,
+      cohort_id: manageMode ? manageCohort : cohortFilter === 'all' ? undefined : Number(cohortFilter),
+      read: unreadOnly ? 'unread' : undefined,
+      // Drafts list the most recently saved first.
+      sort: manageMode && statusFilter === 'draft' ? 'updated_desc' : undefined,
     })
 
     if (request !== listRequest.current) return
@@ -201,7 +249,7 @@ function AnnouncementFeed() {
     }
 
     setLoading(false)
-  }, [manageMode, page, audienceFilter, statusFilter, cohortFilter, readFilter, sortFilter, setSearchParams])
+  }, [manageMode, page, audienceFilter, statusFilter, cohortFilter, unreadOnly, setSearchParams])
   const loadAnnouncementsRef = useRef(loadAnnouncements)
 
   useEffect(() => {
@@ -214,6 +262,15 @@ function AnnouncementFeed() {
   useEffect(() => {
     loadAnnouncementsRef.current = loadAnnouncements
   }, [loadAnnouncements])
+
+  // A save can finish after the page has moved on (another filter, or out of
+  // Manage); its handler reads the URL as it is then.
+  const searchParamsRef = useRef(searchParams)
+  const setSearchParamsRef = useRef(setSearchParams)
+  useEffect(() => {
+    searchParamsRef.current = searchParams
+    setSearchParamsRef.current = setSearchParams
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     if (!isStaff) return
@@ -238,6 +295,7 @@ function AnnouncementFeed() {
   useEffect(() => {
     let active = true
     if (!selectedId) return
+    setDetailNotice('')
     api.getAnnouncement(selectedId).then((res) => {
       if (!active) return
       setDetailError({ id: selectedId, message: res.error || '' })
@@ -247,78 +305,61 @@ function AnnouncementFeed() {
     return () => { active = false }
   }, [selectedId, detailAttempt])
 
-  const handleCreate = async (event: React.FormEvent) => {
-    event.preventDefault()
-    const audience = form.audience
-    if (audience === 'cohort' && !audienceCohort) {
-      setFormError('Choose which cohort this update is for.')
-      return
-    }
-    if (!form.body.trim()) {
-      setFormError('Write the update before posting it.')
-      return
-    }
-    setFormError('')
-    const countLabel = audienceCohort ? `${audienceCohort.enrolled_count} ${audienceCohort.enrolled_count === 1 ? 'student' : 'students'}` : ''
-    const fromContext = audience === 'cohort' && audienceCohort?.id === contextCohort?.id
-    if (!fromContext) {
-      const accepted = await confirmAction(audience === 'global' ? {
-        title: 'Post to everyone?',
-        description: 'This update goes to every student and staff member in the school, not just one cohort.',
-        confirmLabel: 'Post to everyone',
-      } : audience === 'staff' ? {
-        title: 'Post to staff only?',
-        description: 'Students will not see this update.',
-        confirmLabel: 'Post to staff',
-      } : {
-        title: `Post to ${audienceCohort!.name}?`,
-        description: `${contextCohort ? `You are viewing ${contextCohort.name}, but this` : 'This'} will go to ${audienceCohort!.name} (${countLabel}).`,
-        confirmLabel: `Post to ${audienceCohort!.name}`,
-      })
-      if (!accepted) return
-    }
-    setSaving(true)
+  // Opening the editor starts from the update as it is now.
+  const editingId = editing && selected?.can_edit ? selected.id : null
+  useEffect(() => {
+    if (!editingId || !selected) return
+    const start = formFromUpdate(selected)
+    setEditForm(start)
+    setEditBaseline(JSON.stringify(start))
+    // Only when another update is opened for editing, not on every detail refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId])
 
-    const res = await api.createAnnouncement({
-      title: form.title.trim(),
-      body: trimBlankLines(form.body),
-      audience,
-      cohort_id: audience === 'cohort' ? audienceCohort!.id : null,
-      status: 'published',
-      pinned: form.pinned,
-      send_push: form.send_push,
-    })
-
-    if (res.error) {
-      setFormError(res.error)
-      toast.error(res.error)
-    } else if (res.data) {
-      setForm((prev) => ({ ...prev, title: '', body: '', pinned: false }))
-      await loadAnnouncements()
-      toast.success('Update posted')
-    }
-    setSaving(false)
+  const handleComposerSaved = async (saved: Announcement, outcome: UpdateSaveOutcome) => {
+    resetComposer()
+    toast.success(outcome === 'draft' ? 'Draft saved' : saved.status === 'published' ? 'Update posted' : 'Saved')
+    // Show the update where it now lives: its status, and a "Sent to" that includes it.
+    const current = searchParamsRef.current
+    if (current.get('scope') !== 'manage') return
+    const next = manageParamsShowing(current, saved)
+    if (next.toString() !== current.toString()) setSearchParamsRef.current(next)
+    else await loadAnnouncementsRef.current()
   }
 
-  const handleArchive = async (announcement: Announcement) => {
-    if (!announcement.id || archivingId) return
-    if (!await confirmAction({
+  const handleEditSaved = async (saved: Announcement, outcome: UpdateSaveOutcome) => {
+    setDetail((current) => current && current.id === saved.id ? { ...current, ...saved } : current)
+    setEditBaseline(JSON.stringify(formFromUpdate(saved)))
+    setEditing(false)
+    setDetailNotice(outcome === 'posted' ? 'Update posted.' : outcome === 'draft' ? 'Draft saved.' : 'Changes saved. Readers see “Edited”; nobody was notified again.')
+    if (outcome === 'posted') toast.success('Update posted')
+    void loadAnnouncements({ background: true })
+  }
+
+  const handleRemove = async (announcement: Announcement) => {
+    if (!announcement.id || removingId) return
+    const draft = announcement.status === 'draft'
+    if (!await confirmAction(draft ? {
+      title: 'Delete draft?',
+      description: `“${announcement.title}” was never posted. Deleting it can’t be undone.`,
+      confirmLabel: 'Delete draft',
+      tone: 'danger',
+    } : {
       title: 'Archive update?',
       description: `“${announcement.title}” will leave the updates feed but stay in history.`,
       confirmLabel: 'Archive update',
       tone: 'danger',
     })) return
 
-    setArchivingId(announcement.id)
+    setRemovingId(announcement.id)
     const res = await api.archiveAnnouncement(announcement.id)
     if (res.error) {
-      setFormError(res.error)
       toast.error(res.error)
     } else {
       await loadAnnouncements({ background: true })
-      toast.success('Update archived')
+      toast.success(draft ? 'Draft deleted' : 'Update archived')
     }
-    setArchivingId(null)
+    setRemovingId(null)
   }
 
   const handleMarkAllRead = async () => {
@@ -368,23 +409,22 @@ function AnnouncementFeed() {
 
   if (loading && !selectedId) return <LoadingSpinner message="Loading updates…" />
 
-  const clearFilters = () => updateQuery(manageMode
-    ? { audience: null, cohort_id: null, status: 'published', sort: 'published_desc', page: '1' }
-    : { read: null, sort: 'published_desc', page: '1' })
+  const editDirty = editing && Boolean(selected?.can_edit) && JSON.stringify(editForm) !== editBaseline
+  const unreadLabel = unreadCount > 0 ? `${unreadCount} unread ${unreadCount === 1 ? 'update' : 'updates'}` : 'You’re all caught up'
 
   return (
     <div className="app-page">
-      {/* The draft survives switching between Updates and Manage; leaving the page still asks first. */}
+      {/* The new update survives switching between Updates and Manage; leaving the page still asks first. */}
       <UnsavedChangesGuard dirty={isStaff && Boolean(form.title.trim() || form.body.trim())} onDiscard={resetComposer} />
+      <UnsavedChangesGuard dirty={editDirty} />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>
           <h1 className="app-title mt-2">Updates</h1>
-          <p className="app-description mt-2">
-            {manageMode
-              ? 'Manage published updates, authorship, and archive state.'
-              : `Pinned and recent updates from your cohort and ${brand.schoolAbbreviation}.`}
-          </p>
+          {/* The list's count; a single update's page doesn't repeat it. */}
+          {!selectedId && <p className="app-description mt-2" data-testid="updates-context">
+            {manageMode ? statusCount(statusFilter, pagination.total_count) : unreadLabel}
+          </p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isStaff && (
@@ -392,20 +432,20 @@ function AnnouncementFeed() {
               <SegmentButton
                 dense
                 selected={!manageMode}
-                onClick={() => updateQuery({ scope: null, status: null, audience: null, cohort_id: null, page: '1' })}
+                onClick={() => updateQuery({ scope: null, status: null, audience: null, page: '1' })}
               >
                 Updates
               </SegmentButton>
               <SegmentButton
                 dense
                 selected={manageMode}
-                onClick={() => updateQuery({ scope: 'manage', status: statusFilter === 'all' ? 'published' : statusFilter, page: '1' })}
+                onClick={() => updateQuery({ scope: 'manage', read: null, page: '1' })}
               >
                 Manage
               </SegmentButton>
             </SegmentedControl>
           )}
-          {unreadCount > 0 && (
+          {!manageMode && unreadCount > 0 && (
             <Button variant="secondary" onClick={handleMarkAllRead}>
               <Check className="h-4 w-4" aria-hidden="true" />
               Mark all read
@@ -422,18 +462,35 @@ function AnnouncementFeed() {
 
       {!manageMode && <UpdatesTabs selected="announcements" />}
       {selectedId && <section className="app-surface space-y-4 p-5 sm:p-6" aria-label="Update">
-        {selected ? <>
+        {selected ? (editing && selected.can_edit ? <>
+          <Link to={back.to} state={location.state} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink" onClick={(event) => { event.preventDefault(); setEditing(false) }}><ChevronLeft size={18} />Back to the update</Link>
+          <UpdateComposer
+            form={editForm}
+            setForm={setEditForm}
+            cohorts={cohorts}
+            contextCohort={cohortParam ? cohorts.find((cohort) => String(cohort.id) === cohortParam) || null : null}
+            defaultCohortId={selected.cohort_id ? String(selected.cohort_id) : null}
+            editing={selected}
+            request={editRequest}
+            onSaved={handleEditSaved}
+            onCancel={() => setEditing(false)}
+          />
+        </> : <>
           <RecordHeader
-            back={{ to: returnPath, label: returnPath.includes('tab=inbox') ? 'Back to notifications' : 'Back to updates', fallback: false }}
-            breadcrumb={[{ label: 'Updates', to: returnPath }, { label: selected.title }]}
+            back={back}
+            breadcrumb={[{ label: 'Updates', to: fallback.returnTo }, { label: selected.title }]}
             type={<AudienceLabel announcement={selected} />}
             title={selected.title}
             headingLevel={2}
-            context={<span className="tabular-nums">{formatDate(selected.published_at)}</span>}
+            status={<StatusBadges announcement={selected} unread={false} />}
+            context={<span className="inline-flex flex-wrap items-center gap-x-1"><AnnouncementAuthor announcement={selected} /> · <WhenLabel announcement={selected} />{selected.edited_at && <> · <EditedMarker announcement={selected} /></>}</span>}
+            actions={selected.can_edit ? <Button variant="secondary" onClick={() => setEditing(true)}><PenLine className="h-4 w-4" aria-hidden="true" />{selected.status === 'draft' ? 'Edit draft' : 'Edit'}</Button> : undefined}
             copyPath={`/announcements/${selected.id}`}
           />
-          <div className="leading-7 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={selected.body} /></div>
-        </> : <><Link to={returnPath} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{returnPath.includes('tab=inbox') ? 'Back to notifications' : 'Back to updates'}</Link>{detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Try again</Button></div> : <p role="status">Loading update…</p>}</>}
+          {detailNotice && <p role="status" className="rounded-xl border border-success-line bg-success-soft px-3 py-2 text-sm text-success-ink">{detailNotice}</p>}
+          {selected.status === 'draft' && <p className="text-sm text-ink-secondary">Only you and admins can see this draft. Nobody is notified until you post it.</p>}
+          {selected.body ? <div className="leading-7 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={selected.body} /></div> : <p className="text-sm text-ink-muted">No text yet.</p>}
+        </>) : <><Link to={back.to} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{back.label}</Link>{detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Try again</Button></div> : <p role="status">Loading update…</p>}</>}
       </section>}
       {loadError && <div role="alert" className="app-surface p-4"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadAnnouncements()}>Retry feed</Button></div>}
       {pushMessage && (
@@ -442,296 +499,139 @@ function AnnouncementFeed() {
         </div>
       )}
 
-      {manageMode && (
-        <form onSubmit={handleCreate} className="app-surface space-y-4 p-5 sm:p-6">
-          <div className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
-            <h2 className="text-lg font-bold text-ink">Post an update</h2>
-          </div>
-          <div className="grid gap-3 md:grid-cols-[1fr_180px_220px]">
-            <input
-              value={form.title}
-              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-              placeholder="Title"
-              required
-              className="app-control"
-            />
+      {manageMode && !selectedId && (
+        <UpdateComposer
+          form={form}
+          setForm={setForm}
+          cohorts={cohorts}
+          contextCohort={contextCohort}
+          defaultCohortId={cohortFilter === 'all' ? null : cohortFilter}
+          request={composerRequest}
+          onSaved={handleComposerSaved}
+        />
+      )}
+
+      {!selectedId && <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h2 className="font-semibold text-ink">{manageMode ? 'Your updates' : 'Your feed'}</h2>
+        {manageMode ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="group" aria-label="Status" className="flex flex-wrap gap-2">
+              {STATUS_FILTERS.map((option) => (
+                <FilterChip
+                  key={option.value}
+                  dense
+                  selected={statusFilter === option.value}
+                  onClick={() => updateQuery({ status: option.value === 'published' ? null : option.value, page: '1' })}
+                >
+                  {option.label}
+                </FilterChip>
+              ))}
+            </div>
             <select
-              value={form.audience}
-              onChange={(event) => setForm((prev) => ({ ...prev, audience: event.target.value }))}
-              aria-label="Audience"
+              value={audienceFilter}
+              onChange={(event) => {
+                const value = event.target.value
+                if (value.startsWith('cohort:')) updateQuery({ audience: 'cohort', cohort_id: value.slice(7), page: '1' })
+                else updateQuery({ audience: value, cohort_id: null, page: '1' })
+              }}
+              aria-label="Sent to"
               className="app-control"
             >
-              <option value="cohort">Cohort</option>
-              <option value="global">Everyone</option>
+              <option value="all">Everyone and every cohort</option>
+              <option value="global">School-wide</option>
               <option value="staff">Staff only</option>
-            </select>
-            <select
-              value={audienceCohort ? String(audienceCohort.id) : ''}
-              onChange={(event) => setForm((prev) => ({ ...prev, cohort_id: event.target.value }))}
-              disabled={form.audience !== 'cohort'}
-              required={form.audience === 'cohort'}
-              aria-label="Cohort for this update"
-              className="app-control"
-            >
-              <option value="" disabled>Choose a cohort…</option>
+              <option value="cohort">All cohorts</option>
               {cohorts.map((cohort) => (
-                <option key={cohort.id} value={cohort.id}>{cohort.name}</option>
+                <option key={cohort.id} value={`cohort:${cohort.id}`}>{cohort.name}</option>
               ))}
             </select>
           </div>
-          <LazyMarkdownEditor
-            label="Update"
-            value={form.body}
-            onChange={(body) => setForm((prev) => ({ ...prev, body }))}
-            placeholder="What should students know?"
-            minHeight={120}
-            maxHeight={420}
-          />
-          {formError && (
-            <div role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">
-              {formError}
-            </div>
-          )}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-4 text-sm text-ink-secondary">
-              <label className="flex min-h-11 items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.pinned}
-                  onChange={(event) => setForm((prev) => ({ ...prev, pinned: event.target.checked }))}
-                  className="h-4 w-4 rounded border-line-strong accent-action-primary"
-                />
-                Pin this
-              </label>
-              <label className="flex min-h-11 items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.send_push}
-                  onChange={(event) => setForm((prev) => ({ ...prev, send_push: event.target.checked }))}
-                  className="h-4 w-4 rounded border-line-strong accent-action-primary"
-                />
-                Send push
-              </label>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-              <p role="status" data-testid="announcement-audience" className={`text-sm ${form.audience === 'cohort' && !audienceCohort ? 'font-semibold text-danger-ink' : 'text-ink-secondary'}`}>
-                {form.audience === 'global' ? <>Posting to: <strong className="text-ink">Everyone</strong> · all students and staff</>
-                  : form.audience === 'staff' ? <>Posting to: <strong className="text-ink">Staff only</strong></>
-                  : audienceCohort ? <>Posting to: <strong className="text-ink">{audienceCohort.name}</strong> · {audienceCohort.enrolled_count} {audienceCohort.enrolled_count === 1 ? 'student' : 'students'}</>
-                  : 'Choose a cohort to post to'}
-              </p>
-              <Button type="submit" disabled={saving}>
-                <Send className="h-4 w-4" aria-hidden="true" />
-                {saving ? 'Posting…' : 'Post update'}
+        ) : (
+          <FilterChip dense className="self-start" selected={unreadOnly} onClick={() => updateQuery({ read: unreadOnly ? null : 'unread', page: '1' })}>
+            Unread only
+          </FilterChip>
+        )}
+      </div>}
+
+      {!selectedId && <div className="space-y-3">
+        {announcements.length === 0 ? (
+          <div className="app-surface">
+            {manageMode ? (
+              <EmptyState
+                icon={Megaphone}
+                title={statusFilter === 'draft' ? 'No drafts' : statusFilter === 'archived' ? 'Nothing archived' : 'No updates posted yet'}
+                description={statusFilter === 'draft' ? 'Use Save draft to keep an update here until it’s ready to post.' : statusFilter === 'archived' ? 'Archived updates leave the feed and stay here.' : 'Post an update above. It appears here and in each reader’s feed.'}
+              />
+            ) : unreadOnly ? (
+              <EmptyState icon={Megaphone} title="No unread updates" description="You’ve read every update." action={<Button variant="secondary" onClick={() => updateQuery({ read: null, page: '1' })}>Show all updates</Button>} />
+            ) : (
+              <EmptyState icon={Megaphone} title="No updates yet" description={`Updates from your instructors and ${brand.schoolAbbreviation} appear here.`} />
+            )}
+          </div>
+        ) : announcements.map((announcement) => {
+          const detailPath = `/announcements/${announcement.id}${location.search}`
+          const isNew = announcement.id !== undefined && insertedIds.has(announcement.id)
+          const unread = !manageMode && (announcement.unread ?? !announcement.read_at)
+          const isRemoving = removingId === announcement.id
+
+          return (
+            <article
+              key={announcement.id}
+              className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isNew ? 'motion-insert ' : ''}${unread ? 'border-line-strong shadow-raised' : 'border-line'}`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link to={detailPath} state={listLinkState(location, 'Updates')} className="inline-flex min-h-11 min-w-0 items-center gap-2 font-semibold text-ink underline-offset-4 transition-colors duration-150 [overflow-wrap:anywhere] hover:underline">
+                      {unread && <span className="h-2 w-2 shrink-0 rounded-full bg-action-primary" aria-hidden="true" />}
+                      <span className="min-w-0">{announcement.title}</span>
+                    </Link>
+                    <StatusBadges announcement={announcement} unread={unread} />
+                  </div>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-ink-secondary">
+                    <AnnouncementAuthor announcement={announcement} /> · <AudienceLabel announcement={announcement} /> · <WhenLabel announcement={announcement} />
+                    {announcement.edited_at && <> · <EditedMarker announcement={announcement} /></>}
+                  </p>
+                </div>
+                {manageMode && (announcement.can_edit || announcement.can_archive) && (
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {announcement.can_edit && announcement.status !== 'archived' && (
+                      <LinkButton variant="secondary" size="sm" to={`/announcements/${announcement.id}${feedSearch(location.search) ? `${feedSearch(location.search)}&edit=1` : '?edit=1'}`} state={listLinkState(location, 'Updates')}>
+                        <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+                        Edit
+                      </LinkButton>
+                    )}
+                    {(announcement.can_archive || (announcement.status === 'draft' && announcement.can_edit)) && (
+                      <Button variant="danger" size="sm" onClick={() => handleRemove(announcement)} disabled={isRemoving}>
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        {announcement.status === 'draft' ? (isRemoving ? 'Deleting…' : 'Delete') : isRemoving ? 'Archiving…' : 'Archive'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {announcement.body && <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{markdownExcerpt(announcement.body)}</p>}
+            </article>
+          )
+        })}
+
+        {pagination.total_pages > 1 && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm tabular-nums text-ink-secondary">
+              Page {pagination.page} of {pagination.total_pages} · {pagination.total_count} {pagination.total_count === 1 ? 'update' : 'updates'}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => updateQuery({ page: String(Math.max(1, pagination.page - 1)) })} disabled={!pagination.has_prev_page}>
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Previous
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => updateQuery({ page: String(pagination.page + 1) })} disabled={!pagination.has_next_page}>
+                Next
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
-        </form>
-      )}
-
-      {!selectedId && <div className="app-surface p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1">
-            <h2 className="font-semibold text-ink">{manageMode ? 'Update history' : 'Your feed'}</h2>
-            <p className="text-sm text-ink-secondary">
-              {manageMode
-                ? 'Filter by audience, cohort, status, and sort order.'
-                : 'Unread updates stay highlighted here until you read them.'}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {manageMode ? (
-              <>
-                <div role="group" aria-label="Status" className="flex w-full flex-wrap gap-2">
-                  {STATUS_FILTERS.map((option) => (
-                    <FilterChip
-                      key={option.value}
-                      dense
-                      selected={statusFilter === option.value}
-                      onClick={() => updateQuery({ status: option.value === 'all' ? 'any' : option.value, page: '1' })}
-                    >
-                      {option.label}
-                    </FilterChip>
-                  ))}
-                </div>
-                <div role="group" aria-label="Audience" className="flex w-full flex-wrap gap-2">
-                  {AUDIENCE_FILTERS.map((option) => (
-                    <FilterChip
-                      key={option.value}
-                      dense
-                      selected={audienceFilter === option.value}
-                      onClick={() => updateQuery({ audience: option.value, cohort_id: option.value === 'cohort' ? cohortFilter : null, page: '1' })}
-                    >
-                      {option.label}
-                    </FilterChip>
-                  ))}
-                </div>
-                <select
-                  value={cohortFilter}
-                  onChange={(event) => updateCohortFilter(event.target.value)}
-                  disabled={audienceFilter !== 'cohort'}
-                  aria-label="Cohort"
-                  className="app-control"
-                >
-                  <option value="all">All cohorts</option>
-                  {cohorts.map((cohort) => (
-                    <option key={cohort.id} value={cohort.id}>{cohort.name}</option>
-                  ))}
-                </select>
-              </>
-            ) : (<>
-              {cohortFilter !== 'all' && <select aria-label="Update audience" className="app-control" value={audienceFilter === 'cohort' ? 'cohort' : 'all'} onChange={(event) => updateQuery({ audience: event.target.value, page: '1' })}>
-                <option value="all">Cohort + school-wide</option><option value="cohort">Only this cohort</option>
-              </select>}
-              <select
-                value={readFilter}
-                onChange={(event) => updateQuery({ read: event.target.value, page: '1' })}
-                className="app-control"
-              >
-                <option value="all">All updates</option>
-                <option value="unread">Unread only</option>
-                <option value="read">Read only</option>
-              </select></>
-            )}
-            <select
-              value={sortFilter}
-              onChange={(event) => updateQuery({ sort: event.target.value, page: '1' })}
-              className="app-control"
-            >
-              <option value="published_desc">Newest published</option>
-              <option value="published_asc">Oldest published</option>
-              <option value="created_desc">Newest created</option>
-              <option value="created_asc">Oldest created</option>
-              <option value="updated_desc">Recently updated</option>
-              <option value="updated_asc">Least recently updated</option>
-            </select>
-            <Button variant="quiet" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          </div>
-        </div>
-      </div>}
-
-      {!selectedId && <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-3">
-          {announcements.length === 0 ? (
-            <div className="app-surface">
-              <EmptyState icon={Megaphone} title="You’re all caught up" action={<Button variant="secondary" onClick={clearFilters}>Clear filters</Button>} />
-            </div>
-          ) : announcements.map((announcement) => {
-            const detailPath = `/announcements/${announcement.id}${location.search}`
-            const isNew = announcement.id !== undefined && insertedIds.has(announcement.id)
-            const isSelected = announcement.id === selectedId
-            const isArchiving = archivingId === announcement.id
-
-            return (
-              <article
-                key={announcement.id}
-                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isNew ? 'motion-insert ' : ''}${isSelected ? 'border-line-control shadow-raised' : !(announcement.unread ?? !announcement.read_at) ? 'border-line' : 'border-line-strong shadow-raised'}`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link to={detailPath} className="inline-flex min-h-11 min-w-0 items-center font-semibold text-ink underline-offset-4 transition-colors duration-150 [overflow-wrap:anywhere] hover:underline">
-                        {announcement.title}
-                      </Link>
-                      {announcement.pinned && (
-                        <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>
-                      )}
-                      {(announcement.unread ?? !announcement.read_at) && !manageMode && (
-                        <Badge tone="info">Unread</Badge>
-                      )}
-                      {manageMode && announcement.status ? (
-                        <Badge tone={announcement.status === 'published' ? 'success' : 'neutral'}>{STATUS_LABELS[announcement.status] || announcement.status}</Badge>
-                      ) : announcement.status && announcement.status !== 'published' && (
-                        <Badge tone="neutral">{STATUS_LABELS[announcement.status] || announcement.status}</Badge>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs tabular-nums text-ink-secondary">
-                      <AnnouncementAuthor announcement={announcement} /> · <AudienceLabel announcement={announcement} /> · {formatDate(announcement.published_at)}
-                    </p>
-                  </div>
-                  {manageMode && announcement.status !== 'archived' && (
-                    <Button variant="danger" size="sm" className="shrink-0" onClick={() => handleArchive(announcement)} disabled={isArchiving}>
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      {isArchiving ? 'Archiving...' : 'Archive'}
-                    </Button>
-                  )}
-                </div>
-                <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{markdownExcerpt(announcement.body)}</p>
-              </article>
-            )
-          })}
-
-          {pagination.total_pages > 1 && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm tabular-nums text-ink-secondary">
-                Showing page {pagination.page} of {pagination.total_pages} · {pagination.total_count} total update{pagination.total_count === 1 ? '' : 's'}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={() => updateQuery({ page: String(Math.max(1, pagination.page - 1)) })} disabled={!pagination.has_prev_page}>
-                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                  Previous
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => updateQuery({ page: String(pagination.page + 1) })} disabled={!pagination.has_next_page}>
-                  Next
-                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <aside className="app-surface p-4 lg:sticky lg:top-6 lg:self-start">
-          <h2 className="font-semibold text-ink [overflow-wrap:anywhere]">{selected ? selected.title : manageMode ? 'Update details' : 'Update status'}</h2>
-          {selected ? (
-            <div className="mt-3 space-y-3 text-sm text-ink-secondary">
-              <div className="rounded-xl bg-surface-sunken px-3 py-2">
-                <p className="text-xs font-semibold text-ink-muted">From</p>
-                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]"><AnnouncementAuthor announcement={selected} /></p>
-              </div>
-              <div className="rounded-xl bg-surface-sunken px-3 py-2">
-                <p className="text-xs font-semibold text-ink-muted">Audience</p>
-                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]"><AudienceLabel announcement={selected} /></p>
-              </div>
-              <div className="rounded-xl bg-surface-sunken px-3 py-2">
-                <p className="text-xs font-semibold text-ink-muted">Published</p>
-                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{formatDate(selected.published_at)}</p>
-              </div>
-              {selected.updated_at && selected.updated_at !== selected.created_at && (
-                <div className="rounded-xl bg-surface-sunken px-3 py-2">
-                  <p className="text-xs font-semibold text-ink-muted">Updated</p>
-                  <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{formatDate(selected.updated_at)}</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="mt-3 space-y-3 text-sm text-ink-secondary">
-              <div className="rounded-xl bg-surface-sunken px-3 py-2">
-                <p className="text-xs font-semibold text-ink-muted">{manageMode ? 'Queue' : 'Unread'}</p>
-                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">
-                  {manageMode
-                    ? `${pagination.total_count} update${pagination.total_count === 1 ? '' : 's'} match the current filters.`
-                    : unreadCount > 0
-                      ? `You have ${unreadCount} unread update${unreadCount === 1 ? '' : 's'}.`
-                      : 'You are caught up.'}
-                </p>
-              </div>
-              <div className="rounded-xl border border-info-line bg-info-soft px-3 py-2 text-info-ink">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <p className="font-medium">{manageMode ? 'Management tip' : 'On Today'}</p>
-                </div>
-                <p className="mt-2 text-sm leading-6">
-                  {manageMode
-                    ? 'Archive older updates to keep the feed focused, then use filters to revisit history when needed.'
-                    : 'Pinned updates stay on Today. Other updates leave Today once you’ve read them.'}
-                </p>
-              </div>
-            </div>
-          )}
-        </aside>
+        )}
       </div>}
     </div>
   )

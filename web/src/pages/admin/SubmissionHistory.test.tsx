@@ -14,7 +14,7 @@ vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDr
 vi.mock('../../components/shared/CodeEditor', () => ({ CodeEditor: ({ value }: { value: string }) => <pre>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('../../components/shared/CodeRunner', () => ({ CodeRunner: () => null }))
 
-const previous = { cohort_id: null, enrollment_id: null, submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, submission_config: {}, rubric: null, cohort_name: null, id: 1, latest_submission_id: 2, user_id: 4, user_name: 'Learner', content_block_id: 8, text: 'old work', grade: 'R', feedback: 'Old feedback', graded_by: 'Instructor', graded_at: '2026-10-20T00:00:00Z', num_submissions: 1, created_at: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:00Z', content_block_title: 'Checkpoint', content_block_type: 'checkpoint', lesson_title: 'Lesson', lesson_id: 3, module_id: 2, module_name: 'Module', filename: null, language_hint: null, github_issue_url: null, github_code_url: null } satisfies Submission
+const previous = { module_position: null, course_delivery: null, week_number: null, cohort_id: null, enrollment_id: null, submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, submission_config: {}, rubric: null, cohort_name: null, id: 1, latest_submission_id: 2, user_id: 4, user_name: 'Learner', content_block_id: 8, text: 'old work', grade: 'R', feedback: 'Old feedback', graded_by: 'Instructor', graded_at: '2026-10-20T00:00:00Z', num_submissions: 1, created_at: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:00Z', content_block_title: 'Checkpoint', content_block_type: 'checkpoint', lesson_title: 'Lesson', lesson_id: 3, module_id: 2, module_name: 'Module', filename: null, language_hint: null, github_issue_url: null, github_code_url: null } satisfies Submission
 const latest = { ...previous, id: 2, num_submissions: 2, grade: null, feedback: null, text: 'latest work', created_at: '2026-10-21T00:00:00Z' }
 let container: HTMLDivElement
 let root: Root
@@ -86,8 +86,11 @@ describe('historical grading', () => {
     expect(Array.from(container.querySelectorAll('a')).find((link) => link.textContent === 'Grade the latest attempt')?.pathname).toBe('/admin/submissions/2')
     const review = container.querySelector('fieldset')!
     expect(review.disabled).toBe(true)
-    expect(review.querySelector('textarea')?.matches(':disabled')).toBe(true)
-    const grade = Array.from(review.querySelectorAll('button')).find((button) => button.textContent?.includes('A'))!
+    // The pinned grade bar (feedback and grades) is disabled too.
+    const bar = container.querySelector('[data-grade-bar]')!
+    expect(bar.querySelector('textarea')?.matches(':disabled')).toBe(true)
+    const grade = Array.from(bar.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'A')!
+    expect(grade.matches(':disabled')).toBe(true)
     await act(async () => grade.click())
     expect(api.gradeSubmission).not.toHaveBeenCalled()
   })
