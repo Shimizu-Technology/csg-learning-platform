@@ -62,3 +62,12 @@ An independent review found two P2 issues and one P3 issue. The branch also merg
 - **P3, Back on failed loads.** Loading, error and No access states keep the page's Back link, from router state, `return_to` or the record type's list. Try again still recovers.
 
 Browser re-check after the fixes and merge, on fresh fixtures (now with 30 watchers): **48 of 48 passed** at 1280 and 390, light and dark. These are the 44 earlier cases plus a new scenario: a forced 500 on the recording keeps "Back to Grading · Redo" from `return_to`, Try again loads the page, and a missing rubric shows No access with "Back to Curriculum". The admin recording case now also loads the second page of watchers with Show more.
+
+## Fix round 2 (re-check of `094eb969`)
+
+A second independent review confirmed round 1 and found two remaining P2s, both reproduced with prepared statements on and off.
+
+- **P2, a submission on another curriculum's exercise.** The submission check now also requires the exercise to be on the cohort's curriculum. Copying a curriculum for a cohort moves its submissions onto the copy's blocks, so the cohort's own work always passes. Otherwise the page returns no link, no label and no lesson or block id. Auditing every name and id on the page turned up one more gap: an instructor who comes in through the event's cohort now sees the event only when its subject and actor belong to that cohort (enrolled, teaching it, or admins). Tests cover the foreign exercise and an event naming another cohort's learner as subject or actor, and they fail on the round-1 code.
+- **P2, watcher paging skipped a learner who watched again.** Watchers are now listed in the order they started watching (the watch row's id, which never changes), with a cursor (`watchers_after`, returned as `watchers_next_after`) instead of page numbers. "Last watched" stays on each row. The regression test runs the reviewer's repro: 61 watchers, page 1, then an unseen watcher and an already-listed one both watch again. Walking the cursor lists all 61 exactly once. Query counts stay flat on the first page (13 queries at 1 and 30 watchers) and on a continued page (13 at 2 and 30). The round-1 description above of `?page=`, most recent first, is superseded.
+
+Browser re-check on fresh fixtures: 20 of 20 passed at 1280 and 390, light and dark. These were the five affected scenarios: the recording with Show more (25, then all 30 watchers), the activity event from School and from cohort Activity, the failed and refused loads, and QA Other Program's records for the instructor.

@@ -3647,14 +3647,14 @@
         "summary": "A staff record page for a recording, office-hour session, private-meeting booking, learning plan, channel, rubric or activity event",
         "parameters": [
           {
-            "name": "page",
+            "name": "watchers_after",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
               "minimum": 1
             },
-            "description": "Which page of a recording's watchers to return (1-based, 25 per page). Other values read the first page."
+            "description": "Continue a recording's watchers after this cursor (the previous response's watchers_next_after). Other values start from the beginning."
           }
         ],
         "description": "Staff only. Instructors open records in cohorts they teach, and a booking only when they host it; a rubric names only their cohorts and counts the rest. Students, other cohorts' staff and unknown records get 404. Cache-Control: private, no-store.",
@@ -20090,18 +20090,13 @@
             "minimum": 0,
             "description": "Learners in the cohort who finished it."
           },
-          "watchers_page": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "The page of watchers in this response (the page query parameter, 1-based)."
-          },
-          "watchers_next_page": {
+          "watchers_next_after": {
             "type": [
               "integer",
               "null"
             ],
-            "minimum": 2,
-            "description": "The next page of watchers, or null on the last page."
+            "minimum": 1,
+            "description": "Pass as watchers_after for the next watchers, or null after the last."
           },
           "watchers": {
             "type": "array",
@@ -20135,7 +20130,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "One page of up to 25 watchers, most recently watched first."
+            "description": "Up to 25 watchers, in the order they started watching (a fixed order, so paging never skips or repeats anyone)."
           }
         },
         "required": [
@@ -20158,8 +20153,7 @@
           "students_count",
           "watchers_count",
           "completed_count",
-          "watchers_page",
-          "watchers_next_page",
+          "watchers_next_after",
           "watchers"
         ],
         "additionalProperties": false

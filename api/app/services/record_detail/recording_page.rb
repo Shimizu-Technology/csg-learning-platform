@@ -6,9 +6,12 @@ class RecordDetail
   # A lesson block plays the recording when its video is the same upload
   # (`s3_video_key` = `s3_key`) or the same link (`video_url` = `source_url`),
   # on the cohort's curriculum. Watch rows are the cohort's learners with read
-  # access who have started it, most recently watched first, one page of
-  # WATCHERS_PER_PAGE at a time (`page`); the totals are counted separately,
-  # so the payload stays the same size however many learners watched.
+  # access who have started it, WATCHERS_PER_PAGE at a time, in the order they
+  # started watching (the watch row's id). That order never changes, so a
+  # cursor on it (`watchers_after`) lists every watcher exactly once even while
+  # learners keep watching between pages; "last watched" is shown on each row
+  # instead of driving the order, because it moves. Totals are counted
+  # separately, so the payload stays the same size however many watched.
   class RecordingPage < Base
     WATCHERS_PER_PAGE = 25
 
@@ -24,8 +27,8 @@ class RecordDetail
       enrollments = Enrollment.with_read_access.joins(:user).merge(User.where(role: :student)).where(cohort_id: cohort.id)
       watched = WatchProgress.where(recording_id: recording.id, user_id: enrollments.select(:user_id))
       # One past the page shows whether there is a next one.
-      progress = watched.includes(:user).order(Arel.sql("watch_progresses.last_watched_at DESC NULLS LAST"), id: :desc)
-        .offset((@page - 1) * WATCHERS_PER_PAGE).limit(WATCHERS_PER_PAGE + 1).to_a
+      page = @after ? watched.where("watch_progresses.id > ?", @after) : watched
+      progress = page.includes(:user).order(:id).limit(WATCHERS_PER_PAGE + 1).to_a
       more = progress.size > WATCHERS_PER_PAGE
       progress = progress.first(WATCHERS_PER_PAGE)
       totals = watched.pick(Arel.sql("COUNT(*)"), Arel.sql("COUNT(*) FILTER (WHERE watch_progresses.completed)"))
@@ -50,8 +53,7 @@ class RecordDetail
         students_count: enrollments.count,
         watchers_count: totals[0],
         completed_count: totals[1],
-        watchers_page: @page,
-        watchers_next_page: more ? @page + 1 : nil,
+        watchers_next_after: more ? progress.last.id : nil,
         watchers: progress.map do |row|
           { student: person(row.user), progress_percentage: row.progress_percentage, completed: row.completed,
             last_watched_at: iso(row.last_watched_at) }

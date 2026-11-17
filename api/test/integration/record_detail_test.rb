@@ -64,8 +64,9 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     refute_includes response.body, @coral_student.full_name
   end
 
-  # Review round 1 (P2): watchers come one bounded page at a time; totals are counted separately.
-  test "a recording's watchers are paged, with totals for the whole cohort" do
+  # Review rounds 1 and 2 (P2): watchers come one bounded page at a time, in
+  # the fixed order they started watching, with totals counted separately.
+  test "a recording's watchers are paged by a fixed cursor, with totals for the whole cohort" do
     60.times do |i|
       learner = User.create!(clerk_id: "detail_watch_#{i}", email: "detail-watch-#{i}@example.invalid", first_name: "Watcher", last_name: format("%02d", i), role: :student)
       enroll(learner, @cohort)
@@ -74,23 +75,43 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
 
     first = fetch(@instructor, "recording", @recording.id)
     assert_response :success
-    assert_equal [ 25, 61, 30, 62, 1, 2 ],
-      first.values_at("watchers", "watchers_count", "completed_count", "students_count", "watchers_page", "watchers_next_page").then { |w, *rest| [ w.size, *rest ] }
-    assert_equal @student.id, first["watchers"].first.dig("student", "id"), "Most recently watched first"
+    assert_equal [ 25, 61, 30, 62 ], [ first["watchers"].size, *first.values_at("watchers_count", "completed_count", "students_count") ]
+    assert_equal @student.id, first["watchers"].first.dig("student", "id"), "First to start watching comes first"
     assert_operator response.body.bytesize, :<, 12_000, "Page 1 stays small however many learners watched"
     refute_includes response.body, @coral_student.full_name
 
-    seen = first["watchers"].map { |row| row.dig("student", "id") }
-    [ [ 2, 25, 3 ], [ 3, 11, nil ], [ 4, 0, nil ] ].each do |page, size, next_page|
-      detail = fetch(@instructor, "recording", @recording.id, page: page)
-      assert_equal [ size, next_page, 61 ], [ detail["watchers"].size, detail["watchers_next_page"], detail["watchers_count"] ], "page #{page}"
-      seen += detail["watchers"].map { |row| row.dig("student", "id") }
-    end
-    assert_equal 61, seen.uniq.size, "Every watcher appears once across the pages"
+    ids = walk(first)
+    assert_equal 61, ids.size
+    assert_equal 61, ids.uniq.size, "Every watcher appears exactly once across the pages"
 
-    [ "abc", "0", "-3" ].each do |page|
-      assert_equal 1, fetch(@instructor, "recording", @recording.id, page: page)["watchers_page"], "page=#{page} reads the first page"
+    [ "abc", "0", "-3", "9" * 1000 ].each do |cursor|
+      detail = fetch(@instructor, "recording", @recording.id, watchers_after: cursor)
+      assert_equal first["watchers"], detail["watchers"], "watchers_after=#{cursor.first(10)} starts from the beginning"
     end
+    last = WatchProgress.maximum(:id)
+    past = fetch(@instructor, "recording", @recording.id, watchers_after: last)
+    assert_equal [ [], nil, 61 ], past.values_at("watchers", "watchers_next_after", "watchers_count"), "Past the end: no rows, the totals stay"
+  end
+
+  # The reviewer's repro: someone not yet listed watches again between pages.
+  test "a watcher who watches again mid-way through the pages is still listed exactly once" do
+    60.times do |i|
+      learner = User.create!(clerk_id: "detail_moving_#{i}", email: "detail-moving-#{i}@example.invalid", role: :student)
+      enroll(learner, @cohort)
+      WatchProgress.create!(user: learner, recording: @recording, total_watched_seconds: 60, duration_seconds: 3600, last_watched_at: (i + 2).hours.ago)
+    end
+
+    first = fetch(@instructor, "recording", @recording.id)
+    seen = first["watchers"].map { |row| row.dig("student", "id") }
+    unseen = WatchProgress.where(recording: @recording).where.not(user_id: seen).order(last_watched_at: :asc).first!
+    unseen.update!(last_watched_at: Time.current)
+    # Someone already listed watches again too.
+    WatchProgress.find_by!(recording: @recording, user_id: seen.last).update!(last_watched_at: Time.current)
+
+    ids = walk(first)
+    assert_equal 61, ids.uniq.size
+    assert_equal ids.uniq, ids, "No duplicates"
+    assert_includes ids, unseen.user_id, "The learner who moved is not skipped"
   end
 
   test "a lesson block on another curriculum never links to the recording" do
@@ -250,6 +271,43 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Review round 2 (P2): a submission by this learner in this cohort, but on an
+  # exercise from a curriculum the cohort doesn't use, names and numbers nothing.
+  test "a submission on another curriculum's exercise shows no label, lesson or block" do
+    other = Curriculum.create!(name: "Hidden curriculum")
+    mod = CurriculumModule.create!(curriculum: other, name: "Hidden module", position: 0)
+    block = Lesson.create!(curriculum_module: mod, title: "Secret lesson", position: 0, release_day: 0)
+      .content_blocks.create!(block_type: :exercise, title: "Secret foreign exercise", position: 0, submission_type: :text_submission)
+    submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: block, submission_type: :text_submission, text: "A")
+    event = ActivityEvent.record!(event_type: "submission_created", actor: @student, cohort: @cohort, record: submission)
+
+    [ @admin, @instructor ].each do |viewer|
+      detail = fetch(viewer, "activity_event", event.id)
+      assert_response :success
+      assert_equal [ nil, nil ], detail.values_at("record", "record_label"), viewer.role
+      [ "Secret foreign exercise", "Secret lesson", "\"lesson_id\":#{block.lesson_id}", "\"content_block_id\":#{block.id}" ].each do |text|
+        refute_includes response.body, text, "#{viewer.role}: #{text}"
+      end
+    end
+  end
+
+  # Review round 2: an instructor who comes in through the cohort sees an event
+  # only when the people it names belong to that cohort.
+  test "an event in a taught cohort naming another cohort's learner is a 404 for its instructor" do
+    as_subject = ActivityEvent.record!(event_type: "submission_created", actor: @coral_student, subject_user: @coral_student, cohort: @cohort)
+    as_actor = ActivityEvent.record!(event_type: "submission_graded", actor: @coral_student, subject_user: @student, cohort: @cohort)
+    graded = ActivityEvent.record!(event_type: "submission_graded", actor: @instructor, subject_user: @student, cohort: @cohort)
+
+    [ as_subject, as_actor ].each do |event|
+      fetch(@instructor, "activity_event", event.id)
+      assert_response :not_found
+      refute_includes response.body, @coral_student.full_name
+      fetch(@admin, "activity_event", event.id)
+      assert_response :success, "Admins still open it"
+    end
+    assert_equal @instructor.id, fetch(@co_teacher, "activity_event", graded.id).dig("actor", "id"), "Staff of the cohort may act on its learners"
+  end
+
   test "an event's label shows when its record passes the check" do
     recording_event = ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: @cohort, record: @recording)
     block_event = ActivityEvent.record!(event_type: "checkpoint_completed", actor: @student, cohort: @cohort, record: @video)
@@ -319,6 +377,22 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     slot = config.private_meeting_slots.create!(instructor: host, starts_at: starts, ends_at: starts + 30.minutes)
     PrivateMeetingBooking.create!(private_meeting_slot: slot, cohort: enrollment.cohort, enrollment: enrollment, student: enrollment.user, instructor: host,
       starts_at: starts, ends_at: starts + 30.minutes, week_number: 1)
+  end
+
+  # Every watcher id from `first` on, following watchers_next_after.
+  def walk(first)
+    ids = first["watchers"].map { |row| row.dig("student", "id") }
+    cursor = first["watchers_next_after"]
+    10.times do
+      break unless cursor
+
+      page = fetch(@instructor, "recording", @recording.id, watchers_after: cursor)
+      assert_operator page["watchers"].size, :<=, 25
+      ids += page["watchers"].map { |row| row.dig("student", "id") }
+      cursor = page["watchers_next_after"]
+    end
+    assert_nil cursor, "The pages end"
+    ids
   end
 
   def fetch(user, type, id, **params)

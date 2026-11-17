@@ -34,7 +34,7 @@ const recording: RecordingDetail = {
   uploaded_by: person(2, 'Ivy Instructor'), cohort: teal, week: 2, can_edit: true,
   lessons: [{ lesson: { id: 40, title: 'Make decisions', archived: false }, module: person(7, 'JavaScript basics'), week: 2, block: { id: 81, title: 'Class replay' },
     sections: [{ label: 'If statements', start_seconds: 60, end_seconds: 600, required: true }, { label: 'Ternaries', start_seconds: 700, end_seconds: 900, required: false }] }],
-  students_count: 2, watchers_count: 1, completed_count: 0, watchers_page: 1, watchers_next_page: null,
+  students_count: 2, watchers_count: 1, completed_count: 0, watchers_next_after: null,
   watchers: [{ student: person(9, 'Alex Rivera'), progress_percentage: 50, completed: false, last_watched_at: '2026-11-16T09:00:00Z' }],
 }
 const officeHour: OfficeHourDetail = {
@@ -208,13 +208,13 @@ it.each(['/admin/recordings/21', '/admin/office-hours/15', '/admin/meetings/14',
     expect(container.querySelector('h1')?.textContent).not.toBe('Week 2 class')
   })
 
-// Review round 1 (P2): watchers come a page at a time; totals come from the server.
-it('a recording shows the total who watched and loads more watchers a page at a time', async () => {
+// Review rounds 1 and 2 (P2): watchers come a page at a time after a fixed cursor; totals come from the server.
+it('a recording shows the total who watched and loads more watchers after the last one shown', async () => {
   const watcher = (id: number) => ({ student: person(id, `Learner ${id}`), progress_percentage: 100, completed: true, last_watched_at: '2026-11-16T09:00:00Z' })
-  mocks.getRecordDetail.mockImplementation(async (_type: string, _id: number, options?: { page?: number }) => ({
-    data: { detail: options?.page === 2
-      ? { ...recording, watchers: [watcher(30), watcher(31)], watchers_page: 2, watchers_next_page: null, watchers_count: 27, completed_count: 20 }
-      : { ...recording, watchers: Array.from({ length: 25 }, (_, index) => watcher(index + 1)), watchers_next_page: 2, watchers_count: 27, completed_count: 20 } },
+  mocks.getRecordDetail.mockImplementation(async (_type: string, _id: number, options?: { watchersAfter?: number }) => ({
+    data: { detail: options?.watchersAfter === 525
+      ? { ...recording, watchers: [watcher(30), watcher(31)], watchers_next_after: null, watchers_count: 27, completed_count: 20 }
+      : { ...recording, watchers: Array.from({ length: 25 }, (_, index) => watcher(index + 1)), watchers_next_after: 525, watchers_count: 27, completed_count: 20 } },
     error: null, status: 200,
   }))
   await render('/admin/recordings/21')
@@ -226,7 +226,7 @@ it('a recording shows the total who watched and loads more watchers a page at a 
   const more = container.querySelector<HTMLButtonElement>('[data-show-more-watchers]')!
   await act(async () => { more.click() })
   await act(async () => { await Promise.resolve() })
-  expect(mocks.getRecordDetail).toHaveBeenLastCalledWith('recording', 21, { page: 2 })
+  expect(mocks.getRecordDetail).toHaveBeenLastCalledWith('recording', 21, { watchersAfter: 525 })
   expect(container.querySelectorAll('#watchers li')).toHaveLength(27)
   expect(container.textContent).toContain('Showing 27 of 27')
   expect(container.querySelector('[data-show-more-watchers]')).toBeNull()

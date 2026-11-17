@@ -221,14 +221,19 @@ The staff record pages added in L-5.2, one request per page. Staff only.
 
 - **Who opens what:** admins open every record. Instructors open records in
   cohorts they teach (`StaffCohortScope`), a booking only when they host it
-  (as on Meetings), an activity event in a cohort they teach or about
-  themselves (the cohort is then `null` unless they teach it), and any rubric
+  (as on Meetings), an activity event about themselves (the cohort is then
+  `null` unless they teach it) or in a cohort they teach whose subject and
+  actor belong to it (enrolled, teaching it, or admins), and any rubric
   (content isn't cohort-scoped). A rubric lists only the instructor's cohorts;
   the rest are `other_cohorts_count`, and `graded` counts only their cohorts'
   latest graded attempts. Curriculum names go through `CurriculumName`.
 - **Recording:** cohort, program week of the recorded date, the lesson blocks on
   the cohort's curriculum that play it (same upload key or same link) with their
-  sections, and the cohort's learners who have started it.
+  sections, and the cohort's learners who have started it: 25 at a time in the
+  order they started watching, with `watchers_count` and `completed_count` for
+  everyone. Pass `watchers_next_after` back as `watchers_after` for the next
+  ones. The order never changes, so a learner who watches again between
+  requests is never skipped or repeated.
 - **Office hours:** time, repeat, next three times, who scheduled it, the
   teaching team, `invited_count` (active learners; attendance isn't recorded)
   and the Join link.
@@ -242,7 +247,9 @@ The staff record pages added in L-5.2, one request per page. Staff only.
   The five newest messages carry a one-line preview; a sender either side has
   blocked reads `Message hidden`. Never direct-message text.
 - **Activity event:** what happened, actor, subject, cohort, and the subject
-  record when it belongs to the event's cohort and learner.
+  record when it belongs to the event's cohort and learner (a submission also
+  on an exercise of the cohort's curriculum). Otherwise `record` and
+  `record_label` are both `null`: no title, lesson or block id.
 
 Students, archived accounts, unknown types and records the viewer can't open
 get `404`. Query counts do not grow with any of the page's lists. Sent with

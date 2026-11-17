@@ -40,9 +40,27 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
     sizes = [ 1, per_page + 5 ]
     assert_flat(@instructor, "recording", recording.id, grow, sizes: sizes) do |detail, size|
       assert_equal [ size, per_page ].min, detail["watchers"].size, "watchers are one bounded page"
-      size > per_page ? assert_equal(2, detail["watchers_next_page"]) : assert_nil(detail["watchers_next_page"])
+      size > per_page ? assert_kind_of(Integer, detail["watchers_next_after"]) : assert_nil(detail["watchers_next_after"])
       assert_operator response.body.bytesize, :<, 15_000 + size * 120, "only the lessons list grows the payload"
       [ detail["watchers_count"], detail["lessons"].size ]
+    end
+  end
+
+  test "recording page continued after a cursor" do
+    recording = @cohort.recordings.create!(title: "Class", source_kind: "youtube", source_url: VIDEO_URL, status: :published, position: 0, uploaded_by: @instructor)
+    first_row = nil
+    grow = lambda do |i|
+      peer = person("cursor#{i}", :student)
+      enroll(peer, @cohort)
+      row = WatchProgress.create!(user: peer, recording: recording, total_watched_seconds: 60, duration_seconds: 3600, last_watched_at: i.minutes.ago)
+      first_row ||= row
+    end
+    per_page = RecordDetail::RecordingPage::WATCHERS_PER_PAGE
+    # After the first watcher: 1 row at size 2, then a full page of 25 at size 30. (At size 1 the
+    # page would be empty and Rails would skip the user preload, which isn't growth.)
+    assert_flat(@instructor, "recording", recording.id, grow, sizes: [ 2, per_page + 5 ], params: -> { { watchers_after: first_row.id } }) do |detail, size|
+      assert_equal [ size - 1, per_page ].min, detail["watchers"].size
+      [ detail["watchers_count"] ]
     end
   end
 
@@ -139,7 +157,7 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
 
   # Measures the page with one row, grows to five and measures again. The block
   # returns the response's growing lists; each must equal the size measured.
-  def assert_flat(user, type, id, grow, sizes: [ 1, 5 ])
+  def assert_flat(user, type, id, grow, sizes: [ 1, 5 ], params: -> { {} })
     assert_equal 0, @size, "assert_flat grows the fixtures itself; call it once per test"
     counts = sizes.map do |size|
       while @size < size
@@ -147,11 +165,11 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
         @size += 1
       end
       path = "/api/v1/records/#{type}/#{id.respond_to?(:call) ? id.call : id}/detail"
-      request_as(user, path)
+      request_as(user, path, params.call)
       assert_response :success
       grown = yield(response.parsed_body["detail"], size)
       assert_equal [ size ] * grown.size, grown, "#{type}: the response lists must hold #{size} rows each"
-      count = count_queries { request_as(user, path) }
+      count = count_queries { request_as(user, path, params.call) }
       assert_response :success
       count
     end
@@ -169,11 +187,11 @@ class RecordDetailQueryCountsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  def request_as(user, path)
+  def request_as(user, path, params = {})
     payload = { "sub" => user.clerk_id, "email" => user.email, "first_name" => user.first_name, "last_name" => user.last_name }
     original = ClerkAuth.method(:verify)
     ClerkAuth.define_singleton_method(:verify) { |_token| payload }
-    get path, headers: { "Authorization" => "Bearer test_token" }
+    get path, params: params, headers: { "Authorization" => "Bearer test_token" }
   ensure
     ClerkAuth.define_singleton_method(:verify, original)
   end

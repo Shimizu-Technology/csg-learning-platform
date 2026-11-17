@@ -29,32 +29,34 @@ export function RecordingRecord() {
 type Watcher = RecordingDetail['watchers'][number]
 
 /**
- * The first page of watchers comes with the record; "Show more" fetches the
- * next page and appends it. Totals come from the server, never from the rows.
+ * The first page of watchers comes with the record; "Show more" continues
+ * after the last one shown and appends the next page. The order (when each
+ * learner started watching) never changes, so nobody is skipped or repeated
+ * while learners keep watching. Totals come from the server, never the rows.
  */
 function useMoreWatchers(detail: RecordingDetail) {
   const [rows, setRows] = useState<Watcher[]>(detail.watchers)
-  const [nextPage, setNextPage] = useState<number | null>(detail.watchers_next_page)
+  const [next, setNext] = useState<number | null>(detail.watchers_next_after)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const loadMore = useCallback(async () => {
-    if (!nextPage || loading) return
+    if (!next || loading) return
     setLoading(true)
     setError(null)
-    const result = await api.getRecordDetail('recording', detail.id, { page: nextPage })
+    const result = await api.getRecordDetail('recording', detail.id, { watchersAfter: next })
     const page = result.data?.detail
     if (page && page.type === 'recording' && page.id === detail.id) {
       setRows((current) => {
         const seen = new Set(current.map((row) => row.student.id))
         return [...current, ...page.watchers.filter((row) => !seen.has(row.student.id))]
       })
-      setNextPage(page.watchers_next_page)
+      setNext(page.watchers_next_after)
     } else {
       setError(result.error || "Couldn't load more. Try again.")
     }
     setLoading(false)
-  }, [detail.id, nextPage, loading])
-  return { rows, nextPage, loading, error, loadMore }
+  }, [detail.id, next, loading])
+  return { rows, next, loading, error, loadMore }
 }
 
 function RecordingPage({ detail }: { detail: RecordingDetail }) {
@@ -127,7 +129,7 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
       </Section>
 
       <Section id="watchers" title="Who watched" count={`${detail.watchers_count} of ${plural(detail.students_count, 'learner')}`}>
-        <p className="border-b border-line px-4 py-2 text-xs text-ink-muted sm:px-5">Only staff see this. Watch time comes from the player and doesn't show attention.</p>
+        <p className="border-b border-line px-4 py-2 text-xs text-ink-muted sm:px-5">Only staff see this, in the order learners started watching. Watch time comes from the player and doesn't show attention.</p>
         {watchers.rows.length ? <ul className="divide-y divide-line">
           {watchers.rows.map((row) => (
             <li key={row.student.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 sm:px-5">
@@ -137,10 +139,10 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
             </li>
           ))}
         </ul> : <EmptyRow>No one in <RecordLink record={{ type: 'cohort', id: cohort.id, tab: 'students' }} variant="inline">{cohort.name}</RecordLink> has started it yet.</EmptyRow>}
-        {(detail.watchers_next_page || watchers.error) && watchers.rows.length > 0 && (
+        {(detail.watchers_next_after || watchers.error) && watchers.rows.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
             <p role="status" aria-live="polite" className="text-xs tabular-nums text-ink-muted">{watchers.error || `Showing ${watchers.rows.length} of ${detail.watchers_count}`}</p>
-            {watchers.nextPage && <Button variant="secondary" size="sm" onClick={() => void watchers.loadMore()} disabled={watchers.loading} data-show-more-watchers="">{watchers.loading ? 'Loading…' : watchers.error ? 'Try again' : 'Show more'}</Button>}
+            {watchers.next && <Button variant="secondary" size="sm" onClick={() => void watchers.loadMore()} disabled={watchers.loading} data-show-more-watchers="">{watchers.loading ? 'Loading…' : watchers.error ? 'Try again' : 'Show more'}</Button>}
           </div>
         )}
       </Section>

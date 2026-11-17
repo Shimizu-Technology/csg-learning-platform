@@ -30,21 +30,20 @@ class RecordDetail
     "activity_event" => "ActivityEventPage"
   }.freeze
   TYPES = PAGES.keys.freeze
-  # Far past any real list; keeps the offset small.
-  MAX_PAGE = 10_000
+  MAX_ID = 9_223_372_036_854_775_807
 
-  # `page` pages a long list (a recording's watchers). It is 1-based; anything
-  # else, or a page past the end, gives an empty page with the totals.
-  def self.for(viewer:, type:, id:, page: nil, now: Time.current)
+  # `watchers_after` continues a recording's watcher list after that watch
+  # row (the previous response's `watchers_next_after`). Anything that isn't
+  # a positive id starts from the beginning.
+  def self.for(viewer:, type:, id:, watchers_after: nil, now: Time.current)
     return nil if viewer.nil? || viewer.archived? || !viewer.staff?
 
     klass = PAGES[type.to_s]
     number = Integer(id.to_s, 10, exception: false)
     return nil unless klass && number&.positive?
 
-    page_number = page.nil? || page.to_s.empty? ? 1 : Integer(page.to_s, 10, exception: false)
-    page_number = 1 unless page_number&.positive?
-    page_number = MAX_PAGE if page_number > MAX_PAGE
-    const_get(klass).new(viewer: viewer, id: number, now: now, page: page_number).call
+    after = Integer(watchers_after.to_s, 10, exception: false) if watchers_after.to_s.match?(/\A[1-9]\d{0,18}\z/)
+    after = nil unless after && after <= MAX_ID
+    const_get(klass).new(viewer: viewer, id: number, now: now, after: after).call
   end
 end

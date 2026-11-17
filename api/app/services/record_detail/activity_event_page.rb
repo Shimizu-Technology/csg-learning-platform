@@ -5,22 +5,42 @@ class RecordDetail
   # see every event; an instructor sees events in cohorts they teach and their
   # own history (a grant of editing access names them as the subject).
   #
+  # An instructor who comes in through the event's cohort (not as its admin or
+  # its subject) sees it only when the people it names, the subject and the
+  # actor, belong to that cohort (enrolled, teaching it, or admins), so an
+  # event can't carry another cohort's learner into a cohort they teach.
+  #
   # The subject record is shown only when it belongs to the event's cohort
   # and learner, as the feed's destinations require: a submission by that
-  # learner in that cohort, a lesson block on the cohort's curriculum, or a
-  # recording of that cohort, in a cohort the viewer can see. Its label (an
-  # exercise, lesson or recording title) passes the same check as its link,
-  # so an event pointing at another cohort's record never names it.
+  # learner in that cohort on an exercise of the cohort's curriculum, a lesson
+  # block on the cohort's curriculum, or a recording of that cohort, in a
+  # cohort the viewer can see, about one of its members. Its label (an
+  # exercise, lesson or recording title) and its ids pass the same check as
+  # its link, so an event pointing elsewhere never names or numbers it.
+  # ("Make a copy for this cohort" moves submissions onto the copy's blocks,
+  # so a cohort's own work is always on its curriculum.)
   class ActivityEventPage < Base
     CATEGORIES = Api::V1::ActivityEventsController::CATEGORIES
 
     private
 
     def authorized?
-      cohort_id, subject_id = ActivityEvent.where(id: @id).pick(:cohort_id, :subject_user_id)
+      cohort_id, subject_id, actor_id = ActivityEvent.where(id: @id).pick(:cohort_id, :subject_user_id, :actor_id)
       return false unless subject_id
+      return true if admin? || subject_id == @viewer.id
 
-      admin? || subject_id == @viewer.id || (cohort_id.present? && scope.visible?(cohort_id))
+      cohort_id.present? && scope.visible?(cohort_id) && cohort_members?(cohort_id, [ subject_id, actor_id ])
+    end
+
+    # Each person is enrolled in the cohort, teaches it, or is an admin. One query.
+    def cohort_members?(cohort_id, user_ids)
+      ids = user_ids.uniq
+      members = User.where(id: ids).where(
+        "users.role = :admin OR EXISTS (SELECT 1 FROM enrollments WHERE enrollments.user_id = users.id AND enrollments.cohort_id = :cohort) " \
+        "OR EXISTS (SELECT 1 FROM cohort_instructor_assignments WHERE cohort_instructor_assignments.user_id = users.id AND cohort_instructor_assignments.cohort_id = :cohort)",
+        admin: User.roles[:admin], cohort: cohort_id
+      ).count
+      members == ids.size
     end
 
     def build
@@ -46,7 +66,7 @@ class RecordDetail
 
     def load_record(event)
       case event.record_type
-      when "Submission" then Submission.includes(:enrollment, content_block: :lesson).find_by(id: event.record_id)
+      when "Submission" then Submission.includes(:enrollment, content_block: { lesson: :curriculum_module }).find_by(id: event.record_id)
       when "ContentBlock" then ContentBlock.includes(lesson: :curriculum_module).find_by(id: event.record_id)
       when "Recording" then ::Recording.find_by(id: event.record_id)
       end
@@ -64,10 +84,13 @@ class RecordDetail
     def record_link(event, record)
       cohort = event.cohort
       return nil unless record && cohort && scope.visible?(cohort.id)
+      # The link carries the subject as its learner, so the subject must be one of the cohort's people.
+      return nil unless cohort_members?(cohort.id, [ event.subject_user_id ])
 
       case record
       when Submission
         return nil unless record.user_id == event.subject_user_id && record.enrollment&.cohort_id == cohort.id
+        return nil unless record.content_block&.lesson&.curriculum_module&.curriculum_id == cohort.curriculum_id
 
         { kind: "submission", id: record.id, cohort_id: cohort.id, student_id: event.subject_user_id, lesson_id: record.content_block.lesson_id, content_block_id: record.content_block_id }
       when ContentBlock

@@ -4753,8 +4753,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Which page of a recording's watchers to return (1-based, 25 per page). Other values read the first page. */
-                    page?: number;
+                    /** @description Continue a recording's watchers after this cursor (the previous response's watchers_next_after). Other values start from the beginning. */
+                    watchers_after?: number;
                 };
                 header?: never;
                 path: {
@@ -8309,11 +8309,9 @@ export interface components {
             watchers_count: number;
             /** @description Learners in the cohort who finished it. */
             completed_count: number;
-            /** @description The page of watchers in this response (the page query parameter, 1-based). */
-            watchers_page: number;
-            /** @description The next page of watchers, or null on the last page. */
-            watchers_next_page: number | null;
-            /** @description One page of up to 25 watchers, most recently watched first. */
+            /** @description Pass as watchers_after for the next watchers, or null after the last. */
+            watchers_next_after: number | null;
+            /** @description Up to 25 watchers, in the order they started watching (a fixed order, so paging never skips or repeats anyone). */
             watchers: {
                 student: components["schemas"]["RecordDetailPerson"];
                 progress_percentage: number;
