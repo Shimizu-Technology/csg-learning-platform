@@ -1,8 +1,10 @@
 # Student workspace — W7 PR 7.5
 
+Current result: **full post-merge gate passed; 72 browser scenarios passed**. Application source `7fad45b6cf71a640cfbb6e140110f91e901e17fa`, with current main (`c62eb42a`) explicitly merged as `ec05651b`. Grade next opens the filtered paged workbench and supports Previous/Next plus a guarded return to the exact profile context. All owned resources and test databases are cleaned. PR #284 is held for lead review; native device interaction and production delivery remain not_run. Earlier runs below are historical evidence; the amended-brief section records the current acceptance.
+
 ## Context and acceptance
 
-Implementation worker, 2026-11-17. Isolated worktree `t3-0b20b940-41485f063e89d167`, branch `feat/student-workspace`, started from `51b0d7ce` (PR #280), then rebased onto `ac28c0b9` (PR #281 grading workbench) after it merged during verification. Hold for the lead: open a PR; do not merge or watch.
+Implementation worker, 2026-11-17. Isolated worktree `t3-0b20b940-41485f063e89d167`, branch `feat/student-workspace`, started from `51b0d7ce` (PR #280), then rebased onto `ac28c0b9` (PR #281 grading workbench) after it merged during verification, then explicitly merged `c62eb42a` (PR #279 Updates composer) as `ec05651b` following the amended brief. Hold for the lead: open a PR; do not merge or watch.
 
 CSG Learn serves Code School of Guam students and their instructors across live programs, guided and self-paced courses, and the alumni library. This change helps staff review one learner in one enrollment, act on the reasons that need attention, follow linked learning/work/support, and inspect a read-only student view without leaving preview. Clerk, Rails, React/Vite, and Expo remain the existing authentication and delivery stack. Deployment is Render API / Netlify web / Neon; no production changes are authorized or needed.
 
@@ -14,7 +16,7 @@ Agent-executed affected-flow QA, required at 1280px and 390px in light and dark.
 
 | Case | Required behavior and starting fixture | Status |
 | --- | --- | --- |
-| S01 | Admin and instructor open program/behind profiles; Message opens exact conversation, Grade next selects the server's next review, Start follow-up saves and opens the plan; Why flagged matches shared status | passed |
+| S01 | Admin and instructor open program/behind profiles; Message opens exact conversation, Grade next opens the server-paged workbench with the student/cohort filters and server-selected review; Previous/Next work, Start follow-up saves and opens the plan; Why flagged matches shared status | passed |
 | S02 | Every profile metric opens its explaining tab/section; lesson, module, milestone and related links preserve enrollment and Back destination, including new-tab URL context | passed |
 | S03 | Switch between two authorized enrollments; preserve selected tab and origin; hide inaccessible cohorts; changing student/cohort cannot display stale responses or discard a draft silently | passed |
 | S04 | Communication shows recent permitted direct messages, student channel activity and permitted meetings; exact links and Back context work; empty/failure/retry states are distinct | passed |
@@ -59,13 +61,13 @@ The first full ASUS run exposed three migration-process fixture errors caused by
 
 Native simulator/physical-device interaction was not run. Native parity is limited to the existing staff student screen: shared counts/reasons/next-review, enrollment links, retained work and authenticated web follow-up handoff. A native Communication workspace and module cards do not exist today and remain follow-ups. Safari, software keyboards, real provider delivery/media, production deployment and current mobile distribution were not tested.
 
-The final application source is implementation commit `bf16d1f3244e184580b26246f531ce791c355af9`, based on `ac28c0b90535295ef5540e89a578bee36f97a43a`. The rebase combined both OpenAPI additions without semantic conflicts and regenerated both clients. Subsequent changes are QA scenarios, screenshots and this record. No deployment occurred.
+The first integrated application source was implementation commit `bf16d1f3244e184580b26246f531ce791c355af9`, based on `ac28c0b90535295ef5540e89a578bee36f97a43a`. The rebase combined both OpenAPI additions without semantic conflicts and regenerated both clients. Subsequent changes are QA scenarios, screenshots and this record. No deployment occurred.
 
 Browser totals: **64 distinct scenarios passed**, with eight additional copy-change retests. The canonical batch exercises production-authored lesson content; synthetic status/work/message/meeting fixtures still establish the exact action and return-path checks. Each browser suite uses one worker. Local full-page evidence and Playwright traces/results remain under ignored `.qa-local/`; no real answer keys or additional production exports were added.
 
 Reproduction commands and the optional canonical-content pass are documented in `scripts/qa/README.md`. `DEV_LIFECYCLE_SESSION` must name the current owner session. The full cross-stack ASUS gate is reproducible with `asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/student-workspace-gate.sh`; a busy runner exits 75 and must be retried without starting a concurrent run.
 
-## Final integration retest
+## Grading-workbench integration retest (before Updates merge)
 
 After PR #281 merged, the application was rebased onto current main. Web typecheck and 159 focused tests passed on the combination. The complete standard browser matrix passed again: **56 scenarios** in 3.1 minutes. The canonical course batch then passed **8 scenarios** in 1.5 minutes, traversing all six enrollments per scenario. Updated desktop/light and phone/dark evidence above comes from this integrated run and was visually inspected.
 
@@ -75,7 +77,7 @@ Final browser acceptance: **72 distinct scenarios passed** on the integrated app
 
 Final harness ownership: database `csg_qa_93866_1794872350`, API PID 94015 / port 56674, Vite PID 94054 / port 56675. Each page and runner was claimed/released; both servers were stopped and this database dropped after the final browser phase. All earlier named QA/focused-test databases were also dropped. The full gate owns only its ASUS wrapper and the helper’s disposable `asus-test-postgres` container/database; the helper removes that container and shuts down its WSL runner at completion. Shared local PostgreSQL/Redis, borrowed tabs and simulators were left running.
 
-## Final automated gate and disposition
+## Prior full gate (before Updates merge)
 
 `asus-test --postgres csg_learning_platform_test <this repo root> -- bash scripts/qa/student-workspace-gate.sh` completed with **0 failed stages** on the integrated application source `bf16d1f3`. ASUS runs the suite serially using a disposable PostgreSQL 16 container. Its source copy matched the task files; ignored local QA data and credentials were excluded.
 
@@ -92,3 +94,13 @@ Final harness ownership: database `csg_qa_93866_1794872350`, API PID 94015 / por
 | Impeccable 4.6 advisory on changed UI | `[]` |
 
 The final full gate's wrapper PID 93850 was claimed and released. Its helper removed the exact disposable PostgreSQL container and terminated the task runner's WSL instance. All owned local servers, browser pages, runner processes and QA/focused-test databases were cleaned. No simulator or emulator was started. The branch/worktree is intentionally retained for the lead's PR review. Production deployment and native device interaction remain not_run; there is no runtime handoff.
+
+## Amended brief: explicit main merge and queue links
+
+PR #284 was already open when the brief was amended; it remains held without monitoring or merging. `origin/main` was fetched and explicitly merged as `ec05651b`, including #281 grading (`ac28c0b9`) and #279 Updates (`c62eb42a`). The conflict kept both the Updates return-path behavior and student lesson/module return paths. The merged OpenAPI regenerated both clients. This task adds **no migrations**, including none competing with main’s `20261117010000` / `20261117020000` or open #283’s `20261117090000`.
+
+Current application source: **`7fad45b6cf71a640cfbb6e140110f91e901e17fa`**. Grade next now goes to `/admin/grading` with `student_id`, `cohort_id`, `submission` from shared status and a safe `return_to`. The workbench exposes Previous/Next and a guarded Back to the exact student tab/filter. Native Grade next opens the same authenticated web queue; the native staff screen is otherwise unchanged from this task’s earlier parity work.
+
+Post-merge focused verification: web typecheck and **142 tests / 3 files passed**, including queue scope, shared selected review, and refusing a Back navigation while feedback is unsaved. The fresh standard browser matrix passed **64 scenarios** in 3.3 minutes, including actual queue Previous/Next and exact profile return at all staff widths/themes. The canonical-course batch passed all 8 scenarios in 1.5 minutes. **All 72 browser scenarios passed again on `7fad45b6`**, including filtered Grade next, actual Previous/Next, guarded Back, all role/viewport/theme cases and the 127-lesson course. The complete post-merge ASUS gate passed: API 1,897 tests / 40,901 assertions with no failures, errors or skips; RuboCop and Brakeman; web typecheck, lint, 2,405 Vitest tests / 205 files, build, bundle checks and `api:check`; mobile typecheck, lint and 1,430 Jest tests / 136 suites. The gate reported 0 failed stages. The refreshed Impeccable scan of the new queue-link UI returned `[]`.
+
+Current harness ownership: database `csg_qa_51640_1794874027`, API PID 52038 / port 59401, Vite PID 52055 / port 59402. Full-gate wrapper PID 51508 is claimed. Both servers and all browser pages/runners were stopped/released, and the exact harness database was dropped after the browser phase. The full-gate wrapper was also released after success; its disposable PostgreSQL container/database was removed and the runner WSL instance terminated by `asus-test`. No owned runtime resource remains.
