@@ -309,6 +309,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal [ 1, 2, 50.0 ], mod.values_at("completed_lessons", "total_lessons", "progress_percentage")
   end
 
+  test "full meeting history keeps the Communication instructor-host privacy scope" do
+    mine = book(@teacher, 1)
+    other = book(@other_teacher, 2)
+    @cohort.private_meeting_config.update!(instructor: @teacher)
+    get "/api/v1/staff/private_meetings", params: { cohort_id: @cohort.id, student_id: @student.id }, headers: headers(@teacher)
+    assert_response :success
+    assert_equal [ mine.id ], response.parsed_body.fetch("cohorts").flat_map { |row| row["bookings"] }.pluck("id")
+    get "/api/v1/staff/private_meetings", params: { cohort_id: @cohort.id, student_id: @student.id }, headers: headers(@admin)
+    assert_response :success
+    assert_equal [ mine.id, other.id ].sort, response.parsed_body.fetch("cohorts").flat_map { |row| row["bookings"] }.pluck("id").sort
+  end
+
   test "filtered full communication lists and media lists keep flat query counts" do
     conversation(@teacher).messages.create!(author: @student, body: "Scoped message")
     outsider = person("another_learner", :student)
@@ -339,10 +351,12 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal counts.first, counts.last, counts.inspect
     get paths[0][0], params: paths[0][1], headers: headers(@teacher)
     assert_equal DirectConversationMember.where(user_id: @student.id).pluck(:direct_conversation_id).sort, response.parsed_body.fetch("direct_conversations").pluck("id").sort
-    own = book(@teacher, 28, status: :canceled)
+    own = book(@teacher, 28, status: :confirmed)
     own.update!(student: outsider, enrollment: outsider.enrollments.find_by!(cohort: @cohort))
     get paths[1][0], params: paths[1][1], headers: headers(@teacher)
     refute_includes response.parsed_body.fetch("cohorts").flat_map { |row| row["bookings"] }.pluck("id"), own.id
+    slots = response.parsed_body.fetch("cohorts").flat_map { |row| row["slots"] }
+    assert_equal false, slots.find { |row| row["id"] == own.private_meeting_slot_id }.fetch("available"), "filtering the student must not free another learner's booked slot"
   end
 
   private

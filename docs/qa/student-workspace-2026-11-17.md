@@ -166,3 +166,15 @@ Before the final repeat, two focused Communication edge assertions also failed: 
 
 
 The affected Communication retest passed **8/8** on `26a083ea` in 1.1 minutes at all four width/theme combinations for admin/instructor. The same journeys now also click “Back to student overview” from preview and verify the exact student Overview destination. There were no 403 responses. These are repeated cases, not eight extra distinct acceptance scenarios. Servers 54173/54212 were stopped, QA database `csg_qa_54031_1794884181` dropped, and each page/runner released. The only remaining owned resource is the queued ASUS wrapper 53994. Both focused databases have been dropped.
+
+
+## Catalog merge requested during the fix round
+
+Main advanced to #283, `0d909047`. The obsolete queued gate was stopped by exact owned PID 53994 before it acquired ASUS. Main was fetched and explicitly merged as **`ddaaa709`**, retaining #281 queue links and its `queueContextLabel` use. The merged contract now includes the five marketing fields emitted by cohort detail; both generated clients were regenerated, not hand-merged. This task adds no migration; main’s `20261117090000` is included unchanged.
+
+Post-merge focused verification: **29 API tests / 206 assertions passed** (workspace contracts, counts/scopes and weekly plan); web typecheck and **102 tests / five files passed**, including the workbench. The focused owned DB `csg_student_workspace_fix_catalog_test_0117` was dropped. Complete ASUS verification, with both API prepared-statement modes, is queued as owned wrapper 9253. The fresh browser harness owns DB `csg_qa_9302_1794884693`, API 16625 / port 52444 and Vite 16661 / port 52445. It will repeat all 16 fix-round cases on the catalog integration, including the preview exit check.
+
+
+The first post-catalog browser batch passed 15/16; its first cold profile load was still “Loading student…” when the driver's five-second heading wait expired. That wait now allows 15 seconds. The snapshot/trace identifies a driver timeout, not an accepted product failure.
+
+Before the final gate acquired ASUS, a focused regression exposed two issues in the newly filtered full meeting list: it marked another student's occupied slot available, and included another host's bookings. Both new checks failed against the earlier filter implementation. Capacity now comes from all confirmed bookings in the authorized cohort, independently of the visible history filter; instructor history is restricted to that host. The same endpoint retains its flat QueryCounter regression. The browser's full-meetings check now also asserts occupied capacity remains unavailable. The obsolete queued wrapper 9253 and servers 16625/16661 were stopped and DB `csg_qa_9302_1794884693` dropped. The focused DB `csg_student_workspace_fix_catalog_test_0117` was recreated for these specific regression checks.

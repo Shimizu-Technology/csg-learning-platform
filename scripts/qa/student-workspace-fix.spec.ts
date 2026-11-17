@@ -18,7 +18,7 @@ for (const theme of ['light', 'dark'] as const) for (const user of [1, 2]) {
       const headers = { Authorization: `Bearer test_token_${user}` }
       const progress = await (await request.get(`/api/v1/progress/student/${student}?cohort_id=${cohort}`, { headers })).json()
       await page.goto(origin)
-      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 15_000 })
       for (const [label, anchor, total, done] of [
         ['Recordings completed', 'recordings', progress.media_summary.recordings_total, progress.media_summary.recordings_completed],
         ['Lesson videos completed', 'lesson-videos', progress.media_summary.lesson_videos_total, progress.media_summary.lesson_videos_completed],
@@ -77,7 +77,10 @@ for (const theme of ['light', 'dark'] as const) for (const user of [1, 2]) {
     await page.goto(`/admin/cohorts/1/students/4/communication?qa_user=${user}`)
     const meetings = page.waitForResponse(response => response.url().includes('/api/v1/staff/private_meetings?') && response.ok())
     await page.getByRole('link', { name: 'See all meetings', exact: true }).click()
-    expect(new URL((await meetings).url()).searchParams.get('student_id')).toBe('4')
+    const meetingResponse = await meetings
+    expect(new URL(meetingResponse.url()).searchParams.get('student_id')).toBe('4')
+    const meetingList = await meetingResponse.json()
+    expect(meetingList.cohorts.flatMap((cohort: { slots: { available: boolean }[] }) => cohort.slots).some((slot: { available: boolean }) => !slot.available)).toBe(true)
     await page.goto(`/admin/cohorts/1/students/4/communication?qa_user=${user}`)
     await page.getByRole('link', { name: 'See all in #qa-class', exact: true }).click()
     await expect(page.getByRole('main')).toContainText('QA permitted class activity')
