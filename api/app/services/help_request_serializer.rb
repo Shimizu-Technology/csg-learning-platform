@@ -1,6 +1,7 @@
 class HelpRequestSerializer
-  def self.as_json(help_request, include_student: false, include_follow_up: false)
-    context_path = LearningDestination.help_request(help_request)
+  # Lists pass `blocks: LearningDestination.help_request_blocks(requests)`.
+  def self.as_json(help_request, include_student: false, include_follow_up: false, blocks: nil)
+    context_path = LearningDestination.help_request(help_request, blocks: blocks)
     context_destination = RecordDestination.from_path(context_path)
     payload = {
       id: help_request.id,

@@ -6,7 +6,8 @@ import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowRight, CalendarClock, CheckCircle2, Clock3, LifeBuoy, MessageSquareReply, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { newReplyRequestId } from '@/lib/reply-attempt';
 import { Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -35,6 +36,7 @@ export default function StaffSupportScreen() {
   const { selectedCohortId } = useCohort();
   const cohortId = cohort_id ? Number(cohort_id) : selectedCohortId;
   const [resolving, setResolving] = useState<HelpRequest | null>(null);
+  const attemptId = useRef<string | null>(null);
   const [response, setResponse] = useState('');
   const [responseSelection, setResponseSelection] = useState({ start: 0, end: 0 });
   const [savingId, setSavingId] = useState<number | null>(null);
@@ -61,11 +63,13 @@ export default function StaffSupportScreen() {
       const now = new Date().toISOString();
       const result = auth.demo
         ? { help_request: { ...resolving, status: resolveRequest ? 'resolved' as const : 'acknowledged' as const, staff_response: response.trim(), replies: [...(resolving.replies ?? []), { id: Date.now(), body: response.trim(), resolved_request: resolveRequest, author: { id: user!.id, full_name: user!.full_name }, created_at: now }], resolved_at: resolveRequest ? now : null, acknowledged_at: resolving.acknowledged_at || now, owner: resolving.owner || { id: user!.id, full_name: user!.full_name }, updated_at: now } }
-        : await api.replyToHelpRequest(resolving.id, { body: response.trim(), resolve: resolveRequest });
+        // A failed or lost send keeps its attempt id, so sending again can't answer twice.
+        : await api.replyToHelpRequest(resolving.id, { body: response.trim(), resolve: resolveRequest, client_request_id: attemptId.current ??= newReplyRequestId() });
       queryClient.setQueryData(learningKeys.helpRequest(user!.id, resolving.id), { help_request: result.help_request });
       queryClient.setQueryData<{ support_queue: SupportQueue }>(queryKey, (current) => current ? { support_queue: updateSupportQueueHelpRequest(current.support_queue, result.help_request) } : current);
       if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
       voiceDraft.markSent(response.trim());
+      attemptId.current = null;
       if (resolveRequest) captureProductEvent('help_request_resolved', { cohort_id: resolving.cohort.id, help_request_id: resolving.id, category: resolving.category, resolution_bucket: analyticsAgeBucket(resolving.created_at) });
       setResolving(null);
       setResponse('');
@@ -79,6 +83,7 @@ export default function StaffSupportScreen() {
 
   async function closeResponse() {
     await voiceDraft.cancel();
+    attemptId.current = null;
     setResolving(null);
     setResponse('');
   }
@@ -112,7 +117,7 @@ export default function StaffSupportScreen() {
         {!queue.help_requests.length ? <View style={styles.clearCard}><CheckCircle2 color={c.status.success.fg} size={21} /><View style={styles.flex}><Text style={styles.clearTitle}>No active requests</Text><Text style={styles.clearCopy}>New requests will appear here.</Text></View></View> : <View style={styles.stack}>{queue.help_requests.map((request) => <View key={request.id} style={[styles.requestCard, request.urgency === 'urgent' && styles.requestUrgent]}>
           <View style={styles.pills}>{request.urgency === 'urgent' && <Pill label="URGENT" tone="danger" />}<Pill label={request.status === 'acknowledged' ? 'ACKNOWLEDGED' : 'OPEN'} tone={request.status === 'acknowledged' ? 'warning' : 'ruby'} /><Pill label={request.category.toUpperCase()} tone="quiet" /></View>
           <Text style={styles.studentName}>{request.student?.full_name}</Text><Text style={styles.context}>{request.cohort.name} · {request.context_label}</Text><Text style={styles.question}>{request.message}</Text><View style={styles.requestMeta}><Clock3 color={c.text.muted} size={13} /><Text style={styles.metaText}>{formatRelative(request.created_at)}</Text>{request.owner && <Text style={styles.metaText}>· {request.owner.full_name}</Text>}</View>
-          <View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${request.student?.full_name}'s help request`} onPress={() => openHelpRequest(request)} style={styles.secondaryButton}><ArrowRight color={c.text.strong} size={16} /><Text style={styles.secondaryText}>Open</Text></Pressable><Button variant="primary" accessibilityRole="button" onPress={() => { setResolving(request); setResponse(''); }} style={styles.primaryButton}><MessageSquareReply color={c.text.strong} size={16} /><Text style={styles.primaryText}>Reply</Text></Button></View>
+          <View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${request.student?.full_name}'s help request`} onPress={() => openHelpRequest(request)} style={styles.secondaryButton}><ArrowRight color={c.text.strong} size={16} /><Text style={styles.secondaryText}>Open</Text></Pressable><Button variant="primary" accessibilityRole="button" onPress={() => { attemptId.current = null; setResolving(request); setResponse(''); }} style={styles.primaryButton}><MessageSquareReply color={c.text.strong} size={16} /><Text style={styles.primaryText}>Reply</Text></Button></View>
         </View>)}</View>}
       </View>
 

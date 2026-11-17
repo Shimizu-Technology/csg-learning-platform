@@ -50,13 +50,21 @@ class HelpRequest < ApplicationRecord
   # request becomes acknowledged by the replier, an acknowledged one keeps its
   # status. Returns the saved reply, or false when the request is no longer
   # active. Callers notify the learner after this returns (after commit).
-  def reply!(staff, body:, resolve: false)
+  #
+  # `client_request_id` makes a retry safe: under the row lock, a reply this
+  # author already saved with the same id is returned (marked `replayed`)
+  # instead of a second one, even after that first reply resolved the request.
+  def reply!(staff, body:, resolve: false, client_request_id: nil)
     text = MarkdownText.trim_blank_lines(body)
     with_lock do
+      if client_request_id && (earlier = replies.find_by(author_id: staff.id, client_request_id: client_request_id))
+        earlier.replayed = true
+        return earlier
+      end
       return false unless status_open? || status_acknowledged?
 
       now = Time.current
-      reply = replies.create!(author: staff, body: text, resolved_request: resolve)
+      reply = replies.create!(author: staff, body: text, resolved_request: resolve, client_request_id: client_request_id)
       attributes = { owner: staff, acknowledged_at: acknowledged_at || now, staff_response: reply.body }
       attributes.merge!(status: :resolved, resolved_at: now) if resolve
       attributes[:status] = :acknowledged if status_open? && !resolve

@@ -60,6 +60,28 @@ class FollowUpRecordTest < ActionDispatch::IntegrationTest
     refute response.parsed_body.dig("intervention", "evidence_links").any? { |link| link["key"] == "context_id" }
   end
 
+  test "a plan from a recording question links that recording, uploaded or legacy" do
+    @cohort.update!(settings: { "recordings" => [ { "title" => "Legacy replay", "url" => "https://example.invalid/replay" } ] })
+    recording = @cohort.recordings.create!(title: "Uploaded replay", s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_replay.mp4", content_type: "video/mp4", file_size: 1.megabyte, position: 0, status: :published)
+    { [ :primary, recording.id ] => [ recording.id, "Uploaded replay" ], [ :legacy, 0 ] => [ "legacy-#{@cohort.id}-1", "Legacy replay" ] }.each do |(source, context_id), (destination_id, label)|
+      @help.update_columns(context_type: HelpRequest.context_types[:recording], context_source: HelpRequest.context_sources[source], context_id: context_id)
+      from_help = plan(trigger_type: :help_request, help_request: @help, evidence: InterventionEvidenceBuilder.new(enrollment: @enrollment, trigger_type: :help_request, help_request: @help).call)
+
+      as_user(@instructor) { get "/api/v1/interventions/#{from_help.id}", headers: auth_headers }
+
+      link = response.parsed_body.dig("intervention", "evidence_links").find { |item| item["key"] == "context_id" }
+      assert_equal({ "kind" => "recording", "id" => destination_id, "context" => { "cohort_id" => @cohort.id }, "anchor" => {} }, link&.fetch("destination"), source.to_s)
+      assert_equal label, link["label"]
+      from_help.update!(status: :resolved, outcome: :support_resolved, resolution_summary: "Done")
+    end
+
+    # A recording the cohort no longer has is not linked.
+    @help.update_columns(context_source: HelpRequest.context_sources[:primary], context_id: recording.id + 1000)
+    missing = plan(trigger_type: :help_request, help_request: @help, evidence: { "help_request_id" => @help.id, "context_id" => recording.id + 1000 })
+    as_user(@instructor) { get "/api/v1/interventions/#{missing.id}", headers: auth_headers }
+    refute response.parsed_body.dig("intervention", "evidence_links").any? { |item| item["key"] == "context_id" }
+  end
+
   test "learners never read follow-up plans, and instructors only in cohorts they teach" do
     as_user(@student) { get "/api/v1/interventions/#{@plan.id}", headers: auth_headers }
     assert_response :forbidden

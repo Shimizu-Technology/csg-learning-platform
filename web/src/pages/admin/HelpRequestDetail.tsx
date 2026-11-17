@@ -22,7 +22,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
-import { HelpReplyBox, HelpReplyThread, type HelpReplyAction } from '../../components/admin/HelpReplyBox'
+import { HelpReplyBox, HelpReplyThread, useReplyAttempt, type HelpReplyAction } from '../../components/admin/HelpReplyBox'
 import { FOLLOW_UP_STATUS_LABELS } from '../../lib/followUpLabels'
 import { TERMS } from '../../lib/glossary'
 import { useToast } from '../../contexts/ToastContext'
@@ -52,6 +52,7 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   const [showStudent, setShowStudent] = useState(false)
   const [response, setResponse] = useState('')
   const [sending, setSending] = useState<HelpReplyAction | null>(null)
+  const attempt = useReplyAttempt()
   const confirm = useConfirm()
   // Opened from Support: walk that list as filtered (L-0.7). Fetched again with this viewer's access.
   const supportSource = back.fallback ? null : supportQueueSource(back.to)
@@ -122,7 +123,8 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
     if (!request || !response.trim() || sending) return
     setSending(action)
     setSaving(true)
-    const result = await api.replyToHelpRequest(request.id, { body: trimBlankLines(response), resolve: action === 'resolve' })
+    // A failed or lost send keeps its attempt id, so pressing again can't answer twice.
+    const result = await api.replyToHelpRequest(request.id, { body: trimBlankLines(response), resolve: action === 'resolve', client_request_id: attempt.id() })
     setSaving(false)
     setSending(null)
     if (!result.data) {
@@ -131,6 +133,7 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
     }
     setRequest(result.data.help_request)
     setResponse('')
+    attempt.done()
     // Sent: the move to the next request below happens before the cleared draft renders.
     guard.release()
     invalidateRecordQueues()

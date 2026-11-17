@@ -365,7 +365,7 @@ describe('help requests from Support', () => {
     vi.spyOn(api, 'replyToHelpRequest').mockImplementation(async (id, payload) => {
       const reply = { id: id * 10, body: payload.body, resolved_request: payload.resolve, author: { id: 1, full_name: 'Synthetic Staff' }, created_at: '2026-11-12T10:00:00Z' }
       requests = requests.map((item) => (item.id === id ? { ...item, status: payload.resolve ? 'resolved' : 'acknowledged', staff_response: payload.body, replies: [...(item.replies ?? []), reply] } : item))
-      return { data: { help_request: requests.find((item) => item.id === id)!, reply }, error: null }
+      return { data: { help_request: requests.find((item) => item.id === id)!, reply, replayed: false }, error: null }
     })
   })
   const replyBox = () => document.querySelector<HTMLTextAreaElement>('#help-record-response')!
@@ -385,7 +385,7 @@ describe('help requests from Support', () => {
     await typeReply('Try the loop again.')
     await press('Reply & resolve')
     await settle()
-    expect(api.replyToHelpRequest).toHaveBeenCalledWith(4, { body: 'Try the loop again.', resolve: true })
+    expect(api.replyToHelpRequest).toHaveBeenCalledWith(4, { body: 'Try the loop again.', resolve: true, client_request_id: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/) })
     expect(router.state.location.pathname).toBe('/admin/help-requests/6')
     expect(counter()).toBe('1 of 1')
   })
@@ -395,7 +395,7 @@ describe('help requests from Support', () => {
     await typeReply('Check the loop condition.')
     await press('Send reply')
     await settle()
-    expect(api.replyToHelpRequest).toHaveBeenCalledWith(4, { body: 'Check the loop condition.', resolve: false })
+    expect(api.replyToHelpRequest).toHaveBeenCalledWith(4, { body: 'Check the loop condition.', resolve: false, client_request_id: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/) })
     expect(router.state.location.pathname).toBe('/admin/help-requests/4')
     expect(container.textContent).toContain('Check the loop condition.')
     expect(container.textContent).toContain('Acknowledged')
@@ -403,6 +403,26 @@ describe('help requests from Support', () => {
     // Still active, so it can be answered again or resolved.
     expect(button('Reply & resolve')).toBeTruthy()
     expect(counter()).toBe('1 of 2')
+  })
+
+  it('retries a failed reply with the same attempt id so the learner is answered once', async () => {
+    await render(fromSupport(4))
+    const saved = vi.mocked(api.replyToHelpRequest).getMockImplementation()!
+    vi.mocked(api.replyToHelpRequest).mockResolvedValueOnce({ data: null, error: 'Network request failed', status: 0 } as never)
+    await typeReply('Check the loop condition.')
+    await press('Send reply')
+    await settle()
+    expect(replyBox().value).toBe('Check the loop condition.')
+    vi.mocked(api.replyToHelpRequest).mockImplementation(saved)
+    await press('Send reply')
+    await settle()
+    const ids = vi.mocked(api.replyToHelpRequest).mock.calls.map(([, data]) => data.client_request_id)
+    expect(ids).toHaveLength(2)
+    expect(ids[1]).toBe(ids[0])
+    await typeReply('A second, separate hint.')
+    await press('Send reply')
+    await settle()
+    expect(vi.mocked(api.replyToHelpRequest).mock.calls[2][1].client_request_id).not.toBe(ids[0])
   })
 
   it('asks before Next leaves an unsent response', async () => {

@@ -185,8 +185,16 @@ export function InterventionDetail() {
     const record = link?.destination ? recordRefFromDestination(link.destination) : null
     return record ? <RecordLink record={record} variant="inline" returnLabel={`${TERMS.followUpPlan} · ${student.full_name}`}>{label}</RecordLink> : label
   }
-  const sourceRequest = links.find((item) => item.key === 'help_request_id')
-  const sourceLesson = links.find((item) => item.key === 'context_id')
+  // The source request and where it was asked: linked when the server resolved
+  // them, otherwise the saved id as plain text, never dropped.
+  const snapshot = intervention.evidence_snapshot as Record<string, unknown>
+  const savedId = (key: string) => (typeof snapshot[key] === 'number' || typeof snapshot[key] === 'string') && String(snapshot[key]).trim() ? String(snapshot[key]) : null
+  const requestLink = links.find((item) => item.key === 'help_request_id')
+  const contextLink = links.find((item) => item.key === 'context_id')
+  const sourceRequest = requestLink ? evidenceLink('help_request_id', requestLink.id, requestLink.label) : savedId('help_request_id') && `Help request #${savedId('help_request_id')}`
+  const contextType = typeof snapshot.context_type === 'string' ? snapshot.context_type : null
+  const contextLabel = contextLink?.destination?.kind === 'recording' ? 'Recording' : contextType === 'recording' ? 'Recording' : 'Asked from'
+  const sourceContext = contextLink ? evidenceLink('context_id', contextLink.id, contextLink.label) : savedId('context_id') && `${contextType ? followUpLabel(contextType) : 'Item'} #${savedId('context_id')}`
   const renderEvidence = (key: string, value: unknown): ReactNode => key === 'submission_ids' && Array.isArray(value)
     ? value.length ? <span className="flex flex-wrap gap-x-2 gap-y-1">{value.map((id, index) => <span key={String(id)}>{evidenceLink(key, id, `#${id}`)}{index < value.length - 1 ? ',' : ''}</span>)}</span> : 'None'
     : formatEvidence(key, value)
@@ -216,7 +224,7 @@ export function InterventionDetail() {
 
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
       <div className="space-y-6">
-        <section id="evidence" tabIndex={-1} className="app-surface scroll-mt-24 p-5 outline-none sm:p-6"><h2 className="text-lg font-bold text-ink">Why this plan started</h2><p className="mt-1 text-sm text-ink-muted">Dates, categories and counts saved when the plan started. Messages, student work and private feedback aren't copied here.</p><dl className="mt-4 grid gap-3 sm:grid-cols-2">{sourceRequest && <Info label="Help request" value={evidenceLink('help_request_id', sourceRequest.id, sourceRequest.label)} />}{sourceLesson && <Info label="Asked from" value={evidenceLink('context_id', sourceLesson.id, sourceLesson.label)} />}{evidence.map(([key, value]) => <Info key={key} label={snapshotLabel(key)} value={renderEvidence(key, value)} />)}{evidence.length === 0 && !sourceRequest && <p className="text-sm text-ink-muted">Started by staff, so there are no saved details.</p>}</dl></section>
+        <section id="evidence" tabIndex={-1} className="app-surface scroll-mt-24 p-5 outline-none sm:p-6"><h2 className="text-lg font-bold text-ink">Why this plan started</h2><p className="mt-1 text-sm text-ink-muted">Dates, categories and counts saved when the plan started. Messages, student work and private feedback aren't copied here.</p><dl className="mt-4 grid gap-3 sm:grid-cols-2">{sourceRequest && <Info label="Help request" value={sourceRequest} />}{sourceContext && <Info label={contextLabel} value={sourceContext} />}{evidence.map(([key, value]) => <Info key={key} label={snapshotLabel(key)} value={renderEvidence(key, value)} />)}{evidence.length === 0 && !sourceRequest && <p className="text-sm text-ink-muted">Started by staff, so there are no saved details.</p>}</dl></section>
 
         {!terminal && <form onSubmit={saveWorkflow} className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Next steps</h2><div className="mt-4 grid gap-4"><label className="text-sm font-semibold text-ink">Status<select value={intervention.status} onChange={(event) => void setStatus(event.target.value as InterventionStatus)} className="app-control mt-2 w-full font-normal">{activeStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label className="text-sm font-semibold text-ink">Next step<textarea value={actionSummary} onChange={(event) => setActionSummary(event.target.value)} rows={4} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" placeholder="Document what staff will do next." /></label><label className="text-sm font-semibold text-ink">Next follow-up<input type="datetime-local" required value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} className="app-control mt-2 w-full font-normal tabular-nums" /></label><Button type="submit" className="justify-self-start" disabled={saving || !followUpAt}><CalendarClock className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save next steps'}</Button></div></form>}
 

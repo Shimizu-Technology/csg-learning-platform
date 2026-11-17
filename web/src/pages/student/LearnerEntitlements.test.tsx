@@ -143,6 +143,17 @@ describe('support identity and entitlements', () => {
     await click('Cancel request')
     expect(api.updateHelpRequest).toHaveBeenCalledExactlyOnceWith(93, { status: 'canceled' })
   })
+  it('shows every reply on a resolved request, not only the last one (PR #282 fix round 1)', async () => {
+    const replies = [
+      { id: 1, body: 'Print the counter first.', resolved_request: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' },
+      { id: 2, body: 'Then add one inside the loop.', resolved_request: true, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T02:00:00Z' },
+    ]
+    await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ status: 'resolved', staff_response: 'Then add one inside the loop.', replies })]} requestsLoading={false} />)
+    await click('Ask for help')
+    expect(container.textContent).toContain('Previous replies')
+    expect(container.textContent).toContain('Print the counter first.')
+    expect(container.textContent).toContain('Then add one inside the loop.')
+  })
   it('does not mistake a colliding exercise request for lesson help', async () => {
     await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ context_type: 'exercise' })]} requestsLoading={false} />)
     expect(container.textContent).toContain('Ask for help')

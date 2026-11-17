@@ -16,10 +16,11 @@ module Api
           disabled_ids = Cohort.where(id: scope.select(:cohort_id)).select { |cohort| !FeatureSwitches.for(cohort: cohort)["help_requests"] }.map(&:id)
           scope = scope.where.not(cohort_id: disabled_ids)
         end
-        requests = scope.includes(:cohort, :student, :owner, replies: :author).recent_first.limit(100)
+        requests = scope.includes(:cohort, :student, :owner, replies: :author).recent_first.limit(100).to_a
+        blocks = LearningDestination.help_request_blocks(requests)
 
         render json: {
-          help_requests: requests.map { |request| HelpRequestSerializer.as_json(request, include_student: current_user.staff?) }
+          help_requests: requests.map { |request| HelpRequestSerializer.as_json(request, include_student: current_user.staff?, blocks: blocks) }
         }
       end
 
@@ -90,11 +91,9 @@ module Api
       private
 
       def set_help_request
-        @help_request = if current_user.staff?
-          HelpRequest.where(cohort_id: current_user.accessible_cohorts.select(:id)).find(params[:id])
-        else
-          current_user.help_requests.find(params[:id])
-        end
+        # Replies and their authors in one query each, as the lists load them.
+        scope = current_user.staff? ? HelpRequest.where(cohort_id: current_user.accessible_cohorts.select(:id)) : current_user.help_requests
+        @help_request = scope.includes(:cohort, :student, :owner, replies: :author).find(params[:id])
       end
 
       def update_as_staff
@@ -121,7 +120,7 @@ module Api
           return
         end
 
-        render json: { help_request: HelpRequestSerializer.as_json(@help_request.reload, include_student: true, include_follow_up: true), status_changed: changed }
+        render json: { help_request: HelpRequestSerializer.as_json(reloaded(@help_request), include_student: true, include_follow_up: true), status_changed: changed }
       end
 
       def update_as_student
@@ -142,7 +141,11 @@ module Api
 
         changed = @help_request.cancel!
         NotificationDeliveryService.help_request_canceled(@help_request) if changed
-        render json: { help_request: HelpRequestSerializer.as_json(@help_request.reload), status_changed: changed }
+        render json: { help_request: HelpRequestSerializer.as_json(reloaded(@help_request)), status_changed: changed }
+      end
+
+      def reloaded(help_request)
+        HelpRequest.includes(:cohort, :student, :owner, replies: :author).find(help_request.id)
       end
 
       def help_request_params

@@ -417,13 +417,21 @@ it('replies to a help request and keeps it open, or replies and resolves (U-4.7)
   const screen = render(<SupportScreen />, { wrapper: Wrapper });
   fireEvent.changeText(await screen.findByLabelText('Reply to the student'), 'Add i++ inside the loop.');
   fireEvent.press(screen.getByText('Send reply'));
-  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenCalledWith(41, { body: 'Add i++ inside the loop.', resolve: false }));
+  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenCalledWith(41, { body: 'Add i++ inside the loop.', resolve: false, client_request_id: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/) }));
   expect(await screen.findByText('Add i++ inside the loop.')).toBeTruthy();
   // Still active: the reply box is back and empty, with Reply & resolve available.
   expect(screen.getByLabelText('Reply to the student').props.value).toBe('');
   fireEvent.changeText(screen.getByLabelText('Reply to the student'), 'Resolved now.');
+  // The first try fails; sending again reuses its attempt id so the server can't answer twice.
+  mockApi.replyToHelpRequest.mockRejectedValueOnce(new Error('Network request failed'));
   fireEvent.press(screen.getByText('Reply & resolve'));
-  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenLastCalledWith(41, { body: 'Resolved now.', resolve: true }));
+  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenCalledTimes(2));
+  fireEvent.press(screen.getByText('Reply & resolve'));
+  await waitFor(() => expect(mockApi.replyToHelpRequest).toHaveBeenCalledTimes(3));
+  const ids = mockApi.replyToHelpRequest.mock.calls.map(([, input]) => (input as { client_request_id: string }).client_request_id);
+  expect(mockApi.replyToHelpRequest).toHaveBeenLastCalledWith(41, { body: 'Resolved now.', resolve: true, client_request_id: ids[1] });
+  expect(ids[2]).toBe(ids[1]);
+  expect(ids[1]).not.toBe(ids[0]);
 });
 
 it('links a lesson to its source module', async () => {

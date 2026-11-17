@@ -70,15 +70,19 @@ module Api
         end
         close_notifications if @intervention.status_resolved? || @intervention.status_canceled?
 
-        render json: { intervention: InterventionSerializer.as_json(@intervention.reload, include_notes: true) }
+        render json: { intervention: InterventionSerializer.as_json(detail_scope.find(@intervention.id), include_notes: true) }
       rescue ActiveRecord::RecordInvalid, ArgumentError => e
         render json: { error: e.message }, status: :unprocessable_entity
       end
 
       private
 
+      def detail_scope
+        Intervention.includes(:owner, :created_by, enrollment: [ :user, :cohort ], notes: :author, recovery_plan: [])
+      end
+
       def set_intervention
-        @intervention = Intervention.includes(enrollment: [ :user, :cohort ], notes: :author, recovery_plan: [])
+        @intervention = detail_scope
           .joins(:enrollment).where(enrollments: { cohort_id: current_user.accessible_cohorts.select(:id) }).find(params[:id])
       end
 

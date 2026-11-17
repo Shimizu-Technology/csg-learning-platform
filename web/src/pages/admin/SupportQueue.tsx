@@ -22,7 +22,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { FilterChip, SegmentButton, SegmentedControl, TextButton } from '../../components/ui/Choice'
 import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
 import { markdownExcerpt } from '../../lib/plainText'
-import { HelpReplyBox, type HelpReplyAction } from '../../components/admin/HelpReplyBox'
+import { HelpReplyBox, useReplyAttempt, type HelpReplyAction } from '../../components/admin/HelpReplyBox'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useLeaveGuard } from '../../lib/useLeaveGuard'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
@@ -52,6 +52,7 @@ export function SupportQueue() {
   const [replying, setReplying] = useState<{ id: number; primary: HelpReplyAction } | null>(null)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState<HelpReplyAction | null>(null)
+  const attempt = useReplyAttempt()
   const confirm = useConfirm()
   const guard = useLeaveGuard({
     dirty: Boolean(draft.trim()),
@@ -68,6 +69,7 @@ export function SupportQueue() {
     // Another request's unsent reply: ask before replacing it.
     if (!(await guard.confirmLeave())) return
     setDraft('')
+    attempt.done()
     setReplying({ id: request.id, primary })
   }
 
@@ -75,7 +77,8 @@ export function SupportQueue() {
     if (!draft.trim() || sending) return
     setSending(action)
     setSavingId(request.id)
-    const result = await api.replyToHelpRequest(request.id, { body: trimBlankLines(draft), resolve: action === 'resolve' })
+    // A failed or lost send keeps its attempt id, so pressing again can't answer twice.
+    const result = await api.replyToHelpRequest(request.id, { body: trimBlankLines(draft), resolve: action === 'resolve', client_request_id: attempt.id() })
     setSending(null)
     setSavingId(null)
     if (!result.data) {
@@ -91,6 +94,7 @@ export function SupportQueue() {
       })
     }
     guard.release()
+    attempt.done()
     setReplying(null)
     setDraft('')
     toast.success(action === 'resolve' ? 'Reply sent and request resolved.' : 'Reply sent. The request stays open.')
@@ -213,7 +217,7 @@ export function SupportQueue() {
                       sending={savingId === request.id ? sending : null}
                       autoFocus
                       onSend={(action) => void sendReply(request, action)}
-                      onCancel={() => { void guard.confirmLeave().then((ok) => { if (ok) { setReplying(null); setDraft('') } }) }}
+                      onCancel={() => { void guard.confirmLeave().then((ok) => { if (ok) { attempt.done(); setReplying(null); setDraft('') } }) }}
                     />
                   </div>
                 )}

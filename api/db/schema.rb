@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_040700) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_17_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -486,11 +486,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_040700) do
   create_table "help_request_replies", force: :cascade do |t|
     t.bigint "author_id", null: false
     t.text "body", null: false
+    t.string "client_request_id", limit: 64
     t.datetime "created_at", null: false
     t.bigint "help_request_id", null: false
     t.boolean "resolved_request", default: false, null: false
     t.datetime "updated_at", null: false
     t.index ["author_id"], name: "index_help_request_replies_on_author_id"
+    t.index ["help_request_id", "author_id", "client_request_id"], name: "index_help_request_replies_on_client_request", unique: true, where: "(client_request_id IS NOT NULL)"
     t.index ["help_request_id", "created_at"], name: "index_help_request_replies_thread"
   end
 

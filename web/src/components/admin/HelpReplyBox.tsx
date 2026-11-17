@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { CheckCircle2, Send } from 'lucide-react'
 import { formatShortDateTime } from '../../lib/format'
 import type { HelpRequest } from '../../types/api'
@@ -8,6 +9,25 @@ import { Button } from '../ui/Button'
 export const HELP_REPLY_LIMIT = 2000
 
 export type HelpReplyAction = 'reply' | 'resolve'
+
+const newReplyRequestId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+  ? crypto.randomUUID()
+  : `reply-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`)
+
+/**
+ * One client request id per reply attempt (PR #282 fix round 1). A send that
+ * fails, or whose response is lost, is retried with the same id, so the
+ * server returns the reply it already saved instead of answering, and
+ * notifying the learner, twice. `done()` after a reply is confirmed (or the
+ * draft is discarded) starts a new attempt.
+ */
+export function useReplyAttempt() {
+  const id = useRef<string | null>(null)
+  return {
+    id: () => (id.current ??= newReplyRequestId()),
+    done: () => { id.current = null },
+  }
+}
 
 /**
  * The reply box for a help request (U-4.7), on the Support card and the

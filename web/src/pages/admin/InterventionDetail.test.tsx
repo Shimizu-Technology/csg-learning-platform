@@ -72,3 +72,24 @@ it('opens Message with the follow-up plan as its source', async () => {
   expect(url.searchParams.get('source_id')).toBe('61')
   expect(url.searchParams.get('source_return_to')).toBe('/admin/support')
 })
+
+it('keeps a source help request and lesson it can no longer link as plain text (L-2.5)', async () => {
+  state.getIntervention.mockResolvedValue({ data: { intervention: plan({ trigger_type: 'help_request', evidence_snapshot: { help_request_id: 44, context_type: 'lesson', context_id: 40, category: 'concept' }, evidence_links: [] }) }, error: null })
+  await act(async () => router.navigate('/admin/interventions/62'))
+  await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
+  expect(container.textContent).toContain('Help request #44')
+  expect(container.textContent).toContain('Lesson #40')
+  expect(href('Help request #44')).toBeUndefined()
+})
+
+it('links a recording the request was asked from', async () => {
+  state.getIntervention.mockResolvedValue({ data: { intervention: plan({ trigger_type: 'help_request', evidence_snapshot: { help_request_id: 44, context_type: 'recording', context_id: 3 }, evidence_links: [
+    { key: 'help_request_id', id: 44, label: 'Week 2 replay', destination: { kind: 'help_request', id: 44, context: { cohort_id: 3, student_id: 9 }, anchor: {} } },
+    { key: 'context_id', id: 3, label: 'Week 2 replay', destination: { kind: 'recording', id: 3, context: { cohort_id: 3 }, anchor: {} } },
+  ] }) }, error: null })
+  await act(async () => router.navigate('/admin/interventions/63'))
+  await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
+  const recording = Array.from(container.querySelectorAll('a')).find((anchor) => anchor.getAttribute('href')?.startsWith('/recordings'))
+  expect(recording?.getAttribute('href')).toMatch(/^\/recordings\?cohort_id=3&recording=3/)
+  expect(container.textContent).toContain('Recording')
+})

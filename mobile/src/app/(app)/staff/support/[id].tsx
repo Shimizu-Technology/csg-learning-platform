@@ -21,7 +21,8 @@ import type { SupportQueue } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { formatCourseDateTime } from '@/lib/course-time';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { newReplyRequestId } from '@/lib/reply-attempt';
 import { humanize } from '@/lib/display-labels';
 
 export default function StaffHelpRequestScreen() {
@@ -59,14 +60,16 @@ export default function StaffHelpRequestScreen() {
   });
 
   // Reply keeps the request open; Reply & resolve closes it (U-4.7).
+  const attemptId = useRef<string | null>(null);
   const reply = useMutation({
-    mutationFn: (input: { body: string; resolve: boolean }) => {
+    mutationFn: (input: { body: string; resolve: boolean; client_request_id: string }) => {
       if (!auth.demo) return api.replyToHelpRequest(requestId, input);
       const now = new Date().toISOString();
       const sent = { id: Date.now(), body: input.body, resolved_request: input.resolve, author: { id: user?.id || 0, full_name: user?.full_name || 'You' }, created_at: now };
       return Promise.resolve({ reply: sent, help_request: { ...request!, status: input.resolve ? 'resolved' as const : 'acknowledged' as const, staff_response: input.body, replies: [...(request!.replies ?? []), sent], acknowledged_at: request!.acknowledged_at || now, resolved_at: input.resolve ? now : null, updated_at: now } });
     },
     onSuccess: async (result) => {
+      attemptId.current = null;
       setResponse('');
       queryClient.setQueryData(learningKeys.helpRequest(user?.id || 0, requestId), { help_request: result.help_request });
       queryClient.setQueryData<{ support_queue: SupportQueue }>(learningKeys.supportQueue(user?.id || 0), (current) => current ? { support_queue: updateSupportQueueHelpRequest(current.support_queue, result.help_request) } : current);
@@ -75,6 +78,7 @@ export default function StaffHelpRequestScreen() {
     onError: (error) => Alert.alert('Could not send the reply', (error as Error).message),
   });
   const busy = mutation.isPending || reply.isPending;
+  const sendReply = (resolve: boolean) => reply.mutate({ body: response.trim(), resolve, client_request_id: attemptId.current ??= newReplyRequestId() });
 
   async function openMessage() {
     if (!request?.student) return;
@@ -115,7 +119,7 @@ export default function StaffHelpRequestScreen() {
         else void openAuthenticatedWebPage(api, request.context_path).catch((error) => Alert.alert('Could not open it', (error as Error).message));
       }} style={styles.linkButton}><BookOpen color={c.text.body} size={17} /><Text style={styles.linkText}>{request.context_type === 'recording' ? 'Open recording' : 'Open lesson'}</Text><ExternalLink color={c.text.muted} size={16} /></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/help-requests/${request.id}`).catch((error) => Alert.alert('Could not open the help request', (error as Error).message))} style={styles.linkButton}><LifeBuoy color={c.text.body} size={17} /><Text style={styles.linkText}>Open full help request</Text><ExternalLink color={c.text.muted} size={16} /></Pressable></View>
 
-      {active && <View style={styles.actionCard}>{request.status === 'open' && <Pressable accessibilityRole="button" disabled={busy} onPress={() => mutation.mutate({ status: 'acknowledged' })} style={styles.secondaryButton}><UserRoundCheck color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Acknowledge</Text></Pressable>}<Text style={styles.label}>REPLY VISIBLE TO THE STUDENT</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Reply to the student" value={response} onChangeText={setResponse} maxLength={2000} multiline placeholder="Give a clear next step, explanation, or question back." placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => reply.mutate({ body: response.trim(), resolve: false })} style={[styles.secondaryButton, (!response.trim() || busy) && styles.disabled]}><Send color={c.text.strong} size={17} /><Text style={styles.secondaryText}>{reply.isPending && !reply.variables?.resolve ? 'Sending…' : 'Send reply'}</Text></Pressable><Button variant="primary" accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => reply.mutate({ body: response.trim(), resolve: true })} style={[styles.primaryButton, (!response.trim() || busy) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{reply.isPending && reply.variables?.resolve ? 'Sending…' : 'Reply & resolve'}</Text></Button><Text style={styles.metaText}>Send reply keeps the request open.</Text></View>}
+      {active && <View style={styles.actionCard}>{request.status === 'open' && <Pressable accessibilityRole="button" disabled={busy} onPress={() => mutation.mutate({ status: 'acknowledged' })} style={styles.secondaryButton}><UserRoundCheck color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Acknowledge</Text></Pressable>}<Text style={styles.label}>REPLY VISIBLE TO THE STUDENT</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Reply to the student" value={response} onChangeText={setResponse} maxLength={2000} multiline placeholder="Give a clear next step, explanation, or question back." placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => sendReply(false)} style={[styles.secondaryButton, (!response.trim() || busy) && styles.disabled]}><Send color={c.text.strong} size={17} /><Text style={styles.secondaryText}>{reply.isPending && !reply.variables?.resolve ? 'Sending…' : 'Send reply'}</Text></Pressable><Button variant="primary" accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => sendReply(true)} style={[styles.primaryButton, (!response.trim() || busy) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{reply.isPending && reply.variables?.resolve ? 'Sending…' : 'Reply & resolve'}</Text></Button><Text style={styles.metaText}>Send reply keeps the request open.</Text></View>}
     </ScrollView>
   </SafeAreaView>;
 }

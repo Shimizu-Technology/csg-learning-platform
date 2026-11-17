@@ -1,10 +1,12 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 # U-4.7: staff can reply to a help request and keep it open, or reply and
 # resolve it. Each reply notifies the learner once, through the same
 # help-request notification as acknowledging and resolving.
 class HelpRequestRepliesTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
+  include QueryCounter
 
   def setup
     @curriculum = Curriculum.create!(name: "Replies course")
@@ -142,11 +144,71 @@ class HelpRequestRepliesTest < ActionDispatch::IntegrationTest
       response.parsed_body.dig("help_request", "follow_up"))
   end
 
+  test "a retried reply returns the saved reply and pushes nothing again" do
+    reply(@instructor, "Check the loop condition.", client_request_id: "reply-attempt-0001")
+    assert_response :created
+    first_id = response.parsed_body.dig("reply", "id")
+    assert_equal false, response.parsed_body["replayed"]
+    clear_enqueued_jobs
+
+    # The response was lost; the client sends the same attempt again.
+    reply(@instructor, "Check the loop condition.", client_request_id: "reply-attempt-0001")
+
+    assert_response :created
+    assert_equal true, response.parsed_body["replayed"]
+    assert_equal first_id, response.parsed_body.dig("reply", "id")
+    assert_equal 1, @help.reload.replies.count
+    assert_no_enqueued_jobs only: PushNotificationJob
+  end
+
+  test "a retried Reply & resolve replays after the request is resolved" do
+    reply(@instructor, "Add one to the counter.", resolve: true, client_request_id: "resolve-attempt-01")
+    assert_response :created
+    clear_enqueued_jobs
+
+    reply(@instructor, "Add one to the counter.", resolve: true, client_request_id: "resolve-attempt-01")
+
+    assert_response :created, "a retry of the resolving reply is not refused as a change to a resolved request"
+    assert_equal true, response.parsed_body["replayed"]
+    assert_equal "resolved", response.parsed_body.dig("help_request", "status")
+    assert_equal 1, @help.reload.replies.count
+    assert_no_enqueued_jobs only: PushNotificationJob
+    # A new attempt (new id) on the resolved request is still refused.
+    reply(@instructor, "One more thing.", client_request_id: "resolve-attempt-02")
+    assert_response :unprocessable_entity
+  end
+
+  test "client request ids are scoped to the author and the request, and must be well formed" do
+    reply(@instructor, "First hint.", client_request_id: "shared-attempt-1")
+    reply(@admin, "Second hint.", client_request_id: "shared-attempt-1")
+    assert_equal false, response.parsed_body["replayed"], "another staff member's id never replays someone else's reply"
+    assert_equal 2, @help.reload.replies.count
+
+    [ "short", "x" * 65, "has spaces in it", "semi;colon-id" ].each do |bad|
+      reply(@instructor, "Bad id.", client_request_id: bad)
+      assert_response :unprocessable_entity, bad
+    end
+    assert_equal 2, @help.reload.replies.count
+  end
+
+  test "the request record loads its replies in a fixed number of queries" do
+    counts = [ 2, 10 ].map do |size|
+      (@help.replies.count...size).each { |index| @help.replies.create!(author: index.even? ? @instructor : @admin, body: "Hint #{index}") }
+      as_user(@instructor) { get "/api/v1/help_requests/#{@help.id}", headers: auth_headers }
+      assert_response :success
+      assert_equal size, response.parsed_body.dig("help_request", "replies").size
+      count_queries { as_user(@instructor) { get "/api/v1/help_requests/#{@help.id}", headers: auth_headers } }
+    end
+    assert_equal counts.first, counts.last, "GET /help_requests/:id sent #{counts.join(' then ')} queries for 2 then 10 replies"
+  end
+
   private
 
-  def reply(user, body, resolve: false)
+  def reply(user, body, resolve: false, client_request_id: nil)
+    payload = { body: body, resolve: resolve }
+    payload[:client_request_id] = client_request_id if client_request_id
     as_user(user) do
-      post "/api/v1/help_requests/#{@help.id}/replies", params: { reply: { body: body, resolve: resolve } }, headers: auth_headers, as: :json
+      post "/api/v1/help_requests/#{@help.id}/replies", params: { reply: payload }, headers: auth_headers, as: :json
     end
   end
 

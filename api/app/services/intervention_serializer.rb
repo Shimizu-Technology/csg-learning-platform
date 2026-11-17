@@ -35,7 +35,8 @@ class InterventionSerializer
       recovery_plan_id: intervention.recovery_plan&.id
     }
     if include_notes
-      payload[:notes] = intervention.notes.order(created_at: :asc).map { |note| note_json(note) }
+      # Sorted in Ruby so the preloaded notes and authors are used, not queried again.
+      payload[:notes] = intervention.notes.sort_by { |note| [ note.created_at, note.id ] }.map { |note| note_json(note) }
       payload[:evidence_links] = evidence_links(intervention)
     end
     payload
@@ -68,6 +69,8 @@ class InterventionSerializer
         links << { key: "help_request_id", id: request.id, label: request.context_label, destination: RecordDestination.build(kind: "help_request", id: request.id, context: { cohort_id: cohort_id, student_id: request.student_id }) }
         lesson = evidence_lesson(request, enrollment.cohort)
         links << { key: "context_id", id: lesson.id, label: lesson.title, destination: RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort_id }) } if lesson
+        recording = evidence_recording(request, enrollment.cohort)
+        links << { key: "context_id", id: request.context_id, label: recording[:label], destination: RecordDestination.build(kind: "recording", id: recording[:id], context: { cohort_id: cohort_id }) } if recording
       end
     end
     links
@@ -80,6 +83,20 @@ class InterventionSerializer
     when "exercise" then ContentBlock.includes(lesson: :curriculum_module).find_by(id: request.context_id)&.lesson
     end
     lesson if lesson&.curriculum_module&.curriculum_id == cohort.curriculum_id
+  end
+
+  # The recording a help request was asked from, when the cohort still has it.
+  # Legacy recordings live in the cohort's settings and use the "legacy-" id.
+  def self.evidence_recording(request, cohort)
+    return unless request.context_type_recording?
+
+    if request.context_source_legacy?
+      entry = Array((cohort.settings || {})["recordings"])[request.context_id]
+      entry && { id: "legacy-#{cohort.id}-#{request.context_id + 1}", label: entry["title"].presence || request.context_label }
+    else
+      recording = cohort.recordings.find_by(id: request.context_id)
+      recording && { id: recording.id, label: recording.title }
+    end
   end
 
   def self.note_json(note)
@@ -96,5 +113,5 @@ class InterventionSerializer
     { id: user.id, full_name: user.full_name }
   end
 
-  private_class_method :person, :evidence_lesson
+  private_class_method :person, :evidence_lesson, :evidence_recording
 end

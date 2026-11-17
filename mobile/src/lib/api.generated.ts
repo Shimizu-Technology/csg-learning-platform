@@ -274,7 +274,7 @@ export interface paths {
         put?: never;
         /**
          * Reply to a help request (staff)
-         * @description Body: `{ "reply": { "body": string, "resolve": boolean } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply or a resolved or canceled request.
+         * @description Body: `{ "reply": { "body": string, "resolve": boolean, "client_request_id"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.
          */
         post: {
             parameters: {
@@ -6845,6 +6845,8 @@ export interface components {
         HelpRequestReplyResponse: {
             help_request: components["schemas"]["HelpRequest"];
             reply: components["schemas"]["HelpRequestReply"];
+            /** @description True when this was a retry: the reply saved by an earlier request with the same `client_request_id` is returned and nobody is notified again. */
+            replayed: boolean;
         };
     };
     responses: {

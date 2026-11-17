@@ -223,10 +223,26 @@ class User < ApplicationRecord
     Cohort.where(id: enrollments.with_read_access.select(:cohort_id))
   end
 
+  # Lists that check many records' owners (Support's follow-up and return
+  # plans) load every instructor's assignments in one query instead of one
+  # per row. Only those loaded instances use the result, for that request.
+  def self.preload_assigned_cohort_ids(users)
+    instructors = users.compact.select(&:instructor?)
+    return if instructors.empty?
+
+    assigned = CohortInstructorAssignment.where(user_id: instructors.map(&:id).uniq).pluck(:user_id, :cohort_id)
+      .group_by(&:first).transform_values { |pairs| pairs.map(&:last).to_set }
+    instructors.each { |user| user.instance_variable_set(:@preloaded_assigned_cohort_ids, assigned.fetch(user.id, Set.new)) }
+  end
+
   def can_access_cohort?(cohort)
     return false if cohort.nil? || archived?
     return true if admin?
-    return cohort_instructor_assignments.exists?(cohort_id: cohort.id) if instructor?
+    if instructor?
+      return @preloaded_assigned_cohort_ids.include?(cohort.id) if @preloaded_assigned_cohort_ids
+
+      return cohort_instructor_assignments.exists?(cohort_id: cohort.id)
+    end
 
     enrollments.with_read_access.exists?(cohort_id: cohort.id)
   end
