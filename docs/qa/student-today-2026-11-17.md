@@ -166,6 +166,27 @@ A fresh harness on `cb0a2f73` (servers `68050`/`68089`, claimed, then stopped an
 - Switch On: **32/32**. That's 7 personas × 390/1280 × light/dark, plus the journeys at both widths and Show all under reduced motion. Phone targets were checked for width as well as height.
 - Measurements match the table above. The paused learner's first link is now the cohort record link in the heading.
 
+### Merged with #294 (W8.3 lesson page), `186fed5d`
+
+#294 landed during the fix round. I merged `origin/main` and resolved the conflicts:
+
+- **`ContextualHelp.tsx`:** keeps #294's single help entry, exercise targeting, "View response" rule and legacy `staff_response` handling, plus this branch's deep-link fixes. The linked request is looked up across the lesson's whole help history (exercises included) and shown in the dialog. A new link on an open lesson refetches the requests.
+- **`ContentBlockRenderer.tsx` and `LessonView.tsx`:** these are `main`'s, unchanged; W8.3 owns them. The redesigned lesson page names its instructor through #294's own `instructor` field. So this branch's lesson-payload `reviewer`, submission `grader` and the renderer edits are dropped rather than shipped as a second, overlapping concept. Grader names stay on Today and My work.
+- **Message eligibility:** one rule, `Workspace#messageable_users_for` (available people minus blocks either way). The direct-message directory (`GET /direct_conversations/available_users`, used by #294's `PersonActions` and `InstructorMessageAction`) and `StaffContact` both read it. My work keeps its own "Ask about this feedback" action rather than `PersonActions`. `PersonActions` has a fixed "Message <name>" label, no lesson-link prefill, and one directory request per instance, so a page of rows would make N requests. The server's `ask_to` decides eligibility once for all rows.
+- Both type files were regenerated, not hand-merged. The OpenAPI document was merged three ways with no field conflicts.
+
+**Gate on the merged head `4e7d1bc9`** (local MacBook; the ASUS is unreachable). Stages ran one at a time; the unprepared API run waited for the load to drop from 45 to under 25:
+
+- API, prepared statements on and off: **2,082 runs and 42,341 assertions** each, 0 failures.
+- RuboCop: 736 files, clean. Brakeman: 0 warnings, plus the 1 long-standing ignored entry from `main`.
+- Web: typecheck, lint, vitest (234 files, 2,635 tests), build, `test:bundle` and `api:check` passed.
+- Mobile: typecheck, lint (0 errors) and jest (1,544 tests) passed.
+
+**Browser matrix on the merged head** (servers `64006`/`64279`, claimed, then cleaned): switch Off **28/28**, switch On **32/32**.
+
+- The journeys pass on #294's lesson page. The redo feedback lands 169px from the top at 1280 and 194px at 390.
+- The other measurements match the table.
+
 ## Not run
 
 - Native device UI and native visual parity (follow-up).
@@ -184,6 +205,6 @@ A fresh harness on `cb0a2f73` (servers `68050`/`68089`, claimed, then stopped an
 ## Resources
 
 - Lifecycle session `2a22c646-2f4f-4bc8-acaa-b14cad908eea`.
-- Four harness runs: servers `93920`/`93952`, `84921`/`85052`, `3626`/`3696` (on the merged head) and `68050`/`68089` (fix round). Each was claimed, then stopped and its database dropped with `scripts/qa/run clean`. Playwright pages were claimed and released per test by the spec.
+- Five harness runs: servers `93920`/`93952`, `84921`/`85052`, `3626`/`3696`, `68050`/`68089` (fix round) and `64006`/`64279` (merged with #294). Each was claimed, then stopped and its database dropped with `scripts/qa/run clean`. Playwright pages were claimed and released per test by the spec.
 - The owned local test database `csg_student_today_test` was dropped at the end.
 - The ASUS wrapper removes its own container; its retry loop was stopped once the ASUS was known to be unreachable. Shared PostgreSQL and other sessions' worktrees were left untouched.
