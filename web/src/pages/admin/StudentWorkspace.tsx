@@ -3,7 +3,7 @@ import { NavLink, useParams } from 'react-router-dom'
 import { StudentAccess } from '../../components/admin/StudentAccess'
 import { StudentCommunication } from '../../components/admin/StudentCommunication'
 import { StudentLearningPlan } from '../../components/admin/StudentLearningPlan'
-import { WorkspaceSectionSelect } from '../../components/admin/WorkspaceSectionSelect'
+import { WorkspaceSectionMenu } from '../../components/admin/WorkspaceSectionMenu'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -88,7 +88,12 @@ function Workspace() {
 
   return (
     <ReturnOrigin label={progress.user.full_name}>
-      <div className="app-page-wide space-y-6">
+      <div
+        className={
+          'app-page-wide space-y-6 max-lg:[&_input]:text-base ' +
+          'max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base'
+        }
+      >
         {refreshError && (
           <div
             role="alert"
@@ -106,19 +111,19 @@ function Workspace() {
           </div>
         )}
         <StudentWorkspaceHeader workspace={{ ...workspace, progress, cohort }} />
-        <nav aria-label="Student page sections" className="overflow-x-auto border-b border-line">
-          <WorkspaceSectionSelect
+        <nav aria-label="Student page sections" className="workspace-sections border-b border-line lg:overflow-x-auto">
+          <WorkspaceSectionMenu
             label="Student page sections"
             value={cohortStudentPath(cohortId, studentId, activeTab)}
             state={returnState}
             sections={tabs.map((tab) => {
-              const counts =
-                tab.id === 'work'
-                  ? [ungraded]
-                  : tab.id === 'support'
-                    ? [openHelp, progress.status?.active_intervention_count]
-                    : []
-              const detail = counts.filter((count): count is number => count !== undefined && count > 0)
+              const detail: string[] = []
+              if (tab.id === 'work' && ungraded) detail.push(`${ungraded} waiting`)
+              if (tab.id === 'support') {
+                if (openHelp) detail.push(`${openHelp} open`)
+                const plans = progress.status?.active_intervention_count
+                if (plans) detail.push(`${plans} ${plans === 1 ? 'plan' : 'plans'}`)
+              }
               return {
                 to: cohortStudentPath(cohortId, studentId, tab.id),
                 label: `${tab.label}${detail.length ? ` (${detail.join(', ')})` : ''}`,
@@ -155,6 +160,7 @@ function Workspace() {
 
         {activeTab === 'overview' && (
           <OverviewTab
+            returnState={returnState}
             aside={
               <RelatedPanel
                 rows={

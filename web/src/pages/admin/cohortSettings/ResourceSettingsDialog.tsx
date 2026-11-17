@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { ExternalLink, Keyboard, Link2, Plus, Save, Trash2 } from 'lucide-react'
 import { Modal } from '../../../components/shared/Modal'
 import { Badge } from '../../../components/ui/Badge'
@@ -8,6 +9,7 @@ import { RESOURCE_CATEGORY_LABELS, RESOURCE_CATEGORY_OPTIONS } from './settingsF
 import type { CohortSettingsController } from './useCohortSettings'
 
 export function ResourceSettingsDialog({ settings }: { settings: CohortSettingsController }) {
+  const fieldId = useId()
   const {
     savingResources,
     classResources,
@@ -44,7 +46,7 @@ export function ResourceSettingsDialog({ settings }: { settings: CohortSettingsC
           </div>
         }
       >
-        <div className="space-y-4 max-lg:[&_input]:text-base max-lg:[&_select]:text-base">
+        <div className="space-y-4 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base">
           <SegmentedControl label="Resources mode">
             {(['view', 'edit'] as const).map((mode) => (
               <SegmentButton key={mode} selected={resourcesMode === mode} onClick={() => setResourcesMode(mode)}>
@@ -127,21 +129,30 @@ export function ResourceSettingsDialog({ settings }: { settings: CohortSettingsC
                           className="app-control w-full"
                         />
                       </div>
-                      <select
-                        value={res.category || 'general'}
-                        onChange={(e) =>
-                          setClassResources((prev) =>
-                            prev.map((item, i) => (i === idx ? { ...item, category: e.target.value } : item)),
-                          )
-                        }
-                        className="app-control w-full"
-                      >
-                        {RESOURCE_CATEGORY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div>
+                        <label
+                          htmlFor={`${fieldId}-category-${idx}`}
+                          className="mb-1 block text-xs font-semibold text-ink-secondary"
+                        >
+                          Category
+                        </label>
+                        <select
+                          id={`${fieldId}-category-${idx}`}
+                          value={res.category || 'general'}
+                          onChange={(e) =>
+                            setClassResources((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, category: e.target.value } : item)),
+                            )
+                          }
+                          className="app-control w-full"
+                        >
+                          {RESOURCE_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <input
                       type="url"

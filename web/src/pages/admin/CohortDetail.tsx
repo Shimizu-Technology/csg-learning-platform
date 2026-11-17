@@ -60,7 +60,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     >
       <fieldset
         disabled={saving}
-        className="min-w-0 space-y-6 max-lg:pb-20 max-lg:[&_input]:text-base max-lg:[&_select]:text-base"
+        className="min-w-0 space-y-6 max-lg:pb-20 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base"
       >
         <UnsavedChangesGuard
           pathnameOnly={false}
@@ -83,7 +83,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         <SettingsFields settings={ready} />
         <Button
           className={
-            'fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] z-20 ' +
+            'hide-with-keyboard fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] z-20 ' +
             'lg:sticky lg:inset-x-auto lg:bottom-4'
           }
           type="submit"

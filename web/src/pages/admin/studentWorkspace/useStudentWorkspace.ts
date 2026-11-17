@@ -40,6 +40,15 @@ export function useStudentWorkspace() {
   const params = useParams<{ cohortId: string; id: string; tab?: string }>()
   const cohortId = Number(params.cohortId)
   const studentId = Number(params.id)
+  const active = useRef(true)
+  const currentStudent = useRef({ cohortId, studentId })
+  currentStudent.current = { cohortId, studentId }
+  useEffect(() => {
+    active.current = true
+    return () => {
+      active.current = false
+    }
+  }, [])
   const activeTab = tabIds.has(params.tab as StudentWorkspaceTab) ? (params.tab as StudentWorkspaceTab) : 'overview'
   const navigate = useNavigate()
   const toast = useToast()
@@ -237,7 +246,9 @@ export function useStudentWorkspace() {
     if (!data) return
     setOpeningMessage(true)
     const result = await api.createDirectConversation({ cohort_id: cohortId, user_ids: [studentId] })
+    if (!active.current) return
     setOpeningMessage(false)
+    if (currentStudent.current.cohortId !== cohortId || currentStudent.current.studentId !== studentId) return
     if (result.data)
       navigate(
         conversationPath(

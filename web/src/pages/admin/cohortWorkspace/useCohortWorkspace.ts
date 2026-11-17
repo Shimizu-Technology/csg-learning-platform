@@ -59,6 +59,10 @@ export function useCohortWorkspace({ cohortId }: { cohortId: number }) {
       : 'overview'
   const [cohort, setCohort] = useState<CohortDetail | null>(null)
   const [home, setHome] = useState<CohortHome | null>(null)
+  const [homeLoading, setHomeLoading] = useState(true)
+  const [homeError, setHomeError] = useState<string | null>(null)
+  const [homeAttempt, setHomeAttempt] = useState(0)
+  const retryHome = () => setHomeAttempt((value) => value + 1)
   const location = useLocation()
   // The cohort page reads no return_to beyond Activity; other origins arrive as router state.
   const back = useBackLink({ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' }, { accept: 'activity' })
@@ -96,18 +100,42 @@ export function useCohortWorkspace({ cohortId }: { cohortId: number }) {
           setLoading(false)
         }
       })
-    void api
-      .getCohortHome(cohortId)
-      .then((result) => {
-        if (active && result.data && !result.error && !result.fromCache) setHome(result.data.home)
-      })
-      .catch(() => {
-        if (active) setHome(null)
-      })
     return () => {
       active = false
     }
   }, [cohortId, loadAttempt])
+
+  useEffect(() => {
+    if (!Number.isInteger(cohortId) || cohortId <= 0) {
+      setHomeLoading(false)
+      return
+    }
+    let active = true
+    setHomeLoading(true)
+    setHomeError(null)
+    void api
+      .getCohortHome(cohortId)
+      .then((result) => {
+        if (!active) return
+        if (result.data && !result.error && !result.fromCache) setHome(result.data.home)
+        else {
+          setHome(null)
+          setHomeError(result.error || 'Could not load cohort updates.')
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setHome(null)
+          setHomeError('Could not load cohort updates.')
+        }
+      })
+      .finally(() => {
+        if (active) setHomeLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [cohortId, homeAttempt, loadAttempt])
 
   const loadInsights = useCallback(async () => {
     setInsightsLoading(true)
@@ -136,6 +164,9 @@ export function useCohortWorkspace({ cohortId }: { cohortId: number }) {
     cohort,
     setCohort,
     home,
+    homeLoading,
+    homeError,
+    retryHome,
     location,
     back,
     related,

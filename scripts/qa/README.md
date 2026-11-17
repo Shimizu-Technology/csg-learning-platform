@@ -161,10 +161,10 @@ Stripe. Existing API regressions cover actual checkout/session/webhook logic.
 Start the harness and load `student-workspace-fixtures.rb` as above. Run:
 
 ```sh
-QA_SPEC=staff-mobile-layout.spec.ts DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+QA_SPEC='staff-mobile*.spec.ts' DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
 ```
 
-The spec checks every staff cohort/student section as admin and instructor,
+The layout spec checks every staff cohort/student section as admin and instructor,
 light/dark, at 390/1280. It also checks Settings sizing, pinned Save, the leave
 guard, simulated save failure/retry, API-verified persistence, keyboard selection,
 Back and Activity return context. Settings changes are reset through the UI.
@@ -172,6 +172,13 @@ No provider delivery is attempted. Screenshots go to ignored
 `.qa-local/staff-layout/after/`. `QA_LAYOUT_BASELINE=1` captures the desktop
 baseline instead and skips post-change acceptance; use it before editing the
 page source. Browser Date is fixed for reproducible relative labels.
+
+`staff-mobile-fixes.spec.ts` adds keyboard-only disclosure navigation, Escape,
+modified-click, history and draft checks; short-dialog scrolling and accessible
+editor labels; keyboard-aware pinned chrome and 16px fields; fractional
+breakpoints and focus rings; roster targets and support counts; Learning return
+context; update loading/error/retry; and delayed message responses. The keyboard
+viewport is simulated in Chromium and does not certify iOS Safari hardware.
 
 The web-only ASUS gate is
 `asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/staff-mobile-layout-gate.sh`.

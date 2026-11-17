@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { CalendarDays, Github, Save, Trash2 } from 'lucide-react'
 import { Modal } from '../../../components/shared/Modal'
 import { Badge, type BadgeTone } from '../../../components/ui/Badge'
@@ -13,6 +14,7 @@ import {
 import type { CohortSettingsController } from './useCohortSettings'
 
 export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsController }) {
+  const fieldId = useId()
   const {
     cohort,
     forms,
@@ -69,7 +71,7 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
               </div>
             }
           >
-            <div className="space-y-5 max-lg:[&_input]:text-base max-lg:[&_select]:text-base">
+            <div className="space-y-5 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base">
               <p className="text-sm text-ink-secondary">
                 Module selection and access settings apply to current students and students who join later. Individual
                 student overrides stay separate.
@@ -90,11 +92,15 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
               </div>
 
               <div>
-                <label className="flex items-center gap-1 text-xs font-semibold text-ink-secondary mb-1">
+                <label
+                  htmlFor={`${fieldId}-module-start`}
+                  className="flex items-center gap-1 text-xs font-semibold text-ink-secondary mb-1"
+                >
                   <CalendarDays className="h-3.5 w-3.5" />
                   Module start date
                 </label>
                 <input
+                  id={`${fieldId}-module-start`}
                   type="date"
                   value={form.module_start_date}
                   onChange={(e) => updateForm(configureMod.id, { module_start_date: e.target.value })}
@@ -132,8 +138,14 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                 </label>
                 {form.requires_github && (
                   <div>
-                    <label className="block text-xs font-semibold text-ink-secondary mb-1">Repository name</label>
+                    <label
+                      htmlFor={`${fieldId}-repository`}
+                      className="block text-xs font-semibold text-ink-secondary mb-1"
+                    >
+                      Repository name
+                    </label>
                     <input
+                      id={`${fieldId}-repository`}
                       type="text"
                       value={form.repository_name}
                       onChange={(e) => updateForm(configureMod.id, { repository_name: e.target.value })}

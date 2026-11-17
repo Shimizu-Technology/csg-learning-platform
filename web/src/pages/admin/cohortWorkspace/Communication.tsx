@@ -1,17 +1,23 @@
 import { ArrowRight, MessageSquareText } from 'lucide-react'
 import { RecordLink } from '../../../components/shared/RecordLink'
-import { LinkButton } from '../../../components/ui/Button'
+import { Button, LinkButton } from '../../../components/ui/Button'
 import { PreviewLink as Link } from '../../../contexts/PreviewNavigationContext'
 import type { CohortDetail, CohortHome } from '../../../types/api'
 
 export function Communication({
   cohort,
   home,
+  loading,
+  error,
+  onRetry,
   messages,
   announcements,
 }: {
   cohort: CohortDetail
   home: CohortHome | null
+  loading: boolean
+  error: string | null
+  onRetry: () => void
   messages: boolean
   announcements: boolean
 }) {
@@ -36,7 +42,18 @@ export function Communication({
           <p className="text-xs font-semibold text-ink-muted">Updates</p>
           <h2 className="mt-2 text-lg font-bold text-ink">Updates for this cohort</h2>
           <div className="mt-4 space-y-2">
-            {home?.recent_announcements.length ? (
+            {loading ? (
+              <p role="status" className="text-sm text-ink-muted">
+                Loading cohort updates…
+              </p>
+            ) : error || !home ? (
+              <div role="alert" className="space-y-2 text-sm text-ink-secondary">
+                <p>{error || 'Could not load cohort updates.'}</p>
+                <Button variant="secondary" onClick={onRetry}>
+                  Retry updates
+                </Button>
+              </div>
+            ) : home.recent_announcements.length ? (
               home.recent_announcements.map((announcement) => (
                 <RecordLink
                   key={announcement.id}

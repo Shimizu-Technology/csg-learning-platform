@@ -8,7 +8,7 @@ import { CohortTeachingTeam } from '../../components/admin/CohortTeachingTeam'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { SetupWizard } from '../../components/admin/SetupWizard'
 import { StaffActivityFeed } from '../../components/admin/StaffActivityFeed'
-import { WorkspaceSectionSelect } from '../../components/admin/WorkspaceSectionSelect'
+import { WorkspaceSectionMenu } from '../../components/admin/WorkspaceSectionMenu'
 import { CohortStatusBadge } from '../../components/shared/CohortStatusBadge'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -47,6 +47,9 @@ function Workspace({ cohortId }: { cohortId: number }) {
     cohort,
     setCohort,
     home,
+    homeLoading,
+    homeError,
+    retryHome,
     location,
     back,
     related,
@@ -74,7 +77,12 @@ function Workspace({ cohortId }: { cohortId: number }) {
 
   return (
     <ReturnOrigin label={cohort.name}>
-      <div className="app-page-wide space-y-6">
+      <div
+        className={
+          'app-page-wide space-y-6 max-lg:[&_input]:text-base ' +
+          'max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base'
+        }
+      >
         {!user?.is_admin && searchParams.get('settings_notice') === '1' && (
           <p role="status" className="rounded-xl border border-line p-4 text-sm text-ink-secondary">
             Cohort settings are managed by admins.
@@ -122,8 +130,8 @@ function Workspace({ cohortId }: { cohortId: number }) {
           }
         />
 
-        <nav aria-label="Cohort sections" className="border-b border-line lg:overflow-x-auto">
-          <WorkspaceSectionSelect
+        <nav aria-label="Cohort sections" className="workspace-sections border-b border-line lg:overflow-x-auto">
+          <WorkspaceSectionMenu
             label="Cohort sections"
             value={cohortPath(cohort.id, activeTab === 'insights' ? 'learning' : activeTab)}
             state={forwardReturnState(location.state)}
@@ -290,6 +298,9 @@ function Workspace({ cohortId }: { cohortId: number }) {
           <Communication
             cohort={cohort}
             home={home}
+            loading={homeLoading}
+            error={homeError}
+            onRetry={retryHome}
             messages={enabled('class_channels')}
             announcements={enabled('announcements')}
           />

@@ -296,6 +296,7 @@ export function Students({ cohort }: { cohort: CohortDetail }) {
                     record={{ type: 'student', id: student.user_id, cohortId: cohort.id }}
                     returnLabel={`${cohort.name} · Students`}
                     variant="unstyled"
+                    touchTarget
                     truncate
                     className="font-semibold text-ink hover:text-primary-soft-ink hover:underline"
                     title={student.full_name || student.email}

@@ -1,3 +1,4 @@
+import type { ReturnContext } from '../../../lib/navigationContext'
 import {
   CheckCircle2,
   CircleHelp,
@@ -27,6 +28,7 @@ import type {
 
 export function OverviewTab({
   aside,
+  returnState,
   sections,
   progress,
   submissions,
@@ -35,6 +37,7 @@ export function OverviewTab({
   studentId,
 }: {
   aside?: ReactNode
+  returnState?: ReturnContext
   sections: {
     submissions: Section<Submission[]>
     help: Section<HelpRequest[]>
@@ -66,6 +69,7 @@ export function OverviewTab({
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         <MetricCard
           to={learningPath}
+          state={returnState}
           icon={GraduationCap}
           label="Learning progress"
           value={`${progress.overall_progress.percentage}%`}
@@ -99,6 +103,7 @@ export function OverviewTab({
         <SectionBoundary section={sections.recordings} label="Recordings">
           <MetricCard
             to={`${learningPath}#recordings`}
+            state={returnState}
             icon={Video}
             label="Recordings completed"
             value={media ? `${media.recordings_completed}/${media.recordings_total}` : 'Unavailable'}
@@ -109,6 +114,7 @@ export function OverviewTab({
         <SectionBoundary section={sections.videos} label="Lesson videos">
           <MetricCard
             to={`${learningPath}#lesson-videos`}
+            state={returnState}
             icon={Video}
             label="Lesson videos completed"
             value={media ? `${media.lesson_videos_completed}/${media.lesson_videos_total}` : 'Unavailable'}
@@ -121,7 +127,11 @@ export function OverviewTab({
         <section className="app-surface p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-ink">Learning at a glance</h2>
-            <Link className="app-link text-sm" to={cohortStudentPath(cohortId, studentId, 'learning')}>
+            <Link
+              className="app-link text-sm"
+              to={cohortStudentPath(cohortId, studentId, 'learning')}
+              state={returnState}
+            >
               All modules
             </Link>
           </div>
@@ -279,6 +289,7 @@ export function ComposedTimeline({
 
 export function MetricCard({
   to,
+  state,
   icon: Icon,
   label,
   value,
@@ -286,6 +297,7 @@ export function MetricCard({
   tone,
 }: {
   to: string
+  state?: ReturnContext
   icon: typeof UserRound
   label: string
   value: string
@@ -299,7 +311,11 @@ export function MetricCard({
     warning: 'bg-warning-soft text-warning-ink',
   }
   return (
-    <Link to={to} className="app-surface block min-h-11 p-4 hover:border-line-strong hover:bg-surface-hover sm:p-5">
+    <Link
+      to={to}
+      state={state}
+      className="app-surface block min-h-11 p-4 hover:border-line-strong hover:bg-surface-hover sm:p-5"
+    >
       <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}>
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>

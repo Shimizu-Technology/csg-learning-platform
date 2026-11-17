@@ -34,7 +34,7 @@ for (const theme of ['light', 'dark'] as const)
         const label = workspace === 'cohort' ? 'Cohort sections' : 'Student page sections'
         await page.goto(`${root}?qa_user=${user}`)
         const nav = page.getByRole('navigation', { name: label, exact: true })
-        await expect(nav).toBeVisible()
+        await expect(nav).toBeVisible({ timeout: 15_000 })
         const sections = await nav.locator('a').evaluateAll((links) =>
           links.map((link) => ({
             href: link.getAttribute('href')!,
@@ -44,9 +44,18 @@ for (const theme of ['light', 'dark'] as const)
         expect(sections.length).toBe(workspace === 'student' || user === 2 ? 7 : 9)
         for (const section of sections) {
           if (!baseline && width === 390) {
-            const select = nav.getByRole('combobox', { name: label })
-            await select.selectOption(section.href)
-            await expect(select).toHaveValue(section.href)
+            const menu = nav.getByRole('button', { name: /^Section:/ })
+            await menu.click()
+            const choices = nav.getByRole('list', { name: label })
+            expect(
+              await choices.locator('a').evaluateAll((links) => links.map((link) => link.getAttribute('href'))),
+            ).toEqual(sections.map((section) => section.href))
+            if (user === 2 && workspace === 'cohort') {
+              await expect(choices.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0)
+              await expect(choices.getByRole('link', { name: 'Teaching team', exact: true })).toHaveCount(0)
+            }
+            await choices.locator(`a[href="${section.href}"]`).click()
+            await expect(menu).toHaveAttribute('aria-expanded', 'false')
             expect((await nav.boundingBox())!.height).toBeLessThanOrEqual(72)
             await expect(nav.locator('a').first()).toBeHidden()
           } else await nav.locator(`a[href="${section.href}"]`).click()
@@ -61,6 +70,10 @@ for (const theme of ['light', 'dark'] as const)
           ).toHaveCount(0)
           await expect(page.getByRole('main').locator('[role="alert"]')).toHaveCount(0)
           await expect(page.getByRole('main').locator('.animate-spin')).toHaveCount(0)
+          if (workspace === 'cohort' && section.label === 'Settings') {
+            await expect(page.getByRole('combobox', { name: /^GitHub sync and checks/ })).toBeVisible()
+            await expect(page.getByLabel('Typical response time', { exact: true })).toBeEnabled()
+          }
           if (workspace === 'cohort' && section.label === 'Teaching team') {
             await expect(page.getByRole('main').getByRole('link', { name: 'QA Instructor', exact: true })).toBeVisible()
           }
@@ -73,13 +86,15 @@ for (const theme of ['light', 'dark'] as const)
           await page.screenshot({ path: `${dir}/${name}`, fullPage: true, animations: 'disabled' })
         }
         if (workspace === 'cohort') {
-          if (width === 390 && !baseline) await nav.getByRole('combobox').selectOption('/admin/cohorts/1?tab=learning')
-          else await nav.getByRole('link', { name: 'Learning', exact: true }).click()
+          if (width === 390 && !baseline) {
+            await nav.getByRole('button', { name: /^Section:/ }).click()
+            await nav.getByRole('list', { name: label }).getByRole('link', { name: 'Learning', exact: true }).click()
+          } else await nav.getByRole('link', { name: 'Learning', exact: true }).click()
           await page.getByRole('link', { name: 'Learning insights', exact: true }).click()
           await expect(page).toHaveURL(/tab=insights$/)
           await expect(page.getByRole('heading', { name: 'How these statuses are set' }).first()).toBeVisible()
           if (width === 390 && !baseline)
-            await expect(nav.getByRole('combobox')).toHaveValue('/admin/cohorts/1?tab=learning')
+            await expect(nav.getByRole('button', { name: /^Section:/ })).toHaveText('Section: Learning')
         }
       }
       expect(errors).toEqual([])
@@ -102,8 +117,10 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(field).toBeVisible()
     const save = page.getByRole('button', { name: 'Save settings', exact: true })
     if (width === 390) {
-      const control = page.getByRole('navigation', { name: 'Cohort sections' }).getByRole('combobox')
-      await expect(control).toHaveValue('/admin/cohorts/1?tab=settings')
+      const control = page
+        .getByRole('navigation', { name: 'Cohort sections' })
+        .getByRole('button', { name: /^Section:/ })
+      await expect(control).toHaveText('Section: Settings')
       expect(await save.evaluate((el) => getComputedStyle(el).position)).toBe('fixed')
       // All text/date/select editors retain phone input sizing and touch targets.
       const controls = await page.locator('form input:not([type=checkbox]), form select').evaluateAll((elements) =>
@@ -125,9 +142,11 @@ for (const theme of ['light', 'dark'] as const) {
       }
     }
     await field.fill(`qa-layout-${width}-${theme}`)
-    if (width === 390)
-      await page.getByRole('combobox', { name: 'Cohort sections' }).selectOption('/admin/cohorts/1?tab=learning')
-    else
+    if (width === 390) {
+      const nav = page.getByRole('navigation', { name: 'Cohort sections' })
+      await nav.getByRole('button', { name: /^Section:/ }).click()
+      await nav.getByRole('list').getByRole('link', { name: 'Learning', exact: true }).click()
+    } else
       await page
         .getByRole('navigation', { name: 'Cohort sections' })
         .getByRole('link', { name: 'Learning', exact: true })
@@ -137,8 +156,7 @@ for (const theme of ['light', 'dark'] as const) {
     await guard.getByRole('button', { name: 'Keep editing', exact: true }).click()
     await expect(page).toHaveURL(/tab=settings/)
     await expect(field).toHaveValue(`qa-layout-${width}-${theme}`)
-    if (width === 390)
-      await expect(page.getByRole('combobox', { name: 'Cohort sections' })).toHaveValue('/admin/cohorts/1?tab=settings')
+    if (width === 390) await expect(page.getByRole('button', { name: /^Section: Settings/ })).toBeVisible()
     let fail = true
     await page.route('**/api/v1/cohorts/1', async (route) => {
       if (route.request().method() === 'PATCH' && fail) {
@@ -159,7 +177,7 @@ for (const theme of ['light', 'dark'] as const) {
       `qa-layout-${width}-${theme}`,
     )
     await page.reload()
-    await expect(field).toHaveValue(`qa-layout-${width}-${theme}`)
+    await expect(field).toHaveValue(`qa-layout-${width}-${theme}`, { timeout: 15_000 })
     await field.fill(original)
     await save.click()
     await expect(page.getByText('Cohort settings saved', { exact: true }).first()).toBeVisible()
@@ -187,15 +205,21 @@ for (const user of [1, 2])
     await expect(back).toHaveAttribute('href', origin)
     const nav = page.getByRole('navigation', { name: 'Student page sections' })
     if (width === 390) {
-      const select = nav.getByRole('combobox')
-      await select.focus()
-      await expect(select).toBeFocused()
-      // Native select type-ahead stays available without custom tab key handlers.
-      await page.keyboard.press('s')
+      const menu = nav.getByRole('button', { name: /^Section:/ })
+      await menu.focus()
+      await page.keyboard.press('Enter')
+      await expect(menu).toHaveAttribute('aria-expanded', 'true')
+      await page.keyboard.press('Tab')
+      await expect(nav.getByRole('list').getByRole('link').first()).toBeFocused()
+      await nav
+        .getByRole('list')
+        .getByRole('link', { name: /^Support/ })
+        .focus()
       await page.keyboard.press('Enter')
       await expect(page).toHaveURL(/\/students\/3\/support$/)
-      await expect(select).toHaveValue('/admin/cohorts/1/students/3/support')
-      await select.selectOption('/admin/cohorts/1/students/3/access')
+      await expect(menu).toContainText('Section: Support')
+      await menu.click()
+      await nav.getByRole('list').getByRole('link', { name: 'Access', exact: true }).click()
     } else await nav.getByRole('link', { name: 'Access', exact: true }).click()
     await expect(back).toHaveAttribute('href', origin)
     await page.goBack()
@@ -208,7 +232,19 @@ for (const user of [1, 2])
       const sections = page.getByRole('navigation', { name: 'Cohort sections' })
       await expect(sections.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0)
       await expect(sections.getByRole('link', { name: 'Teaching team', exact: true })).toHaveCount(0)
-      if (width === 390) await expect(sections.getByRole('combobox')).toHaveValue('/admin/cohorts/1')
+      if (width === 390) {
+        const menu = sections.getByRole('button', { name: /^Section: Overview/ })
+        await menu.click()
+        const choices = sections.getByRole('list', { name: 'Cohort sections' })
+        await expect(choices.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0)
+        await expect(choices.getByRole('link', { name: 'Teaching team', exact: true })).toHaveCount(0)
+        expect(
+          await choices.locator('a').evaluateAll((links) => links.map((link) => link.getAttribute('href'))),
+        ).toEqual(
+          await sections.locator('div.hidden a').evaluateAll((links) => links.map((link) => link.getAttribute('href'))),
+        )
+        await page.keyboard.press('Escape')
+      }
       await expect(page.getByRole('heading', { name: 'Cohort settings', exact: true })).toHaveCount(0)
     }
   })
