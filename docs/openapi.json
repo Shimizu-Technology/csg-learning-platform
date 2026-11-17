@@ -3866,6 +3866,24 @@
           }
         }
       }
+    },
+    "/api/v1/course_packages/preview": {
+      "post": {
+        "summary": "Preview a course package import (admins)",
+        "description": "Admin-only. Validates a schema-v1 package (`package` object or `package_base64`) and names the curriculum it would update and the cohorts using it. Writes nothing.",
+        "responses": {
+          "200": {
+            "description": "CoursePackagePreviewResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoursePackagePreviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -24232,6 +24250,147 @@
         ],
         "additionalProperties": false,
         "description": "A self-paced course offering and its purchases, for admins."
+      },
+      "CoursePackageCurriculum": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "description": "The curriculum a course package was already imported as."
+      },
+      "CoursePackageCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "course_delivery": {
+            "type": "string"
+          },
+          "on_sale": {
+            "type": "boolean",
+            "description": "A self-paced cohort with public checkout switched on."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "course_delivery",
+          "on_sale"
+        ],
+        "additionalProperties": false,
+        "description": "A cohort using a package's curriculum."
+      },
+      "CoursePackagePreview": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "modules": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lessons": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blocks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "existing_curriculum_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "unchanged": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "assigned": {
+            "type": "boolean"
+          },
+          "curriculum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoursePackageCurriculum"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The curriculum this package already updates, or null for a new package."
+          },
+          "cohorts": {
+            "type": "array",
+            "description": "Cohorts using that curriculum, earliest first; empty for a new package.",
+            "items": {
+              "$ref": "#/components/schemas/CoursePackageCohort"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "revision",
+          "title",
+          "modules",
+          "lessons",
+          "blocks",
+          "existing_curriculum_id",
+          "unchanged",
+          "status",
+          "assigned",
+          "curriculum",
+          "cohorts"
+        ],
+        "additionalProperties": false,
+        "description": "What importing a course package would do. Writes nothing."
+      },
+      "CoursePackagePreviewResponse": {
+        "type": "object",
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/CoursePackagePreview"
+          }
+        },
+        "required": [
+          "preview"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {

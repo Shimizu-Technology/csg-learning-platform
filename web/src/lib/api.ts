@@ -1,7 +1,5 @@
 import type { components } from '../types/api.generated';
 import type {
-  CoursePackageCohort,
-  CoursePackageCurriculum,
   VideoProgressInput,
   WatchProgressInput,
 } from '../types/api'
@@ -978,7 +976,7 @@ export const api = {
   getCurriculum: (id: number, signal?: AbortSignal) =>
     fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`, { signal }),
   previewCoursePackage: (packageData: unknown) =>
-    fetchApi<{ preview: { key: string; revision: string; title: string; modules: number; lessons: number; blocks: number; existing_curriculum_id: number | null; unchanged: boolean; status: string; assigned: boolean; curriculum: CoursePackageCurriculum | null; cohorts: CoursePackageCohort[] } }>('/api/v1/course_packages/preview', { method: 'POST', body: coursePackageBody(packageData) }),
+    fetchApi<components['schemas']['CoursePackagePreviewResponse']>('/api/v1/course_packages/preview', { method: 'POST', body: coursePackageBody(packageData) }),
   importCoursePackage: (packageData: unknown) =>
     fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: coursePackageBody(packageData) }),
 

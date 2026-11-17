@@ -1322,5 +1322,6 @@ export type DirectoryUserSummary = Omit<UserSummary, 'is_admin' | 'is_staff'> & 
 export type InstructorTodayData = components['schemas']['InstructorToday'];
 
 /** What a course package import reaches (L-3.2): the curriculum it updates and the cohorts and offerings using it. */
-export interface CoursePackageCurriculum { id: number; name: string; revision: string | null }
-export interface CoursePackageCohort { id: number; name: string; status: string; course_delivery: string; on_sale: boolean }
+export type CoursePackagePreview = components['schemas']['CoursePackagePreview'];
+export type CoursePackageCurriculum = components['schemas']['CoursePackageCurriculum'];
+export type CoursePackageCohort = components['schemas']['CoursePackageCohort'];

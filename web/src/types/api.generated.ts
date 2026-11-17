@@ -4985,6 +4985,45 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/course_packages/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a course package import (admins)
+         * @description Admin-only. Validates a schema-v1 package (`package` object or `package_base64`) and names the curriculum it would update and the cohorts using it. Writes nothing.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CoursePackagePreviewResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CoursePackagePreviewResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9322,6 +9361,41 @@ export interface components {
                     status: string;
                 } | null;
             }[];
+        };
+        /** @description The curriculum a course package was already imported as. */
+        CoursePackageCurriculum: {
+            id: number;
+            name: string;
+            revision: string | null;
+        };
+        /** @description A cohort using a package's curriculum. */
+        CoursePackageCohort: {
+            id: number;
+            name: string;
+            status: string;
+            course_delivery: string;
+            /** @description A self-paced cohort with public checkout switched on. */
+            on_sale: boolean;
+        };
+        /** @description What importing a course package would do. Writes nothing. */
+        CoursePackagePreview: {
+            key: string;
+            revision: string;
+            title: string;
+            modules: number;
+            lessons: number;
+            blocks: number;
+            existing_curriculum_id: number | null;
+            unchanged: boolean;
+            status: string;
+            assigned: boolean;
+            /** @description The curriculum this package already updates, or null for a new package. */
+            curriculum: components["schemas"]["CoursePackageCurriculum"] | null;
+            /** @description Cohorts using that curriculum, earliest first; empty for a new package. */
+            cohorts: components["schemas"]["CoursePackageCohort"][];
+        };
+        CoursePackagePreviewResponse: {
+            preview: components["schemas"]["CoursePackagePreview"];
         };
     };
     responses: {
