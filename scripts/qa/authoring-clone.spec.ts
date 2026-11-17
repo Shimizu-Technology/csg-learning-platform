@@ -45,7 +45,7 @@ for (const theme of ['light', 'dark']) test(`clone authoring flows ${theme}`, as
     await page.getByRole('button', { name: 'Clone QA Program', exact: true }).click()
     dialog = page.getByRole('dialog', { name: 'Clone cohort', exact: true })
     await dialog.getByLabel('New name').fill(`QA Cohort ${label}`)
-    await dialog.getByLabel('New start date').fill('2027-03-31')
+    await dialog.getByLabel('New start date').fill('2027-01-07')
     // Exercise both curriculum choices over the four dimensions.
     await dialog.getByLabel('Curriculum', { exact: true }).selectOption(theme === 'dark' ? 'clone' : 'same')
     const created = page.waitForResponse(r => /\/cohorts\/1\/clone$/.test(r.url()) && r.request().method() === 'POST')
@@ -66,7 +66,20 @@ for (const theme of ['light', 'dark']) test(`clone authoring flows ${theme}`, as
     await expect(page).toHaveURL(new RegExp(`/admin/cohorts/${copy.id}`))
     await expect(page.getByRole('heading', { name: `QA Cohort ${label}`, exact: true }).first()).toBeVisible()
     await expect(page.getByText('Upcoming', { exact: true }).first()).toBeVisible()
-    // Real student navigation, then an attempted direct URL to cloned content.
+    await page.goto(`/admin/cohorts/${copy.id}?tab=settings&qa_user=1#curriculum`)
+    await expect(page.getByText(/Starts Jan 18, 2027/).first()).toBeVisible()
+    await expect(page.getByText(/Starts Feb 8, 2027/).first()).toBeVisible()
+    await page.goto(`/admin/cohorts/${copy.id}/student-view/materials?qa_user=1`)
+    await page.getByRole('button', { name: /Show all lessons/ }).click()
+    await expect(page.getByRole('main')).toContainText('QA Week 1')
+    // The preview uses the actual assigned schedule to compute lesson dates.
+    const preview = await page.request.get(`/api/v1/cohorts/${copy.id}/student_view`, { headers: { Authorization: 'Bearer test_token_1' } })
+    expect(preview.ok()).toBe(true)
+    const scheduledModules = (await preview.json()).student_view.modules
+    const first = scheduledModules.find((m: { name: string }) => m.name === 'QA Week 1')
+    expect(first.module_start_date).toBe('2027-01-18')
+    expect(first.lessons.find((l: { release_day: number }) => l.release_day === 0).unlock_date).toBe('2027-01-18')
+        // Real student navigation, then an attempted direct URL to cloned content.
     await page.goto('/materials?qa_user=3')
     await expect(page.getByRole('main')).not.toContainText(`QA Curriculum ${label}`)
     await page.goto(`/modules/${draftModuleId}?qa_user=3`)

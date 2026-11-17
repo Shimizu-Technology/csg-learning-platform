@@ -35,7 +35,8 @@ class AuthoringCloneService
       destination_id = @kind == "module" ? integer!("curriculum_id") : curriculum_id
       # Storage locks precede row locks, as in LessonDuplicate. One SQL call
       # locks all distinct keys; object checks are storage requests, not SQL.
-      keys = video_keys(curriculum_id)
+      copying_content = @kind != "cohort" || @attributes["clone_curriculum"] == true
+      keys = copying_content ? video_keys(curriculum_id) : []
       if keys.any? && S3Service.configured?
         sql = ApplicationRecord.sanitize_sql_array([
           "SELECT pg_advisory_xact_lock(hashtextextended(key, 0)) FROM unnest(ARRAY[?]::text[]) AS keys(key) ORDER BY key", keys
@@ -46,11 +47,12 @@ class AuthoringCloneService
         end
       end
       [ curriculum_id, destination_id ].uniq.sort.each { |id| Curriculum.lock_for_content!(id, "FOR UPDATE") }
-      raise Conflict, "Content changed during the clone. Try again." unless (video_keys(curriculum_id) - keys).empty?
+      raise Conflict, "Content changed during the clone. Try again." if copying_content && (video_keys(curriculum_id) - keys).any?
 
       source.reload
       raise Conflict, "The source moved to another curriculum. Reload and try again." if @kind != "curriculum" && source.curriculum_id != curriculum_id
 
+      tree = nil
       record = case @kind
       when "curriculum"
         AuthoringContentClone.new(source: source, name: @attributes["name"].strip).call
@@ -58,13 +60,14 @@ class AuthoringCloneService
         destination = Curriculum.find(destination_id)
         position = integer!("position")
         position_modules!(destination, position)
-        AuthoringContentClone.new(source: source.curriculum, name: @attributes["name"].strip, module_id: source.id, destination: destination, position: position).call
+        tree = AuthoringContentClone.new(source: source.curriculum, name: @attributes["name"].strip, module_id: source.id, destination: destination, position: position)
+        tree.call
       when "cohort"
         # Also blocks child-config FK inserts while its shape is copied.
         source.lock!("FOR UPDATE")
         clone_cohort(source)
       end
-      AuthoringClone.create!(user: @user, client_request_id: request_id, fingerprint: fingerprint, record_type: record.class.name, record_id: record.id)
+      AuthoringClone.create!(user: @user, client_request_id: request_id, fingerprint: fingerprint, record_type: record.class.name, record_id: record.id, definition_map: tree&.definition_map || {})
       Result.new(record: record, replayed: false)
     end
   rescue ActiveRecord::LockWaitTimeout, ActiveRecord::QueryCanceled, ActiveRecord::Deadlocked
@@ -103,7 +106,12 @@ class AuthoringCloneService
     raise Invalid, "Choose a future start date" unless start_date > LearningCalendar.today
     raise Invalid, "clone_curriculum must be true or false" unless [ true, false ].include?(@attributes["clone_curriculum"])
 
-    days = (start_date - source.start_date).to_i
+    if !@attributes["clone_curriculum"] && source.curriculum.archived?
+      raise Invalid, "This curriculum is archived. Choose Clone the curriculum too to create a draft."
+    end
+    # Preserve the source's week structure, including breaks, independently
+    # of the kickoff weekday. All dated events keep their weekday/wall time.
+    days = (start_date.beginning_of_week(:monday) - source.start_date.beginning_of_week(:monday)).to_i
     tree = if @attributes["clone_curriculum"]
       AuthoringContentClone.new(source: source.curriculum, name: "#{@attributes['name'].strip} curriculum")
     end
@@ -121,12 +129,19 @@ class AuthoringCloneService
       .merge("name" => @attributes["name"].strip, "start_date" => start_date, "status" => "upcoming",
         "curriculum_id" => curriculum.id, "settings" => settings, "content_defaults" => defaults, "public_checkout_enabled" => false)
     %w[end_date guided_access_ends_on guided_support_ends_on].each { |key| attributes[key] = source[key] && source[key] + days }
+    support_id = attributes.delete("support_instructor_id")
     cohort = Cohort.create!(attributes)
-    [ CohortModuleSchedule, CohortModuleSubmissionWindow, OfficeHour, PrivateMeetingConfig ].each do |model|
+    if support_id
+      # Membership must exist before Cohort validates its support instructor.
+      # Deliberately use default (no authoring grant) assignment attributes.
+      cohort.cohort_instructor_assignments.create!(user_id: support_id)
+      cohort.update!(support_instructor_id: support_id)
+    end
+    copy_module_schedules!(source, cohort, map, days)
+    [ CohortModuleSubmissionWindow, OfficeHour, PrivateMeetingConfig ].each do |model|
       rows = model.where(cohort_id: source.id).order(:id).map do |record|
         row = record.attributes.except("id").merge("cohort_id" => cohort.id, "created_at" => Time.current, "updated_at" => Time.current)
         row["module_id"] = map.fetch(row["module_id"], row["module_id"]) if row.key?("module_id")
-        row["start_date"] += days if row["start_date"]
         %w[starts_at ends_at submissions_close_at].each { |key| row[key] = shift_time(row[key], days, row["timezone"]) if row[key] }
         row
       end
@@ -135,6 +150,21 @@ class AuthoringCloneService
     cohort
   rescue Date::Error
     raise Invalid, "Choose a valid start date"
+  end
+
+  def copy_module_schedules!(source, cohort, map, days)
+    overrides = source.cohort_module_schedules.index_by(&:module_id)
+    rows = source.curriculum.modules.reorder(:id).filter_map do |mod|
+      next if source.content_defaults && !source.content_defaults.dig(mod.id.to_s, "assigned") && !overrides.key?(mod.id)
+
+      anchor = overrides[mod.id]&.start_date || mod.legacy_start_date_for(source)
+      {
+        cohort_id: cohort.id, module_id: map.fetch(mod.id, mod.id),
+        start_date: mod.next_start_date_on_or_after(anchor + days),
+        created_at: Time.current, updated_at: Time.current
+      }
+    end
+    rows.each_slice(500) { |batch| CohortModuleSchedule.insert_all!(batch) }
   end
 
   def remap_keys(value, map)

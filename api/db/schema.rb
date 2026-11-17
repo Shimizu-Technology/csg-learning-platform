@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -98,8 +98,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_070000) do
     t.bigint "record_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "definition_map", default: {}, null: false
     t.index ["user_id", "client_request_id"], name: "index_authoring_clones_on_user_id_and_client_request_id", unique: true
-    t.index ["user_id"], name: "index_authoring_clones_on_user_id"
   end
 
   create_table "cable_token_nonces", force: :cascade do |t|

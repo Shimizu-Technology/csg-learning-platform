@@ -8,10 +8,14 @@ raise "Original cohort changed" unless cohort.attributes.as_json == source.fetch
 raise "Learner rows changed" unless [ Enrollment.count, Progress.count, Submission.count ] == source.values_at("enrollments", "progress", "submissions")
 results.each do |result|
   copy = Cohort.find(result.fetch("cohortId"))
-  days = (copy.start_date - cohort.start_date).to_i
+  days = (copy.start_date.beginning_of_week - cohort.start_date.beginning_of_week).to_i
   raise "Bad cohort" unless copy.status == "upcoming" && copy.enrollments.empty? && !copy.public_checkout_enabled
   raise "Bad switches" unless copy.settings["features"] == cohort.settings["features"] && !FeatureSwitches.for(cohort: copy)["recordings"]
-  raise "Schedule shape" unless copy.cohort_module_schedules.pluck(:start_date).sort == cohort.cohort_module_schedules.pluck(:start_date).map { |date| date + days }.sort
+  overrides = cohort.cohort_module_schedules.index_by(&:module_id)
+  expected_dates = cohort.curriculum.modules.map { |mod| mod.next_start_date_on_or_after((overrides[mod.id]&.start_date || mod.legacy_start_date_for(cohort)) + days) }
+  raise "Schedule shape" unless copy.cohort_module_schedules.pluck(:start_date).sort == expected_dates.sort
+  copy.cohort_module_schedules.each { |schedule| raise schedule.errors.full_messages.join(", ") unless schedule.valid? }
+  copy.office_hours.each { |event| raise event.errors.full_messages.join(", ") unless event.valid? }
   raise "Submission window shape" unless copy.cohort_module_submission_windows.pluck(:submissions_close_at).sort == cohort.cohort_module_submission_windows.pluck(:submissions_close_at).map { |time| time.advance(days: days) }.sort
   raise "Meeting config" unless copy.private_meeting_config.attributes.except("id", "cohort_id", "created_at", "updated_at") == cohort.private_meeting_config.attributes.except("id", "cohort_id", "created_at", "updated_at")
   raise "Office hour shape" unless copy.office_hours.pluck(:starts_at).sort == cohort.office_hours.pluck(:starts_at).map { |time| time.advance(days: days) }.sort

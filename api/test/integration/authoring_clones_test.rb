@@ -104,8 +104,12 @@ class AuthoringClonesTest < ActionDispatch::IntegrationTest
     SchoolSetting.current.update!(features: { "recordings" => false })
     source.create_private_meeting_config!(instructor: @admin, weeks: 4)
     source.office_hours.create!(title: "Office", starts_at: Time.utc(2026, 11, 1, 9), ends_at: Time.utc(2026, 11, 1, 10), timezone: "America/New_York", recurrence: :weekly, meeting_url: "https://example.invalid/meet")
-    start = LearningCalendar.today + 60
-    days = (start - source.start_date).to_i
+    source.update!(start_date: Date.new(2026, 10, 27))
+    source.cohort_module_schedules.destroy_all
+    source.cohort_module_schedules.create!(module_id: @f.modules.first.id, start_date: Date.new(2026, 11, 9))
+    source.cohort_module_schedules.create!(module_id: @f.modules.last.id, start_date: Date.new(2026, 11, 30))
+    start = Date.new(2027, 1, 7)
+    days = (start.beginning_of_week - source.start_date.beginning_of_week).to_i
     before = learner_counts
     [ false, true ].each do |with_curriculum|
       options = { start_date: start.iso8601, clone_curriculum: with_curriculum, client_request_id: "cohort-clone-#{with_curriculum}" }
@@ -121,7 +125,10 @@ class AuthoringClonesTest < ActionDispatch::IntegrationTest
       assert_equal source.course_delivery, copy.course_delivery
       assert_equal source.private_meeting_config.weeks, copy.private_meeting_config.weeks
       assert_equal source.office_hours.sole.starts_at.in_time_zone("America/New_York").advance(days: days), copy.office_hours.sole.starts_at
-      assert_equal source.cohort_module_schedules.order(:start_date).pluck(:start_date).map { |date| date + days }, copy.cohort_module_schedules.order(:start_date).pluck(:start_date)
+      assert_equal [ Date.new(2027, 1, 18), Date.new(2027, 2, 8) ], copy.cohort_module_schedules.order(:start_date).pluck(:start_date)
+      copy.cohort_module_schedules.each { |schedule| assert schedule.valid?, schedule.errors.full_messages.join(", ") }
+      copy.office_hours.each { |event| assert event.valid?, event.errors.full_messages.join(", ") }
+      assert_equal source.office_hours.sole.starts_at.in_time_zone("America/New_York").wday, copy.office_hours.sole.starts_at.in_time_zone("America/New_York").wday
       assert_equal source.cohort_module_submission_windows.count, copy.cohort_module_submission_windows.count
       [ :enrollments, :course_purchases, :announcements, :recordings, :direct_conversations ].each { |association| assert_empty copy.public_send(association) }
       assert_equal before, learner_counts
@@ -136,6 +143,66 @@ class AuthoringClonesTest < ActionDispatch::IntegrationTest
       assert_response :ok
       assert_equal copy.id, response.parsed_body.dig("clone", "id")
     end
+  end
+
+  test "support instructor membership is copied without lesson editing grants" do
+    source = @f.cohort
+    source.update!(course_delivery: "self_paced", support_instructor: @f.instructor)
+    clone_request("cohorts", source.id, start_date: "2027-01-07", clone_curriculum: false)
+    assert_response :created
+    copy = Cohort.find(response.parsed_body.dig("clone", "id"))
+    assert_equal source.support_instructor_id, copy.support_instructor_id
+    assert copy.valid_support_instructor?
+    assignment = copy.cohort_instructor_assignments.sole
+    assert_equal @f.instructor.id, assignment.user_id
+    refute assignment.can_edit_lessons
+    assert_nil assignment.edit_granted_at
+    assert_nil assignment.edit_granted_by_id
+  end
+
+  test "only referenced definitions copy and subsequent module copies reuse them" do
+    destination = Curriculum.create!(name: "Selective destination")
+    extra = @f.curriculum.learning_objectives.create!(code: "UNUSED", title: "Unused", success_criteria: "Unused")
+    @f.curriculum.rubrics.create!(title: "Unused", rubric_criteria_attributes: [ { title: "Unused", description: "Unused", learning_objective: extra } ])
+    2.times do |index|
+      clone_request("modules", @f.modules.first.id, curriculum_id: destination.id, position: index, client_request_id: "selective-clone-#{index}")
+      assert_response :created
+      assert_equal 1, destination.learning_objectives.count
+      assert_equal 1, destination.rubrics.count
+    end
+    blocks = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: destination.id }, block_type: :exercise)
+    assert_equal [ destination.rubrics.sole.id ], blocks.distinct.pluck(:rubric_id)
+    assert_equal 1, destination.rubrics.sole.rubric_criteria.count
+    @f.check.update_columns(learning_objective_id: nil)
+    @f.lessons.values.each { |lesson| lesson.objective_alignments.delete_all }
+    other = Curriculum.create!(name: "Criterion only")
+    clone_request("modules", @f.modules.first.id, curriculum_id: other.id, position: 0, client_request_id: "criterion-only-clone")
+    assert_response :created
+    assert_equal other.learning_objectives.sole.id, other.rubrics.sole.rubric_criteria.sole.learning_objective_id
+  end
+
+  test "archived curriculum gives a useful error unless also cloned" do
+    [ @f.cohort, @f.other_cohort ].each { |cohort| cohort.update!(status: :archived) }
+    @f.curriculum.update!(status: :archived)
+    assert_no_difference "Cohort.count" do
+      clone_request("cohorts", @f.cohort.id, start_date: "2027-01-07", clone_curriculum: false)
+      assert_response :unprocessable_entity
+      assert_includes response.parsed_body.fetch("errors").join, "archived"
+      assert_includes response.parsed_body.fetch("errors").join, "Clone the curriculum too"
+    end
+    clone_request("cohorts", @f.cohort.id, start_date: "2027-01-07", clone_curriculum: true)
+    assert_response :created
+    assert Cohort.find(response.parsed_body.dig("clone", "id")).curriculum.draft?
+  end
+
+  test "retaining the curriculum makes no S3 or video key queries" do
+    @f.blocks.fetch(:video).update_columns(s3_video_key: "content_videos/#{SecureRandom.uuid}/missing.mp4")
+    configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { raise "Must not inspect S3" }
+    queries = capture_queries { service("cohort", @f.cohort.id, start_date: "2027-01-07", clone_curriculum: false).call }
+    refute queries.any? { |sql| sql.include?("s3_video_key") }
+  ensure
+    S3Service.define_singleton_method(:configured?, configured) if configured
   end
 
   test "invalid options and unauthorized users leave no clone" do
@@ -183,8 +250,8 @@ class AuthoringClonesTest < ActionDispatch::IntegrationTest
   end
 
   test "query counts stay bounded as content and cohort configuration genuinely grow" do
-    destination = Curriculum.create!(name: "Growth destination")
     measure = lambda do |label|
+      destination = Curriculum.create!(name: "Growth destination #{label}")
       {
         curriculum: count_queries { service("curriculum", @f.curriculum.id, client_request_id: "#{label}-curriculum").call },
         module: count_queries { service("module", @f.modules.first.id, curriculum_id: destination.id, position: 0, client_request_id: "#{label}-module").call },

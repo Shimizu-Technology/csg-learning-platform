@@ -19,12 +19,25 @@ class AuthoringContentClone
     # Cross-curriculum modules bring their rubric/objective definitions too.
     # Same-curriculum modules safely share those curriculum-level definitions.
     if destination.id != @source.id
-      copy(LearningObjective, LearningObjective.where(curriculum_id: @source.id)) do |r|
+      objectives = LearningObjective.where(curriculum_id: @source.id)
+      rubrics = Rubric.where(curriculum_id: @source.id)
+      reused = { LearningObjective => {}, Rubric => {} }
+      if @module_id
+        rubric_ids = ContentBlock.where(id: block_ids).where.not(rubric_id: nil).distinct.pluck(:rubric_id)
+        objective_ids = RubricCriterion.where(rubric_id: rubric_ids).where.not(learning_objective_id: nil).pluck(:learning_objective_id) +
+          KnowledgeCheck.where(content_block_id: block_ids).where.not(learning_objective_id: nil).pluck(:learning_objective_id) +
+          ObjectiveAlignment.where(lesson_id: lesson_ids).pluck(:learning_objective_id)
+        objectives = objectives.where(id: objective_ids.uniq)
+        rubrics = rubrics.where(id: rubric_ids)
+        reused = reused_definitions(destination, objective_ids, rubric_ids)
+      end
+      copy(LearningObjective, objectives, reuse: reused.fetch(LearningObjective)) do |r|
         r["curriculum_id"] = destination.id
         r["code"] = "#{r['code']}.COPY-#{r['id']}" if @module_id
       end
-      copy(Rubric, Rubric.where(curriculum_id: @source.id)) { |r| r["curriculum_id"] = destination.id }
-      copy(RubricCriterion, RubricCriterion.where(rubric_id: @maps.fetch(Rubric).keys)) do |r|
+      @new_rubric_ids = rubrics.pluck(:id) - reused.fetch(Rubric).keys
+      copy(Rubric, rubrics, reuse: reused.fetch(Rubric)) { |r| r["curriculum_id"] = destination.id }
+      copy(RubricCriterion, RubricCriterion.where(rubric_id: @new_rubric_ids)) do |r|
         remap(r, "rubric_id", Rubric)
         remap(r, "learning_objective_id", LearningObjective)
       end
@@ -63,10 +76,33 @@ class AuthoringContentClone
         r["upload_key"] = "course_resource_uploads/curriculum_#{destination.id}/#{SecureRandom.uuid}/#{r['filename']}"
       end
     end
+    @destination_id = destination.id
     @module_id ? CurriculumModule.find(@module_map.fetch(@module_id)) : destination
   end
 
+  # Kept with the retry receipt so repeated module copies reuse definitions
+  # even if a copied module is later removed. No learner references are stored.
+  def definition_map
+    return {} unless @module_id && @destination_id != @source.id
+
+    { "curriculum_id" => @destination_id, "objectives" => (@maps[LearningObjective] || {}).stringify_keys,
+      "rubrics" => (@maps[Rubric] || {}).stringify_keys }
+  end
+
   private
+
+  def reused_definitions(destination, objective_ids, rubric_ids)
+    receipts = AuthoringClone.where(record_type: "CurriculumModule")
+      .where("definition_map @> ?", { curriculum_id: destination.id }.to_json).order(:id).pluck(:definition_map)
+    wanted = { LearningObjective => [ "objectives", objective_ids ], Rubric => [ "rubrics", rubric_ids ] }
+    wanted.to_h do |model, (key, ids)|
+      candidates = receipts.each_with_object({}) do |receipt, result|
+        receipt.fetch(key, {}).each { |old, copied| result[old.to_i] ||= copied if ids.include?(old.to_i) }
+      end
+      valid = model.where(curriculum_id: destination.id, id: candidates.values).pluck(:id).to_set
+      [ model, candidates.select { |_, copied| valid.include?(copied) } ]
+    end
+  end
 
   def allocate(model, ids)
     return @maps[model] = {} if ids.empty?
@@ -77,9 +113,10 @@ class AuthoringContentClone
     @maps[model] = ids.sort.zip(values).to_h
   end
 
-  def copy(model, scope)
-    records = scope.reorder(:id).lock("FOR SHARE").to_a
-    map = @maps[model] || allocate(model, records.map(&:id))
+  def copy(model, scope, reuse: {})
+    records = scope.reorder(:id).lock("FOR SHARE").to_a.reject { |record| reuse.key?(record.id) }
+    map = (@maps[model] || allocate(model, records.map(&:id))).merge(reuse)
+    @maps[model] = map
     rows = records.map do |record|
       row = record.attributes.merge("id" => map.fetch(record.id), "created_at" => Time.current, "updated_at" => Time.current)
       yield row
