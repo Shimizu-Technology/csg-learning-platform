@@ -43,7 +43,10 @@ run_suite() {
   else
     sed -n -e '/^Failure:/,+18p' -e '/^Error:/,+18p' -e '/\[publish measurements\]/p' "$scratch/test-$prepared.log"
   fi
-  [[ $suite_status == 0 ]] || exit "$suite_status"
+  if [[ $suite_status != 0 ]]; then
+    head -n 35 "$scratch/test-$prepared.log"
+    exit "$suite_status"
+  fi
 }
 for prepared in false true; do
   max_prepared=0

@@ -192,14 +192,42 @@ session: `manual-20261118-082544-25979-d537`.
 ## Main integration and migration ordering
 
 Merged `origin/main` at `e058b415` (#304). Renamed the fan-out migration to
-`20261118130000_add_fanout_outbox_to_announcements.rb`, after main's latest
+`20261118150000_add_fanout_outbox_to_announcements.rb`, after main's latest
 `20261118120000` migration; the migration-test require and documentation now use
-130000. The Rails-inferred class remains `AddFanoutOutboxToAnnouncements`.
+150000. The Rails-inferred class remains `AddFanoutOutboxToAnnouncements`.
 
 The schema conflict was resolved by loading main's 120000 schema into a fresh
-owned local database, running `db:migrate` (which applied 130000), then running
+owned local database, running `db:migrate` (which applied 150000), then running
 `db:schema:dump`. No schema conflict lines were hand-combined. The generated
 schema includes editor preference columns/constraint and the fan-out columns/
-index at version 130000; PostgreSQL also normalized three existing cast
+index at version 150000; PostgreSQL also normalized three existing cast
 expressions during dumping. The local database was dropped after generation.
-Focused API/migration validation in both pooler modes is pending.
+Focused API/migration validation in both pooler modes is recorded below.
+
+Lead corrected the reserved migration range for #305 (130000 and 140000), so the
+final fan-out migration is 150000. The schema was regenerated again by applying
+150000 on the main baseline and dumping the real database; that database was
+then dropped. An intermediate 130000 focused run reported one read-count test
+failure (expected 3, got 2); that case passed in isolation locally. Final 150000
+validation will rerun the complete focused set in both modes, without changing
+application behavior or weakening the read-count assertion.
+
+Final 150000 integration acceptance (ASUS, real PgBouncer transaction mode,
+seed 5041), including `add_fanout_outbox_to_announcements_test.rb`:
+
+- Prepared off: 117 tests / 966 assertions; zero failures/errors/skips (17.495s).
+- Prepared on: 117 tests / 966 assertions; zero failures/errors/skips (20.630s).
+- RuboCop: 787 files clean; Brakeman: zero active warnings, one existing ignored
+  warning; bundler-audit passed. The intermediate read-count failure did not
+  recur in either final run; its assertion and application code were unchanged.
+- Main remained `e058b415`; all conflicts are resolved. No full-suite rerun was
+  requested for this integration step; the earlier full result belongs to the
+  P3 implementation before this main merge.
+- Local schema-generation/test databases were dropped. ASUS resources exited
+  through the gate/wrapper cleanup; lifecycle session
+  `manual-20261118-084445-29278-e7dd` reports no owned active resources.
+
+The final migration is `20261118150000_add_fanout_outbox_to_announcements.rb`,
+reserving 130000 and 140000 for #305. The migration test requires the new path;
+its Rails class remains `AddFanoutOutboxToAnnouncements`. No hand-edited schema
+resolution, prepared-statement workaround, merge of the PR, or PR watch was used.
