@@ -38,8 +38,10 @@ motion. Browser resizing establishes responsive web coverage only.
   curriculum or a new draft curriculum. End/access/support dates, module dates,
   submission deadlines, office hours and default unlock dates shift by whole
   weeks between the Monday anchors of the source and target kickoff weeks.
-  Module starts snap to their configured weekday, including implicit schedules
-  for assigned modules; explicit overrides and breaks stay in the same weeks. Timed events preserve local wall time across DST. Private meeting
+  Source module overrides stay explicit and snap to their configured weekday.
+  Assigned modules without source overrides keep inheriting when that yields
+  the correct weekday; only wrong-weekday inheritance needs a pinned alignment
+  row. Explicit overrides and breaks stay in the same weeks. Timed events preserve local wall time across DST. Private meeting
   configuration is copied; slots/bookings are not. Checkout starts off and a new
   public slug is allocated. Existing feature values, including absent/null
   inheritance, are preserved verbatim. The success dialog displays each explicit
@@ -247,3 +249,44 @@ and the failed full-suite gate remains visible for the lead.
 
 Both ASUS wrappers exited through their disposable-container cleanup traps.
 Final lifecycle cleanup/status confirmed no unresolved owned resources.
+
+
+## Lead follow-up: preserve inherited module dates
+
+The lead’s review of `6c70e3e7` found that the prior fix materialized every assigned
+module as an override, pinning dates that previously followed kickoff. This was
+a behavior change. The clone now copies an override only if the source had one
+or the target’s inherited date would fall on the wrong weekday.
+
+`CurriculumModule#legacy_start_date_for` is exactly `cohort.start_date +
+day_offset + first_scheduled_day_index`; it does not align weekdays. For a
+Monday module seven days after a Thursday kickoff, inheritance yields Thursday,
+not Monday. Such a module still needs an explicit alignment row. That necessary
+row stays pinned on later kickoff edits, like any explicit override. This fix
+does not change inherited-date behavior globally for existing cohorts.
+
+New integration regressions clone through POST and then edit kickoff through
+PATCH, covering both retained and cloned curricula: a Monday-aligned inherited
+module has no override and moves from Jan 11 to Jan 25 when kickoff moves from
+Jan 4 to Jan 18; the source’s explicit Jan 18 override stays fixed. A Thursday
+kickoff case demonstrates why inheritance would be invalid (Jan 14 Thursday),
+keeps the valid Jan 11 Monday alignment override, and verifies its intentional
+pinning on a later kickoff edit. Source kickoff is unchanged.
+
+Focused clone/migration tests pass in **both modes: 15 tests / 192 assertions**,
+zero failures/errors/skips per mode. Changed Ruby files pass RuboCop. The wire
+contract and frontend are unchanged; the previously green web gate is not being
+rerun for this backend-only correction. A final-source full ASUS unprepared-mode
+run is pending. Main remains unchanged at `3a8b3ebf`.
+
+Clarification of the earlier “full-suite race failure”: on fix source `7d7b109b`,
+the ASUS **unprepared (prepared_statements=false)** full run, seed **42069**,
+failed only
+`ScheduledUpdateRacesTest#test_a_claim_released_after_another_job_settled_the_push_is_unsettled_again,_and_the_re-request_sends_only_to_it`
+at **line 224** (expected one requeued push, got zero). That test and its
+`PushNotificationJob` / `ScheduledAnnouncementPublisher` production code are
+unchanged from main and outside this PR’s cloning changes. An isolated ASUS
+rerun of the unchanged class at the same seed **passed: 10 tests / 63 assertions,
+zero failures/errors/skips**. No causal link to cloning was found. The original
+full failure remains in the historical record; its passing isolated retry was
+not presented as a green full run. The lead reports CI green on `6c70e3e7`.

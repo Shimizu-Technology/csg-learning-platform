@@ -157,7 +157,18 @@ class AuthoringCloneService
     rows = source.curriculum.modules.reorder(:id).filter_map do |mod|
       next if source.content_defaults && !source.content_defaults.dig(mod.id.to_s, "assigned") && !overrides.key?(mod.id)
 
-      anchor = overrides[mod.id]&.start_date || mod.legacy_start_date_for(source)
+      override = overrides[mod.id]
+      unless override
+        inherited = mod.legacy_start_date_for(cohort)
+        # Legacy inheritance adds offsets to kickoff without weekday snapping.
+        # Preserve it when valid, so later kickoff edits still move the module.
+        next if (inherited.wday + 6) % 7 == mod.first_scheduled_day_index
+      end
+
+      # A wrong-weekday inherited date needs a pinned, valid schedule until
+      # inheritance itself supports weekday alignment. Explicit overrides stay
+      # explicit even when their date happens to equal the inherited date.
+      anchor = override&.start_date || mod.legacy_start_date_for(source)
       {
         cohort_id: cohort.id, module_id: map.fetch(mod.id, mod.id),
         start_date: mod.next_start_date_on_or_after(anchor + days),

@@ -145,6 +145,54 @@ class AuthoringClonesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "valid inherited schedules stay inherited and move when the cloned kickoff is edited" do
+    source = @f.cohort
+    source.update!(start_date: Date.new(2026, 10, 26))
+    source.cohort_module_schedules.sole.update!(start_date: Date.new(2026, 11, 9))
+    [ false, true ].each do |with_curriculum|
+      clone_request("cohorts", source.id, start_date: "2027-01-04", clone_curriculum: with_curriculum,
+        client_request_id: "inherited-dates-#{with_curriculum}")
+      assert_response :created
+      copy = Cohort.find(response.parsed_body.dig("clone", "id"))
+      pinned, inherited = copy.curriculum.modules.to_a
+      assert_equal [ pinned.id ], copy.cohort_module_schedules.pluck(:module_id)
+      assert_equal Date.new(2027, 1, 18), pinned.start_date_for(copy)
+      assert_equal Date.new(2027, 1, 11), inherited.start_date_for(copy)
+
+      as_user(@admin) do
+        patch "/api/v1/cohorts/#{copy.id}", params: { start_date: "2027-01-18" }, headers: headers, as: :json
+      end
+      assert_response :success
+      copy.reload
+      assert_equal Date.new(2027, 1, 18), pinned.start_date_for(copy), "explicit overrides stay pinned"
+      assert_equal Date.new(2027, 1, 25), inherited.start_date_for(copy), "inherited dates follow the edited kickoff"
+      refute copy.cohort_module_schedules.exists?(module_id: inherited.id)
+      assert_equal Date.new(2026, 10, 26), source.reload.start_date
+    end
+  end
+
+  test "only wrong-weekday inheritance needs a pinned schedule in the clone" do
+    source = @f.cohort
+    source.update!(start_date: Date.new(2026, 10, 26))
+    source.cohort_module_schedules.sole.update!(start_date: Date.new(2026, 11, 9))
+    # The second module has no source override. Its inherited Thursday is
+    # invalid for a Monday module, so this one must be pinned for alignment.
+    clone_request("cohorts", source.id, start_date: "2027-01-07", clone_curriculum: false)
+    assert_response :created
+    copy = Cohort.find(response.parsed_body.dig("clone", "id"))
+    explicit, aligned = copy.curriculum.modules.to_a
+    assert_equal Date.new(2027, 1, 14), aligned.legacy_start_date_for(copy)
+    assert_equal [ explicit.id, aligned.id ].sort, copy.cohort_module_schedules.pluck(:module_id).sort
+    schedule = copy.cohort_module_schedules.find_by!(module_id: aligned.id)
+    assert schedule.valid?, schedule.errors.full_messages.join(", ")
+    assert_equal Date.new(2027, 1, 11), schedule.start_date
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{copy.id}", params: { start_date: "2027-01-21" }, headers: headers, as: :json
+    end
+    assert_response :success
+    assert_equal Date.new(2027, 1, 11), aligned.start_date_for(copy.reload), "necessary alignment remains an explicit override"
+  end
+
   test "support instructor membership is copied without lesson editing grants" do
     source = @f.cohort
     source.update!(course_delivery: "self_paced", support_instructor: @f.instructor)
