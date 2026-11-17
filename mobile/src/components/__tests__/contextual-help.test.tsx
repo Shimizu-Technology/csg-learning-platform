@@ -44,3 +44,16 @@ it('hides all contextual help when the resolved switch is off', async () => {
   await waitFor(() => expect(screen.queryByLabelText('Ask for help with Loops')).toBeNull());
   expect(screen.queryByLabelText('View previous help for Loops')).toBeNull();
 });
+
+it('shows every reply on a resolved request, not only the last one (PR #282 fix round 1)', async () => {
+  const replies = [
+    { id: 1, body: 'Print the counter first.', resolved_request: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' },
+    { id: 2, body: 'Then add one inside the loop.', resolved_request: true, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T02:00:00Z' },
+  ];
+  mockHelpRequests.mockResolvedValue({ help_requests: [{ ...resolved, staff_response: 'Then add one inside the loop.', replies }] });
+  const screen = show();
+  fireEvent.press(screen.getByLabelText('Ask for help with Loops'));
+  await waitFor(() => expect(screen.getByText('Print the counter first.')).toBeTruthy());
+  expect(screen.getByText('Then add one inside the loop.')).toBeTruthy();
+  expect(screen.getByText('Previous instructor replies')).toBeTruthy();
+});

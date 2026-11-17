@@ -84,6 +84,7 @@ import type {
   MessageSearchResponse,
   HelpRequestsResponse,
   HelpRequestResponse,
+  HelpRequestReplyResponse,
   SupportQueueResponse,
   HelpCategory,
   HelpContextSource,
@@ -782,6 +783,13 @@ export const api = {
     fetchApi<HelpRequestResponse>(`/api/v1/help_requests/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ help_request: data }),
+    }),
+  /** Reply (U-4.7): `resolve: false` keeps the request open, `true` is Reply & resolve. */
+  /** `client_request_id`: one per reply attempt, reused on retry, so a resend never answers twice. */
+  replyToHelpRequest: (id: number, data: { body: string; resolve: boolean; client_request_id?: string }) =>
+    fetchApi<HelpRequestReplyResponse>(`/api/v1/help_requests/${id}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({ reply: data }),
     }),
   getSupportQueue: (cohortId?: number, signal?: AbortSignal) => fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`, signal ? { signal } : {}),
   getInterventions: (params: { enrollment_id?: number; owner_id?: number; status?: InterventionStatus; due?: boolean } = {}) =>

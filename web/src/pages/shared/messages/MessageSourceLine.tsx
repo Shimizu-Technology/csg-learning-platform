@@ -21,6 +21,8 @@ export function MessageSourceLine({ source, staff }: { source: MessageSourceSumm
     ? staff ? `Submission #${source.id}` : 'your submission'
     : source.type === 'help_request'
       ? staff ? `Help request #${source.id}` : 'your help request'
+      // Staff only: the server never sends a follow-up plan source to learners.
+      : source.type === 'intervention' ? 'follow-up plan'
       : null
   const title = source.title || (source.type === 'lesson' ? 'a lesson' : 'this item')
   const content = (
