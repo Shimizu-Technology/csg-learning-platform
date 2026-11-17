@@ -122,6 +122,22 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new
   end
 
+  test "only admins can hand off to a Safety record" do
+    admin = User.create!(clerk_id: "handoff_safety_admin", email: "handoff-safety-admin@example.com", role: :admin)
+    instructor = User.create!(clerk_id: "handoff_safety_teacher", email: "handoff-safety-teacher@example.com", role: :instructor)
+    service = Object.new
+    service.define_singleton_method(:create) { |user:, redirect_url:| { success: true, url: redirect_url } }
+    original_new = ClerkWebHandoffService.method(:new)
+    ClerkWebHandoffService.define_singleton_method(:new) { service }
+    as_user(admin) { post "/api/v1/web_handoffs", params: { destination: "/admin/moderation#report-5" }, headers: auth_headers, as: :json }
+    assert_response :success
+    assert_equal "#{FrontendUrlResolver.resolve.delete_suffix('/')}/admin/moderation#report-5", response.parsed_body.fetch("url")
+    as_user(instructor) { post "/api/v1/web_handoffs", params: { destination: "/admin/moderation#report-5" }, headers: auth_headers, as: :json }
+    assert_response :forbidden
+  ensure
+    ClerkWebHandoffService.define_singleton_method(:new, original_new) if original_new
+  end
+
   test "legacy cohort settings handoffs support both staff roles and validate the cohort id" do
     service = Object.new
     service.define_singleton_method(:create) { |user:, redirect_url:| { success: true, url: redirect_url } }

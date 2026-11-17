@@ -46,7 +46,7 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
     const status = booking ? canceled ? 'Canceled' : completed ? 'Completed' : 'Booked' : closed ? 'Booking closed' : 'To schedule';
     const join = booking && !completed ? meetingJoinUrl(booking, now) : null;
     return <View key={week} ref={focusWeek === week ? targetRef : undefined} onLayout={() => { if (focusWeek === week && targetRef.current) onTargetLayout?.(targetRef.current); }} style={[styles.card, focusWeek === week && { borderWidth: 2, borderColor: c.action.primary }]} testID={`meeting-week-${cohort.id}-${week}`}>
-      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>{focusWeek === week && <Text style={styles.info}>Meeting from your update{targetBooking ? ` · Booking ${targetBooking.id}` : ''}</Text>}{targetBooking?.status === 'canceled' && <Text style={styles.info}>Canceled · {formatCourseTimeRange(targetBooking.starts_at, targetBooking.ends_at)}</Text>}
+      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>{focusWeek === week && <Text style={styles.info}>Meeting from your update</Text>}{targetBooking?.status === 'canceled' && <Text style={styles.info}>Canceled · {formatCourseTimeRange(targetBooking.starts_at, targetBooking.ends_at)}</Text>}
       <View style={[styles.badge, booking && !completed ? styles.success : styles.pending]}><Text style={[styles.badgeText, booking && !completed ? styles.successText : styles.pendingText]}>{status}</Text></View>
       {booking && <View style={styles.stack}>
         <View style={styles.timeRow}><CalendarCheck size={20} color={c.text.body} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>

@@ -84,6 +84,15 @@ class ExpoPushNotificationService
     end
   end
 
+  def self.system_notice(_record, notifications)
+    new.deliver_notifications(notifications) do |notification|
+      destination = RecordDestination.from_path(notification.path)
+      { title: notification.title, body: notification.body,
+        data: { destination: destination, path: RecordDestination.to_native_href(destination) || notification.path, destination_path: RecordDestination.to_native_href(destination) || notification.path },
+        sound: "default", channelId: "learning" }
+    end
+  end
+
   # The app has no Safety or purchase screens yet: the descriptor is web-only
   # (its native href is nil), so the tap opens Updates, where the alert is listed.
   # A purchase's student page does exist natively.

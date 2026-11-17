@@ -7,5 +7,7 @@
 /manifest.json /manifest.json 200
 /sw.js         /sw.js         200
 
+/.well-known/apple-app-site-association /.well-known/apple-app-site-association 200
+
 # SPA fallback
 /*    /index.html   200

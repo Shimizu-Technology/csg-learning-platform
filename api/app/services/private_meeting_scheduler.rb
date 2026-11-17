@@ -138,7 +138,7 @@ class PrivateMeetingScheduler
 
   def self.event!(booking, actor, action, details = {})
     event = booking.private_meeting_booking_events.create!(actor: actor, action: action, details: details)
-    [ booking.student, booking.instructor ].uniq.each do |recipient|
+    notifications = [ booking.student, booking.instructor ].uniq.map do |recipient|
       Notification.create!(
         user: recipient,
         actor: actor,
@@ -149,6 +149,7 @@ class PrivateMeetingScheduler
         path: "#{recipient.id == booking.student_id ? "/meetings" : "/admin/meetings"}?cohort_id=#{booking.cohort_id}&booking_id=#{booking.id}&week=#{booking.week_number}"
       )
     end
+    ActiveRecord.after_all_transactions_commit { NotificationDeliveryService.system_notice(event, notifications) }
     event
   end
 

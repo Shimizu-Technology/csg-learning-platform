@@ -3,6 +3,27 @@ require "test_helper"
 class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
+  test "recordings without an id never emit an empty recording route" do
+    assert_equal "/recordings?cohort_id=2", ExpoPushNotificationService.mobile_learning_path("/recordings?cohort_id=2")
+  end
+
+  test "system notice payload uses the exact meeting context and existing push preferences" do
+    user = User.create!(clerk_id: "meeting_push", email: "meeting-push@example.com", role: :student)
+    user.mobile_push_tokens.create!(token: "ExpoPushToken[meeting]", platform: "ios", last_seen_at: Time.current)
+    record = Curriculum.create!(name: "Push contract")
+    notification = user.notifications.create!(notifiable: record, notification_type: :system, title: "Meeting moved", body: "Monday at 3 PM", path: "/meetings?cohort_id=2&booking_id=7&week=3")
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.system_notice(record, [ notification ])
+      payload = JSON.parse(connection.request_received.body).first
+      assert_equal "/meetings?cohort_id=2&booking_id=7&week=3", payload.dig("data", "destination_path")
+      assert_equal "meeting", payload.dig("data", "destination", "kind")
+      assert_equal user.id, payload.dig("data", "recipient_user_id")
+    end
+  end
+
   test "announcement pushes identify the author and include the announcement details" do
     author = User.create!(clerk_id: "expo_announcement_author", email: "expo-announcement-author@example.com", first_name: "Maya", last_name: "Santos", role: :instructor)
     author.mobile_push_tokens.create!(token: "ExpoPushToken[announcement]", platform: "ios", last_seen_at: Time.current)

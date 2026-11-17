@@ -7,7 +7,7 @@ module Api
         /admin(?:
           /(?:students(?:/\d+)?|submissions/\d+|help-requests/\d+|interventions/\d+)|
           /cohorts(?:/[1-9]\d*(?:/settings|/watch-progress|/modules/\d+/grading|/students/\d+/(?:overview|work|learning|support|communication|access))?)?|
-          /(?:grading|support|content|team|meetings)
+          /(?:grading|support|content|team|meetings|moderation)
         )?
       )\z}x
 
@@ -20,6 +20,10 @@ module Api
         exact_recording = destination.match?(%r{\A/recordings\?cohort_id=[1-9]\d*&recording=(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)\z})
         unless (ALLOWED_DESTINATIONS.match?(destination_path) || exact_recording) && valid_meeting_destination?(destination, destination_path)
           render json: { error: "Unsupported web destination" }, status: :unprocessable_entity
+          return
+        end
+        if destination_path == "/admin/moderation" && !current_user.admin?
+          render_forbidden("Admin access is required for this destination")
           return
         end
         if destination_path.start_with?("/admin") && !current_user.staff?

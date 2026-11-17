@@ -53,6 +53,25 @@ export default function MeetingsScreen() {
     return () => { clearInterval(timer); sub.remove(); };
   }, [refresh]);
 
+  const openedMeeting = useRef<string | null>(null);
+  const openStaffMeeting = useCallback(async () => {
+    const context = new URLSearchParams();
+    if (cohortId) context.set('cohort_id', String(cohortId));
+    if (bookingId) context.set('booking_id', String(bookingId));
+    if (week) context.set('week', String(week));
+    setBusy(true);
+    try { await openAuthenticatedWebPage(api, `/admin/meetings${context.size ? `?${context}` : ''}`); }
+    catch (error) { setWriteError((error as Error).message); }
+    finally { setBusy(false); }
+  }, [api, cohortId, bookingId, week]);
+  useEffect(() => {
+    const target = `${cohortId}:${bookingId}:${week}`;
+    if (user?.is_staff && bookingId && openedMeeting.current !== target) {
+      openedMeeting.current = target;
+      void openStaffMeeting();
+    }
+  }, [user?.is_staff, cohortId, bookingId, week, openStaffMeeting]);
+
   async function confirm() {
     if (!action || disabled || lock.current) return;
     lock.current = true;
@@ -109,14 +128,7 @@ export default function MeetingsScreen() {
     </ScrollView>}
     <ScrollView ref={scrollRef} innerViewRef={innerRef} style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor={c.action.primary} />}>
       <View style={styles.header}><BackButton /><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly meeting.</Text></View>
-      {user?.is_staff ? <View style={{ gap: 12 }}><Text style={styles.copy}>Manage your meetings on {brand.productName} web.</Text>{bookingId && week && <Text style={styles.notice}>Week {week} · Booking {bookingId} from your update</Text>}<MeetingButton disabled={busy} onPress={() => {
-        setBusy(true);
-        const context = new URLSearchParams();
-        if (cohortId) context.set('cohort_id', String(cohortId));
-        if (bookingId) context.set('booking_id', String(bookingId));
-        if (week) context.set('week', String(week));
-        void openAuthenticatedWebPage(api, `/admin/meetings${context.size ? `?${context}` : ''}`).catch((error) => setWriteError((error as Error).message)).finally(() => setBusy(false));
-      }}>Manage on web</MeetingButton>{writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}</View> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
+      {user?.is_staff ? <View style={{ gap: 12 }}><Text style={styles.copy}>Manage your meetings on {brand.productName} web.</Text>{bookingId && week && <Text style={styles.notice}>Your meeting update · Week {week}</Text>}<MeetingButton disabled={busy} onPress={() => { void openStaffMeeting(); }}>Manage on web</MeetingButton>{writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}</View> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
         {query.isPending && connected && <View accessibilityRole="progressbar" accessibilityLabel="Loading your meetings"><ActivityIndicator color={c.action.primary} /><Text style={styles.copy}>Loading your meetings…</Text></View>}
         {busy && !action && <Text accessibilityLiveRegion="polite" style={styles.notice}>Finishing your request…</Text>}
         {params.cohort_id && query.data && !query.data.cohorts.some((cohort) => cohort.id === cohortId) && <Text accessibilityRole="alert" style={styles.error}>This cohort doesn’t offer meetings.</Text>}

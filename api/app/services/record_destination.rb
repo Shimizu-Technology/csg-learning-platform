@@ -1,5 +1,6 @@
 # Additive wire descriptor. Legacy paths remain available to installed clients.
 class RecordDestination
+  PATH_ALIASES = JSON.parse(File.read(Rails.root.join("config/record_destination_aliases.json"))).freeze
   CONTEXT_KEYS = {
     "student" => %w[cohort_id], "staff" => [], "curriculum" => %w[cohort_id], "resource" => %w[cohort_id],
     "lesson" => %w[cohort_id], "module" => %w[cohort_id], "submission" => %w[cohort_id student_id],
@@ -31,6 +32,21 @@ class RecordDestination
   def self.from_path(path)
     return unless path.is_a?(String) && path.start_with?("/") && !path.match?(/[\s\\]/) && !path.start_with?("//")
 
+    PATH_ALIASES.each do |entry|
+      pattern = Regexp.new(entry.fetch("pattern"))
+      base = path.split(/[?#]/).first
+      next unless pattern.match?(base)
+
+      captures = base.match(pattern)
+      target = entry.fetch("replacement").gsub(/\$(\d+)/) { captures[Regexp.last_match(1).to_i] }
+      source_uri = URI.parse(path)
+      target_uri = URI.parse(target)
+      fixed = URI.decode_www_form(target_uri.query.to_s)
+      target_uri.query = URI.encode_www_form(fixed + URI.decode_www_form(source_uri.query.to_s).reject { |key, _| fixed.any? { |k, _| k == key } })
+      result = from_path(target_uri.to_s)
+      result[:context].merge!(entry.fetch("context", {})) if result
+      return result
+    end
     uri = URI.parse(path)
     params = URI.decode_www_form(uri.query.to_s).group_by(&:first).filter_map { |key, entries| [ key, entries.first.last ] if entries.size == 1 }.to_h
     patterns = {
@@ -49,7 +65,9 @@ class RecordDestination
         message_id: params["message_id"] || params["messageId"]
       })
     end
-    if uri.path == "/admin/moderation" && (safety = uri.fragment&.match(/\A(report|deletion)-([1-9]\d*)\z/))
+    if uri.path == "/admin/content" && (curriculum = uri.fragment&.match(/\Acurriculum-([1-9]\d*)\z/))
+      build(kind: "curriculum", id: curriculum[1], context: params.merge(staff: true))
+    elsif uri.path == "/admin/moderation" && (safety = uri.fragment&.match(/\A(report|deletion)-([1-9]\d*)\z/))
       build(kind: SAFETY_ANCHORS.fetch(safety[1]), id: safety[2])
     elsif uri.path == "/recordings" && params["recording"].to_s.match?(/\A(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)\z/)
       build(kind: "recording", id: params["recording"], context: params)
@@ -91,6 +109,21 @@ class RecordDestination
 
     d = descriptor.deep_symbolize_keys
     id = d[:id]
+    PATH_ALIASES.each do |entry|
+      pattern = Regexp.new(entry.fetch("pattern"))
+      base = path.split(/[?#]/).first
+      next unless pattern.match?(base)
+
+      captures = base.match(pattern)
+      target = entry.fetch("replacement").gsub(/\$(\d+)/) { captures[Regexp.last_match(1).to_i] }
+      source_uri = URI.parse(path)
+      target_uri = URI.parse(target)
+      fixed = URI.decode_www_form(target_uri.query.to_s)
+      target_uri.query = URI.encode_www_form(fixed + URI.decode_www_form(source_uri.query.to_s).reject { |key, _| fixed.any? { |k, _| k == key } })
+      result = from_path(target_uri.to_s)
+      result[:context].merge!(entry.fetch("context", {})) if result
+      return result
+    end
     uri = URI.parse(path)
     params = URI.decode_www_form(uri.query.to_s).to_h
     paths = { "student" => "/staff/student/#{id}", "staff" => "/staff/team", "curriculum" => d.dig(:context, :staff) == true ? "/staff/curriculum/#{id}" : "/learn", "resource" => "/resources", "lesson" => "/lesson/#{id}", "module" => "/module/#{id}", "submission" => "/staff/submission/#{id}", "help_request" => "/staff/support/#{id}", "follow_up" => "/staff/intervention/#{id}", "channel" => "/conversation/channel/#{id}", "dm" => "/conversation/dm/#{id}", "announcement" => "/updates", "recording" => "/recording/#{id}", "meeting" => "/meetings", "cohort" => "/cohort/#{id}" }

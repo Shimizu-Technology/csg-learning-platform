@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "4T358A5S74.com.codeschoolofguam.connect",
+        "paths": [
+          "NOT /auth/*",
+          "NOT /sign-in*",
+          "NOT /sign-up*",
+          "/*"
+        ]
+      }
+    ]
+  }
+}

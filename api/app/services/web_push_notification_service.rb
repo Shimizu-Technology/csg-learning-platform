@@ -29,6 +29,12 @@ class WebPushNotificationService
       ENV["WEB_PUSH_SUBJECT"].present?
   end
 
+  def self.system_notice(record, notifications)
+    return false unless configured?
+
+    new.batched { |service| service.system_notice(record, notifications) }
+  end
+
   def self.announcement_published(announcement, notifications)
     return false unless configured?
 
@@ -140,6 +146,15 @@ class WebPushNotificationService
         destination_path: destination_path,
         tag: "intervention-#{intervention.id}"
       }.to_json
+      deliver_to_user(notification.user_id, payload)
+    end
+  end
+
+  def system_notice(record, notifications)
+    each_notification(notifications) do |notification|
+      payload = { title: notification.title, body: notification.body, path: notification.path,
+        destination: RecordDestination.from_path(notification.path), destination_path: notification.path,
+        tag: "#{record.class.name.underscore.dasherize}-#{record.id}" }.to_json
       deliver_to_user(notification.user_id, payload)
     end
   end

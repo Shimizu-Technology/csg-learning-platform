@@ -87,7 +87,7 @@ it('runs the target layout callback using a native component ref and the booking
   fireEvent(screen.getByTestId(`meeting-week-${cohort.id}-2`), 'layout', { nativeEvent: { layout: { x: 0, y: 200, width: 300, height: 100 } } });
   expect(onTargetLayout).toHaveBeenCalledTimes(1);
   expect(typeof onTargetLayout.mock.calls[0][0].measureLayout).toBe('function');
-  expect(screen.getByText(`Meeting from your update · Booking ${booking.id}`)).toBeTruthy();
+  expect(screen.getByText('Meeting from your update')).toBeTruthy();
 });
 
 it('uses a 30-minute configuration in the intro and actual slot duration for confirmation and saved bookings', async () => {
