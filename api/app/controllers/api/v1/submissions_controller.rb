@@ -378,6 +378,7 @@ module Api
           # The grading queue's context line: "Cohort 3 · Week 10", or "self-paced" with no week.
           course_delivery: enrollment&.cohort&.course_delivery,
           week_number: enrollment&.cohort&.self_paced? ? nil : SubmissionWindowStatus.week_number_for_release_day(submission.content_block.lesson.release_day),
+
           filename: submission.content_block.filename,
           submission_config: submission.content_block.submission_config || {},
           language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil

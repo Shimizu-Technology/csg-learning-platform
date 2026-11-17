@@ -5,11 +5,11 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseCatalog } from './CourseCatalog'
 
-const state = vi.hoisted(() => ({ auth: { isSignedIn: false, user: null as unknown, enrollments: [], syncSession: vi.fn() }, getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn() }))
+const state = vi.hoisted(() => ({ auth: { isSignedIn: false, user: null as unknown, enrollments: [], syncSession: vi.fn() }, getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn() }))
 vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 vi.mock('../lib/api', () => ({ api: state }))
 let root: Root, container: HTMLDivElement
-const offering = { id: 13, name: 'Python', curriculum_name: 'Foundations', checkout_available: true, price_cents: 14900, access_months: 12, instructor_message_weeks: 6, instructor_response_target: '2 Guam business days' }
+const offering = { id: 13, name: 'Python', slug: 'course-python', lesson_count: 1, syllabus: [{ title: 'Section', lessons: ['Public lesson'] }], curriculum_name: 'Foundations', checkout_available: true, price_cents: 14900, access_months: 12, instructor_message_weeks: 6, instructor_response_target: '2 Guam business days' }
 beforeEach(() => {
   vi.clearAllMocks()
   state.auth.isSignedIn = false; state.auth.user = null
@@ -89,7 +89,8 @@ it.each(['admin', 'instructor'])('shows %s a staff preview without requesting st
     expect(card.textContent).toContain('12 months of lesson access')
     expect(card.textContent).not.toContain('could not check your purchases')
     expect(card.textContent).not.toContain('Checking your purchases')
-    expect(card.querySelector('button, a')).toBeNull()
+    expect(card.querySelector('button')).toBeNull()
+    expect(card.querySelector('a')?.textContent).toBe('View course')
   }
   expect(state.startCourseCheckout).not.toHaveBeenCalled()
 })

@@ -53,7 +53,7 @@ jest.mock('expo-file-system', () => ({ File: class {} }));
 const clients: QueryClient[] = [];
 afterEach(() => { clients.forEach(client => client.clear()); clients.length = 0; });
 function Wrapper({ children }: PropsWithChildren) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false, gcTime: 0 } } });
   clients.push(client);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

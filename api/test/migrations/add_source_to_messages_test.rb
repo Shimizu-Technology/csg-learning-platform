@@ -24,5 +24,7 @@ class AddSourceToMessagesTest < ActiveSupport::TestCase
       assert constraint&.validated?
     end
     Message.reset_column_information
+  ensure
+    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
   end
 end

@@ -15,11 +15,12 @@ module Api
         record = cohort || SchoolSetting.current
         record.with_lock do
           before = payload
+          record.review_response_time = params[:review_response_time].presence if params.key?(:review_response_time)
           if cohort
-            cohort.update!(settings: (cohort.settings || {}).merge("features" => features.compact))
+            cohort.update!(settings: params.key?(:features) ? (cohort.settings || {}).merge("features" => features.compact) : cohort.settings)
           else
             mode = params[:public_catalog_mode] || record.public_catalog_mode
-            record.update!(features: features.compact, public_catalog_mode: mode)
+            record.update!(features: params.key?(:features) ? features.compact : record.features, public_catalog_mode: mode)
           end
           FeatureSwitchChange.create!(actor: current_user, cohort: cohort, before: before, after: payload)
         end
@@ -36,7 +37,10 @@ module Api
 
       def payload
         school = SchoolSetting.current
-        { features: FeatureSwitches.for(cohort: cohort), defaults: FeatureSwitches.for,
+        { review_response_time: cohort ? cohort.effective_review_response_time : school.review_response_time,
+          review_response_time_override: cohort&.review_response_time,
+          review_response_time_default: school.review_response_time,
+          features: FeatureSwitches.for(cohort: cohort), defaults: FeatureSwitches.for,
           overrides: (cohort&.settings&.dig("features") || {}).slice(*FeatureSwitches::KEYS),
           cohort: cohort && { id: cohort.id, name: cohort.name }, public_catalog_mode: school.public_catalog_mode }
       end

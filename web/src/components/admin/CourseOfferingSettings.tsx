@@ -21,6 +21,7 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
   onSaved: () => Promise<unknown>
 }) {
   const location = useLocation()
+  const [marketing, setMarketing] = useState(() => Object.fromEntries(['public_title', 'public_description', 'public_image_url', 'public_outcomes', 'public_duration', 'public_prerequisites', 'public_preview'].map(key => [key, String(cohort[key as keyof typeof cohort] || '')])))
   const [price, setPrice] = useState(cohort.public_price_cents == null ? '' : (cohort.public_price_cents / 100).toFixed(2))
   const [stripePrice, setStripePrice] = useState(cohort.stripe_price_id || '')
   const [instructor, setInstructor] = useState(String(cohort.support_instructor_id || ''))
@@ -39,8 +40,8 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
       if (response.data && !response.error && !response.fromCache) {
         setInstructors(response.data.instructors)
         setLoaded(true)
-      } else setError('Could not load assigned instructors. Refresh before saving.')
-    }).catch(() => { if (active) setError('Could not load assigned instructors. Refresh before saving.') })
+      } else setError('Could not load assigned instructors. Course copy can still be saved; refresh to edit the instructor or checkout.')
+    }).catch(() => { if (active) setError('Could not load assigned instructors. Course copy can still be saved; refresh to edit the instructor or checkout.') })
     return () => { active = false }
   }, [cohort.id])
 
@@ -55,29 +56,30 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
     let active = true
     setServerReadiness(null)
     const timer = setTimeout(() => {
-      void api.getSetupReadiness(cohort.id, { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null }).then(r => {
+      void api.getSetupReadiness(cohort.id, { ...marketing, public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null }).then(r => {
         if (active && r.data && !r.error && !r.fromCache) setServerReadiness(r.data.readiness)
       }).catch(() => { if (active) setError('Readiness unavailable. Refresh before publishing.') })
     }, 250)
     return () => { active = false; clearTimeout(timer) }
-  }, [cohort.id, price, priceCents, stripePrice, instructor])
+  }, [cohort.id, price, priceCents, stripePrice, instructor, marketing])
   const ready = serverReadiness !== null && Object.values(serverReadiness).every(Boolean)
   useEffect(() => {
-    if (!onDraftChange || !loaded) return
-    const patch = { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null, self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks), public_checkout_enabled: visible }
-    onDraftChange(Object.fromEntries(Object.entries(patch).filter(([key, value]) => value !== ((cohort as unknown as Record<string, unknown>)[key] ?? null) && !(key === 'stripe_price_id' && value === (cohort.stripe_price_id || null)))))
-  }, [price, priceCents, stripePrice, instructor, months, weeks, visible, ready, cohort, onDraftChange, loaded])
+    if (!onDraftChange) return
+    const patch = { ...marketing, public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null, self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks), public_checkout_enabled: visible }
+    onDraftChange(Object.fromEntries(Object.entries(patch).filter(([key, value]) => value !== ((cohort as unknown as Record<string, unknown>)[key] ?? (key.startsWith('public_') && key !== 'public_price_cents' && key !== 'public_checkout_enabled' ? '' : null)) && !(key === 'stripe_price_id' && value === (cohort.stripe_price_id || null)))))
+  }, [price, priceCents, stripePrice, instructor, months, weeks, visible, ready, cohort, onDraftChange, loaded, marketing])
   const Form = onDraftChange ? 'div' : 'form'
   async function save(event: FormEvent) {
     event.preventDefault()
     setBusy(true); setError(''); setMessage('')
     try {
       const response = await api.updateCohort(cohort.id, {
+        ...marketing,
         public_price_cents: price ? priceCents : null,
         stripe_price_id: stripePrice.trim() || null,
         support_instructor_id: instructor ? Number(instructor) : null,
         self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks),
-        public_checkout_enabled: visible,
+        ...(visible !== cohort.public_checkout_enabled ? { public_checkout_enabled: visible } : {}),
       })
       if (response.error || !response.data) setError(response.error || 'Could not save course offering.')
       else { setVisible(response.data.cohort.public_checkout_enabled ?? false); setMessage('Course offering saved.'); await onSaved() }
@@ -90,6 +92,8 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
     <p className="mt-2 text-sm text-ink-secondary">These defaults apply to new checkout attempts. Open and paid purchases keep their agreed terms. Existing purchasers keep their agreed access dates and support duration, including courses they have not opened yet.</p>
     <Form onSubmit={(event) => void save(event)} className="mt-4 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
+        {Object.entries({ public_title: 'Public title', public_description: 'Description', public_image_url: 'Image URL (HTTPS)', public_outcomes: 'What learners will learn', public_duration: 'Estimated duration', public_prerequisites: 'Prerequisites', public_preview: 'Course preview' }).map(([key, label]) => <label key={key} className="text-sm font-semibold sm:col-span-2">{label}{['public_description', 'public_outcomes', 'public_prerequisites', 'public_preview'].includes(key) ? <textarea className="app-control mt-1 w-full" value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} /> : <input className="app-control mt-1 w-full" type={key === 'public_image_url' ? 'url' : 'text'} value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} />}</label>)}
+        <p className="text-sm text-ink-secondary sm:col-span-2">Use public course copy only. The lesson count and syllabus come from published lessons in the selected modules. The course address stays the same when you change its title.</p>
         <label className="text-sm font-semibold">Display price (USD)<input id="offering-price" className="app-control mt-1 w-full" type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></label>
         <label className="text-sm font-semibold">Stripe price ID<input className="app-control mt-1 w-full" pattern="price_[a-zA-Z0-9_]+" placeholder="price_…" value={stripePrice} onChange={(event) => setStripePrice(event.target.value)} /></label>
         <p className="text-sm text-ink-secondary sm:col-span-2">Use a Stripe Price ID beginning with price_, such as price_example123. Product IDs beginning with prod_ will not work.</p>

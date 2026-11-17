@@ -37,6 +37,7 @@ describe('document.title per page (README §2: "<Page> · CSG Learn")', () => {
     ['/admin/lessons/7/edit', `Edit lesson · ${PRODUCT_NAME}`],
     ['/admin/team', `Team · ${PRODUCT_NAME}`],
     ['/courses', `Focused courses · ${PRODUCT_NAME}`],
+    ['/courses/course-python', `Course · ${PRODUCT_NAME}`],
     ['/admin/students', `Students · ${PRODUCT_NAME}`],
     ['/admin/students/', `Students · ${PRODUCT_NAME}`],
     ['/admin/cohorts/3/students/9', `Student · ${PRODUCT_NAME}`],
@@ -56,7 +57,7 @@ describe('document.title per page (README §2: "<Page> · CSG Learn")', () => {
 describe('unknown routes are "Page not found", even when they share a real prefix', () => {
   it.each([
     '/courses-not-real',
-    '/courses/extra',
+    '/courses/extra/path',
     '/admin/students-invalid',
     '/admin/students/9/extra',
     '/admin/cohorts-old',

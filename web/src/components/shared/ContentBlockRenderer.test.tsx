@@ -394,3 +394,8 @@ describe('written text submissions', () => {
     expect(code).not.toContain('data-md-editor')
   })
 })
+
+it('promises instructor review and the default response time for waiting work', () => {
+  const html = renderToStaticMarkup(<ContentBlockRenderer cohortId={13} isStaff={false} block={{ id: 9001, block_type: 'exercise', position: 0, title: 'Practice', body: null, video_url: null, filename: null, metadata: {}, submission_type: 'text_submission', submissions: [{ id: 1, text: 'My answer', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-11-17' }] }} />)
+  expect(html).toContain('Your instructor will review it — usually within 2 days')
+})

@@ -24,7 +24,7 @@ it('polls pending until fulfilled, then stops and offers the exact course', asyn
   state.getCourseCheckoutStatus.mockResolvedValue(response('fulfilled'))
   await act(async () => vi.advanceTimersByTimeAsync(2000))
   expect(container.textContent).toContain('You’re in')
-  expect(container.querySelector('a[href="/materials?cohort_id=13"]')?.textContent).toBe('Open Python')
+  expect(container.querySelector('a[href="/dashboard?cohort_id=13"]')?.textContent).toBe('Open Python')
   expect(state.syncSession).toHaveBeenCalledOnce()
   await act(async () => vi.advanceTimersByTimeAsync(120000))
   expect(state.getCourseCheckoutStatus).toHaveBeenCalledTimes(2)
