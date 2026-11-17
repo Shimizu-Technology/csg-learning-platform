@@ -104,6 +104,7 @@ Rails.application.routes.draw do
       get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
       get "records/:type/:id/related", to: "record_summaries#related", as: :record_related
       get "records/:type/:id/usage", to: "record_summaries#usage", as: :record_usage
+      get "records/:type/:id/detail", to: "record_summaries#detail", as: :record_detail
       resources :workspaces, only: [ :index, :show, :create, :update ] do
         resources :memberships, only: [ :create, :destroy ], controller: "workspace_memberships"
       end

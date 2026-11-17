@@ -1,4 +1,4 @@
-import { Bell, BellOff, BookOpen, ChevronLeft, Hash, Link2, Lock, MessageCircle, MonitorSmartphone, PanelLeftOpen, Pin, UserRound } from 'lucide-react';
+import { Bell, BellOff, BookOpen, ChevronLeft, Hash, Info, Link2, Lock, MessageCircle, MonitorSmartphone, PanelLeftOpen, Pin, UserRound } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCohortContext } from '../../../contexts/CohortContext';
@@ -8,7 +8,7 @@ import { OverflowMenu } from '../../../components/ui/OverflowMenu';
 import { isPlainLeftClick } from '../../../lib/links';
 import { backLinkText, originLabel, useBackLink } from '../../../lib/recordOrigin';
 import { readReturnContext } from '../../../lib/navigationContext';
-import { cohortPath, cohortStudentPath, safeInternalReturnPath } from '../../../lib/routes';
+import { channelRecordPath, cohortPath, cohortStudentPath, safeInternalReturnPath } from '../../../lib/routes';
 import type { ChannelSummary, DirectConversationSummary } from '../../../types/api';
 import type { Target } from './types';
 import type { BrowserAlerts } from './useBrowserAlerts';
@@ -114,6 +114,8 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
               onSelect: () => { const showPins = !(conversationView === 'pins' && !activeThreadRoot); setActiveThreadRootId(null); if (!isDesktop) setMobilePane('conversation'); setConversationView(showPins ? 'pins' : 'messages') },
             },
             { key: 'alerts', label: pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts', icon: <MonitorSmartphone aria-hidden="true" />, onSelect: () => void handleTogglePush() },
+            // Staff: the channel's page (members, recent activity), L-5.2.
+            ...(isStaff && selectedTarget.type === 'channel' ? [{ key: 'details', label: 'Conversation details', icon: <Info aria-hidden="true" />, to: `${channelRecordPath(selectedTarget.id)}?return_to=${encodeURIComponent(`${location.pathname}${location.search}`)}` }] : []),
           ]}
         />
       </div>

@@ -438,8 +438,9 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   def book(teacher, offset, status: :confirmed)
     config = @cohort.private_meeting_config || @cohort.create_private_meeting_config!(instructor: teacher, weeks: 30)
-    # Use a daytime hour: a 23:xx fixture plus one hour can cross a course week.
-    starts = Time.use_zone(config.timezone) { (Time.current + offset.days).change(hour: 10, min: 0, sec: 0) }
+    # Mid-day in the meeting's own time zone: a slot near local midnight can cross
+    # into the next course week, which PrivateMeetingSlot rejects (CI time-of-day flake).
+    starts = (Time.current + offset.days).in_time_zone(config.timezone).change(hour: 10)
     # A second instructor can retain canceled/historical bookings after reassignment.
     config.update!(instructor: teacher)
     slot = config.private_meeting_slots.create!(instructor: teacher, starts_at: starts, ends_at: starts + 1.hour)

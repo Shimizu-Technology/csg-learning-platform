@@ -27,10 +27,13 @@ const refs: Record<RecordType, RecordRef> = {
   announcement: { type: 'announcement', id: 5 },
   channel: { type: 'channel', id: 4 },
   direct_conversation: { type: 'direct_conversation', id: 6, messageId: 300 },
-  private_meeting: { type: 'private_meeting', id: 14 },
+  private_meeting: { type: 'private_meeting', id: 14, cohortId: 7, week: 2 },
   office_hour: { type: 'office_hour', id: 15 },
   recording: { type: 'recording', id: 21, cohortId: 7 },
-  learning_plan: { type: 'learning_plan', userId: 12, cohortId: 7 },
+  learning_plan: { type: 'learning_plan', id: 33, userId: 12, cohortId: 7 },
+  recovery_plan: { type: 'recovery_plan', id: 44, userId: 12, cohortId: 7 },
+  rubric: { type: 'rubric', id: 55 },
+  activity_event: { type: 'activity_event', id: 66 },
 }
 
 /** Expected destination for each type × role, from a page with no return context. */
@@ -52,10 +55,14 @@ const expected: Record<RecordType, Record<ViewerRole, string | null>> = {
   announcement: { admin: '/announcements/5', instructor: '/announcements/5', student: '/announcements/5' },
   channel: { admin: '/messages/4', instructor: '/messages/4', student: '/messages/4' },
   direct_conversation: { admin: '/messages/dm/6?message_id=300', instructor: '/messages/dm/6?message_id=300', student: '/messages/dm/6?message_id=300' },
-  private_meeting: { admin: null, instructor: null, student: null },
-  office_hour: { admin: null, instructor: null, student: null },
-  recording: { admin: '/recordings?cohort_id=7&recording=21', instructor: '/recordings?cohort_id=7&recording=21', student: '/recordings?cohort_id=7&recording=21' },
-  learning_plan: { admin: '/admin/cohorts/7/students/12/learning', instructor: '/admin/cohorts/7/students/12/learning', student: null },
+  // L-5.2: staff open the record pages; a learner keeps their own booking and Recordings.
+  private_meeting: { admin: '/admin/meetings/14', instructor: '/admin/meetings/14', student: '/meetings?cohort_id=7&booking_id=14&week=2' },
+  office_hour: { admin: '/admin/office-hours/15', instructor: '/admin/office-hours/15', student: null },
+  recording: { admin: '/admin/recordings/21', instructor: '/admin/recordings/21', student: '/recordings?cohort_id=7&recording=21' },
+  learning_plan: { admin: '/admin/learning-plans/33', instructor: '/admin/learning-plans/33', student: null },
+  recovery_plan: { admin: '/admin/cohorts/7/students/12/support?plan_id=44', instructor: '/admin/cohorts/7/students/12/support?plan_id=44', student: null },
+  rubric: { admin: '/admin/rubrics/55', instructor: '/admin/rubrics/55', student: null },
+  activity_event: { admin: '/admin/activity/66', instructor: '/admin/activity/66', student: null },
 }
 
 const cases = (Object.keys(refs) as RecordType[]).flatMap((type) => (Object.keys(viewers) as ViewerRole[]).map((role) => [type, role] as const))
@@ -100,7 +107,30 @@ describe('recordPath', () => {
     expect(recordPath(refs.student, fromActivity)).toBe('/admin/cohorts/7/students/12/work?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
     expect(recordPath(refs.lesson, fromActivity)).toBe('/admin/lessons/42?cohort_id=7&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
     expect(recordPath({ type: 'lesson', id: 42, cohortId: 7, view: 'learn' }, fromActivity)).toBe('/lessons/42?cohort_id=7&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
-    expect(recordPath(refs.recording, fromActivity)).toBe('/recordings?cohort_id=7&recording=21&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
+    expect(recordPath(refs.recording, fromActivity)).toBe('/admin/recordings/21?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
+    expect(recordPath(refs.recording, { viewer: viewers.student, returnTo: '/admin/cohorts/7?tab=activity' })).toBe('/recordings?cohort_id=7&recording=21&return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dactivity')
+  })
+
+  it('opens the L-5.2 record pages with where they were opened from', () => {
+    const returnTo = '/admin/cohorts/7?tab=schedule'
+    const instructor = { viewer: viewers.instructor, returnTo }
+    expect(recordPath(refs.office_hour, instructor)).toBe('/admin/office-hours/15?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dschedule')
+    expect(recordPath(refs.private_meeting, instructor)).toBe('/admin/meetings/14?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dschedule')
+    expect(recordPath(refs.rubric, instructor)).toBe('/admin/rubrics/55?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dschedule')
+    expect(recordPath(refs.activity_event, instructor)).toBe('/admin/activity/66?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dschedule')
+    expect(recordPath(refs.learning_plan, instructor)).toBe('/admin/learning-plans/33?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dschedule')
+    // A learner's own booking ignores staff return context.
+    expect(recordPath(refs.private_meeting, { viewer: viewers.student, returnTo })).toBe('/meetings?cohort_id=7&booking_id=14&week=2')
+  })
+
+  it('keeps Messages as the channel destination and opens the channel page with view: record', () => {
+    expect(recordPath({ type: 'channel', id: 4, messageId: 9 }, { viewer: viewers.instructor })).toBe('/messages/4?message_id=9')
+    expect(recordPath({ type: 'channel', id: 4, view: 'record' }, { viewer: viewers.instructor, returnTo: '/admin/cohorts/7?tab=communication' })).toBe('/admin/channels/4?return_to=%2Fadmin%2Fcohorts%2F7%3Ftab%3Dcommunication')
+    expect(recordPath({ type: 'channel', id: 4, view: 'record' }, { viewer: viewers.student })).toBe('/messages/4')
+  })
+
+  it('opens the workspace Learning tab for a plan without its id', () => {
+    expect(recordPath({ type: 'learning_plan', userId: 12, cohortId: 7 }, { viewer: viewers.admin })).toBe('/admin/cohorts/7/students/12/learning')
   })
 
   it('drops an external or malformed return path', () => {
@@ -136,7 +166,7 @@ describe('RECORD_ROUTES', () => {
   const toRegExp = (route: string) => new RegExp(`^${route.replace(/:\w+\?/g, '[^/]*').replace(/:\w+/g, '[^/]+').replace(/\*$/, '.*')}$`)
 
   it.each(Object.entries(RECORD_ROUTES))('%s points at routes App.tsx defines', (_type, info) => {
-    for (const pattern of [info.admin, info.staff, info.student]) {
+    for (const pattern of [info.admin, info.staff, info.student, info.staffRecord]) {
       if (!pattern) continue
       const sample = pattern.replace(/:\w+/g, '1')
       expect(appRoutes.some((route) => toRegExp(route).test(sample)), `${pattern} has no matching <Route>`).toBe(true)
