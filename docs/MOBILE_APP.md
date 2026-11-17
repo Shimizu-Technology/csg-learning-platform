@@ -91,3 +91,185 @@ The native channel and direct-message composers now support reviewed voice-to-te
 - ship direct messages and channels first, then reuse the shared flow in threads, contextual help, and concise grading feedback.
 
 The implementation uses one app-lifetime `expo-audio` recorder for foreground-only, cache-backed M4A recording and an authenticated Rails endpoint for server-side transcription and conservative cleanup. Recorder shutdown is serialized across navigation/background/cancel paths, failed audio is retained only for an explicit in-session retry, and native crash capture records content-free diagnostic state. It requires a new native binary. Internal TestFlight activation and public release gates are tracked separately in `VOICE_TO_TEXT_PLAN.md`.
+
+## Release and OTA updates
+
+N-3 prepares EAS Update for Expo SDK **57** (`expo ~57.0.33`, SDK-matched
+`expo-updates ~57.0.28`). The existing project is
+`c6326478-e200-4aba-8614-806ca5f8e03a`, owned by `shimizutechnology`.
+`updates.url` points to that project's `https://u.expo.dev/` endpoint.
+Production binaries use channel `production`; internal preview binaries use
+`preview`. The corresponding EAS environments are explicit in `eas.json`.
+This PR does not create projects/channels, publish an update, or ship a binary.
+
+### Compatibility and safe activation
+
+SDK 57 supports `runtimeVersion: { policy: "fingerprint" }`. Expo derives a hash
+from native dependencies/configuration for both builds and updates. EAS only
+serves an update to the same platform and runtime on the binary's channel. This
+is safer than `appVersion` here: the app is still `1.0.0` across multiple native
+builds, and relying on a manual version bump could send incompatible JavaScript.
+Never override the hash or remove native inputs to make an update match. Compare
+the update runtime with the intended installed build before releasing it.
+
+| Change | Delivery |
+| --- | --- |
+| JavaScript/TypeScript fixes, copy, layout, ordinary bundled content/assets using existing native capabilities | OTA, after verifying the same fingerprint runtime |
+| Native module/dependency or Expo SDK changes; native code; config plugins or their options | New native build |
+| Entitlements/capabilities, including #286's Associated Domains; URL schemes; permissions; app icon or splash configuration | New native build |
+| Update URL/channel embedded in a binary, runtime policy, bundle identity, signing/provisioning | New native build |
+
+The first OTA-capable binary **must be a new native build** containing both
+`expo-updates` and #286's Associated Domains. Builds **41 and 44** cannot acquire
+native modules or entitlements via OTA. Their actual archived update settings
+and runtime versions have not been inspected. A binary without EAS Update is
+unaffected; one with a different runtime cannot receive this runtime's updates,
+even on the same channel. Verify their archive metadata instead of assuming
+that the marketing version `1.0.0` proves compatibility.
+
+The app checks after launch and when returning to the foreground, at most once
+per **30 minutes per app process**, including failed attempts. Concurrent checks
+are suppressed. Checks/downloads do not block startup; failures only log
+`[OTA] Update check/download failed`. Development, Expo Go, disabled updates, and
+web skip the flow. Native automatic checking is `ON_ERROR_RECOVERY`, preserving
+Expo's fatal-error recovery path while ordinary checks use the JS throttle;
+`fallbackToCacheTimeout: 0` avoids waiting for a network update at startup.
+
+Downloads, including rollback-to-embedded directives, are staged for the next
+**cold start**. A nonmodal **Update ready — restart** notice offers **Later** and
+asks the learner to finish their message/submission before closing and reopening
+the app. Backgrounding alone is not a cold start. There is deliberately no
+programmatic reload or restart button: drafts, voice recording, uploads, and
+pending submissions stay mounted. Existing user-scoped composer/submission
+draft persistence remains in place; an in-flight request must finish or visibly
+fail before the operator closes the app. OTA fixes must retain draft/cache
+format compatibility with the embedded bundle so rollback remains safe.
+
+### Pre-flight checklist
+
+- [ ] Start from the reviewed release commit in `mobile/`, with a clean tree and
+  Node `22.22.3` (`mobile/.nvmrc`). Record source SHA and intended channel.
+- [ ] Run `npm ci`, `npm run check`, `npm run audit:dependencies`,
+  `npx expo install --check`, `npx expo config --type public`, and
+  `npx expo export --platform ios`. Confirm `extra.eas.projectId` is the existing
+  UUID and `updates.url` ends in that exact UUID. Stop if either is unset or differs.
+- [ ] Confirm fingerprint policy, `production`/`preview` profile channel mapping,
+  and the native-build-versus-OTA decision above. Never publish a native change
+  as a fix to an older binary.
+- [ ] Lead and Leon verify the EAS project owner, existing channel/branch routing,
+  available EAS Update service, and matching production environment values
+  (`EXPO_PUBLIC_API_URL`, Clerk publishable key, and other public build inputs).
+  Build and update must use the same environment. Do not put secrets in public
+  environment variables. Resolve missing server-side setup before release.
+- [ ] For OTA, record the installed build's platform/runtime/channel and the
+  known-good update group (or embedded bundle). Test the change on a compatible
+  preview binary first; preview uses `--environment preview --channel preview`.
+- [ ] Complete the combined next-build/device checklist below before declaring
+  native delivery, universal links, or OTA transport accepted.
+
+### Lead and Leon: first build, then OTA
+
+Leon signs in on the MacBook when the native build is ready. These are operator
+commands, **not commands run by the implementation worker**. Use EAS CLI with
+SDK 57 support (`npx eas-cli@latest` can replace `eas` if it is not installed).
+From the reviewed checkout:
+
+```sh
+cd mobile
+eas login
+eas whoami
+# Verify the existing project and production channel/branch in EAS first.
+eas build --profile production --platform ios
+# After success, use the exact build ID from the preceding command:
+eas submit --profile production --platform ios --id <NEW_BUILD_ID>
+```
+
+Record build ID, source SHA, incremented build number, fingerprint runtime and
+channel from EAS/the archive. Wait for Apple processing and confirm the exact
+build is available to the intended TestFlight testers. Existing submission config
+targets App Store Connect app `6792992154`, bundle
+`com.codeschoolofguam.connect`, Apple team `4T358A5S74`. No store/TestFlight
+setting changes are included in N-3.
+
+After installing and accepting that build, prepare a reviewed **JS-only** fix
+with an observable result and a matching runtime. Run pre-flight again, then:
+
+```sh
+eas update --channel production --environment production --platform ios --message "<fix description and source SHA>"
+```
+
+Keep the update group ID/runtime and verify delivery on that installed build.
+Do not publish only to prove the command works. This command targets production
+users with the matching runtime; agree on the first test fix with Leon.
+
+### Rollback safety
+
+Use the existing project's update history to identify the affected **iOS runtime**,
+production channel's branch, bad group, and last known-good group. To restore an
+existing compatible update without rebuilding/re-exporting old source:
+
+```sh
+eas update:republish --group <KNOWN_GOOD_GROUP_ID> --destination-channel production --platform ios --message "Rollback <BAD_GROUP_ID>"
+# Alternatively, use the interactive guide for a previous or embedded update:
+eas update:rollback
+```
+
+In the guide, select this project, the production branch, iOS, and the affected
+runtime; choose its known-good update or its **embedded** update. If there is no
+previous OTA group (the first update is bad), choose embedded. Review the target
+before confirming. Rollback is scoped to runtime: repeat for any other affected
+runtime, and never republish an older binary's incompatible group as a substitute.
+Clients must reach EAS to fetch the rollback; a healthy running app stages it for
+the next cold start. Offline clients keep their installed/cached code. Expo's
+native error recovery is a fallback, not proof that every crash can recover.
+Confirm the rolled-back result and retained drafts on device before publishing
+again. A native defect or broken embedded bundle needs a corrected native build.
+
+### Combined next-build checklist: #286 + N-3
+
+Owner: lead + Leon on an iPhone, using student, instructor and admin fixtures,
+two enrolled cohorts, a lesson/block, submission, recording and booking. These
+checks are **pending** until a signed release build and EAS access are available.
+Keep build/source/runtime/channel/update IDs and results with the release record.
+
+- [ ] Confirm the signed archive entitlements contain
+  `com.apple.developer.associated-domains = ["applinks:learn.codeschoolofguam.com"]`.
+  Inspect with `codesign -d --entitlements :- <APP_PATH>`; decode the embedded
+  profile with `security cms -D -i <APP_PATH>/embedded.mobileprovision`. Confirm
+  its Associated Domains allowance, application identifier
+  `4T358A5S74.com.codeschoolofguam.connect`, team and validity. A stale profile
+  must be refreshed by the lead/Leon before building/signing again.
+- [ ] Inspect the archive's Expo updates configuration: project URL, fingerprint
+  runtime, `production` channel request header and embedded bundle are present.
+- [ ] Verify the production HTTPS AASA response before device testing, including
+  JSON Content-Type, no redirect, and the correct Apple app identifier. Check
+  Apple's association/cache behavior on device; source config alone is insufficient.
+- [ ] Execute **all eight** checks under [Leon's iPhone check after the next native
+  build](W10_MOBILE_DEEP_LINKS_QA.md#leons-iphone-check-after-the-next-native-build)
+  and **all five additional required iPhone checks** under its Fix round 1.
+  This includes cold/warm HTTPS and both URL schemes; signed-out and policy gates;
+  cross-account clearing; role-safe fallbacks and staff/admin boundaries;
+  meeting/enrollment pushes and preferences; authenticated web return/refetch and
+  poor-network recovery; VoiceOver/large text/safe areas; public URLs staying in
+  Safari; actor-excluded meeting notices; and production/dev-client OAuth callbacks.
+- [ ] Install the exact new TestFlight build. Confirm normal launch/sign-in,
+  persisted composer and text-submission drafts, and successful submission receipt.
+- [ ] Publish the agreed first JS-only production update with the matching runtime.
+  Launch online and return from background: observe one download/ready notice,
+  no forced reload, no repeated checks within 30 minutes, and **Later** dismissal.
+  Repeat while typing a composer draft and during a slow submission/upload;
+  finish or recover the operation and verify saved server/device outcomes.
+- [ ] Close and reopen only after work settles. Confirm the observable OTA fix
+  runs without another TestFlight install, with matching runtime/channel/update ID;
+  composer and submission drafts restore. Repeat offline launch, failed check,
+  and foreground recovery after the throttle; no error alert should appear.
+- [ ] In preview, rehearse known-good republish and embedded rollback on compatible
+  builds, including retained drafts. Verify a different runtime receives no update.
+  Inspect builds 41/44 before making any claim about their native/update behavior.
+
+References checked for this implementation:
+[SDK 57 expo-updates](https://docs.expo.dev/versions/v57.0.0/sdk/updates/),
+[runtime versions](https://docs.expo.dev/eas-update/runtime-versions/),
+[EAS Update setup](https://docs.expo.dev/eas-update/getting-started/),
+[rollbacks](https://docs.expo.dev/eas-update/rollbacks/) and
+[EAS CLI](https://docs.expo.dev/eas/cli/).
