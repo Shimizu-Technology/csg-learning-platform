@@ -10,7 +10,8 @@ import type { MessageView as ChannelMessage } from '../../types/api'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const features = vi.hoisted(() => ({ private_meetings: false }))
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: { id: 1, features } }) }))
+const support = vi.hoisted(() => ({ delivery: 'program', mode: 'course_question', help: true }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: { id: 1, features, course_delivery: support.delivery, capabilities: { support_mode: support.mode, features: { ...features, help_requests: support.help } } } }) }))
 const getUser = vi.hoisted(() => vi.fn())
 vi.mock('../../lib/api', () => ({ api: { getUser, getAvailableDirectUsersForCohort: vi.fn().mockResolvedValue({ data: { users: [{ id: 7 }] } }) } }))
 vi.mock('../admin/StudentContextDrawer', () => ({ StudentContextDrawer: ({ cohortId, studentId, onClose }: { cohortId: number; studentId: number; onClose: () => void }) => <div role="dialog">Student {studentId}, cohort {cohortId}<button onClick={onClose}>Close context</button></div> }))
@@ -74,4 +75,16 @@ it('hides Message and Book a meeting for blocked people in the author popover', 
     expect(document.body.textContent).not.toContain('Message Maya')
     expect(document.body.textContent).not.toContain('Book a meeting')
   } finally { features.private_meetings = false }
+})
+
+it.each(['none', 'expired', 'help off'])('hides instructor contact in self-paced author profiles when support is %s', async mode => {
+  support.delivery = 'self_paced'
+  support.mode = mode === 'help off' ? 'course_question' : 'none'
+  support.help = mode !== 'help off'
+  features.private_meetings = true
+  try {
+    await act(async () => root.render(<MemoryRouter><StudentExperienceProvider v2><MessageAuthorContext author={{ ...author, role: 'instructor' }} staff={false} cohortId={1} onClose={() => {}} /></StudentExperienceProvider></MemoryRouter>))
+    expect(document.body.textContent).not.toContain('Message Maya')
+    expect(document.body.textContent).not.toContain('Book a meeting')
+  } finally { support.delivery = 'program'; support.mode = 'course_question'; support.help = true; features.private_meetings = false }
 })
