@@ -80,11 +80,13 @@ it('shows outline position, one help, one completion and a next-module link from
       [...page.host.querySelectorAll('button')].filter((node) => node.textContent === 'Ask for help')
     ).toHaveLength(1)
     const button = [...page.host.querySelectorAll('button')].find((node) => node.textContent === 'Mark complete')!
+    expect(button.className).not.toContain('bg-action-primary')
     await act(async () => button.click())
     expect(update).toHaveBeenCalledWith(4, 'completed', 1)
     expect(page.reload).toHaveBeenCalledOnce()
     const next = [...page.host.querySelectorAll('a')].find((node) => node.textContent?.includes('Start next module'))!
     expect(next.getAttribute('href')).toBe('/lessons/9?cohort_id=1')
+    expect(next.className).toContain('bg-action-primary')
     await act(async () =>
       [...page.host.querySelectorAll('button')].find((node) => node.textContent === 'Outline')!.click()
     )

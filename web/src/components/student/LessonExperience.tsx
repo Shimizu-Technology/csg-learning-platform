@@ -199,7 +199,7 @@ export function LessonExperience({
           </LinkButton>
         )}
         {!readOnly && !lesson.submission_window?.submissions_closed && Boolean(navigation?.manual_block_ids.length) && (
-          <Button onClick={() => void markComplete()} disabled={saving}>
+          <Button variant={next ? 'secondary' : 'primary'} onClick={() => void markComplete()} disabled={saving}>
             {saving ? 'Saving…' : 'Mark complete'}
           </Button>
         )}
