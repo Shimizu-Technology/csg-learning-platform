@@ -2,10 +2,10 @@ import { useBackLink } from '../../lib/recordOrigin'
 import { schoolTimeDescription, schoolTimeGenericLabel, schoolWallTimeToIso } from '../../lib/schoolTime'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { forwardReturnState } from '../../lib/navigationContext'
-import { cohortStudentPath } from '../../lib/routes'
+import { cohortStudentPath, directMessagePath } from '../../lib/routes'
 import { useMeetingDestination } from '../../lib/useMeetingDestination'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, CheckCircle2, ChevronDown, Clock3, ExternalLink, Link2, Plus, RefreshCw, Trash2, Users, WifiOff } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ChevronDown, Clock3, ExternalLink, Link2, MessageSquareText, Plus, RefreshCw, Trash2, UserRound, Users, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatGuamMeetingTime, isPastLearnerCutoff, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
@@ -19,7 +19,7 @@ import { FilterChip } from '../../components/ui/Choice'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import type { CohortSummary, PrivateMeetingBooking, StaffPrivateMeetingCohort, UserListItem } from '../../types/api'
+import type { CohortSummary, PrivateMeetingBooking, StaffContact, StaffMeetingOtherCohort, StaffPrivateMeetingCohort, UserListItem } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 
 function asSchoolIso(localDateTime: string): string | null {
@@ -39,6 +39,8 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   const toast = useToast()
   const confirm = useConfirm()
   const [cohorts, setCohorts] = useState<StaffPrivateMeetingCohort[]>([])
+  const [otherCohorts, setOtherCohorts] = useState<StaffMeetingOtherCohort[]>([])
+  const [adminContacts, setAdminContacts] = useState<StaffContact[]>([])
   const [allCohorts, setAllCohorts] = useState<CohortSummary[]>([])
   const [instructors, setInstructors] = useState<UserListItem[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -58,21 +60,25 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   const load = useCallback(async () => {
     setError(null)
     setNow(Date.now())
+    // Only admins enable meetings and choose hosts, so only they need the cohort and staff lists.
+    const isAdmin = Boolean(user?.is_admin)
     const [meetingsResult, cohortResult, adminResult, instructorResult] = await Promise.all([
       api.getStaffPrivateMeetings(),
-      api.getCohorts(),
-      api.getUsers({ role: 'admin' }),
-      api.getUsers({ role: 'instructor' }),
+      isAdmin ? api.getCohorts() : Promise.resolve(null),
+      isAdmin ? api.getUsers({ role: 'admin' }) : Promise.resolve(null),
+      isAdmin ? api.getUsers({ role: 'instructor' }) : Promise.resolve(null),
     ])
     if (meetingsResult.data) {
       setCohorts(meetingsResult.data.cohorts.filter((cohort) => !cohortId || cohort.id === cohortId))
+      setOtherCohorts((meetingsResult.data.other_cohorts || []).filter((cohort) => !cohortId || cohort.id === cohortId))
+      setAdminContacts(meetingsResult.data.admin_contacts || [])
       setSelectedId((current) => current && meetingsResult.data!.cohorts.some((cohort) => cohort.id === current) ? current : cohortId ?? meetingsResult.data!.cohorts[0]?.id ?? null)
     } else setError(meetingsResult.error || 'Could not load meetings.')
-    if (cohortResult.data) setAllCohorts(cohortResult.data.cohorts.filter((cohort) => !cohortId || cohort.id === cohortId))
-    const staff = [...(adminResult.data?.users || []), ...(instructorResult.data?.users || [])]
+    if (cohortResult?.data) setAllCohorts(cohortResult.data.cohorts.filter((cohort) => !cohortId || cohort.id === cohortId))
+    const staff = [...(adminResult?.data?.users || []), ...(instructorResult?.data?.users || [])]
     setInstructors(Array.from(new Map(staff.map((person) => [person.id, person])).values()).filter((person) => !person.archived_at))
     setLoading(false)
-  }, [cohortId])
+  }, [cohortId, user?.is_admin])
 
   useEffect(() => { void load() }, [load])
   // Move meetings that end while the page is open into the read-only past list.
@@ -248,7 +254,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
         </form>
       )}
 
-      {cohorts.length === 0 ? <EmptyState icon={CalendarDays} title={cohortId ? "No meetings in this cohort" : "No cohorts have meetings yet"} description={user?.is_admin ? 'Enable meetings for a cohort above, then publish times that students can book.' : 'An admin can assign you to a course before you publish meeting times.'} /> : (
+      {cohorts.length === 0 && !user?.is_admin ? <MeetingsWhoToAsk cohorts={otherCohorts} admins={adminContacts} scoped={Boolean(cohortId)} /> : cohorts.length === 0 ? <EmptyState icon={CalendarDays} title={cohortId ? "No meetings in this cohort" : "No cohorts have meetings yet"} description="Enable meetings for a cohort above, then publish times that students can book." /> : (
         <>
           <div hidden={Boolean(cohortId)} className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Choose cohort">
             {cohorts.map((cohort) => <FilterChip key={cohort.id} selected={cohort.id === selected?.id} onClick={() => { setSelectedId(cohort.id); const params = new URLSearchParams(location.search); params.set('cohort_id', String(cohort.id)); params.delete('booking_id'); params.delete('week'); navigate(`/admin/meetings?${params}`, { replace: true, state: forwardReturnState(location.state) }) }} title={cohort.name} className="max-w-[18rem]"><span className="truncate">{cohort.name}</span></FilterChip>)}
@@ -306,8 +312,56 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
               </div>
             </section>
           )}
+          {!cohortId && otherCohorts.length > 0 && <MeetingsWhoToAsk cohorts={otherCohorts} admins={adminContacts} scoped={false} alsoHosting />}
         </>
       )}
     </div>
   )
+}
+
+const listNames = (names: string[]) => names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`
+
+/**
+ * An instructor's way forward for cohorts they teach but don't host (U-4.10).
+ * Hosts are chosen by an admin, so this names the host or the admins and opens
+ * a conversation with them, instead of a dead end.
+ */
+function MeetingsWhoToAsk({ cohorts, admins, scoped, alsoHosting = false }: { cohorts: StaffMeetingOtherCohort[]; admins: StaffContact[]; scoped: boolean; alsoHosting?: boolean }) {
+  const adminNames = admins.map((admin) => admin.full_name)
+  const askAdmins = adminNames.length ? listNames(adminNames) : 'a school admin'
+  if (cohorts.length === 0) {
+    return <EmptyState icon={CalendarDays} title={scoped ? 'You don’t host meetings in this cohort' : 'You don’t host any meetings yet'} description={`An admin turns meetings on for a cohort and chooses its host. Ask ${askAdmins} if you should host meetings for one of your cohorts.`} />
+  }
+  return <section className={scoped ? 'space-y-3' : 'app-surface space-y-4 p-5 sm:p-6'} aria-labelledby="meetings-who-to-ask">
+    <div>
+      <h2 id="meetings-who-to-ask" className="text-lg font-bold text-ink">{alsoHosting ? 'Your other cohorts' : scoped ? 'You don’t host meetings in this cohort' : 'You don’t host any meetings yet'}</h2>
+      <p className="mt-1 text-sm text-ink-secondary">The host publishes times and manages each student’s booking. An admin chooses the host{adminNames.length ? ` (${askAdmins})` : ''}.</p>
+    </div>
+    <ul className="divide-y divide-line rounded-2xl border border-line bg-surface-raised">
+      {cohorts.map((cohort) => <li key={cohort.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-ink [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" touchTarget>{cohort.name}</RecordLink></p>
+          <p className="flex items-center gap-1.5 text-sm text-ink-secondary"><UserRound className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />{cohort.host ? `Hosted by ${cohort.host.full_name}` : 'No host yet. Students can’t book until an admin chooses one.'}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {cohort.host && <MessageButton cohortId={cohort.id} person={cohort.host} />}
+          {!cohort.host && admins.map((admin) => <MessageButton key={admin.id} cohortId={cohort.id} person={admin} />)}
+        </div>
+      </li>)}
+    </ul>
+  </section>
+}
+
+function MessageButton({ cohortId, person }: { cohortId: number; person: StaffContact }) {
+  const navigate = useNavigate()
+  const toast = useToast()
+  const [opening, setOpening] = useState(false)
+  async function open() {
+    setOpening(true)
+    const result = await api.createDirectConversation({ cohort_id: cohortId, user_ids: [person.id] })
+    setOpening(false)
+    if (result.data) navigate(directMessagePath(result.data.direct_conversation.id))
+    else toast.error(result.error || `Could not open a conversation with ${person.full_name}.`)
+  }
+  return <Button type="button" variant="secondary" size="sm" disabled={opening} onClick={() => void open()}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{opening ? 'Opening…' : `Message ${person.full_name}`}</Button>
 }

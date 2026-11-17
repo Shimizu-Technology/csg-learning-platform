@@ -17,7 +17,7 @@ Contextual requests remain the student-visible support record. Staff can now pro
 3. Describe the step reached, the expected result, and what happened instead.
 4. Mark the request urgent only when fully blocked and needing attention before the next class.
 5. Send explicitly. A failed write keeps the on-screen draft and never claims success.
-6. See `open`, `acknowledged`, or `resolved` state in the same context. An instructor's written response remains visible after resolution.
+6. See `open`, `acknowledged`, or `resolved` state in the same context. Every instructor reply shows there, oldest first, including replies sent while the request stays open, and stays visible after resolution.
 7. Cancel an active request if help is no longer needed. A new request can be made after resolution or cancellation.
 
 Only one active request is allowed for the same student and context. Repeated sends return the existing request rather than creating duplicates.
@@ -31,7 +31,12 @@ Open **Student support** on web (`/admin/support`) or native (`/staff/support`).
 3. Acknowledged requests that still need a response.
 4. Explainable learning signals: current redos, ungraded work, and seven or more days without activity.
 
-Use **Acknowledge** when taking ownership. This immediately tells the student who is looking. Use **Respond and resolve** only after adding a useful next step or explanation; resolution without a written response is rejected by the API.
+Each request card in Support has two reply actions plus the request and its lesson (U-4.7):
+
+- **Reply** sends a reply and keeps the request open, for a hint or a question back. The replier becomes the owner and the student is notified.
+- **Reply & resolve** sends the reply and closes the request. Use it once the student has a useful next step or explanation; resolving without a written reply is rejected by the API.
+
+**Acknowledge** stays on the request page (web and native) for taking ownership before writing anything; it tells the student who is looking. Both reply actions notify the student once per reply, after the reply is saved.
 
 Create an intervention when support extends beyond answering one request or when redo, ungraded-work, inactivity, restart, extended-absence, or human judgment requires follow-through. Every active intervention has an owner and next follow-up. Staff move it through `open`, `contacted`, `waiting_on_student`, or `monitoring`; resolution requires an outcome and concise summary. Private notes stay on the case and never enter student or session payloads.
 
@@ -45,8 +50,8 @@ The queue's student signals are prompts for human judgment, not predictions or d
 
 | State | Meaning | Allowed next action |
 | --- | --- | --- |
-| `open` | Staff can see the request; no owner yet | Staff acknowledge or resolve; student cancel |
-| `acknowledged` | A staff owner is taking a look | Staff resolve; student cancel |
+| `open` | Staff can see the request; no owner yet | Staff acknowledge, reply (becomes `acknowledged`) or reply and resolve; student cancel |
+| `acknowledged` | A staff owner is taking a look, and may have replied | Staff reply or reply and resolve; student cancel |
 | `resolved` | Written staff response is visible | Terminal; student may create a new request |
 | `canceled` | Student no longer needs this request | Terminal; student may create a new request |
 
@@ -72,7 +77,7 @@ The clients emit `help_requested` only after a successful new server record and 
 - Student can create, view, cancel, and recreate help for every supported context.
 - Duplicate taps cannot create duplicate active requests.
 - Inaccessible cohorts, lessons, exercises, and recordings are rejected server-side.
-- Staff can acknowledge and can resolve only with a response.
+- Staff can acknowledge, reply and keep the request open, and resolve only with a reply.
 - Student sees owner, state, and response on web and native.
 - Staff push opens the native/web support queue; student push opens the lesson or recordings surface.
 - Help-request and staff-queue payloads contain authored support text and are deliberately excluded from web local-storage and native persisted-query caches. A still-mounted failed composer keeps its draft in memory and never implies that an unsent write succeeded.

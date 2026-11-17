@@ -122,7 +122,8 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     toast.success('Help request canceled.')
   }
 
-  const statusLabel = activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
+  const replied = Boolean(activeRequest?.replies?.length)
+  const statusLabel = replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
 
   if (capabilities?.features?.help_requests === false) return null
 
@@ -158,8 +159,9 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-ink" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-success-ink">Previous response</p>
-                  <div className="mt-1 text-sm leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={latestResolved.staff_response || ''} /></div>
+                  <p className="font-semibold text-success-ink">{(latestResolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</p>
+                  {/* Every reply, not only the last one, so a hint sent before resolving isn't lost. */}
+                  <dl className="mt-1 space-y-3 text-sm"><HelpReplies request={latestResolved} /></dl>
                   {canRequest && <p className="mt-2 text-xs font-medium text-success-ink">You can send a new request if you still need help.</p>}
                 </div>
               </div>
@@ -175,7 +177,9 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                   <div>
                     <p className="font-semibold text-ink">{statusLabel}</p>
                     <p className="mt-1 text-sm leading-6 text-ink-secondary">
-                      {activeRequest.status === 'acknowledged'
+                      {replied
+                        ? 'Read the reply below. The request stays open until it is resolved.'
+                        : activeRequest.status === 'acknowledged'
                         ? `${activeRequest.owner?.full_name || 'An instructor'} acknowledged this request.`
                         : 'Staff can see it in Support.'}
                     </p>
@@ -184,7 +188,8 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
               </div>
               <dl className="space-y-3 rounded-2xl border border-line bg-surface-sunken/60 p-4 text-sm">
                 <div><dt className="font-semibold text-ink-muted">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.message}</dd></div>
-                {activeRequest.staff_response && <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={activeRequest.staff_response} /></dd></div>}
+                {/* Replies sent while the request stays open (U-4.7); older payloads have only staff_response. */}
+                <HelpReplies request={activeRequest} />
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink-secondary">
                   <Badge tone="neutral">{categories.find((option) => option.value === activeRequest.category)?.label || humanize(activeRequest.category)}</Badge>
                   {activeRequest.urgency === 'urgent' && <Badge tone="warning">Urgent</Badge>}
@@ -240,4 +245,13 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
       </Modal>
     </>
   )
+}
+
+/** Every staff reply on a request, oldest first; older payloads have only `staff_response`. */
+function HelpReplies({ request }: { request: Pick<HelpRequest, 'replies' | 'staff_response'> }) {
+  if (request.replies?.length) {
+    return <>{request.replies.map((reply) => <div key={reply.id}><dt className="font-semibold text-ink-muted">{reply.author.full_name} replied <span className="font-medium tabular-nums">· {formatShortDateTime(reply.created_at)}</span></dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={reply.body} /></dd></div>)}</>
+  }
+  if (!request.staff_response) return null
+  return <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={request.staff_response} /></dd></div>
 }

@@ -73,7 +73,9 @@ Rails.application.routes.draw do
           patch :mark_all_read
         end
       end
-      resources :help_requests, only: [ :index, :show, :create, :update ]
+      resources :help_requests, only: [ :index, :show, :create, :update ] do
+        resources :replies, only: :create, controller: "help_request_replies"
+      end
       resources :interventions, only: [ :index, :show, :create, :update ] do
         resources :notes, only: :create, controller: "intervention_notes"
       end

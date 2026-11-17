@@ -34,7 +34,7 @@ import { composerDestinationKey, readComposerDraft } from '../../lib/messageComp
 const capabilities: LearnerCapabilities = { live_support: false, features: {}, can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 9 }
 const lesson = { id: 42, cohort_id: 4, module_id: 2, title: 'Lists', lesson_type: 'exercise', position: 1, release_day: 1, required: true, requires_submission: true, content_blocks_count: 1, archived_at: null, updated_at: '', capabilities, content_blocks: [{ id: 42, block_type: 'exercise', title: 'List practice' }], objectives: [], prev_lesson: null, next_lesson: null }
 const profile = { user: { id: 7, email: 'student@example.test', first_name: 'Student', last_name: 'Test', full_name: 'Student Test', github_username: 'student', avatar_url: null }, enrollments: [] }
-const request = (overrides: Partial<HelpRequest> = {}): HelpRequest => ({ destination: null, context_destination: null, id: 11, cohort: { id: 4, name: 'Python' }, context_type: 'lesson', context_source: 'primary', context_id: 42, context_label: 'Lists', context_path: '/lessons/42', category: 'concept', urgency: 'normal', status: 'open', message: 'Lesson question', staff_response: null, acknowledged_at: null, resolved_at: null, canceled_at: null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', owner: null, ...overrides })
+const request = (overrides: Partial<HelpRequest> = {}): HelpRequest => ({ destination: null, context_destination: null, id: 11, cohort: { id: 4, name: 'Python' }, context_type: 'lesson', context_source: 'primary', context_id: 42, context_label: 'Lists', context_path: '/lessons/42', category: 'concept', urgency: 'normal', status: 'open', message: 'Lesson question', staff_response: null, acknowledged_at: null, resolved_at: null, canceled_at: null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', owner: null, replies: [], ...overrides })
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (reason?: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 function Destination() { const location = useLocation(); return <div data-destination="">{location.pathname}{location.search}</div> }
 let root: Root
@@ -142,6 +142,17 @@ describe('support identity and entitlements', () => {
     await click('Sent to your instructor')
     await click('Cancel request')
     expect(api.updateHelpRequest).toHaveBeenCalledExactlyOnceWith(93, { status: 'canceled' })
+  })
+  it('shows every reply on a resolved request, not only the last one (PR #282 fix round 1)', async () => {
+    const replies = [
+      { id: 1, body: 'Print the counter first.', resolved_request: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' },
+      { id: 2, body: 'Then add one inside the loop.', resolved_request: true, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T02:00:00Z' },
+    ]
+    await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ status: 'resolved', staff_response: 'Then add one inside the loop.', replies })]} requestsLoading={false} />)
+    await click('Ask for help')
+    expect(container.textContent).toContain('Previous replies')
+    expect(container.textContent).toContain('Print the counter first.')
+    expect(container.textContent).toContain('Then add one inside the loop.')
   })
   it('does not mistake a colliding exercise request for lesson help', async () => {
     await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ context_type: 'exercise' })]} requestsLoading={false} />)

@@ -4431,6 +4431,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/enrollments/{enrollment_id}/learning_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description LearningPlanManagement */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearningPlanManagement"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LearningPlanUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description LearningPlanManagement */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearningPlanManagement"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/private_meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description StaffPrivateMeetingsResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StaffPrivateMeetingsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/help_requests/{help_request_id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reply to a help request (staff)
+         * @description Body: `{ "reply": { "body": string, "resolve": boolean, "client_request_id"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    help_request_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reply saved */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HelpRequestReplyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4560,6 +4700,10 @@ export interface components {
             };
             destination: components["schemas"]["RecordDestination"] | null;
             context_destination: components["schemas"]["RecordDestination"] | null;
+            /** @description Staff replies, oldest first. Requests resolved before replies existed have none; their one response is `staff_response`, which always mirrors the latest reply. */
+            replies: components["schemas"]["HelpRequestReply"][];
+            /** @description Staff readers of one request (show, update, reply) only; null when no plan was started from it or the cohort has follow-up plans switched off. Never sent to learners or in lists. */
+            follow_up?: components["schemas"]["HelpRequestFollowUp"] | null;
         };
         /** @enum {string} */
         HelpContextType: "lesson" | "recording" | "exercise";
@@ -5206,7 +5350,7 @@ export interface components {
             avatar_url: string | null;
             blocked_at: string;
         };
-        MessageSourceType: "lesson" | "submission" | "help_request";
+        MessageSourceType: "lesson" | "submission" | "help_request" | "intervention";
         MessageSourceSummary: {
             type: components["schemas"]["MessageSourceType"];
             id: number | null;
@@ -7347,6 +7491,152 @@ export interface components {
                     }[];
                 }[];
             };
+        };
+        LearningPlanMilestone: {
+            title: string;
+            due_on: string;
+            lesson_ids: number[];
+        };
+        LearningPlanLessonOverride: {
+            lesson_id: number;
+            required: boolean;
+            reason: string;
+        };
+        /** @description A saved learning plan as staff edit it. Students read the projection (PersonalLearningPlan), never this. */
+        LearningPlanSnapshot: {
+            active: boolean;
+            title: string;
+            description: string | null;
+            target_date: string | null;
+            next_check_in_on: string | null;
+            milestones: components["schemas"]["LearningPlanMilestone"][];
+            lesson_overrides: components["schemas"]["LearningPlanLessonOverride"][];
+        };
+        LearningPlanRecord: {
+            active: boolean;
+            title: string;
+            description: string | null;
+            target_date: string | null;
+            next_check_in_on: string | null;
+            milestones: components["schemas"]["LearningPlanMilestone"][];
+            lesson_overrides: components["schemas"]["LearningPlanLessonOverride"][];
+            id: number;
+            lock_version: number;
+            updated_at: string;
+        };
+        /** @description A lesson assigned to the student, in course order, with where this student stands on it. */
+        LearningPlanEditorLesson: {
+            id: number;
+            title: string;
+            module_id: number;
+            module_name: string;
+            standard_required: boolean;
+            /** @description Week of the module the lesson releases in; null for self-paced courses, which show numbered sections instead. */
+            week: number | null;
+            status: components["schemas"]["LearnerLessonStatus"];
+            /** @description Every step handed in (done or waiting for review), from LearnerProgress. */
+            completed: boolean;
+        };
+        LearningPlanRevision: {
+            id: number;
+            author: string;
+            created_at: string;
+            snapshot: components["schemas"]["LearningPlanSnapshot"];
+        };
+        /** @description Staff-only learning plan editor payload for one enrollment. */
+        LearningPlanManagement: {
+            learning_plan: components["schemas"]["LearningPlanRecord"] | null;
+            lessons: components["schemas"]["LearningPlanEditorLesson"][];
+            revisions: components["schemas"]["LearningPlanRevision"][];
+        };
+        LearningPlanUpdateRequest: {
+            learning_plan: {
+                active: boolean;
+                title?: string;
+                description?: string | null;
+                target_date?: string | null;
+                next_check_in_on?: string | null;
+                milestones?: components["schemas"]["LearningPlanMilestone"][];
+                lesson_overrides?: components["schemas"]["LearningPlanLessonOverride"][];
+                lock_version?: number;
+            };
+        };
+        PrivateMeetingSlot: {
+            id: number;
+            starts_at: string;
+            ends_at: string;
+            instructor_id: number;
+            instructor_name: string;
+            available: boolean;
+        };
+        StaffPrivateMeetingBooking: {
+            id: number;
+            cohort_id: number;
+            instructor_name: string;
+            starts_at: string;
+            ends_at: string;
+            zoom_url: string | null;
+            status: string;
+            week_number: number;
+            reschedule_count: number;
+            student_name: string;
+            student_id: number;
+        };
+        /** @description A cohort's meetings that the viewer hosts (or any cohort, for admins). */
+        StaffPrivateMeetingCohort: {
+            id: number;
+            name: string;
+            start_date: string;
+            end_date: string | null;
+            instructor_id: number;
+            instructor_name: string;
+            weeks: number;
+            timezone: string;
+            reschedule_cutoff_hours: number;
+            max_student_changes: number;
+            slots: components["schemas"]["PrivateMeetingSlot"][];
+            bookings: components["schemas"]["StaffPrivateMeetingBooking"][];
+        };
+        StaffContact: {
+            id: number;
+            full_name: string;
+        };
+        /** @description A running cohort the instructor teaches, with meetings switched on, that someone else hosts or that has no host yet. */
+        StaffMeetingOtherCohort: {
+            id: number;
+            name: string;
+            /** @description Who hosts this cohort's meetings; null until an admin turns meetings on for it. */
+            host: components["schemas"]["StaffContact"] | null;
+        };
+        StaffPrivateMeetingsResponse: {
+            cohorts: components["schemas"]["StaffPrivateMeetingCohort"][];
+            /** @description Empty for admins. */
+            other_cohorts: components["schemas"]["StaffMeetingOtherCohort"][];
+            /** @description Admins who can turn meetings on or change the host. Empty for admins. */
+            admin_contacts: components["schemas"]["StaffContact"][];
+        };
+        /** @description One staff reply (U-4.7). `resolved_request` is true for the reply sent with Reply & resolve. */
+        HelpRequestReply: {
+            id: number;
+            body: string;
+            resolved_request: boolean;
+            author: {
+                id: number;
+                full_name: string;
+            };
+            created_at: string;
+        };
+        /** @description The latest follow-up plan started from this request, in the request's cohort. */
+        HelpRequestFollowUp: {
+            id: number;
+            status: components["schemas"]["InterventionStatus"];
+            destination: components["schemas"]["RecordDestination"] | null;
+        };
+        HelpRequestReplyResponse: {
+            help_request: components["schemas"]["HelpRequest"];
+            reply: components["schemas"]["HelpRequestReply"];
+            /** @description True when this was a retry: the reply saved by an earlier request with the same `client_request_id` is returned and nobody is notified again. */
+            replayed: boolean;
         };
     };
     responses: {

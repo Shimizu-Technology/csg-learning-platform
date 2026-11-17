@@ -123,7 +123,7 @@ export const demoStaffSubmissions: Submission[] = [
   { module_position: 1, course_delivery: 'program', week_number: 2, enrollment_id: null, latest_submission_id: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, submission_config: {}, rubric: null, id: 30, content_block_id: 198, user_id: 18, user_name: 'Maya Santos', submission_type: 'text_submission', text: 'I used semantic landmarks and explicit form labels.', grade: 'R', feedback: 'Connect every error message with aria-describedby.', graded_by: 'Leon Shimizu', graded_at: ago(2), github_issue_url: null, github_code_url: null, num_submissions: 1, created_at: ago(3), updated_at: ago(2), content_block_title: 'Accessible form audit', content_block_type: 'exercise', lesson_title: 'Accessible forms', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', filename: null, language_hint: null },
 ];
 
-export const demoHelpRequests: HelpRequest[] = [{ destination: null, context_destination: null,
+export const demoHelpRequests: HelpRequest[] = [{ destination: null, context_destination: null, replies: [],
   id: 41,
   cohort: { id: 4, name: 'Web Dev Cohort 4' },
   context_type: 'exercise',

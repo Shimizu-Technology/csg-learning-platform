@@ -222,6 +222,12 @@ describe('conversation header (U-4.11, L-2.8)', () => {
     const banner = Array.from(container.querySelectorAll('a')).find((anchor) => anchor.textContent?.includes('From help request: Loops'))
     expect(banner?.getAttribute('href')).toBe('/admin/help-requests/9?return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
   })
+
+  it('names a follow-up plan source and links back to the plan (L-2.5)', async () => {
+    await open('/messages/dm/5?source_type=intervention&source_id=61&source_label=Alex+Rivera&source_return_to=%2Fadmin%2Fsupport')
+    const banner = Array.from(container.querySelectorAll('a')).find((anchor) => anchor.textContent?.includes('From follow-up plan: Alex Rivera'))
+    expect(banner?.getAttribute('href')).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fsupport')
+  })
 })
 
 describe('copy link to message (L-2.8)', () => {
