@@ -8,6 +8,8 @@ import {
   unreadRefreshVersion,
 } from './unread'
 import type {
+  CourseOutlineResponse,
+  MyWorkResponse,
   MessageDestination,
   ThreadWindowOptions,
   ActivityEventsResponse,
@@ -519,6 +521,12 @@ export const api = {
     fetchApi<DashboardResponse>(`/api/v1/dashboard${queryString({ cohort_id: cohortId })}`),
   getWeeklyPlan: (cohortId?: number) =>
     fetchApi<WeeklyPlanResponse>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`),
+  /** Learn's course outline (redesigned student experience). Staff pass `studentId` to view one enrolled learner's. */
+  getCourseOutline: (cohortId?: number | null, studentId?: number | null) =>
+    fetchApi<CourseOutlineResponse>(`/api/v1/course_outline${queryString({ cohort_id: cohortId, student_id: studentId })}`),
+  /** My work: the learner's own redos, work waiting for review and graded work in one cohort. */
+  getMyWork: (cohortId?: number | null) =>
+    fetchApi<MyWorkResponse>(`/api/v1/my_work${queryString({ cohort_id: cohortId })}`),
   getRecordings: (cohortId?: number) =>
     fetchApi<RecordingsResponse>(`/api/v1/recordings${queryString({ cohort_id: cohortId })}`),
   getResources: (cohortId?: number) =>
@@ -652,6 +660,8 @@ export const api = {
     }),
   getDirectConversations: (params?: { cohort_id?: number; student_id?: number }) =>
     fetchUnreadList<DirectConversationsResponse>(`/api/v1/direct_conversations${queryString(params || {})}`),
+  getAvailableDirectUsersForCohort: (cohortId: number) =>
+    fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?cohort_id=${cohortId}`),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
   getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>

@@ -5,6 +5,32 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
   include QueryCounter
 
+  test "follow-up delivery tracks tickets without opportunistic inline receipt draining" do
+    user = User.create!(clerk_id: "followup_receipt_contract", email: "followup-receipt@example.test", role: :admin)
+    token = user.mobile_push_tokens.create!(token: "ExpoPushToken[followup-receipt]", platform: "ios", last_seen_at: Time.current)
+    record = Curriculum.create!(name: "Follow-up receipt contract")
+    notification = user.notifications.create!(notifiable: record, notification_type: :intervention, title: "Follow-up due", path: "/admin/interventions/7")
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok", id: "follow-up-ticket" } ] }.to_json
+    original_drain = ExpoPushReceiptJob.method(:drain_due_inline)
+    original_track = ExpoPushReceiptJob.method(:track)
+    drained = 0
+    tracked = []
+    ExpoPushReceiptJob.define_singleton_method(:drain_due_inline) { drained += 1 }
+    ExpoPushReceiptJob.define_singleton_method(:track) { |tickets| tracked.concat(tickets) }
+    with_http_response(response) do |connection|
+      assert ExpoPushNotificationService.intervention_follow_ups([ notification ])
+      payload = JSON.parse(connection.request_received.body).first
+      assert_equal "/staff/intervention/#{record.id}", payload.dig("data", "path")
+    end
+    assert_equal 0, drained
+    assert_equal [ { "receipt_id" => "follow-up-ticket", "mobile_push_token_id" => token.id } ], tracked
+  ensure
+    ExpoPushReceiptJob.define_singleton_method(:drain_due_inline, original_drain) if original_drain
+    ExpoPushReceiptJob.define_singleton_method(:track, original_track) if original_track
+  end
+
   test "recordings without an id never emit an empty recording route" do
     assert_equal "/recordings?cohort_id=2", ExpoPushNotificationService.mobile_learning_path("/recordings?cohort_id=2")
   end
@@ -338,7 +364,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       ExpoPushNotificationService.help_request_changed(help_request, Notification.where(id: notifications.map(&:id)))
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
       assert_includes paths, "/lesson/42"
-      assert_includes JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "destination_path") }, "/lesson/42?cohort_id=#{cohort.id}"
+      assert_includes JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "destination_path") }, "/lesson/42?cohort_id=#{cohort.id}&help_request=#{help_request.id}"
       assert_includes paths, "/staff/support/#{help_request.id}"
       assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
     end

@@ -165,3 +165,90 @@ from `web/`. The spec covers light/dark at both widths, restores its own onboard
 fixture, and writes screenshots under `docs/qa/catalog-course-pages-2026-11-17/`.
 The checkout spec intercepts the purchase request and hosted page; it never calls
 Stripe. Existing API regressions cover actual checkout/session/webhook logic.
+
+### Staff workspace phone layout (W7 PR 7.6b)
+
+Start the harness and load `student-workspace-fixtures.rb` as above. Run:
+
+```sh
+QA_SPEC='staff-mobile*.spec.ts' DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+The layout spec checks every staff cohort/student section as admin and instructor,
+light/dark, at 390/1280. It also checks Settings sizing, pinned Save, the leave
+guard, simulated save failure/retry, API-verified persistence, keyboard selection,
+Back and Activity return context. Settings changes are reset through the UI.
+No provider delivery is attempted. Screenshots go to ignored
+`.qa-local/staff-layout/after/`. `QA_LAYOUT_BASELINE=1` captures the desktop
+baseline instead and skips post-change acceptance; use it before editing the
+page source. Browser Date is fixed for reproducible relative labels.
+
+`staff-mobile-fixes.spec.ts` adds keyboard-only disclosure navigation, Escape,
+modified-click, history and draft checks; short-dialog scrolling and accessible
+editor labels; keyboard-aware pinned chrome and 16px fields; fractional
+breakpoints and focus rings; roster targets and support counts; Learning return
+context; update loading/error/retry; and delayed message responses. The keyboard
+viewport is simulated in Chromium and does not certify iOS Safari hardware.
+
+The web-only ASUS gate is
+`asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/staff-mobile-layout-gate.sh`.
+It leaves the existing cross-stack gate and migration-process port adapter intact.
+See `docs/qa/staff-mobile-layout-2026-11-17.md` for evidence and limits.
+### Course outline (W8 PR 8.1)
+
+After `start`, load the course outline fixture once from `api/` (the canonical
+production-authored prework in three synthetic cohorts, with personas part-way through it):
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/course-outline-fixtures.rb setup`.
+Then run one pass per state of the "New student experience" switch, from the repo root:
+
+```sh
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch off)
+QA_OUTLINE=off QA_SPEC=course-outline.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch on)
+QA_OUTLINE=on QA_SPEC=course-outline.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+Off is today's Learn (the "before", and Lance's shape); On is the outline. Each pass
+measures the first lesson's position and the page height for eight persona setups at
+1280/390 in light/dark, and writes captures to `docs/qa/course-outline-2026-11-17/`.
+See `docs/qa/course-outline-2026-11-17.md`.
+
+### Student lesson redesign (W8.3)
+
+After a fresh harness start, load `lesson-page-fixtures.rb` from `api/` with
+its exact owned `DATABASE_URL`. Run `QA_SPEC=lesson-page.spec.ts` with
+`DEV_LIFECYCLE_SESSION` set, using the Playwright command above. The spec resets
+only its own program journey before each case, uses touch input for textarea
+flows and desktop input for Monaco, and permits jsDelivr solely to load Monaco.
+It checks On/Off, light/dark, 390/1280, persisted submissions and completion,
+redo history, drafts, help and instructor actions. The synthetic video is a
+placeholder; it does not establish provider playback. Evidence is under
+`docs/qa/lesson-page-2026-11-17/`.
+
+### Student Today and My work (W8 PR 8.2)
+
+After `start`, load the course outline fixture and then the Today fixture, from `api/`:
+
+```sh
+DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/course-outline-fixtures.rb setup
+DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/student-today-fixtures.rb setup
+```
+
+The Today fixture adds, on the canonical program: a graded exercise, an answered help request with its
+unread notification, an open question, an unread instructor message and next week's live class for
+persona 3; seven redos for persona 4 (behind); a behind learner with an agreed catch-up plan
+("QA Blair Plan"); and two submissions waiting for review for persona 6. Run one pass per switch
+state, from the repo root:
+
+```sh
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch off)
+QA_TODAY=off QA_SPEC=student-today.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+(cd api && DATABASE_URL=... bundle exec ruby ../scripts/qa/course-outline-fixtures.rb switch on)
+QA_TODAY=on QA_SPEC=student-today.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+Off is today's Today (the "before", and Lance's shape). Each pass measures Today's height and the first
+actionable item for seven persona setups at 1280/390 in light/dark and writes captures to
+`docs/qa/student-today-2026-11-17/`. The On pass also walks View response, the redo link, My work's tabs
+and Ask about this feedback; it marks persona 3's help answer unread again afterwards
+(`student-today-fixtures.rb unread`). See `docs/qa/student-today-2026-11-17.md`.

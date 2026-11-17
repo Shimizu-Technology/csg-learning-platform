@@ -60,6 +60,8 @@ Rails.application.routes.draw do
       post "staff/private_meeting_slots", to: "staff_private_meeting_slots#create"
       delete "staff/private_meeting_slots/:id", to: "staff_private_meeting_slots#destroy"
       get "weekly_plan", to: "weekly_plans#show"
+      get "course_outline", to: "course_outlines#show"
+      get "my_work", to: "my_works#show"
       get "support_queue", to: "support_queue#show"
       get "recordings", to: "student_recordings#index"
       get "resources", to: "resources#index"

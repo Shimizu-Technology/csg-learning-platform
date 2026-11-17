@@ -3659,6 +3659,49 @@
           }
         }
       }
+    },
+    "/api/v1/course_outline": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The learner's course outline, or one enrolled learner's for staff (student_id)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseOutlineResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/my_work": {
+      "get": {
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The cohort to read; the learner's first readable enrollment otherwise."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The learner's own submitted work in one cohort",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyWorkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4502,6 +4545,46 @@
             ],
             "additionalProperties": false,
             "description": "Present only when GET /api/v1/lessons/{id} named an id from before Make a copy for this cohort and returned the cohort's copy instead. Clients can replace the old id in their URL."
+          },
+          "learning_navigation": {
+            "$ref": "#/components/schemas/LessonNavigation"
+          },
+          "outline": {
+            "$ref": "#/components/schemas/CourseOutline"
+          },
+          "instructor": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "instructor"
+                ]
+              },
+              "avatar_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "role",
+              "avatar_url"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -4897,6 +4980,17 @@
               "null"
             ],
             "description": "Present for staff readers."
+          },
+          "learner_state": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "in_progress",
+              "submitted",
+              "redo_requested",
+              "complete"
+            ],
+            "description": "Lesson block evidence from LearnerProgress for the new student experience."
           }
         },
         "required": [
@@ -9775,7 +9869,7 @@
           },
           "used_in": {
             "type": "array",
-            "description": "Cohorts on this lesson’s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
+            "description": "Cohorts on this lesson\u2019s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
             "items": {
               "type": "object",
               "properties": {
@@ -9814,7 +9908,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "submissions_count": {
             "type": "integer",
@@ -11959,6 +12053,10 @@
           },
           "review_response_time": {
             "type": "string"
+          },
+          "student_today": {
+            "$ref": "#/components/schemas/StudentToday",
+            "description": "Present for enrolled student dashboards only when the cohort's student_experience_v2 switch is explicitly on."
           }
         },
         "required": [
@@ -12383,6 +12481,9 @@
           },
           "learner_status": {
             "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
           }
         },
         "required": [
@@ -12399,7 +12500,8 @@
           "required",
           "review_status",
           "submission_window",
-          "learner_status"
+          "learner_status",
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -13665,7 +13767,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_cohorts": {
             "type": "array",
@@ -14817,7 +14919,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null for an instructor who doesn’t teach that cohort."
+            "description": "Null for an instructor who doesn\u2019t teach that cohort."
           },
           "source_curriculum": {
             "anyOf": [
@@ -14927,7 +15029,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "already_copied": {
             "type": "boolean"
@@ -18745,7 +18847,7 @@
           },
           "assigned": {
             "type": "boolean",
-            "description": "False when the cohort’s content defaults leave this module out."
+            "description": "False when the cohort\u2019s content defaults leave this module out."
           },
           "starts_on": {
             "type": [
@@ -18764,7 +18866,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading’s All filter counts them."
+            "description": "Every attempt, as Grading\u2019s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -18796,7 +18898,7 @@
           "open_help"
         ],
         "additionalProperties": false,
-        "description": "A cohort’s schedule for the module; dates are null for self-paced cohorts."
+        "description": "A cohort\u2019s schedule for the module; dates are null for self-paced cohorts."
       },
       "LessonUsageCohort": {
         "type": "object",
@@ -18856,7 +18958,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading’s All filter counts them."
+            "description": "Every attempt, as Grading\u2019s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -19007,7 +19109,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_of": {
             "anyOf": [
@@ -19036,7 +19138,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Null when the viewer doesn’t teach the cohort."
+                    "description": "Null when the viewer doesn\u2019t teach the cohort."
                   },
                   "source_curriculum": {
                     "anyOf": [
@@ -19100,7 +19202,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set when this curriculum is one cohort’s own copy."
+            "description": "Set when this curriculum is one cohort\u2019s own copy."
           },
           "copies": {
             "type": "array",
@@ -19418,7 +19520,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "totals": {
             "type": "object",
@@ -19594,7 +19696,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "help_requests": {
             "type": "array",
@@ -21101,6 +21203,1589 @@
           "owned_help_count"
         ],
         "additionalProperties": false
+      },
+      "LessonKind": {
+        "type": "string",
+        "enum": [
+          "exercise",
+          "project",
+          "video",
+          "recording",
+          "checkpoint",
+          "reading"
+        ],
+        "description": "What a lesson is to a learner, read from its blocks (LessonKind). The stored lesson_type is not reliable: imports store exercise for nearly every lesson."
+      },
+      "CourseOutlineLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
+          },
+          "number": {
+            "type": "number",
+            "description": "Position in course order among the learner's listed lessons, from 1."
+          },
+          "status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "opens_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unlock date of a locked lesson in a dated program; null when open or self-paced."
+          },
+          "todo": {
+            "type": "boolean",
+            "description": "The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library."
+          },
+          "redo_block_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The block a Redo was requested on, for a #block- anchor."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "number",
+          "status",
+          "required",
+          "available",
+          "opens_on",
+          "todo",
+          "redo_block_id"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutlineNextLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
+          },
+          "number": {
+            "type": "number",
+            "description": "Position in course order among the learner's listed lessons, from 1."
+          },
+          "status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "opens_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unlock date of a locked lesson in a dated program; null when open or self-paced."
+          },
+          "todo": {
+            "type": "boolean",
+            "description": "The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library."
+          },
+          "redo_block_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The block a Redo was requested on, for a #block- anchor."
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "group_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "number",
+          "status",
+          "required",
+          "available",
+          "opens_on",
+          "todo",
+          "redo_block_id",
+          "module_id",
+          "group_key"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutlineCounts": {
+        "type": "object",
+        "properties": {
+          "completed_lessons": {
+            "type": "number"
+          },
+          "total_lessons": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "completed_lessons",
+          "total_lessons"
+        ],
+        "additionalProperties": false,
+        "description": "Counted lessons and how many are complete, by LearnerProgress.lesson_counts."
+      },
+      "CourseOutlineGroup": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Week 3\" in programs, \"Part 2 \u00b7 lessons 21\u201340\" in a split self-paced section, null for a single group."
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "opens_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "Holds the next lesson; Learn opens it."
+          },
+          "this_week": {
+            "type": "boolean",
+            "description": "The program week that opened most recently."
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseOutlineLesson"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "week",
+          "opens_on",
+          "available",
+          "current",
+          "this_week",
+          "counts",
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutlineModule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseOutlineGroup"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "available",
+          "counts",
+          "groups"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutline": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "program",
+              "self_paced",
+              "library"
+            ]
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "cohort_type": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "cohort_type",
+              "course_delivery"
+            ],
+            "additionalProperties": false
+          },
+          "course_title": {
+            "type": "string"
+          },
+          "enrollment_status": {
+            "type": "string"
+          },
+          "paused_since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "read_only": {
+            "type": "boolean"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "course_week": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "current": {
+                    "type": "number"
+                  },
+                  "total": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "current",
+                  "total"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lesson_count": {
+            "type": "number"
+          },
+          "next_lesson": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineNextLesson"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_group_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "todo": {
+                "type": "number"
+              },
+              "redo": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "todo",
+              "redo"
+            ],
+            "additionalProperties": false
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseOutlineModule"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "cohort",
+          "course_title",
+          "enrollment_status",
+          "paused_since",
+          "read_only",
+          "counts",
+          "course_week",
+          "lesson_count",
+          "next_lesson",
+          "current_group_key",
+          "filters",
+          "modules"
+        ],
+        "additionalProperties": false,
+        "description": "One course outline for every delivery mode (CourseOutline): the redesigned Learn page. Statuses, counts and the next lesson come from LearnerProgress."
+      },
+      "CourseOutlineResponse": {
+        "type": "object",
+        "properties": {
+          "outline": {
+            "$ref": "#/components/schemas/CourseOutline"
+          }
+        },
+        "required": [
+          "outline"
+        ],
+        "additionalProperties": false
+      },
+      "LessonNavigation": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "previous": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "module_id": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "module_id"
+            ],
+            "additionalProperties": false
+          },
+          "next": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "module_id": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "module_id"
+            ],
+            "additionalProperties": false
+          },
+          "next_module": {
+            "type": "boolean"
+          },
+          "course_complete": {
+            "type": "boolean"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "completed_lessons": {
+                "type": "integer"
+              },
+              "total_lessons": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "completed_lessons",
+              "total_lessons"
+            ],
+            "additionalProperties": false
+          },
+          "manual_block_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "next_redo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "number",
+          "total",
+          "previous",
+          "next",
+          "next_module",
+          "course_complete",
+          "counts",
+          "manual_block_ids",
+          "next_redo"
+        ],
+        "additionalProperties": false,
+        "description": "LearnerProgress continuation, completion and course reading order for the new student experience."
+      },
+      "PersonName": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "full_name"
+        ],
+        "additionalProperties": false,
+        "description": "A person named on a learner page: only an id and a name."
+      },
+      "MyWorkItem": {
+        "type": "object",
+        "properties": {
+          "submission_id": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "redo",
+              "waiting",
+              "graded"
+            ]
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "block_title": {
+            "type": "string"
+          },
+          "module_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Curriculum week in a dated program; null when self-paced or in the library."
+          },
+          "attempt": {
+            "type": "number"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Markdown. Null while waiting for review."
+          },
+          "submitted_at": {
+            "type": "string"
+          },
+          "graded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submission_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submissions_closed": {
+            "type": "boolean"
+          },
+          "can_resubmit": {
+            "type": "boolean",
+            "description": "A redo the learner can resubmit here now: active enrollment, the lesson open to them, an open window and a submission form."
+          },
+          "ask_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action."
+          }
+        },
+        "required": [
+          "submission_id",
+          "status",
+          "cohort_id",
+          "lesson_id",
+          "content_block_id",
+          "lesson_title",
+          "block_title",
+          "module_name",
+          "week",
+          "attempt",
+          "grade",
+          "feedback",
+          "submitted_at",
+          "graded_at",
+          "grader",
+          "submission_type",
+          "submissions_closed",
+          "can_resubmit",
+          "ask_to"
+        ],
+        "additionalProperties": false,
+        "description": "One latest attempt in My work, from LearnerProgress (redo_submissions, awaiting_review_submissions, graded_submissions)."
+      },
+      "MyWork": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "read_only": {
+            "type": "boolean"
+          },
+          "review_response_time": {
+            "type": "string"
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "needs_you": {
+                "type": "number"
+              },
+              "waiting": {
+                "type": "number"
+              },
+              "graded": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "needs_you",
+              "waiting",
+              "graded"
+            ],
+            "additionalProperties": false,
+            "description": "Each count is its list's length."
+          },
+          "needs_you": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyWorkItem"
+            }
+          },
+          "waiting": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyWorkItem"
+            }
+          },
+          "graded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyWorkItem"
+            }
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Someone the learner can message about the course now (StaffContact): the reviewer if reachable, else another current instructor. Null hides message actions."
+          }
+        },
+        "required": [
+          "cohort",
+          "read_only",
+          "review_response_time",
+          "reviewer",
+          "counts",
+          "needs_you",
+          "waiting",
+          "graded",
+          "contact"
+        ],
+        "additionalProperties": false,
+        "description": "A learner's submitted work in one cohort (MyWork): redos, work waiting for review, and graded work."
+      },
+      "MyWorkResponse": {
+        "type": "object",
+        "properties": {
+          "my_work": {
+            "$ref": "#/components/schemas/MyWork"
+          }
+        },
+        "required": [
+          "my_work"
+        ],
+        "additionalProperties": false
+      },
+      "StudentTodayRedo": {
+        "type": "object",
+        "properties": {
+          "submission_id": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "redo",
+              "waiting",
+              "graded"
+            ]
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "block_title": {
+            "type": "string"
+          },
+          "module_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Curriculum week in a dated program; null when self-paced or in the library."
+          },
+          "attempt": {
+            "type": "number"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Markdown. Null while waiting for review."
+          },
+          "submitted_at": {
+            "type": "string"
+          },
+          "graded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submission_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submissions_closed": {
+            "type": "boolean"
+          },
+          "can_resubmit": {
+            "type": "boolean",
+            "description": "A redo the learner can resubmit here now (active enrollment, open window, a submission form)."
+          },
+          "kind": {
+            "const": "redo"
+          },
+          "ask_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action."
+          }
+        },
+        "required": [
+          "submission_id",
+          "status",
+          "cohort_id",
+          "lesson_id",
+          "content_block_id",
+          "lesson_title",
+          "block_title",
+          "module_name",
+          "week",
+          "attempt",
+          "grade",
+          "feedback",
+          "submitted_at",
+          "graded_at",
+          "grader",
+          "submission_type",
+          "submissions_closed",
+          "can_resubmit",
+          "kind",
+          "ask_to"
+        ],
+        "additionalProperties": false,
+        "description": "A redo with its feedback (MyWorkItem plus kind)."
+      },
+      "StudentTodayHelpAnswer": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "const": "help_answer"
+          },
+          "help_request_id": {
+            "type": "number"
+          },
+          "notification_id": {
+            "type": "number"
+          },
+          "context_label": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "The lesson with the request's dialog open (help_request=:id)."
+          },
+          "replied_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replied_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "resolved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "help_request_id",
+          "notification_id",
+          "context_label",
+          "path",
+          "replied_by",
+          "replied_at",
+          "excerpt",
+          "resolved"
+        ],
+        "additionalProperties": false,
+        "description": "A staff reply to the learner's help request whose notification is unread."
+      },
+      "StudentTodayMessage": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "const": "message"
+          },
+          "message_id": {
+            "type": "number"
+          },
+          "direct_conversation_id": {
+            "type": "number"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PersonName"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "sent_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "message_id",
+          "direct_conversation_id",
+          "author",
+          "excerpt",
+          "sent_at"
+        ],
+        "additionalProperties": false,
+        "description": "The newest unread message from staff in one of the learner's conversations for this cohort."
+      },
+      "StudentTodayLesson": {
+        "type": "object",
+        "properties": {
+          "lesson_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "title",
+          "kind",
+          "due_on",
+          "available",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "StudentToday": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "program",
+              "self_paced",
+              "library"
+            ]
+          },
+          "read_only": {
+            "type": "boolean"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "course_week": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "current": {
+                    "type": "number"
+                  },
+                  "total": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "current",
+                  "total"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_lesson": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "$ref": "#/components/schemas/LessonKind"
+                  },
+                  "module_id": {
+                    "type": "number"
+                  },
+                  "module_name": {
+                    "type": "string"
+                  },
+                  "week": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "number": {
+                    "type": "number"
+                  },
+                  "position": {
+                    "type": "number"
+                  },
+                  "module_lesson_count": {
+                    "type": "number"
+                  },
+                  "status": {
+                    "$ref": "#/components/schemas/LearnerLessonStatus"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "kind",
+                  "module_id",
+                  "module_name",
+                  "week",
+                  "number",
+                  "position",
+                  "module_lesson_count",
+                  "status"
+                ],
+                "additionalProperties": false,
+                "description": "LearnerProgress#next_lesson. For a read-only learner it is the lesson to read next, not work to hand in."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "this_week": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "number"
+                  },
+                  "completed": {
+                    "type": "number"
+                  },
+                  "ends_on": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "total",
+                  "completed",
+                  "ends_on"
+                ],
+                "additionalProperties": false,
+                "description": "Required lessons scheduled this week (Monday to Sunday); programs with an active enrollment only."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pace": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "behind": {
+                    "type": "boolean"
+                  },
+                  "weeks_behind": {
+                    "type": "number"
+                  },
+                  "overdue_count": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "behind",
+                  "weeks_behind",
+                  "overdue_count"
+                ],
+                "additionalProperties": false,
+                "description": "LearnerProgress#pace: overdue required work measured in the course's typical week."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "catch_up_plan": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "target_date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "agreed_at": {
+                    "type": "string"
+                  },
+                  "agreed_by": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/PersonName"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "remaining_count": {
+                    "type": "number"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/StudentTodayLesson"
+                    }
+                  }
+                },
+                "required": [
+                  "title",
+                  "target_date",
+                  "agreed_at",
+                  "agreed_by",
+                  "remaining_count",
+                  "items"
+                ],
+                "additionalProperties": false,
+                "description": "The agreed plan: the active learning plan staff saved, with every required lesson in its milestones not handed in yet (items; remaining_count is their number). No unreviewed suggestion is ever sent."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "needs_you": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/StudentTodayRedo"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StudentTodayHelpAnswer"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StudentTodayMessage"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "count",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Every redo, unread help answer and conversation with an unread staff message; count equals items."
+          },
+          "waiting": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MyWorkItem"
+                }
+              }
+            },
+            "required": [
+              "count",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "count is every submission waiting for review (My work's Waiting count); items are the first five."
+          },
+          "recently_graded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyWorkItem"
+            }
+          },
+          "reviews_count": {
+            "type": "number"
+          },
+          "questions": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/HelpRequestStatus"
+                    },
+                    "context_label": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "context_label",
+                    "message",
+                    "created_at",
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "count",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Every help request still waiting for a first reply (count equals items). Empty when help requests are off."
+          },
+          "next_session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfficeHourOccurrence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_response_time": {
+            "type": "string"
+          },
+          "support": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "guided_help",
+                  "course_question",
+                  "none"
+                ]
+              },
+              "live_support": {
+                "type": "boolean"
+              },
+              "ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ended": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mode",
+              "live_support",
+              "ends_on",
+              "ended"
+            ],
+            "additionalProperties": false
+          },
+          "recently_added": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "kind": {
+                  "$ref": "#/components/schemas/LessonKind"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Someone the learner can message now (StaffContact). Null hides every message action."
+          },
+          "can_ask_for_plan": {
+            "type": "boolean",
+            "description": "Offer Ask for a catch-up plan: an active program enrollment, learning plans on and a reachable contact."
+          }
+        },
+        "required": [
+          "mode",
+          "read_only",
+          "paused",
+          "course_week",
+          "counts",
+          "next_lesson",
+          "this_week",
+          "pace",
+          "catch_up_plan",
+          "needs_you",
+          "waiting",
+          "recently_graded",
+          "reviews_count",
+          "questions",
+          "next_session",
+          "reviewer",
+          "review_response_time",
+          "support",
+          "recently_added",
+          "contact",
+          "can_ask_for_plan"
+        ],
+        "additionalProperties": false,
+        "description": "The redesigned student Today (StudentToday). Every status, count and next step comes from LearnerProgress."
       }
     },
     "responses": {

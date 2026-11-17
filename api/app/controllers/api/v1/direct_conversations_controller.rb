@@ -47,8 +47,7 @@ module Api
           return
         end
 
-        users = workspace.available_users_for(current_user)
-          .where.not(id: blocked_relationship_user_ids)
+        users = workspace.messageable_users_for(current_user)
 
         render json: { users: users.map { |user| user_json(user) } }
       end

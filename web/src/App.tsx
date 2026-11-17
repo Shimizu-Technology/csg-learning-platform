@@ -29,7 +29,6 @@ import {
   CohortStudentView,
   CohortWatchProgress,
   ContentManagement,
-  Dashboard,
   PrivateMeetings,
   StaffPrivateMeetings,
   Grading,
@@ -45,9 +44,7 @@ import {
   RubricRecord,
   ActivityEventRecord,
   LessonView,
-  Materials,
   Messages,
-  ModuleView,
   Profile,
   Recordings,
   Resources,
@@ -65,7 +62,7 @@ import {
   TeamMemberDetail,
 } from './lib/routePreload'
 import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
-import { StudentCohortHome } from './pages/student/StudentCohortHome'
+import { CohortHomeRoute, LearnRoute, ModuleRoute, MyWorkRoute, TodayRoute } from './pages/student/StudentExperienceRoutes'
 import { CourseCatalog } from './pages/CourseCatalog'
 
 export function RouteLoadingFallback() {
@@ -133,11 +130,12 @@ function AppRoutes() {
         {/* Authenticated routes with shared layout */}
         <Route element={<Layout />}>
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<SuspendedRoute><Dashboard /></SuspendedRoute>} />
-            <Route path="/cohorts/:id" element={<StudentCohortHome />} />
+            <Route path="/dashboard" element={<SuspendedRoute><TodayRoute /></SuspendedRoute>} />
+            <Route path="/my-work" element={<SuspendedRoute><MyWorkRoute /></SuspendedRoute>} />
+            <Route path="/cohorts/:id" element={<CohortHomeRoute />} />
             <Route path="/meetings" element={<SuspendedRoute><PrivateMeetings /></SuspendedRoute>} />
-            <Route path="/materials" element={<SuspendedRoute><Materials /></SuspendedRoute>} />
-            <Route path="/modules/:id" element={<SuspendedRoute><ModuleView /></SuspendedRoute>} />
+            <Route path="/materials" element={<SuspendedRoute><LearnRoute /></SuspendedRoute>} />
+            <Route path="/modules/:id" element={<SuspendedRoute><ModuleRoute /></SuspendedRoute>} />
             <Route path="/lessons/:id" element={<SuspendedRoute><LessonView /></SuspendedRoute>} />
             <Route path="/profile" element={<SuspendedRoute><Profile /></SuspendedRoute>} />
             <Route path="/recordings" element={<SuspendedRoute><Recordings /></SuspendedRoute>} />

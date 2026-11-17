@@ -23,6 +23,7 @@ import { checkExceptions, pageSources, scanPages, scanSource, type RecordNameExc
  */
 const EXCEPTIONS: Record<string, RecordNameException> = {
   // The record's own page title.
+  'src/components/student/LessonExperience.tsx lesson.title': 'The current lesson page title',
   'src/pages/admin/LessonEditor.tsx lesson.title': 'Title of the lesson editor',
   'src/pages/admin/CohortStudentView.tsx module.name': 'Type line of a previewed lesson; the learner preview has no module page',
   'src/pages/student/ModuleView.tsx mod.name': 'Title of the module page',
@@ -35,6 +36,8 @@ const EXCEPTIONS: Record<string, RecordNameException> = {
   // Locked or not yet open.
   'src/pages/admin/CohortStudentView.tsx lesson.title': 'Locked preview lessons; available lessons link within preview',
   'src/pages/student/ModuleView.tsx lesson.title': 'Locked lessons; open lessons are row links',
+  'src/pages/student/CourseOutline.tsx lesson.title': 'Each row is the lesson link (rendered through a JSX variable); locked lessons stay plain',
+  'src/pages/student/CourseOutline.tsx mod.name': { count: 2, reason: 'Section heading of Learn, the course outline itself; in the redesign a module is a place in Learn, not a page' },
   'src/components/student/PersonalLearningPlan.tsx lesson.title': '"Not open yet" lessons; open lessons are linked',
   'src/components/student/WeeklyPlan.tsx unlock.module_title': 'Modules that unlock on a later date',
   // Rendered inside a row link through a JSX variable.

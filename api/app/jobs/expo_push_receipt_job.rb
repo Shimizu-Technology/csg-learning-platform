@@ -59,13 +59,16 @@ class ExpoPushReceiptJob < ApplicationJob
     self.class.set(wait: LOOKUP_DELAY).perform_later(retryable_ids) if retryable_ids.any?
   end
 
-  def drain_due(receipt_ids = nil)
+  def drain_due(receipt_ids = nil, metrics: {})
+    metrics.merge!(claimed: 0, sent: 0, failed: 0)
     ExpoPushReceipt.where("created_at < ?", MAX_AGE.ago).delete_all
     receipts = claim_due(receipt_ids)
+    metrics[:claimed] = receipts.size
     return [] if receipts.empty?
 
     requests = receipts.map { |receipt| { "receipt_id" => receipt.receipt_id, "mobile_push_token_id" => receipt.mobile_push_token_id } }
     missing_ids = ExpoPushReceiptService.new.check(requests).pluck("receipt_id").index_with(true)
+    metrics[:sent] = receipts.size
     resolved, missing = receipts.partition { |receipt| !missing_ids.include?(receipt.receipt_id) }
     claimed_scope(resolved).delete_all if resolved.any?
 
@@ -79,11 +82,15 @@ class ExpoPushReceiptJob < ApplicationJob
         updated_at: Time.current
       )
     end
+    metrics[:failed] = exhausted.size
     if exhausted.any?
       Rails.logger.warn("[ExpoPushReceiptJob] receipts unavailable after #{MAX_LOOKUPS} lookups receipt_ids=#{exhausted.map(&:receipt_id).join(',')}")
       claimed_scope(exhausted).delete_all
     end
     retryable.map(&:receipt_id)
+  rescue StandardError
+    metrics[:failed] = Array(receipts).size
+    raise
   ensure
     release_claims(receipts)
   end

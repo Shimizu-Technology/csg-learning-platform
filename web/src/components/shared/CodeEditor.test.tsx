@@ -93,3 +93,11 @@ describe('CodeEditor keyboard escape', () => {
     container.remove()
   })
 })
+
+it('preserves Off wrapping while the redesigned lesson uses unwrapped Monaco source', () => {
+  editorProps.length = 0
+  renderToStaticMarkup(<CodeEditor value="very_long_python_identifier = 'source'" wordWrap="off" />)
+  expect((editorProps[0].options as Record<string, unknown>).wordWrap).toBe('off')
+  renderToStaticMarkup(<CodeEditor value="old experience" />)
+  expect((editorProps[1].options as Record<string, unknown>).wordWrap).toBe('on')
+})

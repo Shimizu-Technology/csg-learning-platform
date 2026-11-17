@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -448,7 +448,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_090000) do
   end
 
   create_table "feature_switch_changes", force: :cascade do |t|
-    t.bigint "actor_id", null: false
+    t.bigint "actor_id"
     t.bigint "cohort_id"
     t.jsonb "before", null: false
     t.jsonb "after", null: false
@@ -1062,6 +1062,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_090000) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["curriculum_id"], name: "index_rubrics_on_curriculum_id"
+  end
+
+  create_table "scheduled_notification_attempts", force: :cascade do |t|
+    t.string "key", null: false
+    t.datetime "created_at", null: false
+    t.index ["key"], name: "index_scheduled_notification_attempts_on_key", unique: true
+  end
+
+  create_table "scheduled_task_runs", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "last_succeeded_at"
+    t.date "last_school_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "last_attempted_at"
+    t.jsonb "last_result", default: {}, null: false
+    t.index ["name"], name: "index_scheduled_task_runs_on_name", unique: true
   end
 
   create_table "school_settings", force: :cascade do |t|

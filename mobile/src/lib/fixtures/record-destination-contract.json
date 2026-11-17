@@ -16,6 +16,21 @@
   },
   {
     "descriptor": {
+      "kind": "lesson",
+      "id": "42",
+      "context": {
+        "cohort_id": "2",
+        "help_request": "9"
+      },
+      "anchor": {
+        "block_id": "8"
+      }
+    },
+    "web": "/lessons/42?cohort_id=2&help_request=9#block-8",
+    "native": "/lesson/42?cohort_id=2&help_request=9&block_id=8"
+  },
+  {
+    "descriptor": {
       "kind": "module",
       "id": "7",
       "context": {},
@@ -105,6 +120,18 @@
     },
     "web": "/announcements/8",
     "native": "/updates?announcement_id=8"
+  },
+  {
+    "descriptor": {
+      "kind": "announcement",
+      "id": "80",
+      "context": {
+        "cohort_id": "3"
+      },
+      "anchor": {}
+    },
+    "web": "/announcements/80?cohort_id=3",
+    "native": "/updates?cohort_id=3&announcement_id=80"
   },
   {
     "descriptor": {

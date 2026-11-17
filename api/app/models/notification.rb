@@ -57,14 +57,18 @@ class Notification < ApplicationRecord
 
   def destination_path
     return LearningDestination.submission(notifiable) if notifiable.is_a?(Submission) && !user.staff?
-    return LearningDestination.help_request(notifiable) if notifiable.is_a?(HelpRequest) && !user.staff?
+    return LearningDestination.help_request(notifiable, open: true) if notifiable.is_a?(HelpRequest) && !user.staff?
     # Older staff rows stored the bare request path; every row opens it with its cohort and student.
     return NotificationDeliveryService.staff_help_request_path(notifiable) if notifiable.is_a?(HelpRequest)
     if notifiable.is_a?(PrivateMeetingBookingEvent)
       booking = notifiable.private_meeting_booking
       return "#{legacy_path}?cohort_id=#{booking.cohort_id}&booking_id=#{booking.id}&week=#{booking.week_number}"
     end
-    return "/announcements/#{notifiable_id}" if notification_type == "announcement"
+    # The update's cohort travels with it, so the page doesn't fall back to the last cohort viewed (L-1.10).
+    if notification_type == "announcement"
+      cohort_id = notifiable.try(:cohort_id)
+      return cohort_id ? "/announcements/#{notifiable_id}?cohort_id=#{cohort_id}" : "/announcements/#{notifiable_id}"
+    end
 
     path
   end

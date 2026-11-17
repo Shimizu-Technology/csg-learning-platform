@@ -192,3 +192,13 @@ it('omits the pause date for a historical pause with no known timestamp', () => 
   const screen = render(<TodayScreen />);
   expect(screen.getByText('Your enrollment is paused. Your work is saved.')).toBeTruthy();
 });
+it('native Today stays today’s screen when the dashboard carries the redesigned student_today (W8 PR 8.2)', () => {
+  const tree = () => { const screen = render(<TodayScreen />); const json = JSON.stringify(screen.toJSON(), (key, value) => (key === 'refreshControl' || typeof value === 'function' ? undefined : value)); screen.unmount(); return json; };
+  const before = tree();
+  mockDashboard.cohort = { ...initialCohort!, features: { ...(initialCohort?.features || {}), student_experience_v2: true } };
+  Object.assign(mockDashboard, { student_today: { mode: 'program', needs_you: { count: 1, items: [] }, waiting: { count: 0, items: [] } } });
+  const withToday = tree();
+  delete (mockDashboard as { student_today?: unknown }).student_today;
+  expect(withToday).toBe(before);
+  expect(before).toContain('Individually assigned lesson');
+});

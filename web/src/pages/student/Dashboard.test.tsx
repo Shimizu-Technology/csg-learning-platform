@@ -12,6 +12,7 @@ vi.mock('../../lib/brand', async (importOriginal) => ({ ...await importOriginal<
 import { brand } from '../../lib/brand'
 import { Dashboard } from './Dashboard'
 import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
+import { StudentExperienceProvider } from '../../lib/studentExperience'
 
 const previewData: DashboardData = {
   enrolled: true,
@@ -347,4 +348,31 @@ it('links each Today update and its cohort as records that keep the cohort and r
   expect(html).toContain('href="/announcements/7?cohort_id=4&amp;return_to=%2Fdashboard"')
   expect(html).toContain('href="/announcements?cohort_id=4"')
   expect(html).toMatch(/<a[^>]*href="\/cohorts\/4"[^>]*>Cohort 3<\/a>/)
+})
+
+describe('Today and Learn share one course outline (C-2, S-9)', () => {
+  const program: DashboardData = {
+    ...previewData,
+    cohort: { id: 3, name: 'Cohort 3', cohort_type: 'bootcamp', start_date: '2026-09-13', status: 'active' },
+    overall_progress: { completed: 1, total: 4, percentage: 25, completed_lessons: 1, total_lessons: 3 },
+    modules: [{ ...previewData.modules![0], name: 'JavaScript Foundations', lessons: [{ ...previewData.modules![0].lessons[0], required: true }] }],
+  }
+  const render = (v2: boolean) => renderToStaticMarkup(
+    <MemoryRouter><StudentExperienceProvider v2={v2}><Dashboard previewData={program} disableStaffRedirect /></StudentExperienceProvider></MemoryRouter>,
+  )
+
+  it('links to Learn with the server lesson counts instead of repeating the course structure', () => {
+    const html = render(true)
+    expect(html).toContain('data-testid="today-course-link"')
+    expect(html).toContain('href="/materials?cohort_id=3"')
+    expect(html).toContain('1 of 3</span> lessons done')
+    expect(html).not.toContain('href="/modules/')
+  })
+
+  it('keeps today’s module list when the new student experience is off', () => {
+    const html = render(false)
+    expect(html).not.toContain('today-course-link')
+    expect(html).toContain('JavaScript Foundations')
+    expect(html).toContain('href="/modules/1"')
+  })
 })

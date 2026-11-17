@@ -3,9 +3,9 @@ class RecordDestination
   PATH_ALIASES = JSON.parse(File.read(Rails.root.join("config/record_destination_aliases.json"))).freeze
   CONTEXT_KEYS = {
     "student" => %w[cohort_id], "staff" => [], "curriculum" => %w[cohort_id], "resource" => %w[cohort_id],
-    "lesson" => %w[cohort_id], "module" => %w[cohort_id], "submission" => %w[cohort_id student_id],
+    "lesson" => %w[cohort_id help_request], "module" => %w[cohort_id], "submission" => %w[cohort_id student_id],
     "help_request" => %w[cohort_id student_id], "follow_up" => [], "channel" => [], "dm" => [],
-    "announcement" => [], "recording" => %w[cohort_id],
+    "announcement" => %w[cohort_id], "recording" => %w[cohort_id],
     "meeting" => %w[cohort_id booking_id week], "cohort" => [],
     # Admin-only Safety items. Web only: native clients have no Safety page and fall back to Updates.
     "content_report" => [], "deletion_request" => []

@@ -101,7 +101,7 @@ class LearnerProgress
   # number of queries however many enrollments there are: the preloads above,
   # one for progress, one for latest submissions (Submission.latest_attempts, the
   # grading authority's ordering) and one for school switches.
-  def self.for_all(enrollments, now: Time.current)
+  def self.for_all(enrollments, now: Time.current, school_features: nil)
     enrollments = enrollments.to_a
     return {} if enrollments.empty?
 
@@ -110,7 +110,7 @@ class LearnerProgress
     progress = Progress.joins(:enrollment).where(enrollment_id: ids).where("progresses.user_id = enrollments.user_id").to_a.group_by(&:enrollment_id)
     owned = Submission.joins(:enrollment).where(enrollment_id: ids).where("submissions.user_id = enrollments.user_id")
     submissions = owned.latest_attempts.to_a.group_by(&:enrollment_id)
-    school = FeatureSwitches.school
+    school = school_features || FeatureSwitches.school
     enrollments.to_h do |enrollment|
       [ enrollment.id, new(enrollment, now: now, progress: progress.fetch(enrollment.id, []), submissions: submissions.fetch(enrollment.id, []), school_features: school) ]
     end
@@ -273,12 +273,91 @@ class LearnerProgress
       .find { |lesson| actionable?(lesson_progress(lesson)) }
   end
 
+  # Reading order is the outline's order, across module boundaries. The primary
+  # continuation after handing in a lesson is still the one required next step
+  # (including an earlier redo), never a second client-side progress rule.
+  def lesson_navigation(lesson)
+    entries = @lessons.map { |item| lesson_progress(item) }
+    index = @course_index[lesson.id]
+    return nil unless index
+
+    current = entries[index]
+    ActiveRecord::Associations::Preloader.new(records: lesson.content_blocks.to_a, associations: :knowledge_check).call
+    readable = entries.select(&:available).map(&:lesson)
+    reading_index = readable.index { |item| item.id == lesson.id }
+    following = reading_index && readable[reading_index + 1]
+    target = if @enrollment.active? && !@cohort.alumni?
+      current.completed ? next_lesson : following
+    else
+      following # Browsing available lessons never changes progress.
+    end
+    ref = ->(item) { item && { id: item.id, title: item.title, module_id: item.module_id } }
+    counts = overall.slice(:completed_lessons, :total_lessons)
+    {
+      number: index + 1,
+      total: @lessons.size,
+      previous: ref.call(reading_index && reading_index.positive? ? readable[reading_index - 1] : nil),
+      next: ref.call(target),
+      next_module: target.present? && @course_index.fetch(target.id) > index && target.module_id != lesson.module_id,
+      next_redo: target.present? && lesson_progress(target).status == Status::REDO,
+      course_complete: !@cohort.alumni? && counts[:total_lessons].positive? && counts[:completed_lessons] == counts[:total_lessons],
+      counts: counts,
+      # Completion controls use the same evidence as the status, including
+      # feature fallbacks. Reviewed submissions and checks keep their own UI.
+      manual_block_ids: manual_completion_blocks(lesson).reject { |block|
+        (current.submission_window[:submissions_closed] && block.student_work_block?) ||
+          block_state(block) == BlockState::COMPLETE || (block.gradable_work_block? && @latest_submissions.key?(block.id))
+      }.map(&:id)
+    }
+  end
+
   # Can the learner act on this lesson now? See "Next step" above.
   def actionable?(entry)
     return false unless entry.available
     return Status::ACTIONABLE.include?(entry.status) unless entry.submission_window[:submissions_closed]
 
     !entry.completed && entry.lesson.completion_blocks.none?(&:student_work_block?)
+  end
+
+  # Where a program learner stands against the cohort's schedule (U-5.1).
+  # Overdue work is required lessons scheduled before this week (Monday) that
+  # are open and not handed in; a redo is not handed in, so it counts. "About N
+  # weeks behind" is that work measured in the course's typical required week
+  # (the median number of required lessons scheduled per week), so one old
+  # straggler doesn't read as months behind. Self-paced courses, the alumni
+  # library and read-only enrollments (paused, ended) have no schedule to keep,
+  # so they have no pace. Personal-plan exceptions decide what is required.
+  def pace
+    return @pace if defined?(@pace)
+    return @pace = nil if @cohort.self_paced? || @cohort.alumni? || !@enrollment.active?
+
+    week_start = @today.beginning_of_week(:monday)
+    # A lesson with no steps has nothing to finish (lesson_counts), so it is in
+    # neither the overdue work nor the scheduled weeks it is measured against.
+    scheduled = @lessons.select { |lesson| required?(lesson) && lesson_progress(lesson).total_blocks.positive? }.filter_map do |lesson|
+      on = scheduled_on(lesson)
+      [ lesson, on ] if on
+    end
+    overdue = scheduled.filter_map do |lesson, on|
+      entry = lesson_progress(lesson)
+      lesson if on < week_start && entry.available && !entry.completed
+    end
+    per_week = scheduled.group_by { |_, on| on.beginning_of_week(:monday) }.values.map(&:size).sort
+    typical = per_week.empty? ? 1 : [ per_week[(per_week.size - 1) / 2], 1 ].max
+    weeks = (overdue.size.to_f / typical).round
+    this_week = scheduled.select { |_, on| on >= week_start && on <= week_start + 6.days }.map(&:first)
+    @pace = {
+      behind: weeks >= 1,
+      weeks_behind: weeks,
+      overdue_lessons: overdue,
+      this_week: { total: this_week.size, completed: this_week.count { |lesson| lesson_progress(lesson).completed }, ends_on: week_start + 6.days }
+    }
+  end
+
+  # The day the cohort schedule puts a lesson on for this learner (its unlock
+  # date), or nil when it has none.
+  def scheduled_on(lesson)
+    lesson.assigned_unlock_date(@cohort, @content.module_assignments[lesson.module_id], @content.lesson_assignments[lesson.id])
   end
 
   # Latest attempts graded Redo on reviewed work, newest grade first: exactly
@@ -293,7 +372,37 @@ class LearnerProgress
     @historical_redo_submissions ||= redo_graded.reject { |submission| submission.content_block.gradable_work_block? }
   end
 
+  # Latest attempts on reviewed work with no grade yet, oldest first: exactly
+  # the "submitted" steps, waiting for an instructor.
+  def awaiting_review_submissions
+    @awaiting_review_submissions ||= @latest_submissions.values
+      .select { |submission| submission.grade.nil? && submission.content_block.gradable_work_block? }
+      .sort_by { |submission| [ submission.created_at, submission.id ] }
+  end
+
+  # Latest attempts with a final grade, newest first, plus Redo on work that
+  # isn't reviewed (past feedback, not work to do). Together with the redo and
+  # awaiting lists this is every latest attempt the learner has graded or not.
+  def graded_submissions
+    @graded_submissions ||= begin
+      historical = historical_redo_submissions.to_set
+      @latest_submissions.values
+        .select { |submission| submission.grade.present? && (submission.grade != "R" || historical.include?(submission)) }
+        .sort_by { |submission| [ submission.graded_at || Time.zone.at(0), submission.id ] }
+        .reverse
+    end
+  end
+
   private
+
+  def manual_completion_blocks(lesson)
+    github = (@cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s, "requires_github") || false
+    checks = FeatureSwitches.for(cohort: @cohort)["knowledge_checks"]
+    lesson.completion_blocks.select do |block|
+      manual = block.text? || block.effective_submission_type(requires_github: github, feature_cohort: @cohort) == "manual_complete"
+      manual && !block.video? && !block.recording? && !(block.checkpoint? && block.knowledge_check && checks)
+    end
+  end
 
   def redo_graded
     @latest_submissions.values

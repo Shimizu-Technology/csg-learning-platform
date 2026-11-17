@@ -28,7 +28,7 @@ class ApplicationJob < ActiveJob::Base
     # returns and their failures reach the caller.
     #
     # Use it where the caller marks the send as done after requesting it: the
-    # message delivery stages (#216) and intervention follow-ups. Deferring
+    # message delivery stages (#216). Deferring
     # those sends past the commit would leave a window, a crash or a rollback
     # after the mark, in which the send is recorded but never attempted and
     # nothing retries it. With no job runner in production (AS-6), a deferred
