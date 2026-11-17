@@ -82,7 +82,42 @@ ignored `.qa-local/staff-home-scheduled/`.
 | Mobile (on merged `2c19b5d1`) | `tsc`, lint (0 errors), jest 142 suites / 1,546 tests: pass |
 | Impeccable 4.6.0 (advisory), changed UI files | No findings |
 
-## ASUS gate
+## Fix round 2 (re-check P1, the access-expiry regression, CodeRabbit)
+
+- **The 404 was too broad.** On `af861072`, `CourseExpirationTest` failed in both CI API jobs and on
+  ASUS: learners with expired, dropped or paused-past-expiry access got 404 instead of the course-access
+  403 the clients show as "access ended". The uniform 404 now covers only staff acting on drafts and
+  scheduled updates they can't act on. Posted updates and every learner read are as on main, and
+  `CourseExpirationTest` is unchanged (`50845257`).
+- **Settlement race** (re-check P1): see Fix round 1 above (`50845257`).
+- **CodeRabbit** (`6b72925a`):
+  - A replayed scheduled create is reconciled when the push choice changed.
+  - Plain-draft saves send `scheduled_for: null`, which cancels a replayed schedule.
+  - Only `null` or `""` cancels a schedule; other non-time values return 422.
+  - The update page's notice is keyed to its update.
+  - The QA fixture counts only the target update's push jobs and uses one `now` for the three ticks.
+  - Mobile staff fetch read counts on tap and long-press for posted updates that aren't unread for
+    them.
+
+  Each new web and mobile test failed on the previous code before the fix.
+- Merged main `4ff3ad8c` (#301 picomatch audit exception).
+
+Retest at `6b72925a`:
+
+- Focused API (15 files, including `CourseExpirationTest`), prepared statements on and off: 179 runs /
+  1,486 assertions each, 0 failures.
+- Full local API run (prepared on): 2,219 runs, 0 failures. Its 3 errors are local-environment
+  `MigrationDatabaseProcessTest` cases that need ASUS's `postgres` role and port adapter.
+- Web: 242 files / 2,779 tests, typecheck, lint, `api:check`, build, `test:bundle`;
+  `api:generate` gives no diff.
+- Mobile: 142 suites / 1,548 tests, typecheck, lint (0 errors).
+- **ASUS full gate on `6b72925a`:** prepared statements on (seed 24633) and off (seed 48561), 2,219
+  runs / 43,214 assertions each, 0 failures/errors/skips. RuboCop: 767 files, no offenses. Brakeman:
+  0 warnings (1 existing ignored). The port adapter was kept and `OPENAPI_COVERAGE=1` set. The
+  `af861072` run had stopped on the `CourseExpirationTest` regression and then lost its connection;
+  it was superseded by this run.
+
+## ASUS gate (first round)
 
 `asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/scheduled-jobs-gate.sh` on head
 `2c19b5d1` (this branch merged with main `096cc89a`, #298). `OPENAPI_COVERAGE=1` and `PARALLEL_WORKERS=1`
