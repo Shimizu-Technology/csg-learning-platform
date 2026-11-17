@@ -1,0 +1,35 @@
+
+Running 20 tests using 1 worker
+
+
+  ✓   1 [chromium-1280] › scripts/qa/lesson-page.spec.ts:52:42 › touch source entry and complete lesson journey › On light: read, submit, redo, complete, next module, course complete and help (8.2s)
+
+  ✓   2 [chromium-1280] › scripts/qa/lesson-page.spec.ts:52:42 › touch source entry and complete lesson journey › On dark: read, submit, redo, complete, next module, course complete and help (8.3s)
+
+  ✓   3 [chromium-1280] › scripts/qa/lesson-page.spec.ts:133:42 › desktop Monaco, people and Off fallback › light: Monaco, exact instructor DM, author actions, self-paced and Off (4.6s)
+
+  ✓   4 [chromium-1280] › scripts/qa/lesson-page.spec.ts:133:42 › desktop Monaco, people and Off fallback › dark: Monaco, exact instructor DM, author actions, self-paced and Off (4.6s)
+  ✓   5 [chromium-1280] › scripts/qa/lesson-page.spec.ts:168:40 › light: staff lesson preview stays contained without learner writes (1.2s)
+  ✓   6 [chromium-1280] › scripts/qa/lesson-page.spec.ts:168:40 › dark: staff lesson preview stays contained without learner writes (1.2s)
+  ✓   7 [chromium-1280] › scripts/qa/lesson-page.spec.ts:185:40 › light: instructor booking action uses the enabled course (1.7s)
+  ✓   8 [chromium-1280] › scripts/qa/lesson-page.spec.ts:185:40 › dark: instructor booking action uses the enabled course (1.6s)
+
+  ✓   9 [chromium-1280] › scripts/qa/lesson-page.spec.ts:201:1 › client On with a missing server navigation keeps legacy redo and completion controls (1.8s)
+  ✓  10 [chromium-1280] › scripts/qa/lesson-page.spec.ts:221:1 › self-paced author contact follows no-support, expiry and help-Off capabilities (3.4s)
+
+  ✓  11 [chromium-390] › scripts/qa/lesson-page.spec.ts:52:42 › touch source entry and complete lesson journey › On light: read, submit, redo, complete, next module, course complete and help (8.9s)
+
+  ✓  12 [chromium-390] › scripts/qa/lesson-page.spec.ts:52:42 › touch source entry and complete lesson journey › On dark: read, submit, redo, complete, next module, course complete and help (8.2s)
+
+  ✓  13 [chromium-390] › scripts/qa/lesson-page.spec.ts:133:42 › desktop Monaco, people and Off fallback › light: Monaco, exact instructor DM, author actions, self-paced and Off (4.6s)
+
+  ✓  14 [chromium-390] › scripts/qa/lesson-page.spec.ts:133:42 › desktop Monaco, people and Off fallback › dark: Monaco, exact instructor DM, author actions, self-paced and Off (4.5s)
+  ✓  15 [chromium-390] › scripts/qa/lesson-page.spec.ts:168:40 › light: staff lesson preview stays contained without learner writes (1.2s)
+  ✓  16 [chromium-390] › scripts/qa/lesson-page.spec.ts:168:40 › dark: staff lesson preview stays contained without learner writes (1.2s)
+  ✓  17 [chromium-390] › scripts/qa/lesson-page.spec.ts:185:40 › light: instructor booking action uses the enabled course (1.5s)
+  ✓  18 [chromium-390] › scripts/qa/lesson-page.spec.ts:185:40 › dark: instructor booking action uses the enabled course (1.6s)
+
+  ✓  19 [chromium-390] › scripts/qa/lesson-page.spec.ts:201:1 › client On with a missing server navigation keeps legacy redo and completion controls (1.8s)
+  ✓  20 [chromium-390] › scripts/qa/lesson-page.spec.ts:221:1 › self-paced author contact follows no-support, expiry and help-Off capabilities (3.4s)
+
+  20 passed (1.2m)

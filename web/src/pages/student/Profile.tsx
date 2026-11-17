@@ -21,6 +21,7 @@ import { formatShortDate } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import type { ProfileResponse as ProfileData, BlockedUser } from '../../types/api'
 import { handleProblem, normalizeHandle } from '../../lib/handles'
+import { PageHeader } from '../../components/ui/PageHeader'
 import { useStudentExperience } from '../../lib/studentExperience'
 import { humanize } from '../../lib/glossary'
 
@@ -173,11 +174,11 @@ export function Profile() {
 
   return (
     <div className="app-page max-w-2xl">
-      <header>
+      {v2 ? <PageHeader eyebrow="Account & preferences" title="Profile" description="Keep your class identity and connected accounts up to date." /> : <header>
         <p className="app-eyebrow">Account & preferences</p>
         <h1 className="app-title mt-2">Profile</h1>
         <p className="app-description mt-2">Keep your class identity and connected accounts up to date.</p>
-      </header>
+      </header>}
 
       {loadError && <div role="alert" className="rounded-2xl border border-warning-line bg-warning-soft p-4 text-sm text-warning-ink"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadProfile()}>Try again</Button></div>}
       {/* User info */}

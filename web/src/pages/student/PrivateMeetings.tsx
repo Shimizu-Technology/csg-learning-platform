@@ -115,7 +115,7 @@ export function PrivateMeetings() {
   }
 
   if (loading) return <LoadingSpinner message="Loading your meetings..." />
-  if (error && cohorts.length === 0) return <EmptyState icon={WifiOff} title="Could not load your meetings" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
+  if (error && cohorts.length === 0) return <EmptyState headingLevel={1} icon={WifiOff} title="Could not load your meetings" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
 
   return (
     <div className="app-page-wide space-y-8">

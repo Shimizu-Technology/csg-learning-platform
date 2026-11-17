@@ -25,6 +25,8 @@ Monorepo: `api/` (Rails 8.1 API-only) + `web/` (React 19 + Vite + Tailwind v4)
 - Rounded corners: `rounded-2xl` for cards and `rounded-xl` for buttons and primary controls
 - Touch targets: interactive controls should be at least 44px on mobile
 - Font: Manrope Variable with system-ui fallbacks
+- Public pages deliberately use Newsreader (`font-display`) for editorial headings and `rounded-md` brand controls. Signed-in learning pages retain the app typography and corner sizes above.
+- Read support addresses from `brand.supportEmail` (or its `SUPPORT_EMAIL` alias), never a page-local literal.
 - Spacing: consistent `py-24 lg:py-32` for sections
 - Layout: mobile-first, collapsible sidebar, max-width containers
 

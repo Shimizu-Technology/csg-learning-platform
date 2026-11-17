@@ -110,7 +110,7 @@ export function ModuleView() {
   }, [id, selectedCohortId, user?.is_staff])
 
   if (loading) return <LoadingSpinner message="Loading module..." />
-  if (!mod) return <EmptyState icon={BookOpen} title={!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'} action={<LinkButton to={learnPath} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Learn</LinkButton>} />
+  if (!mod) return <EmptyState headingLevel={1} icon={BookOpen} title={!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'} action={<LinkButton to={learnPath} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Learn</LinkButton>} />
 
   const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 

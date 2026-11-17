@@ -263,6 +263,22 @@ Lance/Off at 390/1280 in light/dark; welcome dismissal/reload, lesson entry,
 workspace context, profile targets, and public legal recovery. Each new pass
 resets only its welcome dismissal fixtures. See `docs/qa/first-run-states-2026-11-18.md`.
 
+### Student polish and renderer split (W8.5)
+
+Start an owned harness, load `first-run-states-fixtures.rb`, then
+`student-polish-fixtures.rb`, `lesson-page-fixtures.rb`, and
+`student-workspace-course-fixtures.rb`, each from `api/` with the exact owned
+`DATABASE_URL`. Run `QA_SPEC=student-polish.spec.ts` with the lifecycle session
+using the Playwright command above. Its Off comparison also needs a second Vite
+harness on its own port, from unchanged `main` at `90f075e3`, proxying the same local
+API. Set `QA_MAIN_WEB_PORT` to that owned Vite port for the comparison pass. Give that checkout its own installed dependencies so Vite can serve fonts.
+It compares visible text, control/heading geometry, fonts and colors; heading
+levels may differ for the documented semantic fixes. Run the first-run spec
+before the additional fixtures, and the existing lesson-page spec afterwards.
+All provider requests are blocked except Monaco's script CDN; no real learner,
+GitHub push, payment or provider playback is used. See
+`docs/qa/student-polish-2026-11-18.md` for the acceptance ledger and limits.
+
 ### Staff home, scheduled updates and record pages (W6.4 + L-5.1)
 
 After `start`, load the fixture from `api/` with the exact owned database:

@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { ArrowRight, BookOpen, CheckCircle2, ChevronRight, Code2, FileText, FolderGit2, Info, ListChecks, Lock, PlayCircle, RefreshCw, Search, SearchX, Video, WifiOff, type LucideIcon } from 'lucide-react'
@@ -155,10 +156,10 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
 
   if (loading && !outline) return <LoadingSpinner message="Loading Learn…" />
   if (error && !outline) {
-    return <EmptyState icon={WifiOff} title="Could not load Learn" description={error} action={<Button onClick={load}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
+    return <EmptyState headingLevel={1} icon={WifiOff} title="Could not load Learn" description={error} action={<Button onClick={load}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
   }
   if (notEnrolled || !outline || !visible) {
-    return <EmptyState icon={BookOpen} title="No lessons yet" description="Your modules and lessons will appear here once you are enrolled in a course." action={<Link to="/courses" className="app-link inline-flex min-h-11 items-center">Browse courses</Link>} />
+    return <EmptyState headingLevel={1} icon={BookOpen} title="No lessons yet" description="Your modules and lessons will appear here once you are enrolled in a course." action={<Link to="/courses" className="app-link inline-flex min-h-11 items-center">Browse courses</Link>} />
   }
 
   const library = outline.mode === 'library'
@@ -193,10 +194,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
         </div>
       )}
 
-      <header>
-        <h1 className="app-title [overflow-wrap:anywhere]">{library ? `${brand.schoolAbbreviation} Alumni library` : outline.course_title}</h1>
-        <p className="mt-1 text-sm text-ink-secondary">{context.map((item, index) => <span key={index}>{index > 0 && ' · '}{item}</span>)}</p>
-      </header>
+      <PageHeader title={library ? `${brand.schoolAbbreviation} Alumni library` : outline.course_title} description={<>{context.map((item, index) => <span key={index}>{index > 0 && ' · '}{item}</span>)}</>} />
 
       {outline.read_only && (
         <div className="flex items-start gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink" role="status">

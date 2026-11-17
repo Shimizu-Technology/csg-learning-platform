@@ -244,7 +244,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
 
   if (loadError && !data) {
     return (
-      <EmptyState
+      <EmptyState headingLevel={1}
         icon={WifiOff}
         title="Could not load Learn"
         description={loadError}
@@ -260,7 +260,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
 
   if (!data?.enrolled) {
     return (
-      <EmptyState
+      <EmptyState headingLevel={1}
         icon={BookOpen}
         title="No lessons yet"
         description="Your modules and lessons will appear here once you are enrolled in a cohort."
@@ -427,6 +427,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
 
             return (
             <section key={mod.id} id={`learn-module-${mod.id}`} className="scroll-mt-20 app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-line">
+              <h2>
               <button
                 type="button"
                 onClick={() => toggleModuleCollapsed(mod.id, isCollapsed)}
@@ -440,7 +441,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                     ) : (
                       <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                     )}
-                    <h2 className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">{mod.name}</h2>
+                    <span className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">{mod.name}</span>
                     {!mod.available && (
                       <Badge>Locked</Badge>
                     )}
@@ -457,6 +458,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                   </p>
                 </div>}
               </button>
+              </h2>
 
               <Collapse open={!isCollapsed}>
               <div className="divide-y divide-line px-5 pb-5">
