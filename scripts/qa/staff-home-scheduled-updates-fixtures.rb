@@ -6,8 +6,9 @@
 # due ID - moves scheduled update ID's send time to a minute ago, as if its hour had come (the tick would
 #          refuse a past time set through the API, so this is the one backend shortcut).
 # tick   - runs the real ScheduledTick with only the scheduled_updates task, twice in the same hour, then resets
-#          the hourly checkpoint and runs it a third time. Prints each summary, the update's state and how many
-#          notifications and push jobs it produced. Push is requested on the test adapter; nothing is sent.
+#          the hourly checkpoint and runs it a third time. It starts from a fresh hourly slot (no checkpoint), as
+#          the first tick of a new hour would; an earlier forced tick in the same hour would otherwise skip it.
+#          Prints each summary, the update's state and how many notifications and push jobs it produced. Push is requested on the test adapter; nothing is sent.
 require_relative 'boot'
 require 'json'
 
@@ -38,6 +39,7 @@ when 'tick'
   log = StringIO.new
   logger = ActiveSupport::Logger.new(log)
   push_jobs = -> { ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job['job_class'] == 'PushNotificationJob' } }
+  ScheduledTaskRun.where(name: 'scheduled_updates').delete_all
   runs = 2.times.map { ScheduledTick.new(now: Time.current, tasks: [ task ], logger: logger, dry_run: false).call }
   # A rerun that isn't held back by the hourly checkpoint still finds nothing to post.
   ScheduledTaskRun.where(name: 'scheduled_updates').delete_all

@@ -141,12 +141,12 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     })
   }
 
-  const setWhen = (when: UpdateForm['when']) => setForm((prev) => ({
-    ...prev,
-    when,
+  const setWhen = (when: UpdateForm['when']) => setForm((prev) => {
+    if (when !== 'schedule' || prev.schedule_date) return { ...prev, when }
     // The first time Schedule is chosen, suggest tomorrow at 9:00 AM.
-    ...(when === 'schedule' && !prev.schedule_date ? defaultScheduleFields(zone) : {}),
-  }))
+    const suggested = defaultScheduleFields(zone)
+    return { ...prev, when, schedule_date: suggested.date, schedule_hour: suggested.hour }
+  })
 
   const fields = () => ({
     title: form.title.trim(),

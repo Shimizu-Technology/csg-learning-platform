@@ -61,6 +61,8 @@ describe('Scheduled updates (U-3.6)', () => {
     await act(async () => button('Schedule')!.click())
     // Tomorrow at 9:00 AM is suggested; Save draft gives way to Schedule update.
     expect(container.querySelector<HTMLSelectElement>('select:not([aria-label])')!.value).toBe('9')
+    expect(container.querySelector<HTMLInputElement>('input[type="date"]')!.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(container.querySelector('[data-testid="schedule-sends-about"]')?.textContent).toContain('9:00 AM ChST')
     expect(button('Save draft')).toBeUndefined()
     await setValue('input[type="date"]', '2030-01-15')
     expect(container.querySelector('[data-testid="schedule-sends-about"]')?.textContent).toContain('Sends about Jan 15, 2030, 9:00 AM ChST.')
