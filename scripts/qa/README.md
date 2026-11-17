@@ -113,3 +113,16 @@ fixture database, attaches synthetic enrollments, and checks all six profiles
 and preview boundaries. It never reads a production database or imports real
 students. Course metadata and traces stay in ignored `.qa-local/`; run
 `scripts/qa/run clean` after QA.
+
+For the PR #284 fix round, start a **fresh** owned harness. Instead of the normal
+workspace additions, run `student-workspace-fix-fixtures.rb` from `api/` with its
+owned `DATABASE_URL` (it loads those additions itself). Then use
+`QA_SPEC=student-workspace-fix.spec.ts` in the browser command above. Its 16
+scenarios cover admin/instructor × 1280/390 × light/dark: assigned video and
+published recording card/list agreement, personal-plan and lesson-only cases,
+waiting-review and open-support server queues, blocked previews in both block
+directions, and scoped full-message/channel/meeting links. Media keys and people
+are synthetic; no external media is played. Claim the runner and clean the exact
+harness database and servers afterward. The full ASUS gate now runs the API
+suite with prepared statements enabled and disabled, retaining the loopback
+migration-process port adapter.

@@ -26,10 +26,6 @@ run api bundle exec rails test
 run api-unprepared env DATABASE_URL="${DATABASE_URL}?prepared_statements=false" bundle exec rails test
 run rubocop bundle exec rubocop
 run brakeman bundle exec brakeman --no-pager
-if [ "${WORKSPACE_API_ONLY:-0}" = 1 ]; then
-  printf '\nGATE failed stages: %s\n' "$failures"
-  exit "$failures"
-fi
 cd ../web || exit 1
 run web-install npm ci --no-audit --no-fund
 run web-typecheck npm run typecheck
