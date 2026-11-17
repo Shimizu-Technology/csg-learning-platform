@@ -58,6 +58,17 @@ for (const theme of ['light','dark']) {
     expect(overflow).toBe(false)
     const path = `${persona.key}-${info.project.use.viewport!.width}-${theme}.png`
     await page.screenshot({ path: new URL(path, shots).pathname, fullPage: true })
+    if (persona.key === 'alumni') {
+      await page.getByRole('link', { name: 'Open the library', exact: true }).click()
+      await expect(page).toHaveURL(new RegExp(`/materials\\?cohort_id=${ids.alumni}`))
+      await expect(page.getByRole('heading', { name: 'CSG Alumni library', exact: true })).toBeVisible()
+      await page.goBack()
+      await page.getByRole('link', { name: 'Continue watching: Alumni workshop', exact: true }).click()
+      await expect(page).toHaveURL(url => url.pathname === '/recordings' && url.searchParams.get('cohort_id') === String(ids.alumni))
+      await expect(page.getByRole('heading', { name: 'Alumni workshop', exact: true })).toBeVisible()
+      await page.getByRole('link', { name: 'Open Learn', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'CSG Alumni library', exact: true })).toBeVisible()
+    }
     if (persona.first) {
       const start = page.getByRole('link', { name: 'Start Orientation', exact: true })
       if (info.project.use.viewport!.width === 390) { const box = await start.boundingBox(); expect(box!.y + box!.height).toBeLessThanOrEqual(776) }

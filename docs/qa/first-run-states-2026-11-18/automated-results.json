@@ -1,0 +1,63 @@
+{
+  "runtime_commit": "242b0de37a06f4e8bfc3f941e47db3f93d098d64",
+  "runner": "ASUS via asus-test",
+  "command": "asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/first-run-states-gate.sh",
+  "parallel_workers": 1,
+  "migration_process_port": 55432,
+  "api": {
+    "prepared": {
+      "tests": 2119,
+      "assertions": 42672,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "unprepared": {
+      "tests": 2119,
+      "assertions": 42672,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    }
+  },
+  "web": {
+    "files": 237,
+    "tests": 2713
+  },
+  "mobile": {
+    "suites": 141,
+    "tests": 1544,
+    "lint_errors": 0,
+    "existing_lint_warnings": 74
+  },
+  "rubocop_files": 749,
+  "brakeman_warnings": 0,
+  "brakeman_existing_ignored_warnings": 1,
+  "stage_exit_codes": {
+    "qa-ownership": 0,
+    "brand-index": 0,
+    "bundle": 0,
+    "schema": 0,
+    "api": 0,
+    "api-unprepared": 0,
+    "rubocop": 0,
+    "brakeman": 0,
+    "web-install": 0,
+    "web-typecheck": 0,
+    "web-lint": 0,
+    "web-vitest": 0,
+    "web-build": 0,
+    "web-bundle": 0,
+    "api-check": 0,
+    "mobile-install": 0,
+    "mobile-typecheck": 0,
+    "mobile-lint": 0,
+    "mobile-jest": 0,
+    "cross-stack": 0,
+    "web-routing": 0,
+    "mobile-brand": 0,
+    "mobile-uri": 0,
+    "mobile-release": 0
+  },
+  "failed_stages": 0
+}

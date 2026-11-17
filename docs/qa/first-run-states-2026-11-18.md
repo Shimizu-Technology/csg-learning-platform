@@ -1,7 +1,7 @@
 # First run, empty states and recovery — W8 PR 8.4
 
 Implementation branch `feat/first-run-states`, based on `main` at `c290e00a`.
-Agent-executed browser QA on Leon's MacBook. The final full gate runs on the
+Agent-executed browser QA on Leon's MacBook. The final full gate passed on the
 ASUS through `asus-test --postgres csg_learning_platform_test <repo-root> -- bash
 scripts/qa/first-run-states-gate.sh`, after the MacBook returned to home Wi-Fi.
 The wrapper keeps the existing migration subprocess port adapter at 55432 and
@@ -84,6 +84,9 @@ in both directions, and opened an instructor conversation. Phone Back retained
 the exact workspace; the desktop cohort link opened its Learn page. Profile's 48×44px switch
 saved across reload and was restored; its 48×28px visual track stays compact.
 The dark solo cases also verified reduced motion disables thumb movement.
+Four additional Alumni destination retests passed: Open the library → browser
+Back → Continue watching selects its recording → Open Learn returns to the
+library. External playback delivery is not claimed.
 The two-course journey opens Learn with a one-letter module name and verifies
 that its link remains at least 44px wide and tall in all four dimensions.
 
@@ -110,7 +113,8 @@ visibility, purchaser-only receipts, and constant queries while the fixture grow
 from one to five cohorts and from zero to four published recordings.
 Real iPhone/Safari touch, installed-app behavior, Clerk, external media playback,
 Stripe transport, email and push delivery are outside this local browser harness.
-The native typecheck, lint and jest gate still runs; no native view is redesigned.
+The native typecheck, lint and jest gate passed; no native view is redesigned.
+The design README explicitly schedules native screen adoption for W10.
 The public routes and their AASA exclusions are unchanged.
 
 ## Implementation
@@ -146,10 +150,22 @@ The public routes and their AASA exclusions are unchanged.
 
 ## Automated gate
 
-The final ASUS gate on `242b0de3` is in progress. It runs one stage at a time,
-with `PARALLEL_WORKERS=1`, the 55432 migration subprocess adapter and both API
+The final ASUS gate on `242b0de3` runs one stage at a time, with
+`PARALLEL_WORKERS=1`, the 55432 migration subprocess adapter and both API
 prepared-statement modes. All 30 changed runtime file hashes match the remote
-snapshot. This remains a readiness gate until every stage passes.
+snapshot.
+
+| Stage | Final result |
+| --- | --- |
+| API, prepared statements On | Passed: 2,119 tests / 42,672 assertions; zero failures, errors or skips |
+| API, prepared statements Off | Passed: 2,119 tests / 42,672 assertions; zero failures, errors or skips |
+| RuboCop / Brakeman | Passed: 749 files clean; zero security warnings (one existing ignored warning) |
+| Web typecheck, lint, vitest, build, bundle, API and routing | Passed: 237 files / 2,713 tests; all other stages passed |
+| Mobile typecheck, lint, jest, brand, URI and release | Passed: 141 suites / 1,544 tests; lint has zero errors and 74 existing warnings |
+
+The wrapper finished with **zero failed stages** on the ASUS. [Structured gate
+results](first-run-states-2026-11-18/automated-results.json). No assertions,
+feature-switch defaults or prepared-statement policy were relaxed to pass.
 
 ## Failures and retests
 
@@ -168,7 +184,8 @@ snapshot. This remains a readiness gate until every stage passes.
   Rate-limit and expiration tests passed 30 tests / 10,870 assertions in each
   mode. That pre-merge ASUS snapshot also passed all Ruby, web (236 files /
   2,663 tests), native (141 suites / 1,544 tests) and extra routing/brand/release
-  stages. The combined branch is now running the complete gate again.
+  stages. The complete rerun on the combined branch passed both modes and all remaining
+  stages; the prior failures are retained here for follow-up if they recur.
 - The first browser attempt found the new lesson header hardcoded Back to Learn:
   one case failed, one was interrupted and 26 were not run. The origin hook,
   Previous/Next forwarding and three regressions fix it. Follow-up matrices
@@ -186,9 +203,9 @@ The advisory Impeccable 4.6 scan of the changed UI returned `[]`: [result](first
 ## Cleanup
 
 The browser phase ended with all pages closed, both owned servers stopped and
-all nine unique synthetic QA databases dropped. The shared preview tab was
+all ten unique synthetic QA databases dropped. The shared preview tab was
 closed and released. The ASUS helper owns and cleans its exclusive temporary
 Postgres container. The local gate database `csg_first_run_gate_20261118` and focused-test database
 `csg_first_run_fixture_gate_20261118` are removed. Final lifecycle
-status is checked after the final ASUS job finishes. Shared services and borrowed simulators
+status shows no active owned resources after the final ASUS job. Shared services and borrowed simulators
 are left unchanged.

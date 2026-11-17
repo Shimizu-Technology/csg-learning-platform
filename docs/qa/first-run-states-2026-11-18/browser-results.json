@@ -409,5 +409,49 @@
     "minimum_width": 44,
     "minimum_height": 44,
     "passed": true
+  },
+  "library_destination_retests": {
+    "executed_at": "2026-11-17T23:55:24.894140+10:00",
+    "passed": 4,
+    "steps": [
+      "Open the library",
+      "Browser Back to Today",
+      "Continue watching selects Alumni workshop",
+      "Open Learn returns to the library"
+    ],
+    "dimensions": [
+      {
+        "persona": "alumni",
+        "theme": "light",
+        "width": 1280,
+        "overflow": false,
+        "passed": true,
+        "screenshot": "alumni-1280-light.png"
+      },
+      {
+        "persona": "alumni",
+        "theme": "dark",
+        "width": 1280,
+        "overflow": false,
+        "passed": true,
+        "screenshot": "alumni-1280-dark.png"
+      },
+      {
+        "persona": "alumni",
+        "theme": "light",
+        "width": 390,
+        "overflow": false,
+        "passed": true,
+        "screenshot": "alumni-390-light.png"
+      },
+      {
+        "persona": "alumni",
+        "theme": "dark",
+        "width": 390,
+        "overflow": false,
+        "passed": true,
+        "screenshot": "alumni-390-dark.png"
+      }
+    ]
   }
 }
