@@ -486,7 +486,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
       {/* Learn is the one course outline in the new student experience (C-2, S-9): Today links to it instead of repeating it. */}
       {!courseNotOpen && data.modules && data.modules.length > 0 && studentExperience.ready && studentExperience.v2 && (
-        <Link to={`/materials${cohortQuery}`} className="pressable group flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5" data-testid="today-course-link">
+        <Link to={data.cohort?.id ? `/materials?cohort_id=${data.cohort.id}` : `/materials${cohortQuery}`} className="pressable group flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5" data-testid="today-course-link">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><BookOpen className="h-5 w-5" aria-hidden="true" /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-semibold text-ink">{library ? 'Learning library' : 'Your course'}</span>
