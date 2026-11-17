@@ -432,7 +432,10 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
             <h2 id="curriculum" className="scroll-mt-32 text-lg font-bold text-ink">Curriculum & access</h2>
             <LinkButton variant="secondary" to={`/admin/content?open=${cohort.modules.map(module => module.id).join(',')}`}>Edit shared curriculum in Content</LinkButton>
           </div>
-          <p className="text-sm text-ink-secondary">Adding modules or editing lessons changes every cohort using this curriculum.</p>
+          <p className="text-sm text-ink-secondary">
+            <RecordLink record={{ type: 'curriculum', id: cohort.curriculum_id }} variant="inline">{cohort.curriculum_name}</RecordLink>
+            {' '}· Adding modules or editing lessons changes every cohort using this curriculum.
+          </p>
           <div className="app-surface divide-y divide-line">
             {cohort.modules.map((savedModule) => {
               const mod = { ...savedModule, assigned: assignedChanges[savedModule.id] ?? savedModule.assigned }

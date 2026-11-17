@@ -4419,6 +4419,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/records/{type}/{id}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: "curriculum" | "module" | "lesson";
+                id: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * Where a curriculum, module or lesson is used (staff only; instructors see only the cohorts they teach)
+         * @description Cohorts with delivery, release dates and schedules, submission and help counts, copy history, and rubric/objective lesson lists. Students and unknown records get 404. Cache-Control: private, no-store.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    type: "curriculum" | "module" | "lesson";
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecordUsageResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5670,7 +5715,7 @@ export interface components {
                     day_name: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
                 }[];
             };
-            /** @description Cohorts on this lesson's curriculum. */
+            /** @description Cohorts on this lesson’s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach). */
             used_in: {
                 id: number;
                 name: string;
@@ -5679,9 +5724,13 @@ export interface components {
                 /** Format: date */
                 start_date: string | null;
             }[];
+            /** @description Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
+            other_cohorts_count: number;
+            /** @description Attempts in the cohorts listed in used_in. */
             submissions_count: number;
-            /** @description Submissions not graded yet. */
+            /** @description Latest attempts without a grade in the cohorts listed in used_in. */
             waiting_count: number;
+            /** @description Open help on the lesson or its exercises in the cohorts listed in used_in. */
             open_help_count: number;
         };
         LessonBlockEditorResponse: {
@@ -6661,6 +6710,9 @@ export interface components {
                 id: number;
                 full_name: string;
             } | null;
+            /** @description Grading load: latest attempts without a grade in this cohort. */
+            waiting_review: number;
+            open_help: number;
         };
         TeamMember: {
             id: number;
@@ -6680,6 +6732,7 @@ export interface components {
             teaching: components["schemas"]["TeamMemberTeaching"][];
             /** @description A cohort whose workspace lets the viewer message this person; null when there is none or this is the viewer's own page. */
             message_cohort_id: null | number;
+            workload: components["schemas"]["TeamMemberWorkload"];
         };
         TeamMemberResponse: {
             team_member: components["schemas"]["TeamMember"];
@@ -7069,6 +7122,281 @@ export interface components {
             reply: components["schemas"]["HelpRequestReply"];
             /** @description True when this was a retry: the reply saved by an earlier request with the same `client_request_id` is returned and nobody is notified again. */
             replayed: boolean;
+        };
+        /** @description A cohort using the curriculum. */
+        CurriculumUsageCohort: {
+            id: number;
+            name: string;
+            /** @enum {string} */
+            status: "upcoming" | "active" | "completed" | "archived";
+            /** @enum {string} */
+            course_delivery: "program" | "guided" | "self_paced";
+            /** Format: date */
+            start_date: string | null;
+            /** Format: date */
+            end_date: string | null;
+            /** @description A self-paced course with public checkout on (an offering). */
+            on_sale: boolean;
+            students: number;
+            /** @description Latest attempts without a grade, as Grading counts them. */
+            waiting: number;
+            /** @description Open help requests; null where help requests are switched off. */
+            open_help: number | null;
+        };
+        /** @description A cohort’s schedule for the module; dates are null for self-paced cohorts. */
+        ModuleUsageCohort: {
+            id: number;
+            name: string;
+            /** @enum {string} */
+            status: "upcoming" | "active" | "completed" | "archived";
+            /** @enum {string} */
+            course_delivery: "program" | "guided" | "self_paced";
+            /** Format: date */
+            start_date: string | null;
+            /** Format: date */
+            end_date: string | null;
+            /** @description A self-paced course with public checkout on (an offering). */
+            on_sale: boolean;
+            /** @description False when the cohort’s content defaults leave this module out. */
+            assigned: boolean;
+            /** Format: date */
+            starts_on: string | null;
+            /** Format: date */
+            ends_on: string | null;
+            /** @description Every attempt, as Grading’s All filter counts them. */
+            submissions: number;
+            /** @description Latest attempts without a grade, as Grading counts them. */
+            waiting: number;
+            /** @description Open help requests; null where help requests are switched off. */
+            open_help: number | null;
+        };
+        /** @description A cohort the lesson is used in. */
+        LessonUsageCohort: {
+            id: number;
+            name: string;
+            /** @enum {string} */
+            status: "upcoming" | "active" | "completed" | "archived";
+            /** @enum {string} */
+            course_delivery: "program" | "guided" | "self_paced";
+            /** Format: date */
+            start_date: string | null;
+            /** Format: date */
+            end_date: string | null;
+            /** @description A self-paced course with public checkout on (an offering). */
+            on_sale: boolean;
+            assigned: boolean;
+            /**
+             * Format: date
+             * @description When the lesson opens in this cohort; null for self-paced cohorts and archived lessons.
+             */
+            release_date: string | null;
+            /** @description Every attempt, as Grading’s All filter counts them. */
+            submissions: number;
+            /** @description Latest attempts without a grade, as Grading counts them. */
+            waiting: number;
+            /** @description Open help requests; null where help requests are switched off. */
+            open_help: number | null;
+        };
+        UsageLessonRef: {
+            id: number;
+            title: string;
+            module_id: number;
+            archived: boolean;
+        };
+        /** @description Where a curriculum is used (staff). */
+        CurriculumUsage: {
+            /** @constant */
+            type: "curriculum";
+            id: number;
+            name: string;
+            description: string | null;
+            /** @enum {string} */
+            status: "draft" | "active" | "archived";
+            total_weeks: number | null;
+            /** @description Imported from a course package (ZIP). */
+            imported: boolean;
+            package_revision: string | null;
+            /** @description Whether the viewer may edit its lessons (LessonEditAccess). */
+            can_edit: boolean;
+            modules: {
+                id: number;
+                name: string;
+                module_type: string;
+                position: number;
+                scheduled_day_names: string[];
+                lessons_count: number;
+            }[];
+            cohorts: components["schemas"]["CurriculumUsageCohort"][];
+            /** @description Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
+            other_cohorts_count: number;
+            /** @description Set when this curriculum is one cohort’s own copy. */
+            copy_of: {
+                /** @description Null when the viewer doesn’t teach the cohort. */
+                cohort: {
+                    id: number;
+                    name: string;
+                } | null;
+                source_curriculum: {
+                    id: number;
+                    name: string;
+                } | null;
+                created_by: {
+                    id: number;
+                    name: string;
+                } | null;
+                created_at: string;
+            } | null;
+            /** @description Copies made from this curriculum for cohorts the viewer can see, newest first. */
+            copies: {
+                id: number;
+                cohort: {
+                    id: number;
+                    name: string;
+                };
+                copy_curriculum: {
+                    id: number;
+                    name: string;
+                };
+                created_by: {
+                    id: number;
+                    name: string;
+                } | null;
+                created_at: string;
+                lessons_count: number | null;
+            }[];
+            other_copies_count: number;
+            rubrics: {
+                id: number;
+                title: string;
+                active: boolean;
+                criteria_count: number;
+                lessons: components["schemas"]["UsageLessonRef"][];
+            }[];
+            objectives: {
+                id: number;
+                code: string;
+                title: string;
+                active: boolean;
+                lessons: components["schemas"]["UsageLessonRef"][];
+            }[];
+            totals: {
+                waiting: number;
+                open_help: number | null;
+                resources: number;
+            };
+        };
+        /** @description Where a module is used (staff). */
+        ModuleUsage: {
+            /** @constant */
+            type: "module";
+            id: number;
+            name: string;
+            description: string | null;
+            module_type: string;
+            scheduled_day_names: string[];
+            week_count: number;
+            curriculum: {
+                id: number;
+                name: string;
+            };
+            can_edit: boolean;
+            lessons: {
+                id: number;
+                title: string;
+                lesson_type: string;
+                release_day: number;
+                week: number;
+                day_name: string;
+                required: boolean;
+                archived: boolean;
+                has_work: boolean;
+            }[];
+            cohorts: components["schemas"]["ModuleUsageCohort"][];
+            /** @description Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
+            other_cohorts_count: number;
+            totals: {
+                submissions: number;
+                waiting: number;
+                open_help: number | null;
+            };
+        };
+        /** @description Where a lesson is used (staff). */
+        LessonUsage: {
+            /** @constant */
+            type: "lesson";
+            id: number;
+            title: string;
+            lesson_type: string;
+            required: boolean;
+            archived: boolean;
+            release_day: number;
+            week: number;
+            day_name: string;
+            curriculum: {
+                id: number;
+                name: string;
+            };
+            module: {
+                id: number;
+                name: string;
+            };
+            can_edit: boolean;
+            blocks: {
+                id: number;
+                block_type: string;
+                title: string | null;
+                has_work: boolean;
+            }[];
+            objectives: {
+                id: number;
+                code: string;
+                title: string;
+            }[];
+            cohorts: components["schemas"]["LessonUsageCohort"][];
+            /** @description Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
+            other_cohorts_count: number;
+            /** @description The newest open help requests on this lesson in cohorts the viewer can see (no message text). */
+            help_requests: {
+                id: number;
+                status: string;
+                urgency: string;
+                category: string;
+                cohort_id: number;
+                created_at: string;
+                student: {
+                    id: number;
+                    name: string;
+                } | null;
+            }[];
+            totals: {
+                submissions: number;
+                waiting: number;
+                open_help: number | null;
+            };
+        };
+        RecordUsageResponse: {
+            usage: components["schemas"]["CurriculumUsage"] | components["schemas"]["ModuleUsage"] | components["schemas"]["LessonUsage"];
+        };
+        TeamMemberWorkload: {
+            /** @description Active follow-up plans this person owns. */
+            follow_ups_count: number;
+            /** @description Up to 10 of them, soonest follow-up first. */
+            follow_ups: {
+                id: number;
+                status: string;
+                severity: string;
+                next_follow_up_at: string | null;
+                student: {
+                    id: number;
+                    name: string;
+                };
+                cohort: {
+                    id: number;
+                    name: string;
+                };
+            }[];
+            /** @description Open or acknowledged help requests this person owns. */
+            owned_help_count: number;
         };
     };
     responses: {

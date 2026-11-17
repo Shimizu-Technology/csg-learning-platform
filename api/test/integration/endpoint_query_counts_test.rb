@@ -215,6 +215,28 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, -> { "/api/v1/records/lesson/#{@lessons.first.id}/related" })
   end
 
+  # L-3.2 / L-5: where content is used, for the curriculum, module and lesson pages and the editor.
+  test "curriculum usage" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/records/curriculum/#{@curriculum.id}/usage" })
+    assert_flat_queries(@admin, :get, -> { "/api/v1/records/curriculum/#{@curriculum.id}/usage" })
+  end
+
+  test "module usage" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/records/module/#{@module.id}/usage" })
+  end
+
+  test "lesson usage" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/records/lesson/#{@lessons.first.id}/usage" })
+  end
+
+  test "lesson block editor context" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/lessons/#{@lessons.first.id}/block_editor" })
+  end
+
+  test "team member page with grading load and owned follow-ups" do
+    assert_flat_queries(@admin, :get, -> { "/api/v1/team_members/#{@instructor.id}" })
+  end
+
   test "cohort related panel" do
     assert_flat_queries(@instructor, :get, -> { "/api/v1/records/cohort/#{@cohort.id}/related" })
   end

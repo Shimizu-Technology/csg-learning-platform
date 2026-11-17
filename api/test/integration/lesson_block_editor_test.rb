@@ -34,6 +34,36 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     assert_equal 4, body["block_activity"].length
   end
 
+  # L-3.2: "Used in" and its counts cover only cohorts the viewer can see. Instructors see the
+  # cohorts they teach and the rest as a number, never by name or in a count.
+  test "an instructor's editor context lists only the cohorts they teach" do
+    other = Cohort.create!(curriculum: @curriculum, name: "Cohort Coral", start_date: Date.current, status: :active)
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
+    stranger = user(:student, "stranger")
+    stranger_enrollment = Enrollment.create!(user: stranger, cohort: other, status: :active)
+    Submission.create!(user: stranger, enrollment: stranger_enrollment, content_block: @exercise, submission_type: :text_submission, text: "Synthetic")
+    first = Submission.create!(user: @student, enrollment: @enrollment, content_block: @exercise, submission_type: :text_submission, text: "Synthetic", grade: "R", graded_at: Time.current)
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @exercise, submission_type: :text_submission, text: "Synthetic again", created_at: first.created_at + 1.minute)
+    HelpRequest.create!(student: stranger, cohort: other, category: :concept, context_type: :lesson, context_id: @lesson.id, status: :open,
+      context_label: "Make decisions", context_path: "/lessons/#{@lesson.id}", message: "Synthetic question")
+    HelpRequest.create!(student: @student, cohort: @cohort, category: :concept, context_type: :exercise, context_id: @exercise.id, status: :open,
+      context_label: "Ticket prices", context_path: "/lessons/#{@lesson.id}", message: "Synthetic question")
+
+    get_editor(@instructor)
+    assert_response :success
+    context = response.parsed_body["context"]
+    assert_equal [ "Cohort 3" ], context["used_in"].map { |cohort| cohort["name"] }
+    assert_equal 1, context["other_cohorts_count"]
+    assert_equal [ 2, 1, 1 ], context.values_at("submissions_count", "waiting_count", "open_help_count"),
+      "Cohort 3's two attempts, its one latest attempt waiting, and its question on the exercise; nothing from Cohort Coral"
+    refute_includes response.body, "Cohort Coral"
+
+    get_editor(@admin)
+    context = response.parsed_body["context"]
+    assert_equal [ "Cohort 3", "Cohort Coral" ], context["used_in"].map { |cohort| cohort["name"] }
+    assert_equal [ 0, 3, 2, 2 ], context.values_at("other_cohorts_count", "submissions_count", "waiting_count", "open_help_count")
+  end
+
   test "students can't open the block editor; instructors without editing access open it read only" do
     get_editor(@student)
     assert_response :forbidden

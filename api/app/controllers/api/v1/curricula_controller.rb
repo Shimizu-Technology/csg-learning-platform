@@ -75,7 +75,8 @@ module Api
           status: curriculum.status,
           updated_at: curriculum.updated_at.iso8601(6),
           archive_blocked: curriculum.archive_blockers,
-          live_checkout_offerings: curriculum.cohorts.active.where(public_checkout_enabled: true).order(:name).map { |cohort| { id: cohort.id, name: cohort.name } },
+          # Names the cohorts on sale, for the admin-only status change; instructors get none (they may not teach them).
+          live_checkout_offerings: current_user.admin? ? curriculum.cohorts.active.where(public_checkout_enabled: true).order(:name).map { |cohort| { id: cohort.id, name: cohort.name } } : [],
           active_self_paced_learners: Enrollment.active.joins(:cohort).where(cohorts: { curriculum_id: curriculum.id, course_delivery: "self_paced" }).exists?,
           modules_count: curriculum.modules.size
         }

@@ -98,6 +98,7 @@ Rails.application.routes.draw do
       # Peek cards (L-0.5)
       get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
       get "records/:type/:id/related", to: "record_summaries#related", as: :record_related
+      get "records/:type/:id/usage", to: "record_summaries#usage", as: :record_usage
       resources :workspaces, only: [ :index, :show, :create, :update ] do
         resources :memberships, only: [ :create, :destroy ], controller: "workspace_memberships"
       end

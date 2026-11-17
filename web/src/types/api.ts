@@ -966,6 +966,17 @@ export type LessonBlockEditorInput = components['schemas']['LessonBlockEditorInp
 export type LessonBlockInput = components['schemas']['LessonBlockInput'];
 export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity'];
 export type LessonEditorContext = components['schemas']['LessonEditorContext'];
+
+/** Where a curriculum, module or lesson is used (staff record pages, L-3.2 / L-5). */
+export type RecordUsageResponse = components['schemas']['RecordUsageResponse'];
+export type CurriculumUsage = components['schemas']['CurriculumUsage'];
+export type ModuleUsage = components['schemas']['ModuleUsage'];
+export type LessonUsage = components['schemas']['LessonUsage'];
+export type CurriculumUsageCohort = components['schemas']['CurriculumUsageCohort'];
+export type ModuleUsageCohort = components['schemas']['ModuleUsageCohort'];
+export type LessonUsageCohort = components['schemas']['LessonUsageCohort'];
+export type UsageLessonRef = components['schemas']['UsageLessonRef'];
+export type TeamMemberWorkload = components['schemas']['TeamMemberWorkload'];
 export type LessonEditAccess = components['schemas']['LessonEditAccess'];
 export type LessonEditGrant = components['schemas']['LessonEditGrant'];
 export type CurriculumCopyPreview = components['schemas']['CurriculumCopyPreview'];

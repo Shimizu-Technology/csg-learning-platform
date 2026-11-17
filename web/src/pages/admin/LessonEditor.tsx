@@ -3,8 +3,9 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
-import { lessonEditorPath } from '../../lib/routes'
-import { RESTORE_LIST_STATE, useReturnContext } from '../../lib/navigationContext'
+import { curriculumPath, lessonEditorPath, lessonRecordPath, moduleRecordPath } from '../../lib/routes'
+import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
+import { useBackLink, type BackLink } from '../../lib/recordOrigin'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useUpload } from '../../contexts/UploadContext'
@@ -59,11 +60,13 @@ function weekdayLabel(response: LessonBlockEditorResponse, releaseDay: number) {
 export function LessonEditor() {
   const { id } = useParams<{ id: string }>()
   const lessonId = Number(id)
-  const contentReturn = useReturnContext({ returnTo: '/admin/content', returnLabel: 'Content' }, `lesson-editor:${id}`)
+  // Back goes where the editor was opened from (Content, the lesson page, Grading…), remembered for
+  // this tab across round trips; with no history, to the lesson's own page (L-3.1, spec §4.2).
+  const back = useBackLink({ returnTo: lessonRecordPath(lessonId), returnLabel: 'lesson' }, { scope: `lesson-editor:${id}` })
   const { user } = useAuthContext()
   if (!user) return <LoadingSpinner message="Loading lesson…" />
   // Staff open the editor; the API says whether this person may save (access).
-  return <BlockLessonEditor key={lessonId} lessonId={lessonId} backTo={contentReturn.returnTo} backupKey={localDraftKey(user.id, lessonId)} isAdmin={Boolean(user.is_admin)} />
+  return <BlockLessonEditor key={lessonId} lessonId={lessonId} back={back} backupKey={localDraftKey(user.id, lessonId)} isAdmin={Boolean(user.is_admin)} />
 }
 
 /*
@@ -71,7 +74,8 @@ export function LessonEditor() {
  * rows are live for every cohort on the curriculum, so half-typed text must
  * never reach students on its own. A local backup covers crashes.
  */
-function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId: number; backTo: string; backupKey: string; isAdmin: boolean }) {
+function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: number; back: BackLink; backupKey: string; isAdmin: boolean }) {
+  const backTo = back.to
   const toast = useToast()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -445,7 +449,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
   if (loadError) {
     return (
       <div className="app-page space-y-4">
-        <Link to={backTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink"><ChevronLeft className="h-4 w-4" />Back to Content</Link>
+        <Link to={backTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink"><ChevronLeft className="h-4 w-4" />{back.label}</Link>
         <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{loadError}</p>
       </div>
     )
@@ -457,11 +461,13 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
     toast.success(copy.already_copied ? `Opened ${copy.cohort.name}'s copy` : `Made ${copy.cohort.name}'s copy`)
     navigate(copied ? lessonEditorPath(copied) : `/admin/content?curriculum=${copy.copy_curriculum.id}&pane=detail`, { replace: true })
   }
-  if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} backTo={backTo} backup={readOnlyBackup} onCopied={openCopy} />
+  if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} back={back} context={server.context} backup={readOnlyBackup} onCopied={openCopy} />
 
   const lesson = server.lesson
   const context = server.context
   const otherCohorts = context.used_in
+  // Cohorts you don't teach still share the curriculum: counted, never named (L-3.2).
+  const sharingCount = otherCohorts.length + (context.other_cohorts_count ?? 0)
   const copied = copyNotice(server.access)
   const saveState = status === 'saving' ? { icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />, text: 'Saving…', tone: 'text-ink-muted' }
     : status === 'conflict' ? { icon: <TriangleAlert className="h-3.5 w-3.5" />, text: 'Not saved: newer version', tone: 'text-danger-ink' }
@@ -495,15 +501,18 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
       <p aria-live="polite" className="sr-only">{announcement}</p>
 
       <header className="sticky top-14 z-30 flex min-h-15 items-center gap-2 border-b border-line bg-surface-raised px-2 py-2 sm:gap-3 sm:px-5 lg:top-0">
-        <Link to={backTo} state={RESTORE_LIST_STATE} aria-label="Back to Content" className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink">
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" /><span className="hidden md:inline">Back to Content</span>
+        <Link to={backTo} state={RESTORE_LIST_STATE} aria-label={back.label} data-back-link="" className="inline-flex min-h-11 max-w-[14rem] shrink-0 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink">
+          <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="hidden truncate md:inline">{back.label}</span>
         </Link>
         <div className="min-w-0 flex-1">
+          {/* Curriculum › Module › Lesson (L-3.1): each opens its staff record page. */}
           <nav aria-label="Breadcrumb" className="hidden truncate text-xs text-ink-muted md:block">
-            <Link to="/admin/content" className="hover:text-ink hover:underline">{context.curriculum.name}</Link>
+            <Link to={curriculumPath(context.curriculum.id)} className="hover:text-ink hover:underline">{context.curriculum.name}</Link>
             <span aria-hidden="true"> › </span>
-            <Link to={`/admin/content?open=${context.module.id}`} className="hover:text-ink hover:underline">{context.module.name}</Link>
+            <Link to={moduleRecordPath(context.module.id)} className="hover:text-ink hover:underline">{context.module.name}</Link>
             <span aria-hidden="true"> › </span>
+            <Link to={lessonRecordPath(lessonId)} className="hover:text-ink hover:underline">{lesson.title}</Link>
+            <span aria-hidden="true"> · </span>
             <span>{weekdayLabel(server, draft.release_day)}</span>
           </nav>
           <h1 className="truncate text-[15px] font-bold text-ink" title={draft.title}>{draft.title.trim() || 'Untitled lesson'}</h1>
@@ -610,10 +619,10 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
                   <p><strong>{copied.title}.</strong> {copied.body}</p>
                 </div>
               )}
-              {otherCohorts.length > 1 && (
+              {sharingCount > 1 && (
                 <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink sm:flex-row sm:items-start">
                   <Layers className="mt-0.5 hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
-                  <p className="min-w-0 flex-1"><strong>{otherCohorts.length} cohorts use this curriculum.</strong> Changes here show up for {otherCohorts.map((cohort) => cohort.name).join(', ')}. To change it for one cohort only, make a copy first.</p>
+                  <p className="min-w-0 flex-1"><strong>{sharingCount} cohorts use this curriculum.</strong> Changes here show up for {cohortList([...otherCohorts.map((cohort) => cohort.name), ...(context.other_cohorts_count ? [`${context.other_cohorts_count} ${context.other_cohorts_count === 1 ? 'cohort' : 'cohorts'} you don't teach`] : [])])}. To change it for one cohort only, make a copy first.</p>
                   {lesson.curriculum_id && <CopyForCohortAction variant="secondary" className="shrink-0" curriculumId={lesson.curriculum_id} cohorts={server.access.copy_cohorts ?? []} onCopied={openCopy}
                     disabledReason={dirty || saving ? 'Save or discard your changes first' : null} />}
                 </div>
@@ -746,14 +755,23 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
 }
 
 /** Staff without editing access read the lesson as students see it (README §12, decision 1). */
-function ReadOnlyLesson({ lesson, access, backTo, backup, onCopied }: { lesson: LessonDetail; access: LessonEditAccess; backTo: string; backup: LocalDraftBackup | null; onCopied: (copy: CurriculumCopyResponse['curriculum_copy']) => Promise<void> | void }) {
+function ReadOnlyLesson({ lesson, access, back, context, backup, onCopied }: { lesson: LessonDetail; access: LessonEditAccess; back: BackLink; context: LessonBlockEditorResponse['context']; backup: LocalDraftBackup | null; onCopied: (copy: CurriculumCopyResponse['curriculum_copy']) => Promise<void> | void }) {
   const blocks = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
   const notice = readOnlyNotice(access)
   const toast = useToast()
   const now = useNow(60000)
   return (
     <div className="app-page max-w-3xl space-y-6">
-      <Link to={backTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ChevronLeft className="h-4 w-4" />Back to Content</Link>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <Link to={back.to} state={RESTORE_LIST_STATE} data-back-link="" className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink"><ChevronLeft className="h-4 w-4" />{back.label}</Link>
+        <nav aria-label="Breadcrumb" className="hidden min-w-0 truncate text-xs text-ink-muted sm:block">
+          <Link to={curriculumPath(context.curriculum.id)} className="hover:text-ink hover:underline">{context.curriculum.name}</Link>
+          <span aria-hidden="true"> › </span>
+          <Link to={moduleRecordPath(context.module.id)} className="hover:text-ink hover:underline">{context.module.name}</Link>
+          <span aria-hidden="true"> › </span>
+          <Link to={lessonRecordPath(lesson.id)} className="hover:text-ink hover:underline">{lesson.title}</Link>
+        </nav>
+      </div>
       <h1 className="app-title">{lesson.title}</h1>
       <div role="status" className="flex gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
         <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

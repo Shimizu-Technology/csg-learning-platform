@@ -73,6 +73,8 @@ const PAGE_PARAMS: [RegExp, Record<string, RegExp>][] = [
   [/^\/admin\/cohorts\/[1-9]\d*$/, { tab: SLUG }],
   [/^\/admin\/cohorts\/[1-9]\d*\/students\/[1-9]\d*(?:\/[a-z-]+)?$/, { objective: ID, plan_id: ID }],
   [/^\/admin\/cohorts\/[1-9]\d*\/modules\/[1-9]\d*\/grading$/, { view: SLUG, filter: SLUG, student: ID, review: ID, week: /^(?:[1-9]\d{0,2}|all)$/ }],
+  // Content record pages (L-5): the cohort a lesson or module page is focused on.
+  [/^\/admin\/(?:lessons|modules)\/[1-9]\d*$/, { cohort_id: ID }],
 ]
 
 /**

@@ -11,6 +11,7 @@ import {
   helpRequestPath,
   interventionPath,
   lessonEditorPath,
+  lessonRecordPath,
   recordPath,
   type RecordViewer,
 } from './routes'
@@ -187,7 +188,8 @@ export function relatedRows(related: RecordRelated, options: RelatedRowOptions):
         return [{ key: item.key, icon: LifeBuoy, label: 'Open help requests', count, attention: Boolean(count), to: staffViewer ? `/admin/support${cohortId ? `?cohort_id=${cohortId}` : ''}` : null }]
       }
       case 'used_in':
-        return [{ key: item.key, icon: Layers3, label: 'Used in cohorts', count, to: staffViewer ? '/admin/cohorts' : null }]
+        // The lesson page lists the cohorts (L-3.2).
+        return [{ key: item.key, icon: Layers3, label: 'Used in cohorts', count, to: staffViewer ? `${lessonRecordPath(related.id)}#used-in` : null }]
       case 'cohort':
         return [{ key: item.key, icon: Layers3, label: item.value || 'Cohort', value: 'Open', to: item.cohort_id ? recordPath({ type: 'cohort', id: item.cohort_id }, { viewer }) : null }]
       case 'help_requests':

@@ -286,6 +286,29 @@ class AdminSafetyTeamTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  # L-3.2: an instructor's page shows their grading load per cohort and the follow-up plans and help they own.
+  test "a team member page shows grading load, owned follow-ups and owned help" do
+    exercise = Lesson.create!(curriculum_module: CurriculumModule.create!(curriculum: @cohort.curriculum, name: "Load module", position: 9, day_offset: 0, schedule_days: "daily"),
+      title: "Load lesson", position: 0, release_day: 0).content_blocks.create!(block_type: :exercise, title: "Load exercise", position: 0, submission_type: :text_submission)
+    enrollment = Enrollment.find_by!(user: @student, cohort: @cohort)
+    Submission.create!(user: @student, enrollment: enrollment, content_block: exercise, submission_type: :text_submission, text: "Synthetic")
+    request = HelpRequest.create!(student: @student, cohort: @cohort, category: :concept, context_type: :lesson, context_id: exercise.lesson_id, status: :acknowledged,
+      owner: @instructor, acknowledged_at: Time.current, context_label: "Load lesson", context_path: "/lessons/#{exercise.lesson_id}", message: "Synthetic question")
+    plan = Intervention.create!(enrollment: enrollment, owner: @instructor, created_by: @admin, trigger_type: :help_request, help_request: request,
+      action_summary: "Check in", next_follow_up_at: 2.days.from_now)
+    Intervention.create!(enrollment: enrollment, owner: @admin, created_by: @admin, trigger_type: :manual, action_summary: "Someone else's", next_follow_up_at: 1.day.from_now)
+
+    as_user(@admin) { get "/api/v1/team_members/#{@instructor.id}", headers: auth_headers }
+    assert_response :success
+    member = response.parsed_body.fetch("team_member")
+    row = member.fetch("teaching").find { |teaching| teaching.dig("cohort", "id") == @cohort.id }
+    assert_equal [ 1, 1 ], row.values_at("waiting_review", "open_help")
+    workload = member.fetch("workload")
+    assert_equal [ 1, 1 ], workload.values_at("follow_ups_count", "owned_help_count")
+    assert_equal [ plan.id ], workload.fetch("follow_ups").map { |item| item["id"] }
+    assert_equal [ @student.id, @cohort.id ], [ workload.dig("follow_ups", 0, "student", "id"), workload.dig("follow_ups", 0, "cohort", "id") ]
+  end
+
   test "an admin's page has no cohorts, their own page offers no message, and students are not team members" do
     as_user(@admin) { get "/api/v1/team_members/#{@second_admin.id}", headers: auth_headers }
     assert_response :success
