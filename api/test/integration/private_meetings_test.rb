@@ -1,6 +1,9 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class PrivateMeetingsTest < ActionDispatch::IntegrationTest
+  include QueryCounter
+
   def setup
     curriculum = Curriculum.create!(name: "Python Fundamentals")
     @cohort = Cohort.create!(
@@ -25,6 +28,77 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
       post "/api/v1/staff/private_meeting_configs", params: { cohort_id: @cohort.id, instructor_id: @instructor.id }, headers: auth_headers, as: :json
     end
     assert_response :created
+  end
+
+  test "a co-instructor who doesn't host sees who does and who to ask, never the host's bookings" do
+    @cohort.cohort_instructor_assignments.create!(user: @other_instructor)
+    slot = publish_slot(@start_time)
+    as_user(@student) { post "/api/v1/private_meetings", params: { slot_id: slot.id }, headers: auth_headers, as: :json }
+    assert_response :created
+    unhosted = meeting_cohort("Unhosted", host: nil, teacher: @other_instructor)
+    meeting_cohort("Switched off", host: nil, teacher: @other_instructor).update!(settings: { features: { private_meetings: false } })
+    meeting_cohort("Finished", host: nil, teacher: @other_instructor).update!(status: :completed)
+    self_paced = meeting_cohort("On demand", host: nil, teacher: @other_instructor)
+    self_paced.update!(course_delivery: "self_paced")
+    meeting_cohort("Not mine", host: nil, teacher: @instructor)
+
+    as_user(@other_instructor) { get "/api/v1/staff/private_meetings", headers: auth_headers }
+    assert_response :success
+    body = response.parsed_body
+    assert_empty body["cohorts"]
+    assert_equal [ [ @cohort.id, @instructor.id ], [ unhosted.id, nil ] ].sort_by(&:first),
+      body["other_cohorts"].map { |item| [ item["id"], item.dig("host", "id") ] }.sort_by(&:first)
+    assert_equal [ @admin.id ], body["admin_contacts"].map { |item| item["id"] }
+    refute_includes response.body, @student.full_name
+    refute_includes response.body, "starts_at"
+
+    as_user(@instructor) { get "/api/v1/staff/private_meetings", headers: auth_headers }
+    assert_equal [ @cohort.id ], response.parsed_body["cohorts"].map { |item| item["id"] }
+    assert_equal [ "Not mine" ], response.parsed_body["other_cohorts"].map { |item| item["name"] }
+
+    as_user(@admin) { get "/api/v1/staff/private_meetings", headers: auth_headers }
+    assert_empty response.parsed_body["other_cohorts"], "admins already see and enable every cohort"
+    assert_empty response.parsed_body["admin_contacts"]
+  end
+
+  test "hosts stay admin-assigned" do
+    @cohort.cohort_instructor_assignments.create!(user: @other_instructor)
+    unhosted = meeting_cohort("Unhosted", host: nil, teacher: @other_instructor)
+    as_user(@other_instructor) do
+      post "/api/v1/staff/private_meeting_configs", params: { cohort_id: unhosted.id, instructor_id: @other_instructor.id }, headers: auth_headers, as: :json
+    end
+    assert_response :forbidden
+    as_user(@other_instructor) do
+      post "/api/v1/staff/private_meeting_slots", params: { cohort_id: @cohort.id, starts_at: @start_time.iso8601 }, headers: auth_headers, as: :json
+    end
+    assert_response :forbidden
+  end
+
+  test "staff meetings query count stays flat as cohorts, slots and bookings grow" do
+    slot = publish_slot(@start_time)
+    as_user(@student) { post "/api/v1/private_meetings", params: { slot_id: slot.id }, headers: auth_headers, as: :json }
+    meeting_cohort("Taught", host: nil, teacher: @instructor)
+    small = as_user(@instructor) { count_queries { get "/api/v1/staff/private_meetings", headers: auth_headers } }
+    assert_response :success
+
+    2.times do |index|
+      cohort = meeting_cohort("Hosted #{index}", host: @instructor, teacher: @instructor)
+      learner = user("learner_#{index}", :student)
+      Enrollment.create!(user: learner, cohort: cohort)
+      start = Time.find_zone!("Pacific/Guam").local(cohort.start_date.year, cohort.start_date.month, cohort.start_date.day, 8 + (index * 3))
+      as_user(@instructor) do
+        post "/api/v1/staff/private_meeting_slots", params: { cohort_id: cohort.id, starts_at: start.iso8601, repeat_weeks: 2 }, headers: auth_headers, as: :json
+      end
+      assert_response :created
+      as_user(learner) { post "/api/v1/private_meetings", params: { slot_id: response.parsed_body.dig("slots", 0, "id") }, headers: auth_headers, as: :json }
+      assert_response :created
+      meeting_cohort("Taught #{index}", host: nil, teacher: @instructor)
+    end
+    large = as_user(@instructor) { count_queries { get "/api/v1/staff/private_meetings", headers: auth_headers } }
+    assert_response :success
+    assert_equal 3, response.parsed_body["cohorts"].size
+    assert_equal 3, response.parsed_body["other_cohorts"].size
+    assert_equal small, large
   end
 
   test "disabled switch prevents booking without removing slots" do
@@ -440,6 +514,14 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
 
   def user(name, role)
     User.create!(clerk_id: "clerk_private_#{name}", email: "#{name}@example.com", first_name: name.capitalize, role: role)
+  end
+
+  def meeting_cohort(name, host:, teacher:)
+    cohort = Cohort.create!(curriculum: @cohort.curriculum, name: name, cohort_type: :workshop, status: :upcoming,
+      start_date: @cohort.start_date, end_date: @cohort.end_date)
+    cohort.cohort_instructor_assignments.create!(user: teacher)
+    PrivateMeetingConfig.create!(cohort: cohort, instructor: host) if host
+    cohort
   end
 
   def publish_slot(starts_at)

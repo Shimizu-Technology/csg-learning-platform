@@ -150,7 +150,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
     {activeTab === 'activity' && <StaffActivityFeed cohort={cohort} />}
     {activeTab === 'recordings' && <section className="app-surface p-5 sm:p-6"><h2 className="mb-4 text-lg font-bold text-ink">Class recordings</h2><RecordingUploadManager key={cohort.id} cohortId={cohort.id} /></section>}
     {activeTab === 'insights' && <Insights cohort={cohort} insights={insights} loading={insightsLoading} error={insightsError} onRetry={() => void loadInsights()} />}
-    {activeTab === 'schedule' && <div className="space-y-8">{enabled('office_hours') && <CohortScheduleManager key={cohort.id} cohortId={cohort.id} canManage={Boolean(home?.permissions?.can_manage_schedule)} canManageLearningSchedule={Boolean(user?.is_admin && home?.permissions?.can_manage_learning_schedule)} />}{enabled('private_meetings') && <StaffPrivateMeetings key={cohort.id} cohortId={cohort.id} />}</div>}
+    {activeTab === 'schedule' && <div className="space-y-8">{enabled('office_hours') && <CohortScheduleManager key={`schedule-${cohort.id}`} cohortId={cohort.id} canManage={Boolean(home?.permissions?.can_manage_schedule)} canManageLearningSchedule={Boolean(user?.is_admin && home?.permissions?.can_manage_learning_schedule)} />}{enabled('private_meetings') && <StaffPrivateMeetings key={`meetings-${cohort.id}`} cohortId={cohort.id} />}</div>}
     {activeTab === 'communication' && <Communication cohort={cohort} home={home} messages={enabled('class_channels')} announcements={enabled('announcements')} />}
     {activeTab === 'team' && user?.is_admin && <CohortTeachingTeam cohortId={cohort.id} />}
   </div></ReturnOrigin>

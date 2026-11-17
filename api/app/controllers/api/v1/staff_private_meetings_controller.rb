@@ -7,14 +7,22 @@ module Api
       include AuthenticatedRateLimits
       before_action :require_staff!
 
+      # Admins see every cohort's meetings. An instructor sees the meetings they
+      # host, plus `other_cohorts`: the cohorts they teach where someone else
+      # hosts meetings or no host is set yet, with who to ask (U-4.10). Hosts
+      # stay admin-assigned; `other_cohorts` names people and never includes
+      # another host's slots, bookings or students.
       def index
         configs = PrivateMeetingConfig.includes(:cohort, :instructor).order(created_at: :desc)
         configs = configs.where(instructor_id: current_user.id, cohort_id: current_user.accessible_cohorts.select(:id)) unless current_user.admin?
+        configs = configs.to_a
+        cohort_ids = configs.map(&:cohort_id)
+        slots = PrivateMeetingSlot.active.where(private_meeting_config_id: configs.map(&:id)).includes(:instructor).order(:starts_at).to_a.group_by(&:private_meeting_config_id)
+        bookings = PrivateMeetingBooking.where(cohort_id: cohort_ids).includes(:instructor, :student).order(:starts_at).to_a.group_by(&:cohort_id)
         render json: {
           cohorts: configs.map do |config|
-            slots = config.private_meeting_slots.active.includes(:instructor).order(:starts_at).to_a
-            bookings = PrivateMeetingBooking.where(cohort_id: config.cohort_id).includes(:instructor, :student).order(:starts_at).to_a
-            booked_ids = bookings.select(&:confirmed?).map(&:private_meeting_slot_id)
+            cohort_bookings = bookings.fetch(config.cohort_id, [])
+            booked_ids = cohort_bookings.select(&:confirmed?).map(&:private_meeting_slot_id)
             {
               id: config.cohort_id,
               name: config.cohort.name,
@@ -26,10 +34,12 @@ module Api
               timezone: config.timezone,
               reschedule_cutoff_hours: config.reschedule_cutoff_hours,
               max_student_changes: config.max_student_changes,
-              slots: slots.map { |slot| PrivateMeetingSerializer.slot(slot, booked_ids: booked_ids) },
-              bookings: bookings.map { |booking| PrivateMeetingSerializer.booking(booking, staff: true) }
+              slots: slots.fetch(config.id, []).map { |slot| PrivateMeetingSerializer.slot(slot, booked_ids: booked_ids) },
+              bookings: cohort_bookings.map { |booking| PrivateMeetingSerializer.booking(booking, staff: true) }
             }
-          end
+          end,
+          other_cohorts: other_cohorts(cohort_ids),
+          admin_contacts: current_user.admin? ? [] : admin_contacts
         }
       end
 
@@ -56,6 +66,28 @@ module Api
           PrivateMeetingScheduler.cancel!(booking: booking, actor: current_user)
         end
         render json: { booking: PrivateMeetingSerializer.booking(booking.reload, staff: true) }
+      end
+
+      private
+
+      # Running cohorts this instructor teaches with meetings switched on that
+      # they don't host. Self-paced courses have no meetings.
+      def other_cohorts(hosted_cohort_ids)
+        return [] if current_user.admin?
+
+        school = FeatureSwitches.school
+        current_user.accessible_cohorts.where(status: %i[upcoming active]).where.not(id: hosted_cohort_ids)
+          .includes(private_meeting_config: :instructor).order(:start_date, :id).to_a
+          .reject { |cohort| cohort.self_paced? || !FeatureSwitches.for(cohort: cohort, school: school)["private_meetings"] }
+          .map do |cohort|
+            host = cohort.private_meeting_config&.instructor
+            { id: cohort.id, name: cohort.name, host: host && { id: host.id, full_name: host.full_name } }
+          end
+      end
+
+      # Who can enable meetings or change the host: the school's admins.
+      def admin_contacts
+        User.not_archived.admin.order(:first_name, :last_name, :id).limit(3).map { |admin| { id: admin.id, full_name: admin.full_name } }
       end
     end
   end

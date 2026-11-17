@@ -57,6 +57,11 @@ copy happens once: `DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby
 (from `api/`), then the three `QA_SPEC=copy-for-cohort.spec.ts` passes listed at the top of that spec,
 then `copy-fixtures.rb verify`.
 
+The learning-plan editor and instructor meetings checks use an extra fixture: a synthetic 240-lesson course with
+persona 4 enrolled, plus meetings hosted by the admin. Load it once after startup, from `api/`:
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/plan-editor-meetings-fixtures.rb`.
+See `docs/qa/plan-editor-meetings-2026-11-17.md`.
+
 Help requests and follow-up plans (W7 PR 7.4) have their own spec, outside the default run
 because Reply & resolve closes a request: after `start`, run
 `DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/help-followup-fixtures.rb`

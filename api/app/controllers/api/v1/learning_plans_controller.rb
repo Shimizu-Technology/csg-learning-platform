@@ -49,10 +49,22 @@ module Api
       def management_json
         plan = @enrollment.reload.learning_plan
         content = AssignedLearningContent.new(@enrollment)
+        # The editor hides finished lessons and groups the rest by module and
+        # week, so each lesson carries where the student stands on it, from the
+        # one status source (LearnerProgress).
+        progress = LearnerProgress.new(@enrollment, content: content)
+        self_paced = @enrollment.cohort.self_paced?
         {
           learning_plan: plan && plan.snapshot.merge(id: plan.id, lock_version: plan.lock_version, updated_at: plan.updated_at.iso8601(6)),
           lessons: content.modules.flat_map do |mod|
-            content.lessons_for(mod).map { |lesson| { id: lesson.id, title: lesson.title, module_name: mod.name, standard_required: lesson.required? } }
+            content.lessons_for(mod).map do |lesson|
+              answer = progress.lesson_progress(lesson)
+              {
+                id: lesson.id, title: lesson.title, module_id: mod.id, module_name: mod.name, standard_required: lesson.required?,
+                week: self_paced ? nil : mod.week_and_day_for(lesson.release_day)[:week],
+                status: answer.status, completed: answer.completed
+              }
+            end
           end,
           revisions: plan ? plan.revisions.includes(:author).order(id: :desc).limit(20).map { |revision|
             { id: revision.id, author: revision.author.full_name, created_at: revision.created_at, snapshot: revision.snapshot }
