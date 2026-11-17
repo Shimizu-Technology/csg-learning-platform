@@ -3,6 +3,14 @@
     "name": "CSG Learn",
     "slug": "csg-connect",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c6326478-e200-4aba-8614-806ca5f8e03a",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": [
