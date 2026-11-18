@@ -24,6 +24,8 @@ module Api
           end
           plan.assign_attributes(requested.except(:lock_version))
           changed = plan.new_record? || plan.changed?
+          # Saving in the editor makes a chosen pace (W9.1) a staff plan.
+          plan.assign_attributes(source: "staff", pace_weeks: nil) if changed
           plan.save!
           plan.revisions.create!(author: current_user, snapshot: plan.snapshot) if changed
         end
@@ -55,7 +57,8 @@ module Api
         progress = LearnerProgress.new(@enrollment, content: content)
         self_paced = @enrollment.cohort.self_paced?
         {
-          learning_plan: plan && plan.snapshot.merge(id: plan.id, lock_version: plan.lock_version, updated_at: plan.updated_at.iso8601(6)),
+          learning_plan: plan && plan.attributes.slice(*LearningPlan::SNAPSHOT_FIELDS).merge(id: plan.id, lock_version: plan.lock_version, updated_at: plan.updated_at.iso8601(6),
+            source: plan.source, pace_weeks: plan.pace_weeks, pace_changes_count: plan.pace_changes_count),
           lessons: content.modules.flat_map do |mod|
             content.lessons_for(mod).map do |lesson|
               answer = progress.lesson_progress(lesson)

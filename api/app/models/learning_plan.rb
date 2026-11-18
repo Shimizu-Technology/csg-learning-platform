@@ -1,5 +1,9 @@
 class LearningPlan < ApplicationRecord
   SNAPSHOT_FIELDS = %w[active title description target_date next_check_in_on milestones lesson_overrides].freeze
+  # "staff" plans are written in the plan editor; "learner_pace" plans are
+  # generated from a chosen pace (LearnerPace, W9.1). Saving in the editor
+  # makes a plan a staff plan.
+  SOURCES = %w[staff learner_pace].freeze
 
   belongs_to :enrollment
   has_many :revisions, class_name: "LearningPlanRevision", dependent: :destroy
@@ -8,6 +12,8 @@ class LearningPlan < ApplicationRecord
   validates :title, presence: true, length: { maximum: 160 }
   validates :description, length: { maximum: 2_000 }, allow_blank: true
   validates :active, inclusion: { in: [ true, false ] }
+  validates :source, inclusion: { in: SOURCES }
+  validates :pace_weeks, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :validate_scope
   validate :validate_dates
 
@@ -18,8 +24,13 @@ class LearningPlan < ApplicationRecord
     override ? override["required"] : lesson.required?
   end
 
+  def learner_pace? = source == "learner_pace"
+
+  # A pace plan's revisions also record the pace, so history reads
+  # "4 weeks, then 6 weeks". Staff plans keep the original shape.
   def snapshot
-    attributes.slice(*SNAPSHOT_FIELDS)
+    fields = attributes.slice(*SNAPSHOT_FIELDS)
+    learner_pace? ? fields.merge("source" => source, "pace_weeks" => pace_weeks) : fields
   end
 
   private

@@ -2,7 +2,7 @@ class Cohort < ApplicationRecord
   before_update :preserve_missing_paused_libraries
 
   def preserve_missing_paused_libraries
-    return unless will_save_change_to_start_date?
+    return unless will_save_change_to_start_date? || will_save_change_to_learner_pace_weeks?
 
     Enrollment.capture_missing_paused_libraries!(enrollments)
   end
@@ -65,6 +65,8 @@ class Cohort < ApplicationRecord
   validates :start_date, presence: true
   validates :self_paced_access_months, :self_paced_support_weeks, numericality: { only_integer: true, greater_than: 0 }
   validates :course_delivery, inclusion: { in: %w[program guided self_paced] }
+  before_validation :normalize_learner_pace_weeks
+  validate :learner_pace_weeks_are_valid
   after_create { @explicit_status = false }
   after_save { @explicit_status = false }
   validate :upcoming_requires_future_start, on: :update
@@ -211,6 +213,27 @@ class Cohort < ApplicationRecord
     course_delivery == "guided"
   end
 
+  # W9.1 personal pace (AS-1, AS-2). A guided or self-paced cohort can offer
+  # learners a choice of pace (`learner_pace_weeks`, for example [3, 4, 6]).
+  # NULL is off, and every cohort starts off, so program cohorts, the alumni
+  # library and any cohort that doesn't opt in compute exactly as before.
+  # With it on, each enrollment has its own start (Enrollment#personal_start_on),
+  # milestones come from the chosen pace (LearnerPace), and "behind" is measured
+  # against them (LearnerProgress#pace).
+  PACE_WEEK_RANGE = (1..26)
+  MAX_PACE_OPTIONS = 4
+
+  def personal_pace?
+    learner_pace_weeks.present? && (guided? || self_paced?) && !alumni?
+  end
+
+  # A guided cohort with personal pace opens every assigned lesson on each
+  # learner's own start date instead of the cohort calendar. Self-paced
+  # courses already open everything, so their release rule is unchanged.
+  def personal_release?
+    personal_pace? && guided?
+  end
+
   def purchase_ready?
     self_paced? && public_checkout_enabled? && offering_readiness.values.all?
   end
@@ -294,6 +317,22 @@ class Cohort < ApplicationRecord
 
   def moving_to_own_copy?
     persisted? && will_save_change_to_curriculum_id? && !moving_to_copy_of.nil? && moving_to_copy_of == curriculum_id_in_database
+  end
+
+  def normalize_learner_pace_weeks
+    return if learner_pace_weeks.nil?
+
+    values = Array(learner_pace_weeks).map { |value| Integer(value.to_s, exception: false) || value }
+    self.learner_pace_weeks = values.empty? ? nil : (values.all?(Integer) ? values.uniq.sort : values)
+  end
+
+  def learner_pace_weeks_are_valid
+    return if learner_pace_weeks.nil?
+
+    unless learner_pace_weeks.all? { |value| value.is_a?(Integer) && PACE_WEEK_RANGE.cover?(value) } && learner_pace_weeks.size <= MAX_PACE_OPTIONS
+      errors.add(:learner_pace_weeks, "must be up to #{MAX_PACE_OPTIONS} choices of #{PACE_WEEK_RANGE.min} to #{PACE_WEEK_RANGE.max} weeks")
+    end
+    errors.add(:learner_pace_weeks, "are only for guided or self-paced courses") unless (guided? || self_paced?) && !alumni?
   end
 
   def guided_access_dates_are_valid

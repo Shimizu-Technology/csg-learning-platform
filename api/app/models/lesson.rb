@@ -88,6 +88,10 @@ class Lesson < ApplicationRecord
 
   def unlock_date(cohort, module_assignment = nil)
     return nil if cohort.self_paced?
+    # Personal release (W9.1): every lesson opens with its module on the
+    # learner's own start; no per-lesson calendar offset.
+    return module_assignment ? module_assignment.effective_start_date(cohort) : cohort.start_date if cohort.personal_release?
+
     base_date = module_assignment&.effective_start_date(cohort) || curriculum_module.start_date_for(cohort)
     base_date + curriculum_module.calendar_offset_for(release_day)
   end

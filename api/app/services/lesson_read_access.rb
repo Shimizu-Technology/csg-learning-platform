@@ -26,8 +26,8 @@ class LessonReadAccess
   LOOKUP_COLUMNS = {
     lesson: %w[id module_id archived_at release_day created_at],
     module: %w[id curriculum_id day_offset schedule_days],
-    enrollment: %w[id user_id cohort_id status paused_at read_cutoff_at paused_lesson_ids paused_library_cutoff_at],
-    cohort: %w[id course_delivery start_date],
+    enrollment: %w[id user_id cohort_id status paused_at read_cutoff_at paused_lesson_ids paused_library_cutoff_at starts_on first_opened_at],
+    cohort: %w[id course_delivery start_date cohort_type learner_pace_weeks],
     module_assignment: %w[id enrollment_id module_id unlocked unlock_date_override availability_changed_at created_at updated_at],
     lesson_assignment: %w[id enrollment_id lesson_id unlocked unlock_date_override availability_changed_at created_at updated_at],
     schedule: %w[id cohort_id module_id start_date]

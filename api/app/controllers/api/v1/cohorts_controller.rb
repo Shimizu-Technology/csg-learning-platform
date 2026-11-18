@@ -119,6 +119,8 @@ module Api
         Cohort.transaction do
           lock_cohort_for_update!
           @cohort.assign_attributes(cohort_params)
+          # null (or an empty list) turns learner-chosen pace off.
+          @cohort.learner_pace_weeks = nil if params.key?(:learner_pace_weeks) && params[:learner_pace_weeks].blank?
           if @cohort.will_save_change_to_public_checkout_enabled? && @cohort.public_checkout_enabled? && !@cohort.setup_readiness.values.all?
             return render json: { errors: @cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
           end
@@ -324,7 +326,7 @@ module Api
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status,
                        :public_outcomes, :public_duration, :public_prerequisites, :public_preview, :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
-                       :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on)
+                       :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on, learner_pace_weeks: [])
       end
 
       def module_access_params
@@ -707,6 +709,7 @@ module Api
           self_paced_support_weeks: cohort.self_paced_support_weeks,
           guided_access_ends_on: cohort.guided_access_ends_on,
           guided_support_ends_on: cohort.guided_support_ends_on,
+          learner_pace_weeks: cohort.learner_pace_weeks,
           curriculum_id: cohort.curriculum_id,
           curriculum_name: CurriculumName.in_cohort(cohort),
           start_date: cohort.start_date,

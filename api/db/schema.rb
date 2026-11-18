@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -233,6 +233,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
     t.text "public_prerequisites"
     t.text "public_preview"
     t.string "review_response_time"
+    t.integer "learner_pace_weeks", array: true
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
@@ -454,6 +455,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
     t.datetime "start_here_dismissed_at"
     t.bigint "paused_lesson_ids", array: true
     t.datetime "paused_library_cutoff_at"
+    t.date "starts_on"
     t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
@@ -676,7 +678,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
     t.date "target_date"
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.string "source", default: "staff", null: false
+    t.integer "pace_weeks"
+    t.integer "pace_changes_count", default: 0, null: false
     t.index ["enrollment_id"], name: "index_learning_plans_on_enrollment_id", unique: true
+    t.check_constraint "pace_weeks IS NULL OR pace_weeks > 0", name: "learning_plans_pace_weeks_positive"
+    t.check_constraint "source::text = ANY (ARRAY['staff'::character varying, 'learner_pace'::character varying]::text[])", name: "learning_plans_source_valid"
   end
 
   create_table "lesson_assignments", force: :cascade do |t|

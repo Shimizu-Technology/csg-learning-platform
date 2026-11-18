@@ -61,15 +61,39 @@ class CourseOutline
       current_group_key: current&.dig(:key),
       filters: { todo: lessons.count { |lesson| lesson[:todo] }, redo: library? ? 0 : lessons.count { |lesson| lesson[:status] == LearnerProgress::Status::REDO } },
       modules: modules
-    }
+    }.tap do |json|
+      # Personal pace (W9.1): the learner's own dates. Only those cohorts get the key.
+      json[:personal_pace] = pace_summary if personal_pace?
+    end
   end
 
   private
 
+  # A personal-pace cohort reads as self-paced: lessons open together at the
+  # learner's start, in numbered sections, with their plan's dates instead of
+  # the cohort calendar.
   def mode
     return "library" if library?
 
-    @cohort.self_paced? ? "self_paced" : "program"
+    @cohort.self_paced? || personal_pace? ? "self_paced" : "program"
+  end
+
+  def personal_pace? = @cohort.personal_pace?
+
+  # Each planned lesson's milestone date, by lesson id.
+  def due_dates
+    @due_dates ||= Array(@progress.plan&.milestones).each_with_object({}) do |item, dates|
+      item["lesson_ids"].each { |id| dates[id] = item["due_on"] }
+    end
+  end
+
+  def pace_summary
+    plan = @progress.plan
+    {
+      starts_on: @enrollment.personal_start_on(@cohort),
+      weeks: plan&.learner_pace? ? plan.pace_weeks : nil,
+      ends_on: plan&.target_date
+    }
   end
 
   def library? = @cohort.alumni?
@@ -124,10 +148,10 @@ class CourseOutline
       status: entry.status,
       required: entry.required,
       available: entry.available,
-      opens_on: entry.available || !program? ? nil : unlock_date(mod, lesson),
+      opens_on: entry.available || (!program? && !personal_pace?) ? nil : unlock_date(mod, lesson),
       todo: !@enrollment.active? || library? ? false : @progress.actionable?(entry),
       redo_block_id: entry.status == LearnerProgress::Status::REDO ? redo_blocks[lesson.id] : nil
-    }
+    }.tap { |json| json[:due_on] = due_dates[lesson.id] if personal_pace? }
   end
 
   # Counted lessons only (a personal plan's optional lessons are not counted),
