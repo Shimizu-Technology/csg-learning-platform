@@ -6,6 +6,19 @@ require_relative "../../../lib/ops/apply_submission_audit_20261118"
 require_relative "../../../lib/ops/submission_audit_baseline_20261118"
 
 class ApplySubmissionAudit20261118Test < ActiveSupport::TestCase
+  # Keep the dormant companion path exercised without enabling it for this run.
+  class CompanionScenario < Ops::ApplySubmissionAudit20261118
+    COMPANION_FIXTURES = { 356 => "repo_and_live_url_submission", 358 => "repo_and_live_url_submission",
+      1088 => "repo_url_submission", 1099 => "repo_url_submission", 1093 => "text_submission",
+      1101 => "repo_and_live_url_submission" }.freeze
+
+    private
+
+    def decision_plan
+      super.merge(COMPANION_FIXTURES.transform_values { |type| [ "companion", type ] })
+    end
+  end
+
   setup do
     @admin = User.create!(clerk_id: "ops-admin", email: "ops-admin@example.invalid", role: :admin)
     @curriculum = Curriculum.create!(name: "Bootcamp", status: :active)
@@ -52,7 +65,7 @@ class ApplySubmissionAudit20261118Test < ActiveSupport::TestCase
     assert_equal 97, SubmissionAuditReview.count
     assert SubmissionAuditReview.all.all? { |review| review.reviewed_by_id == @admin.id && review.content_digest == SubmissionAudit.digest(review.content_block) }
     assert_equal "repo_url_submission", @blocks[57].reload.submission_type
-    Ops::ApplySubmissionAudit20261118::COMPANIONS.each do |id, type|
+    CompanionScenario::COMPANION_FIXTURES.each do |id, type|
       source = @blocks.fetch(id).reload
       companion = source.lesson.content_blocks.order(:position).last
       assert_equal "Exercise: #{source.title}", companion.title
@@ -375,14 +388,113 @@ class ApplySubmissionAudit20261118Test < ActiveSupport::TestCase
     end
   end
 
+  test "current decisions review all six former companions without adding work" do
+    before = ContentBlock.count
+    baseline = Marshal.load(Marshal.dump(@baseline))
+    result = run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)
+    assert_equal 99, result[:counts]["applied"]
+    assert_equal before, ContentBlock.count
+    assert_empty Ops::ApplySubmissionAudit20261118::COMPANIONS
+    CompanionScenario::COMPANION_FIXTURES.each_key do |id|
+      row = result[:blocks].find { |item| item[:id] == id }
+      assert_equal "practice", row[:action]
+      assert_empty row[:lesson_impact][:sibling_changes]
+      assert @blocks[id].reload.submission_audit_review
+    end
+    assert_equal baseline, @baseline
+    assert_equal @baseline["blocks"].map { |row| row["id"] }.sort, export_baseline[:blocks].map { |row| row[:id] }.sort
+  end
+
+  test "practice reviews with implicit legacy siblings preserve lesson and sibling behavior" do
+    [ 1079, 356 ].each do |id|
+      block = @blocks[id]
+      block.lesson.update!(requires_submission: true)
+      sibling = block.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Real submission", submission_type: nil)
+      row = @baseline["blocks"].find { |item| item["id"] == id }
+      row["content_digest"] = SubmissionAudit.digest(block)
+      row["lesson_updated_at"] = block.lesson.updated_at.iso8601(6)
+      assert_equal "text_submission", sibling.effective_submission_type
+    end
+    lesson_ids = [ @blocks[1079].lesson_id, @blocks[356].lesson_id ]
+    original_blocks = ContentBlock.where(lesson_id: lesson_ids).order(:id).map(&:attributes)
+    original_lessons = Lesson.where(id: lesson_ids).order(:id).map(&:attributes)
+    dry = run_task(runner_class: Ops::ApplySubmissionAudit20261118)
+    assert_equal 99, dry[:counts]["dry_run"]
+    result = run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)
+    assert_equal 99, result[:counts]["applied"]
+    [ 1079, 356 ].each do |id|
+      row = result[:blocks].find { |item| item[:id] == id }
+      assert_equal({ before: true, after: true }, row[:lesson_impact][:requires_submission])
+      assert_empty row[:lesson_impact][:sibling_changes]
+      assert_equal "text_submission", @blocks[id].lesson.content_blocks.order(:position).last.effective_submission_type
+    end
+    assert_equal original_blocks, ContentBlock.where(lesson_id: lesson_ids).order(:id).map(&:attributes)
+    assert_equal original_lessons, Lesson.where(id: lesson_ids).order(:id).map(&:attributes)
+    before = snapshot
+    assert_equal 99, run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)[:counts]["already_applied"]
+    assert_equal before, snapshot
+  end
+
+  [ 57, 700 ].each do |id|
+    test "current type decision #{id} reports no sibling changes in its fixture lesson" do
+      row = run_task(runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == id }
+      assert_equal "dry_run", row[:status]
+      assert_empty row[:lesson_impact][:sibling_changes]
+    end
+
+    test "current type decision #{id} refuses an implicit sibling when its flag would change" do
+      block = @blocks[id]
+      sibling = block.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Implicit work")
+      [ false, true ].each do |apply|
+        row = run_task(apply: apply, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == id }
+        assert_equal "refused", row[:status]
+        assert_includes row[:reason], "unapproved sibling"
+      end
+      assert_equal "manual_complete", sibling.reload.effective_submission_type
+      assert_equal "manual_complete", block.reload.submission_type
+    end
+  end
+
+  test "content projection preserves existing explicit submission enums with a true legacy flag" do
+    block = @blocks[57]
+    block.lesson.update!(requires_submission: true)
+    sibling = block.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Existing deployment",
+      submission_type: :repo_and_live_url_submission)
+    baseline = @baseline["blocks"].find { |row| row["id"] == block.id }
+    baseline["content_digest"] = SubmissionAudit.digest(block)
+    baseline["lesson_updated_at"] = block.lesson.updated_at.iso8601(6)
+    row = run_task(runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == block.id }
+    assert_equal "dry_run", row[:status]
+    assert_equal({ before: true, after: true }, row[:lesson_impact][:requires_submission])
+    assert_empty row[:lesson_impact][:sibling_changes]
+    assert_equal "repo_and_live_url_submission", sibling.effective_submission_type
+    assert_equal 99, run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)[:counts]["applied"]
+    assert_equal "repo_and_live_url_submission", sibling.reload.effective_submission_type
+  end
+
+  test "residual normal editor save resets a true legacy flag from a manual primary" do
+    lesson = @blocks[1079].lesson
+    primary = @blocks[1079]
+    primary.update!(block_type: :exercise)
+    lesson.update!(requires_submission: true)
+    sibling = lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Legacy submission")
+    assert_equal "text_submission", sibling.effective_submission_type
+    LessonBlockEditor.new(lesson: lesson, user: @admin, params: { base_updated_at: lesson.updated_at.iso8601(6),
+      blocks: lesson.content_blocks.map { |block| { id: block.id, block_type: block.block_type } } }).save!
+    # Documents the existing behavior for a separate editor fix; this ops PR
+    # avoids that save entirely for practice decisions.
+    refute lesson.reload.requires_submission
+    assert_equal "manual_complete", sibling.reload.effective_submission_type
+  end
+
   private
 
   def export_baseline
     Ops::SubmissionAuditBaseline20261118.new(cutoff: @cutoff.iso8601(6), output: @output, diagnostics: StringIO.new).run
   end
 
-  def run_task(apply: false)
-    Ops::ApplySubmissionAudit20261118.new(admin: @admin, baseline: @baseline, apply: apply, output: @output).run
+  def run_task(apply: false, runner_class: CompanionScenario)
+    runner_class.new(admin: @admin, baseline: @baseline, apply: apply, output: @output).run
   end
 
   def invoke_rake(flags)
