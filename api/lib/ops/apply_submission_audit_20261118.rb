@@ -3,11 +3,9 @@ module Ops
   class ApplySubmissionAudit20261118
     class Refused < StandardError; end
     LIBRARY = "CSG Alumni Learning Library".freeze
-    PRACTICE = [ 181, 353, 1079, 1083, 1085, 1087, 1103, 1105, 1107 ].freeze
+    PRACTICE = [ 181, 353, 1079, 1083, 1085, 1087, 1103, 1105, 1107, 356, 358, 1088, 1093, 1099, 1101 ].freeze
     TYPES = { 57 => "repo_url_submission", 700 => "repo_url_submission" }.freeze
-    COMPANIONS = { 356 => "repo_and_live_url_submission", 358 => "repo_and_live_url_submission",
-      1088 => "repo_url_submission", 1099 => "repo_url_submission", 1093 => "text_submission",
-      1101 => "repo_and_live_url_submission" }.freeze
+    COMPANIONS = {}.freeze
     DEFERRED = [ 681, 684, 679, 693, 696 ].freeze
     MARKER = "submission_audit_20261118".freeze
 
@@ -39,9 +37,7 @@ module Ops
     end
 
     def run
-      decisions = PRACTICE.to_h { |id| [ id, [ "practice", nil ] ] }
-        .merge(TYPES.transform_values { |type| [ "type", type ] })
-        .merge(COMPANIONS.transform_values { |type| [ "companion", type ] })
+      decisions = decision_plan
       library_rows = @baseline.values.select { |row| row["curriculum_name"] == LIBRARY }
       library_ids = library_rows.map { |row| Integer(row.fetch("id")) }
       if @baseline_library_ids && @baseline_library_ids.sort != library_ids.sort
@@ -123,6 +119,12 @@ module Ops
     end
 
     private
+
+    def decision_plan
+      PRACTICE.to_h { |id| [ id, [ "practice", nil ] ] }
+        .merge(TYPES.transform_values { |type| [ "type", type ] })
+        .merge(COMPANIONS.transform_values { |type| [ "companion", type ] })
+    end
 
     def emit(report)
       report.each { |row| @output.puts(row.to_json) }
@@ -236,10 +238,17 @@ module Ops
     end
 
     def project_lesson(lesson, blocks, payload, content_change:)
-      projected_lesson = Lesson.instantiate(lesson.attributes)
+      unless content_change
+        return { requires_submission: { before: lesson.requires_submission, after: lesson.requires_submission }, sibling_changes: [], digests: {} }
+      end
+
+      # instantiate expects raw database enum integers, not the decoded strings
+      # returned by attributes. dup preserves those attribute types.
+      projected_lesson = lesson.dup
+      projected_lesson.id = lesson.id
       projected = payload.map do |item|
         original = blocks.find { |block| block.id == item[:id] } if item[:id]
-        block = original ? ContentBlock.instantiate(original.attributes) : ContentBlock.new
+        block = original ? original.dup : ContentBlock.new
         block.assign_attributes(item.except(:client_id, :knowledge_check, :metadata))
         block.association(:knowledge_check).target = original&.knowledge_check
         block.association(:lesson).target = projected_lesson

@@ -1,5 +1,7 @@
 # Submission audit operations task — November 18, 2026
 
+**Current decision update:** the six companion sources are now practice-only. Reuse the successful 99-row baseline. See [the practice follow-up](submission-audit-practice-followup-2026-11-18.md) for current behavior, investigation and commands. The #309 decision counts and companion smoke below are historical.
+
 PR #309, branch `ops/apply-submission-audit`, based on `6c169d6d`. Execution owner: implementation worker on the Mac mini. No production access, merge or PR watch. This record supersedes the original baseline format and instructions on `98b232b4`.
 
 CSG Learn shares curriculum → module → lesson → block content across cohorts. Changing an existing work block's submission type retains completion; adding work can reopen a completed lesson. Changing `lesson.requires_submission` can also change siblings' implicit submission types. Sources: the task brief, `SubmissionAudit`, `SubmissionAuditReview`, `LessonBlockEditor`, `LessonCompletionImpact`, `ContentBlock#legacy_submission_type`, and `docs/qa/submission-audit-2026-11-17.md`.
