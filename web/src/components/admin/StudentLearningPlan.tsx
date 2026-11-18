@@ -60,11 +60,20 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved, outsideCh
     target?.scrollIntoView?.({ block: 'start' })
     target?.focus({ preventScroll: true })
   }, [data])
-  const load = useCallback(async () => {
+  const editingRef = useRef(editing)
+  editingRef.current = editing
+  const [changedElsewhere, setChangedElsewhere] = useState(false)
+  // `automatic` reloads (after a change elsewhere) never replace a draft that
+  // staff opened while the request was in flight; they get the notice instead.
+  const load = useCallback(async ({ automatic = false }: { automatic?: boolean } = {}) => {
     setError(null)
     try {
       const result = await api.getLearningPlan(enrollmentId)
       if (!result.data || result.fromCache) throw new Error(result.error || 'Reconnect to load the current learning plan.')
+      if (automatic && editingRef.current) {
+        setChangedElsewhere(true)
+        return
+      }
       setData(result.data)
       setDraft(editableDraft(result.data.learning_plan))
       setEditing(false)
@@ -73,18 +82,20 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved, outsideCh
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not load the learning plan.') }
   }, [enrollmentId])
   useEffect(() => { void load() }, [load])
-  const [changedElsewhere, setChangedElsewhere] = useState(false)
   const seenChange = useRef(outsideChange)
-  const editingRef = useRef(editing)
-  editingRef.current = editing
   useEffect(() => {
     if (outsideChange === seenChange.current) return
     seenChange.current = outsideChange
     // Never throw away an open draft: keep it and say the saved plan moved on.
     if (editingRef.current) setChangedElsewhere(true)
-    else void load()
+    else void load({ automatic: true })
   }, [outsideChange, load])
-  useEffect(() => { if (!editing) setChangedElsewhere(false) }, [editing])
+  // Leaving a draft that went stale (cancel or discard) shows the plan as it is now.
+  useEffect(() => {
+    if (editing || !changedElsewhere) return
+    setChangedElsewhere(false)
+    void load()
+  }, [editing, changedElsewhere, load])
 
   async function save(value: LearningPlanInput) {
     setSaving(true); setError(null); setNotice(null)

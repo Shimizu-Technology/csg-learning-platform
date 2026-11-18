@@ -233,6 +233,16 @@ class Cohort < ApplicationRecord
   # A guided cohort with personal pace opens every assigned lesson on each
   # learner's own start date instead of the cohort calendar. Self-paced
   # courses already open everything, so their release rule is unchanged.
+  # Checks the values as sent, on every assignment, before the integer column
+  # casts them: Rails reads 3.5 or "3weeks" as 3, so [3.5, 4, 6] over a stored
+  # [3, 4, 6] wouldn't even look like a change. Whole numbers only, as integers
+  # or digit strings (form params); nil turns pace off.
+  def learner_pace_weeks=(value)
+    @raw_pace_choices_invalid = !value.nil? &&
+      !(value.is_a?(Array) && value.all? { |item| item.is_a?(Integer) || (item.is_a?(String) && item.strip.match?(/\A\d+\z/)) })
+    self[:learner_pace_weeks] = value
+  end
+
   def personal_release?
     personal_pace? && guided?
   end
@@ -322,13 +332,7 @@ class Cohort < ApplicationRecord
     persisted? && will_save_change_to_curriculum_id? && !moving_to_copy_of.nil? && moving_to_copy_of == curriculum_id_in_database
   end
 
-  # Checks the values as sent, before the integer column casts them: Rails
-  # would read 3.5 or "3weeks" as 3. Whole numbers only, as integers or digit
-  # strings (form params).
   def normalize_learner_pace_weeks
-    raw = learner_pace_weeks_before_type_cast
-    @raw_pace_choices_invalid = will_save_change_to_learner_pace_weeks? && raw.is_a?(Array) &&
-      !raw.all? { |value| value.is_a?(Integer) || (value.is_a?(String) && value.strip.match?(/\A\d+\z/)) }
     return if learner_pace_weeks.nil? || @raw_pace_choices_invalid
 
     values = learner_pace_weeks.compact

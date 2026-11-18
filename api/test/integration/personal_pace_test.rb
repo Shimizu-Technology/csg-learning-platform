@@ -427,6 +427,30 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     assert_equal [ 3, 4, 6 ], @cohort.reload.learner_pace_weeks
   end
 
+  test "invalid pace choices that cast to the stored value are still refused" do
+    @cohort.reload
+    assert_equal [ 3, 4, 6 ], @cohort.learner_pace_weeks
+    [ [ 3.5, 4, 6 ], [ "3weeks", 4, 6 ], [ "3", "4.0", "6" ] ].each do |choices|
+      cohort = Cohort.find(@cohort.id)
+      cohort.learner_pace_weeks = choices
+      assert_not cohort.will_save_change_to_learner_pace_weeks?, "#{choices.inspect} casts to the stored value" unless choices.include?("4.0")
+      assert_not cohort.valid?, choices.inspect
+      assert_includes cohort.errors[:learner_pace_weeks].join, "whole numbers"
+    end
+    valid = Cohort.find(@cohort.id)
+    valid.learner_pace_weeks = [ 3.5 ]
+    valid.learner_pace_weeks = [ 3, 4, 6 ] # a later valid assignment clears it
+    assert valid.valid?
+
+    admin = person("admin", :admin)
+    [ [ 3.5, 4, 6 ], [ "3weeks", 4, 6 ] ].each do |choices|
+      patch "/api/v1/cohorts/#{@cohort.id}", params: { learner_pace_weeks: choices }, headers: headers(admin), as: :json
+      assert_response :unprocessable_entity, choices.inspect
+      assert_match(/whole numbers/, response.parsed_body["errors"].join)
+    end
+    assert_equal [ 3, 4, 6 ], @cohort.reload.learner_pace_weeks
+  end
+
   test "behind counts overdue weeks, not milestones that share a date" do
     @cohort.update!(learner_pace_weeks: [ 1, 3 ])
     fetch_today
@@ -451,6 +475,44 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     assert_equal({ "behind" => false, "weeks_behind" => 0, "overdue_count" => 0 }, today["pace"])
     put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { weeks: 6 }, headers: headers(@student), as: :json
     assert_response :unprocessable_entity
+  end
+
+  test "a chosen pace with nothing to schedule doesn't break Today once pace is turned off" do
+    (@lessons + [ @project ]).each { |item| item.update!(required: false) }
+    fetch_today
+    pace = choose(4)
+    assert_empty pace["milestones"]
+    @cohort.update!(learner_pace_weeks: nil)
+    today = fetch_today # LearnerProgress#pace is nil: no milestones to measure
+    assert_nil today["this_week"]
+    assert_nil today["pace"]
+    assert_equal [ false, 4, [] ], today["personal_pace"].values_at("available", "weeks", "milestones")
+  end
+
+  test "with pace turned off, Learn goes back to the cohort calendar and shows no pace dates" do
+    fetch_today
+    choose(4)
+    @cohort.update!(learner_pace_weeks: nil)
+    outline = fetch_outline
+    assert_equal "program", outline["mode"]
+    assert_not outline.key?("personal_pace")
+    lessons = outline["modules"].flat_map { |mod| mod["groups"].flat_map { |group| group["lessons"] } }
+    assert lessons.none? { |item| item.key?("due_on") }
+    assert_equal "Week 1", outline["modules"].first["groups"].first["label"]
+    assert_equal [ false, "2026-11-23" ], lessons.find { |item| item["id"] == @lessons[4].id }.values_at("available", "opens_on"), "calendar release is back"
+  end
+
+  test "a cohort start change while learning plans are off still realigns chosen paces for when they're back on" do
+    fetch_today
+    choose(4)
+    admin = person("admin", :admin)
+    @cohort.update!(settings: { "features" => { "student_experience_v2" => true, "learning_plans" => false } })
+    patch "/api/v1/cohorts/#{@cohort.id}", params: { start_date: "2026-11-25" }, headers: headers(admin), as: :json
+    assert_response :success
+    assert_equal Date.new(2026, 12, 22), @enrollment.reload.learning_plan.target_date, "realigned while plans are off"
+    @cohort.update!(settings: { "features" => { "student_experience_v2" => true, "learning_plans" => true } })
+    pace = fetch_today["personal_pace"]
+    assert_equal [ "2026-11-25", "2026-12-22", "2026-12-01" ], pace.values_at("starts_on", "ends_on").push(pace["milestones"].first["due_on"])
   end
 
   test "each pace choice shows the end date the server would schedule" do

@@ -139,6 +139,12 @@ test('5. unsaved plan edits survive a pace change', async ({ page }, info) => {
   await expect(plan.locator('[data-plan-changed-elsewhere]')).toContainText('Your draft is kept')
   await plan.locator('[data-plan-changed-elsewhere]').scrollIntoViewIfNeeded()
   await shot(page, '5-draft-kept', width)
+  // Discarding the stale draft shows the plan as it is now.
+  await plan.getByRole('button', { name: 'Cancel' }).click()
+  const discard = page.getByRole('button', { name: 'Discard changes' })
+  if (await discard.isVisible().catch(() => false)) await discard.click()
+  await expect(plan.locator('[data-plan-source="learner_pace"]')).toContainText('(3 weeks)')
+  await expect(plan.locator('[data-plan-changed-elsewhere]')).toHaveCount(0)
 })
 
 test('6. a new cohort start re-plans a learner without their own start', async ({ page }, info) => {

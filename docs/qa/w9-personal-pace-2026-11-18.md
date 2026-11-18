@@ -272,3 +272,25 @@ That failure looks like an intermittent test, and I'm reporting it here rather t
 - Browser, at 390 and 1280 in light and dark:
   - `w9-personal-pace-fixes.spec.ts`: 24 of 24. It now also covers the transaction refusal, unsaved plan edits surviving a pace change, and a cohort start change re-planning a learner without their own start.
   - The original journeys: 24 of 24.
+
+## Fix round 3, follow-ups (the last CodeRabbit round)
+
+- **Raw pace choices.** These are now checked on every assignment, through `Cohort#learner_pace_weeks=`, so the check no longer depends on the cast value changing. `[3.5, 4, 6]` or `["3weeks", 4, 6]` over a stored `[3, 4, 6]` is refused, both in the model and through the API.
+- **Settings choices field.** A UI test covers clearing the text and typing new choices without touching the checkbox: the field stays mounted, the save sends `[2, 5]`, and saving `" , "` while pace is on is refused before any request.
+- **Today with no milestones.** A chosen pace with nothing to schedule no longer breaks Today after pace is turned off. `this_week` is guarded, and Today treats any chosen pace as paced.
+- **Outline with pace off.** The outline goes back to the cohort calendar, with no pace dates. This now has a test.
+- **Re-planning without the learning_plans switch.** Re-planning to a moved start no longer depends on the switch, so plans stay aligned while plans are off. A test covers switch off, then a cohort start change, then switch on.
+- **Plan editor reloads.**
+  - An automatic reload that is still in flight no longer replaces a draft staff open in the meantime. A test checks this, and the same test fails when the guard is removed.
+  - Discarding a stale draft reloads the plan as it is now. This is tested, and browser case 5 covers it.
+- **Welcome card.** A pace kept after staff turned pace off gets its own copy ("Keep to your pace"), including in self-paced courses. Self-paced test cases were added.
+
+**Checks**
+
+- API, focused: 249 runs in both prepared-statement modes, 0 failures. RuboCop: no offenses.
+- Parity and pace loop: 20 runs with prepared statements on and 20 with them off, each with a different seed: 40 of 40 passed.
+- Web: 252 files, 3,498 tests; typecheck, lint, build and `api:check` pass.
+- Mobile: typecheck, lint (0 errors) and jest (1,820 tests) pass.
+- Browser, at 390 and 1280 in light and dark:
+  - Fix spec: 24 of 24.
+  - Original journeys: 24 of 24.

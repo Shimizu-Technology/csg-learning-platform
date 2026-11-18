@@ -226,27 +226,52 @@ it('links milestone lessons with enrollment and return context instead of joinin
   expect(link.getAttribute('href')).toContain('return_to=')
 })
 
-it('keeps an open draft when the plan changes elsewhere, and reloads when nothing is being edited', async () => {
-  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Your pace: 4 weeks', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'learner_pace', pace_weeks: 4, pace_changes_count: 0, lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
-  getPlan.mockResolvedValue({ data: personal })
-  const render = (outsideChange: number) => act(async () => root.render(<TestRouter><StudentLearningPlan enrollmentId={8} cohortId={3} onSaved={vi.fn()} outsideChange={outsideChange} /></TestRouter>))
-  await render(0)
-  expect(container.textContent).toContain('Made from the pace the learner chose (4 weeks)')
-  await click('Edit personal plan')
+const pacePlan = (title: string, lock: number): LearningPlanManagement => ({ ...regular, learning_plan: { id: 4, active: true, title, description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'learner_pace', pace_weeks: 4, pace_changes_count: 0, lock_version: lock, updated_at: '2026-10-24T10:00:00Z' } })
+const renderWith = (outsideChange: number) => act(async () => root.render(<TestRouter><StudentLearningPlan enrollmentId={8} cohortId={3} onSaved={vi.fn()} outsideChange={outsideChange} /></TestRouter>))
+async function typeTitle(value: string) {
   const title = container.querySelector<HTMLInputElement>('input[maxlength="160"]')!
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'My draft title')
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, value)
     title.dispatchEvent(new Event('input', { bubbles: true }))
   })
+}
+async function leaveDraft() {
+  await click('Cancel')
+  const discard = buttons().find((element) => element.textContent === 'Discard changes')
+  if (discard) await act(async () => discard.click())
+}
+
+it('keeps an open draft when the plan changes elsewhere, and shows the new plan once the draft is discarded', async () => {
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 4 weeks', 3) })
+  await renderWith(0)
+  expect(container.textContent).toContain('Made from the pace the learner chose (4 weeks)')
+  await click('Edit personal plan')
+  await typeTitle('My draft title')
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 6 weeks', 4) })
   const loads = getPlan.mock.calls.length
-  await render(1)
+  await renderWith(1)
   expect(getPlan.mock.calls.length).toBe(loads)
   expect(container.querySelector<HTMLInputElement>('input[maxlength="160"]')!.value).toBe('My draft title')
   expect(container.querySelector('[data-plan-changed-elsewhere]')?.textContent).toContain('Your draft is kept')
 
-  await click('Cancel')
-  const leave = buttons().find((element) => element.textContent === 'Discard changes')
-  if (leave) await act(async () => leave.click())
-  await render(2)
+  await leaveDraft()
   expect(getPlan.mock.calls.length).toBe(loads + 1)
+  expect(container.textContent).toContain('Your pace: 6 weeks')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')).toBeNull()
+})
+
+it('never lets an automatic reload that was in flight replace a draft started meanwhile', async () => {
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 4 weeks', 3) })
+  await renderWith(0)
+  let finish: (value: { data: LearningPlanManagement }) => void = () => {}
+  getPlan.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+  await renderWith(1) // the pace changed elsewhere: an automatic reload starts
+  await click('Edit personal plan')
+  await typeTitle('Started during the reload')
+  await act(async () => finish({ data: pacePlan('Your pace: 6 weeks', 4) }))
+  expect(container.querySelector<HTMLInputElement>('input[maxlength="160"]')!.value).toBe('Started during the reload')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')?.textContent).toContain('Your draft is kept')
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 6 weeks', 4) })
+  await leaveDraft()
+  expect(container.textContent).toContain('Your pace: 6 weeks')
 })

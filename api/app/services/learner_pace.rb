@@ -79,12 +79,15 @@ class LearnerPace
     end
   end
 
-  # Re-plan an active chosen pace from a moved start (staff changed it, or the
-  # first open moved it past the cohort start). Same pace, no change used up,
-  # nothing kept from the old dates. A no-op for a read-only enrollment or
-  # without a chosen pace. Call inside the enrollment's lock.
+  # Re-plan an active chosen pace from a moved start (staff changed it, the
+  # cohort start moved, or the first open moved it past the cohort start).
+  # Same pace, no change used up, nothing kept from the old dates. A no-op for
+  # a read-only enrollment or without a chosen pace. It doesn't need the
+  # learning_plans switch: keeping a stored plan's dates on the learner's start
+  # is bookkeeping, so the plan is right when plans are switched back on.
+  # Call inside the enrollment's lock.
   def regenerate!(actor:)
-    return nil unless available? && @enrollment.active?
+    return nil unless @cohort.personal_pace? && @enrollment.active?
 
     plan = LearningPlan.find_by(enrollment_id: @enrollment.id)
     return nil unless plan&.active? && plan.learner_pace? && plan.pace_weeks

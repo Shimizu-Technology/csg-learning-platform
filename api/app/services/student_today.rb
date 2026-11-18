@@ -55,7 +55,7 @@ class StudentToday
       course_week: course_week,
       counts: library? ? nil : @progress.overall.slice(:completed_lessons, :total_lessons),
       next_lesson: next_lesson_json,
-      this_week: program_active? && !personal_pace? ? @progress.pace[:this_week] : nil,
+      this_week: program_active? && !paced? ? @progress.pace&.dig(:this_week) : nil,
       pace: pace_json,
       catch_up_plan: catch_up_plan_json,
       needs_you: { count: needs_you.size, items: needs_you },
@@ -68,7 +68,7 @@ class StudentToday
       # Someone the learner can message now (StaffContact); nil hides every message action.
       contact: @work.person_json(@work.contact),
       # "Ask for a catch-up plan" only where plans exist and someone can be asked.
-      can_ask_for_plan: program_active? && !personal_pace? && @features["learning_plans"] == true && @work.contact.present?,
+      can_ask_for_plan: program_active? && !paced? && @features["learning_plans"] == true && @work.contact.present?,
       review_response_time: @cohort.effective_review_response_time,
       support: support_json,
       recently_added: library? ? recently_added : []
@@ -77,7 +77,7 @@ class StudentToday
       # cohort's Today is unchanged (W9.1).
       # After staff turn pace off, a learner's chosen pace stays on Today,
       # read-only (it can't be changed), rather than vanishing.
-      json[:personal_pace] = LearnerPace.new(@enrollment, features: @features).as_json(@progress) if personal_pace? || @progress.plan&.learner_pace?
+      json[:personal_pace] = LearnerPace.new(@enrollment, features: @features).as_json(@progress) if paced?
     end
   end
 
@@ -94,6 +94,11 @@ class StudentToday
   def program_active? = mode == "program" && !@read_only
 
   def personal_pace? = @cohort.personal_pace?
+
+  # Paced by a chosen pace: the cohort has pace on, or a pace chosen before
+  # staff turned it off is still the learner's plan. Its weeks are the plan's,
+  # and LearnerProgress#pace may be nil (a plan with nothing to schedule).
+  def paced? = personal_pace? || @progress.plan&.learner_pace? == true
 
   # "Week 11 of 16" for a dated program, the same rule as Learn's outline.
   def course_week
