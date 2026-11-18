@@ -80,28 +80,8 @@ class RecordDetail
       end
     end
 
-    # Where the subject opens, or nil when it isn't in a cohort the viewer can see.
     def record_link(event, record)
-      cohort = event.cohort
-      return nil unless record && cohort && scope.visible?(cohort.id)
-      # The link carries the subject as its learner, so the subject must be one of the cohort's people.
-      return nil unless cohort_members?(cohort.id, [ event.subject_user_id ])
-
-      case record
-      when Submission
-        return nil unless record.user_id == event.subject_user_id && record.enrollment&.cohort_id == cohort.id
-        return nil unless record.content_block&.lesson&.curriculum_module&.curriculum_id == cohort.curriculum_id
-
-        { kind: "submission", id: record.id, cohort_id: cohort.id, student_id: event.subject_user_id, lesson_id: record.content_block.lesson_id, content_block_id: record.content_block_id }
-      when ContentBlock
-        return nil unless record.lesson&.curriculum_module&.curriculum_id == cohort.curriculum_id
-
-        { kind: "lesson", id: record.lesson_id, cohort_id: cohort.id, student_id: event.subject_user_id, lesson_id: record.lesson_id, content_block_id: record.id }
-      when ::Recording
-        return nil unless record.cohort_id == cohort.id
-
-        { kind: "recording", id: record.id, cohort_id: cohort.id, student_id: event.subject_user_id, lesson_id: nil, content_block_id: nil }
-      end
+      ActivitySubject.new(viewer: @viewer, events: [ event ]).link(event, record)
     end
   end
 end

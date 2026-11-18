@@ -29,9 +29,13 @@ module Api
         rows = rows.first(limit)
         records = records_for(rows)
         preload_learning_access(rows, records)
+        @activity_subject = RecordDetail::ActivitySubject.new(viewer: current_user, events: rows) if current_user.staff?
 
         render json: {
           activity_events: rows.map { |event|
+            record = records[[ event.record_type, event.record_id ]]
+            destination = destination_for(event, record)
+            show_subject = !current_user.staff? || destination.present?
             {
               id: event.id,
               event_type: event.event_type,
@@ -41,9 +45,9 @@ module Api
               cohort_id: event.cohort_id,
               cohort_name: event.cohort&.name,
               record_type: event.record_type,
-              record_id: event.record_id,
-              record_label: record_label(records[[ event.record_type, event.record_id ]]),
-              destination: destination_for(event, records[[ event.record_type, event.record_id ]]),
+              record_id: show_subject ? event.record_id : nil,
+              record_label: show_subject ? record_label(record) : nil,
+              destination: destination,
               evidence: event.evidence,
               created_at: event.created_at
             }
@@ -172,8 +176,9 @@ module Api
         scope
       end
 
-      # Batch record loading; labels remain part of personal history even when a
-      # record is no longer navigable. Destinations require current access.
+      # Batch record loading. Staff feeds expose subject labels and ids only
+      # when the detail page subject check allows a link. Learner history keeps
+      # its existing labels and ids even when learning access has expired.
       def records_for(rows)
         records = {}
         { "ContentBlock" => ContentBlock.includes(lesson: :curriculum_module),
@@ -206,8 +211,7 @@ module Api
         cohort = event.cohort || (record.enrollment&.cohort if record.is_a?(Submission))
         return unless cohort
         if current_user.staff?
-          @teachable_cohorts ||= {}
-          return unless @teachable_cohorts.fetch(cohort.id) { @teachable_cohorts[cohort.id] = current_user.can_teach_cohort?(cohort) }
+          return unless @activity_subject.link(event, record)
         else
           return unless current_user.id == event.subject_user_id
         end

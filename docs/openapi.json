@@ -4506,6 +4506,7 @@
             ]
           },
           "record_label": {
+            "description": "Subject title when staff can open its destination; null otherwise. Learner personal history retains its existing labels.",
             "type": [
               "null",
               "string"

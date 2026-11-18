@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class ActivityHistoryTest < ActionDispatch::IntegrationTest
+  include QueryCounter
   setup do
     @issuer = "https://activity.clerk.test"
     @curriculum = Curriculum.create!(name: "Activity curriculum")
@@ -400,6 +402,75 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "/api/v1/activity_events", params: { user_id: "", cohort_id: "", category: "", before_id: "invalid", limit: "0" }, headers: auth_headers }
     assert_response :success
     assert_equal 1, JSON.parse(response.body).fetch("activity_events").size
+  end
+
+  test "staff labels and ids follow the shared subject boundary while learner history stays unchanged" do
+    other_curriculum = Curriculum.create!(name: "Private curriculum")
+    mod = CurriculumModule.create!(curriculum: other_curriculum, name: "Private module", position: 0)
+    lesson = Lesson.create!(curriculum_module: mod, title: "Private lesson", position: 0)
+    block = lesson.content_blocks.create!(block_type: :text, title: "Private exercise", position: 0)
+    submission = Submission.create!(user: @student, enrollment: @student_enrollment, content_block: block, text: "work")
+    other_cohort = Cohort.create!(curriculum: other_curriculum, name: "Private cohort", start_date: Date.current)
+    recording = Recording.create!(cohort: other_cohort, title: "Private recording", source_kind: "youtube", source_url: "https://youtu.be/abc123def45", status: :published)
+    hidden = [ block, submission, recording ].map do |record|
+      ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: record)
+    end
+    allowed = ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: @video)
+    outsider = ActivityEvent.record!(event_type: "video_started", actor: @other, cohort: @cohort, record: @video)
+    [ [ @staff, { feed: "cohort", cohort_id: @cohort.id } ], [ @staff, { user_id: @student.id } ], [ @admin, { feed: "school" } ] ].each do |viewer, filters|
+      rows = activity_feed(viewer, **filters).fetch("activity_events").index_by { |row| row.fetch("id") }
+      assert_response :success
+      (hidden + (filters[:user_id] ? [] : [ outsider ])).each do |event|
+        assert_equal [ nil, nil, nil ], rows.fetch(event.id).values_at("record_label", "record_id", "destination")
+      end
+      assert_equal @video.title, rows.fetch(allowed.id).fetch("record_label")
+      assert_equal @video.id, rows.fetch(allowed.id).fetch("record_id")
+      assert_equal @video.id, rows.fetch(allowed.id).dig("destination", "content_block_id")
+    end
+    Enrollment.create!(user: @student, cohort: other_cohort)
+    visible_to_admin = ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: other_cohort, record: recording)
+    row = activity_feed(@admin, feed: "school").fetch("activity_events").find { |event| event["id"] == visible_to_admin.id }
+    assert_equal recording.title, row.fetch("record_label")
+    assert_equal recording.id, row.dig("destination", "recording_id")
+
+    @student_enrollment.update!(access_expires_at: 1.second.ago)
+    rows = activity_feed(@student).fetch("activity_events").index_by { |row| row.fetch("id") }
+    assert_equal block.title, rows.fetch(hidden.first.id).fetch("record_label")
+    assert_equal block.id, rows.fetch(hidden.first.id).fetch("record_id")
+    assert_nil rows.fetch(hidden.first.id).fetch("destination")
+    assert_equal @video.title, rows.fetch(allowed.id).fetch("record_label")
+    assert_nil rows.fetch(allowed.id).fetch("destination")
+  end
+
+  test "staff subject checks stay flat as distinct cohorts learners and records grow" do
+    grow = lambda do |i|
+      cohort = Cohort.create!(curriculum: @curriculum, name: "Feed cohort #{i}", start_date: Date.current)
+      cohort.cohort_instructor_assignments.create!(user: @staff)
+      learner = User.create!(clerk_id: "feed_learner_#{i}", email: "feed-learner-#{i}@example.com")
+      lesson = Lesson.create!(curriculum_module: @video.lesson.curriculum_module, title: "Lesson #{i}", position: i + 1)
+      block = lesson.content_blocks.create!(block_type: :text, title: "Exercise #{i}", position: 0)
+      [ cohort, @cohort ].each do |event_cohort|
+        enrollment = Enrollment.create!(cohort: event_cohort, user: learner)
+        submission = Submission.create!(user: learner, enrollment: enrollment, content_block: block, text: "work")
+        recording = Recording.create!(cohort: event_cohort, title: "Replay #{i}", source_kind: "youtube", source_url: "https://youtu.be/abc123def45", status: :published)
+        [ block, submission, recording ].each do |record|
+          ActivityEvent.record!(event_type: "video_started", actor: learner, cohort: event_cohort, record: record)
+        end
+      end
+    end
+    measure = lambda do |viewer|
+      count_queries { activity_feed(viewer, **(viewer.admin? ? { feed: "school" } : { feed: "cohort", cohort_id: @cohort.id })) }
+    end
+    grow.call(0)
+    [ @staff, @admin ].each { |viewer| measure.call(viewer) } # warm framework paths
+    small = [ @staff, @admin ].map { |viewer| measure.call(viewer) }
+    5.times { |i| grow.call(i + 1) }
+    [ @staff, @admin ].each_with_index do |viewer, i|
+      expanded = measure.call(viewer)
+      assert_equal viewer.admin? ? 36 : 18, response.parsed_body.fetch("activity_events").size
+      assert response.parsed_body.fetch("activity_events").all? { |row| row["destination"].present? }
+      assert_operator expanded, :<=, small[i]
+    end
   end
 
   private
