@@ -95,3 +95,23 @@ it('keeps writes disabled after history fails and enables them after a fresh rel
   await click('Reload extensions')
   expect([...host.querySelectorAll('button')].find(b => b.textContent === 'Grant extension')!.disabled).toBe(false)
 })
+
+it('labels a deleted lesson target, disables Edit, and keeps Remove and history available', async () => {
+  const deleted = { ...item, lesson_id: null }
+  await mount(false, [deleted])
+  expect(host.textContent).toContain('Lesson removed')
+  const edit = [...host.querySelectorAll('button')].find(b => b.textContent === 'Edit')!
+  expect(edit.disabled).toBe(true)
+  const remove = [...host.querySelectorAll('button')].find(b => b.textContent === 'Remove')!
+  expect(remove.disabled).toBe(false)
+  expect(host.textContent).toContain('Extension history (1)')
+  await click('Remove')
+  const modal = document.querySelector('[role="dialog"]')!
+  expect(modal.textContent).toContain('Lesson removed')
+  await type(modal.querySelector('textarea')!, 'Lesson no longer exists')
+  vi.mocked(api.removeLearnerExtension).mockResolvedValue({ data: { personal_pace: false, extensions: [{ ...deleted, removed_at: '2030-01-01T00:00:00Z' }] }, error: null })
+  await click('Confirm removal', modal)
+  expect(api.removeLearnerExtension).toHaveBeenCalledWith(1, 1, 'Lesson no longer exists')
+  expect(host.textContent).toContain('Lesson removed')
+  expect(host.textContent).toContain('Extension history (1)')
+})

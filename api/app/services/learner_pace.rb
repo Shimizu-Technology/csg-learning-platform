@@ -256,7 +256,7 @@ class LearnerPace
     milestones = kept + weekly
     milestones << { "title" => "Final project", "due_on" => target.iso8601, "lesson_ids" => [ final.id ] } if schedule_final
 
-    extension = @enrollment.learner_extensions.reject(&:removed_at).select { |item| item.scope == "final" }.max_by(&:submissions_close_at)
+    extension = @enrollment.learner_extensions.select(&:effective?).select { |item| item.scope == "final" }.max_by(&:submissions_close_at)
     if extension
       extended_target = extension.submissions_close_at.in_time_zone("Pacific/Guam").to_date
       shift = (extended_target - target).to_i

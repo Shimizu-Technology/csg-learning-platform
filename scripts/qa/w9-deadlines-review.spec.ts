@@ -169,3 +169,30 @@ test('removing the edited grant clears its draft and a stale PATCH cannot restor
   await expect(row).toContainText('Removed')
   await expect(row).toContainText('Extension history (2)')
 })
+
+
+test('deleted lesson grants stay in history without changing unrelated learner UI and remain removable', async ({ page }) => {
+  execFileSync('bundle', ['exec', 'ruby', '../scripts/qa/w9-deadlines-review-fixtures.rb'], {
+    cwd: new URL('../../api', import.meta.url).pathname,
+    env: { ...process.env, DATABASE_URL: `postgresql://localhost/${state.database}`, QA_DELETED_EXTENSION: '1' },
+  })
+  let panel = await staff(page)
+  let row = panel.getByRole('list', { name: 'Extensions', exact: true }).locator(':scope > li')
+  await expect(row).toContainText('Lesson removed')
+  await expect(row.getByRole('button', { name: 'Edit', exact: true })).toBeDisabled()
+  await expect(row.getByRole('button', { name: 'Remove', exact: true })).toBeEnabled()
+  await expect(row).toContainText('Extension history (1)')
+  await page.goto(`/lessons/${ids.lesson}?cohort_id=${ids.program}&qa_user=951`)
+  await expect(page.getByRole('textbox', { name: 'Your answer, rich text' })).toBeEnabled()
+  await expect(page.getByText(/Submission deadline:/)).toHaveCount(0)
+  panel = await staff(page)
+  row = panel.getByRole('list', { name: 'Extensions', exact: true }).locator(':scope > li')
+  await row.getByRole('button', { name: 'Remove', exact: true }).click()
+  const modal = page.getByRole('dialog')
+  await expect(modal).toContainText('Lesson removed')
+  await modal.getByLabel('Removal reason').fill('Lesson no longer exists')
+  await modal.getByRole('button', { name: 'Confirm removal' }).click()
+  await expect(panel.getByRole('status')).toContainText('Extension removed')
+  await expect(row).toContainText('Extension history (2)')
+  await expect(row).toContainText('Lesson removed')
+})

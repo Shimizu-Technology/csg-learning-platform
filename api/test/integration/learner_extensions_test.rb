@@ -370,6 +370,33 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     assert_equal "Travel", extension.reason
   end
 
+  test "deleted lesson grants do not enable deadline UI or affect another lesson's window and remain removable" do
+    other = @mod.lessons.create!(title: "Unrelated work", position: 1, release_day: 0)
+    block = other.content_blocks.create!(block_type: :exercise, position: 0, title: "Answer", submission_type: :text_submission)
+    grant
+    extension = @enrollment.learner_extensions.first
+    assert extension.effective?
+    @lesson.destroy!
+    assert_not extension.reload.effective?
+    context = SubmissionWindowContext.new(@enrollment.reload)
+    assert_empty context.matching_extensions(other)
+    assert_equal @cohort.cohort_module_submission_windows.first.submissions_close_at, context.close_at(other)
+    get "/api/v1/lessons/#{other.id}", params: { cohort_id: @cohort.id }, headers: headers(@student)
+    assert_response :success
+    assert_not response.parsed_body.fetch("lesson").key?("show_personal_deadline")
+    post "/api/v1/submissions", params: { content_block_id: block.id, cohort_id: @cohort.id, text: "Answer" }, headers: headers(@student), as: :json
+    assert_response :forbidden
+    Submission.create!(enrollment: @enrollment, user: @student, content_block: block, text: "Earlier work", submission_type: :text_submission)
+    row = GradingQueue.new(viewer: @teacher, cohort: @cohort).as_json.fetch(:submissions).first
+    assert_not row.key?(:extensions)
+    assert_not row.key?(:submission_window)
+    delete "#{@path}/#{extension.id}", params: { reason: "Lesson no longer exists" }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert extension.reload.removed_at
+    assert_equal @lesson.id, extension.revisions.first.fetch("lesson_id")
+    assert_equal 2, extension.revisions.size
+  end
+
   test "a lesson moved to another released closed week is refused after locking" do
     @mod.lessons.create!(title: "Week two", position: 1, release_day: 7)
     @cohort.cohort_module_submission_windows.first.update!(submissions_close_at: 2.days.from_now)

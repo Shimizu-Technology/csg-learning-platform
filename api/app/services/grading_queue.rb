@@ -47,7 +47,7 @@ class GradingQueue
     offset = (page - 1) * @per_page
     start = [ offset - 1, 0 ].max
     rows = ordered(status_scope(filtered_scope)).offset(start).limit(@per_page + (offset.positive? ? 2 : 1)).to_a
-    extended_enrollments = rows.filter_map(&:enrollment).uniq(&:id).select { |item| item.cohort.personal_pace? || item.learner_extensions.any? { |extension| !extension.removed_at } }
+    extended_enrollments = rows.filter_map(&:enrollment).uniq(&:id).select { |item| item.cohort.personal_pace? || item.learner_extensions.any?(&:effective?) }
     @submission_windows = SubmissionWindowContext.for_all(extended_enrollments)
     previous = offset.positive? ? rows.shift : nil
     following = rows.length > @per_page ? rows.pop : nil
@@ -190,7 +190,7 @@ class GradingQueue
   end
 
   def extension_fields(enrollment, lesson)
-    return {} unless enrollment && (enrollment.cohort.personal_pace? || enrollment.learner_extensions.any? { |item| !item.removed_at })
+    return {} unless enrollment && (enrollment.cohort.personal_pace? || enrollment.learner_extensions.any?(&:effective?))
 
     { extensions: @submission_windows.fetch(enrollment.id).matching_extensions(lesson).map(&:staff_json),
       submission_window: SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson, enrollment: enrollment, context: @submission_windows[enrollment.id]) }

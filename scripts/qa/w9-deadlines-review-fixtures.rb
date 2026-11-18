@@ -37,5 +37,11 @@ LearnerPace.new(pace).choose!(weeks: 3, actor: admin)
 [ [ extended, lessons.last ], [ pace, lessons.first ] ].each do |enrollment, lesson|
   enrollment.learner_extensions.new(scope: "lesson", lesson: lesson, reason: "Legacy hard cutoff", submissions_close_at: 1.day.ago, granted_by: admin, granted_at: 2.days.ago).save!(validate: false)
 end
+if ENV["QA_DELETED_EXTENSION"] == "1"
+  extended.learner_extensions.destroy_all
+  deleted = mod.lessons.create!(title: "Lesson removed in deadline QA", position: 9, release_day: 0)
+  extended.reload.learner_extensions.new(scope: "lesson", lesson: deleted, reason: "Grant for deleted lesson", submissions_close_at: 3.days.from_now).record_change!(actor: admin)
+  deleted.destroy!
+end
 ids = { program: program.id, paced: paced.id, extended: { user: 951, enrollment: extended.id }, off: { user: 952, enrollment: off.id }, pace: { user: 953, enrollment: pace.id }, lesson: lessons.first.id, open_lesson: lessons.last.id, project: project.id }
 Rails.root.join("..", ".qa-local", "w9-deadlines-review.json").write(JSON.pretty_generate(ids))

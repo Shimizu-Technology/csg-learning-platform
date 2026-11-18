@@ -55,7 +55,7 @@ class SubmissionWindowContext
   end
 
   def matching_extensions(lesson, except_id: nil)
-    enrollment.learner_extensions.reject { |item| !item.persisted? || item.removed_at || (except_id && item.id == except_id) }.select do |item|
+    enrollment.learner_extensions.reject { |item| !item.effective? || (except_id && item.id == except_id) }.select do |item|
       (item.scope == "lesson" && item.lesson_id == lesson.id) ||
         (item.scope == "module" && item.module_id == lesson.module_id && item.week_number == SubmissionWindowStatus.week_number_for_release_day(lesson.release_day)) ||
         (item.scope == "final" && lesson.project? && final_lesson&.id == lesson.id)

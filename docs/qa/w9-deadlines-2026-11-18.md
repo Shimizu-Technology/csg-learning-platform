@@ -60,3 +60,14 @@ Not run: WebKit/mobile Safari (unsupported on this mini) and native device inter
 This is the final requested CodeRabbit round. The two requests to cap a longer pace at the staff grant are declined under the lead’s additive-only decision. Other listed findings are fixed. Each thread receives the implementation commit or the decision. Later feedback is recorded as a residual in the PR body; no further review round or merge is authorized.
 
 Task-owned Rails/Vite processes, browser contexts/tab and disposable local database are cleaned at the end of QA. The shared PostgreSQL service and busy ASUS run are borrowed and remain untouched. No simulator/container was started. Branch/worktree remain for the lead; the PR is held without merge or watch.
+
+
+## Lesson-deletion residual (CodeRabbit 4611050811)
+
+The lead authorized this learner-visible residual after the final review boundary. `LearnerExtension#effective?` excludes a deleted lesson target using only its nullified FK (no target query). Lesson deadline eligibility, grading eligibility, window matching and pace calculations all use the same predicate. The staff list says **Lesson removed**, disables Edit, and keeps Remove/history available.
+
+The new API regression deletes an extended lesson and opens another finite-window lesson in the same non-pace enrollment: no personal-deadline flag is added, the original window is used, a late submit stays refused, and grading gains no extension fields. Removing the orphan still succeeds and retains both revisions. The component test checks the label, disabled Edit, enabled Remove, confirmation and retained history.
+
+Validation on this follow-up source: focused API prepared on/off each **39 tests / 263 assertions**, no failures/errors/skips; web **255 files / 3,522 tests**, typecheck/lint/build pass; RuboCop **847 files clean**, Brakeman **0 warnings**, Impeccable changed-panel advisory **[]**. The dedicated real-browser journey checks staff controls, the unrelated learner lesson, removal and retained history at 390/1280 in light/dark. Initial browser setup exposed a cached curriculum association in the synthetic fixture; reloading the enrollment after creating the temporary lesson fixes setup without bypassing validation. The final dedicated browser matrix passed **4/4**. Final-head pooler results are recorded in the PR body.
+
+No schema or API-contract shape changed. Native code is unchanged. Task-owned test DB, QA servers/database and preview tab are cleaned before handback; borrowed PostgreSQL remains running. The PR stays unmerged. The lead explicitly requested waiting for both final-head pooler checks before the final report.

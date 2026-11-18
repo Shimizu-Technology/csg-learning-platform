@@ -51,7 +51,7 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
     if (item.scope === 'final') return 'Final project'
     if (item.scope === 'lesson') {
       return modules.flatMap((mod) => mod.lessons).find((lesson) => lesson.id === item.lesson_id)?.title
-        || (item.lesson_id === null ? 'Deleted lesson' : `Lesson #${item.lesson_id}`)
+        || (item.lesson_id === null ? 'Lesson removed' : `Lesson #${item.lesson_id}`)
     }
     return `${modules.find((mod) => mod.id === item.module_id)?.name || `Module #${item.module_id}`} · Week ${item.week_number}`
   }
@@ -134,7 +134,7 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
       <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{item.reason}</p>
       <p className="text-ink-muted">Granted by {item.granted_by_name} · {guamDate(item.granted_at)}</p>
       {!item.removed_at && <div className="mt-2 flex gap-2">
-        <Button variant="secondary" disabled={writesDisabled} onClick={() => edit(item)}>Edit</Button>
+        <Button variant="secondary" disabled={writesDisabled || (item.scope === 'lesson' && item.lesson_id === null)} onClick={() => edit(item)}>Edit</Button>
         <Button variant="secondary" disabled={writesDisabled} onClick={() => { setRemoving(item); setRemovalReason(''); setRemovalError('') }}>Remove</Button>
       </div>}
       <details className="mt-2"><summary className="min-h-11 cursor-pointer py-3">Extension history ({item.revisions.length})</summary>

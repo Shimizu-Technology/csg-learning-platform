@@ -13,6 +13,13 @@ class LearnerExtension < ApplicationRecord
   validate :deadline_does_not_shorten_window
   validate :final_deadline_is_guam_end_of_day
 
+  # Lesson deletion nullifies the FK while preserving this row and its history.
+  # Such a grant has no effective target and must not opt learners into UI.
+  # Check the FK only: consumers batch grants without loading every target.
+  def effective?
+    persisted? && removed_at.nil? && (scope != "lesson" || lesson_id.present?) && (scope != "module" || module_id.present?)
+  end
+
   def target_immutable
     return unless persisted?
     errors.add(:scope, "cannot change the target of an existing grant") if %w[scope lesson_id module_id week_number].any? { |key| will_save_change_to_attribute?(key) }
@@ -41,7 +48,7 @@ class LearnerExtension < ApplicationRecord
       return
     end
 
-    target = enrollment.learner_extensions.reload.reject(&:removed_at).select { |item| item.scope == "final" }.map { |item| item.submissions_close_at.in_time_zone("Pacific/Guam").to_date }.max
+    target = enrollment.learner_extensions.reload.select(&:effective?).select { |item| item.scope == "final" }.map { |item| item.submissions_close_at.in_time_zone("Pacific/Guam").to_date }.max
     shift = (target - plan.target_date).to_i
     return unless shift.positive?
 
