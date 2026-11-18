@@ -11,7 +11,7 @@ app config changed.
 |---|---|
 | Branch | `fix/mobile-simulator-qa`, from `origin/main` at `9926b61c` |
 | iOS fingerprint | `164df5a292cd4ad70cf1b725469fc61a3ed919c7` from `npx eas-cli@16.28.0 fingerprint:generate --platform ios`. This is the same value as `main`, so the change is OTA-compatible |
-| Gate | `npm run check` in `mobile/`: brand check, URI decoder and OTA script tests, `tsc`, ESLint (0 errors; 74 warnings, none in lines this change added), Jest 142 suites and 1,817 tests passed |
+| Gate | `npm run check` in `mobile/`: brand check, URI decoder and OTA script tests, `tsc`, ESLint (0 errors; 74 warnings, none in lines this change added), Jest 142 suites and 1,820 tests passed (after review round 1) |
 | Device | "CSG Connect iPhone" `CE2CFA28-B7E4-44FD-9058-F66FB398FE47`, iOS 26.5, light and dark, driven only through T3 `agent-device` |
 | App | The Debug dev client that the acceptance run had already installed. It needs no rebuild because the fingerprint is unchanged. Metro served this branch's working tree |
 | Backend | `scripts/qa/run`: Rails in test mode on loopback with a fresh `csg_qa_` database and synthetic personas. Fixtures: `plan-editor-meetings-fixtures.rb`, `student-workspace-course-fixtures.rb` and the local `notification_fixtures.rb` |
@@ -61,6 +61,17 @@ The first notice and keyboard checks ran against a Metro started with `CI=1`, wh
 not watch files, so they tested the old code. Those results were thrown away. Metro was
 restarted with watching on, and the notice, keyboard, O7 and O8 checks above ran on the
 fresh bundle.
+
+## Review round 1 (Codex review of `8367a42f`, CodeRabbit)
+
+| Finding | Fix | Evidence |
+|---|---|---|
+| P2: every field of a repository exercise shared one keyboard-bar ID, so React Native attached the bar to Repository URL only | Each input now has its own ID, `submission-keyboard-<block>-<field>`, paired with its own accessory | Jest renders two repository blocks with every field expanded plus a text block: 13 inputs with 13 unique IDs, each with a matching accessory. Simulator: Live site URL and Notes both show "Hide keyboard" and Submit ([after](mobile-simulator-qa-fixes-2026-11-18/after-round2-live-url-bar.png)). Submit stayed disabled while Repository URL was empty, which is correct |
+| P3 and CodeRabbit: an older switch finishing late could restart the newer notice's clock, and a second link could reuse the first switch's clock | Each link switch takes a sequence number. A new switch clears the clock at its start, and only the latest switch may start it | Two Jest tests with deferred storage writes and fake timers. In the first, the older switch finishes after the newer one. In the second, a link arrives while the first notice is showing and its write is slow. Both fail without the fix |
+| CodeRabbit: the copied acceptance report linked screenshots that are not in the repo | The 13 committed screenshots stay as links. The other 63 are plain names marked †, meaning kept locally and not committed | A link check of the three QA docs finds no broken relative links |
+
+The round-2 simulator check used a fresh QA database. The synthetic lesson 2 exercise was
+switched to `repo_and_live_url_submission` in that database to show both URL fields.
 
 ## Residuals
 

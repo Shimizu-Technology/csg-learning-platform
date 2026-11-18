@@ -12,8 +12,8 @@ Two bugs filed (B1, B2). Screenshots are in
 > Copied into the repository on 2026-11-18 with the fixes in
 > [mobile-simulator-qa-fixes-2026-11-18.md](mobile-simulator-qa-fixes-2026-11-18.md).
 > Only the screenshots for the fixed screens are committed: s04, s12, s16, s20, n02, d02,
-> j08, c01, c02, e21, p06, t11 and t14. The other links point to images that stayed in the
-> acceptance run's local worktree.
+> j08, c01, c02, e21, p06, t11 and t14. Those are links. A name marked † (for example
+> s02†) is a screenshot kept locally by the acceptance run and not committed.
 
 ## What was tested
 
@@ -61,44 +61,44 @@ Student = persona 3 unless noted. "Back" means the in-app Back control.
 
 | ID | Link | Expected | Result | Evidence |
 |---|---|---|---|---|
-| DL-01 | `csglearn://lessons/1?cohort_id=1` opened while **signed out**, then sign in | Lesson opens once after sign-in | Pass | [01](ios-simulator-acceptance-2026-11-18/01-held-link-lesson-after-signin.png) |
-| DL-02 | `csgconnect://lessons/2?cohort_id=1` | Lesson 2; Back to Learn | Pass | [s02](ios-simulator-acceptance-2026-11-18/s02-csgconnect-lesson.png) |
-| DL-03 | `csglearn:///lesson/5?cohort_id=1` (native form) | Lesson 5 | Pass | [s03](ios-simulator-acceptance-2026-11-18/s03-native-lesson-form.png) |
+| DL-01 | `csglearn://lessons/1?cohort_id=1` opened while **signed out**, then sign in | Lesson opens once after sign-in | Pass | 01† |
+| DL-02 | `csgconnect://lessons/2?cohort_id=1` | Lesson 2; Back to Learn | Pass | s02† |
+| DL-03 | `csglearn:///lesson/5?cohort_id=1` (native form) | Lesson 5 | Pass | s03† |
 | DL-04 | `…/lessons/1?cohort_id=1#block-3` | Scrolls to block 3 | Pass (see O2) | [s04](ios-simulator-acceptance-2026-11-18/s04-lesson-block-anchor.png) |
-| DL-05 | `csglearn://modules/2?cohort_id=1` | Module page | Pass | [s05](ios-simulator-acceptance-2026-11-18/s05-module.png) |
-| DL-06 | `csglearn://messages/dm/1` and `…?message_id=1` | DM; Back to Messages tab, no stacked tabs | Pass | [s06](ios-simulator-acceptance-2026-11-18/s06-dm.png), [s08](ios-simulator-acceptance-2026-11-18/s08-dm-message-anchor.png) |
-| DL-07 | `csglearn://messages/4` | Channel qa-class | Pass | [s07](ios-simulator-acceptance-2026-11-18/s07-channel.png) |
-| DL-08 | `csglearn://updates?cohort_id=1&announcement_id=1` | Updates tab with the announcement sheet open; Close works | Pass | [s09](ios-simulator-acceptance-2026-11-18/s09-announcement.png) |
-| DL-09 | `csglearn://recordings?cohort_id=1&recording=1` | Recording page | Pass | [s10](ios-simulator-acceptance-2026-11-18/s10-recording.png) |
-| DL-10 | `csglearn://meetings` (student) | Meetings screen | Pass | [s11](ios-simulator-acceptance-2026-11-18/s11-meetings-student.png) |
-| DL-11 | `/materials`, `/dashboard`, `/messages` | Learn, Today, Messages tabs | Pass | [s13](ios-simulator-acceptance-2026-11-18/s13-materials-alias.png), [s14](ios-simulator-acceptance-2026-11-18/s14-dashboard-alias.png), [s15](ios-simulator-acceptance-2026-11-18/s15-messages-root.png) |
-| DL-12 | As student: `/staff/student/3?cohort_id=1`, `/admin/submissions/1`, `/admin/moderation`; also a staff link held while signed out, then sign-in as student | Fallback only; no staff screen, no web button | Pass | [s17](ios-simulator-acceptance-2026-11-18/s17-staff-student-as-student.png), [s18](ios-simulator-acceptance-2026-11-18/s18-admin-submission-as-student.png), [s19](ios-simulator-acceptance-2026-11-18/s19-admin-moderation-as-student.png) |
+| DL-05 | `csglearn://modules/2?cohort_id=1` | Module page | Pass | s05† |
+| DL-06 | `csglearn://messages/dm/1` and `…?message_id=1` | DM; Back to Messages tab, no stacked tabs | Pass | s06†, s08† |
+| DL-07 | `csglearn://messages/4` | Channel qa-class | Pass | s07† |
+| DL-08 | `csglearn://updates?cohort_id=1&announcement_id=1` | Updates tab with the announcement sheet open; Close works | Pass | s09† |
+| DL-09 | `csglearn://recordings?cohort_id=1&recording=1` | Recording page | Pass | s10† |
+| DL-10 | `csglearn://meetings` (student) | Meetings screen | Pass | s11† |
+| DL-11 | `/materials`, `/dashboard`, `/messages` | Learn, Today, Messages tabs | Pass | s13†, s14†, s15† |
+| DL-12 | As student: `/staff/student/3?cohort_id=1`, `/admin/submissions/1`, `/admin/moderation`; also a staff link held while signed out, then sign-in as student | Fallback only; no staff screen, no web button | Pass | s17†, s18†, s19† |
 | DL-13 | As student: `/cohort/1/schedule` and `/admin/cohorts/1/schedule` | Fallback, or a page with Back | **Fail: dead end (B1)** | [s12](ios-simulator-acceptance-2026-11-18/s12-cohort-schedule.png), [s16](ios-simulator-acceptance-2026-11-18/s16-admin-cohort-schedule-as-student.png) |
-| DL-14 | Unknown `csglearn://totally/unknown/path`, unsupported `csglearn://profile` | Clear fallback with working Back | Pass, with a layout bug (B2) | [s20](ios-simulator-acceptance-2026-11-18/s20-unknown-path.png), [s21](ios-simulator-acceptance-2026-11-18/s21-profile-unsupported.png) |
-| DL-15 | `https://learn.codeschoolofguam.com/lessons/2?cohort_id=1` | Opens in the app (universal link) | Pass on simulator: iOS fetched the live AASA and routed into the app | [s22](ios-simulator-acceptance-2026-11-18/s22-universal-link-https-lesson.png) |
-| DL-16 | `https://learn.codeschoolofguam.com/privacy` | Stays in Safari | Pass | [s23](ios-simulator-acceptance-2026-11-18/s23-public-privacy-stays-in-safari.png) |
-| DL-17 | Instructor: `/staff/student/4?cohort_id=1`, `/admin/cohorts/1/students/4`, `…/students/4/overview` | Student health for QA Behind | Pass | [t02](ios-simulator-acceptance-2026-11-18/t02-staff-student-cohort-query.png), [t03](ios-simulator-acceptance-2026-11-18/t03-admin-students-alias.png), [t04](ios-simulator-acceptance-2026-11-18/t04-admin-students-overview-alias.png) |
-| DL-18 | Instructor: `/admin/submissions/7` and with extra keys `?cohort_id=4&student_id=4&return_to=%2Fadmin` | Quick review keeps context | Pass (see O1) | [t05](ios-simulator-acceptance-2026-11-18/t05-admin-submission.png), [t06](ios-simulator-acceptance-2026-11-18/t06-admin-submission-extra-keys.png) |
-| DL-19 | Instructor: `/admin/help-requests/1`, `/admin/cohorts/1`, `/staff/curriculum/1`, `/admin/content`, `/admin/cohorts/1/schedule` | Native help request, cohort, curriculum, Learn, schedule | Pass | [t07](ios-simulator-acceptance-2026-11-18/t07-help-request.png) to [t12](ios-simulator-acceptance-2026-11-18/t12-staff-cohort-schedule.png) |
+| DL-14 | Unknown `csglearn://totally/unknown/path`, unsupported `csglearn://profile` | Clear fallback with working Back | Pass, with a layout bug (B2) | [s20](ios-simulator-acceptance-2026-11-18/s20-unknown-path.png), s21† |
+| DL-15 | `https://learn.codeschoolofguam.com/lessons/2?cohort_id=1` | Opens in the app (universal link) | Pass on simulator: iOS fetched the live AASA and routed into the app | s22† |
+| DL-16 | `https://learn.codeschoolofguam.com/privacy` | Stays in Safari | Pass | s23† |
+| DL-17 | Instructor: `/staff/student/4?cohort_id=1`, `/admin/cohorts/1/students/4`, `…/students/4/overview` | Student health for QA Behind | Pass | t02†, t03†, t04† |
+| DL-18 | Instructor: `/admin/submissions/7` and with extra keys `?cohort_id=4&student_id=4&return_to=%2Fadmin` | Quick review keeps context | Pass (see O1) | t05†, t06† |
+| DL-19 | Instructor: `/admin/help-requests/1`, `/admin/cohorts/1`, `/staff/curriculum/1`, `/admin/content`, `/admin/cohorts/1/schedule` | Native help request, cohort, curriculum, Learn, schedule | Pass | t07† to t12† |
 | DL-20 | Instructor: `/thread/1` (bare) | Guidance, not a crash | Pass (see O8) | [t11](ios-simulator-acceptance-2026-11-18/t11-thread.png) |
-| DL-21 | Instructor: `/admin/moderation` (admin-only) and `/admin/team` | No web button for Safety; "Open on the web" for Team opens the sheet | Pass | [t15](ios-simulator-acceptance-2026-11-18/t15-instructor-moderation.png), [t16](ios-simulator-acceptance-2026-11-18/t16-instructor-admin-team.png) |
-| DL-22 | Admin: `/admin/moderation` | "Open on the web" opens Safety | Pass | [a01](ios-simulator-acceptance-2026-11-18/a01-admin-moderation.png) |
+| DL-21 | Instructor: `/admin/moderation` (admin-only) and `/admin/team` | No web button for Safety; "Open on the web" for Team opens the sheet | Pass | t15†, t16† |
+| DL-22 | Admin: `/admin/moderation` | "Open on the web" opens Safety | Pass | a01† |
 | DL-23 | Student link into second cohort `csglearn://lessons/19?cohort_id=2` | W10 asks that context not switch | **Needs decision (O1)**: the app switches the selected cohort on purpose | [c01](ios-simulator-acceptance-2026-11-18/c01-second-cohort-lesson.png), [c02](ios-simulator-acceptance-2026-11-18/c02-today-after-second-cohort-link.png) |
 
 ### 2. Web handoff (L-4.11)
 
 | ID | Check | Result | Evidence |
 |---|---|---|---|
-| WH-01 | Instructor, student health → "Open student page on the web": authenticated sheet opens as the same person | Pass (local web via the QA handoff stub) | [h02](ios-simulator-acceptance-2026-11-18/h02-handoff-sheet-open.png) |
-| WH-02 | With the sheet open, resolve QA Behind's help request through the API; tap Done | Pass: the "Why flagged: Needs help" card disappeared immediately, no pull-to-refresh | [h01](ios-simulator-acceptance-2026-11-18/h01-student-health-before.png) → [h03](ios-simulator-acceptance-2026-11-18/h03-student-health-after-close.png) |
+| WH-01 | Instructor, student health → "Open student page on the web": authenticated sheet opens as the same person | Pass (local web via the QA handoff stub) | h02† |
+| WH-02 | With the sheet open, resolve QA Behind's help request through the API; tap Done | Pass: the "Why flagged: Needs help" card disappeared immediately, no pull-to-refresh | h01† → h03† |
 | WH-03 | Handoff failure shows retry | Not run: the stub always succeeds and I did not add failure injection | — |
-| WH-04 | Instructor `csglearn://meetings?cohort_id=1&booking_id=1&week=2` | Pass: web Meetings opened automatically in one tap; native label reads "Your meeting update · Week 2", no booking ID. The fixture had no real booking, so the exact booking page was not checked | [t13](ios-simulator-acceptance-2026-11-18/t13-staff-meeting-one-tap-sheet.png), [t14](ios-simulator-acceptance-2026-11-18/t14-staff-meeting-after-sheet.png) |
+| WH-04 | Instructor `csglearn://meetings?cohort_id=1&booking_id=1&week=2` | Pass: web Meetings opened automatically in one tap; native label reads "Your meeting update · Week 2", no booking ID. The fixture had no real booking, so the exact booking page was not checked | t13†, [t14](ios-simulator-acceptance-2026-11-18/t14-staff-meeting-after-sheet.png) |
 
 ### 3. Notification routing
 
 | ID | Check | Result | Evidence |
 |---|---|---|---|
-| NR-01 | Student inbox: tap "redo requested" (`/lessons/1?cohort_id=1`) and "new DM" (`/messages/dm/1`) | Pass: lesson opens at the block, DM opens, Back returns to Notifications | [n01](ios-simulator-acceptance-2026-11-18/n01-student-inbox.png), [n03](ios-simulator-acceptance-2026-11-18/n03-student-inbox-redo-to-lesson.png), [n04](ios-simulator-acceptance-2026-11-18/n04-student-inbox-dm.png) |
+| NR-01 | Student inbox: tap "redo requested" (`/lessons/1?cohort_id=1`) and "new DM" (`/messages/dm/1`) | Pass: lesson opens at the block, DM opens, Back returns to Notifications | n01†, n03†, n04† |
 | NR-02 | Student inbox: tap a notification whose path is `/staff/student/3?cohort_id=1` | Pass: fallback, no staff screen. Back goes to Today, not the inbox (part of B2) | [n02](ios-simulator-acceptance-2026-11-18/n02-student-inbox-tap.png) |
 | NR-03 | Simulated push tap (`simctl push` with a `body.path` payload) | **Blocked**: the app never asks for notification permission on a simulator (`src/lib/push-notifications.ts:46-57`, `!Device.isDevice`), and this iOS 26.5 runtime refuses a permission grant, so no banner appears | — |
 
@@ -109,9 +109,9 @@ Staff notification paths (`/staff/student/4?cohort_id=1`, `/admin/submissions/7`
 
 | ID | Check | Result | Evidence |
 |---|---|---|---|
-| N5-01 | Persona 3 Today: personal plan card ("QA steady practice", target date, milestone, "0 of 18 required lessons done or submitted. 1 waiting for review.") | Pass. The counts come from the server and use the same fields as the web component | [j01](ios-simulator-acceptance-2026-11-18/j01-today-top.png), [j02](ios-simulator-acceptance-2026-11-18/j02-today-scroll.png) |
-| N5-02 | Persona 4 in QA Catch-up: This Week splits **Required work** from **Optional stretch** ("does not count against the required week") | Pass | [p02](ios-simulator-acceptance-2026-11-18/p02-catchup-today.png), [p05](ios-simulator-acceptance-2026-11-18/p05-catchup-today-scroll.png) |
-| N5-03 | Lesson kicker shows `VIDEO · REQUIRED` and `VIDEO · OPTIONAL`; module list shows `EXERCISE · REQUIRED` | Pass | [p07](ios-simulator-acceptance-2026-11-18/p07-required-lesson-label.png), [p09](ios-simulator-acceptance-2026-11-18/p09-optional-lesson-unlocked.png), [p08](ios-simulator-acceptance-2026-11-18/p08-module-list-labels.png) |
+| N5-01 | Persona 3 Today: personal plan card ("QA steady practice", target date, milestone, "0 of 18 required lessons done or submitted. 1 waiting for review.") | Pass. The counts come from the server and use the same fields as the web component | j01†, j02† |
+| N5-02 | Persona 4 in QA Catch-up: This Week splits **Required work** from **Optional stretch** ("does not count against the required week") | Pass | p02†, p05† |
+| N5-03 | Lesson kicker shows `VIDEO · REQUIRED` and `VIDEO · OPTIONAL`; module list shows `EXERCISE · REQUIRED` | Pass | p07†, p09†, p08† |
 
 ### 5. Staff lesson editor (#307)
 
@@ -120,23 +120,23 @@ no Edit button, which matches the editing-grants rules.
 
 | ID | Check | Stored result | Result | Evidence |
 |---|---|---|---|---|
-| ED-01 | Open canonical Markdown lesson 370, Preview, back to Edit | — | Pass | [e01](ios-simulator-acceptance-2026-11-18/e01-editor-open-md.png), [e02](ios-simulator-acceptance-2026-11-18/e02-preview-md.png) |
-| ED-02 | Change only the title, save | Body md5 `340d45ce…`, 1,486 bytes before and after | Pass | [e03](ios-simulator-acceptance-2026-11-18/e03-title-saved.png) |
-| ED-03 | Tap the end of line 2, type " Answer in full sentences.", save | `diff`: only line 2 changed; 1,486 + 26 = 1,512 bytes | Pass | [e04](ios-simulator-acceptance-2026-11-18/e04-paragraph-saved.png) |
-| ED-04 | Long body (lesson 3, 6,969 bytes): scroll, edit near the keyboard at the top and in section 19, Return + type, open Preview | Only the edited lines changed; leading `"  \n"` and trailing `"   \n\n\n"` preserved | Pass (see O5) | [e08](ios-simulator-acceptance-2026-11-18/e08-long-md-cursor-above-keyboard.png), [e17](ios-simulator-acceptance-2026-11-18/e17-repro-near-keyboard.png), [e19](ios-simulator-acceptance-2026-11-18/e19-deep-repro.png), [e11](ios-simulator-acceptance-2026-11-18/e11-long-md-preview-scrolled.png) |
-| ED-05 | Trix HTML lesson 4: opens as source, Preview renders bold, bullets, code and link; change only the title, save | Body md5 `92b4747a…`, 276 bytes before and after | Pass (see O6) | [e21](ios-simulator-acceptance-2026-11-18/e21-trix-editor-source.png), [e22](ios-simulator-acceptance-2026-11-18/e22-trix-instructions-preview.png), [e23](ios-simulator-acceptance-2026-11-18/e23-trix-title-saved.png) |
+| ED-01 | Open canonical Markdown lesson 370, Preview, back to Edit | — | Pass | e01†, e02† |
+| ED-02 | Change only the title, save | Body md5 `340d45ce…`, 1,486 bytes before and after | Pass | e03† |
+| ED-03 | Tap the end of line 2, type " Answer in full sentences.", save | `diff`: only line 2 changed; 1,486 + 26 = 1,512 bytes | Pass | e04† |
+| ED-04 | Long body (lesson 3, 6,969 bytes): scroll, edit near the keyboard at the top and in section 19, Return + type, open Preview | Only the edited lines changed; leading `"  \n"` and trailing `"   \n\n\n"` preserved | Pass (see O5) | e08†, e17†, e19†, e11† |
+| ED-05 | Trix HTML lesson 4: opens as source, Preview renders bold, bullets, code and link; change only the title, save | Body md5 `92b4747a…`, 276 bytes before and after | Pass (see O6) | [e21](ios-simulator-acceptance-2026-11-18/e21-trix-editor-source.png), e22†, e23† |
 
 ### 6. Learner journeys (persona 3, 402×874 pt)
 
 | ID | Check | Result | Evidence |
 |---|---|---|---|
-| LJ-01 | Today: next action, meeting card, plan, redo, live schedule, recording catch-up, feedback | Pass | [j01](ios-simulator-acceptance-2026-11-18/j01-today-top.png) to [j04](ios-simulator-acceptance-2026-11-18/j04-today-scroll.png) |
-| LJ-02 | Lesson view: blocks, code with Copy, Mark complete, rubric | Pass | [01](ios-simulator-acceptance-2026-11-18/01-held-link-lesson-after-signin.png) |
-| LJ-03 | Repo URL submission on lesson 2 | Pass: "Submitted · waiting for review"; submission 27 saved with the URL | [j05](ios-simulator-acceptance-2026-11-18/j05-repo-url-filled.png), [j06](ios-simulator-acceptance-2026-11-18/j06-repo-url-submitted.png) |
-| LJ-04 | Text submission on lesson 7 | Pass: submission 28 stored `def count(n) = n + 1  # synthetic answer` exactly (double space kept); "Saved on this device · not submitted" shown before submit (see O4) | [j07](ios-simulator-acceptance-2026-11-18/j07-text-typed-keyboard.png) to [j10](ios-simulator-acceptance-2026-11-18/j10-text-submitted.png) |
-| LJ-05 | Send a DM to the instructor | Pass: message 9 saved; composer stays above the keyboard | [j11](ios-simulator-acceptance-2026-11-18/j11-dm-composer-keyboard.png), [j12](ios-simulator-acceptance-2026-11-18/j12-dm-sent.png) |
-| LJ-06 | Updates: announcement sheet, Notifications tab, unread count drops after opening | Pass | [s09](ios-simulator-acceptance-2026-11-18/s09-announcement.png), [n01](ios-simulator-acceptance-2026-11-18/n01-student-inbox.png) |
-| LJ-07 | Dark mode spot check of Today | Pass | [d01](ios-simulator-acceptance-2026-11-18/d01-today-dark.png) |
+| LJ-01 | Today: next action, meeting card, plan, redo, live schedule, recording catch-up, feedback | Pass | j01† to j04† |
+| LJ-02 | Lesson view: blocks, code with Copy, Mark complete, rubric | Pass | 01† |
+| LJ-03 | Repo URL submission on lesson 2 | Pass: "Submitted · waiting for review"; submission 27 saved with the URL | j05†, j06† |
+| LJ-04 | Text submission on lesson 7 | Pass: submission 28 stored `def count(n) = n + 1  # synthetic answer` exactly (double space kept); "Saved on this device · not submitted" shown before submit (see O4) | j07† to j10† |
+| LJ-05 | Send a DM to the instructor | Pass: message 9 saved; composer stays above the keyboard | j11†, j12† |
+| LJ-06 | Updates: announcement sheet, Notifications tab, unread count drops after opening | Pass | s09†, n01† |
+| LJ-07 | Dark mode spot check of Today | Pass | d01† |
 
 No clipping, overlap or horizontal overflow showed up at this size except where noted in
 B2 and O4.
@@ -183,7 +183,7 @@ B2 and O4.
   (`selectCohortFromLink`, `src/providers/cohort-provider.tsx:225`, with a "Switched to …"
   announcement), but the notice was not visible on the lesson screen, and the W10 check
   says context should not switch. Seen for an instructor (`/admin/submissions/7?cohort_id=4`,
-  [t06b](ios-simulator-acceptance-2026-11-18/t06b-staff-today-after-cohort4-link.png)) and
+  t06b†) and
   for a learner ([c02](ios-simulator-acceptance-2026-11-18/c02-today-after-second-cohort-link.png)).
 - **O2.** A block-anchored link highlights the block with "Opened from your update" even
   when it didn't come from an update ([s04](ios-simulator-acceptance-2026-11-18/s04-lesson-block-anchor.png)).
@@ -197,7 +197,7 @@ B2 and O4.
   the view did not follow it, and the two lines typed after Return were not saved (only the
   newlines were). Two deliberate retries, one near the top of the body and one at section
   19, followed the caret and saved everything. This is most likely an automation artefact,
-  but it is worth watching on the phone ([e09](ios-simulator-acceptance-2026-11-18/e09-long-md-cursor-hidden.png)).
+  but it is worth watching on the phone (e09†).
 - **O6.** HTML/Trix bodies show raw tags under a "Markdown" label. Saving keeps them
   byte-for-byte, as documented, but the label may confuse staff.
 - **O7.** The staff Meetings screen keeps the learner heading "Book your weekly meeting."

@@ -85,6 +85,8 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const explicitId = typeof explicitValue === 'string' && /^[1-9]\d*$/.test(explicitValue) ? Number(explicitValue) : null;
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
   const [switchNoticeShownAt, setSwitchNoticeShownAt] = useState<number | null>(null);
+  // Only the latest link switch may start the notice clock; an older one can finish late.
+  const switchSequenceRef = useRef(0);
   const { api, user, enrollments } = useSession();
   const cachedEnrollmentsRef = useRef(enrollments);
   useLayoutEffect(() => { cachedEnrollmentsRef.current = enrollments; }, [enrollments]);
@@ -230,12 +232,14 @@ export function CohortProvider({ children }: PropsWithChildren) {
     const cohort = readableCohorts(cohorts, isStaff ? null : cachedEnrollmentsRef.current).find((item) => item.id === cohortId);
     if (!cohort) return;
     const notice = `Switched to ${cohort.name}`;
+    const sequence = ++switchSequenceRef.current;
     setSwitchNotice(notice);
+    setSwitchNoticeShownAt(null);
     if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibilityWithOptions(notice, { queue: true });
     // Count the visible time from when the switch lands, not from the tap, so a
     // slow destination (a lesson still loading) still shows the notice.
     try { await selectCohort(cohortId); }
-    finally { setSwitchNoticeShownAt(Date.now()); }
+    finally { if (switchSequenceRef.current === sequence) setSwitchNoticeShownAt(Date.now()); }
   }, [cohorts, loading, selectCohort, selectedCohortId, isStaff]);
 
   useEffect(() => {
