@@ -33,6 +33,37 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     end
   end
 
+  test "copy remaps learner extension targets and revision history" do
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    content = AssignedLearningContent.new(enrollment)
+    lesson = content.modules.flat_map { |mod| content.lessons_for(mod) }.first
+    @f.cohort.cohort_module_submission_windows.find_or_initialize_by(module_id: lesson.module_id,
+      week_number: SubmissionWindowStatus.week_number_for_release_day(lesson.release_day)).update!(submissions_close_at: 1.day.from_now)
+    extension = enrollment.learner_extensions.new(scope: "lesson", lesson: lesson, reason: "Travel", submissions_close_at: 1.week.from_now)
+    extension.record_change!(actor: @f.instructor)
+    result = copy!(@f.instructor)
+    expected = result.lesson_ids.fetch(lesson.id.to_s)
+    assert_equal expected, extension.reload.lesson_id
+    assert_equal expected, extension.revisions.first.fetch("lesson_id")
+    assert_equal "Travel", extension.reason
+    assert_equal 1, result.counts.fetch("learner_extensions")
+  end
+
+  test "copy counts and remaps a module-week grant and its history" do
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    mod = AssignedLearningContent.new(enrollment).modules.first
+    @f.cohort.cohort_module_submission_windows.find_or_initialize_by(module_id: mod.id, week_number: 1).update!(submissions_close_at: 1.day.from_now)
+    extension = enrollment.learner_extensions.new(scope: "module", module_id: mod.id, week_number: 1, reason: "Travel", submissions_close_at: 1.week.from_now)
+    extension.record_change!(actor: @f.instructor)
+    planned = CurriculumCopyForCohort.new(cohort: @f.cohort, user: @f.instructor, source_curriculum_id: @f.cohort.curriculum_id).preview
+    result = copy!(@f.instructor)
+    expected = @f.cohort.reload.curriculum.modules.order(:position, :id).first.id
+    assert_equal expected, extension.reload.module_id
+    assert_equal expected, extension.revisions.first.fetch("module_id")
+    assert_equal 1, result.counts.fetch("learner_extensions")
+    assert_equal 1, planned.fetch(:counts).fetch("learner_extensions")
+  end
+
   test "copy preserves and remaps the paused library" do
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     enrollment.update!(status: :paused)

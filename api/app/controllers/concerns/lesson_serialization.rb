@@ -40,7 +40,8 @@ module LessonSerialization
         requires_github = mod_gh["requires_github"] || false
         json[:requires_github] = requires_github
         json[:repository_name] = mod_gh["repository_name"].presence || cohort.repository_name
-        json[:submission_window] = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
+        json[:show_personal_deadline] = true if cohort.personal_pace? || enrollment.learner_extensions.any?(&:effective?)
+        json[:submission_window] = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson, enrollment: enrollment)
       end
     end
 

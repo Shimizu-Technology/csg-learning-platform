@@ -32,6 +32,11 @@ module Api
         with_learning_write_guard(@learning_write_enrollment) do
           return unless recheck_content_block_write!(content_block, @learning_write_enrollment)
 
+          if params[:status].to_s == "completed" && content_block.student_work_block?
+            authorize_submission_window_open!(content_block, enrollment: @learning_write_enrollment, fresh: true)
+            return if performed?
+          end
+
           progress = Progress.find_or_initialize_by(
             enrollment: @learning_write_enrollment,
             content_block: content_block
@@ -105,6 +110,7 @@ module Api
 
         user = User.find(params[:user_id])
         enrollments = user.enrollments.includes(
+          :learner_extensions,
           :module_assignments,
           :lesson_assignments,
           cohort: [
@@ -186,7 +192,7 @@ module Api
                 required: entry ? entry.required : enrollment.lesson_required?(lesson),
                 review_status: entry ? entry.review_status : LessonReviewStatus.for(lesson, submissions_by_block),
                 learner_status: entry&.status,
-                submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson),
+                submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson, enrollment: enrollment),
                 assigned: assigned,
                 available: entry&.available || false,
                 unlock_date: lesson.assigned_unlock_date(cohort, module_assignment, lesson_assignment),
@@ -267,7 +273,7 @@ module Api
             access_expires_at: enrollment.access_expires_at,
             support_expires_at: enrollment.support_expires_at,
             first_opened_at: enrollment.first_opened_at,
-            module_assignments: enrollment.module_assignments.map do |assignment|
+            module_assignments: enrollment.module_assignments.sort_by { |item| [ modules_by_id[item.module_id]&.position || 0, item.id ] }.map do |assignment|
               # The curriculum's modules are loaded with their lessons, which
               # availability and unlock dates read; reuse them per assignment.
               loaded_module = modules_by_id[assignment.module_id]

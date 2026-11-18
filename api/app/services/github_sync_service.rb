@@ -43,7 +43,7 @@ class GithubSyncService
       .select { |block| block.github_sync_submission?(requires_github: true) }
 
     closed_blocks, open_blocks = exercise_blocks.partition { |block|
-      SubmissionWindowStatus.closed_for_lesson?(cohort: cohort, lesson: block.lesson)
+      SubmissionWindowStatus.closed_for_lesson?(cohort: cohort, lesson: block.lesson, enrollment: enrollment)
     }
     exercise_blocks = open_blocks
 
@@ -87,13 +87,26 @@ class GithubSyncService
     end
 
     enrollment.with_learning_write_guard(request_started_at: request_started_at) do
+      enrollment.association(:learner_extensions).reset
+      enrollment.association(:learning_plan).reset
+      enrollment.association(:cohort).reset
+      cohort = enrollment.cohort
+      cohort.cohort_module_submission_windows.reload
+      windows = SubmissionWindowContext.new(enrollment)
       # Lock every block this sync writes to, in id order, before any
       # submission or progress row: a lesson save locks blocks in the same
       # order, so the two can't deadlock. A block deleted since the lookup
       # above is skipped.
       locked_ids = ContentBlock.lock_for_learner_writes!(matches.map { |_file, block| block.id }).to_set
+      current_blocks = ContentBlock.where(id: locked_ids).includes(lesson: :curriculum_module).index_by(&:id)
       matches.each do |file, block|
-        next unless locked_ids.include?(block.id)
+        block = current_blocks[block.id]
+        next unless block
+
+        if SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: block.lesson, enrollment: enrollment, context: windows)[:submissions_closed]
+          errors << "Skipped closed Week #{SubmissionWindowStatus.week_number_for_release_day(block.lesson.release_day)} GitHub-sync submissions"
+          next
+        end
 
         file_text = file["text"]
 

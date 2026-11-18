@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -680,6 +680,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_050000) do
     t.index ["content_block_id"], name: "index_knowledge_checks_on_content_block_id", unique: true
     t.index ["learning_objective_id"], name: "index_knowledge_checks_on_learning_objective_id"
     t.check_constraint "correct_option >= 0", name: "knowledge_checks_correct_option_nonnegative"
+  end
+
+  create_table "learner_extensions", force: :cascade do |t|
+    t.bigint "enrollment_id", null: false
+    t.string "scope", null: false
+    t.bigint "lesson_id"
+    t.bigint "module_id"
+    t.integer "week_number"
+    t.datetime "submissions_close_at", null: false
+    t.text "reason", null: false
+    t.bigint "granted_by_id", null: false
+    t.datetime "granted_at", null: false
+    t.datetime "removed_at"
+    t.jsonb "revisions", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enrollment_id"], name: "index_learner_extensions_on_enrollment_id"
+    t.index ["granted_by_id"], name: "index_learner_extensions_on_granted_by_id"
+    t.index ["lesson_id"], name: "index_learner_extensions_on_lesson_id"
+    t.check_constraint "length(TRIM(BOTH FROM reason)) > 0", name: "learner_extensions_reason_required"
+    t.check_constraint "scope::text = 'final'::text AND lesson_id IS NULL AND module_id IS NULL AND week_number IS NULL OR scope::text = 'lesson'::text AND module_id IS NULL AND week_number IS NULL OR scope::text = 'module'::text AND lesson_id IS NULL AND module_id IS NOT NULL AND week_number IS NOT NULL AND week_number > 0", name: "learner_extensions_scope_valid"
   end
 
   create_table "learning_objectives", force: :cascade do |t|
@@ -1519,6 +1540,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_050000) do
   add_foreign_key "knowledge_check_attempts", "users"
   add_foreign_key "knowledge_checks", "content_blocks"
   add_foreign_key "knowledge_checks", "learning_objectives"
+  add_foreign_key "learner_extensions", "enrollments"
+  add_foreign_key "learner_extensions", "lessons", on_delete: :nullify
+  add_foreign_key "learner_extensions", "modules"
+  add_foreign_key "learner_extensions", "users", column: "granted_by_id"
   add_foreign_key "learning_objectives", "curricula", column: "curriculum_id"
   add_foreign_key "learning_plan_revisions", "learning_plans"
   add_foreign_key "learning_plan_revisions", "users", column: "author_id"

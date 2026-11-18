@@ -6,7 +6,7 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
 import { takeDashboardRequest } from '../../lib/dashboardRequest'
 import { brand, SUPPORT_EMAIL } from '../../lib/brand'
-import { formatHeaderDate, formatShortDate, formatTime } from '../../lib/format'
+import { formatHeaderDate, formatShortDate, formatShortDateTime, formatTime } from '../../lib/format'
 import { shortAgo } from '../../lib/recordRelated'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { conversationPath } from '../../lib/routes'
@@ -273,6 +273,7 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
         {behindLine ? <Badge tone="warning" icon={<Clock className="h-3.5 w-3.5" aria-hidden="true" />}>{behindLine}</Badge> : <p className="text-xs font-semibold text-ink-muted">Next up</p>}
         <h2 id="today-hero" className="mt-2 text-xl font-bold leading-7 text-ink [overflow-wrap:anywhere] sm:text-2xl">{next.title}</h2>
         <p className="mt-1 text-sm text-ink-secondary">{lessonPlace(next)}{progress && <> · {progress}</>}</p>
+        {next.submission_window?.submissions_close_at && <p className="mt-2 text-sm text-ink-secondary">Submission deadline: {formatShortDateTime(next.submission_window.submissions_close_at, undefined, 'Pacific/Guam')} (Guam)</p>}
         {behindLine && <p className="mt-2 text-sm leading-6 text-ink-secondary">{next.status === 'redo' ? 'Start with your redo, then' : 'Start here, then'} keep going with the required lessons in Learn.{today.can_ask_for_plan && contactName ? ` ${contactName} can agree a catch-up plan with you.` : ''}</p>}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <LinkButton to={paths.lesson(next.id)} size="lg">Continue<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>

@@ -116,7 +116,7 @@ module Api
         # An older redo must disappear once the student has submitted newer work.
         action_items = progress.redo_submissions.first(5).map { |s|
           lesson = s.content_block.lesson
-          submission_window = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
+          submission_window = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson, enrollment: enrollment)
           {
             type: "redo",
             submission_id: s.id,

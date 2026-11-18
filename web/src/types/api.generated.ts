@@ -5533,6 +5533,196 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/enrollments/{enrollment_id}/extensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Get learner extensions (staff cohort scope) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Extension history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearnerExtensionsResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Post learner extensions (staff cohort scope) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LearnerExtensionInput"];
+                };
+            };
+            responses: {
+                /** @description Extension history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearnerExtensionsResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid extension */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/extensions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete learner extensions (staff cohort scope) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Extension history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearnerExtensionsResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid extension */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Patch learner extensions (staff cohort scope) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LearnerExtensionUpdateInput"];
+                };
+            };
+            responses: {
+                /** @description Extension history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearnerExtensionsResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid extension */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5748,6 +5938,8 @@ export interface components {
                 role: "admin" | "instructor";
                 avatar_url: string | null;
             } | null;
+            /** @description Included only for personal-pace cohorts or learners with an active extension; permits the personal deadline UI without changing Off-cohort lesson views. */
+            show_personal_deadline?: boolean;
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -8083,6 +8275,9 @@ export interface components {
             course_delivery: "program" | "guided" | "self_paced" | null;
             /** @description The lesson's program week; null for a self-paced cohort. */
             week_number: number | null;
+            /** @description Active grants applicable to this submission’s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant. */
+            extensions?: components["schemas"]["LearnerExtension"][];
+            submission_window?: components["schemas"]["SubmissionWindowStatus"];
         };
         /** @description Status chip counts inside the module, student and lesson filters. */
         GradingQueueCounts: {
@@ -9353,8 +9548,9 @@ export interface components {
             todo: boolean;
             /** @description The block a Redo was requested on, for a #block- anchor. */
             redo_block_id: number | null;
-            /** @description Included only when the cohort has learner-chosen pace on: the lesson's milestone date in the learner's plan, null when it isn't in one. */
+            /** @description Soft personal-pace milestone date, or effective firm submission date when a finite learner window differs from the cohort window. Extensions only add time; unrestricted windows remain open. */
             due_on?: string | null;
+            submission_window?: components["schemas"]["SubmissionWindowStatus"];
         };
         CourseOutlineNextLesson: {
             id: number;
@@ -9604,6 +9800,7 @@ export interface components {
                 position: number;
                 module_lesson_count: number;
                 status: components["schemas"]["LearnerLessonStatus"];
+                submission_window?: components["schemas"]["SubmissionWindowStatus"];
             } | null;
             this_week: {
                 total: number;
@@ -10160,6 +10357,58 @@ export interface components {
             /** @description Staff: set (or clear with null) this learner's personal start. */
             starts_on?: string | null;
         };
+        LearnerExtensionInput: {
+            /** @enum {string} */
+            scope: "final" | "lesson" | "module";
+            lesson_id?: number | null;
+            module_id?: number | null;
+            week_number?: number | null;
+            /**
+             * Format: date-time
+             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times.
+             */
+            submissions_close_at: string;
+            reason: string;
+        };
+        LearnerExtension: {
+            /** @enum {string} */
+            scope: "final" | "lesson" | "module";
+            lesson_id: number | null;
+            module_id: number | null;
+            week_number: number | null;
+            /** Format: date-time */
+            submissions_close_at: string;
+            reason: string;
+            id: number;
+            granted_by_id: number;
+            /** Format: date-time */
+            granted_at: string;
+            /** Format: date-time */
+            removed_at: string | null;
+            revisions: {
+                [key: string]: unknown;
+            }[];
+            granted_by_name: string;
+        } & WithRequired<components["schemas"]["LearnerExtensionInput"], "scope" | "lesson_id" | "module_id" | "week_number" | "submissions_close_at" | "reason">;
+        LearnerExtensionsResponse: {
+            extensions: components["schemas"]["LearnerExtension"][];
+            /** @description Whether this cohort supports personal pace and final-date grants. */
+            personal_pace: boolean;
+        };
+        /** @description Change an active grant. Reason is required; omitted cutoff and target fields retain their values. Grant targets are immutable. Removed grants return 404. */
+        LearnerExtensionUpdateInput: {
+            /** @enum {string} */
+            scope?: "final" | "lesson" | "module";
+            lesson_id?: number | null;
+            module_id?: number | null;
+            week_number?: number | null;
+            /**
+             * Format: date-time
+             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times.
+             */
+            submissions_close_at?: string;
+            reason: string;
+        };
     };
     responses: {
         /** @description ApiError */
@@ -10484,3 +10733,6 @@ export interface operations {
         };
     };
 }
+type WithRequired<T, K extends keyof T> = T & {
+    [P in K]-?: T[P];
+};

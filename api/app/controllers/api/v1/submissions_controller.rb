@@ -84,6 +84,8 @@ module Api
 
         with_learning_write_guard(@learning_write_enrollment) do
           return unless recheck_content_block_write!(content_block, @learning_write_enrollment)
+          authorize_submission_window_open!(content_block, enrollment: @learning_write_enrollment, fresh: true)
+          return if performed?
 
           existing = submission.latest_attempt
           submission.num_submissions = existing.num_submissions + 1 if existing
@@ -126,6 +128,8 @@ module Api
 
         with_learning_write_guard(@submission.enrollment) do
           return unless recheck_content_block_write!(@submission.content_block, @learning_write_enrollment)
+          authorize_submission_window_open!(@submission.content_block, enrollment: @learning_write_enrollment, fresh: true)
+          return if performed?
 
           @submission.lock!
           unless current_user.staff? || @submission.grade.nil?

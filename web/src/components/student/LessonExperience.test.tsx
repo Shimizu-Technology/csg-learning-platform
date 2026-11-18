@@ -237,3 +237,14 @@ it.each([
     expect(page.host.textContent).not.toContain('Back to Learn')
   } finally { await page.close() }
 })
+
+it('keeps Off-cohort lesson deadline UI unchanged and formats opted-in deadlines in Guam without seconds', async () => {
+  const window = { week_number: 1, submissions_close_at: '2030-01-15T00:00:00Z', submissions_closed: false, status: 'scheduled' as const }
+  const off = await render({ ...lesson, submission_window: window })
+  expect(off.host.textContent).not.toContain('Submission deadline:')
+  await off.close()
+  const personal = await render({ ...lesson, submission_window: window, show_personal_deadline: true })
+  expect(personal.host.textContent).toContain('Jan 15, 2030, 10:00 AM ChST')
+  expect(personal.host.textContent).not.toContain('10:00:00')
+  await personal.close()
+})

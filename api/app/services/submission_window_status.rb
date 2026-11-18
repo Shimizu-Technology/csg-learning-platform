@@ -1,8 +1,12 @@
 class SubmissionWindowStatus
-  def self.for_lesson(cohort:, lesson:, at: Time.current)
+  def self.for_lesson(cohort:, lesson:, enrollment: nil, context: nil, at: Time.current)
     week_number = week_number_for_release_day(lesson.release_day)
-    window = cohort.submission_window_for(module_id: lesson.module_id, week_number: week_number)
-    build_status(week_number: week_number, window: window, at: at)
+    close_at = if enrollment
+      (context || SubmissionWindowContext.new(enrollment)).close_at(lesson)
+    else
+      cohort.submission_window_for(module_id: lesson.module_id, week_number: week_number)&.submissions_close_at
+    end
+    build_status(week_number: week_number, close_at: close_at, at: at)
   end
 
   def self.for_week(cohort:, curriculum_module:, week_number:, module_start_date: nil, at: Time.current)
@@ -18,16 +22,15 @@ class SubmissionWindowStatus
     )
   end
 
-  def self.closed_for_lesson?(cohort:, lesson:, at: Time.current)
-    for_lesson(cohort: cohort, lesson: lesson, at: at)[:submissions_closed]
+  def self.closed_for_lesson?(cohort:, lesson:, enrollment: nil, at: Time.current)
+    for_lesson(cohort: cohort, lesson: lesson, enrollment: enrollment, at: at)[:submissions_closed]
   end
 
   def self.week_number_for_release_day(release_day)
     (release_day.to_i / 7) + 1
   end
 
-  def self.build_status(week_number:, window: nil, at: Time.current)
-    close_at = window&.submissions_close_at
+  def self.build_status(week_number:, window: nil, close_at: window&.submissions_close_at, at: Time.current)
     closed = close_at.present? && close_at <= at
     status = if close_at.blank?
       "open"

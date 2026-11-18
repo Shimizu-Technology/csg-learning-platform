@@ -864,6 +864,12 @@ export const api = {
     fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { cache: 'no-store' }),
   saveLearningPlan: (enrollmentId: number, data: import('../types/api').LearningPlanInput) =>
     fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { method: 'PUT', body: JSON.stringify({ learning_plan: data }) }),
+  getLearnerExtensions: (enrollmentId: number) =>
+    fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions`, { cache: 'no-store' }),
+  saveLearnerExtension: (enrollmentId: number, data: import('../types/api').LearnerExtensionInput, id?: number) =>
+    fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions${id ? `/${id}` : ''}`, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(data) }),
+  removeLearnerExtension: (enrollmentId: number, id: number, reason: string) =>
+    fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
   getPersonalPace: (enrollmentId: number) =>
     fetchApi<import('../types/api').PersonalPaceResponse>(`/api/v1/enrollments/${enrollmentId}/pace`, { cache: 'no-store' }),
   savePersonalPace: (enrollmentId: number, data: import('../types/api').PersonalPaceUpdateRequest) =>

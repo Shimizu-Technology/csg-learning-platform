@@ -4546,6 +4546,158 @@
           }
         }
       }
+    },
+    "/api/v1/enrollments/{enrollment_id}/extensions": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "post": {
+        "summary": "Post learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Invalid extension"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LearnerExtensionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/extensions/{id}": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Patch learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Invalid extension"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LearnerExtensionUpdateInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Invalid extension"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5430,6 +5582,10 @@
               "avatar_url"
             ],
             "additionalProperties": false
+          },
+          "show_personal_deadline": {
+            "type": "boolean",
+            "description": "Included only for personal-pace cohorts or learners with an active extension; permits the personal deadline UI without changing Off-cohort lesson views."
           }
         },
         "required": [
@@ -16465,6 +16621,16 @@
               "null"
             ],
             "description": "The lesson's program week; null for a self-paced cohort."
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearnerExtension"
+            },
+            "description": "Active grants applicable to this submission\u2019s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
           }
         },
         "additionalProperties": false,
@@ -22468,7 +22634,10 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when the cohort has learner-chosen pace on: the lesson's milestone date in the learner's plan, null when it isn't in one."
+            "description": "Soft personal-pace milestone date, or effective firm submission date when a finite learner window differs from the cohort window. Extensions only add time; unrestricted windows remain open."
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
           }
         },
         "required": [
@@ -23681,6 +23850,9 @@
                   },
                   "status": {
                     "$ref": "#/components/schemas/LearnerLessonStatus"
+                  },
+                  "submission_window": {
+                    "$ref": "#/components/schemas/SubmissionWindowStatus"
                   }
                 },
                 "required": [
@@ -26120,6 +26292,199 @@
           }
         },
         "additionalProperties": false
+      },
+      "LearnerExtensionInput": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "final",
+              "lesson",
+              "module"
+            ]
+          },
+          "lesson_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "week_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "submissions_close_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "scope",
+          "submissions_close_at",
+          "reason"
+        ]
+      },
+      "LearnerExtension": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "final",
+              "lesson",
+              "module"
+            ]
+          },
+          "lesson_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "week_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "submissions_close_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "type": "integer"
+          },
+          "granted_by_id": {
+            "type": "integer"
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "removed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "granted_by_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "lesson_id",
+          "module_id",
+          "week_number",
+          "submissions_close_at",
+          "reason",
+          "id",
+          "granted_by_id",
+          "granted_at",
+          "removed_at",
+          "revisions",
+          "granted_by_name"
+        ],
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LearnerExtensionInput"
+          }
+        ]
+      },
+      "LearnerExtensionsResponse": {
+        "type": "object",
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearnerExtension"
+            }
+          },
+          "personal_pace": {
+            "type": "boolean",
+            "description": "Whether this cohort supports personal pace and final-date grants."
+          }
+        },
+        "required": [
+          "extensions",
+          "personal_pace"
+        ]
+      },
+      "LearnerExtensionUpdateInput": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "final",
+              "lesson",
+              "module"
+            ]
+          },
+          "lesson_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "week_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "submissions_close_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "description": "Change an active grant. Reason is required; omitted cutoff and target fields retain their values. Grant targets are immutable. Removed grants return 404."
       }
     },
     "responses": {

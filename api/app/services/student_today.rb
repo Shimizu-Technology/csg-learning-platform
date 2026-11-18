@@ -130,7 +130,11 @@ class StudentToday
       position: siblings.index(lesson).to_i + 1,
       module_lesson_count: siblings.size,
       status: @progress.lesson_progress(lesson).status
-    }
+    }.tap do |json|
+      window = @progress.lesson_progress(lesson).submission_window
+      original = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson)
+      json[:submission_window] = window if window != original
+    end
   end
 
   def pace_json

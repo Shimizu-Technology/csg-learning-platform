@@ -70,3 +70,16 @@ it('tells staff when a pace runs past its weeks because lessons open later', asy
   await act(async () => root.render(<StudentPacePanel enrollmentId={7} onSaved={vi.fn()} />))
   expect(host.querySelector('[data-pace-adjusted]')?.textContent).toContain('Adjusted past 6 weeks: some lessons open later')
 })
+
+it('refreshes deadline metadata after an extension without discarding unsaved pace and start choices', async () => {
+  const onSaved = vi.fn()
+  api.getPersonalPace.mockResolvedValue({ data: { personal_pace: pace } })
+  await act(async () => root.render(<StudentPacePanel enrollmentId={7} onSaved={onSaved} outsideChange={0} />))
+  await act(async () => { setValue(host.querySelector('select')!, '12'); setValue(host.querySelector('input[type="date"]')!, '2026-12-01') })
+  api.getPersonalPace.mockResolvedValue({ data: { personal_pace: { ...pace, ends_on: '2027-01-31' } } })
+  await act(async () => root.render(<StudentPacePanel enrollmentId={7} onSaved={onSaved} outsideChange={1} />))
+  expect(host.textContent).toContain('Jan 31, 2027')
+  expect(host.querySelector('select')!.value).toBe('12')
+  expect(host.querySelector<HTMLInputElement>('input[type="date"]')!.value).toBe('2026-12-01')
+  expect(host.textContent).toContain('Your unsaved choices are kept')
+})

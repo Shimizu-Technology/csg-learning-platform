@@ -86,8 +86,8 @@ class LearnerPace
   # learning_plans switch: keeping a stored plan's dates on the learner's start
   # is bookkeeping, so the plan is right when plans are switched back on.
   # Call inside the enrollment's lock.
-  def regenerate!(actor:)
-    return nil unless @cohort.personal_pace? && @enrollment.active?
+  def regenerate!(actor:, reconcile_paused: false)
+    return nil unless @cohort.personal_pace? && (@enrollment.active? || (reconcile_paused && @enrollment.paused?))
 
     plan = LearningPlan.find_by(enrollment_id: @enrollment.id)
     return nil unless plan&.active? && plan.learner_pace? && plan.pace_weeks
@@ -121,7 +121,7 @@ class LearnerPace
       plan_source: plan&.source,
       starts_on: start,
       start_set_by_staff: @enrollment.starts_on.present?,
-      ends_on: plan&.target_date,
+      ends_on: effective_final_date(plan, progress),
       adjusted_for: chosen ? adjusted_for(plan, progress, start) : nil,
       choices: can_change?(plan, chosen, changes_left) ? choices(plan, progress, start) : [],
       current_week: chosen && start && progress.today >= start ? ((progress.today - start).to_i / 7) + 1 : nil,
@@ -180,11 +180,17 @@ class LearnerPace
   end
 
   # The last required project lesson, finished or not, due on the plan's firm date.
+  def effective_final_date(plan, progress)
+    lesson = self.class.final_project_lesson(progress)
+    close_at = lesson && SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, enrollment: @enrollment)[:submissions_close_at]
+    close_at ? close_at.in_time_zone("Pacific/Guam").to_date : plan&.target_date
+  end
+
   def final_project(plan, progress)
     return nil unless plan&.learner_pace? && plan.target_date
 
     lesson = self.class.final_project_lesson(progress)
-    lesson && { lesson_id: lesson.id, title: lesson.title, due_on: plan.target_date, status: progress.lesson_progress(lesson).status }
+    lesson && { lesson_id: lesson.id, title: lesson.title, due_on: effective_final_date(plan, progress), status: progress.lesson_progress(lesson).status }
   end
 
   # Why a chosen pace runs past the weeks chosen: some planned lessons open
@@ -249,6 +255,19 @@ class LearnerPace
     end
     milestones = kept + weekly
     milestones << { "title" => "Final project", "due_on" => target.iso8601, "lesson_ids" => [ final.id ] } if schedule_final
+
+    extension = @enrollment.learner_extensions.select(&:effective?).select { |item| item.scope == "final" }.max_by(&:submissions_close_at)
+    if extension
+      extended_target = extension.submissions_close_at.in_time_zone("Pacific/Guam").to_date
+      shift = (extended_target - target).to_i
+      if shift.positive?
+        milestones = milestones.map do |milestone|
+          date = Date.iso8601(milestone.fetch("due_on"))
+          date >= today ? milestone.merge("due_on" => (date + shift).iso8601) : milestone
+        end
+        target = extended_target
+      end
+    end
 
     {
       active: true,
