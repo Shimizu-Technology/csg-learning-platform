@@ -78,7 +78,7 @@ it('says what the student sees while staff edit, with and without a saved plan',
   expect(container.textContent).toContain('Until then they see the regular curriculum')
   await click('Cancel')
 
-  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
+  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'staff', pace_weeks: null, pace_changes_count: 0, lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
   getPlan.mockResolvedValue({ data: personal })
   await act(async () => root.unmount()); root = createRoot(container)
   await mount(); await click('Edit personal plan')
@@ -87,14 +87,14 @@ it('says what the student sees while staff edit, with and without a saved plan',
 })
 
 it('restores regular curriculum after confirmation and includes the current version', async () => {
-  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
+  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'staff', pace_weeks: null, pace_changes_count: 0, lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
   getPlan.mockResolvedValue({ data: personal }); savePlan.mockResolvedValue({ data: regular })
   await mount(); await click('Return to regular curriculum'); expect(savePlan).not.toHaveBeenCalled(); await click('Restore regular curriculum')
   expect(savePlan).toHaveBeenCalledWith(8, expect.objectContaining({ active: false, lock_version: 3 }))
 })
 
 it('starts editing a restored plan clean and protects subsequent edits', async () => {
-  getPlan.mockResolvedValue({ data: { ...regular, learning_plan: { id: 4, active: false, title: 'Restored plan', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 1, updated_at: '2026-10-24T10:00:00Z' } } })
+  getPlan.mockResolvedValue({ data: { ...regular, learning_plan: { id: 4, active: false, title: 'Restored plan', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'staff' as const, pace_weeks: null, pace_changes_count: 0, lock_version: 1, updated_at: '2026-10-24T10:00:00Z' } } })
   await mount(); await click('Customize plan')
   let event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(false)
   expect(container.querySelector('[data-testid="plan-save-bar"]')?.textContent).toContain('No changes yet')

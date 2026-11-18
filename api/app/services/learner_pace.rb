@@ -90,6 +90,7 @@ class LearnerPace
     revision = plan && plan.revisions.order(created_at: :desc, id: :desc).includes(:author).first
     changes_left = chosen ? [ MAX_LEARNER_CHANGES - plan.pace_changes_count, 0 ].max : MAX_LEARNER_CHANGES
     {
+      enrollment_id: @enrollment.id,
       available: available?,
       options: options,
       weeks: chosen ? plan.pace_weeks : nil,

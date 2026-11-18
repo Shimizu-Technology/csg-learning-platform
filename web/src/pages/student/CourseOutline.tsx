@@ -180,9 +180,10 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
   const context: ReactNode[] = library
     ? ['Workshops and new material for graduates. Watch anything, in any order.']
     : [
-        selfPaced ? 'Self-paced' : outline.cohort.name,
+        outline.personal_pace ? paceLabel(outline.personal_pace) : selfPaced ? 'Self-paced' : outline.cohort.name,
         outline.counts && <span key="counts" className="tabular-nums">{outline.counts.completed_lessons} of {outline.counts.total_lessons} lessons</span>,
         outline.course_week && <span key="week" className="tabular-nums">Week {outline.course_week.current} of {outline.course_week.total}</span>,
+        outline.personal_pace?.ends_on && <span key="ends" className="tabular-nums">Final project due {formatShortDate(outline.personal_pace.ends_on, '', { withYear: false, weekday: true })}</span>,
       ].filter(Boolean)
 
   return (
@@ -306,7 +307,7 @@ function LessonRows({ group, outline, lessonPath, linkState }: { group: CourseOu
         const kind = KINDS[lesson.kind]
         const KindIcon = kind.icon
         const current = outline.next_lesson?.id === lesson.id
-        const meta = [kind.label, !library && statusText(lesson), !lesson.required && 'Optional', current && 'Next up'].filter(Boolean).join(' · ')
+        const meta = [kind.label, !library && statusText(lesson), dueText(lesson), !lesson.required && 'Optional', current && 'Next up'].filter(Boolean).join(' · ')
         const body = (
           <>
             {selfPaced && <span className="w-7 shrink-0 text-right text-xs font-bold tabular-nums text-ink-muted" aria-hidden="true">{lesson.number}</span>}
@@ -336,6 +337,18 @@ function LessonRows({ group, outline, lessonPath, linkState }: { group: CourseOu
       })}
     </ul>
   )
+}
+
+/** "Your pace: 4 weeks from Nov 18" for a course with learner-chosen pace (W9.1). */
+function paceLabel(pace: NonNullable<Outline['personal_pace']>) {
+  const from = pace.starts_on ? ` from ${formatShortDate(pace.starts_on, '', { withYear: false })}` : ''
+  return `${pace.weeks ? `Your pace: ${pace.weeks} weeks` : 'Your own pace'}${from}`
+}
+
+/** The lesson's soft milestone date in the learner's plan, until it's handed in. */
+function dueText(lesson: CourseOutlineLesson) {
+  if (!lesson.due_on || lesson.status === 'done' || lesson.status === 'awaiting_review') return null
+  return `Due ${formatShortDate(lesson.due_on, '', { withYear: false, weekday: true })}`
 }
 
 function statusText(lesson: CourseOutlineLesson) {

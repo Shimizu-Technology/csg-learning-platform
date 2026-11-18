@@ -14,7 +14,8 @@ import { StatusBadge } from '../shared/StatusBadge'
 import { LessonPicker } from './learningPlan/LessonPicker'
 import type { LearningPlanEditorLesson, LearningPlanInput, LearningPlanManagement } from '../../types/api'
 
-const editableDraft = (plan: LearningPlanManagement['learning_plan'] | undefined): LearningPlanInput => plan ? { ...plan, active: true } : blankPlan()
+const draftOf = (plan: NonNullable<LearningPlanManagement['learning_plan']>, active: boolean): LearningPlanInput => ({ active, title: plan.title, description: plan.description, target_date: plan.target_date, next_check_in_on: plan.next_check_in_on, milestones: plan.milestones, lesson_overrides: plan.lesson_overrides, lock_version: plan.lock_version })
+const editableDraft = (plan: LearningPlanManagement['learning_plan'] | undefined): LearningPlanInput => plan ? draftOf(plan, true) : blankPlan()
 const blankPlan = (): LearningPlanInput => ({ active: true, title: 'My learning plan', description: '', target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [] })
 const NOTE_LIMIT = 2000
 
@@ -147,6 +148,7 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
     {notice && <p role="status" className="text-sm font-semibold text-ink-secondary">{notice}</p>}
     {!data && !error && <p className="text-sm text-ink-muted">Loading learning plan…</p>}
     {data && !editing && <>
+      {plan?.active && plan.source === 'learner_pace' && <p className="rounded-xl border border-line bg-surface-sunken p-3 text-sm text-ink-secondary" data-plan-source="learner_pace">Made from the pace the learner chose ({plan.pace_weeks} weeks). Change the pace above to respread it. Editing it here makes it a staff plan, and the learner can no longer change their pace.</p>}
       {plan?.active && <div className="space-y-3 text-sm text-ink-secondary">
         {plan.description && <div className="[overflow-wrap:anywhere]"><MarkdownText content={plan.description} /></div>}
         <p className="flex flex-wrap items-center gap-x-2 tabular-nums"><CalendarDays className="h-4 w-4 text-ink-muted" aria-hidden="true" />{plan.target_date ? `Target finish: ${formatShortDate(plan.target_date)}` : 'No target finish set'}{plan.next_check_in_on ? ` · Next follow-up: ${formatShortDate(plan.next_check_in_on)}` : ''}</p>
@@ -161,7 +163,7 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
         <p>{plan.lesson_overrides.length} individual requirement {plan.lesson_overrides.length === 1 ? 'exception' : 'exceptions'}</p>
       </div>}
       <div className="flex flex-wrap gap-2"><Button onClick={() => { setDraft(editableDraft(plan)); setEditing(true); setNotice(null); setError(null) }}>{plan?.active ? 'Edit personal plan' : 'Customize plan'}</Button>{plan?.active && <Button variant="secondary" onClick={() => setConfirmRestore(true)}><RotateCcw className="h-4 w-4" aria-hidden="true" />Return to regular curriculum</Button>}</div>
-      {confirmRestore && plan && <div className="space-y-3 rounded-xl border border-line bg-surface-sunken p-4"><p className="text-sm text-ink-secondary">Restore the regular requirements and schedule for this student? Submitted work, grades, progress, and plan history stay saved.</p><div className="flex flex-wrap gap-2"><Button disabled={saving} onClick={() => void save({ ...plan, active: false })}>{saving ? 'Restoring…' : 'Restore regular curriculum'}</Button><Button variant="secondary" disabled={saving} onClick={() => setConfirmRestore(false)}>Keep personal plan</Button></div></div>}
+      {confirmRestore && plan && <div className="space-y-3 rounded-xl border border-line bg-surface-sunken p-4"><p className="text-sm text-ink-secondary">Restore the regular requirements and schedule for this student? Submitted work, grades, progress, and plan history stay saved.</p><div className="flex flex-wrap gap-2"><Button disabled={saving} onClick={() => void save(draftOf(plan, false))}>{saving ? 'Restoring…' : 'Restore regular curriculum'}</Button><Button variant="secondary" disabled={saving} onClick={() => setConfirmRestore(false)}>Keep personal plan</Button></div></div>}
     </>}
     {editing && data && <form ref={formRef} onSubmit={submit} className="space-y-5">
       <fieldset disabled={saving} className="space-y-5">

@@ -38,6 +38,7 @@ export type CohortData = Record<string, any> &
     course_delivery?: 'program' | 'guided' | 'self_paced'
     guided_access_ends_on?: string | null
     guided_support_ends_on?: string | null
+    learner_pace_weeks?: number[] | null
     class_resources?: ClassResource[]
     office_hours?: OfficeHour[]
     office_hour_occurrences?: OfficeHourOccurrence[]
@@ -83,6 +84,19 @@ export type CohortData = Record<string, any> &
       }>
     }>
   }
+
+/** W9.1: the paces learners choose from when learner-chosen pace is first turned on. */
+export const DEFAULT_PACE_WEEKS = '3, 4, 6'
+
+/** "6, 3,4" -> [3, 4, 6]; anything unreadable is kept as NaN so the server explains the problem. */
+export function parsePaceWeeks(value: string): number[] {
+  const parts = value.split(/[\s,]+/).filter(Boolean).map((part) => (/^\d+$/.test(part) ? Number(part) : Number.NaN))
+  return Array.from(new Set(parts)).sort((a, b) => a - b)
+}
+
+export function formatPaceWeeks(weeks?: number[] | null): string {
+  return weeks?.length ? weeks.join(', ') : ''
+}
 
 export function padDatePart(value: number): string {
   return String(value).padStart(2, '0')

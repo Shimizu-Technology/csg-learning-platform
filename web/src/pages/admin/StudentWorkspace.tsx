@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { RefreshCw, UserRound } from 'lucide-react'
 import { NavLink, useParams } from 'react-router-dom'
 import { StudentAccess } from '../../components/admin/StudentAccess'
 import { StudentCommunication } from '../../components/admin/StudentCommunication'
 import { StudentLearningPlan } from '../../components/admin/StudentLearningPlan'
+import { StudentPacePanel } from '../../components/admin/StudentPacePanel'
 import { WorkspaceSectionMenu } from '../../components/admin/WorkspaceSectionMenu'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -29,6 +31,8 @@ export function StudentWorkspace() {
 
 function Workspace() {
   const workspace = useStudentWorkspace()
+  // A pace change rewrites the learning plan, so the plan editor reloads after one.
+  const [planVersion, setPlanVersion] = useState(0)
   const {
     params,
     cohortId,
@@ -199,9 +203,14 @@ function Workspace() {
         )}
         {activeTab === 'learning' && (
           <>
+            <StudentPacePanel
+              key={`pace-${progress.enrollment.id}`}
+              enrollmentId={progress.enrollment.id}
+              onSaved={() => { setPlanVersion((value) => value + 1); refresh() }}
+            />
             <StudentLearningPlan
               cohortId={cohortId}
-              key={progress.enrollment.id}
+              key={`${progress.enrollment.id}-${planVersion}`}
               enrollmentId={progress.enrollment.id}
               onSaved={refresh}
             />

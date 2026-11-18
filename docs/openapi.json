@@ -25108,6 +25108,10 @@
       "PersonalPace": {
         "type": "object",
         "properties": {
+          "enrollment_id": {
+            "type": "integer",
+            "description": "The enrollment to choose a pace for (PUT /api/v1/enrollments/{enrollment_id}/pace)."
+          },
           "available": {
             "type": "boolean",
             "description": "Pace can be chosen: the cohort offers paces and its learning_plans switch is on."
@@ -25286,6 +25290,7 @@
           }
         },
         "required": [
+          "enrollment_id",
           "available",
           "options",
           "weeks",

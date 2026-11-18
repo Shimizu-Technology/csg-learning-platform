@@ -92,6 +92,14 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     assert_equal LessonReadAccess::NOT_UNLOCKED, result.error
     assert_equal LessonReadAccess::NOT_UNLOCKED, LessonReadAccess.lookup(late, @lessons.first.id).error
 
+    # Mobile reads lesson dates from the module and dashboard payloads; both carry the personal start.
+    get "/api/v1/modules/#{@module.id}", params: { cohort_id: @cohort.id }, headers: headers(late)
+    assert_response :forbidden, "the module stays closed until the personal start, as in a program"
+    get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: headers(late)
+    module_json = response.parsed_body.dig("dashboard", "modules").first
+    assert_equal "2026-12-02", module_json["unlock_date"]
+    assert_equal [ "2026-12-02" ], module_json["lessons"].map { |item| item["unlock_date"] }.uniq
+
     outline = fetch_outline(late)
     first = outline["modules"].first["groups"].first["lessons"].first
     assert_equal [ false, "2026-12-02", "upcoming" ], first.values_at("available", "opens_on", "status")
