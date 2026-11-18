@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { useNavigationContainerRef, useRootNavigationState } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { isAllowedNotificationPath, mobileNotificationPath, requiresStaff } from '@/lib/notification-path';
+import { isAllowedNotificationPath, mobileNotificationPath, routeForViewer } from '@/lib/notification-path';
 import { applicationNavigator, notificationArrived, notificationStack } from '@/lib/notification-navigation';
 import { fromWebPath, toWebPath, toNativeHref } from '@/lib/record-destination';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -99,7 +99,7 @@ export function NotificationObserver() {
       finish(pending.id);
       return;
     }
-    const path = !session.user?.is_staff && requiresStaff(pending.path) ? '/link-unavailable' : pending.path;
+    const path = routeForViewer(pending.path, { is_staff: session.user?.is_staff });
     const current = navigation.getRootState();
     // Wait for the auth redirect and policy gate to mount the app navigator.
     const navigator = applicationNavigator(current);
@@ -121,7 +121,7 @@ export function NotificationObserver() {
     const navigator = applicationNavigator(navigation.getRootState());
     const app = navigator?.routes[navigator.index ?? 0];
     if (app?.name !== '(app)' || !app.state?.key) return;
-    const path = !session.user?.is_staff && requiresStaff(link) ? '/link-unavailable' : link;
+    const path = routeForViewer(link, { is_staff: session.user?.is_staff });
     navigation.dispatch({ type: 'RESET', target: app.state.key, payload: { ...app.state, ...notificationStack(path, app.state) } });
     takeIncomingLink();
     // Navigation is synchronized with an external native URL event.

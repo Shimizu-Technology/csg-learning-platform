@@ -11,7 +11,8 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
+import { ErrorState, LoadingState } from '@/components/screen-states';
+import { StaffOnlyScreen } from '@/components/staff-only-screen';
 import { fonts } from '@/constants/csg-theme';
 import type { CohortOfficeHour } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -86,7 +87,7 @@ export default function CohortScheduleScreen() {
     } }]);
   };
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><EmptyState title="Staff access only" copy="An instructor or admin manages the cohort schedule." /></SafeAreaView>;
+  if (!user?.is_staff) return <StaffOnlyScreen message="An instructor or admin manages the cohort schedule." />;
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><BackButton style={styles.iconButton} onPress={() => draft ? setDraft(null) : goBack()} /><View style={styles.flex}><Text style={styles.kicker}>{cohort?.name || 'COHORT'}</Text><Text style={styles.headerTitle}>{draft ? draft.id ? 'Edit session' : 'New session' : 'Schedule'}</Text></View>{draft ? <Pressable accessibilityRole="button" accessibilityLabel="Close editor" onPress={() => setDraft(null)} style={styles.iconButton}><X color={c.text.body} size={20} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Add a session" onPress={() => setDraft({ ...emptyDraft })} style={styles.add}><Plus color={c.text.strong} size={19} /></Pressable>}</View>
     {query.isPending && !query.data ? <LoadingState label="Loading sessions" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}><ScrollView keyboardShouldPersistTaps="handled" refreshControl={!draft ? <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} /> : undefined} contentContainerStyle={styles.content}>

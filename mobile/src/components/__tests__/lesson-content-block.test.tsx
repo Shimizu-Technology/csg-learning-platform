@@ -444,3 +444,22 @@ it.each(['manual_complete', 'prework_github_sync'])('does not promise resubmissi
   const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type, submissions: [submission()] })} lesson={lesson} />);
   expect(screen.queryByText(/You can still revise and resubmit/)).toBeNull();
 });
+
+it('gives every submission input on a lesson its own keyboard bar', async () => {
+  const { InputAccessoryView, TextInput, View } = jest.requireActual('react-native');
+  const screen = renderWithQuery(<View>
+    <LessonContentBlockCard block={checkpoint({ id: 204, submission_type: 'repo_and_live_url_submission' })} lesson={lesson} />
+    <LessonContentBlockCard block={checkpoint({ id: 205, submission_type: 'repo_and_live_url_submission' })} lesson={lesson} />
+    <LessonContentBlockCard block={checkpoint({ id: 206, submission_type: 'text_submission' })} lesson={lesson} />
+  </View>);
+  await waitFor(() => expect(mockLoadDraft).toHaveBeenCalledTimes(3));
+  for (const button of screen.getAllByText('Add PR, branch, commit, or notes')) fireEvent.press(button);
+  const inputIds = screen.UNSAFE_getAllByType(TextInput).map((input) => input.props.inputAccessoryViewID);
+  // Two repository blocks with all six fields, plus one text block.
+  expect(inputIds).toHaveLength(13);
+  expect(inputIds.every(Boolean)).toBe(true);
+  expect(new Set(inputIds).size).toBe(inputIds.length);
+  const accessoryIds = screen.UNSAFE_getAllByType(InputAccessoryView).map((view) => view.props.nativeID);
+  expect([...accessoryIds].sort()).toEqual([...inputIds].sort());
+  expect(screen.getAllByLabelText('Submit work, above keyboard')).toHaveLength(13);
+});
