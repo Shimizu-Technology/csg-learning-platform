@@ -47,6 +47,8 @@ class GradingQueue
     offset = (page - 1) * @per_page
     start = [ offset - 1, 0 ].max
     rows = ordered(status_scope(filtered_scope)).offset(start).limit(@per_page + (offset.positive? ? 2 : 1)).to_a
+    extended_enrollments = rows.filter_map(&:enrollment).uniq(&:id).select { |item| item.cohort.personal_pace? || item.learner_extensions.any? { |extension| !extension.removed_at } }
+    LearnerProgress.for_all(extended_enrollments)
     previous = offset.positive? ? rows.shift : nil
     following = rows.length > @per_page ? rows.pop : nil
     latest_ids = Submission.latest_attempt_ids_for([ previous, *rows, following ].compact)
@@ -109,7 +111,7 @@ class GradingQueue
 
   def ordered(scope)
     direction = @newest ? "DESC" : "ASC"
-    scope.includes(:user, { enrollment: :cohort }, { content_block: { lesson: :curriculum_module } })
+    scope.includes(:user, { enrollment: [ :learner_extensions, :learning_plan, { cohort: :cohort_module_submission_windows } ] }, { content_block: { lesson: :curriculum_module } })
       .order(Arel.sql("submissions.created_at #{direction}, submissions.id #{direction}"))
   end
 
@@ -187,6 +189,13 @@ class GradingQueue
     id ? { id: id, title: title } : nil
   end
 
+  def extension_fields(enrollment, lesson)
+    return {} unless enrollment && (enrollment.cohort.personal_pace? || enrollment.learner_extensions.any? { |item| !item.removed_at })
+
+    { extensions: enrollment.learner_extensions.reject(&:removed_at).map(&:staff_json),
+      submission_window: SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson, enrollment: enrollment) }
+  end
+
   def item_json(submission, latest_ids)
     block = submission.content_block
     lesson = block.lesson
@@ -213,6 +222,7 @@ class GradingQueue
       cohort_id: cohort&.id,
       cohort_name: cohort&.name,
       course_delivery: cohort&.course_delivery,
+      **extension_fields(submission.enrollment, lesson),
       week_number: cohort.nil? || cohort.self_paced? ? nil : SubmissionWindowStatus.week_number_for_release_day(lesson.release_day)
     }
   end

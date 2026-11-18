@@ -263,6 +263,7 @@ Rails.application.routes.draw do
       # Enrollments with access overrides
       resources :enrollments, only: [ :show, :update, :destroy ] do
         resource :learning_plan, only: [ :show, :update ]
+        resources :extensions, only: [ :index, :create, :update, :destroy ], controller: "learner_extensions"
         resource :pace, only: [ :show, :update ], controller: "personal_paces"
         resources :module_assignments, only: [ :index, :create ]
         resources :lesson_assignments, only: [ :index, :create ]

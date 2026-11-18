@@ -94,7 +94,7 @@ class LearnerProgress
   end
 
   # What `for_all` preloads on each enrollment: everything `new` reads.
-  PRELOAD = [ :module_assignments, :lesson_assignments, :learning_plan,
+  PRELOAD = [ :module_assignments, :learner_extensions, :lesson_assignments, :learning_plan,
     { cohort: [ :cohort_module_schedules, :cohort_module_submission_windows, { curriculum: { modules: { lessons: :content_blocks } } } ] } ].freeze
 
   # LearnerProgress for each enrollment, keyed by enrollment id, in a fixed
@@ -126,8 +126,10 @@ class LearnerProgress
     @now = now
     @today = LearningCalendar.today(at: now)
     @content = content || AssignedLearningContent.new(enrollment, modules: enrollment.cohort.curriculum.modules)
+    enrollment.instance_variable_set(:@extension_content, @content)
     @plan = plan_for(enrollment, school_features)
     @lessons = @content.modules.flat_map { |mod| @content.lessons_for(mod) }
+    @enrollment.instance_variable_set(:@extension_final_lesson_id, @lessons.reverse.find { |item| item.project? && required?(item) && item.completion_blocks.any? }&.id)
     @course_index = @lessons.each_with_index.to_h { |lesson, index| [ lesson.id, index ] }
     @blocks = @lessons.flat_map do |lesson|
       lesson.content_blocks.each { |block| block.association(:lesson).target = lesson }
@@ -185,7 +187,7 @@ class LearnerProgress
       completed = states.any? && handed_in == states.size
       available = readable?(lesson)
       review_status = LessonReviewStatus.for(lesson, @latest_submissions)
-      window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, at: @now)
+      window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, enrollment: @enrollment, at: @now)
       LessonProgress.new(
         lesson: lesson,
         status: self.class.status_for(completed: completed, available: available, submissions_closed: window[:submissions_closed],

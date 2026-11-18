@@ -4216,6 +4216,161 @@
           }
         }
       }
+    },
+    "/api/v1/enrollments/{enrollment_id}/extensions": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Invalid extension"
+          }
+        }
+      },
+      "post": {
+        "summary": "Post learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Invalid extension"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LearnerExtensionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/extensions/{id}": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Patch learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Invalid extension"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LearnerExtensionInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete learner extensions (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Extension history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerExtensionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Invalid extension"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16118,6 +16273,16 @@
               "null"
             ],
             "description": "The lesson's program week; null for a self-paced cohort."
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearnerExtension"
+            },
+            "description": "Included only when this learner has extensions."
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
           }
         },
         "additionalProperties": false,
@@ -22122,6 +22287,9 @@
               }
             ],
             "description": "Included only when the cohort has learner-chosen pace on: the lesson's milestone date in the learner's plan, null when it isn't in one."
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
           }
         },
         "required": [
@@ -23334,6 +23502,9 @@
                   },
                   "status": {
                     "$ref": "#/components/schemas/LearnerLessonStatus"
+                  },
+                  "submission_window": {
+                    "$ref": "#/components/schemas/SubmissionWindowStatus"
                   }
                 },
                 "required": [
@@ -25411,6 +25582,140 @@
           }
         },
         "additionalProperties": false
+      },
+      "LearnerExtensionInput": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "final",
+              "lesson",
+              "module"
+            ]
+          },
+          "lesson_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "week_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "submissions_close_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "scope",
+          "submissions_close_at",
+          "reason"
+        ]
+      },
+      "LearnerExtension": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "final",
+              "lesson",
+              "module"
+            ]
+          },
+          "lesson_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "week_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "submissions_close_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "type": "integer"
+          },
+          "granted_by_id": {
+            "type": "integer"
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "removed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "scope",
+          "lesson_id",
+          "module_id",
+          "week_number",
+          "submissions_close_at",
+          "reason",
+          "id",
+          "granted_by_id",
+          "granted_at",
+          "removed_at",
+          "revisions"
+        ]
+      },
+      "LearnerExtensionsResponse": {
+        "type": "object",
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearnerExtension"
+            }
+          }
+        },
+        "required": [
+          "extensions"
+        ]
       }
     },
     "responses": {

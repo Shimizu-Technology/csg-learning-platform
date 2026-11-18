@@ -194,7 +194,7 @@ class WeeklyPlanProjection
   def redo_items
     @redo_items ||= @progress.redo_submissions.map do |submission|
       lesson = submission.content_block.lesson
-      window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, at: @now)
+      window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, enrollment: @enrollment, at: @now)
       {
         id: "redo-#{submission.id}",
         kind: "redo",

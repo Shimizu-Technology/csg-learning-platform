@@ -1333,3 +1333,6 @@ export type InstructorTodayData = components['schemas']['InstructorToday'];
 export type CoursePackagePreview = components['schemas']['CoursePackagePreview'];
 export type CoursePackageCurriculum = components['schemas']['CoursePackageCurriculum'];
 export type CoursePackageCohort = components['schemas']['CoursePackageCohort'];
+
+export type LearnerExtension = components['schemas']['LearnerExtension'];
+export type LearnerExtensionInput = components['schemas']['LearnerExtensionInput'];

@@ -441,6 +441,8 @@ export function Grading() {
                         className="grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] gap-x-2 px-4 py-2 leading-snug"
                       >
                         <span className="truncate text-sm font-bold text-ink" title={sub.user_name}>{sub.user_name}</span>
+                        {sub.submission_window?.submissions_close_at && <span className="col-span-2 text-xs text-ink-muted">Deadline · {new Date(sub.submission_window.submissions_close_at).toLocaleString("en-US", { timeZone: "Pacific/Guam" })} (Guam)</span>}
+                        {sub.extensions?.map((extension) => <span key={extension.id} className="col-span-2 text-xs text-warning-ink [overflow-wrap:anywhere]">Extension · {extension.reason}</span>)}
                         <span className={`text-right text-xs font-bold tabular-nums ${waiting && waitingTooLong(sub.created_at) ? 'text-danger-ink' : 'text-ink-muted'}`}>
                           {waiting ? (
                             <><span className="sr-only">Waiting </span>{waitingLabel(sub.created_at)}</>

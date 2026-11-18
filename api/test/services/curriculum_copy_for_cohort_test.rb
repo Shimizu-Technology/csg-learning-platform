@@ -33,6 +33,19 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     end
   end
 
+  test "copy remaps learner extension targets and revision history" do
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    content = AssignedLearningContent.new(enrollment)
+    lesson = content.modules.flat_map { |mod| content.lessons_for(mod) }.first
+    extension = enrollment.learner_extensions.new(scope: "lesson", lesson: lesson, reason: "Travel", submissions_close_at: 1.week.from_now)
+    extension.record_change!(actor: @f.instructor)
+    result = copy!(@f.instructor)
+    expected = result.lesson_ids.fetch(lesson.id.to_s)
+    assert_equal expected, extension.reload.lesson_id
+    assert_equal expected, extension.revisions.first.fetch("lesson_id")
+    assert_equal "Travel", extension.reason
+  end
+
   test "copy preserves and remaps the paused library" do
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     enrollment.update!(status: :paused)

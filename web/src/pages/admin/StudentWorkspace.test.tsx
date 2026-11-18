@@ -12,6 +12,7 @@ import { rememberRoster } from '../../lib/recordQueue'
 import { clearRecordQueueCache as resetQueues } from '../../lib/recordQueueCache'
 
 vi.mock('../../lib/api', () => ({ api: {
+  getLearnerExtensions: vi.fn().mockResolvedValue({ data: { extensions: [] } }),
   getStudentCommunication: vi.fn(), createIntervention: vi.fn(), createDirectConversation: vi.fn(), getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
   getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(), createRecoveryPlanCheckIn: vi.fn(), updateRecoveryPlan: vi.fn(),

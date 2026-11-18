@@ -153,7 +153,15 @@ class CourseOutline
       opens_on: entry.available || (!program? && !personal_pace?) ? nil : unlock_date(mod, lesson),
       todo: !@enrollment.active? || library? ? false : @progress.actionable?(entry),
       redo_block_id: entry.status == LearnerProgress::Status::REDO ? redo_blocks[lesson.id] : nil
-    }.tap { |json| json[:due_on] = due_dates[lesson.id] if personal_pace? }
+    }.tap do |json|
+      json[:due_on] = due_dates[lesson.id] if personal_pace?
+      effective = entry.submission_window
+      original = SubmissionWindowStatus.for_lesson(cohort: @enrollment.cohort, lesson: lesson)
+      if effective != original
+        json[:submission_window] = effective
+        json[:due_on] = effective[:submissions_close_at].in_time_zone("Pacific/Guam").to_date.iso8601 if effective[:submissions_close_at]
+      end
+    end
   end
 
   # Counted lessons only (a personal plan's optional lessons are not counted),

@@ -39,6 +39,29 @@ class PersonalPaceOffCohortParityTest < ActionDispatch::IntegrationTest
 
   teardown { travel_back }
 
+  test "Off program windows and submit enforcement remain identical without extensions" do
+    program = cohort(9_100_450, "Lance-shaped Off program", start: Date.new(2026, 10, 5), features: { "student_experience_v2" => false })
+    student = person(9_100_020, "window-parity", :student)
+    enrollment = Enrollment.create!(user: student, cohort: program, status: :active)
+    enrollment.module_assignments.create!(curriculum_module: @prework)
+    lesson = @lessons.first
+    block = lesson.content_blocks.last
+    [ nil, NOW + 1.hour, NOW ].each do |close_at|
+      program.cohort_module_submission_windows.destroy_all
+      program.cohort_module_submission_windows.create!(curriculum_module: @prework, week_number: 1, submissions_close_at: close_at) if close_at
+      program.cohort_module_submission_windows.reload
+      enrollment.reload
+      original = SubmissionWindowStatus.for_lesson(cohort: program, lesson: lesson, at: NOW)
+      effective = SubmissionWindowStatus.for_lesson(cohort: program, lesson: lesson, enrollment: enrollment, at: NOW)
+      assert_equal original.to_json, effective.to_json
+      get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: program.id }, headers: headers(student)
+      assert_response :success
+      assert_equal JSON.parse(original.to_json), response.parsed_body.dig("lesson", "submission_window")
+      post "/api/v1/submissions", params: { content_block_id: block.id, cohort_id: program.id, text: "Parity answer" }, headers: headers(student), as: :json
+      close_at && close_at <= NOW ? assert_response(:forbidden) : assert_response(:success)
+    end
+  end
+
   test "off cohorts produce the same learner and staff payloads as before W9.1" do
     snapshot = {
       "program_v2_off" => learner_snapshot(cohort(9_100_400, "Program cohort", start: Date.new(2026, 10, 5), features: { "student_experience_v2" => false }), 9_100_010, plan: true),

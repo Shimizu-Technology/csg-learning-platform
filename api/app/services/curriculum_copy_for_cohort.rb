@@ -139,7 +139,7 @@ class CurriculumCopyForCohort
     "cohorts" => :remap, "cohort_module_schedules" => :remap, "cohort_module_submission_windows" => :remap,
     "module_assignments" => :remap, "lesson_assignments" => :remap, "progresses" => :remap,
     "submissions" => :remap, "submission_criterion_results" => :remap, "knowledge_check_attempts" => :remap,
-    "learning_plans" => :remap, "learning_plan_revisions" => :remap, "help_requests" => :remap,
+    "learner_extensions" => :remap, "learning_plans" => :remap, "learning_plan_revisions" => :remap, "help_requests" => :remap,
     "messages" => :remap, "notifications" => :remap, "activity_events" => :remap,
     # Kept as they are
     "submission_audit_reviews" => :keep, # staff decision stays on the original; copies need their own review
@@ -398,6 +398,12 @@ class CurriculumCopyForCohort
     @counts["submissions"] = remap_column(Submission.where(id: submission_ids), :content_block_id, @block_map)
     @counts["submission_criterion_results"] = remap_column(SubmissionCriterionResult.where(submission_id: submission_ids), :rubric_criterion_id, @criterion_map)
     @counts["knowledge_check_attempts"] = remap_column(learner_rows(KnowledgeCheckAttempt), :knowledge_check_id, @check_map)
+    LearnerExtension.where(enrollment_id: @enrollment_ids).find_each do |extension|
+      remap = lambda do |snapshot|
+        snapshot.merge("lesson_id" => @lesson_map.fetch(snapshot["lesson_id"], snapshot["lesson_id"]), "module_id" => @module_map.fetch(snapshot["module_id"], snapshot["module_id"]))
+      end
+      extension.update_columns(lesson_id: @lesson_map.fetch(extension.lesson_id, extension.lesson_id), module_id: @module_map.fetch(extension.module_id, extension.module_id), revisions: extension.revisions.map { |snapshot| remap.call(snapshot) })
+    end
     remap_learning_plans!
   end
 

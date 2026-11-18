@@ -207,7 +207,7 @@ class ApplicationController < ActionController::API
     enrollment = active_enrollment_for_lesson(lesson)
     return unless enrollment
 
-    status = SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson)
+    status = SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson, enrollment: enrollment)
     return unless status[:submissions_closed]
 
     render_forbidden("Submissions for Week #{status[:week_number]} are closed")

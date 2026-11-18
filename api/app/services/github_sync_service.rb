@@ -40,7 +40,7 @@ class GithubSyncService
       .select { |block| block.github_sync_submission?(requires_github: true) }
 
     closed_blocks, open_blocks = exercise_blocks.partition { |block|
-      SubmissionWindowStatus.closed_for_lesson?(cohort: cohort, lesson: block.lesson)
+      SubmissionWindowStatus.closed_for_lesson?(cohort: cohort, lesson: block.lesson, enrollment: enrollment)
     }
     exercise_blocks = open_blocks
 

@@ -1,4 +1,5 @@
 class Enrollment < ApplicationRecord
+  has_many :learner_extensions, dependent: :destroy
   class StaleLearningWrite < StandardError
     attr_reader :code
 

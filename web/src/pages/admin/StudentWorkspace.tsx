@@ -4,6 +4,7 @@ import { NavLink, useParams } from 'react-router-dom'
 import { StudentAccess } from '../../components/admin/StudentAccess'
 import { StudentCommunication } from '../../components/admin/StudentCommunication'
 import { StudentLearningPlan } from '../../components/admin/StudentLearningPlan'
+import { StudentExtensions } from '../../components/admin/StudentExtensions'
 import { StudentPacePanel } from '../../components/admin/StudentPacePanel'
 import { WorkspaceSectionMenu } from '../../components/admin/WorkspaceSectionMenu'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
@@ -206,6 +207,7 @@ function Workspace() {
         )}
         {activeTab === 'learning' && (
           <>
+            <StudentExtensions enrollmentId={progress.enrollment.id} modules={progress.modules} onSaved={refresh} />
             <StudentPacePanel
               key={`pace-${progress.enrollment.id}-${paceVersion}`}
               enrollmentId={progress.enrollment.id}
