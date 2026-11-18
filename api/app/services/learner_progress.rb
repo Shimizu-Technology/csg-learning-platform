@@ -335,7 +335,9 @@ class LearnerProgress
   def pace
     return @pace if defined?(@pace)
     return @pace = nil if @cohort.alumni? || !@enrollment.active?
-    return @pace = milestone_pace if @cohort.personal_pace?
+    # A chosen pace stays the measure after staff turn pace off for the cohort
+    # (StudentToday keeps showing it read-only); release goes back to the calendar.
+    return @pace = milestone_pace if @cohort.personal_pace? || @plan&.learner_pace?
     return @pace = nil if @cohort.self_paced?
 
     week_start = @today.beginning_of_week(:monday)
@@ -367,8 +369,8 @@ class LearnerProgress
   # "behind" when its date has passed with lessons the learner can open still
   # unfinished, "current" for the first unfinished
   # one not yet due, and "upcoming" after that. Overdue work is the open,
-  # unfinished lessons of behind milestones; each behind milestone is a week
-  # behind, since milestones are weekly. `this_week` is the milestone that
+  # unfinished lessons of behind milestones; each distinct overdue due date is
+  # a week behind, since milestones are weekly. `this_week` is the milestone that
   # covers today. Nil without a plan or milestones.
   def milestone_pace
     return nil unless @plan && @plan.milestones.any?
@@ -400,7 +402,8 @@ class LearnerProgress
     covering = milestones.find { |milestone| milestone[:due_on] >= @today }
     {
       behind: behind.any?,
-      weeks_behind: behind.size,
+      # Weeks, not milestones: a week's lessons and the final project can share a date.
+      weeks_behind: behind.map { |milestone| milestone[:due_on] }.uniq.size,
       overdue_lessons: overdue,
       this_week: covering && covering.slice(:total, :completed).merge(ends_on: covering[:due_on]),
       milestones: milestones,

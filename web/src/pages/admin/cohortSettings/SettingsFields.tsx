@@ -26,6 +26,8 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
     setEditSupportEnd,
     editPaceWeeks,
     setEditPaceWeeks,
+    editPaceEnabled,
+    setEditPaceEnabled,
     editStartDate,
     setEditStartDate,
     editGithubOrganization,
@@ -156,14 +158,17 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             <label className="mt-3 flex min-h-11 items-center gap-3 text-sm font-semibold text-ink">
               <input
                 type="checkbox"
-                checked={editPaceWeeks.trim() !== ''}
-                onChange={(e) => setEditPaceWeeks(e.target.checked ? DEFAULT_PACE_WEEKS : '')}
+                checked={editPaceEnabled}
+                onChange={(e) => {
+                  setEditPaceEnabled(e.target.checked)
+                  if (e.target.checked && !editPaceWeeks.trim()) setEditPaceWeeks(DEFAULT_PACE_WEEKS)
+                }}
                 disabled={saving}
                 className="h-5 w-5"
               />
               Let learners choose their pace
             </label>
-            {editPaceWeeks.trim() !== '' && (
+            {editPaceEnabled && (
               <label className="mt-2 block max-w-xs text-xs font-semibold text-ink-secondary">
                 Pace choices, in weeks
                 <input

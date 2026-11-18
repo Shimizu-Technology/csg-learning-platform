@@ -225,3 +225,21 @@ it.each(['999999', 'missing'])('shows a recoverable missing module notice for %s
   expect(container.querySelector('h1')?.textContent).toBe('Web Development Bootcamp')
   expect(mocks.getCourseOutline).toHaveBeenCalledTimes(1)
 })
+
+it('labels a personal-pace end date "Final project due" only for a chosen pace with a final project', async () => {
+  const outline = program()
+  outline.mode = 'self_paced'
+  outline.course_week = null
+  outline.personal_pace = { starts_on: '2026-11-18', weeks: 4, ends_on: '2026-12-15', final_project: true }
+  await render(outline)
+  expect(container.textContent).toContain('Your pace: 4 weeks from Nov 18')
+  expect(container.textContent).toContain('Final project due Tue, Dec 15')
+  act(() => root.unmount()); root = createRoot(container)
+  const staffPlan = program()
+  staffPlan.mode = 'self_paced'
+  staffPlan.course_week = null
+  staffPlan.personal_pace = { starts_on: '2026-11-18', weeks: null, ends_on: '2026-12-20', final_project: false }
+  await render(staffPlan)
+  expect(container.textContent).toContain('Plan ends Sun, Dec 20')
+  expect(container.textContent).not.toContain('Final project due')
+})

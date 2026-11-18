@@ -9086,6 +9086,8 @@ export interface components {
                 starts_on: string | null;
                 weeks: number | null;
                 ends_on: string | null;
+                /** @description The plan is a chosen pace with a final project, so its end date is the final project's due date. */
+                final_project: boolean;
             };
         };
         CourseOutlineResponse: {
@@ -9686,6 +9688,13 @@ export interface components {
             ends_on: string | null;
             /** @description Why a chosen pace runs past the weeks chosen: some planned lessons open after it would have ended, or it was chosen or re-planned after that end. Null when it fits or no pace is chosen. */
             adjusted_for: ("lessons_open_later" | "late_start") | null;
+            /** @description What each offered pace would schedule if chosen now (the same generator, not saved). Empty when the learner can't choose or change. */
+            choices: {
+                weeks: number;
+                /** @description The firm date the server would schedule for this pace if chosen now. */
+                ends_on: string;
+                adjusted_for: ("lessons_open_later" | "late_start") | null;
+            }[];
             /** @description Week of the chosen pace that today falls in, from 1; null before the start or without a pace. */
             current_week: number | null;
             /** @enum {string} */

@@ -226,15 +226,19 @@ class Enrollment < ApplicationRecord
   end
 
   # Guided personal-pace cohorts only need the date (support terms stay the
-  # cohort's). One conditional write, so two first opens can't disagree.
+  # cohort's).
+  #
+  # The date and any re-plan it causes commit together under the row lock, so
+  # a failed re-plan leaves the course unopened and the next open tries again.
   def record_personal_first_open!
     return if first_opened_at.present? || !active?
 
-    opened_at = Time.current
-    claimed = self.class.where(id: id, first_opened_at: nil).update_all(first_opened_at: opened_at, updated_at: opened_at).positive?
-    self.first_opened_at = self.class.where(id: id).pick(:first_opened_at)
-    clear_attribute_change(:first_opened_at)
-    with_lock { follow_first_open! } if claimed
+    with_lock do
+      return if first_opened_at.present? || !active?
+
+      update_columns(first_opened_at: Time.current, updated_at: Time.current)
+      follow_first_open!
+    end
   end
 
   # A pace chosen before the first open (by staff) was planned from the cohort

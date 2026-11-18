@@ -9,8 +9,9 @@ require "test_helper"
 # module, whether each lesson opens, the staff progress view, and the daily
 # unlock digest candidates.
 #
-# Every record has a fixed id and every sequence restarts at a fixed value, so
-# the payloads don't depend on test order. Re-record only on purpose, with
+# Every record has a fixed id, every sequence restarts at a fixed value and the
+# clock is frozen, so the payloads don't depend on test order; lists the app
+# reads without ORDER BY are compared in id order (UNORDERED). Re-record only on purpose, with
 # UPDATE_GOLDEN=1, and say why in the commit.
 class PersonalPaceOffCohortParityTest < ActionDispatch::IntegrationTest
   GOLDEN = Rails.root.join("test/golden/personal_pace_off_cohorts.json")
@@ -52,14 +53,63 @@ class PersonalPaceOffCohortParityTest < ActionDispatch::IntegrationTest
       GOLDEN.dirname.mkpath
       GOLDEN.write(JSON.pretty_generate(snapshot) + "\n")
     end
-    golden = JSON.parse(GOLDEN.read)
+    golden = canonical(JSON.parse(GOLDEN.read))
+    actual = canonical(JSON.parse(snapshot.to_json))
+    assert_equal golden.keys.sort, actual.keys.sort
     golden.each_key do |key|
-      assert_equal golden[key], JSON.parse(snapshot[key].to_json), "#{key} changed for a cohort without personal pace"
+      found = differences(golden[key], actual[key], key)
+      assert_empty found, "#{key} changed for a cohort without personal pace:\n#{found.first(20).join("\n")}"
     end
-    assert_equal golden.keys.sort, snapshot.keys.sort
+  end
+
+  test "the comparison names the key path of each difference and ignores only database row order" do
+    expected = { "body" => { "enrollment" => { "module_assignments" => [ { "id" => 1, "a" => 1 }, { "id" => 2, "a" => 2 } ] }, "list" => [ 1, 2 ] } }
+    swapped = { "body" => { "enrollment" => { "module_assignments" => [ { "id" => 2, "a" => 2 }, { "id" => 1, "a" => 1 } ] }, "list" => [ 1, 2 ] } }
+    assert_empty differences(canonical(expected), canonical(swapped), "x")
+    changed = { "body" => { "enrollment" => { "module_assignments" => [ { "id" => 2, "a" => 3 }, { "id" => 1, "a" => 1 } ] }, "list" => [ 2, 1 ] } }
+    assert_equal [ "x.body.enrollment.module_assignments[1].a: expected 2, got 3", "x.body.list[0]: expected 1, got 2", "x.body.list[1]: expected 2, got 1" ],
+      differences(canonical(expected), canonical(changed), "x")
   end
 
   private
+
+  # Lists the app reads with no ORDER BY, so the database may return them in
+  # any order (CI run 44237525378 swapped staff progress's two module
+  # assignments, with prepared statements on). They are compared in id order;
+  # every other list keeps its order, and every value is still compared.
+  UNORDERED = { "module_assignments" => "id" }.freeze
+
+  def canonical(node)
+    case node
+    when Hash
+      node.to_h do |key, value|
+        value = canonical(value)
+        value = value.sort_by { |item| item[UNORDERED[key]] } if UNORDERED.key?(key) && value.is_a?(Array) && value.all?(Hash)
+        [ key, value ]
+      end
+    when Array then node.map { |item| canonical(item) }
+    else node
+    end
+  end
+
+  # Every difference as "path: expected X, got Y", so a failure names the field.
+  def differences(expected, actual, path)
+    if expected.is_a?(Hash) && actual.is_a?(Hash)
+      (expected.keys | actual.keys).flat_map do |key|
+        next [ "#{path}.#{key}: missing" ] unless actual.key?(key)
+        next [ "#{path}.#{key}: unexpected #{actual[key].inspect[0, 120]}" ] unless expected.key?(key)
+
+        differences(expected[key], actual[key], "#{path}.#{key}")
+      end
+    elsif expected.is_a?(Array) && actual.is_a?(Array)
+      sizes = expected.size == actual.size ? [] : [ "#{path}: expected #{expected.size} items, got #{actual.size}" ]
+      sizes + expected.zip(actual).each_with_index.flat_map { |(left, right), index| index < actual.size ? differences(left, right, "#{path}[#{index}]") : [] }
+    elsif expected == actual
+      []
+    else
+      [ "#{path}: expected #{expected.inspect[0, 120]}, got #{actual.inspect[0, 120]}" ]
+    end
+  end
 
   def learner_snapshot(cohort, user_id, plan: false)
     student = person(user_id, "student#{user_id}", :student)

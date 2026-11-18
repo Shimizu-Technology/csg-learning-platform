@@ -38,7 +38,8 @@ export function planProblems(draft: LearningPlanInput): string[] {
   return Array.from(new Set(problems))
 }
 
-export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrollmentId: number; cohortId?: number; onSaved: () => void }) {
+/** `outsideChange` counts saves made elsewhere (a pace change rewrites the plan): reload, or keep an open draft and say so. */
+export function StudentLearningPlan({ enrollmentId, cohortId, onSaved, outsideChange = 0 }: { enrollmentId: number; cohortId?: number; onSaved: () => void; outsideChange?: number }) {
   const [data, setData] = useState<LearningPlanManagement | null>(null)
   const [draft, setDraft] = useState<LearningPlanInput>(blankPlan)
   const [editing, setEditing] = useState(false)
@@ -72,6 +73,18 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not load the learning plan.') }
   }, [enrollmentId])
   useEffect(() => { void load() }, [load])
+  const [changedElsewhere, setChangedElsewhere] = useState(false)
+  const seenChange = useRef(outsideChange)
+  const editingRef = useRef(editing)
+  editingRef.current = editing
+  useEffect(() => {
+    if (outsideChange === seenChange.current) return
+    seenChange.current = outsideChange
+    // Never throw away an open draft: keep it and say the saved plan moved on.
+    if (editingRef.current) setChangedElsewhere(true)
+    else void load()
+  }, [outsideChange, load])
+  useEffect(() => { if (!editing) setChangedElsewhere(false) }, [editing])
 
   async function save(value: LearningPlanInput) {
     setSaving(true); setError(null); setNotice(null)
@@ -165,6 +178,7 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrol
       <div className="flex flex-wrap gap-2"><Button onClick={() => { setDraft(editableDraft(plan)); setEditing(true); setNotice(null); setError(null) }}>{plan?.active ? 'Edit personal plan' : 'Customize plan'}</Button>{plan?.active && <Button variant="secondary" onClick={() => setConfirmRestore(true)}><RotateCcw className="h-4 w-4" aria-hidden="true" />Return to regular curriculum</Button>}</div>
       {confirmRestore && plan && <div className="space-y-3 rounded-xl border border-line bg-surface-sunken p-4"><p className="text-sm text-ink-secondary">Restore the regular requirements and schedule for this student? Submitted work, grades, progress, and plan history stay saved.</p><div className="flex flex-wrap gap-2"><Button disabled={saving} onClick={() => void save(draftOf(plan, false))}>{saving ? 'Restoring…' : 'Restore regular curriculum'}</Button><Button variant="secondary" disabled={saving} onClick={() => setConfirmRestore(false)}>Keep personal plan</Button></div></div>}
     </>}
+    {editing && changedElsewhere && <p role="status" className="rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink" data-plan-changed-elsewhere="">The plan changed while you were editing (the pace was updated). Your draft is kept. Saving it now is refused as out of date: copy what you need, then reload the latest plan.</p>}
     {editing && data && <form ref={formRef} onSubmit={submit} className="space-y-5">
       <fieldset disabled={saving} className="space-y-5">
         <label className="block text-sm font-semibold text-ink">Plan title<input required maxLength={160} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="app-control mt-1 w-full" /></label>

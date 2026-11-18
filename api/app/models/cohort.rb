@@ -160,6 +160,9 @@ class Cohort < ApplicationRecord
   after_create :initialize_content_defaults!
   after_create :provision_workspace
   after_update :complete_alumni_enrollments, if: :became_alumni?
+  after_update :realign_personal_pace_plans, if: -> { saved_change_to_start_date? && personal_pace? }
+  # Who saved this cohort, for revisions written by its callbacks (set by the controller).
+  attr_accessor :edited_by
 
   def class_resources_for_read(enrollment = nil)
     Array((settings || {})["class_resources"]).select { |resource| content_link_available_for_read?(resource, enrollment) }
@@ -319,20 +322,42 @@ class Cohort < ApplicationRecord
     persisted? && will_save_change_to_curriculum_id? && !moving_to_copy_of.nil? && moving_to_copy_of == curriculum_id_in_database
   end
 
+  # Checks the values as sent, before the integer column casts them: Rails
+  # would read 3.5 or "3weeks" as 3. Whole numbers only, as integers or digit
+  # strings (form params).
   def normalize_learner_pace_weeks
-    return if learner_pace_weeks.nil?
+    raw = learner_pace_weeks_before_type_cast
+    @raw_pace_choices_invalid = will_save_change_to_learner_pace_weeks? && raw.is_a?(Array) &&
+      !raw.all? { |value| value.is_a?(Integer) || (value.is_a?(String) && value.strip.match?(/\A\d+\z/)) }
+    return if learner_pace_weeks.nil? || @raw_pace_choices_invalid
 
-    values = Array(learner_pace_weeks).map { |value| Integer(value.to_s, exception: false) || value }
-    self.learner_pace_weeks = values.empty? ? nil : (values.all?(Integer) ? values.uniq.sort : values)
+    values = learner_pace_weeks.compact
+    self.learner_pace_weeks = values.empty? ? nil : values.uniq.sort
   end
 
   def learner_pace_weeks_are_valid
-    return if learner_pace_weeks.nil?
+    return if learner_pace_weeks.nil? && !@raw_pace_choices_invalid
 
-    unless learner_pace_weeks.all? { |value| value.is_a?(Integer) && PACE_WEEK_RANGE.cover?(value) } && learner_pace_weeks.size <= MAX_PACE_OPTIONS
-      errors.add(:learner_pace_weeks, "must be up to #{MAX_PACE_OPTIONS} choices of #{PACE_WEEK_RANGE.min} to #{PACE_WEEK_RANGE.max} weeks")
+    if @raw_pace_choices_invalid || !(learner_pace_weeks.all? { |value| value.is_a?(Integer) && PACE_WEEK_RANGE.cover?(value) } && learner_pace_weeks.size <= MAX_PACE_OPTIONS)
+      errors.add(:learner_pace_weeks, "must be up to #{MAX_PACE_OPTIONS} choices of #{PACE_WEEK_RANGE.min} to #{PACE_WEEK_RANGE.max} weeks, as whole numbers")
     end
     errors.add(:learner_pace_weeks, "are only for guided or self-paced courses") unless (guided? || self_paced?) && !alumni?
+  end
+
+  # A new cohort start moves the start of every learner who has no start of
+  # their own (Enrollment#personal_start_on), so their chosen pace is
+  # re-planned from it in the same transaction as the cohort save. Learners
+  # with a staff-set start keep their dates. Credited to the staff member who
+  # edited the cohort (`edited_by`) or, failing that, the plan's last author.
+  def realign_personal_pace_plans
+    enrollments.active.where(starts_on: nil)
+      .where(id: LearningPlan.where(active: true, source: "learner_pace").select(:enrollment_id))
+      .order(:id).each do |enrollment|
+      enrollment.with_lock do
+        actor = edited_by || enrollment.learning_plan&.revisions&.order(:id)&.last&.author || enrollment.user
+        LearnerPace.new(enrollment).regenerate!(actor: actor)
+      end
+    end
   end
 
   def guided_access_dates_are_valid

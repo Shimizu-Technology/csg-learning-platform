@@ -94,6 +94,14 @@ export function parsePaceWeeks(value: string): number[] {
   return Array.from(new Set(parts)).sort((a, b) => a - b)
 }
 
+/** Why pace text can't be saved while pace is on, or null: blank, or anything that isn't whole weeks ("3.5", ", ,"). */
+export function paceWeeksProblem(value: string): string | null {
+  const parts = value.split(/[\s,]+/).filter(Boolean)
+  if (parts.length === 0) return 'Enter at least one pace in weeks, like 3, 4, 6, or turn learner-chosen pace off.'
+  if (parts.some((part) => !/^\d+$/.test(part))) return 'Pace choices must be whole numbers of weeks, like 3, 4, 6.'
+  return null
+}
+
 export function formatPaceWeeks(weeks?: number[] | null): string {
   return weeks?.length ? weeks.join(', ') : ''
 }

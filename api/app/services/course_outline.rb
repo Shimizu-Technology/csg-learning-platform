@@ -92,7 +92,9 @@ class CourseOutline
     {
       starts_on: @enrollment.personal_start_on(@cohort),
       weeks: plan&.learner_pace? ? plan.pace_weeks : nil,
-      ends_on: plan&.target_date
+      ends_on: plan&.target_date,
+      # "Final project due" only for a chosen pace with a final project; any other plan's date is when it ends.
+      final_project: plan&.learner_pace? == true && plan.target_date.present? && LearnerPace.final_project_lesson(@progress).present?
     }
   end
 

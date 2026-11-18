@@ -120,20 +120,42 @@ class LearnerPace
       start_set_by_staff: @enrollment.starts_on.present?,
       ends_on: plan&.target_date,
       adjusted_for: chosen ? adjusted_for(plan, progress, start) : nil,
+      choices: can_change?(plan, chosen, changes_left) ? choices(plan, progress, start) : [],
       current_week: chosen && start && progress.today >= start ? ((progress.today - start).to_i / 7) + 1 : nil,
       status: status(plan, pace, chosen),
       weeks_behind: pace ? pace[:weeks_behind] : 0,
       final_project: final_project(plan, progress),
       next_milestone: pace && pace[:next_milestone] && milestone_json(pace[:next_milestone], progress, lessons: true),
       milestones: pace ? pace[:milestones].map { |milestone| milestone_json(milestone, progress) } : [],
-      can_change: available? && @enrollment.active? && (plan.nil? || plan.learner_pace?) && (!chosen || changes_left.positive?),
+      can_change: can_change?(plan, chosen, changes_left),
       changes_left: changes_left,
       chosen_by: revision&.author && { id: revision.author.id, full_name: revision.author.full_name },
       chosen_at: revision&.created_at&.iso8601(6)
     }
   end
 
+  # The last required project lesson, finished or not: the final project.
+  def self.final_project_lesson(progress)
+    progress.lessons.reverse.find { |item| item.project? && progress.required?(item) && progress.lesson_progress(item).total_blocks.positive? }
+  end
+
   private
+
+  def can_change?(plan, chosen, changes_left)
+    available? && @enrollment.active? && (plan.nil? || plan.learner_pace?) && (!chosen || changes_left.positive?)
+  end
+
+  # What each offered pace would schedule if chosen now: the same generator,
+  # not saved, so the picker's end date is the one the server would keep.
+  def choices(plan, progress, start)
+    return [] unless start
+
+    base = plan || @enrollment.learning_plan || LearningPlan.new # unattached: a preview never becomes the enrollment's plan
+    options.map do |weeks|
+      preview = LearningPlan.new(generate(weeks, base, progress))
+      { weeks: weeks, ends_on: preview.target_date, adjusted_for: adjusted_for(preview, progress, start) }
+    end
+  end
 
   def status(plan, pace, chosen)
     return "staff_plan" if plan && !plan.learner_pace?
@@ -158,7 +180,7 @@ class LearnerPace
   def final_project(plan, progress)
     return nil unless plan&.learner_pace? && plan.target_date
 
-    lesson = progress.lessons.reverse.find { |item| item.project? && progress.required?(item) && progress.lesson_progress(item).total_blocks.positive? }
+    lesson = self.class.final_project_lesson(progress)
     lesson && { lesson_id: lesson.id, title: lesson.title, due_on: plan.target_date, status: progress.lesson_progress(lesson).status }
   end
 

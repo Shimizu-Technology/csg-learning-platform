@@ -17,6 +17,7 @@ import {
   toDateInputValue,
   formatPaceWeeks,
   parsePaceWeeks,
+  paceWeeksProblem,
 } from './settingsForm'
 
 export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> } = {}) {
@@ -46,6 +47,8 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   const [editSupportEnd, setEditSupportEnd] = useState('')
   // Learner-chosen pace (W9.1): '' is off; otherwise the week choices, e.g. "3, 4, 6".
   const [editPaceWeeks, setEditPaceWeeks] = useState('')
+  // On/off is its own state, so clearing the text doesn't turn pace off (or hide the field).
+  const [editPaceEnabled, setEditPaceEnabled] = useState(false)
   const [editStartDate, setEditStartDate] = useState('')
   const [editGithubOrganization, setEditGithubOrganization] = useState('')
   const [editStatus, setEditStatus] = useState('active')
@@ -107,6 +110,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
       setEditAccessEnd(nextCohort.guided_access_ends_on || '')
       setEditSupportEnd(nextCohort.guided_support_ends_on || '')
       setEditPaceWeeks(formatPaceWeeks(nextCohort.learner_pace_weeks))
+      setEditPaceEnabled(Boolean(nextCohort.learner_pace_weeks?.length))
       setEditStartDate(toDateInputValue(nextCohort.start_date))
       setEditGithubOrganization(nextCohort.github_organization_name || '')
       setEditStatus(nextCohort.status)
@@ -142,6 +146,11 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   const [loadError, setLoadError] = useState('')
   const saveSettings = async () => {
     if (!id || !cohort) return
+    const pacing = editPaceEnabled && editCourseDelivery !== 'program'
+    if (pacing && paceWeeksProblem(editPaceWeeks)) {
+      notifyError(paceWeeksProblem(editPaceWeeks)!)
+      return
+    }
     setSaving(true)
     try {
       const candidates = {
@@ -162,7 +171,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         guided_support_ends_on: cohort.guided_support_ends_on || null,
       }
       // Pace is only for guided and self-paced delivery; a live program clears it.
-      const paceWeeks = editCourseDelivery === 'program' || !editPaceWeeks.trim() ? null : parsePaceWeeks(editPaceWeeks)
+      const paceWeeks = pacing ? parsePaceWeeks(editPaceWeeks) : null
       const paceChange = JSON.stringify(paceWeeks) !== JSON.stringify(cohort.learner_pace_weeks?.length ? cohort.learner_pace_weeks : null)
         ? { learner_pace_weeks: paceWeeks }
         : {}
@@ -338,6 +347,8 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     setEditSupportEnd,
     editPaceWeeks,
     setEditPaceWeeks,
+    editPaceEnabled,
+    setEditPaceEnabled,
     editStartDate,
     setEditStartDate,
     editGithubOrganization,

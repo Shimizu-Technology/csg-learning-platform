@@ -21,13 +21,15 @@ export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss 
     finally { setSaving(false) }
   }
   const next = today.next_lesson
+  // Only advertise choosing a pace when the learner can choose one (no staff plan in its place).
+  const choosesPace = Boolean(today.personal_pace?.available) && today.personal_pace?.status !== 'staff_plan'
   return <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="welcome-title">
     <p className="text-xs font-semibold text-primary-ink">Start here</p>
     <h2 id="welcome-title" className="mt-1 text-xl font-bold text-ink">Here’s how your course works</h2>
     <ol className="mt-4 divide-y divide-line border-t border-line">
-      <Step number={1} title={today.personal_pace ? 'Learn at the pace you choose' : today.mode === 'self_paced' ? 'Learn at your own pace' : 'Follow the class schedule'}>
-        {today.personal_pace
-          ? 'Every lesson is open. Your pace sets a target for each week, and Today shows how you’re doing. Only the final project has a firm date.'
+      <Step number={1} title={choosesPace ? 'Learn at the pace you choose' : today.mode === 'self_paced' ? 'Learn at your own pace' : 'Follow the class schedule'}>
+        {choosesPace
+          ? 'Every lesson is open, unless your instructor schedules one later. Your pace sets a target for each week, and Today shows how you’re doing. Only the final project has a firm date.'
           : today.mode === 'self_paced' ? 'Read or watch lessons, try the exercises, and submit your work. There are no class times or deadlines.' : 'Learn has your lessons and release dates. Today shows your next step and work that needs you.'}
       </Step>
       <Step number={2} title="Your instructor reviews your exercises">

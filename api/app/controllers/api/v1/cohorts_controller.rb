@@ -119,6 +119,7 @@ module Api
         Cohort.transaction do
           lock_cohort_for_update!
           @cohort.assign_attributes(cohort_params)
+          @cohort.edited_by = current_user
           # null (or an empty list) turns learner-chosen pace off.
           @cohort.learner_pace_weeks = nil if params.key?(:learner_pace_weeks) && params[:learner_pace_weeks].blank?
           if @cohort.will_save_change_to_public_checkout_enabled? && @cohort.public_checkout_enabled? && !@cohort.setup_readiness.values.all?

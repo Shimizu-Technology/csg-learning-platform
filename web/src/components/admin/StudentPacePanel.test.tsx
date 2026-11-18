@@ -13,7 +13,7 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.clearAllMocks() }
 
 const pace: PersonalPace = {
   enrollment_id: 7, available: true, options: [3, 4, 6], weeks: 6, plan_source: 'learner_pace', starts_on: '2026-11-18', start_set_by_staff: false,
-  ends_on: '2026-12-29', adjusted_for: null, current_week: 2, status: 'behind', weeks_behind: 1, final_project: null,
+  ends_on: '2026-12-29', adjusted_for: null, choices: [], current_week: 2, status: 'behind', weeks_behind: 1, final_project: null,
   next_milestone: { title: 'Week 1', due_on: '2026-11-24', total: 3, completed: 2, status: 'behind', lessons: [] },
   milestones: [{ title: 'Week 1', due_on: '2026-11-24', total: 3, completed: 2, status: 'behind' }, { title: 'Week 2', due_on: '2026-12-01', total: 2, completed: 0, status: 'current' }],
   can_change: true, changes_left: 1, chosen_by: { id: 3, full_name: 'Rehearsal Learner' }, chosen_at: '2026-11-28T00:00:00Z',

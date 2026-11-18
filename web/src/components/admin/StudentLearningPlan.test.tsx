@@ -225,3 +225,28 @@ it('links milestone lessons with enrollment and return context instead of joinin
   expect(link.getAttribute('href')).toContain('/admin/lessons/12?cohort_id=4')
   expect(link.getAttribute('href')).toContain('return_to=')
 })
+
+it('keeps an open draft when the plan changes elsewhere, and reloads when nothing is being edited', async () => {
+  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Your pace: 4 weeks', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'learner_pace', pace_weeks: 4, pace_changes_count: 0, lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
+  getPlan.mockResolvedValue({ data: personal })
+  const render = (outsideChange: number) => act(async () => root.render(<TestRouter><StudentLearningPlan enrollmentId={8} cohortId={3} onSaved={vi.fn()} outsideChange={outsideChange} /></TestRouter>))
+  await render(0)
+  expect(container.textContent).toContain('Made from the pace the learner chose (4 weeks)')
+  await click('Edit personal plan')
+  const title = container.querySelector<HTMLInputElement>('input[maxlength="160"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'My draft title')
+    title.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const loads = getPlan.mock.calls.length
+  await render(1)
+  expect(getPlan.mock.calls.length).toBe(loads)
+  expect(container.querySelector<HTMLInputElement>('input[maxlength="160"]')!.value).toBe('My draft title')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')?.textContent).toContain('Your draft is kept')
+
+  await click('Cancel')
+  const leave = buttons().find((element) => element.textContent === 'Discard changes')
+  if (leave) await act(async () => leave.click())
+  await render(2)
+  expect(getPlan.mock.calls.length).toBe(loads + 1)
+})

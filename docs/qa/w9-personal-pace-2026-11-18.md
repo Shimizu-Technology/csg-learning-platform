@@ -69,7 +69,8 @@ with 13 lessons as with 31 lessons and more than 25 planned lessons.
 Harness: `scripts/qa/run start`, then
 `bundle exec ruby ../scripts/qa/w9-personal-pace-fixtures.rb setup` from `api/`,
 then from `web/`:
-`QA_SPEC=w9-personal-pace.spec.ts QA_THEME=light|dark npx playwright test --config ../scripts/qa/playwright.config.ts`.
+`QA_SPEC=w9-personal-pace.spec.ts QA_THEME=light npx playwright test --config ../scripts/qa/playwright.config.ts`,
+then the same command again with `QA_THEME=dark`.
 The tests use bundled Chromium at 390 and 1280 px, light and dark. Fixture: a
 guided "QA Python pilot" cohort that started 3 days ago, offers paces of 3, 4
 and 6 weeks, and has 12 exercises and a final project. Two new synthetic
@@ -229,3 +230,45 @@ It found three P2s. Each one reproduced with its probes (`/tmp/pr313-review-prob
 - Prepared API, re-run on ASUS with the same environment and port adapter: 2,368 runs, 0 failures, 1 existing skip.
 
 That failure looks like an intermittent test, and I'm reporting it here rather than calling the first prepared run clean.
+
+## Fix round 3: CodeRabbit's first review of 728fdfa4 and the CI parity failure
+
+**CI parity failure** (`API / transaction pooler (true)`, run 44237525378): `guided_pace_off` differed only in
+`staff_progress.body.enrollment.module_assignments`. The two assignments came back in the other order, and every value was identical.
+
+- **Cause.** The staff progress endpoint (`progress_controller.rb`, unchanged by this PR) serializes `enrollment.module_assignments` with no `ORDER BY`, so Postgres may return the rows in either order. Off-cohort behaviour didn't change.
+- **Fix in the test, not the app.**
+  - The comparison now puts that one list into id order on both sides (`UNORDERED`). Every other list keeps its order, and every value is still compared.
+  - Failures now print each differing key path instead of two 55,000-character dumps.
+  - A self-test covers both the row-order handling and the path output.
+  - A sabotage run (pace turned on for the guided "off" cohort) still fails and names the changed fields: `guided_pace_off.dashboard.body.dashboard.modules[0].unlock_date: expected "2026-11-02", got "2026-11-18"`.
+- **Loop.** The parity and pace tests ran 20 times with prepared statements on and 20 times with them off, each with a different seed: 40 of 40 passed.
+
+**Data integrity**
+
+1. A staff start and a pace sent together now commit in one transaction under the enrollment lock. A refused pace (for example `weeks: 27`) leaves the start unchanged, and the error messages are the same as before.
+2. A first open now sets `first_opened_at` and re-plans the pace in one transaction under the row lock. If the re-plan fails, the open rolls back and the next open tries again.
+3. Changing a cohort's `start_date` re-plans active learner-pace plans, in the same transaction as the cohort save, for learners without their own start (opened or not). Learners with a staff-set start keep their dates. The re-plan revision is credited to the editing staff member.
+4. Saving a pace or start in the staff workspace no longer remounts the plan editor. An open plan draft is kept, with a notice that the plan changed. Saving that stale draft is then refused, because the plan's lock version moved.
+
+**Smaller fixes**
+
+5. Pace choices are validated as sent, before integer casting, so `[3.5]`, `["3weeks"]` and `[""]` are rejected.
+6. "Behind" counts overdue weeks, meaning distinct due dates, so a week's lessons and the final project due the same day count once.
+7. When staff turn pace off, an active chosen pace stays on Today, read-only: no changes, and `choices` is empty. "Behind" is still measured against it, and lesson release goes back to the cohort calendar.
+8. The welcome card only advertises choosing a pace when the learner can choose one: pace is available and no staff plan is in place.
+9. The copy now says "every lesson is open from …, unless your instructor schedules one later".
+10. The picker's "done by" date for each choice now comes from the server (`personal_pace.choices`, using the same generator, not saved), with a note when a choice runs later.
+11. In cohort settings, on/off is its own state, so clearing the text no longer hides the field.
+12. Settings refuse pace text that is blank or isn't whole weeks while pace is on (`", ,"`, `3.5`).
+13. The outline says "Final project due" only for a chosen pace with a final project (`personal_pace.final_project`); otherwise it says "Plan ends".
+14. The QA command now uses `QA_THEME=light`, then `dark`. Both specs compute expected dates in the school zone (`SCHOOL_TIME_ZONE`, default Pacific/Guam), not the runner's zone.
+
+**Checks**
+
+- API, focused: 245 runs in both prepared-statement modes, 0 failures. RuboCop: no offenses.
+- Web: vitest 251 files, 3,495 tests; typecheck, lint and `api:check` pass.
+- Mobile: typecheck, lint (0 errors) and jest (1,820 tests) pass.
+- Browser, at 390 and 1280 in light and dark:
+  - `w9-personal-pace-fixes.spec.ts`: 24 of 24. It now also covers the transaction refusal, unsaved plan edits surviving a pace change, and a cohort start change re-planning a learner without their own start.
+  - The original journeys: 24 of 24.

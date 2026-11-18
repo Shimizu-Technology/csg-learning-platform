@@ -13,13 +13,18 @@ module Api
         render json: pace_json
       end
 
+      # A start and a pace sent together commit together: a refused pace
+      # leaves the start as it was.
       def update
-        if params.key?(:starts_on)
-          return render_forbidden("Only staff can set a start date") unless current_user.staff?
-          return unless update_start_date
+        if params.key?(:starts_on) && !current_user.staff?
+          return render_forbidden("Only staff can set a start date")
         end
-        if params.key?(:weeks)
-          LearnerPace.new(@enrollment).choose!(weeks: params[:weeks], actor: current_user, request_started_at: @learning_request_started_at)
+        Enrollment.capture_missing_paused_libraries!(Enrollment.where(id: @enrollment.id)) if params.key?(:starts_on)
+        with_learning_write_guard(@enrollment) do
+          update_start_date! if params.key?(:starts_on)
+          if params.key?(:weeks)
+            LearnerPace.new(@enrollment).choose!(weeks: params[:weeks], actor: current_user, request_started_at: @learning_request_started_at)
+          end
         end
         render json: pace_json
       rescue LearnerPace::Refused => error
@@ -42,25 +47,20 @@ module Api
       end
 
       # Staff move one learner's start (a late joiner, or a restart). A pace
-      # plan follows the new start; a staff plan keeps its own dates.
-      def update_start_date
+      # plan follows the new start; a staff plan keeps its own dates. A paused
+      # or ended learner's start still moves (it governs what they can read),
+      # with no re-plan. Runs inside the update's lock and transaction.
+      def update_start_date!
         raw = params[:starts_on].presence
-        starts_on = raw && Date.iso8601(raw.to_s)
-        unless @enrollment.cohort.personal_pace?
-          render json: { error: "Turn on learner-chosen pace for this course to set a personal start." }, status: :unprocessable_entity
-          return false
+        starts_on = begin
+          raw && Date.iso8601(raw.to_s)
+        rescue Date::Error
+          raise LearnerPace::Refused, "Start date is invalid"
         end
-        Enrollment.capture_missing_paused_libraries!(Enrollment.where(id: @enrollment.id))
-        # One lock for the date and the re-plan; a paused or ended learner's
-        # start still moves (it governs what they can read), with no re-plan.
-        with_learning_write_guard(@enrollment) do
-          @enrollment.update!(starts_on: starts_on)
-          LearnerPace.new(@enrollment).regenerate!(actor: current_user)
-        end
-        true
-      rescue Date::Error
-        render json: { error: "Start date is invalid" }, status: :unprocessable_entity
-        false
+        raise LearnerPace::Refused, "Turn on learner-chosen pace for this course to set a personal start." unless @enrollment.cohort.personal_pace?
+
+        @enrollment.update!(starts_on: starts_on)
+        LearnerPace.new(@enrollment).regenerate!(actor: current_user)
       end
 
       def pace_json

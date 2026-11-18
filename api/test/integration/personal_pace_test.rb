@@ -105,7 +105,7 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     assert_equal [ false, "2026-12-02", "upcoming" ], first.values_at("available", "opens_on", "status")
     assert_equal [ "2026-12-02" ], outline["modules"].first["groups"].map { |group| group["opens_on"] }.uniq
     assert_equal "self_paced", outline["mode"]
-    assert_equal({ "starts_on" => "2026-12-02", "weeks" => nil, "ends_on" => nil }, outline["personal_pace"])
+    assert_equal({ "starts_on" => "2026-12-02", "weeks" => nil, "ends_on" => nil, "final_project" => false }, outline["personal_pace"])
 
     # Clearing it returns the learner to their own first-open start.
     put "/api/v1/enrollments/#{late_enrollment.id}/pace", params: { starts_on: nil }, headers: headers(admin), as: :json
@@ -146,7 +146,7 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     lessons = outline["modules"].flat_map { |mod| mod["groups"].flat_map { |group| group["lessons"] } }
     assert_equal "2026-11-24", lessons.find { |item| item["id"] == @lessons.first.id }["due_on"]
     assert_equal "2026-12-15", lessons.find { |item| item["id"] == @project.id }["due_on"]
-    assert_equal({ "starts_on" => "2026-11-18", "weeks" => 4, "ends_on" => "2026-12-15" }, outline["personal_pace"])
+    assert_equal({ "starts_on" => "2026-11-18", "weeks" => 4, "ends_on" => "2026-12-15", "final_project" => true }, outline["personal_pace"])
   end
 
   test "falling behind a milestone shows how far behind, and finishing it clears that" do
@@ -354,6 +354,118 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     pace = choose(4)
     assert_equal "learner_pace", pace["plan_source"]
     assert_empty @enrollment.reload.learning_plan.lesson_overrides
+  end
+
+  test "a start and a pace sent together commit together: a refused pace leaves the start as it was" do
+    fetch_today
+    choose(4)
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { starts_on: "2026-12-01", weeks: 27 }, headers: headers(@teacher), as: :json
+    assert_response :unprocessable_entity
+    assert_match(/from 1 to 26 weeks/, response.parsed_body["error"])
+    assert_nil @enrollment.reload.starts_on
+    assert_equal [ 4, 1 ], [ @enrollment.learning_plan.pace_weeks, @enrollment.learning_plan.revisions.count ]
+
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { starts_on: "not-a-date", weeks: 6 }, headers: headers(@teacher), as: :json
+    assert_response :unprocessable_entity
+    assert_equal "Start date is invalid", response.parsed_body["error"]
+    assert_equal 4, @enrollment.reload.learning_plan.pace_weeks
+
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { starts_on: "2026-12-01", weeks: 6 }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert_equal [ "2026-12-01", 6, "2027-01-11" ], response.parsed_body["personal_pace"].values_at("starts_on", "weeks", "ends_on")
+  end
+
+  test "a first open and its re-plan commit together, so a failed re-plan is retried on the next open" do
+    travel_to NOW + 21.days
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { weeks: 4 }, headers: headers(@teacher), as: :json
+    failing = Module.new { def regenerate!(**) = raise(ActiveRecord::RecordInvalid, LearningPlan.new) }
+    LearnerPace.prepend(failing)
+    begin
+      assert_raises(ActiveRecord::RecordInvalid) { Enrollment.find(@enrollment.id).record_first_course_open! }
+    ensure
+      failing.send(:remove_method, :regenerate!)
+    end
+    assert_nil @enrollment.reload.first_opened_at, "the open rolled back with the re-plan"
+    assert_equal "2026-12-13", @enrollment.learning_plan.target_date.iso8601
+
+    pace = fetch_today["personal_pace"] # the next open re-plans
+    assert_equal [ "2026-12-09", "2027-01-05" ], pace.values_at("starts_on", "ends_on")
+  end
+
+  test "a new cohort start re-plans chosen paces of learners without their own start" do
+    fetch_today # first open Nov 18, after the Nov 16 start
+    choose(4)
+    unopened = enroll(person("unopened", :student), @cohort)
+    LearnerPace.new(unopened).choose!(weeks: 3, actor: @teacher)
+    staff_start = enroll(person("fixed", :student), @cohort)
+    staff_start.update!(starts_on: Date.new(2026, 11, 20))
+    LearnerPace.new(staff_start).choose!(weeks: 3, actor: @teacher)
+    fixed_target = staff_start.reload.learning_plan.target_date
+    admin = person("admin", :admin)
+
+    patch "/api/v1/cohorts/#{@cohort.id}", params: { start_date: "2026-11-23" }, headers: headers(admin), as: :json
+    assert_response :success
+    # Opened Nov 18, now before the new start: the start (and plan) move to Nov 23.
+    assert_equal [ Date.new(2026, 11, 23), Date.new(2026, 12, 20) ], [ @enrollment.reload.personal_start_on, @enrollment.learning_plan.target_date ]
+    assert_equal admin, @enrollment.learning_plan.revisions.order(:id).last.author
+    assert_equal Date.new(2026, 12, 13), unopened.reload.learning_plan.target_date
+    assert_equal fixed_target, staff_start.reload.learning_plan.target_date, "a staff-set start keeps its dates"
+    assert_equal 1, staff_start.learning_plan.revisions.count
+  end
+
+  test "pace choices are checked as sent, before the integer column casts them" do
+    [ [ 3.5 ], [ "3weeks" ], [ "", "4" ], [ nil ] ].each do |choices|
+      @cohort.learner_pace_weeks = choices
+      assert_not @cohort.valid?, choices.inspect
+    end
+    @cohort.learner_pace_weeks = [ "6", "3", 4 ]
+    assert @cohort.valid?
+    assert_equal [ 3, 4, 6 ], @cohort.learner_pace_weeks
+    admin = person("admin", :admin)
+    patch "/api/v1/cohorts/#{@cohort.id}", params: { learner_pace_weeks: [ "3weeks" ] }, headers: headers(admin), as: :json
+    assert_response :unprocessable_entity
+    assert_equal [ 3, 4, 6 ], @cohort.reload.learner_pace_weeks
+  end
+
+  test "behind counts overdue weeks, not milestones that share a date" do
+    @cohort.update!(learner_pace_weeks: [ 1, 3 ])
+    fetch_today
+    pace = choose(1)
+    assert_equal [ [ "Week 1", "2026-11-24" ], [ "Final project", "2026-11-24" ] ], pace["milestones"].map { |item| item.values_at("title", "due_on") }
+    travel_to NOW + 7.days
+    today = fetch_today
+    assert_equal %w[behind behind], today.dig("personal_pace", "milestones").map { |item| item["status"] }
+    assert_equal [ "behind", 1 ], today["personal_pace"].values_at("status", "weeks_behind")
+    assert_equal({ "behind" => true, "weeks_behind" => 1, "overdue_count" => 13 }, today["pace"])
+  end
+
+  test "after staff turn pace off, a chosen pace stays on Today, read-only" do
+    fetch_today
+    choose(4)
+    @cohort.update!(learner_pace_weeks: nil)
+    today = fetch_today
+    pace = today["personal_pace"]
+    assert_equal [ false, false, 4, "on_track", [] ], pace.values_at("available", "can_change", "weeks", "status", "choices")
+    assert_equal 5, pace["milestones"].size
+    assert_nil today["catch_up_plan"]
+    assert_equal({ "behind" => false, "weeks_behind" => 0, "overdue_count" => 0 }, today["pace"])
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { weeks: 6 }, headers: headers(@student), as: :json
+    assert_response :unprocessable_entity
+  end
+
+  test "each pace choice shows the end date the server would schedule" do
+    late_module = @curriculum.modules.create!(name: "Projects", position: 1, day_offset: 21, schedule_days: "weekdays")
+    @project.update!(module_id: late_module.id)
+    @enrollment.module_assignments.create!(curriculum_module: late_module, unlock_date_override: Date.new(2026, 12, 28))
+    choices = fetch_today.dig("personal_pace", "choices")
+    assert_equal [ [ 3, "2026-12-29", "lessons_open_later" ], [ 4, "2026-12-29", "lessons_open_later" ], [ 6, "2026-12-29", nil ] ],
+      choices.map { |item| item.values_at("weeks", "ends_on", "adjusted_for") }
+    choices.each do |item|
+      @enrollment.learning_plan&.destroy!
+      @enrollment.association(:learning_plan).reset
+      assert_equal item["ends_on"], choose(item["weeks"])["ends_on"]
+    end
+    assert_equal [], fetch_today.dig("personal_pace", "choices").map { |item| item["weeks"] } - [ 3, 4, 6 ]
   end
 
   test "learning plans switched off means no pace to choose" do

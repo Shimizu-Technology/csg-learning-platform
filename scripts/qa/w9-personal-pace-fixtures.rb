@@ -11,7 +11,9 @@
 #     903 in a self-paced paced course whose staff chose 4 weeks before the
 #     first open; 904 in the pilot with the course held back until 30 days
 #     from now; 905 in the pilot with 4 weeks chosen and the final project
-#     already finished. Writes ids to .qa-local/w9-pace-fixes.json.
+#     already finished; 906 in the pilot with 4 weeks chosen by staff and the
+#     course not yet opened. Resets the pilot start to 3 days ago. Writes ids
+#     to .qa-local/w9-pace-fixes.json.
 #   bundle exec ruby ../scripts/qa/w9-personal-pace-fixtures.rb reset
 #     Puts both learners back to "never opened, no pace, no staff start", so a
 #     browser pass can run the journey again.
@@ -27,6 +29,8 @@ reset = lambda do
   LearningPlan.where(enrollment_id: enrollments.select(:id)).destroy_all
   Progress.where(enrollment_id: enrollments.select(:id)).delete_all
   enrollments.update_all(first_opened_at: nil, starts_on: nil, start_here_dismissed_at: nil, joined_at: nil)
+  # The cohort-start case in w9-personal-pace-fixes.spec.ts moves it.
+  Cohort.find_by(name: "QA Python pilot")&.update!(start_date: Date.current - 3)
 end
 
 fix_learner = lambda do |id, name, cohort|
@@ -52,6 +56,12 @@ when "fixes"
     self_paced = fix_learner.call(903, "ondemand", on_demand)
     LearnerPace.new(self_paced).choose!(weeks: 4, actor: admin)
 
+    # The pilot starts 3 days ago in every pass (the cohort-start case moves it).
+    pilot.update!(start_date: Date.current - 3)
+    # Staff chose 4 weeks; the learner hasn't opened the course.
+    unopened = fix_learner.call(906, "cohortstart", pilot)
+    LearnerPace.new(unopened).choose!(weeks: 4, actor: admin)
+
     held = fix_learner.call(904, "heldback", pilot)
     held.module_assignments.update_all(unlock_date_override: Date.current + 30)
 
@@ -63,7 +73,7 @@ when "fixes"
       Progress.create!(enrollment: finished, user: finished.user, content_block: block, status: :completed, completed_at: Time.current)
     end
     ids.merge!("on_demand_cohort" => on_demand.id, "self_paced" => { user: 903, enrollment: self_paced.id },
-      "held" => { user: 904, enrollment: held.id }, "finished" => { user: 905, enrollment: finished.id }, "project_lesson" => project.id)
+      "held" => { user: 904, enrollment: held.id }, "unopened" => { user: 906, enrollment: unopened.id }, "finished" => { user: 905, enrollment: finished.id }, "project_lesson" => project.id)
   end
   Rails.root.join("..", ".qa-local", "w9-pace-fixes.json").write(JSON.pretty_generate(ids))
   puts JSON.pretty_generate(ids)

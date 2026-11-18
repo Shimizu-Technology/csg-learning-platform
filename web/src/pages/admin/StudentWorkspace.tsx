@@ -31,7 +31,8 @@ export function StudentWorkspace() {
 
 function Workspace() {
   const workspace = useStudentWorkspace()
-  // A pace change rewrites the learning plan, so the plan editor reloads after one.
+  // A pace change rewrites the learning plan; the plan editor reloads after one,
+  // or keeps an unsaved draft and says the plan changed (no remount).
   const [planVersion, setPlanVersion] = useState(0)
   // And a plan-editor save (it becomes a staff plan) reloads the pace panel.
   const [paceVersion, setPaceVersion] = useState(0)
@@ -212,7 +213,8 @@ function Workspace() {
             />
             <StudentLearningPlan
               cohortId={cohortId}
-              key={`${progress.enrollment.id}-${planVersion}`}
+              key={progress.enrollment.id}
+              outsideChange={planVersion}
               enrollmentId={progress.enrollment.id}
               onSaved={() => { setPaceVersion((value) => value + 1); refresh() }}
             />

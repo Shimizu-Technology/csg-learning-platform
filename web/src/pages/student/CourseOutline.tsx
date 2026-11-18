@@ -183,7 +183,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
         outline.personal_pace ? paceLabel(outline.personal_pace) : selfPaced ? 'Self-paced' : outline.cohort.name,
         outline.counts && <span key="counts" className="tabular-nums">{outline.counts.completed_lessons} of {outline.counts.total_lessons} lessons</span>,
         outline.course_week && <span key="week" className="tabular-nums">Week {outline.course_week.current} of {outline.course_week.total}</span>,
-        outline.personal_pace?.ends_on && <span key="ends" className="tabular-nums">Final project due {formatShortDate(outline.personal_pace.ends_on, '', { withYear: false, weekday: true })}</span>,
+        outline.personal_pace?.ends_on && <span key="ends" className="tabular-nums">{outline.personal_pace.final_project ? 'Final project due' : 'Plan ends'} {formatShortDate(outline.personal_pace.ends_on, '', { withYear: false, weekday: true })}</span>,
       ].filter(Boolean)
 
   return (

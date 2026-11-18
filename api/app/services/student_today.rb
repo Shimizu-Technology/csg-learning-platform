@@ -75,7 +75,9 @@ class StudentToday
     }.tap do |json|
       # Only cohorts with personal pace on get the key, so every other
       # cohort's Today is unchanged (W9.1).
-      json[:personal_pace] = LearnerPace.new(@enrollment, features: @features).as_json(@progress) if personal_pace?
+      # After staff turn pace off, a learner's chosen pace stays on Today,
+      # read-only (it can't be changed), rather than vanishing.
+      json[:personal_pace] = LearnerPace.new(@enrollment, features: @features).as_json(@progress) if personal_pace? || @progress.plan&.learner_pace?
     end
   end
 

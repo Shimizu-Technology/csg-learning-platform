@@ -14,7 +14,7 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.clearAllMocks() }
 
 const base: PersonalPace = {
   enrollment_id: 41, available: true, options: [3, 4, 6], weeks: null, plan_source: null, starts_on: '2026-11-18', start_set_by_staff: false,
-  ends_on: null, adjusted_for: null, current_week: null, status: 'not_chosen', weeks_behind: 0, final_project: null, next_milestone: null, milestones: [],
+  ends_on: null, adjusted_for: null, choices: [], current_week: null, status: 'not_chosen', weeks_behind: 0, final_project: null, next_milestone: null, milestones: [],
   can_change: true, changes_left: 2, chosen_by: null, chosen_at: null,
 }
 const chosen: PersonalPace = {
@@ -100,4 +100,24 @@ it('says when the pace was adjusted because lessons open later', async () => {
   await render({ ...chosen, weeks: 3, ends_on: '2027-01-05', adjusted_for: 'lessons_open_later' })
   expect(host.querySelector('[data-pace-adjusted="lessons_open_later"]')?.textContent).toContain('This pace was adjusted because some lessons open later than 3 weeks would end.')
   expect(host.textContent).toContain('Final project due Tue, Jan 5')
+})
+
+it('shows the end date the server would schedule for each choice, and why one runs later', async () => {
+  await render({ ...base, choices: [
+    { weeks: 3, ends_on: '2027-01-05', adjusted_for: 'lessons_open_later' },
+    { weeks: 4, ends_on: '2027-01-05', adjusted_for: 'lessons_open_later' },
+    { weeks: 6, ends_on: '2026-12-29', adjusted_for: null },
+  ] })
+  const options = Array.from(host.querySelectorAll('label:has(input[type="radio"])')).map((label) => label.textContent)
+  expect(options[0]).toContain('done by Jan 5')
+  expect(options[0]).toContain('Later because some lessons open later')
+  expect(options[2]).toContain('done by Dec 29')
+  expect(options[2]).not.toContain('Later because')
+  expect(host.textContent).toContain('unless your instructor schedules one later')
+})
+
+it('keeps a chosen pace visible, read-only, after staff turn pace off', async () => {
+  await render({ ...chosen, available: false, can_change: false, changes_left: 2 })
+  expect(host.textContent).toContain('Your pace · 4 weeks')
+  expect(button('Change pace')).toBeUndefined()
 })

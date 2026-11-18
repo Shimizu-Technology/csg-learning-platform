@@ -22531,12 +22531,17 @@
                     "type": "null"
                   }
                 ]
+              },
+              "final_project": {
+                "type": "boolean",
+                "description": "The plan is a chosen pace with a final project, so its end date is the final project's due date."
               }
             },
             "required": [
               "starts_on",
               "weeks",
-              "ends_on"
+              "ends_on",
+              "final_project"
             ],
             "additionalProperties": false,
             "description": "Included only when the cohort has learner-chosen pace on (W9.1): the learner's own start, chosen pace and firm final date."
@@ -25190,6 +25195,42 @@
             ],
             "description": "Why a chosen pace runs past the weeks chosen: some planned lessons open after it would have ended, or it was chosen or re-planned after that end. Null when it fits or no pace is chosen."
           },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "weeks": {
+                  "type": "integer"
+                },
+                "ends_on": {
+                  "type": "string",
+                  "description": "The firm date the server would schedule for this pace if chosen now."
+                },
+                "adjusted_for": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "lessons_open_later",
+                        "late_start"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "weeks",
+                "ends_on",
+                "adjusted_for"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What each offered pace would schedule if chosen now (the same generator, not saved). Empty when the learner can't choose or change."
+          },
           "current_week": {
             "anyOf": [
               {
@@ -25315,6 +25356,7 @@
           "start_set_by_staff",
           "ends_on",
           "adjusted_for",
+          "choices",
           "current_week",
           "status",
           "weeks_behind",

@@ -36,7 +36,9 @@ export function PersonalPaceCard({ pace, totalLessons, lessonPath, contactName, 
 }) {
   const [changing, setChanging] = useState(false)
   const chosen = pace.weeks !== null && pace.plan_source === 'learner_pace'
-  if (!pace.available || pace.status === 'staff_plan') return null
+  // A staff plan replaces the pace (Today shows it as a catch-up plan). With
+  // pace turned off, a pace already chosen stays visible, read-only.
+  if (pace.status === 'staff_plan' || (!pace.available && !chosen)) return null
 
   if (!chosen) {
     return (
@@ -44,7 +46,7 @@ export function PersonalPaceCard({ pace, totalLessons, lessonPath, contactName, 
         <p className="text-xs font-semibold text-primary-ink">Your pace</p>
         <h2 id="pace-title" className="mt-1 text-xl font-bold text-ink">How fast do you want to go?</h2>
         <p className="mt-2 text-sm leading-6 text-ink-secondary">
-          {pace.starts_on ? <>Every lesson is open from <strong className="font-semibold text-ink">{formatShortDate(pace.starts_on, '', DATE)}</strong>. </> : 'Every lesson is open. '}
+          {pace.starts_on ? <>Every lesson is open from <strong className="font-semibold text-ink">{formatShortDate(pace.starts_on, '', DATE)}</strong>, unless your instructor schedules one later. </> : 'Every lesson is open, unless your instructor schedules one later. '}
           Pick a pace and we’ll give you a target for each week. Weekly targets are a guide; only the final project has a firm date.
         </p>
         {pace.can_change
@@ -179,14 +181,19 @@ function PacePicker({ pace, totalLessons, submitLabel, onSaved }: { pace: Person
           {pace.options.map((weeks) => {
             const perWeek = totalLessons && totalLessons > 0 ? Math.ceil(totalLessons / weeks) : null
             const current = weeks === pace.weeks
+            // The server's projection for this choice (the date it would keep); the rule is the fallback.
+            const choice = pace.choices.find((item) => item.weeks === weeks)
+            const endsOn = choice?.ends_on ?? (pace.starts_on ? paceEndDate(pace.starts_on, weeks) : null)
             return (
               <label key={weeks} className={`pressable flex min-h-16 cursor-pointer flex-col justify-center rounded-xl border px-4 py-3 has-[:checked]:border-action-primary has-[:checked]:bg-surface-selected has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus ${selected === weeks ? 'border-action-primary bg-surface-selected' : 'border-line hover:border-line-strong'}`}>
                 <input type="radio" name={name} value={weeks} checked={selected === weeks} onChange={() => setSelected(weeks)} className="sr-only" />
                 <span className="flex items-center justify-between gap-2 font-semibold text-ink"><span className="tabular-nums">{weeks} weeks</span>{current && <span className="text-xs font-semibold text-ink-muted">Current</span>}</span>
                 <span className="mt-0.5 text-xs leading-5 text-ink-muted">
                   {perWeek !== null && <>About <span className="tabular-nums">{perWeek}</span> {perWeek === 1 ? 'lesson' : 'lessons'} a week</>}
-                  {perWeek !== null && pace.starts_on && ' · '}
-                  {pace.starts_on && <>done by <span className="tabular-nums">{formatShortDate(paceEndDate(pace.starts_on, weeks), '', { withYear: false })}</span></>}
+                  {perWeek !== null && endsOn && ' · '}
+                  {endsOn && <>done by <span className="tabular-nums">{formatShortDate(endsOn, '', { withYear: false })}</span></>}
+                  {choice?.adjusted_for === 'lessons_open_later' && <span className="block">Later because some lessons open later</span>}
+                  {choice?.adjusted_for === 'late_start' && <span className="block">Later because these weeks have passed</span>}
                 </span>
               </label>
             )

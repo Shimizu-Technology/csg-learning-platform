@@ -34,10 +34,13 @@ test.setTimeout(90_000)
 const ADMIN = 1
 const PROGRAM_STUDENT = 3
 
+// Expected dates in the school calendar the API uses (LearningCalendar::TIMEZONE,
+// from SCHOOL_TIME_ZONE, default Pacific/Guam), never the runner's own zone.
+const SCHOOL_ZONE = process.env.SCHOOL_TIME_ZONE || 'Pacific/Guam'
 function iso(daysFromToday: number) {
-  const date = new Date()
-  date.setDate(date.getDate() + daysFromToday)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: SCHOOL_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const [year, month, day] = today.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + daysFromToday)).toISOString().slice(0, 10)
 }
 
 test.beforeAll(() => {
