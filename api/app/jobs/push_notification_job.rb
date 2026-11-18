@@ -43,6 +43,18 @@ class PushNotificationJob < ApplicationJob
       # released notifications are claimed and sent.
       raise not_started.first if not_started.one?
       raise PushDeliveryNotStarted.new(provider: "web_push+expo", notification_ids: not_started.flat_map(&:notification_ids)) if not_started.any?
+    when LearnerNudge
+      # Reminders (W9.3) use the same per-provider claim as announcements, on
+      # the nudge's own outbox columns: a re-request after a crash, a retry or
+      # two jobs at once push the learner at most once per provider.
+      return if notifiable.push_settled_at
+
+      notifications = notifications.where(notifiable_type: "LearnerNudge", notifiable_id: notifiable.id)
+      not_started = [
+        deliver_claimed_push(WebPushNotificationService, :system_notice, :web_push_attempted_notification_ids, notifiable, notifications),
+        deliver_claimed_push(ExpoPushNotificationService, :system_notice, :expo_push_attempted_notification_ids, notifiable, notifications)
+      ].compact
+      settle_nudge_push(notifiable) if not_started.empty?
     when PrivateMeetingBookingEvent, Enrollment
       deliver(WebPushNotificationService, :system_notice, notifiable, notifications, notification_ids)
       deliver(ExpoPushNotificationService, :system_notice, notifiable, notifications, notification_ids)
@@ -84,6 +96,19 @@ class PushNotificationJob < ApplicationJob
         (ids - Array(announcement.public_send(attribute)).map(&:to_i)).empty?
       end
       announcement.update_columns(push_settled_at: Time.current) if claimed
+    end
+  end
+
+  # Settled once both providers have claimed the reminder's notification.
+  def settle_nudge_push(nudge)
+    nudge.with_lock do
+      next if nudge.push_settled_at
+
+      ids = Notification.where(notifiable_type: "LearnerNudge", notifiable_id: nudge.id).pluck(:id)
+      claimed = %i[web_push_attempted_notification_ids expo_push_attempted_notification_ids].all? do |attribute|
+        (ids - Array(nudge.public_send(attribute)).map(&:to_i)).empty?
+      end
+      nudge.update_columns(push_settled_at: Time.current) if claimed
     end
   end
 
@@ -130,7 +155,7 @@ class PushNotificationJob < ApplicationJob
       # Another job may have settled the update's push while this one was
       # sending (every recipient was claimed then). Unsettle it under the same
       # lock, so the tick re-requests the released recipients (#299 re-check).
-      changes[:push_settled_at] = nil if record.is_a?(Announcement)
+      changes[:push_settled_at] = nil if record.is_a?(Announcement) || record.is_a?(LearnerNudge)
       record.update_columns(changes)
     end
     Rails.logger.warn(

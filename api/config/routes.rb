@@ -101,6 +101,8 @@ Rails.application.routes.draw do
       post "transcriptions", to: "transcriptions#create"
       patch "message_preferences", to: "message_preferences#update"
       patch "editor_preferences", to: "editor_preferences#update"
+      get "nudge_preferences", to: "nudge_preferences#show"
+      patch "nudge_preferences", to: "nudge_preferences#update"
       get "messages/search", to: "messages_search#index"
       # Peek cards (L-0.5)
       get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
@@ -274,6 +276,7 @@ Rails.application.routes.draw do
         end
         resource :learning_plan, only: [ :show, :update ]
         resources :extensions, only: [ :index, :create, :update, :destroy ], controller: "learner_extensions"
+        resources :nudges, only: :index, controller: "learner_nudges"
         resource :pace, only: [ :show, :update ], controller: "personal_paces"
         resources :module_assignments, only: [ :index, :create ]
         resources :lesson_assignments, only: [ :index, :create ]

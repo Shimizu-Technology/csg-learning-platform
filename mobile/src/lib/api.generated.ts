@@ -5723,6 +5723,120 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/enrollments/{enrollment_id}/nudges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Reminders sent to one learner (staff cohort scope) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reminder history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearnerNudgesResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nudge_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The learner's reminder preference */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reminder preference */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NudgePreferenceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Turn optional reminders on or off */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NudgePreferenceUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Reminder preference */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NudgePreferenceResponse"];
+                    };
+                };
+                /** @description learner_nudges_enabled must be true or false */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6775,6 +6889,8 @@ export interface components {
             access_expires_at?: string | null;
             /** @description Included when this enrollment has GitHub App access enabled. */
             github_app_enabled?: boolean;
+            /** @description Included (true) only when this enrollment's cohort sends learner reminders. */
+            learner_nudges_enabled?: boolean;
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -8372,6 +8488,8 @@ export interface components {
                     available: boolean;
                     next_unlock_date: string | null;
                 }[];
+                /** @description Present only when this cohort sets learner reminders itself: true while it sends them, false after it turned them off (sent reminders stay listed). */
+                learner_nudges_enabled?: boolean;
             };
             user: {
                 id: number;
@@ -10408,6 +10526,51 @@ export interface components {
              */
             submissions_close_at?: string;
             reason: string;
+        };
+        LearnerNudge: {
+            id: number;
+            /** @enum {string} */
+            kind: "due_soon" | "inactive" | "support_ending" | "access_ending";
+            /** @description How far ahead of the event (24h, 48h, 1d, 3d, 7d, 14d) or, for inactivity, how long since the last activity (7d, 14d). */
+            threshold: string;
+            /** @description Access-ending notices are essential: they are sent even when the learner turned reminders off. */
+            essential: boolean;
+            title: string;
+            body: string | null;
+            /**
+             * Format: date-time
+             * @description The deadline, end of support or access, or last activity the reminder is about.
+             */
+            event_at: string;
+            /** Format: date-time */
+            sent_at: string;
+            /** @enum {string} */
+            email_status: "not_requested" | "sent" | "failed" | "not_configured" | "no_address";
+            /**
+             * @description attempted means every push provider was tried; delivery to a device is not confirmed. not_sent means the outbox gave up on a push that was too old to help.
+             * @enum {string}
+             */
+            push_status: "not_requested" | "pending" | "attempted" | "not_sent";
+            /**
+             * Format: date-time
+             * @description When the learner read the in-app notification.
+             */
+            read_at: string | null;
+        };
+        LearnerNudgesResponse: {
+            /** @description Whether this cohort sends reminders now (school switch and cohort opt-in). */
+            enabled: boolean;
+            /** @description The learner turned optional reminders off; essential notices still go. */
+            learner_opted_out: boolean;
+            /** @description Newest first, at most 100. */
+            nudges: components["schemas"]["LearnerNudge"][];
+        };
+        NudgePreferenceResponse: {
+            learner_nudges_enabled: boolean;
+        };
+        NudgePreferenceUpdateRequest: {
+            /** @description False turns off optional reminders (due dates, inactivity, support ending). Access-ending notices are essential and still arrive. */
+            learner_nudges_enabled: boolean;
         };
     };
     responses: {

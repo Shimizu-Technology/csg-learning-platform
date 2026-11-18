@@ -841,6 +841,8 @@ export interface StudentProgressResponse {
     status: string;
     access_expires_at?: string | null;
     support_expires_at?: string | null;
+    /** Present only for cohorts that set learner reminders themselves (W9.3): true while they send them. */
+    learner_nudges_enabled?: boolean;
     module_assignments: {
       id: number;
       module_id: number;
@@ -1337,3 +1339,5 @@ export type CoursePackageCohort = components['schemas']['CoursePackageCohort'];
 
 export type LearnerExtension = components['schemas']['LearnerExtension'];
 export type LearnerExtensionInput = components['schemas']['LearnerExtensionInput'];
+export type LearnerNudge = components['schemas']['LearnerNudge'];
+export type LearnerNudgesResponse = components['schemas']['LearnerNudgesResponse'];
