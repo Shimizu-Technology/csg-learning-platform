@@ -207,7 +207,12 @@ function Workspace() {
         )}
         {activeTab === 'learning' && (
           <>
-            <StudentExtensions enrollmentId={progress.enrollment.id} modules={progress.modules} onSaved={refresh} />
+            <StudentExtensions
+              key={`extensions-${progress.enrollment.id}`}
+              enrollmentId={progress.enrollment.id}
+              modules={progress.modules}
+              onSaved={refresh}
+            />
             <StudentPacePanel
               key={`pace-${progress.enrollment.id}-${paceVersion}`}
               enrollmentId={progress.enrollment.id}
