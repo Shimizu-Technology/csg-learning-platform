@@ -11,7 +11,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
 
   class Transport
     attr_reader :calls
-    attr_accessor :unauthorized, :revoked, :unselected, :token_expiry, :suspended, :wrong_app
+    attr_accessor :unauthorized, :revoked, :unselected, :token_expiry, :suspended, :wrong_app, :graphql_repository_id
     def initialize
       @calls = []
       @tokens = 0
@@ -36,6 +36,10 @@ class GithubAppClientTest < ActiveSupport::TestCase
       if unauthorized
         self.unauthorized = false
         return Response.new(401, { "message" => "SECRET provider details" })
+      end
+      if url.end_with?("/graphql")
+        return Response.new(200, { "data" => { "repository" => { "fullDatabaseId" => (graphql_repository_id || 98765).to_s,
+          "defaultBranchRef" => { "target" => { "oid" => "c" * 40 } }, "file_0" => { "text" => "puts 'source'" } } } })
       end
       if url.end_with?("/check-runs")
         return Response.new(200, { "total_count" => 0, "check_runs" => [] })
@@ -90,6 +94,21 @@ class GithubAppClientTest < ActiveSupport::TestCase
     @transport.wrong_app = false
     @transport.suspended = true
     assert_raises(GithubAppClient::Error) { @client.installation(123) }
+  end
+
+  test "source fetch compares BigInt repository provenance and refuses a replacement repository" do
+    @transport.graphql_repository_id = 4_000_000_000
+    repository = { "id" => 4_000_000_000, "full_name" => "app-learner/prework-exercises" }
+    result = @client.files(installation: @installation, repository: repository, filenames: [ "nested/111.rb" ])
+    assert_equal [ { "name" => "nested/111.rb", "text" => "puts 'source'" } ], result[:files]
+    assert_equal "c" * 40, result[:commit_hash]
+    assert_nil result[:error]
+    query = JSON.parse(@transport.calls.last[2].fetch(:body)).fetch("query")
+    assert_includes query, "fullDatabaseId"
+    assert_includes query, "followRenames: false"
+    assert_equal [ 4_000_000_000 ], JSON.parse(token_calls.sole[2].fetch(:body)).fetch("repository_ids")
+    @transport.graphql_repository_id += 1
+    assert_raises(GithubAppClient::Error) { @client.files(installation: @installation, repository: repository, filenames: [ "nested/111.rb" ]) }
   end
 
   test "nearly expired response token is not cached or used" do

@@ -42,10 +42,10 @@ class GithubAppClient
       "file_#{index}: object(expression: #{"HEAD:#{filename}".to_json}) { ... on Blob { text } }"
     end.join("\n")
     owner, name = repository.fetch("full_name").split("/")
-    query = "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { databaseId defaultBranchRef { target { ... on Commit { oid } } } #{fragments} } }"
+    query = "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name, followRenames: false) { fullDatabaseId defaultBranchRef { target { ... on Commit { oid } } } #{fragments} } }"
     result = installation_request(installation, :post, "/graphql", repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } })
     repo = result.dig("data", "repository")
-    raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo["databaseId"].to_i == repository.fetch("id").to_i && result["errors"].blank?
+    raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo["fullDatabaseId"].to_i == repository.fetch("id").to_i && result["errors"].blank?
 
     { files: filenames.each_with_index.filter_map { |filename, index| { "name" => filename, "text" => repo.dig("file_#{index}", "text") } if repo.dig("file_#{index}", "text").present? },
       commit_hash: repo.dig("defaultBranchRef", "target", "oid"), error: nil }

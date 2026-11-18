@@ -1239,7 +1239,8 @@ precedence even while pending/failed; it never silently falls back to a differen
 repository. Verification checks installation access, the numeric repository ID,
 and ownership by the profile's current GitHub username. Changed identity,
 renames/transfers and removed access require explicit re-verification/rebinding.
-Old submission URLs are not backfilled. Manual source sync and check refresh use
+Old submission URLs are not backfilled. Source reads compare GraphQL `fullDatabaseId`
+with the numeric binding and do not follow renames. Manual source sync and check refresh use
 the App only for these opted-in cohorts; issue delivery and organization
 invitations retain their existing paths in this slice.
 
@@ -1253,7 +1254,8 @@ membership administration are unnecessary.
 
 Provider contract references: [GitHub App JWTs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app),
 [installation tokens and repository restrictions](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app),
-[check-run reads](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference).
+[check-run reads](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference),
+and [GraphQL repository identity](https://docs.github.com/en/graphql/reference/repos#repository).
 Real App installation, personal/private-repository access and token revocation
 still require a disposable staging integration pass before rollout. The local
 QA harness simulates the client boundary and blocks external HTTP.
