@@ -1,48 +1,73 @@
 # W9.2: per-student deadlines and extensions
 
-Implementation base: `c1cff777` (#313), isolated branch `feat/w9-deadlines` in `/Users/agent/work/csg-w9-deadlines`. Agent-executed affected-flow QA, synthetic fixtures only. No production data or settings changed.
+**Status: draft PR; full normal gate remains time-blocked.** PR: https://github.com/Shimizu-Technology/csg-learning-platform/pull/316. Implementation revision: `7239bb5b`. Base: `c1cff777` (#313). Branch: `feat/w9-deadlines`; worktree: `/Users/agent/work/csg-w9-deadlines`.
 
 ## Product and acceptance
 
-CSG Learn serves Code School of Guam learners and their instructors. This slice adds individual submission deadlines while retaining the existing cohort windows for learners without personal pace or grants. Sources: the approved W9 design at `/Users/agent/work/csg-learn-w9-self-paced-design-2026-11-18.md` (deadlines and build plan), #313's body/residuals, `LearnerPace`, `LearnerProgress`, and `SubmissionWindowStatus` at the base commit.
+CSG Learn serves Code School of Guam learners and instructors. Sources for this slice: the approved W9 design at `/Users/agent/work/csg-learn-w9-self-paced-design-2026-11-18.md` (deadlines/build plan), #313's body/residuals, and the base implementation of `LearnerPace`, `LearnerProgress`, and `SubmissionWindowStatus`.
 
-Weekly personal-pace milestones are soft. The final project has one firm date. A staff grant can extend that final date, one lesson, or one module week; grant multiple scopes to cover both. A reason is required. Editing or removing a grant keeps its history. Plan revisions also record moved final dates and future milestones. Re-planning retains grants independently of the plan.
+Weekly personal-pace milestones are soft. The final project has one firm date. Staff can grant a final-date, lesson, or module-week extension with a required reason; multiple grants cover both final and specific windows. Every change/removal retains history. Final grants also move future plan milestones and write plan revisions. Re-plans keep the explicit extension date even when the newly chosen pace is longer.
 
-There is no new feature switch. Personal-pace behavior uses the existing nullable cohort setting. Extensions are absent until an authorized staff member grants one. The Off-cohort golden file was not regenerated. The parity test now also checks nil, future and closed cohort windows against enrollment-aware windows, lesson responses, and submit enforcement.
+There is no new feature switch. Personal pace uses the existing nullable cohort setting; extensions are absent until staff grant one. Learners receive effective dates without staff reasons/history. StaffCohortScope restricts grants, reads, edits and removals, with identical 404 bodies for authorization/lookup denials. LearnerProgress remains the status source. The queue and workspace batch grants; query fixtures grow by four additional learners/submissions plus additional workspace grants.
 
-The workspace inherits existing operational UI styles, quiet feedback, labeled controls, error recovery, and mobile touch targets. Extension reasons appear in the grading queue; learners receive dates without staff reasons or history. API changes are additive and generated into web and mobile types.
+The extension form inherits existing operational styles, waits for history before accepting writes, offers reload after failure, and resets when the workspace changes learner. Extension reasons appear in the grading queue. The outline, Today, lesson and mobile responses use effective windows; web and mobile lesson views show dates. The Off-cohort golden file was not regenerated. Its parity test now also checks nil/future/closed windows, lesson responses, and submit enforcement. Workspace module assignments sort by module position then ID.
 
-## Browser acceptance
+## Browser acceptance — passed
 
-Harness: local Rails test mode and Vite, Chromium; `scripts/qa/w9-deadlines-fixtures.rb` and `scripts/qa/w9-deadlines.spec.ts`. Each test performs the following six cases. Four runs cover 390 and 1280 pixels in light and dark mode; all passed.
+Agent-executed, synthetic fixtures only, local Rails test mode/Vite/Chromium. No production data or settings changed. `scripts/qa/w9-deadlines-fixtures.rb` and `scripts/qa/w9-deadlines.spec.ts` reproduce the cases. Browser code tested at `b30d9ff4`; web/mobile source is unchanged between `5ab5cd45` and `7239bb5b`.
 
-| Case | Starting condition, action, saved outcome | Result |
+Each test performs all six cases. Four passing runs cover 390/1280 pixels in light/dark mode (24 case/dimension observations).
+
+| Case | Starting condition, action and observed outcome | Result |
 | --- | --- | --- |
-| Staff grant | Cohort week closed; admin opens student workspace, chooses lesson, supplies Guam date and reason; saved confirmation appears | Passed |
-| Learner date | Learner opens that lesson; effective 2030 deadline appears | Passed |
-| Submit inside extension | Cohort window closed; learner enters an answer and submits; waiting-for-review state survives reload | Passed |
-| No-extension refusal | Second learner opens same lesson; closed state appears; API submit returns 403 | Passed |
-| Off-program learner | Existing program persona opens Today; pace UI remains absent; API golden parity separately verifies unchanged payloads | Passed |
-| History | Staff expands saved extension history; reason is visible | Passed |
+| Staff grant | Cohort week closed; admin chooses a lesson, enters Guam date/reason, saves and sees confirmation | Passed |
+| Learner date | Learner opens that lesson and sees the effective 2030 date | Passed |
+| Submission inside extension | Learner submits after the cohort close; waiting-for-review state persists after reload | Passed |
+| No-extension refusal | Second learner sees the same lesson closed; API submit returns 403 | Passed |
+| Off-program learner | Program persona opens Today without pace UI; separate API golden test verifies unchanged payloads | Passed |
+| History | Staff expands the saved extension history and sees the reason | Passed |
 
-Both widths were checked for horizontal overflow. Browser contexts close after each case. Initial runs failed because the fixture used a CDN-backed code editor, then an incorrect rich-text locator. The synthetic fixture now uses a Markdown answer and the real rich-text input; the final runs pass without external network access.
+Both widths were checked for horizontal overflow. Pages/browser contexts close after each test. Early browser runs used an unavailable CDN editor and then an incorrect locator; the final fixture uses the real Markdown rich-text input and passes with external requests blocked.
 
-Not run: WebKit/mobile Safari (unsupported on the mini), native device interactions. Native lesson deadline rendering was typechecked and covered by the existing Jest suite; resizing Chromium does not establish native behavior.
+Not run: WebKit/mobile Safari (unsupported on this mini), native device interactions. Chromium resizing does not establish native behavior.
 
-## Engineering verification
+## Engineering results
 
-- Local affected API runs passed with prepared statements on and off, including effective windows, CRUD/history, authorization, final plan revisions and re-planning, module-week isolation, soft weekly milestones, Off parity, migration round trip and curriculum-copy remapping.
-- Growing-fixture QueryCounter checks add four learners/submissions/grants and additional workspace grants; queue and workspace query counts stay flat. Existing personal-pace batch query test passes.
-- Migration `20261119050000`: DDL and `SET LOCAL lock_timeout` share a transaction; no session settings or advisory locks. Migration tests clear every pooled connection's statement cache.
-- Web typecheck, ESLint, Vitest (252 files, 3,499 tests), and production build passed locally. Both generated type files were regenerated with `npm run api:generate`.
-- Mobile typecheck, lint, Jest (142 suites, 1,820 tests) passed locally.
-- RuboCop: no offenses. Brakeman: no warnings (one existing ignored warning).
-- Impeccable 4.6.0 advisory scan: `[]`, no findings.
+| Gate | Revision/environment | Actual result |
+| --- | --- | --- |
+| Affected API, prepared on | `7239bb5b`, ASUS | **162 runs, 1,289 assertions, 0 failures/errors/skips** |
+| Affected API, prepared off | `7239bb5b`, ASUS | **162 runs, 1,289 assertions, 0 failures/errors/skips** |
+| Full API, prepared on | `5ab5cd45`, ASUS, normal validation | **2,391 runs, 44,606 assertions, 0 failures/errors, 1 skip**; OpenAPI inventory passed |
+| Full API, prepared off | `5ab5cd45`, ASUS | **2,391 runs, 1 failure** in the existing post-copy request clock fixture; corrected at `68765e4f`, then retested in both final affected runs |
+| Full final API/production migration bootstrap | `7239bb5b` | **Blocked/not complete** by the future timestamp window below; not represented as a passing full gate |
+| Web typecheck, lint, Vitest, build, bundle/type checks | ASUS at `5ab5cd45`; client source unchanged at final code | Passed; 252 Vitest files, 3,499 tests |
+| Mobile typecheck, lint, Jest | ASUS at `5ab5cd45`; client source unchanged at final code | Passed; 142 Jest suites, 1,820 tests |
+| RuboCop, Brakeman | Final source, mini | Passed; 812 Ruby files, no offenses; no Brakeman warnings (one existing ignored warning) |
+| Impeccable 4.6.0 | Changed web UI, mini | `[]`; no findings |
 
-Full final ASUS gate status is recorded below after execution. The first snapshot found test token/mocking mistakes and the curriculum-copy table inventory; those were fixed and covered by passing local regression runs. That superseded run is not final-head acceptance.
+Final affected API checks cover extensions, personal pace, Off parity, cohort windows, copy/remapping, submissions/grading, migration round trip and OpenAPI contract. They disable only the migration timestamp check in their test processes because the requested timestamp is temporarily outside Rails' permitted window. The port adapter remains `127.0.0.1:55432` on ASUS; test databases are local/disposable. Application configuration was not changed.
 
-## Deployment and remaining verification
+The one standard full-suite skip is `TransactionPoolerCanaryTest`, which runs only in pooler CI legs. Migration round-trip tests clear statement caches across every pooled connection. The migration uses a transaction containing DDL and `SET LOCAL lock_timeout`; no session settings/advisory locks.
 
-Additive migration; no data backfill. API deploy needs the migration. A production frontend build is expected because web UI and API types changed. No production deploy, merge or mobile distribution is performed by this task. PR review is left to the lead; no independent reviewer was delegated by the implementation worker.
+Other fixed findings: curriculum copies now remap extension targets/history; submission tests fetch the ID returned by their create response instead of an ambiguous timestamp order; the post-copy test explicitly advances its request clock; all declared extension responses and the input schema are exercised. Superseded/blocked runner jobs were stopped only through verified owned process trees; their wrappers cleaned the containers.
 
-Resource ownership: `dev-lifecycle` is unavailable on the mini. The harness ownership ledger records exact task-created Rails/Vite PIDs and the synthetic database; cleanup status is recorded below. The shared PostgreSQL service and other sessions' resources are borrowed and remain running.
+## Remaining gate and handoff to lead
+
+The migration is **`20261119070000_create_learner_extensions.rb`**, per Leon's timestamp correction. All migration timestamps on this branch are unique. #315 owns `20261119050000_guard_github_app_operations.rb`; that file was not touched.
+
+Rails accepts migration timestamps less than `Time.now.utc + 1.day`. At testing time on November 18, `20261119070000` was too far ahead. **After 07:00 UTC November 18 (17:00 Guam), normal validation accepts it. Use 07:01 UTC to avoid the equality boundary.** Normal local schema/test boot was observed rejecting this timestamp. A test-only override can exercise the migration and affected behavior, but the production-bootstrap process tests deliberately replace RUBYOPT and retain normal validation. Their two prepare cases remain time-blocked. No global/application workaround was added, and the blocked full run was stopped rather than called green.
+
+Next actions, already within the task's authorization:
+
+1. Verify this worktree/branch, the live PR head, `git status`, and the UTC clock. The final commit after `7239bb5b` is only this QA record.
+2. After 07:01 UTC, run the **normal full gate without any timestamp override**:
+   `asus-test --postgres csg_learning_platform_test /Users/agent/work/csg-w9-deadlines -- bash scripts/qa/w9-deadlines-gate.sh`.
+   Run only one ASUS job at a time. Its scratch copy's obsolete `20261119050000_create_learner_extensions.rb` was removed by this worker; do not remove #315's distinct guard migration.
+3. Rerun failed CI jobs after that time, address any genuine final-source failures, and obtain the repository's required review. PR remains draft; no independent review was delegated by this implementation worker. Do not merge/watch under this worker brief.
+4. Record the full normal results and remove draft status only after the remaining gate is satisfied.
+
+Deployment is not performed: additive API migration, no backfill. A frontend production build is expected because UI/generated types changed. No mobile distribution was attempted.
+
+## Resource disposition
+
+`dev-lifecycle` is unavailable on the mini, so exact ownership was tracked through the QA harness ledger and runner wrapper. Both local harness phases reported “Owned servers stopped and database dropped”; pages closed after each browser case. The separately named branch test database was dropped after verification. ASUS wrappers removed their disposable test containers and stopped their owned WSL sessions; temporary timestamp helpers were removed by EXIT traps. No runtime resources are handed off and no ownership is unresolved. The shared PostgreSQL service and unrelated resources remain running. The unmerged branch/worktree remain available for the lead.
