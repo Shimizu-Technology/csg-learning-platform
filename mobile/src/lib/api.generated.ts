@@ -5276,6 +5276,7 @@ export interface components {
             cohort_name: null | string;
             record_type: null | string;
             record_id: null | number;
+            /** @description Subject title when staff can open its destination; null otherwise. Learner personal history retains its existing labels. */
             record_label: null | string;
             /** @enum {string} */
             evidence: "server_record" | "player_reported";

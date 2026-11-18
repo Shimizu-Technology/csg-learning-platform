@@ -15,7 +15,7 @@ class LessonCompletionImpact
 
     cohorts = Cohort.where(curriculum_id: lessons.map { |lesson| lesson.curriculum_module.curriculum_id }.uniq)
     enrollments = Enrollment.where(cohort_id: cohorts.select(:id))
-    school = FeatureSwitches::DEFAULTS.merge((SchoolSetting.find_by(id: 1)&.features || {}).slice(*FeatureSwitches::KEYS))
+    school = FeatureSwitches.school(read_only: true)
     projections = LearnerProgress.for_all(enrollments, school_features: school)
     target_ids = lessons.map(&:id).to_set
     completed = Hash.new { |hash, key| hash[key] = {} }

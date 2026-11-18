@@ -37,7 +37,7 @@ export function FeatureSettings({ cohortId, onDraftChange, onReviewResponseDraft
     <h2 className="text-lg font-bold text-ink">Features</h2>
     <p className="text-sm text-ink-secondary">{cohortId ? 'Inherit school defaults or choose a different setting for this cohort.' : 'School defaults apply unless a cohort overrides them.'} Turning a feature off preserves its saved data.</p>
     {data && <><div className="grid gap-4 sm:grid-cols-2">{Object.entries(labels).map(([key, label]) => <label key={key} className="flex flex-col gap-1 text-sm font-semibold text-ink">{label}<select disabled={saving} className="min-h-11 rounded-xl border border-line bg-surface-raised px-3" value={values[key] == null ? 'inherit' : values[key] ? 'on' : 'off'} onChange={e => setValues(v => ({ ...v, [key]: e.target.value === 'inherit' ? null : e.target.value === 'on' }))}>
-      {cohortId && <option value="inherit">Inherit ({data.defaults[key] ? 'On' : 'Off'})</option>}<option value="on">On</option><option value="off">Off</option>
+      {cohortId && <option value="inherit">Inherit → {data.defaults[key] ? 'On' : 'Off'}</option>}<option value="on">On</option><option value="off">Off</option>
     </select></label>)}</div>
     {!cohortId && <label className="flex flex-col gap-1 text-sm font-semibold text-ink">Public course catalog link<select disabled={saving} className="min-h-11 rounded-xl border border-line bg-surface-raised px-3" value={mode} onChange={e => setMode(e.target.value)}><option value="automatic">Automatic</option><option value="always">Always show</option><option value="hidden">Hidden</option></select></label>}
     {!onDraftChange && <Button disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save features'}</Button>}</>}

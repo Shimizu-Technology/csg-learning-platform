@@ -13,7 +13,7 @@ module Api
         digest = params.require(:content_digest)
         block = ContentBlock.find(params[:id])
         block.with_lock("FOR NO KEY UPDATE") do
-          school = FeatureSwitches::DEFAULTS.merge((SchoolSetting.find_by(id: 1)&.features || {}).slice(*FeatureSwitches::KEYS))
+          school = FeatureSwitches.school(read_only: true)
           unless SubmissionAudit.candidate?(block, school: school)
             render json: { error: "This block no longer needs a submission audit review." }, status: :unprocessable_entity
             return

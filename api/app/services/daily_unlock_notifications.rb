@@ -68,7 +68,7 @@ class DailyUnlockNotifications
       .merge(Cohort.active(on: today)).where(cohorts: { course_delivery: %w[program guided], learner_pace_weeks: nil })
       .where(users: { archived_at: nil }).includes(:user).to_a
     # Preview must not lazily create SchoolSetting through FeatureSwitches.school.
-    school = FeatureSwitches::DEFAULTS.merge((SchoolSetting.find_by(id: 1)&.features || {}).slice(*FeatureSwitches::KEYS))
+    school = FeatureSwitches.school(read_only: true)
     projections = LearnerProgress.for_all(enrollments, now: now, school_features: school)
     deliveries = enrollments.filter_map do |enrollment|
       progress = projections.fetch(enrollment.id)

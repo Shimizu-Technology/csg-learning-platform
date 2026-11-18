@@ -49,7 +49,7 @@ class SubmissionAudit
 
   def self.candidates
     # Do not lazily create school settings on a read-only audit request.
-    school = FeatureSwitches::DEFAULTS.merge((SchoolSetting.find_by(id: 1)&.features || {}).slice(*FeatureSwitches::KEYS))
+    school = FeatureSwitches.school(read_only: true)
     ContentBlock.joins(lesson: :curriculum_module)
       .joins("INNER JOIN curricula ON curricula.id = modules.curriculum_id")
       .where(submission_type: [ nil, :manual_complete ], lessons: { archived_at: nil }, curricula: { status: Curriculum.statuses.fetch("active") })

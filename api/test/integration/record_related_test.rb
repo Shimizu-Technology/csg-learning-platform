@@ -271,7 +271,7 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
 
   test "each feature row follows its cohort's own switch, not the school default" do
     SchoolSetting.current.update!(features: FeatureSwitches::KEYS.index_with(false))
-    on = FeatureSwitches::KEYS.index_with(true)
+    on = FeatureSwitches::DEFAULTS
     @other_cohort.update!(settings: { "features" => on })
     @other_cohort.cohort_instructor_assignments.create!(user: @instructor)
     elsewhere = enroll(@student, @other_cohort)
