@@ -226,13 +226,20 @@ class Enrollment < ApplicationRecord
 
   # Guided personal-pace cohorts only need the date (support terms stay the
   # cohort's). One conditional write, so two first opens can't disagree.
+  #
+  # A pace staff chose before this first open was planned from the cohort
+  # start; when the first open moves the start later, the plan follows it.
   def record_personal_first_open!
     return if first_opened_at.present? || !active?
 
     opened_at = Time.current
-    self.class.where(id: id, first_opened_at: nil).update_all(first_opened_at: opened_at, updated_at: opened_at)
+    claimed = self.class.where(id: id, first_opened_at: nil).update_all(first_opened_at: opened_at, updated_at: opened_at).positive?
     self.first_opened_at = self.class.where(id: id).pick(:first_opened_at)
     clear_attribute_change(:first_opened_at)
+    return unless claimed && starts_on.nil? && first_opened_at.in_time_zone(LearningCalendar::TIMEZONE).to_date > cohort.start_date
+    return unless LearningPlan.where(enrollment_id: id, active: true, source: "learner_pace").exists?
+
+    with_lock { LearnerPace.new(self).regenerate!(actor: user) }
   end
 
   def ensure_alumni_curriculum_modules!

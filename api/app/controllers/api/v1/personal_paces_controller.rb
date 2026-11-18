@@ -51,12 +51,11 @@ module Api
           return false
         end
         Enrollment.capture_missing_paused_libraries!(Enrollment.where(id: @enrollment.id))
+        # One lock for the date and the re-plan; a paused or ended learner's
+        # start still moves (it governs what they can read), with no re-plan.
         with_learning_write_guard(@enrollment) do
           @enrollment.update!(starts_on: starts_on)
-        end
-        plan = @enrollment.reload.learning_plan
-        if plan&.active? && plan.learner_pace? && plan.pace_weeks && LearnerPace.new(@enrollment).available?
-          LearnerPace.new(@enrollment).choose!(weeks: plan.pace_weeks, actor: current_user, request_started_at: @learning_request_started_at)
+          LearnerPace.new(@enrollment).regenerate!(actor: current_user)
         end
         true
       rescue Date::Error

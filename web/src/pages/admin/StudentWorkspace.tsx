@@ -33,6 +33,8 @@ function Workspace() {
   const workspace = useStudentWorkspace()
   // A pace change rewrites the learning plan, so the plan editor reloads after one.
   const [planVersion, setPlanVersion] = useState(0)
+  // And a plan-editor save (it becomes a staff plan) reloads the pace panel.
+  const [paceVersion, setPaceVersion] = useState(0)
   const {
     params,
     cohortId,
@@ -204,7 +206,7 @@ function Workspace() {
         {activeTab === 'learning' && (
           <>
             <StudentPacePanel
-              key={`pace-${progress.enrollment.id}`}
+              key={`pace-${progress.enrollment.id}-${paceVersion}`}
               enrollmentId={progress.enrollment.id}
               onSaved={() => { setPlanVersion((value) => value + 1); refresh() }}
             />
@@ -212,7 +214,7 @@ function Workspace() {
               cohortId={cohortId}
               key={`${progress.enrollment.id}-${planVersion}`}
               enrollmentId={progress.enrollment.id}
-              onSaved={refresh}
+              onSaved={() => { setPaceVersion((value) => value + 1); refresh() }}
             />
             <LearningTab
               recordingsSection={recordingsSection}

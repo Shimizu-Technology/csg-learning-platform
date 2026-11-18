@@ -74,8 +74,29 @@ class LearnerPace
       plan.pace_changes_count += 1 if changing && !staff && plan.pace_weeks_changed?
       plan.save!
       plan.revisions.create!(author: actor, snapshot: plan.snapshot)
+      @enrollment.association(:learning_plan).target = plan
       plan
     end
+  end
+
+  # Re-plan an active chosen pace from a moved start (staff changed it, or the
+  # first open moved it past the cohort start). Same pace, no change used up,
+  # nothing kept from the old dates. A no-op for a read-only enrollment or
+  # without a chosen pace. Call inside the enrollment's lock.
+  def regenerate!(actor:)
+    return nil unless available? && @enrollment.active?
+
+    plan = LearningPlan.find_by(enrollment_id: @enrollment.id)
+    return nil unless plan&.active? && plan.learner_pace? && plan.pace_weeks
+
+    @enrollment.association(:learning_plan).reset
+    plan.assign_attributes(generate(plan.pace_weeks, plan, LearnerProgress.new(@enrollment), keep_past: false))
+    return plan unless plan.changed?
+
+    plan.save!
+    plan.revisions.create!(author: actor, snapshot: plan.snapshot)
+    @enrollment.association(:learning_plan).target = plan # callers read the new plan, not a cached old one
+    plan
   end
 
   # What Today, the outline and the staff workspace show. Reads the pace from
@@ -140,34 +161,45 @@ class LearnerPace
     lesson && { lesson_id: lesson.id, title: lesson.title, due_on: plan.target_date, status: progress.lesson_progress(lesson).status }
   end
 
-  def generate(weeks, plan, progress)
+  # `keep_past: false` regenerates from scratch, for a moved start.
+  def generate(weeks, plan, progress, keep_past: true)
     start = @enrollment.personal_start_on(@cohort)
     today = progress.today
-    current_week = today < start ? 1 : ((today - start).to_i / 7) + 1
+    week_of = ->(date) { date < start ? 1 : ((date - start).to_i / 7) + 1 }
+    current_week = week_of.call(today)
     last_week = [ weeks, current_week ].max
     due = ->(week) { start + (week * 7) - 1 }
     target = due.call(last_week)
 
-    overrides = plan.persisted? ? Array(plan.lesson_overrides) : []
+    # Exceptions only carry over from a plan in use; an old inactive plan's may name lessons no longer assigned.
+    overrides = plan.persisted? && plan.active? ? Array(plan.lesson_overrides) : []
     required = ->(lesson) { (item = overrides.find { |override| override["lesson_id"] == lesson.id }) ? item["required"] : lesson.required? }
     lessons = progress.lessons.select { |lesson| required.call(lesson) && progress.lesson_progress(lesson).total_blocks.positive? }
     finished = lessons.select { |lesson| progress.lesson_progress(lesson).completed }.map(&:id).to_set
 
     # The past stays as it was: a milestone already due keeps what was finished in it.
-    previous = plan.persisted? && plan.active? && plan.learner_pace? ? Array(plan.milestones) : []
+    previous = keep_past && plan.persisted? && plan.active? && plan.learner_pace? ? Array(plan.milestones) : []
     kept = previous.select { |item| Date.iso8601(item["due_on"]) < today }.filter_map do |item|
       done = item["lesson_ids"].select { |id| finished.include?(id) }
       item.merge("lesson_ids" => done) if done.any?
     end
     kept_ids = kept.flat_map { |item| item["lesson_ids"] }.to_set
 
-    remaining = lessons.reject { |lesson| finished.include?(lesson.id) || kept_ids.include?(lesson.id) }
+    # A lesson goes no earlier than the week it opens (a staff module date can be
+    # later than the start); one that is locked with no date isn't planned.
+    opens_week = lessons.to_h do |lesson|
+      opens = progress.available?(lesson) ? today : progress.scheduled_on(lesson)
+      [ lesson.id, opens && [ week_of.call(opens), last_week ].min ]
+    end
+    remaining = lessons.reject { |lesson| finished.include?(lesson.id) || kept_ids.include?(lesson.id) || opens_week[lesson.id].nil? }
     final = remaining.reverse.find(&:project?)
     remaining -= [ final ] if final
     slots = (current_week..last_week).to_a
-    weekly = slots.each_with_index.filter_map do |week, index|
-      share = remaining[(index * remaining.size / slots.size)...((index + 1) * remaining.size / slots.size)]
-      { "title" => "Week #{week}", "due_on" => due.call(week).iso8601, "lesson_ids" => share.map(&:id) } if share.any?
+    by_week = remaining.each_with_index.group_by do |lesson, index|
+      [ slots[index * slots.size / remaining.size], opens_week[lesson.id] ].max
+    end
+    weekly = by_week.sort.map do |week, entries|
+      { "title" => "Week #{week}", "due_on" => due.call(week).iso8601, "lesson_ids" => entries.map { |lesson, _| lesson.id } }
     end
     milestones = kept + weekly
     milestones << { "title" => "Final project", "due_on" => target.iso8601, "lesson_ids" => [ final.id ] } if final

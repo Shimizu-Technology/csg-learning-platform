@@ -242,6 +242,55 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     assert_equal "Catch up together", today.dig("catch_up_plan", "title")
   end
 
+  test "a pace staff set before the first open follows the learner's real start" do
+    travel_to NOW + 21.days # Dec 9, three weeks after the cohort start.
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { weeks: 4 }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert_equal "2026-11-16", response.parsed_body.dig("personal_pace", "starts_on")
+
+    today = fetch_today # First open: the start moves to today, and the plan with it.
+    pace = today["personal_pace"]
+    assert_equal [ "2026-12-09", "2027-01-05", 4, 1 ], pace.values_at("starts_on", "ends_on", "weeks", "current_week")
+    assert_equal [ "2026-12-15", "2026-12-22", "2026-12-29", "2027-01-05", "2027-01-05" ], pace["milestones"].map { |item| item["due_on"] }
+    assert_equal 2, @enrollment.reload.learning_plan.revisions.count
+    assert_equal 2, pace["changes_left"], "following the start uses up no change"
+  end
+
+  test "lessons staff hold back go in the week they open and don't make anyone behind" do
+    fetch_today
+    @enrollment.module_assignments.first.update!(unlock_date_override: Date.new(2026, 12, 3)) # week 3 of the pace
+    pace = choose(3)
+    assert_equal [ [ "Week 3", "2026-12-08", 12 ], [ "Final project", "2026-12-08", 1 ] ], pace["milestones"].map { |item| item.values_at("title", "due_on", "total") }
+
+    # Held back past a target the learner already has: not behind for that.
+    @enrollment.module_assignments.first.update!(unlock_date_override: Date.new(2026, 12, 20))
+    travel_to Time.zone.local(2026, 12, 10, 10)
+    today = fetch_today
+    assert_equal [ "on_track", 0 ], today["personal_pace"].values_at("status", "weeks_behind")
+    assert_equal false, today.dig("pace", "behind")
+  end
+
+  test "staff can move a paused learner's start: it saves, with no re-plan" do
+    fetch_today
+    choose(4)
+    @enrollment.update!(status: :paused)
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { starts_on: "2026-12-01" }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert_equal Date.new(2026, 12, 1), @enrollment.reload.starts_on
+    assert_equal 1, @enrollment.learning_plan.revisions.count
+  end
+
+  test "a new pace leaves out exceptions from an old inactive plan" do
+    fetch_today
+    gone = lesson("Removed later", 25)
+    @enrollment.create_learning_plan!(title: "Old plan", active: true, lesson_overrides: [ { "lesson_id" => gone.id, "required" => false, "reason" => "Skip" } ])
+    @enrollment.learning_plan.update!(active: false)
+    gone.archive!
+    pace = choose(4)
+    assert_equal "learner_pace", pace["plan_source"]
+    assert_empty @enrollment.reload.learning_plan.lesson_overrides
+  end
+
   test "learning plans switched off means no pace to choose" do
     @cohort.update!(settings: { "features" => { "student_experience_v2" => true, "learning_plans" => false } })
     today = fetch_today

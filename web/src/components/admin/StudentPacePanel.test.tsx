@@ -56,3 +56,11 @@ it('shows the pace, who chose it, the targets and status; staff override the pac
   expect(api.savePersonalPace).toHaveBeenLastCalledWith(7, { starts_on: '2026-11-25' })
   expect(host.textContent).toContain('Set by staff')
 })
+
+it('won’t set a pace over a staff plan until staff return to the regular curriculum', async () => {
+  api.getPersonalPace.mockResolvedValue({ data: { personal_pace: { ...pace, weeks: null, plan_source: 'staff', status: 'staff_plan', milestones: [], next_milestone: null } } })
+  await act(async () => root.render(<StudentPacePanel enrollmentId={7} onSaved={vi.fn()} />))
+  expect(host.textContent).toContain('A staff plan replaces the chosen pace')
+  expect(button('Set pace').disabled).toBe(true)
+  expect(host.textContent).toContain('Return to the regular curriculum below first')
+})

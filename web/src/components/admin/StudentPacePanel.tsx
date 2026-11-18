@@ -125,9 +125,9 @@ export function StudentPacePanel({ enrollmentId, onSaved }: { enrollmentId: numb
             <select id={`${paceId}-weeks`} className="app-control min-w-0 flex-1" value={weeks} disabled={saving || !pace.available} onChange={(event) => setWeeks(event.target.value)}>
               {PACE_WEEKS.map((value) => <option key={value} value={value}>{value} {value === 1 ? 'week' : 'weeks'}{pace.options.includes(value) ? ' (offered)' : ''}</option>)}
             </select>
-            <Button type="submit" variant="secondary" disabled={saving || !pace.available || (chosen && Number(weeks) === pace.weeks)}>{chosen ? 'Change pace' : 'Set pace'}</Button>
+            <Button type="submit" variant="secondary" disabled={saving || !pace.available || pace.status === 'staff_plan' || (chosen && Number(weeks) === pace.weeks)}>{chosen ? 'Change pace' : 'Set pace'}</Button>
           </div>
-          <p className="mt-1 text-xs text-ink-muted">{pace.available ? 'Doesn’t use up the learner’s changes. Finished targets stay; the rest are respread.' : 'Turn on learning plans for this course to set a pace.'}</p>
+          <p className="mt-1 text-xs text-ink-muted">{!pace.available ? 'Turn on learning plans for this course to set a pace.' : pace.status === 'staff_plan' ? 'Return to the regular curriculum below first; a pace replaces the staff plan.' : 'Doesn’t use up the learner’s changes. Finished targets stay; the rest are respread.'}</p>
         </form>
         <form onSubmit={submitStart} className="min-w-0">
           <label htmlFor={startId} className="block text-sm font-semibold text-ink">Personal start date</label>

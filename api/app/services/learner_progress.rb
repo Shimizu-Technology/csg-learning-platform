@@ -364,7 +364,8 @@ class LearnerProgress
   # Where a learner stands against their plan's milestones (personal pace).
   # A milestone counts its required lessons that have steps. It is "done"
   # when every one is handed in (waiting for review counts, as everywhere),
-  # "behind" when its date has passed first, "current" for the first unfinished
+  # "behind" when its date has passed with lessons the learner can open still
+  # unfinished, "current" for the first unfinished
   # one not yet due, and "upcoming" after that. Overdue work is the open,
   # unfinished lessons of behind milestones; each behind milestone is a week
   # behind, since milestones are weekly. `this_week` is the milestone that
@@ -379,9 +380,12 @@ class LearnerProgress
         .select { |lesson| required?(lesson) && lesson_progress(lesson).total_blocks.positive? }
       due_on = Date.iso8601(item["due_on"])
       completed = lessons.count { |lesson| lesson_progress(lesson).completed }
+      # Only work the learner can open makes them behind; a lesson staff hold
+      # back past its target date doesn't.
+      overdue_open = due_on < @today && lessons.any? { |lesson| !lesson_progress(lesson).completed && lesson_progress(lesson).available }
       status = if completed == lessons.size
         "done"
-      elsif due_on < @today
+      elsif overdue_open
         "behind"
       elsif !current_found
         current_found = true
