@@ -27,6 +27,7 @@ export function StudentProfileFacts({ user, onSaved }: { user: StudentProfile; o
   const [github, setGithub] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [warning, setWarning] = useState('')
   const id = useId()
   return (
     <section className="app-surface p-5 sm:p-6">
@@ -55,6 +56,7 @@ export function StudentProfileFacts({ user, onSaved }: { user: StudentProfile; o
         <Fact label="Last seen in the app" value={formatShortDateTime(user.last_seen_at, 'Not yet')} />
         {'last_active_at' in user && <Fact label="Last active" value={formatShortDateTime(user.last_active_at, 'No learning activity yet')} />}
       </dl>
+      {warning && <p role="status" className="mt-3 text-sm text-warning-ink">{warning}</p>}
       {editing && staff?.is_admin && (
         <form
           className="mt-5 grid gap-3 sm:grid-cols-2"
@@ -69,6 +71,7 @@ export function StudentProfileFacts({ user, onSaved }: { user: StudentProfile; o
                 github_username: github.trim(),
               })
               if (result.error) throw new Error(result.error)
+              setWarning(result.data?.warnings?.join(' ') || '')
               setEditing(false)
               onSaved()
             } catch (error) {

@@ -59,11 +59,13 @@ class DailyUnlockNotifications
 
   private
 
+  # Personal-pace cohorts (W9.1) open everything at each learner's own start,
+  # so there is no daily release to announce; their reminders come in W9.3.
   def candidates(now)
     today = LearningCalendar.today(at: now)
     first_date = today - (CATCH_UP_DAYS - 1)
     enrollments = Enrollment.active(at: now).joins(:cohort, :user)
-      .merge(Cohort.active(on: today)).where(cohorts: { course_delivery: %w[program guided] })
+      .merge(Cohort.active(on: today)).where(cohorts: { course_delivery: %w[program guided], learner_pace_weeks: nil })
       .where(users: { archived_at: nil }).includes(:user).to_a
     # Preview must not lazily create SchoolSetting through FeatureSwitches.school.
     school = FeatureSwitches.school(read_only: true)

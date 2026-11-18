@@ -1248,11 +1248,24 @@ The learner first selects **Connect GitHub** in Profile, authorizes their own
 account on GitHub, and confirms the returned identity. The server uses a
 10-minute authenticated encrypted state bound to the Learn user, enrollment,
 client and callback, a one-use nonce, and S256 PKCE. OAuth access/refresh tokens
-are used only in memory to read `/user`. Only the verified numeric user ID,
+are used only in memory to read `/user`. Learn then attempts to revoke that user
+token with `DELETE /applications/{client_id}/token`, using the existing client
+credentials. Revocation is best-effort: a provider failure does not fail identity
+connection, and tokens/errors are never logged. A rejected or expired code asks
+the learner to Connect again because the one-use state has been consumed. Only
+the verified numeric user ID,
 login and timestamp are saved; no token or OAuth secret is stored or returned.
 Verified IDs are unique across Learn users; duplicate legacy usernames are
 untouched. Verified usernames require Reconnect GitHub to change, which resets
-binding verification. App-enabled users without proof cannot verify or sync.
+binding verification. Case-only username differences are no-ops. Learner
+self-edits to a different verified username return 422. Admin edits/re-adds and
+archive imports preserve the proven username, identity and bindings, skip a
+conflicting username, and warn while applying other valid fields. This avoids
+letting stale or manually entered metadata silently unlink a proven identity.
+Admin API responses include optional `warnings`, displayed in the staff UI;
+archive reports include `students.warnings`, including in dry runs. An OAuth
+reconnect remains the only way to change a proven identity. App-enabled users
+without proof cannot verify or sync.
 Unverified Off cohorts still trust the self-entered username, as before.
 
 In student Access (admin), or Profile (learner), save `owner/repository` as an
@@ -1277,7 +1290,8 @@ Add **Issues: write** for the feedback slice. **Actions: read** is deferred unti
 workflow-run provenance requires it; repository contents write and organization
 membership administration are unnecessary.
 
-Provider contract references: [GitHub user authorization and PKCE](https://docs.github.com/en/enterprise-cloud@latest/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),
+Provider contract references: [user token revocation](https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-token),
+[GitHub user authorization and PKCE](https://docs.github.com/en/enterprise-cloud@latest/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),
 [GitHub App JWTs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app),
 [installation tokens and repository restrictions](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app),
 [check-run reads](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference),

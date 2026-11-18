@@ -20,11 +20,12 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { FirstRunWelcome } from '../../components/student/FirstRunWelcome'
+import { PersonalPaceCard } from '../../components/student/PersonalPaceCard'
 import { GradeChip } from '../../components/student/GradeChip'
 import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button, LinkButton, buttonClasses } from '../../components/ui/Button'
 import { Collapse } from '../../components/ui/Motion'
-import type { DashboardData, MyWorkItem, StudentToday, StudentTodayNeedsYou } from '../../types/api'
+import type { DashboardData, MyWorkItem, PersonalPace, StudentToday, StudentTodayNeedsYou } from '../../types/api'
 import { Dashboard } from './Dashboard'
 
 /*
@@ -78,16 +79,26 @@ export function StudentTodayPage() {
   }
   // Not enrolled, a pending purchase, or a payload from before the redesign: today's page handles it.
   if (!data?.enrolled || !data.student_today) return <Dashboard />
-  return <TodayView data={data} today={data.student_today} saved={saved} onDismissStartHere={() => setData((value) => value?.cohort?.id === data.cohort?.id && value?.user.id === data.user.id ? { ...value, start_here: false, student_today: value.student_today ? { ...value.student_today, first_run: false } : value.student_today } : value)} />
+  const patchToday = (update: (today: StudentToday) => StudentToday) => setData((value) => value?.cohort?.id === data.cohort?.id && value?.user.id === data.user.id && value.student_today ? { ...value, student_today: update(value.student_today) } : value)
+  return <TodayView data={data} today={data.student_today} saved={saved}
+    onDismissStartHere={() => setData((value) => value?.cohort?.id === data.cohort?.id && value?.user.id === data.user.id ? { ...value, start_here: false, student_today: value.student_today ? { ...value.student_today, first_run: false } : value.student_today } : value)}
+    onPaceSaved={(pace) => patchToday((today) => ({ ...today, personal_pace: pace, pace: { behind: pace.status === 'behind', weeks_behind: pace.weeks_behind, overdue_count: today.pace?.overdue_count ?? 0 } }))} />
 }
 
-function TodayView({ data, today, saved, onDismissStartHere }: { data: DashboardData; today: StudentToday; saved: boolean; onDismissStartHere: () => void }) {
+function TodayView({ data, today, saved, onDismissStartHere, onPaceSaved }: { data: DashboardData; today: StudentToday; saved: boolean; onDismissStartHere: () => void; onPaceSaved: (pace: PersonalPace) => void }) {
   const cohortId = data.cohort?.id ?? null
   const paths = useLearnerPaths(cohortId)
   const messenger = useMessageInstructor(cohortId)
   const { cohorts } = useCohortContext()
   const otherCourses = (cohorts ?? []).filter((item) => item.id !== cohortId && item.cohort_type !== 'alumni' && item.enrollment_status === 'active')
   const firstRun = today.first_run === true
+  const pace = today.personal_pace
+  const paceChosen = pace?.plan_source === 'learner_pace' && pace.weeks !== null
+  const paceCard = pace && !today.read_only ? (
+    <PersonalPaceCard pace={pace} totalLessons={today.counts?.total_lessons ?? null} lessonPath={(id) => paths.lesson(id)} onSaved={onPaceSaved}
+      contactName={today.contact?.full_name.split(' ')[0]}
+      onAsk={today.contact ? () => void messenger.open(today.contact!.id, { label: 'Changing my pace', path: cohortId ? `/materials?cohort_id=${cohortId}` : '/materials' }) : undefined} />
+  ) : null
   const firstName = data.user.full_name.split(' ')[0]
   const learnPath = cohortId ? `/materials?cohort_id=${cohortId}` : '/materials'
   const myWorkPath = (tab?: string) => `/my-work${cohortQuery(cohortId, tab ? { tab } : {})}`
@@ -110,9 +121,12 @@ function TodayView({ data, today, saved, onDismissStartHere }: { data: Dashboard
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
         <div className="min-w-0 space-y-5">
+          {/* A pace not chosen yet is the first thing to do (W9.1); once chosen it follows the next action. */}
+          {paceCard && !paceChosen && paceCard}
           {firstRun
             ? <FirstRunWelcome key={cohortId} data={data} today={today} lessonPath={today.next_lesson ? paths.lesson(today.next_lesson.id) : null} learnPath={learnPath} onDismiss={onDismissStartHere} />
             : <Hero data={data} today={today} paths={paths} learnPath={learnPath} myWorkPath={myWorkPath} messenger={messenger} />}
+          {paceCard && paceChosen && paceCard}
           {today.mode === 'library' && otherCourses.length > 0 && <section className="app-surface p-5" aria-label="Your other courses"><h2 className="font-semibold text-ink">Your other courses</h2><p className="mt-1 text-sm text-ink-secondary">Check Today for your next lesson and work waiting for you.</p><ul>{otherCourses.map((item) => <li key={item.id}><Link to={`/dashboard?cohort_id=${item.id}`} className="app-link inline-flex min-h-11 items-center">Today in {item.name}<ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link></li>)}</ul></section>}
           <NeedsYou today={today} cohortId={cohortId} paths={paths} />
           <Questions today={today} />

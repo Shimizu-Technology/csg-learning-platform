@@ -864,6 +864,10 @@ export const api = {
     fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { cache: 'no-store' }),
   saveLearningPlan: (enrollmentId: number, data: import('../types/api').LearningPlanInput) =>
     fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { method: 'PUT', body: JSON.stringify({ learning_plan: data }) }),
+  getPersonalPace: (enrollmentId: number) =>
+    fetchApi<import('../types/api').PersonalPaceResponse>(`/api/v1/enrollments/${enrollmentId}/pace`, { cache: 'no-store' }),
+  savePersonalPace: (enrollmentId: number, data: import('../types/api').PersonalPaceUpdateRequest) =>
+    fetchApi<import('../types/api').PersonalPaceResponse>(`/api/v1/enrollments/${enrollmentId}/pace`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Progress
   updateProgress: (contentBlockId: number, status: string, cohortId?: number) =>
@@ -1057,6 +1061,7 @@ export const api = {
     self_paced_support_weeks?: number
     guided_access_ends_on?: string | null
     guided_support_ends_on?: string | null
+    learner_pace_weeks?: number[] | null
   }) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`, {
       method: 'PATCH',

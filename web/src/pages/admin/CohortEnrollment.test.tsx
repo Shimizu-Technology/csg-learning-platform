@@ -64,3 +64,12 @@ it('keeps the entered email and allows retry when enrollment fails', async () =>
 })
 
 
+
+it('keeps the verified-username warning visible after a successful re-add', async () => {
+  const warning = 'GitHub username is verified; skipped this change. Reconnect GitHub to change it.'
+  state.createUser.mockResolvedValue({ data: { user: { id: 9, role: 'student' }, warnings: [warning] }, error: null })
+  state.createEnrollment.mockResolvedValue({ data: { enrollment: { id: 10 } }, error: null })
+  await openAndSubmit()
+  expect(container.querySelector('[role="status"]')?.textContent).toBe(warning)
+  expect(state.createEnrollment).toHaveBeenCalledWith(1, 9, true)
+})

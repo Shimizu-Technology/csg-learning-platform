@@ -5,7 +5,7 @@ import { FeatureSettings } from '../../../components/admin/FeatureSettings'
 import { SegmentButton, SegmentedControl } from '../../../components/ui/Choice'
 import { cohortPath } from '../../../lib/routes'
 import { schoolTimeDescription } from '../../../lib/schoolTime'
-import { COHORT_STATUS_OPTIONS } from './settingsForm'
+import { COHORT_STATUS_OPTIONS, DEFAULT_PACE_WEEKS } from './settingsForm'
 import type { CohortSettingsController } from './useCohortSettings'
 
 export function SettingsFields({ settings }: { settings: CohortSettingsController }) {
@@ -24,6 +24,10 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
     setEditAccessEnd,
     editSupportEnd,
     setEditSupportEnd,
+    editPaceWeeks,
+    setEditPaceWeeks,
+    editPaceEnabled,
+    setEditPaceEnabled,
     editStartDate,
     setEditStartDate,
     editGithubOrganization,
@@ -138,6 +142,49 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
                 </>
               )}
             </div>
+          </section>
+        )}
+        {editCourseDelivery !== 'program' && cohort.cohort_type !== 'alumni' && (
+          <section className="mt-4 border-t border-line pt-4" aria-labelledby="learner-pace-heading">
+            <h2 id="learner-pace-heading" className="text-base font-semibold text-ink">
+              Learner-chosen pace
+            </h2>
+            <p className="mt-1 text-xs text-ink-secondary">
+              Each learner gets their own start date (the cohort start, or the day they first open the course if
+              later). {editCourseDelivery === 'guided' ? 'Every lesson opens on that date instead of the class calendar. ' : ''}
+              Learners pick a pace, which sets a soft target each week and one firm final-project date. Uses learning
+              plans, so the Learning plans feature must stay on.
+            </p>
+            <label className="mt-3 flex min-h-11 items-center gap-3 text-sm font-semibold text-ink">
+              <input
+                type="checkbox"
+                checked={editPaceEnabled}
+                onChange={(e) => {
+                  setEditPaceEnabled(e.target.checked)
+                  if (e.target.checked && !editPaceWeeks.trim()) setEditPaceWeeks(DEFAULT_PACE_WEEKS)
+                }}
+                disabled={saving}
+                className="h-5 w-5"
+              />
+              Let learners choose their pace
+            </label>
+            {editPaceEnabled && (
+              <label className="mt-2 block max-w-xs text-xs font-semibold text-ink-secondary">
+                Pace choices, in weeks
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={editPaceWeeks}
+                  onChange={(e) => setEditPaceWeeks(e.target.value)}
+                  disabled={saving}
+                  aria-describedby="learner-pace-help"
+                  className="app-control mt-1 w-full"
+                />
+                <span id="learner-pace-help" className="mt-1 block font-normal text-ink-muted">
+                  Up to four choices from 1 to 26, separated by commas.
+                </span>
+              </label>
+            )}
           </section>
         )}
         <div className="mt-4 border-t border-line pt-4">

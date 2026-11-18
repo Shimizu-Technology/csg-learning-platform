@@ -4494,6 +4494,58 @@
           }
         }
       }
+    },
+    "/api/v1/enrollments/{enrollment_id}/pace": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "A learner's personal start and pace (the learner, or staff who teach the cohort)",
+        "responses": {
+          "200": {
+            "description": "PersonalPaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalPaceResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Choose or change a pace; staff can also set the personal start",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalPaceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PersonalPaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalPaceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13266,6 +13318,13 @@
         "properties": {
           "user": {
             "$ref": "#/components/schemas/UserListItem"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A verified GitHub username change was skipped; reconnect GitHub to change the identity."
           }
         },
         "required": [
@@ -18108,6 +18167,20 @@
                   "string",
                   "null"
                 ]
+              },
+              "learner_pace_weeks": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1)."
               }
             },
             "required": [
@@ -18153,7 +18226,8 @@
               "public_outcomes",
               "public_duration",
               "public_prerequisites",
-              "public_preview"
+              "public_preview",
+              "learner_pace_weeks"
             ],
             "additionalProperties": false
           }
@@ -18961,6 +19035,24 @@
             "items": {
               "$ref": "#/components/schemas/LearningPlanLessonOverride"
             }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "learner_pace"
+            ],
+            "description": "Included only in revisions of a chosen pace."
+          },
+          "pace_weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in revisions of a chosen pace."
           }
         },
         "required": [
@@ -19034,6 +19126,28 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "staff",
+              "learner_pace"
+            ],
+            "description": "A staff plan, or one generated from a chosen pace (W9.1). Saving in the editor makes it a staff plan."
+          },
+          "pace_weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pace_changes_count": {
+            "type": "integer",
+            "description": "Pace changes the learner has made."
           }
         },
         "required": [
@@ -19046,7 +19160,10 @@
           "lesson_overrides",
           "id",
           "lock_version",
-          "updated_at"
+          "updated_at",
+          "source",
+          "pace_weeks",
+          "pace_changes_count"
         ],
         "additionalProperties": false
       },
@@ -22341,6 +22458,17 @@
               }
             ],
             "description": "The block a Redo was requested on, for a #block- anchor."
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only when the cohort has learner-chosen pace on: the lesson's milestone date in the learner's plan, null when it isn't in one."
           }
         },
         "required": [
@@ -22420,6 +22548,17 @@
                 "type": "null"
               }
             ]
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only when the cohort has learner-chosen pace on: the lesson's milestone date."
           }
         },
         "required": [
@@ -22706,6 +22845,53 @@
             "items": {
               "$ref": "#/components/schemas/CourseOutlineModule"
             }
+          },
+          "personal_pace": {
+            "type": "object",
+            "properties": {
+              "starts_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "weeks": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "final_project": {
+                "type": "boolean",
+                "description": "The plan is a chosen pace with a final project, so its end date is the final project's due date."
+              }
+            },
+            "required": [
+              "starts_on",
+              "weeks",
+              "ends_on",
+              "final_project"
+            ],
+            "additionalProperties": false,
+            "description": "Included only when the cohort has learner-chosen pace on (W9.1): the learner's own start, chosen pace and firm final date."
           }
         },
         "required": [
@@ -23861,6 +24047,10 @@
                 "type": "null"
               }
             ]
+          },
+          "personal_pace": {
+            "$ref": "#/components/schemas/PersonalPace",
+            "description": "Included only when the cohort has learner-chosen pace on (W9.1); other cohorts' Today is unchanged."
           }
         },
         "required": [
@@ -25517,6 +25707,418 @@
           "enrollment_id",
           "cohort_id"
         ],
+        "additionalProperties": false
+      },
+      "PersonalPaceMilestone": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Required lessons with steps in this milestone."
+          },
+          "completed": {
+            "type": "integer",
+            "description": "Of those, lessons with every step handed in (waiting for review counts)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "behind",
+              "current",
+              "upcoming"
+            ],
+            "description": "done: every lesson handed in; behind: its date passed first; current: the first unfinished milestone not yet due; upcoming: after that."
+          }
+        },
+        "required": [
+          "title",
+          "due_on",
+          "total",
+          "completed",
+          "status"
+        ],
+        "additionalProperties": false,
+        "description": "One soft weekly milestone of a learner's plan, measured by LearnerProgress#milestone_pace."
+      },
+      "PersonalPaceMilestoneLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "status",
+          "available"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalPaceNextMilestone": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Required lessons with steps in this milestone."
+          },
+          "completed": {
+            "type": "integer",
+            "description": "Of those, lessons with every step handed in (waiting for review counts)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "behind",
+              "current",
+              "upcoming"
+            ],
+            "description": "done: every lesson handed in; behind: its date passed first; current: the first unfinished milestone not yet due; upcoming: after that."
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalPaceMilestoneLesson"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "due_on",
+          "total",
+          "completed",
+          "status",
+          "lessons"
+        ],
+        "additionalProperties": false,
+        "description": "The first milestone that isn't done, with its lessons."
+      },
+      "PersonalPace": {
+        "type": "object",
+        "properties": {
+          "enrollment_id": {
+            "type": "integer",
+            "description": "The enrollment to choose a pace for (PUT /api/v1/enrollments/{enrollment_id}/pace)."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Pace can be chosen: the cohort offers paces and its learning_plans switch is on."
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Paces the cohort offers, in weeks."
+          },
+          "weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The chosen pace; null until one is chosen, or while a staff plan applies."
+          },
+          "plan_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "staff",
+                  "learner_pace"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who wrote the active plan: a chosen pace, or a staff plan that replaced it. Null without an active plan."
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Enrollment#personal_start_on: a staff-set start, otherwise the cohort start or the learner's first open, whichever is later."
+          },
+          "start_set_by_staff": {
+            "type": "boolean"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The plan's target date: the firm final-project date for a chosen pace."
+          },
+          "adjusted_for": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "lessons_open_later",
+                  "late_start"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a chosen pace runs past the weeks chosen: some planned lessons open after it would have ended, or it was chosen or re-planned after that end. Null when it fits or no pace is chosen."
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "weeks": {
+                  "type": "integer"
+                },
+                "ends_on": {
+                  "type": "string",
+                  "description": "The firm date the server would schedule for this pace if chosen now."
+                },
+                "adjusted_for": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "lessons_open_later",
+                        "late_start"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "weeks",
+                "ends_on",
+                "adjusted_for"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What each offered pace would schedule if chosen now (the same generator, not saved). Empty when the learner can't choose or change."
+          },
+          "current_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Week of the chosen pace that today falls in, from 1; null before the start or without a pace."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_chosen",
+              "on_track",
+              "behind",
+              "done",
+              "staff_plan"
+            ]
+          },
+          "weeks_behind": {
+            "type": "integer",
+            "description": "Milestones whose date passed with lessons unfinished."
+          },
+          "final_project": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "lesson_id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "due_on": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "$ref": "#/components/schemas/LearnerLessonStatus"
+                  }
+                },
+                "required": [
+                  "lesson_id",
+                  "title",
+                  "due_on",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_milestone": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalPaceNextMilestone"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalPaceMilestone"
+            }
+          },
+          "can_change": {
+            "type": "boolean",
+            "description": "The learner can choose or change their pace now."
+          },
+          "changes_left": {
+            "type": "integer",
+            "description": "Pace changes the learner has left (two in all); staff changes don't count."
+          },
+          "chosen_by": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Author of the plan's latest revision."
+          },
+          "chosen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "enrollment_id",
+          "available",
+          "options",
+          "weeks",
+          "plan_source",
+          "starts_on",
+          "start_set_by_staff",
+          "ends_on",
+          "adjusted_for",
+          "choices",
+          "current_week",
+          "status",
+          "weeks_behind",
+          "final_project",
+          "next_milestone",
+          "milestones",
+          "can_change",
+          "changes_left",
+          "chosen_by",
+          "chosen_at"
+        ],
+        "additionalProperties": false,
+        "description": "A learner's personal start and chosen pace (W9.1, LearnerPace#as_json)."
+      },
+      "PersonalPaceResponse": {
+        "type": "object",
+        "properties": {
+          "personal_pace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalPace"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the cohort has no learner-chosen pace."
+          }
+        },
+        "required": [
+          "personal_pace"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalPaceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "weeks": {
+            "type": "integer",
+            "description": "Choose or change the pace. Learners pick from the cohort's options; staff may set 1 to 26 weeks."
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Staff: set (or clear with null) this learner's personal start."
+          }
+        },
         "additionalProperties": false
       }
     },

@@ -170,7 +170,7 @@ export function TeamManagement() {
     if (res.error) {
       showNotification('error', `Failed to add member: ${res.error}`)
     } else {
-      showNotification('success', `${addEmail.trim()} added as ${addRole}`)
+      showNotification('success', [`${addEmail.trim()} added as ${addRole}`, ...(res.data?.warnings || [])].join(' '))
       setAddEmail('')
       setAddGithub('')
       setShowAddModal(false)
@@ -222,7 +222,7 @@ export function TeamManagement() {
           return
         }
       }
-      showNotification('success', 'Team member updated')
+      showNotification('success', ['Team member updated', ...(res.data?.warnings || [])].join(' '))
       closeEdit()
       if (editMember.id === currentUser?.id && editDraft.role !== editMember.role) {
         await syncSession()

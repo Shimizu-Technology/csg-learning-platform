@@ -92,7 +92,9 @@ class User < ApplicationRecord
     exclusion: { in: RESERVED_HANDLES, message: "is reserved" }
 
   validates :github_user_id, allow_nil: true, format: { with: /\A[1-9]\d{0,18}\z/ }, uniqueness: { case_sensitive: false }
+  before_validation :preserve_proven_github_username
   validate :protect_verified_github_identity
+  attr_reader :github_username_warning
 
   def github_identity_verified?
     github_user_id.present? && github_verified_login.present? && github_verified_at.present?
@@ -110,12 +112,25 @@ class User < ApplicationRecord
     end
   end
 
+  # Imported/admin-entered names are not fresh provider proof. Preserve the
+  # proven identity and warn, rather than silently unlinking a valid account.
+  def github_username_change_warning(value)
+    if github_user_id_in_database.present? && !value.to_s.casecmp?(github_username_in_database.to_s)
+      "GitHub username is verified; skipped this change. Reconnect GitHub to change it."
+    end
+  end
+
+  def preserve_proven_github_username
+    @github_username_warning = nil
+    return if @recording_github_identity || github_user_id_in_database.blank? || !will_save_change_to_github_username?
+
+    @github_username_warning = github_username_change_warning(github_username)
+    self.github_username = github_username_in_database
+  end
+
   def protect_verified_github_identity
     return if @recording_github_identity
 
-    if github_user_id_in_database.present? && will_save_change_to_github_username?
-      errors.add(:github_username, "is verified; reconnect GitHub to change it")
-    end
     if %w[github_user_id github_verified_login github_verified_at].any? { |key| will_save_change_to_attribute?(key) }
       errors.add(:base, "GitHub identity requires user authorization")
     end

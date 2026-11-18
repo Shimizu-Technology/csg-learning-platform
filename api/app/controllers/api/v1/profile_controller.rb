@@ -42,6 +42,9 @@ module Api
 
       # PATCH /api/v1/profile
       def update
+        if profile_params.key?(:github_username) && current_user.github_username_change_warning(profile_params[:github_username])
+          return render json: { errors: [ "GitHub username is verified; reconnect GitHub to change it" ] }, status: :unprocessable_entity
+        end
         if current_user.update(profile_params)
           render json: {
             user: {

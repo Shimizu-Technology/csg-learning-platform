@@ -1308,9 +1308,12 @@ export interface ThreadWindowOptions {
   message_limit?: number;
 }
 
-export type LearningPlanInput = components['schemas']['LearningPlanSnapshot'] & { lock_version?: number };
+export type LearningPlanInput = Omit<components['schemas']['LearningPlanSnapshot'], 'source' | 'pace_weeks'> & { lock_version?: number };
 export type LearningPlanManagement = components['schemas']['LearningPlanManagement'];
 export type LearningPlanEditorLesson = components['schemas']['LearningPlanEditorLesson'];
+export type PersonalPace = components['schemas']['PersonalPace'];
+export type PersonalPaceResponse = components['schemas']['PersonalPaceResponse'];
+export type PersonalPaceUpdateRequest = components['schemas']['PersonalPaceUpdateRequest'];
 
 export type AgentPostingToken = components['schemas']['AgentPostingToken'];
 

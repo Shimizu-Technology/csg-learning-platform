@@ -14,7 +14,7 @@ module OpenapiContract
   COVERED = Set.new
   EXERCISED_SCHEMAS = Set.new
   # Request-only schemas are not expected in validated responses.
-  SCHEMA_COVERAGE_EXCEPTIONS = %w[VideoProgressInput WatchProgressInput LessonBlockEditorInput LessonBlockInput AnnouncementCreateRequest LearningPlanUpdateRequest EditorPreferencesInput].freeze
+  SCHEMA_COVERAGE_EXCEPTIONS = %w[VideoProgressInput WatchProgressInput LessonBlockEditorInput LessonBlockInput AnnouncementCreateRequest LearningPlanUpdateRequest EditorPreferencesInput PersonalPaceUpdateRequest].freeze
 
   def self.observe(value, pointer)
     return if value.nil?

@@ -6,6 +6,7 @@ import { Button } from '../ui/Button'
 export function CohortEnrollment({ cohortId, onSaved }: { cohortId: number; onSaved: () => Promise<unknown> }) {
 const toast = useToast()
 const [showAddStudent, setShowAddStudent] = useState(false)
+const [githubWarning, setGithubWarning] = useState('')
 
 const notifyError = toast.error
 const notifySuccess = toast.success
@@ -19,6 +20,7 @@ const notifySuccess = toast.success
     if (!cohortId || !addStudentEmail.trim()) return
     setAddingStudent(true)
     setStudentConflict('')
+    setGithubWarning('')
 
     const createRes = await api.createUser({
       email: addStudentEmail.trim().toLowerCase(),
@@ -33,6 +35,7 @@ const notifySuccess = toast.success
       return
     }
 
+    setGithubWarning(createRes.data?.warnings?.join(' ') || '')
     const userId = createRes.data?.user?.id
     if (!userId) {
       notifyError('Failed to create user')
@@ -62,7 +65,7 @@ const notifySuccess = toast.success
     setShowAddStudent(false)
   }
 
-return <section className="app-surface space-y-4 p-5"><Button onClick={() => setShowAddStudent(!showAddStudent)}>Add student</Button>{showAddStudent && (            <form onSubmit={handleAddStudent} className="app-surface-muted p-4 space-y-3">
+return <section className="app-surface space-y-4 p-5">{githubWarning && <p role="status" className="text-sm text-warning-ink">{githubWarning}</p>}<Button onClick={() => setShowAddStudent(!showAddStudent)}>Add student</Button>{showAddStudent && (            <form onSubmit={handleAddStudent} className="app-surface-muted p-4 space-y-3">
               <p className="text-xs text-ink-secondary">
                 Enter the student's email. Their name will be filled automatically when they sign in via Clerk.
               </p>

@@ -48,6 +48,7 @@ class PreworkGraderArchiveImporter
       archive: {},
       students: {
         matched: 0,
+        warnings: [],
         created: 0,
         missing: Set.new,
         enrolled: 0,
@@ -164,7 +165,14 @@ class PreworkGraderArchiveImporter
     attrs = {}
     attrs[:first_name] = student_data["first_name"] if should_assign?(user.first_name, student_data["first_name"])
     attrs[:last_name] = student_data["last_name"] if should_assign?(user.last_name, student_data["last_name"])
-    attrs[:github_username] = student_data["github_username"] if should_assign?(user.github_username, student_data["github_username"])
+    if should_assign?(user.github_username, student_data["github_username"])
+      warning = user.github_username_change_warning(student_data["github_username"])
+      if warning
+        report[:students][:warnings] << { user_id: user.id, message: warning }
+      else
+        attrs[:github_username] = student_data["github_username"]
+      end
+    end
 
     return if attrs.empty? || @dry_run
 

@@ -86,6 +86,61 @@ class GithubIdentityAuthorizationTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "admin update and re-add skip a verified username with warning and preserve bindings" do
+    @student.record_verified_github_identity!(id: "24680", login: "app-learner")
+    GithubRepositoryAccess.new(@binding.reload, client: @fake).verify!
+    before_identity = @student.reload.attributes.slice("github_user_id", "github_verified_login", "github_verified_at", "github_username")
+    as_app_user(@admin) do
+      patch "/api/v1/users/#{@student.id}", headers: app_headers, params: { github_username: "victim-gh", first_name: "Updated" }, as: :json
+      assert_response :success
+      assert_match "skipped this change", response.parsed_body.fetch("warnings").sole
+      assert_equal "Updated", @student.reload.first_name
+      assert_equal before_identity, @student.attributes.slice(*before_identity.keys)
+      post "/api/v1/users", headers: app_headers, params: { email: @student.email, github_username: "victim-gh", skip_invite: true }, as: :json
+      assert_response :created
+      assert_match "skipped this change", response.parsed_body.fetch("warnings").sole
+      assert_equal before_identity, @student.reload.attributes.slice(*before_identity.keys)
+    end
+    assert_equal "verified", @binding.reload.verification_state
+    assert @binding.verified_at
+  end
+
+  test "case-only verified username edits are no-ops for self admin and re-add" do
+    @student.record_verified_github_identity!(id: "24680", login: "app-learner")
+    as_app_user(@student) do
+      patch "/api/v1/profile", headers: app_headers, params: { github_username: "APP-Learner" }, as: :json
+      assert_response :success
+    end
+    as_app_user(@admin) do
+      patch "/api/v1/users/#{@student.id}", headers: app_headers, params: { github_username: "APP-Learner" }, as: :json
+      assert_response :success
+      assert_not response.parsed_body.key?("warnings")
+      post "/api/v1/users", headers: app_headers, params: { email: @student.email, github_username: "APP-Learner", skip_invite: true }, as: :json
+      assert_response :created
+      assert_not response.parsed_body.key?("warnings")
+    end
+    assert_equal "app-learner", @student.reload.github_username
+    assert_equal "24680", @student.github_user_id
+  end
+
+  test "expired provider code consumes nonce with explicit reconnect recovery" do
+    with_oauth do
+      as_app_user(@student) do
+        state = prepare_identity
+        @oauth.failure = GithubAppClient::Error.new("That GitHub link expired. Connect again.")
+        connect(state)
+        assert_response :unprocessable_entity
+        assert_equal "That GitHub link expired. Connect again.", response.parsed_body.fetch("error")
+        assert_nil @student.reload.github_authorization_nonce_digest
+        connect(state)
+        assert_response :not_found
+        @oauth.failure = nil
+        connect(prepare_identity)
+        assert_response :success
+      end
+    end
+  end
+
   test "legacy Off profile stays editable and duplicate unverified usernames remain allowed" do
     @cohort.update!(settings: {})
     @other.update!(github_username: "victim-gh")

@@ -273,6 +273,7 @@ Rails.application.routes.draw do
           post :verify, on: :member
         end
         resource :learning_plan, only: [ :show, :update ]
+        resource :pace, only: [ :show, :update ], controller: "personal_paces"
         resources :module_assignments, only: [ :index, :create ]
         resources :lesson_assignments, only: [ :index, :create ]
         resource :restart, only: :create, controller: "enrollment_restarts"
