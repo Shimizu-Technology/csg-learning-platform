@@ -1,6 +1,17 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class FeatureSwitchesTest < ActionDispatch::IntegrationTest
+  include QueryCounter
+
+  # Snapshot of the shipped defaults, independent of the implementation map.
+  LEGACY_DEFAULTS = {
+    "private_meetings" => true, "office_hours" => true, "recordings" => true,
+    "class_channels" => true, "knowledge_checks" => true, "help_requests" => true,
+    "github_sync" => true, "announcements" => true, "interventions" => true,
+    "learning_plans" => true, "student_experience_v2" => true
+  }.freeze
+
   setup do
     @admin = User.create!(clerk_id: "switch_admin", email: "switch-admin@example.com", role: :admin)
     @student = User.create!(clerk_id: "switch_student", email: "switch-student@example.com", role: :student)
@@ -78,7 +89,7 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
   end
 
   test "all switches default on and explicit cohort values override school with nil inheriting" do
-    assert_equal FeatureSwitches::KEYS.index_with(true), FeatureSwitches.for(cohort: @cohort)
+    assert_equal LEGACY_DEFAULTS, FeatureSwitches.for(cohort: @cohort).slice(*LEGACY_DEFAULTS.keys)
     SchoolSetting.current.update!(features: { recordings: false, office_hours: false })
     @cohort.update!(settings: { features: { recordings: true, office_hours: nil, help_requests: false } })
     resolved = FeatureSwitches.for(cohort: @cohort)
@@ -86,6 +97,86 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     assert_not resolved["office_hours"]
     assert_not resolved["help_requests"]
     assert resolved["announcements"]
+  end
+
+  test "every registered switch has an explicit boolean default and future switches default off" do
+    assert_equal FeatureSwitches::KEYS.sort, FeatureSwitches::DEFAULTS.keys.sort
+    FeatureSwitches::KEYS.each do |key|
+      assert_includes [ true, false ], FeatureSwitches::DEFAULTS.fetch(key), key
+    end
+    assert_equal LEGACY_DEFAULTS, FeatureSwitches::DEFAULTS.slice(*LEGACY_DEFAULTS.keys)
+    FeatureSwitches::DEFAULTS.except(*LEGACY_DEFAULTS.keys).each do |key, default|
+      assert_equal false, default, "New switch #{key} must default Off"
+    end
+  end
+
+  test "every shipped key keeps its no settings and no school row behaviour" do
+    SchoolSetting.delete_all
+    assert_equal LEGACY_DEFAULTS, FeatureSwitches.school(read_only: true).slice(*LEGACY_DEFAULTS.keys)
+    assert_equal 0, SchoolSetting.count
+    assert_equal LEGACY_DEFAULTS, FeatureSwitches.school.slice(*LEGACY_DEFAULTS.keys)
+    assert_equal LEGACY_DEFAULTS, FeatureSwitches.for(cohort: @cohort).slice(*LEGACY_DEFAULTS.keys)
+    assert_empty @cohort.reload.settings
+  end
+
+  test "every shipped key keeps school override cohort override and inherit behaviour" do
+    [ true, false ].each do |school_value|
+      SchoolSetting.current.update!(features: LEGACY_DEFAULTS.transform_values { school_value })
+      assert_equal LEGACY_DEFAULTS.transform_values { school_value }, FeatureSwitches.for(cohort: @cohort).slice(*LEGACY_DEFAULTS.keys)
+      @cohort.update!(settings: { features: LEGACY_DEFAULTS.transform_values { !school_value } })
+      assert_equal LEGACY_DEFAULTS.transform_values { !school_value }, FeatureSwitches.for(cohort: @cohort).slice(*LEGACY_DEFAULTS.keys)
+      @cohort.update!(settings: { features: LEGACY_DEFAULTS.transform_values { nil } })
+      assert_equal LEGACY_DEFAULTS.transform_values { school_value }, FeatureSwitches.for(cohort: @cohort).slice(*LEGACY_DEFAULTS.keys)
+    end
+    @cohort.update!(settings: { features: { student_experience_v2: false } })
+    SchoolSetting.current.update!(features: {})
+    assert_equal LEGACY_DEFAULTS.merge("student_experience_v2" => false), FeatureSwitches.for(cohort: @cohort).slice(*LEGACY_DEFAULTS.keys)
+  end
+
+  test "read only school resolution does one read and batching cohorts adds no queries" do
+    [ false, true ].each do |existing|
+      SchoolSetting.delete_all
+      SchoolSetting.current.update!(features: { recordings: false }) if existing
+      school = nil
+      queries = capture_queries { school = FeatureSwitches.school(read_only: true) }
+      assert_equal 1, queries.size
+      assert_match(/SELECT.*school_settings/, queries.sole)
+      assert_equal 0, count_queries { 10.times { FeatureSwitches.for(cohort: @cohort, school: school) } }
+      assert_equal existing ? 1 : 0, SchoolSetting.count
+    end
+  end
+
+  test "a future off default inherits overrides validates and reaches the admin payload" do
+    defaults, keys = FeatureSwitches::DEFAULTS, FeatureSwitches::KEYS
+    FeatureSwitches.send(:remove_const, :DEFAULTS)
+    FeatureSwitches.const_set(:DEFAULTS, defaults.merge("future_test_switch" => false).freeze)
+    FeatureSwitches.send(:remove_const, :KEYS)
+    FeatureSwitches.const_set(:KEYS, FeatureSwitches::DEFAULTS.keys.freeze)
+
+    SchoolSetting.delete_all
+    assert_equal false, FeatureSwitches.school(read_only: true).fetch("future_test_switch")
+    assert_equal false, FeatureSwitches.for(cohort: @cohort).fetch("future_test_switch")
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers
+      assert_response :success
+      assert_equal false, response.parsed_body.dig("defaults", "future_test_switch")
+      assert_equal false, response.parsed_body.dig("features", "future_test_switch")
+      patch "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers, params: { features: { future_test_switch: true } }, as: :json
+      assert_response :success
+      assert_equal true, @cohort.reload.settings.dig("features", "future_test_switch")
+      assert_equal true, response.parsed_body.dig("features", "future_test_switch")
+      patch "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers, params: { features: { future_test_switch: nil } }, as: :json
+      assert_response :success
+      assert_equal false, response.parsed_body.dig("features", "future_test_switch")
+    end
+    SchoolSetting.current.update!(features: { future_test_switch: true })
+    assert_equal true, FeatureSwitches.for(cohort: @cohort.reload).fetch("future_test_switch")
+    assert_raises(ArgumentError) { FeatureSwitches.validate!("future_test_switch" => "on") }
+  ensure
+    FeatureSwitches.send(:remove_const, :DEFAULTS)
+    FeatureSwitches.const_set(:DEFAULTS, defaults)
+    FeatureSwitches.send(:remove_const, :KEYS)
+    FeatureSwitches.const_set(:KEYS, keys)
   end
 
   test "admin settings preserve unrelated cohort configuration and audit actor and values" do

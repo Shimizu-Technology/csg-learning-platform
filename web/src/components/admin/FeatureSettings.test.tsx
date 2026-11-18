@@ -22,7 +22,7 @@ it('saves school changes including public catalog preference', async () => {
 })
 it('shows inherited values and persists explicit cohort overrides', async () => {
   await act(async () => root.render(<FeatureSettings cohortId={12} />))
-  expect(container.textContent).toContain('Inherit (On)')
+  expect(container.textContent).toContain('Inherit → On')
   const select = container.querySelectorAll('select')[2]
   await act(async () => { select.value = 'off'; select.dispatchEvent(new Event('change', { bubbles: true })) })
   await act(async () => container.querySelector('button')!.click())
@@ -34,4 +34,15 @@ it('drops removed overrides before saving', async () => {
   await act(async () => root.render(<FeatureSettings cohortId={12} />))
   await act(async () => container.querySelector('button')!.click())
   expect(api.saveFeatureSettings).toHaveBeenCalledWith({ features: { recordings: false } }, 12)
+})
+
+it('shows resolved Off inheritance and saves inherit without turning it on', async () => {
+  api.getFeatureSettings.mockResolvedValue({ data: { ...data, features: { recordings: true }, defaults: { recordings: false }, overrides: { recordings: true } } })
+  await act(async () => root.render(<FeatureSettings cohortId={12} />))
+  const select = container.querySelectorAll('select')[2]
+  expect(select.textContent).toContain('Inherit → Off')
+  expect(select.value).toBe('on')
+  await act(async () => { select.value = 'inherit'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenCalledWith({ features: { recordings: null } }, 12)
 })
