@@ -4,16 +4,32 @@ class FeatureSwitches
   # on for new cohorts and self-paced courses; cohorts already running when it
   # shipped have an Off override (migration 20261118020000). Web reads it with
   # `useStudentExperience`, mobile with `studentExperienceV2`.
-  KEYS = %w[private_meetings office_hours recordings class_channels knowledge_checks help_requests github_sync announcements interventions learning_plans student_experience_v2].freeze
-  DEFAULTS = KEYS.index_with(true).freeze
+  # Every switch must declare a boolean default here. Existing switches retain
+  # their shipped defaults; add future switches as false until rollout is intended.
+  DEFAULTS = {
+    "private_meetings" => true,
+    "office_hours" => true,
+    "recordings" => true,
+    "class_channels" => true,
+    "knowledge_checks" => true,
+    "help_requests" => true,
+    "github_sync" => true,
+    "announcements" => true,
+    "interventions" => true,
+    "learning_plans" => true,
+    "student_experience_v2" => true
+  }.freeze
+  KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
   def self.for(cohort: nil, school: nil)
     (school || self.school).merge((cohort&.settings&.dig("features") || {}).slice(*KEYS).compact)
   end
 
-  def self.school
-    DEFAULTS.merge(SchoolSetting.current.features.slice(*KEYS))
+  # Preview/audit callers must not lazily create a settings row.
+  def self.school(read_only: false)
+    setting = read_only ? SchoolSetting.find_by(id: 1) : SchoolSetting.current
+    DEFAULTS.merge((setting&.features || {}).slice(*KEYS))
   end
 
   def self.validate!(features)
