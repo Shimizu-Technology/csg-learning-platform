@@ -346,3 +346,23 @@ Captures go to ignored `.qa-local/shared-editor-finish/`. See `docs/qa/shared-ed
 
 `scripts/qa/lesson-bodies-fixture.rb` regenerates `web/src/test/fixtures/prework-lesson-bodies.json` (the round-trip
 test fixture) from `scripts/prework_exercises.json` with the import task's own HTML-to-Markdown conversion.
+
+### GitHub App connections and bindings (X-6 slice 2)
+
+Start a fresh harness with `QA_GITHUB_APP=1 scripts/qa/run start`, then from
+`api/` run `DATABASE_URL=postgresql://localhost/<owned qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/github-app-bindings-fixtures.rb`.
+Run from the root:
+
+```sh
+QA_SPEC=github-app-bindings.spec.ts DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+The 24 cases cover admin installation setup, pending/verified/failed bindings,
+wrong owner and unselected repository recovery, module overrides, the learner's
+Profile, instructor/cross-learner refusal, and an Off cohort at 1280/390 in
+light/dark. The fake App client is activated only by this local harness boot
+path. External HTTP remains blocked and no credentials are required. Evidence
+is in `.qa-local/github-app-bindings/`; use `scripts/qa/run clean` afterward.
+The full secret-free ASUS gate remains `scripts/qa/first-run-states-gate.sh`,
+including both API prepared-statement modes and its migration subprocess port
+adapter.

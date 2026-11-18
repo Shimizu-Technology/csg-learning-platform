@@ -1198,3 +1198,115 @@ also records that retry timing. Push expiry after 24 hours is independent of
 fan-out completion, so a poisoned fan-out cannot retain an alert indefinitely.
 Settled fan-outs clear their stored recipient IDs. Archived updates stay archived;
 post a new update rather than restoring an interrupted archived publication.
+
+### GitHub App connections (X-6 slice 2)
+
+Leave `github_app` Off until the App and a disposable repository have been
+verified. App access requires **both** School Features → GitHub App access On
+and the cohort's feature override explicitly On. Inherit leaves the cohort Off.
+Existing cohorts continue using `GITHUB_ORGANIZATION_ADMIN_TOKEN`.
+
+Configure these API environment variables, or the equivalent Rails credentials:
+
+| ENV name | Rails credentials key |
+| --- | --- |
+| `GITHUB_APP_ID` | `github_app.id` |
+| `GITHUB_APP_SLUG` | `github_app.slug` |
+| `GITHUB_APP_PRIVATE_KEY` | `github_app.private_key` |
+| `GITHUB_APP_CLIENT_ID` | `github_app.client_id` |
+| `GITHUB_APP_CLIENT_SECRET` | `github_app.client_secret` |
+| `GITHUB_APP_USER_CALLBACK_URL` (optional override) | `github_app.user_callback_url` |
+
+The private key may contain literal newlines or escaped `\n`. Keep it in the
+secret store. Installation tokens are minted with RS256 JWTs and cached in
+process memory for at most five minutes, with a one-minute expiry margin. A 401
+invalidates the cached token and retries once. No key or token is stored in a row
+or sent to the browser. Rails `SECRET_KEY_BASE` must be stable for the signed
+15-minute setup state to survive API requests.
+
+Register the App for installation on **any account**, including learners'
+personal GitHub accounts. Request repository **Contents: read**, **Checks: read**,
+and **Metadata: read** (automatic). Prefer selected repositories. Set the App's
+Setup URL to `https://learn.codeschoolofguam.com/github-app/setup` (replace the
+origin for a separate pilot). This is an authenticated web callback, not a
+webhook. Register **User authorization callback URL** separately as
+`https://learn.codeschoolofguam.com/github-app/authorize`. The default callback
+uses `FRONTEND_URL` plus `/github-app/authorize`; the optional override must use
+HTTPS (HTTP loopback is allowed outside production). Keep automatic user
+authorization during installation disabled: installation setup and user
+identity authorization use separate state purposes. Clerk remains Learn login;
+GitHub authorization proves repository ownership. No additional user or
+organization-membership permission is required.
+
+In cohort Settings, prepare the installation, open GitHub,
+and confirm the callback. Connection generations prevent late failures from
+undoing a newer reconnect or successful repository verification. An admin can also confirm an installation ID manually
+using that same prepared state. Reconnect through the same flow after revoked
+access. A learner's personal installation may require the learner to grant
+access on GitHub and share the installation ID with the admin.
+
+The learner first selects **Connect GitHub** in Profile, authorizes their own
+account on GitHub, and confirms the returned identity. The server uses a
+10-minute authenticated encrypted state bound to the Learn user, enrollment,
+client and callback, a one-use nonce, and S256 PKCE. Each preparation also
+records a new authorization generation; an in-flight completion cannot replace
+a later preparation or completed connection. Preparations from before the
+generation migration must be started again. OAuth access/refresh tokens
+are used only in memory to read `/user`. Learn then attempts to revoke that user
+token with `DELETE /applications/{client_id}/token`, using the existing client
+credentials. Revocation is best-effort: a provider failure does not fail identity
+connection, and tokens/errors are never logged. A rejected or expired code asks
+the learner to Connect again because the one-use state has been consumed. Only
+the verified numeric user ID,
+login and timestamp are saved; no token or OAuth secret is stored or returned.
+Verified IDs are unique across Learn users; duplicate legacy usernames are
+untouched. Verified usernames require Reconnect GitHub to change, which resets
+binding verification. Case-only username differences are no-ops. Learner
+self-edits to a different verified username return 422. Admin edits/re-adds and
+archive imports preserve the proven username, identity and bindings, skip a
+conflicting username, and warn while applying other valid fields. This avoids
+letting stale or manually entered metadata silently unlink a proven identity.
+Admin API responses include optional `warnings`, displayed in the staff UI;
+archive reports include `students.warnings`, including in dry runs. An OAuth
+reconnect remains the only way to change a proven identity. App-enabled users
+without proof cannot verify or sync.
+Unverified Off cohorts still trust the self-entered username, as before.
+
+In student Access (admin), or Profile (learner), save `owner/repository` as an
+enrollment default or a module override, then Verify. Binding saves serialize with cohort copies and return `content_moved` if the
+copy moved the enrollment while the request was in flight. Reload, choose the
+current module and retry. A module binding takes
+precedence even while pending/failed; it never silently falls back to a different
+repository. Verification checks installation access, the numeric repository ID,
+and ownership by the OAuth-proven GitHub user ID. The personal installation's
+account ID and repository owner's ID must both equal that ID. Learners see only
+their own personal installations. **Forks and organization-owned repositories
+are refused**; this slice has no staff approval override. Changed identity,
+renames/transfers and removed access require explicit re-verification/rebinding.
+Old submission URLs are not backfilled. Source reads compare GraphQL `fullDatabaseId`
+with the numeric binding and do not follow renames. Manual source sync and check refresh use
+the App only for these opted-in cohorts; issue delivery and organization
+invitations retain their existing paths in this slice.
+
+**Deferred configuration:** no events or webhook URL are required by slice 2;
+leave webhooks inactive. Slice 5 will need `GITHUB_APP_WEBHOOK_SECRET` (or
+`github_app.webhook_secret`) and the `check_run`, `push`, `installation`, and
+`installation_repositories` events. Do not enter the webhook secret into Learn.
+Add **Issues: write** for the feedback slice. **Actions: read** is deferred until
+workflow-run provenance requires it; repository contents write and organization
+membership administration are unnecessary.
+
+Provider contract references: [user token revocation](https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-token),
+[GitHub user authorization and PKCE](https://docs.github.com/en/enterprise-cloud@latest/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),
+[GitHub App JWTs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app),
+[installation tokens and repository restrictions](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app),
+[check-run reads](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference),
+and [GraphQL repository identity](https://docs.github.com/en/graphql/reference/repos#repository).
+Real App installation, personal/private-repository access and token revocation
+still require a disposable staging integration pass before rollout. The local
+QA harness simulates the client boundary and blocks external HTTP.
+
+GitHub connection and binding status bypass the offline response cache. A failed
+refresh shows an error and preserves the last confirmed state; a saved pending
+binding remains visible even if its follow-up refresh fails. Reconnect guidance
+appears only when an active enrollment actually offers that control.

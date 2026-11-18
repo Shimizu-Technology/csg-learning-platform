@@ -91,6 +91,67 @@ class User < ApplicationRecord
     format: { with: HANDLE_FORMAT, message: "must be 3-30 lowercase letters, numbers or underscores, starting with a letter or number" },
     exclusion: { in: RESERVED_HANDLES, message: "is reserved" }
 
+  validates :github_user_id, allow_nil: true, format: { with: /\A[1-9]\d{0,18}\z/ }, uniqueness: { case_sensitive: false }
+  before_validation :lock_current_github_identity_for_username_write
+  before_validation :preserve_proven_github_username
+  validate :protect_verified_github_identity
+  attr_reader :github_username_warning
+
+  def github_identity_verified?
+    github_user_id.present? && github_verified_login.present? && github_verified_at.present?
+  end
+
+  # Called only after server-side OAuth /user proof, never with browser IDs.
+  def record_verified_github_identity!(id:, login:, authorization_generation: nil)
+    with_lock do
+      if authorization_generation && github_authorization_generation != authorization_generation
+        raise ActiveRecord::RecordNotFound
+      end
+      @recording_github_identity = true
+      update!(github_user_id: id.to_s, github_verified_login: login, github_verified_at: Time.current, github_username: login)
+      GithubRepositoryBinding.where(enrollment_id: enrollments.select(:id)).update_all(verification_state: "failed",
+        failure_reason: "GitHub identity reconnected; verify the repository again", verified_at: nil, updated_at: Time.current)
+    ensure
+      @recording_github_identity = false
+    end
+  end
+
+  # Imported/admin-entered names are not fresh provider proof. Preserve the
+  # proven identity and warn, rather than silently unlinking a valid account.
+  def github_username_change_warning(value)
+    if github_user_id_in_database.present? && !value.to_s.casecmp?(github_username_in_database.to_s)
+      "GitHub username is verified; skipped this change. Reconnect GitHub to change it."
+    end
+  end
+
+  # save's transaction retains this row lock through validation and the write.
+  # Reload current proof before applying the caller's intended changes; dirty
+  # tracking on a previously loaded instance is not a database identity check.
+  def lock_current_github_identity_for_username_write
+    return if new_record? || @recording_github_identity || !will_save_change_to_github_username?
+
+    intended = changes_to_save.transform_values(&:last)
+    self.class.lock.find(id)
+    reload
+    assign_attributes(intended)
+  end
+
+  def preserve_proven_github_username
+    @github_username_warning = nil
+    return if @recording_github_identity || github_user_id_in_database.blank? || !will_save_change_to_github_username?
+
+    @github_username_warning = github_username_change_warning(github_username)
+    self.github_username = github_username_in_database
+  end
+
+  def protect_verified_github_identity
+    return if @recording_github_identity
+
+    if %w[github_user_id github_verified_login github_verified_at].any? { |key| will_save_change_to_attribute?(key) }
+      errors.add(:base, "GitHub identity requires user authorization")
+    end
+  end
+
   # Serialize removals across different admin rows, not just changes to one user.
   # The transaction-scoped lock remains held until the update/destroy commits.
   before_update :preserve_accepted_admin

@@ -4503,72 +4503,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/enrollments/{enrollment_id}/pace": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                enrollment_id: number;
-            };
-            cookie?: never;
-        };
-        /** A learner's personal start and pace (the learner, or staff who teach the cohort) */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    enrollment_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description PersonalPaceResponse */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PersonalPaceResponse"];
-                    };
-                };
-            };
-        };
-        /** Choose or change a pace; staff can also set the personal start */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    enrollment_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["PersonalPaceUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description PersonalPaceResponse */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PersonalPaceResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/staff/private_meetings": {
         parameters: {
             query?: never;
@@ -5188,6 +5122,415 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/github_app_installations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List cohort installations (admin; both App gates required) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppInstallationsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Confirm installation with admin/cohort-bound state */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        state: string;
+                        installation_id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppConnectionResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/github_app_installations/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare signed installation state (admin; both gates required) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppPrepareResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/github_app/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm installation with admin/cohort-bound state */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        state: string;
+                        installation_id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppConnectionResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List own or admin-managed enrollment bindings (both gates required) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubRepositoryBindingsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Save or verify own or admin-managed enrollment repository binding */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        full_name: string;
+                        github_app_installation_id: number;
+                        curriculum_module_id: number | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubRepositoryBindingResponse"];
+                    };
+                };
+                /** @description Concurrent binding save or content moved during curriculum copy; reload and retry */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings/{id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save or verify own or admin-managed enrollment repository binding */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubRepositoryBindingResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/github_identity/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare one-use GitHub user authorization for own active App-enabled enrollment */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubIdentityPrepareResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/github_identity/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prove own GitHub identity with signed state and server-side PKCE token exchange */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        state: string;
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubIdentityConnectResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/pace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** A learner's personal start and pace (the learner, or staff who teach the cohort) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PersonalPaceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonalPaceResponse"];
+                    };
+                };
+            };
+        };
+        /** Choose or change a pace; staff can also set the personal start */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PersonalPaceUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description PersonalPaceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonalPaceResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -6238,6 +6581,8 @@ export interface components {
             can_open: boolean;
             purchase_id?: number | null;
             access_expires_at?: string | null;
+            /** @description Included when this enrollment has GitHub App access enabled. */
+            github_app_enabled?: boolean;
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -6270,6 +6615,7 @@ export interface components {
             first_name: string | null;
             last_name: string | null;
             github_username: string | null;
+            github_identity?: components["schemas"]["GithubIdentity"];
         };
         ProfileShowUser: {
             id: number;
@@ -6281,6 +6627,7 @@ export interface components {
             last_name: string | null;
             github_username: string | null;
             role: string;
+            github_identity?: components["schemas"]["GithubIdentity"];
         };
         ProfileResponse: {
             user: components["schemas"]["ProfileShowUser"];
@@ -7040,6 +7387,8 @@ export interface components {
         };
         UserUpdateResponse: {
             user: components["schemas"]["UserListItem"];
+            /** @description A verified GitHub username change was skipped; reconnect GitHub to change the identity. */
+            warnings?: string[];
         };
         ModulesResponse: {
             modules: components["schemas"]["ModuleSummary"][];
@@ -9632,6 +9981,87 @@ export interface components {
         };
         EditorPreferencesResponse: {
             editor_preferences: components["schemas"]["EditorPreferences"];
+        };
+        GithubAppInstallation: {
+            id: number;
+            cohort_id: number;
+            app_id: number;
+            installation_id: number;
+            account_id: number;
+            account_login: string;
+            /** @enum {string} */
+            account_type: "User" | "Organization";
+            /** @enum {string} */
+            repository_selection: "all" | "selected";
+            permissions: {
+                [key: string]: string;
+            };
+            /** @enum {string} */
+            connection_state: "connected" | "failed";
+            failure_reason: string | null;
+            connected_at: string;
+            checked_at: string;
+        };
+        GithubAppInstallationsResponse: {
+            installations: components["schemas"]["GithubAppInstallation"][];
+            configured: boolean;
+        };
+        GithubAppPrepareResponse: {
+            state: string;
+            installation_url: string;
+        };
+        GithubAppConnectionResponse: {
+            installation: components["schemas"]["GithubAppInstallation"];
+            cohort_id: number;
+        };
+        GithubRepositoryBinding: {
+            id: number;
+            enrollment_id: number;
+            curriculum_module_id: number | null;
+            github_app_installation_id: number;
+            repository_id: number | null;
+            full_name: string;
+            github_username: string | null;
+            /** @enum {string} */
+            verification_state: "pending" | "verified" | "failed";
+            failure_reason: string | null;
+            verified_at: string | null;
+            checked_at: string | null;
+            github_user_id: string | null;
+        };
+        GithubRepositoryBindingResponse: {
+            binding: components["schemas"]["GithubRepositoryBinding"];
+        };
+        GithubBindingInstallation: {
+            id: number;
+            account_login: string;
+            /** @enum {string} */
+            connection_state: "connected" | "failed";
+        };
+        GithubBindingModule: {
+            id: number;
+            name: string;
+        };
+        GithubRepositoryBindingsResponse: {
+            bindings: components["schemas"]["GithubRepositoryBinding"][];
+            installations: components["schemas"]["GithubBindingInstallation"][];
+            modules: components["schemas"]["GithubBindingModule"][];
+            github_identity: components["schemas"]["GithubIdentity"];
+            can_connect_github: boolean;
+        };
+        GithubIdentity: {
+            id: string | null;
+            login: string | null;
+            /** Format: date-time */
+            verified_at: string | null;
+        };
+        GithubIdentityPrepareResponse: {
+            authorization_url: string;
+        };
+        GithubIdentityConnectResponse: {
+            github_identity: components["schemas"]["GithubIdentity"];
+            enrollment_id: number;
+            cohort_id: number;
         };
         /** @description One soft weekly milestone of a learner's plan, measured by LearnerProgress#milestone_pace. */
         PersonalPaceMilestone: {

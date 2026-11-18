@@ -467,6 +467,7 @@ export interface CohortModule {
 }
 
 export interface CohortDetail extends CohortSummary {
+  features?: Record<string, boolean>;
   instructor_assigned?: boolean;
   students: CohortStudent[];
   modules: CohortModule[];

@@ -19,6 +19,7 @@ module Api
             full_name: current_user.full_name,
             role: current_user.role,
             github_username: current_user.github_username,
+            **(current_user.github_identity_verified? ? { github_identity: GithubAppSerializer.identity(current_user) } : {}),
             avatar_url: current_user.avatar_url,
             handle: current_user.handle
           },
@@ -30,6 +31,7 @@ module Api
               curriculum_name: CurriculumName.in_cohort(e.cohort),
               status: e.status,
               enrolled_at: e.enrolled_at,
+              **(GithubRepositoryAccess.enabled?(e.cohort) ? { github_app_enabled: true } : {}),
               # Withdrawn or expired enrollments no longer open the cohort, so they show as text.
               can_open: readable_ids.include?(e.id),
               **(FeatureSwitches.for(cohort: e.cohort)["student_experience_v2"] == true ? { purchase_id: purchases[e.cohort_id]&.id, access_expires_at: e.access_expires_at } : {})
@@ -40,7 +42,19 @@ module Api
 
       # PATCH /api/v1/profile
       def update
-        if current_user.update(profile_params)
+        saved = if profile_params.key?(:github_username)
+          current_user.with_lock do
+            if current_user.github_username_change_warning(profile_params[:github_username])
+              current_user.errors.add(:github_username, "is verified; reconnect GitHub to change it")
+              false
+            else
+              current_user.update(profile_params)
+            end
+          end
+        else
+          current_user.update(profile_params)
+        end
+        if saved
           render json: {
             user: {
               id: current_user.id,
@@ -49,6 +63,7 @@ module Api
               last_name: current_user.last_name,
               full_name: current_user.full_name,
               github_username: current_user.github_username,
+              **(current_user.github_identity_verified? ? { github_identity: GithubAppSerializer.identity(current_user) } : {}),
               avatar_url: current_user.avatar_url,
               handle: current_user.handle
             }

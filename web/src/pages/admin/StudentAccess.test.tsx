@@ -289,6 +289,18 @@ describe('workspace Access', () => {
     expect((container.querySelector('select[id$="-status"]') as HTMLSelectElement).value).toBe('active')
   })
 
+  it('shows the skipped verified-username warning after saving other profile changes', async () => {
+    const warning = 'GitHub username is verified; skipped this change. Reconnect GitHub to change it.'
+    vi.mocked(api.updateUser).mockResolvedValue({ data: { user, warnings: [warning] }, error: null } as any)
+    await renderAccess()
+    await click('Edit profile')
+    await type(container.querySelector('input[id$="-github"]')!, 'other-login')
+    const form = container.querySelector('input[id$="-github"]')!.closest('form')!
+    await act(async () => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(warning)
+    expect(saved).toHaveBeenCalled()
+  })
+
   it('saves admin profile and enrollment changes', async () => {
     await renderAccess()
     await click('Edit profile')

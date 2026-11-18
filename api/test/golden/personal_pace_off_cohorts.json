@@ -23,7 +23,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": false
+              "student_experience_v2": false,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -53,7 +54,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": false
+              "student_experience_v2": false,
+              "github_app": false
             },
             "id": 9100400,
             "name": "Program cohort",
@@ -1108,7 +1110,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": false
+              "student_experience_v2": false,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -1985,7 +1988,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": false
+              "student_experience_v2": false,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -3299,7 +3303,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -3329,7 +3334,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "id": 9100401,
             "name": "Program v2 cohort",
@@ -4403,7 +4409,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -5212,7 +5219,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -6560,7 +6568,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -6590,7 +6599,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "id": 9100402,
             "name": "Guided cohort",
@@ -7664,7 +7674,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -8407,7 +8418,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -9669,7 +9681,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -9699,7 +9712,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "id": 9100403,
             "name": "Alumni library",
@@ -10662,7 +10676,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,
@@ -11125,7 +11140,8 @@
               "announcements": true,
               "interventions": true,
               "learning_plans": true,
-              "student_experience_v2": true
+              "student_experience_v2": true,
+              "github_app": false
             },
             "can_submit": true,
             "read_only": false,

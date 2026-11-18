@@ -94,7 +94,7 @@ module Api
       # POST /api/v1/cohorts/:cohort_id/modules/:module_id/sync_github
       def sync_all
         github_token = resolve_github_token
-        unless github_token
+        unless github_token || GithubRepositoryAccess.enabled?(@cohort)
           render json: { error: "No GitHub token configured. Set GITHUB_ORGANIZATION_ADMIN_TOKEN in environment." }, status: :unprocessable_entity
           return
         end
@@ -124,7 +124,7 @@ module Api
         end
 
         github_token = resolve_github_token
-        unless github_token
+        unless github_token || GithubRepositoryAccess.enabled?(@cohort)
           render json: { error: "No GitHub token configured. Set GITHUB_ORGANIZATION_ADMIN_TOKEN in environment." }, status: :unprocessable_entity
           return
         end

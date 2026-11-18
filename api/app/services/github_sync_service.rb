@@ -1,8 +1,9 @@
 class GithubSyncService
   GITHUB_GRAPHQL_URL = "https://api.github.com/graphql".freeze
 
-  def initialize(github_token:)
+  def initialize(github_token:, app_client: nil)
     @github_token = github_token
+    @app_client = app_client
   end
 
   # Sync a single student's repo for a specific module's exercises.
@@ -12,11 +13,13 @@ class GithubSyncService
   # new block ids, so the enrollment guard refuses the sync (content_moved,
   # raised to the caller) instead of saving on the shared blocks.
   def sync_student(user:, cohort:, curriculum_module:, repository_name_override: nil, request_started_at: Time.current)
-    return { synced: 0, errors: [ "GitHub sync is disabled for this course" ] } unless FeatureSwitches.for(cohort: cohort)["github_sync"]
+    features = @sync_cohort_id == cohort.id ? @cohort_features : FeatureSwitches.for(cohort: cohort)
+    return { synced: 0, errors: [ "GitHub sync is disabled for this course" ] } unless features["github_sync"]
 
+    app_enabled = features["github_app"] == true
     errors = []
     repo_name = repository_name_override.presence || cohort.repository_name
-    enrollment = user.enrollments.find_by(cohort: cohort)
+    enrollment = app_enabled && @app_enrollments ? @app_enrollments[user.id] : user.enrollments.find_by(cohort: cohort)
 
     unless enrollment
       return { synced: 0, errors: [ "Student is not enrolled in this cohort" ] }
@@ -26,7 +29,7 @@ class GithubSyncService
       return { synced: 0, errors: [ "Student has no GitHub username" ] }
     end
 
-    unless repo_name.present?
+    unless app_enabled || repo_name.present?
       return { synced: 0, errors: [ "No repository name configured for this module" ] }
     end
 
@@ -55,7 +58,18 @@ class GithubSyncService
     end
 
     target_filenames = exercise_blocks.filter_map { |b| b.filename&.strip }.uniq
-    repo_data = fetch_exercise_files(user.github_username, repo_name, target_filenames)
+    repo_owner = user.github_username
+    if app_enabled
+      binding = GithubRepositoryAccess.binding_for(enrollment: enrollment, curriculum_module_id: curriculum_module.id)
+      return { synced: 0, errors: [ "Verify a repository binding before syncing this module" ] } unless binding
+
+      client = @app_client ||= GithubAppClient.new
+      repository = GithubRepositoryAccess.new(binding, client: client).repository!
+      repo_owner, repo_name = repository.fetch("full_name").split("/")
+      repo_data = client.files(installation: binding.github_app_installation, repository: repository, filenames: target_filenames)
+    else
+      repo_data = fetch_exercise_files(user.github_username, repo_name, target_filenames)
+    end
 
     if repo_data[:error]
       return { synced: 0, errors: [ repo_data[:error] ] }
@@ -85,7 +99,7 @@ class GithubSyncService
 
         line_count = file_text.count("\n") + 1
         ref = commit_hash.presence || "HEAD"
-        github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{ref}/#{file['name']}#L1-L#{line_count}"
+        github_code_url = "https://github.com/#{repo_owner}/#{repo_name}/blob/#{ref}/#{file['name']}#L1-L#{line_count}"
 
         existing = Submission.where(enrollment: enrollment, content_block_id: block.id).order(:created_at).last
 
@@ -146,8 +160,16 @@ class GithubSyncService
   # Sync all active students in a cohort for a given module
   def sync_cohort_module(cohort:, curriculum_module:, repository_name_override: nil, request_started_at: Time.current)
     results = {}
+    @sync_cohort_id = cohort.id
+    @cohort_features = FeatureSwitches.for(cohort: cohort)
 
-    cohort.enrollments.active.includes(:user).each do |enrollment|
+    enrollments = cohort.enrollments.active.includes(:user)
+    if @cohort_features["github_app"] == true
+      enrollments = enrollments.includes(github_repository_bindings: [ :github_app_installation, :curriculum_module ])
+      @app_enrollments = enrollments.index_by(&:user_id)
+      @app_enrollments.each_value { |row| row.cohort = cohort }
+    end
+    enrollments.each do |enrollment|
       user = enrollment.user
       next unless user.github_username.present?
 
@@ -157,6 +179,10 @@ class GithubSyncService
     end
 
     results
+  ensure
+    @app_enrollments = nil
+    @cohort_features = nil
+    @sync_cohort_id = nil
   end
 
   private
