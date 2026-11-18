@@ -1,6 +1,6 @@
 import { redirectSystemPath } from '../../app/+native-intent';
 import { incomingPath, queueIncomingLink, takeIncomingLink, subscribeIncomingLink } from '../incoming-link';
-import { requiresStaff } from '../notification-path';
+import { requiresStaff, routeForViewer } from '../notification-path';
 it.each(['https://learn.codeschoolofguam.com/lessons/42?cohort_id=2#block-8', 'csglearn://lessons/42?cohort_id=2#block-8', 'csgconnect:///lessons/42?cohort_id=2#block-8'])('maps trusted incoming URL %s', path => {
   expect(incomingPath(path)).toBe('/lesson/42?cohort_id=2&block_id=8');
 });
@@ -14,6 +14,22 @@ it('identifies both direct and web fallback staff destinations', () => {
   expect(requiresStaff('/staff/student/3?cohort_id=4')).toBe(true);
   expect(requiresStaff('/link-unavailable?path=%2Fadmin%2Fcohorts%2F4%2Fbulk')).toBe(true);
   expect(requiresStaff('/lesson/3')).toBe(false);
+});
+
+it('sends learners to the link fallback for every staff-only native route', () => {
+  const learner = { is_staff: false };
+  for (const link of ['csglearn://cohort/1/schedule', 'csglearn://admin/cohorts/1/schedule', 'csglearn://staff/student/3?cohort_id=1']) {
+    expect(routeForViewer(incomingPath(link), learner)).toBe('/link-unavailable');
+  }
+  for (const path of ['/recordings/link', '/recordings/upload', '/manage-communications', '/staff/grading', '/staff/support']) expect(requiresStaff(path)).toBe(true);
+  expect(routeForViewer('/cohort/1/schedule', { is_staff: true })).toBe('/cohort/1/schedule');
+  for (const path of ['/cohort/1', '/recordings', '/recording/4?cohort_id=1', '/lesson/3?cohort_id=1', '/staffroom']) expect(routeForViewer(path, learner)).toBe(path);
+});
+
+it('ignores the development launcher URL instead of showing the link fallback', () => {
+  takeIncomingLink();
+  expect(redirectSystemPath({ path: 'exp+csg-connect://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8095', initial: true })).toBe('/');
+  expect(takeIncomingLink()).toBeNull();
 });
 
 it('does not let the Clerk callback overwrite the content link held during sign-in', () => {

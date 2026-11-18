@@ -14,7 +14,7 @@ import { demoDashboard } from '@/lib/demo-learning';
 import { formatCourseDate } from '@/lib/course-time';
 import { learnerModuleTypeLabel } from '@/lib/curriculum';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
-import { lessonStatus } from '@/lib/learning-status';
+import { lessonStatus, notYetOpen } from '@/lib/learning-status';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useCohort } from '@/providers/cohort-provider';
@@ -48,7 +48,7 @@ export default function ModuleScreen() {
   // The dashboard loaded but the moved-module lookup failed: show and retry
   // that lookup, not the dashboard.
   const failed = query.error ? query : moved.error ? moved : null;
-  if (!module) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState title={(failed?.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={failed?.error ? (failed.error as Error).message : 'This module is unavailable.'} retry={() => void (failed === moved ? moved.refetch() : query.refetch())} /></SafeAreaView>;
+  if (!module) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View>{notYetOpen(failed?.error) ? <ErrorState title="Not open yet" message="This module opens later in your course. Learn shows what is open now." retryLabel="Go to Learn" retry={() => router.replace('/learn')} /> : <ErrorState title={(failed?.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={failed?.error ? (failed.error as Error).message : 'This module is unavailable.'} retry={() => void (failed === moved ? moved.refetch() : query.refetch())} />}</SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.headerKicker}>LEARNING MODULE</Text><Text numberOfLines={1} style={styles.headerTitle}>{module.name}</Text></View></View><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     <View style={styles.hero}><Text style={styles.type}>{learnerModuleTypeLabel(module.module_type)}</Text><Text style={styles.title}>{module.name}</Text><View style={styles.progressCopy}><Text style={styles.progressText}>{module.lessons.filter((lesson) => lesson.completed).length} of {module.lessons.length} lessons</Text><Text style={styles.percent}>{Math.round(module.progress_percentage)}%</Text></View><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View>

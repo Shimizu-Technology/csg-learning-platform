@@ -21,7 +21,7 @@ import { UPDATES_STALE_TIME, useUpdatesFocusRefresh } from '@/hooks/use-updates-
 import { learningKeys } from '@/lib/learning';
 import { messagingKeys } from '@/lib/messaging-cache';
 import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
-import { mobileNotificationPath, notificationTitle } from '@/lib/notification-path';
+import { mobileNotificationPath, notificationTitle, routeForViewer } from '@/lib/notification-path';
 import type { components } from '@/lib/api.generated';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
 import { mapUpdatePages, readAllAnnouncements, readAllNotifications, readAnnouncementPages, readAnnouncementNotificationPages, readNotification, uniqueUpdates, updatesKeys, type AnnouncementListPayload, type NotificationListPayload, type PagedUpdates, upsertAnnouncement } from '@/lib/updates-cache';
@@ -201,7 +201,8 @@ export default function UpdatesScreen() {
       return;
     }
     const path = mobileNotificationPath(item.destination, item.notifiable.type === 'Message' ? item.notifiable.id : undefined, item.destination_path ?? item.path);
-    router.push(path as Href);
+    // Push the fallback directly so Back returns to this inbox.
+    router.push(routeForViewer(path, user) as Href);
 
   };
 

@@ -16,8 +16,11 @@ export interface AuthoredContentSource {
  * text. Written text (updates, feedback, help replies) is always Markdown, so
  * "<div>…</div>" typed there shows as typed.
  */
+/** Legacy rich-text (Trix) bodies are stored as HTML rather than Markdown. */
+export function isHtmlSource(body: string) { return HTML_DOCUMENT_START.test(body); }
+
 export function authoredContentSource(body: string, { written = false }: { written?: boolean } = {}): AuthoredContentSource {
-  if (!written && HTML_DOCUMENT_START.test(body)) return { format: 'html', html: body };
+  if (!written && isHtmlSource(body)) return { format: 'html', html: body };
   return { format: 'markdown', html: renderLessonMarkdown(body, { written }) };
 }
 

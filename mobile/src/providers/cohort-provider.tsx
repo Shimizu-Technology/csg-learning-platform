@@ -51,6 +51,8 @@ function accessEndedNotice(enrollments: SessionEnrollment[], cohortId: number | 
 }
 
 const CohortContext = createContext<CohortContextState | null>(null);
+// A link that changes the learner's cohort must never do so silently.
+const SWITCH_NOTICE_MS = 7000;
 export const selectedCohortStorageKey = (userId: number) => `csg.cohort.active.${userId}`;
 
 function defaultCohortId(cohorts: AccessibleCohort[], isAdmin: boolean): number | null {
@@ -82,6 +84,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const explicitValue = pathId ?? params.cohort_id;
   const explicitId = typeof explicitValue === 'string' && /^[1-9]\d*$/.test(explicitValue) ? Number(explicitValue) : null;
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
+  const [switchNoticeShownAt, setSwitchNoticeShownAt] = useState<number | null>(null);
   const { api, user, enrollments } = useSession();
   const cachedEnrollmentsRef = useRef(enrollments);
   useLayoutEffect(() => { cachedEnrollmentsRef.current = enrollments; }, [enrollments]);
@@ -229,7 +232,10 @@ export function CohortProvider({ children }: PropsWithChildren) {
     const notice = `Switched to ${cohort.name}`;
     setSwitchNotice(notice);
     if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibilityWithOptions(notice, { queue: true });
-    await selectCohort(cohortId);
+    // Count the visible time from when the switch lands, not from the tap, so a
+    // slow destination (a lesson still loading) still shows the notice.
+    try { await selectCohort(cohortId); }
+    finally { setSwitchNoticeShownAt(Date.now()); }
   }, [cohorts, loading, selectCohort, selectedCohortId, isStaff]);
 
   useEffect(() => {
@@ -237,10 +243,10 @@ export function CohortProvider({ children }: PropsWithChildren) {
     if (explicitId) void selectCohortFromLink(explicitId);
   }, [explicitId, selectCohortFromLink]);
   useEffect(() => {
-    if (!switchNotice) return;
-    const timer = setTimeout(() => setSwitchNotice(null), 4500);
+    if (!switchNotice || switchNoticeShownAt === null) return;
+    const timer = setTimeout(() => { setSwitchNotice(null); setSwitchNoticeShownAt(null); }, SWITCH_NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [switchNotice]);
+  }, [switchNotice, switchNoticeShownAt]);
 
   const value: CohortContextState = contextUserId === userId
     ? { cohorts, selectedCohortId, cachedEnrollments: isStaff ? null : enrollments, stale, loading, error, refresh, selectCohort }

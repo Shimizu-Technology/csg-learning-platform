@@ -74,6 +74,8 @@ function failedReplyMessage(root: Message, author: Message['author'], intent: Fa
   };
 }
 
+const INCOMPLETE_THREAD_LINK = 'This thread link is incomplete. Open it again from the conversation.';
+
 export default function ThreadScreen() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
@@ -205,7 +207,7 @@ export default function ThreadScreen() {
         storedFailedSend = storedDraft.failedSend;
         failedSendRef.current = storedFailedSend;
       }
-      if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
+      if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error(INCOMPLETE_THREAD_LINK);
       if (auth.demo) {
         if (cached) {
           setRoot(cached.root);
@@ -598,7 +600,7 @@ export default function ThreadScreen() {
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
     <View style={styles.header}><BackButton style={styles.back} /><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{root?.reply_count ?? replies.length} {(root?.reply_count ?? replies.length) === 1 ? 'reply' : 'replies'}</Text></View></View>
-    {!error && (!destinationReady || (loading && !root)) ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
+    {!error && (!destinationReady || (loading && !root)) ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} {...(error === INCOMPLETE_THREAD_LINK ? { retryLabel: 'Go to Messages', retry: () => router.replace('/messages') } : { retry: () => void load() })} /> : <>
       <FlatList ref={listRef} style={styles.messageList} data={threadItems}
         onContentSizeChange={positionThread}
         onLayout={positionThread}

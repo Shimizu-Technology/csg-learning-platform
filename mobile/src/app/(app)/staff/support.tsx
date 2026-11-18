@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StaffAttention } from '@/components/staff-attention';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { StaffOnlyScreen } from '@/components/staff-only-screen';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fonts } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
@@ -98,7 +99,7 @@ export default function StaffSupportScreen() {
     router.push({ pathname: '/staff/intervention/[id]', params: { id: String(intervention.id) } });
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Support is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!user?.is_staff) return <StaffOnlyScreen message="Support is available to instructors and admins." />;
   if (query.isPending && !queue) return <SafeAreaView style={styles.safe}><LoadingState label="Loading Support" /></SafeAreaView>;
   if (!queue) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'Support is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 

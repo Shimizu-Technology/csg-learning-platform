@@ -68,7 +68,7 @@ beforeEach(() => {
 it('uses the source cohort before querying and highlights the notified exercise', async () => {
   mockParams = { id: '42', cohort_id: '2', block_id: '8' };
   const screen = render(<LessonScreen />, { wrapper: Wrapper });
-  await waitFor(() => expect(screen.getByText('Opened from your update')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Linked section')).toBeTruthy());
   expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2);
 
   expect(screen.getByTestId('lesson-block-8')).toBeTruthy();
@@ -207,7 +207,7 @@ it.each(['lesson', 'recording'])('opens an activity %s destination while another
     if (kind === 'lesson') {
       await screen.findByText('Source lesson');
       expect(screen.getByTestId('lesson-block-8')).toBeTruthy();
-      expect(screen.getByText('Opened from your update')).toBeTruthy();
+      expect(screen.getByText('Linked section')).toBeTruthy();
       fireEvent(screen.getByTestId('lesson-block-8'), 'layout', { nativeEvent: { layout: { y: 200 } } });
       expect(mockFocusTarget).toHaveBeenCalled();
       expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2);

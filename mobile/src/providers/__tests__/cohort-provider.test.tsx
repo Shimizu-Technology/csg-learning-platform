@@ -349,3 +349,29 @@ it.each([false, true])('enforces known learner deadlines after successful valida
     expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1);
   } finally { screen.unmount(); mockUser.is_staff = false; jest.useRealTimers(); }
 });
+
+it('keeps the cohort switch notice up long enough to read on the destination screen', async () => {
+  mockParams = {}; mockPath = '/';
+  mockEnrollments = [];
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(selectedCohortStorageKey(9), '2');
+  mockApi.accessibleCohorts.mockResolvedValue({ cohorts: [{ id: 1, name: 'Cohort A', status: 'active' }, { id: 2, name: 'Cohort B', status: 'active' }] });
+  const screen = render(<CohortProvider><Surface /></CohortProvider>);
+  await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Cohort B'));
+  jest.useFakeTimers();
+  try {
+    mockParams = { cohort_id: '1' }; mockPath = '/lesson/42';
+    screen.rerender(<CohortProvider><Surface /></CohortProvider>);
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Cohort A'));
+    // Let the stored selection finish; the notice clock starts once the switch lands.
+    await act(async () => {});
+    await act(async () => {});
+    await act(async () => { jest.advanceTimersByTime(5000); });
+    expect(screen.getByText('Switched to Cohort A')).toBeTruthy();
+    await act(async () => { jest.advanceTimersByTime(2100); });
+    expect(screen.queryByText('Switched to Cohort A')).toBeNull();
+  } finally {
+    screen.unmount();
+    jest.useRealTimers();
+  }
+});

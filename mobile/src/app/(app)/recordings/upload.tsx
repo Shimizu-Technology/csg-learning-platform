@@ -15,6 +15,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { StaffOnlyScreen } from '@/components/staff-only-screen';
 import { fonts } from '@/constants/csg-theme';
 import { demoStaffDashboard } from '@/lib/demo-staff';
 import { learningKeys } from '@/lib/learning';
@@ -122,7 +123,7 @@ export default function RecordingUploadScreen() {
     }
   };
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Recording uploads are available to instructors and admins." retryLabel="Go to Recordings" retry={() => router.replace('/recordings')} /></SafeAreaView>;
+  if (!user?.is_staff) return <StaffOnlyScreen message="Recording uploads are available to instructors and admins." exitLabel="Go to Recordings" exitHref="/recordings" />;
   if (cohortsQuery.isPending) return <SafeAreaView style={styles.safe}><LoadingState label="Loading classes" /></SafeAreaView>;
   if (cohortsQuery.error) return <SafeAreaView style={styles.safe}><ErrorState message={(cohortsQuery.error as Error).message} retry={() => void cohortsQuery.refetch()} /></SafeAreaView>;
 

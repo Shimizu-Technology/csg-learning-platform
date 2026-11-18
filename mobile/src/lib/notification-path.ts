@@ -89,7 +89,15 @@ export function webFallbackPath(path: unknown): string {
   return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') && !/[\s\\]/.test(path) && !path.startsWith('/link-unavailable')
     ? `/link-unavailable?path=${encodeURIComponent(path)}` : '/link-unavailable';
 }
+// Native routes that only instructors and admins can use. Learners get the
+// standard link fallback instead of a staff screen they cannot leave.
+const STAFF_ONLY_ROUTE = /^\/(?:(?:staff|admin)(?:[/?#]|$)|cohort\/[1-9]\d*\/schedule(?:[?#]|$)|recordings\/(?:link|upload)(?:[?#]|$)|manage-communications(?:[?#]|$))/;
 export function requiresStaff(path: string): boolean {
   const source = path.startsWith('/link-unavailable?') ? new URLSearchParams(path.split('?')[1]).get('path') || '' : path;
-  return /^\/(staff|admin)(\/|$)/.test(source);
+  return STAFF_ONLY_ROUTE.test(source);
+}
+
+/** The route a viewer may open: learners never land on a staff-only screen. */
+export function routeForViewer(path: string, user: { is_staff?: boolean } | null | undefined): string {
+  return !user?.is_staff && requiresStaff(path) ? '/link-unavailable' : path;
 }

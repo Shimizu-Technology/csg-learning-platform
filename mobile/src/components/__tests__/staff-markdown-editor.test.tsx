@@ -23,3 +23,12 @@ it('previews the exact source with the learner renderer without emitting an edit
   fireEvent.changeText(screen.getByLabelText('Exercise instructions'), edited);
   expect(onChange).toHaveBeenCalledWith(edited);
 });
+
+it('labels a legacy HTML body as HTML source instead of Markdown', () => {
+  const html = '<div><strong>Bold</strong> and <a href="https://example.invalid">a link</a></div>';
+  const screen = render(<StaffMarkdownEditor value={html} onChange={jest.fn()} />);
+  expect(screen.getByText('HTML source')).toBeTruthy();
+  expect(screen.queryByText('Markdown')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Preview Exercise instructions'));
+  expect(screen.getByText('Edit source')).toBeTruthy();
+});

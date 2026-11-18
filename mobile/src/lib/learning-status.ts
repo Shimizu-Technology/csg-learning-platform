@@ -176,3 +176,8 @@ export function lessonPageProgress(local: { handedIn: number; total: number; per
   }
   return { handedIn: local.handedIn, total: local.total, percentage: local.percentage };
 }
+
+/** The API refuses lessons and modules that unlock later with this 403. */
+export function notYetOpen(error: unknown): boolean {
+  return (error as { status?: number } | null)?.status === 403 && /\bnot unlocked yet\b/i.test((error as Error).message ?? '');
+}
