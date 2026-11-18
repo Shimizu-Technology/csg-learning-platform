@@ -11,6 +11,7 @@ project = mod.lessons.find_or_create_by!(title: "Review final project") { |row| 
 project.content_blocks.find_or_create_by!(title: "Final draft") { |row| row.assign_attributes(block_type: :exercise, position: 0, filename: "draft.md", metadata: { "language" => "markdown" }, submission_type: :text_submission, body: "Submit your draft.") }
 program = Cohort.find_or_create_by!(name: "QA Deadline Program") { |row| row.assign_attributes(curriculum: curriculum, start_date: Date.current - 60, end_date: Date.current + 180, status: :active, settings: { "features" => { "student_experience_v2" => true } }) }
 paced = Cohort.find_or_create_by!(name: "QA Deadline Pace") { |row| row.assign_attributes(curriculum: curriculum, start_date: Date.current - 14, end_date: Date.current + 180, status: :active, course_delivery: "guided", learner_pace_weeks: [ 3, 6, 12 ], settings: { "features" => { "student_experience_v2" => true } }) }
+paced.update!(start_date: LearningCalendar.today - 14)
 [ program, paced ].each do |cohort|
   cohort.cohort_instructor_assignments.find_or_create_by!(user: User.find(2))
   cohort.cohort_module_submission_windows.destroy_all

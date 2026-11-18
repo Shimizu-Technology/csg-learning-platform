@@ -5,7 +5,14 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
   include QueryCounter
 
   module BeforeWriteGuard
-    mattr_accessor :callback
+    mattr_accessor :callback, :lock_callback
+    def with_lock(...)
+      callback = BeforeWriteGuard.lock_callback
+      BeforeWriteGuard.lock_callback = nil
+      callback&.call
+      super
+    end
+
     def with_learning_write_guard(**options, &block)
       callback = BeforeWriteGuard.callback
       BeforeWriteGuard.callback = nil
@@ -14,7 +21,7 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     end
   end
   Enrollment.prepend(BeforeWriteGuard) unless Enrollment.ancestors.include?(BeforeWriteGuard)
-  teardown { BeforeWriteGuard.callback = nil }
+  teardown { BeforeWriteGuard.callback = nil; BeforeWriteGuard.lock_callback = nil }
   setup do
     curriculum = Curriculum.create!(name: "Extensions")
     @mod = curriculum.modules.create!(name: "Module", position: 0, day_offset: 0)
@@ -284,6 +291,139 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     assert_equal 0, result[:synced]
     assert_includes result[:errors], "Skipped closed Week 1 GitHub-sync submissions"
     assert_not Submission.exists?(enrollment: @enrollment, content_block: @block)
+  end
+
+  test "a reason-only edit cannot restore a grant removed while waiting for the enrollment lock" do
+    grant
+    extension = @enrollment.learner_extensions.first
+    BeforeWriteGuard.lock_callback = -> { extension.record_change!(actor: @teacher, removing: true) }
+    # The controller may have loaded the grant before the removal; lock! must
+    # re-read and reject it rather than clearing removed_at.
+    patch "#{@path}/#{extension.id}", params: { reason: "Stale correction" }, headers: headers(@teacher), as: :json
+    assert_response :not_found
+    assert extension.reload.removed_at
+    assert_equal 2, extension.revisions.size
+    assert_equal "Travel", extension.reason
+    submit
+    assert_response :forbidden
+  end
+
+  test "impossible calendar dates are rejected rather than normalized" do
+    post @path, params: input.merge(submissions_close_at: "2027-02-30T12:00:00Z"), headers: headers(@teacher), as: :json
+    assert_response :unprocessable_entity
+    assert_empty @enrollment.learner_extensions
+  end
+
+  test "removing a final grant reconciles a paused learner plan before resume" do
+    @cohort.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 6 ])
+    @lesson.update!(lesson_type: :project)
+    LearnerPace.new(@enrollment).choose!(weeks: 3, actor: @teacher)
+    original = @enrollment.learning_plan.reload.target_date
+    deadline = 8.weeks.from_now.in_time_zone("Pacific/Guam").end_of_day
+    post @path, params: { scope: "final", submissions_close_at: deadline.iso8601, reason: "Leave" }, headers: headers(@teacher), as: :json
+    assert_response :success
+    extension = @enrollment.learner_extensions.reload.first
+    @enrollment.update!(status: :paused)
+    delete "#{@path}/#{extension.id}", params: { reason: "Leave ended" }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert_equal original, @enrollment.learning_plan.reload.target_date
+    assert @enrollment.reload.paused?
+    @enrollment.update!(status: :active)
+    assert_equal original, effective_window.fetch(:submissions_close_at).in_time_zone("Pacific/Guam").to_date
+  end
+
+  test "disabled learning plans use the cohort window for display and enforcement" do
+    @enrollment.update!(first_opened_at: 2.weeks.ago)
+    @cohort.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 6 ])
+    @lesson.update!(lesson_type: :project)
+    LearnerPace.new(@enrollment).choose!(weeks: 3, actor: @teacher)
+    @enrollment.learning_plan.update!(target_date: 1.day.ago.to_date, milestones: [])
+    @cohort.cohort_module_submission_windows.first.update!(submissions_close_at: 2.days.from_now)
+    @cohort.update!(settings: { "features" => { "learning_plans" => false } })
+    assert_not effective_window.fetch(:submissions_closed)
+    get "/api/v1/lessons/#{@lesson.id}", params: { cohort_id: @cohort.id }, headers: headers(@student)
+    assert_response :success
+    assert_not response.parsed_body.fetch("lesson").fetch("submission_window").fetch("submissions_closed")
+    submit
+    assert_response :created
+    @cohort.update!(settings: { "features" => { "learning_plans" => true } })
+    assert effective_window.fetch(:submissions_closed)
+    submit
+    assert_response :forbidden
+  end
+
+  test "final grants accept only Guam end-of-day calendar cutoffs" do
+    @cohort.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 6 ])
+    @lesson.update!(lesson_type: :project)
+    LearnerPace.new(@enrollment).choose!(weeks: 3, actor: @teacher)
+    post @path, params: { scope: "final", submissions_close_at: 8.weeks.from_now.change(hour: 2).iso8601, reason: "Leave" }, headers: headers(@teacher), as: :json
+    assert_response :unprocessable_entity
+    assert_includes response.parsed_body.fetch("errors").join, "end of day"
+  end
+
+  test "hard deletion nullifies a lesson target while retaining its grant history" do
+    grant
+    extension = @enrollment.learner_extensions.first
+    @lesson.destroy!
+    assert_nil extension.reload.lesson_id
+    assert_equal @lesson.id, extension.revisions.first.fetch("lesson_id")
+    assert_equal "Travel", extension.reason
+  end
+
+  test "a lesson moved to another released closed week is refused after locking" do
+    @mod.lessons.create!(title: "Week two", position: 1, release_day: 7)
+    @cohort.cohort_module_submission_windows.first.update!(submissions_close_at: 2.days.from_now)
+    @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 2, submissions_close_at: 1.day.ago)
+    BeforeWriteGuard.callback = -> { @lesson.update!(release_day: 7) }
+    submit
+    assert_response :forbidden
+    assert_empty Submission.where(enrollment: @enrollment)
+  end
+
+  test "GitHub sync uses the current lesson after a released week move during fetch" do
+    @mod.lessons.create!(title: "Week two", position: 1, release_day: 7)
+    @cohort.cohort_module_submission_windows.first.update!(submissions_close_at: 2.days.from_now)
+    @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 2, submissions_close_at: 1.day.ago)
+    @student.update!(github_username: "synthetic")
+    @block.update!(filename: "answer.rb", submission_type: :prework_github_sync)
+    lesson_id = @lesson.id
+    service = GithubSyncService.new(github_token: "test-token")
+    service.define_singleton_method(:fetch_exercise_files) do |*|
+      Lesson.find(lesson_id).update!(release_day: 7)
+      { files: [ { "name" => "answer.rb", "text" => "puts 'hello'" } ], commit_hash: "abc", error: nil }
+    end
+    result = service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)
+    assert_equal 0, result[:synced]
+    assert_includes result[:errors], "Skipped closed Week 2 GitHub-sync submissions"
+    assert_empty Submission.where(enrollment: @enrollment)
+  end
+
+  test "GitHub sync uses current cohort pace settings after fetching" do
+    @cohort.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 6 ])
+    LearnerPace.new(@enrollment).choose!(weeks: 3, actor: @teacher)
+    @student.update!(github_username: "synthetic")
+    @block.update!(filename: "answer.rb", submission_type: :prework_github_sync)
+    cohort_id = @cohort.id
+    service = GithubSyncService.new(github_token: "test-token")
+    service.define_singleton_method(:fetch_exercise_files) do |*|
+      Cohort.find(cohort_id).update!(learner_pace_weeks: nil)
+      { files: [ { "name" => "answer.rb", "text" => "puts 'hello'" } ], commit_hash: "abc", error: nil }
+    end
+    result = service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)
+    assert_equal 0, result[:synced]
+    assert_includes result[:errors], "Skipped closed Week 1 GitHub-sync submissions"
+    assert_empty Submission.where(enrollment: @enrollment)
+  end
+
+  test "grading reasons include only grants matching the submitted lesson or week" do
+    grant
+    another = @mod.lessons.create!(title: "Other week", position: 1, release_day: 7)
+    @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 2, submissions_close_at: 1.day.ago)
+    @enrollment.learner_extensions.new(scope: "module", module_id: @mod.id, week_number: 2, reason: "Other week leave", submissions_close_at: 3.days.from_now).record_change!(actor: @teacher)
+    submit
+    assert_response :created
+    row = GradingQueue.new(viewer: @teacher, cohort: @cohort).as_json.fetch(:submissions).first
+    assert_equal [ "Travel" ], row.fetch(:extensions).map { |item| item.fetch("reason") }
   end
 
   def effective_window

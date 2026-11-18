@@ -210,6 +210,8 @@ class ApplicationController < ActionController::API
     if fresh
       enrollment.association(:learner_extensions).reset
       enrollment.association(:learning_plan).reset
+      enrollment.association(:cohort).reset
+      lesson = Lesson.includes(:curriculum_module).find(ContentBlock.where(id: content_block.id).pick(:lesson_id))
       enrollment.cohort.cohort_module_submission_windows.reload
     end
     status = SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson, enrollment: enrollment)

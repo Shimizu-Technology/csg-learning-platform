@@ -402,7 +402,11 @@ class CurriculumCopyForCohort
     @counts["submissions"] = remap_column(Submission.where(id: submission_ids), :content_block_id, @block_map)
     @counts["submission_criterion_results"] = remap_column(SubmissionCriterionResult.where(submission_id: submission_ids), :rubric_criterion_id, @criterion_map)
     @counts["knowledge_check_attempts"] = remap_column(learner_rows(KnowledgeCheckAttempt), :knowledge_check_id, @check_map)
+    @counts["learner_extensions"] = 0
     LearnerExtension.where(enrollment_id: @enrollment_ids).find_each do |extension|
+      next unless @lesson_map.key?(extension.lesson_id) || @module_map.key?(extension.module_id)
+
+      @counts["learner_extensions"] += 1
       remap = lambda do |snapshot|
         snapshot.merge("lesson_id" => @lesson_map.fetch(snapshot["lesson_id"], snapshot["lesson_id"]), "module_id" => @module_map.fetch(snapshot["module_id"], snapshot["module_id"]))
       end
@@ -710,6 +714,7 @@ class CurriculumCopyForCohort
       "submissions" => submission_ids.size,
       "submission_criterion_results" => SubmissionCriterionResult.where(submission_id: submission_ids, rubric_criterion_id: criterion_ids).count,
       "knowledge_check_attempts" => rows.call(KnowledgeCheckAttempt, :knowledge_check_id, check_ids).count,
+      "learner_extensions" => LearnerExtension.where(enrollment_id: enrollment_ids).where(lesson_id: lesson_ids).or(LearnerExtension.where(enrollment_id: enrollment_ids, module_id: module_ids)).count,
       "learning_plans" => plans.count { |plan| plan_touches.call(plan.snapshot) },
       "learning_plan_revisions" => LearningPlanRevision.where(learning_plan_id: plans.map(&:id)).to_a.count { |revision| plan_touches.call(revision.snapshot) },
       "help_requests" => HelpRequest.where(cohort_id: cohort.id).where(context_type: "lesson", context_id: lesson_ids)

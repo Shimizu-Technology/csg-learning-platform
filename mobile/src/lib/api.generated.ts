@@ -5692,7 +5692,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["LearnerExtensionInput"];
+                    "application/json": components["schemas"]["LearnerExtensionUpdateInput"];
                 };
             };
             responses: {
@@ -8275,7 +8275,7 @@ export interface components {
             course_delivery: "program" | "guided" | "self_paced" | null;
             /** @description The lesson's program week; null for a self-paced cohort. */
             week_number: number | null;
-            /** @description Active grants for this learner, including their targets and reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant. */
+            /** @description Active grants applicable to this submission’s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant. */
             extensions?: components["schemas"]["LearnerExtension"][];
             submission_window?: components["schemas"]["SubmissionWindowStatus"];
         };
@@ -10363,7 +10363,10 @@ export interface components {
             lesson_id?: number | null;
             module_id?: number | null;
             week_number?: number | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times.
+             */
             submissions_close_at: string;
             reason: string;
         };
@@ -10391,6 +10394,20 @@ export interface components {
             extensions: components["schemas"]["LearnerExtension"][];
             /** @description Whether this cohort supports personal pace and final-date grants. */
             personal_pace: boolean;
+        };
+        /** @description Change an active grant. Reason is required; omitted cutoff and target fields retain their values. Grant targets are immutable. Removed grants return 404. */
+        LearnerExtensionUpdateInput: {
+            /** @enum {string} */
+            scope?: "final" | "lesson" | "module";
+            lesson_id?: number | null;
+            module_id?: number | null;
+            week_number?: number | null;
+            /**
+             * Format: date-time
+             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times.
+             */
+            submissions_close_at?: string;
+            reason: string;
         };
     };
     responses: {

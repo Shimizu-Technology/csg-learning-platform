@@ -120,3 +120,15 @@ it('stays on the lesson it asked for when nothing moved', async () => {
   await waitFor(() => expect(mockLesson).toHaveBeenCalled());
   expect(mockReplace).not.toHaveBeenCalled();
 });
+
+
+it.each([false, true])('shows the Guam deadline only when the learner payload opts in (%s)', async (visible) => {
+  mockLesson.mockResolvedValue({ lesson: { ...savedLesson, show_personal_deadline: visible,
+    submission_window: { submissions_close_at: '2030-01-15T00:00:00Z', submissions_closed: false } } });
+  const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByText('Connectivity lesson')).toBeTruthy());
+  if (visible) {
+    expect(screen.getByText(/Submission deadline: Jan 15, 2030, 10:00 AM \(Guam\)/)).toBeTruthy();
+    expect(screen.queryByText(/10:00:00/)).toBeNull();
+  } else expect(screen.queryByText(/Submission deadline:/)).toBeNull();
+});

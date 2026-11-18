@@ -11,6 +11,7 @@ class LearnerExtension < ApplicationRecord
   validate :target_in_enrollment
   validate :target_immutable
   validate :deadline_does_not_shorten_window
+  validate :final_deadline_is_guam_end_of_day
 
   def target_immutable
     return unless persisted?
@@ -36,7 +37,7 @@ class LearnerExtension < ApplicationRecord
     plan = enrollment.learning_plan
     return unless plan&.active? && plan.learner_pace? && plan.target_date
     if removing
-      LearnerPace.new(enrollment).regenerate!(actor: actor)
+      LearnerPace.new(enrollment).regenerate!(actor: actor, reconcile_paused: true)
       return
     end
 
@@ -51,6 +52,15 @@ class LearnerExtension < ApplicationRecord
     plan.target_date = target
     plan.save!
     plan.revisions.create!(author: actor, snapshot: plan.snapshot)
+  end
+
+  # Firm final grants are calendar dates, represented as Guam end of day.
+  # Lesson and module grants may use an exact cutoff time.
+  def final_deadline_is_guam_end_of_day
+    return unless scope == "final" && submissions_close_at && !removed_at
+
+    local = submissions_close_at.in_time_zone("Pacific/Guam")
+    errors.add(:submissions_close_at, "must be end of day (23:59:59) in Guam for a final-date grant") unless [ local.hour, local.min, local.sec ] == [ 23, 59, 59 ]
   end
 
   def deadline_does_not_shorten_window

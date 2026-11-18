@@ -1,73 +1,62 @@
 # W9.2: per-student deadlines and extensions
 
-**Status: draft PR; full normal gate remains time-blocked.** PR: https://github.com/Shimizu-Technology/csg-learning-platform/pull/316. Implementation revision: `7239bb5b`. Base: `c1cff777` (#313). Branch: `feat/w9-deadlines`; worktree: `/Users/agent/work/csg-w9-deadlines`.
+PR: https://github.com/Shimizu-Technology/csg-learning-platform/pull/316. Branch: `feat/w9-deadlines`; isolated worktree: `/Users/agent/work/csg-w9-deadlines`. This record describes the final review fixes on top of `78bdff15` (which includes main `15f6214e` / #315). The tested source is committed with this record. Final head and CI evidence are recorded in the PR body.
 
-## Product and acceptance
+## Product rules and acceptance
 
-CSG Learn serves Code School of Guam learners and instructors. Sources for this slice: the approved W9 design at `/Users/agent/work/csg-learn-w9-self-paced-design-2026-11-18.md` (deadlines/build plan), #313's body/residuals, and the base implementation of `LearnerPace`, `LearnerProgress`, and `SubmissionWindowStatus`.
+Sources: Leon’s approved W9 self-paced design at `/Users/agent/work/csg-learn-w9-self-paced-design-2026-11-18.md`, W9.1 #313, and the lead’s decisions in the #316 fix requests. CSG Learn serves Code School of Guam learners and staff; `LearnerProgress` supplies status.
 
-Weekly personal-pace milestones are soft. The final project has one firm date. Staff can grant a final-date, lesson, or module-week extension with a required reason; multiple grants cover both final and specific windows. Every change/removal retains history. Final grants also move future plan milestones and write plan revisions. Re-plans keep the explicit extension date even when the newly chosen pace is longer.
+**An extension only ever adds time.** The resolver takes the later of an applicable grant and the learner’s own base window. An unbounded base stays open. A subsequent cohort postponement or longer pace wins over an earlier grant. Creates and edits must extend a finite effective window; earlier edits are rejected. Choosing a longer pace preserves the grant record/history while allowing the later pace date. The earlier acceptance wording that capped a longer pace at the grant was incorrect and is superseded by this decision.
 
-There is no new feature switch. Personal pace uses the existing nullable cohort setting; extensions are absent until staff grant one. Learners receive effective dates without staff reasons/history. StaffCohortScope restricts grants, reads, edits and removals, with identical 404 bodies for authorization/lookup denials. LearnerProgress remains the status source. The queue and workspace batch grants; query fixtures grow by four additional learners/submissions plus additional workspace grants.
+For personal-pace learners with learning plans enabled, weekly milestones are soft: cohort weekly closes are not enforced. The final project has the firm plan date. With learning plans disabled, both display and enforcement use cohort windows. Final-date grants are calendar dates represented at 23:59:59 in Pacific/Guam; the model rejects other final-grant times. Lesson and module-week grants support exact times, shown on Today and the lesson page in Guam.
 
-The extension form inherits existing operational styles, waits for history before accepting writes, offers reload after failure, and resets when the workspace changes learner. Extension reasons appear in the grading queue. The outline, Today, lesson and mobile responses use effective windows; web and mobile lesson views show dates. The Off-cohort golden file was not regenerated. Its parity test now also checks nil/future/closed windows, lesson responses, and submit enforcement. Workspace module assignments sort by module position then ID.
+StaffCohortScope authorizes changes; unauthorized and missing records return the same 404. Each change needs a new reason and records the actor/time/history. Removed grants cannot be edited, including a removal occurring while PATCH waits for its lock. Final-grant removal reconciles active and paused plans without resuming a paused learner. Replanning never shifts an unfinished milestone backward or into the past. No new feature switch was added; Off cohorts without grants retain their windows, payloads and lesson UI. The existing Lance-shaped golden file was not regenerated.
 
-## Browser acceptance — passed
+## Final-round functional checks
 
-Agent-executed, synthetic fixtures only, local Rails test mode/Vite/Chromium. No production data or settings changed. `scripts/qa/w9-deadlines-fixtures.rb` and `scripts/qa/w9-deadlines.spec.ts` reproduce the cases. Browser code tested at `b30d9ff4`; web/mobile source is unchanged between `5ab5cd45` and `7239bb5b`.
+Agent-executed on synthetic local fixtures, Rails test mode and Vite. No production data or settings changed. `scripts/qa/w9-deadlines-review-fixtures.rb` anchors the personal start to the run date on every setup. `scripts/qa/w9-deadlines-review.spec.ts` reproduces these cases at 390 and 1280 pixels in light and dark Chromium:
 
-Each test performs all six cases. Four passing runs cover 390/1280 pixels in light/dark mode (24 case/dimension observations).
+| Journey | Observed result |
+| --- | --- |
+| Grant, edit, remove | Required reason, named target/granter, Guam date without seconds, fresh edit reason, independent removal confirmation/reason, visible history |
+| Cohort postponement after grant | Extended learner and classmate can both submit through the later cohort close |
+| Earlier PATCH | 422; learner keeps the later deadline |
+| Open week and legacy grant | New finite grant refused; legacy grant cannot close an open window |
+| Soft pace week | Cohort close and legacy hard grant do not close submissions; hard grant is refused |
+| Final extension then 12-week replan | Later pace target applies; unfinished milestones remain on/after today; learner remains on track |
+| Open plan draft during final grant | Draft and stale-plan notice remain |
+| Final grant with no plan draft | Updated saved plan appears automatically; an unsaved personal-start draft survives the pace metadata refresh |
+| Remove the grant being edited | Edit draft clears; removed row/history remain; stale reason-only PATCH returns 404 |
+| Off learner lesson | Deadline line remains absent; normal submission behavior unchanged |
 
-| Case | Starting condition, action and observed outcome | Result |
-| --- | --- | --- |
-| Staff grant | Cohort week closed; admin chooses a lesson, enters Guam date/reason, saves and sees confirmation | Passed |
-| Learner date | Learner opens that lesson and sees the effective 2030 date | Passed |
-| Submission inside extension | Learner submits after the cohort close; waiting-for-review state persists after reload | Passed |
-| No-extension refusal | Second learner sees the same lesson closed; API submit returns 403 | Passed |
-| Off-program learner | Program persona opens Today without pace UI; separate API golden test verifies unchanged payloads | Passed |
-| History | Staff expands the saved extension history and sees the reason | Passed |
+The component suite additionally verifies that failed history reloads keep writes disabled until a successful reload and that removing a different grant preserves the unrelated edit draft. Mobile’s actual lesson-screen test verifies hidden and shown deadline branches using the same cutoff: 2030-01-15 00:00 UTC renders as Jan 15, 10:00 AM Guam only when the payload opts in.
 
-Both widths were checked for horizontal overflow. Pages/browser contexts close after each test. Early browser runs used an unavailable CDN editor and then an incorrect locator; the final fixture uses the real Markdown rich-text input and passes with external requests blocked.
+API regressions cover the paused removal, feature switch, impossible February 30, post-lock lesson/cohort reads (including GitHub fetch races), submission-specific queue reasons, module-week copy counts/target/history, and hard lesson deletion retaining grant history. The new FK nullifies a deleted lesson target; its saved revisions retain the original ID. Model validation still rejects new lesson grants without a valid target. Rolling this migration back after a referenced lesson was deleted requires reconciling the orphan history explicitly; rollback refuses to discard it silently.
 
-Not run: WebKit/mobile Safari (unsupported on this mini), native device interactions. Chromium resizing does not establish native behavior.
+## Validation
 
-## Engineering results
+All local final-round runs used normal Rails migration timestamp validation, with no override. At migration creation, `date -u` was November 18 after 08:12 UTC, so the unique `20261119080000` migration was inside now + 24 hours. Existing `20261119070000` remains; #315 owns `20261119050000`. Schema was regenerated by running migrations. Both migration tests clear every pooled connection’s statement cache.
 
-| Gate | Revision/environment | Actual result |
-| --- | --- | --- |
-| Affected API, prepared on | `7239bb5b`, ASUS | **162 runs, 1,289 assertions, 0 failures/errors/skips** |
-| Affected API, prepared off | `7239bb5b`, ASUS | **162 runs, 1,289 assertions, 0 failures/errors/skips** |
-| Full API, prepared on | `5ab5cd45`, ASUS, normal validation | **2,391 runs, 44,606 assertions, 0 failures/errors, 1 skip**; OpenAPI inventory passed |
-| Full API, prepared off | `5ab5cd45`, ASUS | **2,391 runs, 1 failure** in the existing post-copy request clock fixture; corrected at `68765e4f`, then retested in both final affected runs |
-| Full final API/production migration bootstrap | `7239bb5b` | **Blocked/not complete** by the future timestamp window below; not represented as a passing full gate |
-| Web typecheck, lint, Vitest, build, bundle/type checks | ASUS at `5ab5cd45`; client source unchanged at final code | Passed; 252 Vitest files, 3,499 tests |
-| Mobile typecheck, lint, Jest | ASUS at `5ab5cd45`; client source unchanged at final code | Passed; 142 Jest suites, 1,820 tests |
-| RuboCop, Brakeman | Final source, mini | Passed; 812 Ruby files, no offenses; no Brakeman warnings (one existing ignored warning) |
-| Impeccable 4.6.0 | Changed web UI, mini | `[]`; no findings |
+| Check | Result |
+| --- | --- |
+| Focused API, prepared statements on | 129 runs, 870 assertions; no failures/errors/skips |
+| Focused API, prepared statements off | 129 runs, 870 assertions; no failures/errors/skips |
+| Web | Typecheck, lint, API generated-type check and build pass; 255 files / 3,521 tests pass |
+| Mobile | Typecheck passes; lint has 0 errors / 74 warnings; 142 suites / 1,822 tests pass |
+| RuboCop | 847 files, no offenses |
+| Brakeman | No warnings |
+| Impeccable 4.6.0 advisory | Changed web UI paths: empty findings array, telemetry disabled |
+| Browser matrix | Seven scenarios × two widths × two themes; final results recorded in PR body |
+| Full API | ASUS attempt returned 75: another run owns the shared lock. The final-source CI full suites are the permitted fallback; exact run/results recorded in PR body. No timestamp override is used. |
 
-Final affected API checks cover extensions, personal pace, Off parity, cohort windows, copy/remapping, submissions/grading, migration round trip and OpenAPI contract. They disable only the migration timestamp check in their test processes because the requested timestamp is temporarily outside Rails' permitted window. The port adapter remains `127.0.0.1:55432` on ASUS; test databases are local/disposable. Application configuration was not changed.
+The first local API invocation accidentally used Rails’ default ten forked workers and hit the mini’s pg/Ruby fork crash. It was stopped; the final focused runs above use one worker and pass. No application workaround was added. The old 07:00 restriction was Rails’ future-migration guard, not a test failure; it no longer applies.
 
-The one standard full-suite skip is `TransactionPoolerCanaryTest`, which runs only in pooler CI legs. Migration round-trip tests clear statement caches across every pooled connection. The migration uses a transaction containing DDL and `SET LOCAL lock_timeout`; no session settings/advisory locks.
+QueryCounter fixtures add four real enrollments/submissions/grants and verify flat queue/workspace counts. The Off parity test checks nil, future and closed windows plus submit results. Independent Opus review of `a42d8562` separately confirmed byte-identical Lance-shaped payloads and submit outcomes against main; its P1/P2 repros now have regression tests and browser checks.
 
-Other fixed findings: curriculum copies now remap extension targets/history; submission tests fetch the ID returned by their create response instead of an ambiguous timestamp order; the post-copy test explicitly advances its request clock; all declared extension responses and the input schema are exercised. Superseded/blocked runner jobs were stopped only through verified owned process trees; their wrappers cleaned the containers.
+Not run: WebKit/mobile Safari (unsupported on this mini) and native device interactions. Chromium resizing and Jest do not establish native-device behavior.
 
-## Remaining gate and handoff to lead
+## Review boundary and resources
 
-The migration is **`20261119070000_create_learner_extensions.rb`**, per Leon's timestamp correction. All migration timestamps on this branch are unique. #315 owns `20261119050000_guard_github_app_operations.rb`; that file was not touched.
+This is the final requested CodeRabbit round. The two requests to cap a longer pace at the staff grant are declined under the lead’s additive-only decision. Other listed findings are fixed. Each thread receives the implementation commit or the decision. Later feedback is recorded as a residual in the PR body; no further review round or merge is authorized.
 
-Rails accepts migration timestamps less than `Time.now.utc + 1.day`. At testing time on November 18, `20261119070000` was too far ahead. **After 07:00 UTC November 18 (17:00 Guam), normal validation accepts it. Use 07:01 UTC to avoid the equality boundary.** Normal local schema/test boot was observed rejecting this timestamp. A test-only override can exercise the migration and affected behavior, but the production-bootstrap process tests deliberately replace RUBYOPT and retain normal validation. Their two prepare cases remain time-blocked. No global/application workaround was added, and the blocked full run was stopped rather than called green.
-
-Next actions, already within the task's authorization:
-
-1. Verify this worktree/branch, the live PR head, `git status`, and the UTC clock. The final commit after `7239bb5b` is only this QA record.
-2. After 07:01 UTC, run the **normal full gate without any timestamp override**:
-   `asus-test --postgres csg_learning_platform_test /Users/agent/work/csg-w9-deadlines -- bash scripts/qa/w9-deadlines-gate.sh`.
-   Run only one ASUS job at a time. Its scratch copy's obsolete `20261119050000_create_learner_extensions.rb` was removed by this worker; do not remove #315's distinct guard migration.
-3. Rerun failed CI jobs after that time, address any genuine final-source failures, and obtain the repository's required review. PR remains draft; no independent review was delegated by this implementation worker. Do not merge/watch under this worker brief.
-4. Record the full normal results and remove draft status only after the remaining gate is satisfied.
-
-Deployment is not performed: additive API migration, no backfill. A frontend production build is expected because UI/generated types changed. No mobile distribution was attempted.
-
-## Resource disposition
-
-`dev-lifecycle` is unavailable on the mini, so exact ownership was tracked through the QA harness ledger and runner wrapper. Both local harness phases reported “Owned servers stopped and database dropped”; pages closed after each browser case. The separately named branch test database was dropped after verification. ASUS wrappers removed their disposable test containers and stopped their owned WSL sessions; temporary timestamp helpers were removed by EXIT traps. No runtime resources are handed off and no ownership is unresolved. The shared PostgreSQL service and unrelated resources remain running. The unmerged branch/worktree remain available for the lead.
+Task-owned Rails/Vite processes, browser contexts/tab and disposable local database are cleaned at the end of QA. The shared PostgreSQL service and busy ASUS run are borrowed and remain untouched. No simulator/container was started. Branch/worktree remain for the lead; the PR is held without merge or watch.

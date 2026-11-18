@@ -211,10 +211,11 @@ function Workspace() {
               key={`extensions-${progress.enrollment.id}`}
               enrollmentId={progress.enrollment.id}
               modules={progress.modules}
-              onSaved={() => { setPlanVersion((value) => value + 1); setPaceVersion((value) => value + 1); refresh() }}
+              onSaved={() => { setPlanVersion((value) => value + 1); refresh() }}
             />
             <StudentPacePanel
-              key={`pace-${progress.enrollment.id}-${paceVersion}`}
+              key={`pace-${progress.enrollment.id}`}
+              outsideChange={planVersion + paceVersion}
               enrollmentId={progress.enrollment.id}
               onSaved={() => { setPlanVersion((value) => value + 1); refresh() }}
             />

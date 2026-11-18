@@ -37,12 +37,13 @@ module Api
 
         if !removing && params.key?(:submissions_close_at)
           raw = params[:submissions_close_at]
-          unless raw.is_a?(String) && raw.match?(/(?:Z|[+-]\d{2}:\d{2})\z/) && (Time.iso8601(raw) rescue nil)
+          unless raw.is_a?(String) && raw.match?(/(?:Z|[+-]\d{2}:\d{2})\z/) && (DateTime.iso8601(raw) rescue nil)
             return render json: { errors: [ "Deadline must be an ISO timestamp with a UTC offset" ] }, status: :unprocessable_entity
           end
         end
         @enrollment.with_lock do
           extension.lock! if extension.persisted?
+          raise ActiveRecord::RecordNotFound if extension.removed_at
           extension.assign_attributes(params.permit(:scope, :lesson_id, :module_id, :week_number, :submissions_close_at, :reason)) unless removing
           extension.reason = params[:reason] if removing
           extension.record_change!(actor: current_user, removing: removing)

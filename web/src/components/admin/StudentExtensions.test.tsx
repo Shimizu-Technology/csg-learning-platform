@@ -23,8 +23,8 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
 })
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals() })
-async function mount(personalPace = false) {
-  vi.mocked(api.getLearnerExtensions).mockResolvedValue({ data: { personal_pace: personalPace, extensions: [item] }, error: null })
+async function mount(personalPace = false, extensions = [item]) {
+  vi.mocked(api.getLearnerExtensions).mockResolvedValue({ data: { personal_pace: personalPace, extensions }, error: null })
   await act(async () => root.render(<StudentExtensions enrollmentId={1} modules={modules} onSaved={vi.fn()} />))
 }
 async function click(label: string, scope: ParentNode = host) {
@@ -55,16 +55,43 @@ it('only offers a final-date default for pace cohorts and explains soft weeks', 
   expect(host.textContent).toContain('cohort weekly close times are not enforced')
 })
 it('removal has independent confirmation and reason, preserving the edit reason', async () => {
-  await mount()
+  await mount(false, [item, { ...item, id: 2 }])
   await click('Edit')
   await type(host.querySelector('textarea')!, 'Reason for an edit')
-  await click('Remove')
+  await click('Remove', host.querySelectorAll('li.rounded-xl')[1])
   const modal = document.querySelector('[role="dialog"]')!
   expect(api.removeLearnerExtension).not.toHaveBeenCalled()
   expect(modal.querySelector('textarea')!.value).toBe('')
   await type(modal.querySelector('textarea')!, 'No longer needed')
-  vi.mocked(api.removeLearnerExtension).mockResolvedValue({ data: { personal_pace: false, extensions: [] }, error: null })
+  vi.mocked(api.removeLearnerExtension).mockResolvedValue({ data: { personal_pace: false, extensions: [item, { ...item, id: 2, removed_at: "2030-01-01T00:00:00Z" }] }, error: null })
   await click('Confirm removal', modal)
-  expect(api.removeLearnerExtension).toHaveBeenCalledWith(1, 1, 'No longer needed')
+  expect(api.removeLearnerExtension).toHaveBeenCalledWith(1, 2, 'No longer needed')
   expect(host.querySelector('textarea')!.value).toBe('Reason for an edit')
+})
+
+it('clears the edit draft when removing that same grant and keeps its history visible', async () => {
+  await mount()
+  await click('Edit')
+  await type(host.querySelector('textarea')!, 'Obsolete edit')
+  await click('Remove')
+  const modal = document.querySelector('[role="dialog"]')!
+  await type(modal.querySelector('textarea')!, 'No longer needed')
+  vi.mocked(api.removeLearnerExtension).mockResolvedValue({ data: { personal_pace: false, extensions: [{ ...item, removed_at: '2030-01-01T00:00:00Z' }] }, error: null })
+  await click('Confirm removal', modal)
+  expect(host.querySelector('textarea')!.value).toBe('')
+  expect(host.textContent).toContain('Grant extension')
+  expect(host.textContent).not.toContain('Save extension change')
+  expect(host.textContent).toContain('Removed')
+  expect(host.textContent).toContain('Extension history (1)')
+})
+it('keeps writes disabled after history fails and enables them after a fresh reload', async () => {
+  vi.mocked(api.getLearnerExtensions).mockResolvedValueOnce({ data: { personal_pace: false, extensions: [item] }, error: null })
+  await act(async () => root.render(<StudentExtensions enrollmentId={1} modules={modules} onSaved={vi.fn()} />))
+  vi.mocked(api.getLearnerExtensions).mockResolvedValueOnce({ data: null, error: 'History unavailable' })
+  await act(async () => root.render(<StudentExtensions enrollmentId={2} modules={modules} onSaved={vi.fn()} />))
+  expect(host.textContent).toContain('History unavailable')
+  for (const label of ['Edit', 'Remove', 'Grant extension']) expect([...host.querySelectorAll('button')].find(b => b.textContent === label)!.disabled).toBe(true)
+  vi.mocked(api.getLearnerExtensions).mockResolvedValueOnce({ data: { personal_pace: false, extensions: [item] }, error: null })
+  await click('Reload extensions')
+  expect([...host.querySelectorAll('button')].find(b => b.textContent === 'Grant extension')!.disabled).toBe(false)
 })

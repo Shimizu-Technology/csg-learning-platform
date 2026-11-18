@@ -6,12 +6,13 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
-import type { CohortDetail, StudentProgressResponse, Submission, RecoveryPlan } from '../../types/api'
+import type { CohortDetail, StudentProgressResponse, Submission, RecoveryPlan, LearningPlanManagement } from '../../types/api'
 import { StudentWorkspace } from './StudentWorkspace'
 import { rememberRoster } from '../../lib/recordQueue'
 import { clearRecordQueueCache as resetQueues } from '../../lib/recordQueueCache'
 
 vi.mock('../../lib/api', () => ({ api: {
+  getLearningPlan: vi.fn(), getPersonalPace: vi.fn().mockResolvedValue({ data: { personal_pace: null } }), saveLearnerExtension: vi.fn(),
   getLearnerExtensions: vi.fn().mockResolvedValue({ data: { extensions: [] } }),
   getStudentCommunication: vi.fn(), createIntervention: vi.fn(), createDirectConversation: vi.fn(), getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
@@ -483,4 +484,30 @@ it('disables the profile Message action when the server reports a block', async 
   const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
   await act(async () => root.render(<RouterProvider router={router} />))
   expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Message')?.disabled).toBe(true)
+})
+
+it('shows the updated saved plan after granting a final extension with no editor draft open', async () => {
+  const management = { learning_plan: { id: 5, active: true, title: 'Personal pace', source: 'learner_pace', pace_weeks: 3,
+    description: null, target_date: '2030-01-01', next_check_in_on: null, milestones: [], lesson_overrides: [] }, lessons: [], revisions: [] } as unknown as LearningPlanManagement
+  vi.mocked(api.getLearningPlan).mockResolvedValue({ data: management, error: null })
+  vi.mocked(api.getLearnerExtensions).mockResolvedValue({ data: { personal_pace: true, extensions: [] }, error: null })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/learning'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.textContent).toContain('Target finish: Jan 1, 2030')
+  expect(container.querySelector('input[maxlength="160"]')).toBeNull()
+  const panel = container.querySelector('[aria-label="Deadlines and extensions"]')!
+  await act(async () => {
+    const date = panel.querySelector('input[type="date"]')!
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(date, '2030-02-01')
+    date.dispatchEvent(new Event('input', { bubbles: true }))
+    const reason = panel.querySelector('textarea')!
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(reason, 'Medical leave')
+    reason.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  vi.mocked(api.getLearningPlan).mockResolvedValue({ data: { ...management, learning_plan: { ...management.learning_plan!, target_date: '2030-02-01' } }, error: null })
+  vi.mocked(api.saveLearnerExtension).mockResolvedValue({ data: { personal_pace: true, extensions: [] }, error: null })
+  await act(async () => panel.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+  expect(api.saveLearnerExtension).toHaveBeenCalledWith(11, expect.objectContaining({ scope: 'final', reason: 'Medical leave' }), undefined)
+  expect(container.textContent).toContain('Target finish: Feb 1, 2030')
+  expect(container.textContent).not.toContain('Target finish: Jan 1, 2030')
 })

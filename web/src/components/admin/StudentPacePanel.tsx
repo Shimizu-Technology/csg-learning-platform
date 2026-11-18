@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { CalendarCheck, CheckCircle2, Clock, Flag } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
@@ -25,18 +25,21 @@ const STATUS: Record<PersonalPace['status'], { label: string; tone: 'success' | 
   staff_plan: { label: 'Staff plan', tone: 'info' },
 }
 
-export function StudentPacePanel({ enrollmentId, onSaved }: { enrollmentId: number; onSaved: () => void }) {
+export function StudentPacePanel({ enrollmentId, onSaved, outsideChange = 0 }: { enrollmentId: number; onSaved: () => void; outsideChange?: number }) {
   const [pace, setPace] = useState<PersonalPace | null | undefined>(undefined)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
   const [weeks, setWeeks] = useState('')
   const [startsOn, setStartsOn] = useState('')
+  const draftDirty = useRef(false)
   const paceId = useId()
   const startId = useId()
 
-  const apply = useCallback((value: PersonalPace | null) => {
+  const apply = useCallback((value: PersonalPace | null, preserveDraft = false) => {
     setPace(value)
+    if (preserveDraft && draftDirty.current) { setNotice("Pace refreshed. Your unsaved choices are kept."); return }
+    draftDirty.current = false
     setWeeks(value?.weeks ? String(value.weeks) : String(value?.options[0] ?? ''))
     setStartsOn(value?.start_set_by_staff && value.starts_on ? value.starts_on : '')
   }, [])
@@ -44,11 +47,11 @@ export function StudentPacePanel({ enrollmentId, onSaved }: { enrollmentId: numb
     setError('')
     try {
       const result = await api.getPersonalPace(enrollmentId)
-      if (result.data && !result.fromCache) apply(result.data.personal_pace)
+      if (result.data && !result.fromCache) apply(result.data.personal_pace, true)
       else setError(result.error || 'Could not load this learner’s pace.')
     } catch { setError('Could not load this learner’s pace.') }
   }, [apply, enrollmentId])
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load() }, [load, outsideChange])
 
   async function save(body: { weeks?: number; starts_on?: string | null }, message: string) {
     setSaving(true); setError(''); setNotice('')
@@ -124,7 +127,7 @@ export function StudentPacePanel({ enrollmentId, onSaved }: { enrollmentId: numb
         <form onSubmit={submitPace} className="min-w-0">
           <label htmlFor={`${paceId}-weeks`} className="block text-sm font-semibold text-ink">Set this learner’s pace</label>
           <div className="mt-1 flex flex-wrap gap-2">
-            <select id={`${paceId}-weeks`} className="app-control min-w-0 flex-1" value={weeks} disabled={saving || !pace.available} onChange={(event) => setWeeks(event.target.value)}>
+            <select id={`${paceId}-weeks`} className="app-control min-w-0 flex-1" value={weeks} disabled={saving || !pace.available} onChange={(event) => { draftDirty.current = true; setWeeks(event.target.value) }}>
               {PACE_WEEKS.map((value) => <option key={value} value={value}>{value} {value === 1 ? 'week' : 'weeks'}{pace.options.includes(value) ? ' (offered)' : ''}</option>)}
             </select>
             <Button type="submit" variant="secondary" disabled={saving || !pace.available || pace.status === 'staff_plan' || (chosen && Number(weeks) === pace.weeks)}>{chosen ? 'Change pace' : 'Set pace'}</Button>
@@ -134,7 +137,7 @@ export function StudentPacePanel({ enrollmentId, onSaved }: { enrollmentId: numb
         <form onSubmit={submitStart} className="min-w-0">
           <label htmlFor={startId} className="block text-sm font-semibold text-ink">Personal start date</label>
           <div className="mt-1 flex flex-wrap gap-2">
-            <input id={startId} type="date" className="app-control min-w-0 flex-1" value={startsOn} disabled={saving} onChange={(event) => setStartsOn(event.target.value)} />
+            <input id={startId} type="date" className="app-control min-w-0 flex-1" value={startsOn} disabled={saving} onChange={(event) => { draftDirty.current = true; setStartsOn(event.target.value) }} />
             <Button type="submit" variant="secondary" disabled={saving || startsOn === (pace.start_set_by_staff ? pace.starts_on ?? '' : '')}>Save start</Button>
           </div>
           <p className="mt-1 text-xs text-ink-muted">Leave empty to use the cohort start or the learner’s first open. Lessons open on this date; a chosen pace moves with it.</p>

@@ -401,6 +401,6 @@ it('formats a Guam deadline in Guam even when the school zone is Honolulu', asyn
       next_lesson: { ...studentToday().next_lesson, submission_window: { week_number: 1, submissions_close_at: '2030-01-15T00:00:00Z', submissions_closed: false, status: 'scheduled' } },
     })) } })
     await render('/dashboard?cohort_id=9', <TodayRoute />)
-    expect(text()).toContain('Submission deadline: Jan 15, 2030 (Guam)')
+    expect(text()).toContain('Submission deadline: Jan 15, 2030, 10:00 AM ChST (Guam)')
   } finally { configureSchoolTime() }
 })

@@ -192,7 +192,7 @@ class GradingQueue
   def extension_fields(enrollment, lesson)
     return {} unless enrollment && (enrollment.cohort.personal_pace? || enrollment.learner_extensions.any? { |item| !item.removed_at })
 
-    { extensions: enrollment.learner_extensions.reject(&:removed_at).map(&:staff_json),
+    { extensions: @submission_windows.fetch(enrollment.id).matching_extensions(lesson).map(&:staff_json),
       submission_window: SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson, enrollment: enrollment, context: @submission_windows[enrollment.id]) }
   end
 

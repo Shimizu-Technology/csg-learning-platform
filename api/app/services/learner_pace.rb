@@ -86,8 +86,8 @@ class LearnerPace
   # learning_plans switch: keeping a stored plan's dates on the learner's start
   # is bookkeeping, so the plan is right when plans are switched back on.
   # Call inside the enrollment's lock.
-  def regenerate!(actor:)
-    return nil unless @cohort.personal_pace? && @enrollment.active?
+  def regenerate!(actor:, reconcile_paused: false)
+    return nil unless @cohort.personal_pace? && (@enrollment.active? || (reconcile_paused && @enrollment.paused?))
 
     plan = LearningPlan.find_by(enrollment_id: @enrollment.id)
     return nil unless plan&.active? && plan.learner_pace? && plan.pace_weeks

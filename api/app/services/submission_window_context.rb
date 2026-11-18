@@ -43,7 +43,7 @@ class SubmissionWindowContext
 
   def base_close_at(lesson)
     cohort = enrollment.cohort
-    plan = enrollment.learning_plan if cohort.personal_pace?
+    plan = enrollment.learning_plan if cohort.personal_pace? && FeatureSwitches.for(cohort: cohort, school: @school)["learning_plans"]
     if plan&.active? && plan.learner_pace?
       # Weekly pace milestones never close submissions, even if a cohort
       # weekly close exists. Only the final project has a firm plan date.

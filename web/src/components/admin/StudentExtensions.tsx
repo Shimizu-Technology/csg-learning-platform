@@ -25,16 +25,19 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [historyReady, setHistoryReady] = useState(false)
+  const writesDisabled = busy || loading || !historyReady
   const [loadVersion, setLoadVersion] = useState(0)
   const firstLesson = modules.flatMap((mod) => mod.lessons)[0]
   const defaultTarget = firstLesson ? `lesson:${firstLesson.id}` : ''
 
   useEffect(() => {
     let active = true
-    setLoading(true); setError('')
+    setLoading(true); setHistoryReady(false); setError('')
     void api.getLearnerExtensions(enrollmentId).then((result) => {
       if (!active) return
-      if (result.data) {
+      if (result.data && !result.error && !result.fromCache) {
+        setHistoryReady(true)
         setItems(result.data.extensions)
         setPersonalPace(result.data.personal_pace)
         setTarget((value) => value || (result.data!.personal_pace ? 'final' : defaultTarget))
@@ -48,13 +51,15 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
     if (item.scope === 'final') return 'Final project'
     if (item.scope === 'lesson') {
       return modules.flatMap((mod) => mod.lessons).find((lesson) => lesson.id === item.lesson_id)?.title
-        || `Lesson #${item.lesson_id}`
+        || (item.lesson_id === null ? 'Deleted lesson' : `Lesson #${item.lesson_id}`)
     }
     return `${modules.find((mod) => mod.id === item.module_id)?.name || `Module #${item.module_id}`} · Week ${item.week_number}`
   }
 
   async function save(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError(''); setNotice('')
+    event.preventDefault()
+    if (writesDisabled) return
+    setBusy(true); setError(''); setNotice('')
     const [scope, targetId, week] = target.split(':')
     try {
       const result = await api.saveLearnerExtension(enrollmentId, {
@@ -72,12 +77,13 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
 
   async function remove(event: FormEvent) {
     event.preventDefault()
-    if (!removing || !removalReason.trim()) return
+    if (writesDisabled || !removing || !removalReason.trim()) return
     setBusy(true); setRemovalError('')
     try {
       const result = await api.removeLearnerExtension(enrollmentId, removing.id, removalReason)
       if (result.data && !result.error) {
         setItems(result.data.extensions); setRemoving(null); setRemovalReason('')
+        if (editing === removing.id) { setEditing(undefined); setReason(''); setDate(''); setTarget(personalPace ? 'final' : defaultTarget) }
         setNotice('Extension removed. History kept.'); onSaved()
       } else setRemovalError(result.error || 'Could not remove extension.')
     } catch { setRemovalError('Could not remove extension.') }
@@ -97,7 +103,7 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
     {personalPace && <p className="text-sm text-ink-secondary">For learners following a personal pace, cohort weekly close times are not enforced. Weekly milestones are soft; only the final project has a firm pace deadline.</p>}
     <form onSubmit={(event) => void save(event)} className="grid gap-3">
       <label className="text-sm font-semibold text-ink">Applies to
-        <select className="app-control mt-1 w-full" value={target} onChange={(event) => setTarget(event.target.value)} disabled={busy || loading || editing !== undefined}>
+        <select className="app-control mt-1 w-full" value={target} onChange={(event) => setTarget(event.target.value)} disabled={writesDisabled || editing !== undefined}>
           {personalPace && <option value="final">Firm final date (personal pace)</option>}
           {modules.flatMap((mod) => [
             ...Array.from(new Set(mod.lessons.map((lesson) => Math.floor(lesson.release_day / 7) + 1))).map((week) =>
@@ -108,14 +114,14 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
         </select>
       </label>
       <label className="text-sm font-semibold text-ink">New deadline (Guam)
-        <input type="date" required className="app-control mt-1 w-full" value={date} onChange={(event) => setDate(event.target.value)} disabled={busy || loading} />
+        <input type="date" required className="app-control mt-1 w-full" value={date} onChange={(event) => setDate(event.target.value)} disabled={writesDisabled} />
       </label>
       <div>
         <label htmlFor={`${formId}-reason`} className="text-sm font-semibold text-ink">Reason</label>
-        <textarea id={`${formId}-reason`} required maxLength={4000} className="app-control mt-1 min-h-24 w-full" value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy || loading} />
+        <textarea id={`${formId}-reason`} required maxLength={4000} className="app-control mt-1 min-h-24 w-full" value={reason} onChange={(event) => setReason(event.target.value)} disabled={writesDisabled} />
       </div>
       <div className="flex gap-2">
-        <Button type="submit" disabled={busy || loading || !target}>{editing ? 'Save extension change' : 'Grant extension'}</Button>
+        <Button type="submit" disabled={writesDisabled || !target}>{busy && !removing ? 'Saving…' : editing ? 'Save extension change' : 'Grant extension'}</Button>
         {editing && <Button variant="secondary" type="button" onClick={() => { setEditing(undefined); setReason('') }}>Cancel edit</Button>}
       </div>
     </form>
@@ -128,8 +134,8 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
       <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{item.reason}</p>
       <p className="text-ink-muted">Granted by {item.granted_by_name} · {guamDate(item.granted_at)}</p>
       {!item.removed_at && <div className="mt-2 flex gap-2">
-        <Button variant="secondary" disabled={busy || loading} onClick={() => edit(item)}>Edit</Button>
-        <Button variant="secondary" disabled={busy || loading} onClick={() => { setRemoving(item); setRemovalReason(''); setRemovalError('') }}>Remove</Button>
+        <Button variant="secondary" disabled={writesDisabled} onClick={() => edit(item)}>Edit</Button>
+        <Button variant="secondary" disabled={writesDisabled} onClick={() => { setRemoving(item); setRemovalReason(''); setRemovalError('') }}>Remove</Button>
       </div>}
       <details className="mt-2"><summary className="min-h-11 cursor-pointer py-3">Extension history ({item.revisions.length})</summary>
         <ol className="space-y-2">{item.revisions.map((entry, index) => <li key={index} className="[overflow-wrap:anywhere]">
@@ -146,7 +152,7 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
         </div>
         {removalError && <p role="alert" className="text-sm text-danger-ink">{removalError}</p>}
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={busy || !removalReason.trim()}>Confirm removal</Button>
+          <Button type="submit" disabled={writesDisabled || !removalReason.trim()}>{busy ? 'Removing…' : 'Confirm removal'}</Button>
           <Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoving(null)}>Keep extension</Button>
         </div>
       </form>}

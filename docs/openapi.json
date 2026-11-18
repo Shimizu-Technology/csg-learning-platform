@@ -4652,7 +4652,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LearnerExtensionInput"
+                "$ref": "#/components/schemas/LearnerExtensionUpdateInput"
               }
             }
           }
@@ -16627,7 +16627,7 @@
             "items": {
               "$ref": "#/components/schemas/LearnerExtension"
             },
-            "description": "Active grants for this learner, including their targets and reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
+            "description": "Active grants applicable to this submission\u2019s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
           },
           "submission_window": {
             "$ref": "#/components/schemas/SubmissionWindowStatus"
@@ -26324,7 +26324,8 @@
           },
           "submissions_close_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times."
           },
           "reason": {
             "type": "string",
@@ -26440,6 +26441,50 @@
           "extensions",
           "personal_pace"
         ]
+      },
+      "LearnerExtensionUpdateInput": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "final",
+              "lesson",
+              "module"
+            ]
+          },
+          "lesson_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "week_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "submissions_close_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "description": "Change an active grant. Reason is required; omitted cutoff and target fields retain their values. Grant targets are immutable. Removed grants return 404."
       }
     },
     "responses": {
