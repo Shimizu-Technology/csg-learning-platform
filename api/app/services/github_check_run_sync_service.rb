@@ -1,18 +1,32 @@
 class GithubCheckRunSyncService
   GITHUB_API_BASE = "https://api.github.com".freeze
 
-  def initialize(submission:, token:, now: Time.current)
+  def initialize(submission:, token:, now: Time.current, app_client: nil)
     @submission = submission
     @token = token
     @now = now
+    @app_client = app_client
   end
 
   def call
-    return failure("GitHub checks are disabled for this course") unless FeatureSwitches.for(cohort: submission.enrollment&.cohort)["github_sync"]
+    @repository_access = nil
+    cohort = submission.enrollment&.cohort
+    features = FeatureSwitches.for(cohort: cohort)
+    return failure("GitHub checks are disabled for this course") unless features["github_sync"]
 
     owner, repository = repository_coordinates
     return failure("A GitHub repository URL is required before checks can be refreshed") unless owner && repository
     return failure("A commit SHA is required before checks can be refreshed") if submission.commit_sha.blank?
+
+    if cohort && features["github_app"] == true
+      @app_binding = GithubRepositoryAccess.binding_for(enrollment: submission.enrollment, curriculum_module_id: submission.content_block.lesson.module_id)
+      return failure("Verify a repository binding before refreshing checks") unless @app_binding
+      return failure("Submission repository does not match the verified binding") unless @app_binding.full_name.casecmp?("#{owner}/#{repository}")
+
+      @app_client ||= GithubAppClient.new
+      @repository_access = GithubRepositoryAccess.new(@app_binding, client: @app_client)
+      @repository_access.repository!
+    end
 
     result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
     return failure(result[:error]) if result[:error]
@@ -24,6 +38,11 @@ class GithubCheckRunSyncService
       current
     end
     { check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse, error: nil }
+  rescue GithubRepositoryAccess::BindingChanged => error
+    failure(error.message)
+  rescue GithubAppClient::Error => error
+    @repository_access&.fail_current_verification!(error)
+    failure(error.message)
   rescue URI::InvalidURIError
     failure("The submission repository URL is invalid")
   rescue StandardError => error
@@ -67,12 +86,17 @@ class GithubCheckRunSyncService
     runs = []
     page = 1
     loop do
-      response = github_get(url, page: page)
-      return { runs: [], error: "GitHub checks could not be loaded (HTTP #{response.code})" } unless response.success?
+      if @app_binding
+        data = @app_client.checks(installation: @app_binding.github_app_installation, repository_id: @app_binding.repository_id, full_name: @app_binding.full_name, sha: submission.commit_sha, page: page)
+      else
+        response = github_get(url, page: page)
+        return { runs: [], error: "GitHub checks could not be loaded (HTTP #{response.code})" } unless response.success?
 
-      page_runs = Array(response.parsed_response["check_runs"])
+        data = response.parsed_response
+      end
+      page_runs = Array(data["check_runs"])
       runs.concat(page_runs)
-      total_count = response.parsed_response["total_count"]&.to_i || runs.size
+      total_count = data["total_count"]&.to_i || runs.size
       return { runs: [], error: "GitHub returned an incomplete check list" } if page_runs.empty? && runs.size < total_count
       break if runs.size >= total_count
 

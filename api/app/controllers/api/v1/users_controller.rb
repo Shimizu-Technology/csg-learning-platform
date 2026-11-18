@@ -101,9 +101,10 @@ module Api
         user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
 
         if user.save
+          warnings = github_username_warnings(user)
           skip = ActiveModel::Type::Boolean.new.cast(params[:skip_invite])
           send_clerk_invitation_and_email(user) if should_send_invite?(user, is_new: is_new, was_archived: was_archived, skip: skip)
-          render json: { user: user_json(user) }, status: :created
+          render json: { user: user_json(user), **warnings }, status: :created
         else
           render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
         end
@@ -158,7 +159,7 @@ module Api
       # PATCH /api/v1/users/:id
       def update
         if @user.update(user_params)
-          render json: { user: user_json(@user) }
+          render json: { user: user_json(@user), **github_username_warnings(@user) }
         else
           render json: { errors: @user.errors.full_messages }, status: :unprocessable_entity
         end
@@ -237,6 +238,10 @@ module Api
         return nil unless current_user.instructor?
 
         current_user.cohort_instructor_assignments.pluck(:cohort_id).to_set
+      end
+
+      def github_username_warnings(user)
+        user.github_username_warning ? { warnings: [ user.github_username_warning ] } : {}
       end
 
       def user_params

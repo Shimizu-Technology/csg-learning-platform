@@ -16,7 +16,7 @@ module Api
         return if performed?
 
         token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
-        unless token.present?
+        unless token.present? || GithubRepositoryAccess.enabled?(@submission.enrollment&.cohort)
           render json: { error: "GitHub token not configured" }, status: :service_unavailable
           return
         end

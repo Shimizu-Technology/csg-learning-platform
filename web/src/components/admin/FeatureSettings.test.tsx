@@ -46,3 +46,17 @@ it('shows resolved Off inheritance and saves inherit without turning it on', asy
   await act(async () => container.querySelector('button')!.click())
   expect(api.saveFeatureSettings).toHaveBeenCalledWith({ features: { recordings: null } }, 12)
 })
+
+it('keeps App inheritance Off even when the school switch is On and requires an explicit cohort choice', async () => {
+  api.getFeatureSettings.mockResolvedValue({ data: { ...data, features: { github_app: false }, defaults: { github_app: true }, overrides: {} } })
+  await act(async () => root.render(<FeatureSettings cohortId={12} />))
+  const label = [...container.querySelectorAll('label')].find(item => item.textContent?.startsWith('GitHub App access'))!
+  const select = label.querySelector('select')!
+  expect(select.value).toBe('inherit')
+  expect(select.selectedOptions[0].textContent).toBe('Inherit → Off')
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: {} }, 12)
+  await act(async () => { select.value = 'on'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { github_app: true } }, 12)
+})

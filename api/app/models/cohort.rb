@@ -1,4 +1,5 @@
 class Cohort < ApplicationRecord
+  has_many :github_app_installations, dependent: :destroy
   before_update :preserve_missing_paused_libraries
 
   def preserve_missing_paused_libraries

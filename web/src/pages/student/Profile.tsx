@@ -1,3 +1,4 @@
+import { GithubRepositorySettings } from '../../components/shared/GithubRepositorySettings'
 import { PurchaseReceipt } from '../../components/student/PurchaseReceipt'
 import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
@@ -43,6 +44,10 @@ export function Profile() {
   const githubEdited = useRef(false)
   const profileLoaded = useRef(false)
   const [githubUsername, setGithubUsername] = useState('')
+  const [githubReconnectAvailable, setGithubReconnectAvailable] = useState<Record<number, boolean>>({})
+  const onGithubReconnectAvailabilityChange = useCallback((id: number, available: boolean) => {
+    setGithubReconnectAvailable(current => current[id] === available ? current : { ...current, [id]: available })
+  }, [])
   const handleEdited = useRef(false)
   const [handle, setHandle] = useState('')
   const [handleError, setHandleError] = useState<string | null>(null)
@@ -172,6 +177,8 @@ export function Profile() {
   if (loading) return <LoadingSpinner message="Loading profile..." />
   if (!data) return <div className="app-page max-w-2xl"><h1 className="app-title">Profile</h1><p role="alert" className="text-ink-secondary">{loadError || 'Could not load your profile.'}</p><Button onClick={() => void loadProfile()}>Try again</Button></div>
 
+  const githubEnrollments = sessionUser?.role === 'student' ? data.enrollments.filter(enrollment => enrollment.github_app_enabled && enrollment.status === 'active') : []
+  const canReconnectGithub = githubEnrollments.some(enrollment => githubReconnectAvailable[enrollment.id])
   return (
     <div className="app-page max-w-2xl">
       {v2 ? <PageHeader eyebrow="Account & preferences" title="Profile" description="Keep your class identity and connected accounts up to date." /> : <header>
@@ -200,18 +207,21 @@ export function Profile() {
           <div className="flex gap-2">
             <input
               id="profile-github-username"
+              disabled={Boolean(data.user.github_identity?.id)}
               type="text"
               value={githubUsername}
               onChange={(e) => { githubEdited.current = true; setGithubUsername(e.target.value) }}
               placeholder="Enter your GitHub username"
               className="app-control min-w-0 flex-1"
             />
-            <Button onClick={handleSave} disabled={saving}>
+            {!data.user.github_identity?.id && <Button onClick={handleSave} disabled={saving}>
               {saved ? <Check className="h-4 w-4" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
               {saved ? 'Saved' : 'Save'}
-            </Button>
+            </Button>}
           </div>
         </div>
+
+        {data.user.github_identity?.id && <p className="text-sm text-ink-secondary">Your GitHub username is verified. {canReconnectGithub ? 'Use Reconnect GitHub below to change it.' : 'Contact your instructor or an administrator if you need to reconnect. GitHub connections are unavailable for your current enrollments.'}</p>}
 
         {/* Handle (M-13): tells same-name people apart without showing emails */}
         <div>
@@ -318,6 +328,8 @@ export function Profile() {
           <ThemeChoice />
         </div>
       </section>
+
+      {githubEnrollments.map(enrollment => <GithubRepositorySettings key={enrollment.id} enrollmentId={enrollment.id} onReconnectAvailabilityChange={onGithubReconnectAvailabilityChange} title={`${enrollment.cohort_name} · GitHub repository`} />)}
 
       {sessionUser?.role === 'admin' && <><FeatureSettings />
             <AgentPostingTokens /></>}

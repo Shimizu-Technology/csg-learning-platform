@@ -1,3 +1,4 @@
+import { GithubAppSettings } from '../../components/admin/GithubAppSettings'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { Button } from '../../components/ui/Button'
@@ -46,6 +47,8 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     )
   const ready = { ...settings, cohort }
   return (
+    <>
+    {settings.user?.role === 'admin' && cohort.features?.github_app === true && <div className="mb-6"><GithubAppSettings cohortId={cohort.id} /></div>}
     <form
       onKeyDown={(event) => {
         if (
@@ -108,5 +111,6 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         <ResourceSettingsDialog settings={ready} />
       </fieldset>
     </form>
+    </>
   )
 }

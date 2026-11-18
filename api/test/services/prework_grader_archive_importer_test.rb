@@ -249,6 +249,28 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
     FileUtils.rm_f(path) if path
   end
 
+  test "overwrite preserves proven GitHub identity and warns in dry run and live import" do
+    @student.record_verified_github_identity!(id: "24680", login: "student-one")
+    path = write_archive(student_overrides: { github_username: "victim-gh", first_name: "Imported" })
+    [ true, false ].each do |dry_run|
+      report = PreworkGraderArchiveImporter.new(json_path: path, target_cohort: @cohort.name, dry_run: dry_run, overwrite: true).call
+      assert_equal @student.id, report[:students][:warnings].sole.fetch(:user_id)
+      assert_match "skipped this change", report[:students][:warnings].sole.fetch(:message)
+      assert_equal "student-one", @student.reload.github_username
+      assert_equal "24680", @student.github_user_id
+    end
+    assert_equal "Imported", @student.first_name
+  end
+
+  test "case-only archive overwrite is a no-op without a warning for a proven username" do
+    @student.record_verified_github_identity!(id: "24680", login: "student-one")
+    path = write_archive(student_overrides: { github_username: "STUDENT-One" })
+    report = PreworkGraderArchiveImporter.new(json_path: path, target_cohort: @cohort.name, dry_run: false, overwrite: true).call
+    assert_empty report[:students][:warnings]
+    assert_equal "student-one", @student.reload.github_username
+    assert_equal "24680", @student.github_user_id
+  end
+
   private
 
   def write_archive(student_overrides: {}, submission_overrides: {})

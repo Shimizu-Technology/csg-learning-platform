@@ -137,6 +137,7 @@ class CurriculumCopyForCohort
     "objective_alignments" => :copy, "curriculum_resources" => :copy,
     # The cohort's rows move to the copy's ids
     "cohorts" => :remap, "cohort_module_schedules" => :remap, "cohort_module_submission_windows" => :remap,
+    "github_repository_bindings" => :remap,
     "module_assignments" => :remap, "lesson_assignments" => :remap, "progresses" => :remap,
     "submissions" => :remap, "submission_criterion_results" => :remap, "knowledge_check_attempts" => :remap,
     "learner_extensions" => :remap, "learning_plans" => :remap, "learning_plan_revisions" => :remap, "help_requests" => :remap,
@@ -390,6 +391,9 @@ class CurriculumCopyForCohort
         @lesson_map.to_json
       ])
     end
+    # Binding saves take the same enrollment write guard before resolving a
+    # module, so none can insert a source-module binding after this remap.
+    @counts["github_repository_bindings"] = remap_column(GithubRepositoryBinding.where(enrollment_id: @enrollment_ids), :curriculum_module_id, @module_map)
     @counts["module_assignments"] = remap_column(ModuleAssignment.where(enrollment_id: @enrollment_ids), :module_id, @module_map)
     @counts["lesson_assignments"] = remap_column(LessonAssignment.where(enrollment_id: @enrollment_ids), :lesson_id, @lesson_map)
     progresses = learner_rows(Progress)
@@ -699,6 +703,7 @@ class CurriculumCopyForCohort
       "cohorts" => 1,
       "cohort_module_schedules" => CohortModuleSchedule.where(cohort_id: cohort.id, module_id: module_ids).count,
       "cohort_module_submission_windows" => CohortModuleSubmissionWindow.where(cohort_id: cohort.id, module_id: module_ids).count,
+      "github_repository_bindings" => GithubRepositoryBinding.where(enrollment_id: enrollment_ids, curriculum_module_id: module_ids).count,
       "module_assignments" => ModuleAssignment.where(enrollment_id: enrollment_ids, module_id: module_ids).count,
       "lesson_assignments" => LessonAssignment.where(enrollment_id: enrollment_ids, lesson_id: lesson_ids).count,
       "progresses" => rows.call(Progress, :content_block_id, block_ids).count,

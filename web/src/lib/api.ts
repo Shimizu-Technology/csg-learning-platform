@@ -865,11 +865,11 @@ export const api = {
   saveLearningPlan: (enrollmentId: number, data: import('../types/api').LearningPlanInput) =>
     fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { method: 'PUT', body: JSON.stringify({ learning_plan: data }) }),
   getLearnerExtensions: (enrollmentId: number) =>
-    fetchApi<{ extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions`, { cache: 'no-store' }),
+    fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions`, { cache: 'no-store' }),
   saveLearnerExtension: (enrollmentId: number, data: import('../types/api').LearnerExtensionInput, id?: number) =>
-    fetchApi<{ extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions${id ? `/${id}` : ''}`, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(data) }),
+    fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions${id ? `/${id}` : ''}`, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(data) }),
   removeLearnerExtension: (enrollmentId: number, id: number, reason: string) =>
-    fetchApi<{ extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
+    fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
   getPersonalPace: (enrollmentId: number) =>
     fetchApi<import('../types/api').PersonalPaceResponse>(`/api/v1/enrollments/${enrollmentId}/pace`, { cache: 'no-store' }),
   savePersonalPace: (enrollmentId: number, data: import('../types/api').PersonalPaceUpdateRequest) =>
@@ -899,6 +899,24 @@ export const api = {
   },
   getSubmission: (id: number) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),
+  prepareGithubIdentity: (enrollmentId: number) =>
+    fetchApi<components['schemas']['GithubIdentityPrepareResponse']>(`/api/v1/enrollments/${enrollmentId}/github_identity/prepare`, { method: 'POST' }),
+  completeGithubIdentity: (data: { state: string; code: string }) =>
+    fetchApi<components['schemas']['GithubIdentityConnectResponse']>('/api/v1/github_identity/callback', { method: 'POST', body: JSON.stringify(data) }),
+  getGithubAppInstallations: (cohortId: number) =>
+    fetchApi<components['schemas']['GithubAppInstallationsResponse']>(`/api/v1/cohorts/${cohortId}/github_app_installations`, { cache: 'no-store' }),
+  prepareGithubAppInstallation: (cohortId: number) =>
+    fetchApi<components['schemas']['GithubAppPrepareResponse']>(`/api/v1/cohorts/${cohortId}/github_app_installations/prepare`, { method: 'POST' }),
+  connectGithubAppInstallation: (cohortId: number, data: { state: string; installation_id: number }) =>
+    fetchApi<components['schemas']['GithubAppConnectionResponse']>(`/api/v1/cohorts/${cohortId}/github_app_installations`, { method: 'POST', body: JSON.stringify(data) }),
+  completeGithubAppSetup: (data: { state: string; installation_id: number }) =>
+    fetchApi<components['schemas']['GithubAppConnectionResponse']>('/api/v1/github_app/setup', { method: 'POST', body: JSON.stringify(data) }),
+  getGithubRepositoryBindings: (enrollmentId: number) =>
+    fetchApi<components['schemas']['GithubRepositoryBindingsResponse']>(`/api/v1/enrollments/${enrollmentId}/github_repository_bindings`, { cache: 'no-store' }),
+  saveGithubRepositoryBinding: (enrollmentId: number, data: { full_name: string; github_app_installation_id: number; curriculum_module_id: number | null }) =>
+    fetchApi<components['schemas']['GithubRepositoryBindingResponse']>(`/api/v1/enrollments/${enrollmentId}/github_repository_bindings`, { method: 'POST', body: JSON.stringify(data) }),
+  verifyGithubRepositoryBinding: (enrollmentId: number, id: number) =>
+    fetchApi<components['schemas']['GithubRepositoryBindingResponse']>(`/api/v1/enrollments/${enrollmentId}/github_repository_bindings/${id}/verify`, { method: 'POST' }),
   getSubmissionGithubChecks: (id: number) =>
     fetchApi<GithubChecksResponse>(`/api/v1/submissions/${id}/github_checks`),
   refreshSubmissionGithubChecks: (id: number) =>

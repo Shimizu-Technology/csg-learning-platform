@@ -22,6 +22,7 @@ vi.mock('../../lib/routePreload', async () => ({
   CourseOutline: () => null, Materials: () => null, ModuleView: () => null,
 }))
 
+import { configureSchoolTime } from '../../lib/schoolTime'
 import { TodayRoute, MyWorkRoute } from './StudentExperienceRoutes'
 import { Dashboard } from './Dashboard'
 
@@ -390,4 +391,16 @@ it.each([false, true])('first-run support date describes whether support ended (
   const welcome = container.querySelector('[aria-labelledby="welcome-title"]')!
   expect(welcome.textContent).toContain(ended ? 'Support ended on Dec 26, 2026.' : 'Support until Dec 26, 2026.')
   expect(welcome.textContent).not.toContain(ended ? 'Support until' : 'Support ended on')
+})
+
+it('formats a Guam deadline in Guam even when the school zone is Honolulu', async () => {
+  configureSchoolTime({ time_zone: 'Pacific/Honolulu', time_zone_label: 'HST' })
+  try {
+    state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+    mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({
+      next_lesson: { ...studentToday().next_lesson, submission_window: { week_number: 1, submissions_close_at: '2030-01-15T00:00:00Z', submissions_closed: false, status: 'scheduled' } },
+    })) } })
+    await render('/dashboard?cohort_id=9', <TodayRoute />)
+    expect(text()).toContain('Submission deadline: Jan 15, 2030 (Guam)')
+  } finally { configureSchoolTime() }
 })

@@ -37,6 +37,8 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     content = AssignedLearningContent.new(enrollment)
     lesson = content.modules.flat_map { |mod| content.lessons_for(mod) }.first
+    @f.cohort.cohort_module_submission_windows.find_or_initialize_by(module_id: lesson.module_id,
+      week_number: SubmissionWindowStatus.week_number_for_release_day(lesson.release_day)).update!(submissions_close_at: 1.day.from_now)
     extension = enrollment.learner_extensions.new(scope: "lesson", lesson: lesson, reason: "Travel", submissions_close_at: 1.week.from_now)
     extension.record_change!(actor: @f.instructor)
     result = copy!(@f.instructor)
@@ -494,6 +496,28 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     refute cohort.update(curriculum_id: @f.curriculum.id), "moving back to the shared curriculum is refused too"
     assert_includes cohort.errors[:curriculum], "cannot change while students are enrolled"
     assert_equal copy.id, cohort.reload.curriculum_id
+  end
+
+  test "copy remaps module repository bindings only for its own enrollments and retains provenance" do
+    mod = @f.curriculum.modules.first
+    defaults = []
+    bindings = [ @f.cohort, @f.other_cohort ].map.with_index do |cohort, index|
+      installation = cohort.github_app_installations.create!(app_id: 12345, installation_id: 800 + index, account_id: 900 + index,
+        account_login: "synthetic-learner", account_type: "User", repository_selection: "selected", connected_at: Time.current, checked_at: Time.current)
+      enrollment = cohort.enrollments.first
+      defaults << enrollment.github_repository_bindings.create!(github_app_installation: installation, full_name: "synthetic-learner/default")
+      enrollment.github_repository_bindings.create!(github_app_installation: installation, curriculum_module: mod, full_name: "synthetic-learner/module",
+        repository_id: 98765, github_username: "synthetic-learner", verification_state: "verified", verified_at: Time.current)
+    end
+    prior_verified_at = bindings.first.verified_at
+    copy!(@f.instructor)
+    copied_module = @f.cohort.reload.curriculum.modules.find_by!(name: mod.name)
+    assert_equal copied_module.id, bindings.first.reload.curriculum_module_id
+    assert_equal mod.id, bindings.last.reload.curriculum_module_id
+    assert_equal 98765, bindings.first.repository_id
+    assert_equal "verified", bindings.first.verification_state
+    assert_equal prior_verified_at, bindings.first.verified_at
+    assert defaults.all? { |row| row.reload.curriculum_module_id.nil? }
   end
 
   test "the table list covers every foreign key into curriculum content" do

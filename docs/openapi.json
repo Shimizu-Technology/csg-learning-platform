@@ -3445,58 +3445,6 @@
         }
       }
     },
-    "/api/v1/enrollments/{enrollment_id}/pace": {
-      "parameters": [
-        {
-          "name": "enrollment_id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "integer"
-          }
-        }
-      ],
-      "get": {
-        "summary": "A learner's personal start and pace (the learner, or staff who teach the cohort)",
-        "responses": {
-          "200": {
-            "description": "PersonalPaceResponse",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonalPaceResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Choose or change a pace; staff can also set the personal start",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PersonalPaceUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PersonalPaceResponse",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonalPaceResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/staff/private_meetings": {
       "get": {
         "responses": {
@@ -4210,6 +4158,388 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/github_app_installations": {
+      "get": {
+        "summary": "List cohort installations (admin; both App gates required)",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppInstallationsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Confirm installation with admin/cohort-bound state",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string"
+                  },
+                  "installation_id": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "state",
+                  "installation_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/github_app_installations/prepare": {
+      "post": {
+        "summary": "Prepare signed installation state (admin; both gates required)",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppPrepareResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/github_app/setup": {
+      "post": {
+        "summary": "Confirm installation with admin/cohort-bound state",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string"
+                  },
+                  "installation_id": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "state",
+                  "installation_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings": {
+      "get": {
+        "summary": "List own or admin-managed enrollment bindings (both gates required)",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubRepositoryBindingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Save or verify own or admin-managed enrollment repository binding",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubRepositoryBindingResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Concurrent binding save or content moved during curriculum copy; reload and retry"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "full_name": {
+                    "type": "string"
+                  },
+                  "github_app_installation_id": {
+                    "type": "integer"
+                  },
+                  "curriculum_module_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "full_name",
+                  "github_app_installation_id",
+                  "curriculum_module_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings/{id}/verify": {
+      "post": {
+        "summary": "Save or verify own or admin-managed enrollment repository binding",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubRepositoryBindingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/github_identity/prepare": {
+      "post": {
+        "summary": "Prepare one-use GitHub user authorization for own active App-enabled enrollment",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubIdentityPrepareResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/github_identity/callback": {
+      "post": {
+        "summary": "Prove own GitHub identity with signed state and server-side PKCE token exchange",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubIdentityConnectResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/pace": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "A learner's personal start and pace (the learner, or staff who teach the cohort)",
+        "responses": {
+          "200": {
+            "description": "PersonalPaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalPaceResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Choose or change a pace; staff can also set the personal start",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalPaceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PersonalPaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalPaceResponse"
                 }
               }
             }
@@ -5252,6 +5582,10 @@
               "avatar_url"
             ],
             "additionalProperties": false
+          },
+          "show_personal_deadline": {
+            "type": "boolean",
+            "description": "Included only for personal-pace cohorts or learners with an active extension; permits the personal deadline UI without changing Off-cohort lesson views."
           }
         },
         "required": [
@@ -9515,6 +9849,10 @@
               "string",
               "null"
             ]
+          },
+          "github_app_enabled": {
+            "type": "boolean",
+            "description": "Included when this enrollment has GitHub App access enabled."
           }
         },
         "required": [
@@ -9706,6 +10044,9 @@
                 "type": "null"
               }
             ]
+          },
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
           }
         },
         "required": [
@@ -9776,6 +10117,9 @@
           },
           "role": {
             "type": "string"
+          },
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
           }
         },
         "required": [
@@ -13130,6 +13474,13 @@
         "properties": {
           "user": {
             "$ref": "#/components/schemas/UserListItem"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A verified GitHub username change was skipped; reconnect GitHub to change the identity."
           }
         },
         "required": [
@@ -16276,7 +16627,7 @@
             "items": {
               "$ref": "#/components/schemas/LearnerExtension"
             },
-            "description": "Included only when this learner has extensions."
+            "description": "Active grants for this learner, including their targets and reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
           },
           "submission_window": {
             "$ref": "#/components/schemas/SubmissionWindowStatus"
@@ -22283,7 +22634,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when the cohort has learner-chosen pace on: the lesson's milestone date in the learner's plan, null when it isn't in one."
+            "description": "Soft personal-pace milestone date, or effective firm submission date when a finite learner window differs from the cohort window. Extensions only add time; unrestricted windows remain open."
           },
           "submission_window": {
             "$ref": "#/components/schemas/SubmissionWindowStatus"
@@ -25168,6 +25519,368 @@
         ],
         "additionalProperties": false
       },
+      "GithubAppInstallation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "app_id": {
+            "type": "integer"
+          },
+          "installation_id": {
+            "type": "integer"
+          },
+          "account_id": {
+            "type": "integer"
+          },
+          "account_login": {
+            "type": "string"
+          },
+          "account_type": {
+            "type": "string",
+            "enum": [
+              "User",
+              "Organization"
+            ]
+          },
+          "repository_selection": {
+            "type": "string",
+            "enum": [
+              "all",
+              "selected"
+            ]
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "connection_state": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "failed"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connected_at": {
+            "type": "string"
+          },
+          "checked_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "app_id",
+          "installation_id",
+          "account_id",
+          "account_login",
+          "account_type",
+          "repository_selection",
+          "permissions",
+          "connection_state",
+          "failure_reason",
+          "connected_at",
+          "checked_at"
+        ],
+        "additionalProperties": false
+      },
+      "GithubAppInstallationsResponse": {
+        "type": "object",
+        "properties": {
+          "installations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubAppInstallation"
+            }
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "installations",
+          "configured"
+        ],
+        "additionalProperties": false
+      },
+      "GithubAppPrepareResponse": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "installation_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "installation_url"
+        ],
+        "additionalProperties": false
+      },
+      "GithubAppConnectionResponse": {
+        "type": "object",
+        "properties": {
+          "installation": {
+            "$ref": "#/components/schemas/GithubAppInstallation"
+          },
+          "cohort_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "installation",
+          "cohort_id"
+        ],
+        "additionalProperties": false
+      },
+      "GithubRepositoryBinding": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "curriculum_module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "github_app_installation_id": {
+            "type": "integer"
+          },
+          "repository_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "github_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification_state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "verified",
+              "failed"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verified_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "github_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "enrollment_id",
+          "curriculum_module_id",
+          "github_app_installation_id",
+          "repository_id",
+          "full_name",
+          "github_username",
+          "verification_state",
+          "failure_reason",
+          "verified_at",
+          "checked_at",
+          "github_user_id"
+        ],
+        "additionalProperties": false
+      },
+      "GithubRepositoryBindingResponse": {
+        "type": "object",
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/GithubRepositoryBinding"
+          }
+        },
+        "required": [
+          "binding"
+        ],
+        "additionalProperties": false
+      },
+      "GithubBindingInstallation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "account_login": {
+            "type": "string"
+          },
+          "connection_state": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "account_login",
+          "connection_state"
+        ],
+        "additionalProperties": false
+      },
+      "GithubBindingModule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "GithubRepositoryBindingsResponse": {
+        "type": "object",
+        "properties": {
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubRepositoryBinding"
+            }
+          },
+          "installations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubBindingInstallation"
+            }
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubBindingModule"
+            }
+          },
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
+          },
+          "can_connect_github": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bindings",
+          "installations",
+          "modules",
+          "github_identity",
+          "can_connect_github"
+        ],
+        "additionalProperties": false
+      },
+      "GithubIdentity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "login": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "login",
+          "verified_at"
+        ],
+        "additionalProperties": false
+      },
+      "GithubIdentityPrepareResponse": {
+        "type": "object",
+        "properties": {
+          "authorization_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "additionalProperties": false
+      },
+      "GithubIdentityConnectResponse": {
+        "type": "object",
+        "properties": {
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
+          },
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "github_identity",
+          "enrollment_id",
+          "cohort_id"
+        ],
+        "additionalProperties": false
+      },
       "PersonalPaceMilestone": {
         "type": "object",
         "properties": {
@@ -25684,6 +26397,9 @@
               "type": "object",
               "additionalProperties": true
             }
+          },
+          "granted_by_name": {
+            "type": "string"
           }
         },
         "required": [
@@ -25697,7 +26413,8 @@
           "granted_by_id",
           "granted_at",
           "removed_at",
-          "revisions"
+          "revisions",
+          "granted_by_name"
         ],
         "allOf": [
           {
@@ -25713,10 +26430,15 @@
             "items": {
               "$ref": "#/components/schemas/LearnerExtension"
             }
+          },
+          "personal_pace": {
+            "type": "boolean",
+            "description": "Whether this cohort supports personal pace and final-date grants."
           }
         },
         "required": [
-          "extensions"
+          "extensions",
+          "personal_pace"
         ]
       }
     },

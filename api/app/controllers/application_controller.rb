@@ -200,13 +200,18 @@ class ApplicationController < ActionController::API
     "Lesson is not unlocked yet" unless lesson.available?(enrollment.cohort, assignment, lesson_assignment)
   end
 
-  def authorize_submission_window_open!(content_block)
+  def authorize_submission_window_open!(content_block, enrollment: nil, fresh: false)
     return if current_user.staff?
 
     lesson = content_block.lesson
-    enrollment = active_enrollment_for_lesson(lesson)
+    enrollment ||= active_enrollment_for_lesson(lesson)
     return unless enrollment
 
+    if fresh
+      enrollment.association(:learner_extensions).reset
+      enrollment.association(:learning_plan).reset
+      enrollment.cohort.cohort_module_submission_windows.reload
+    end
     status = SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson, enrollment: enrollment)
     return unless status[:submissions_closed]
 

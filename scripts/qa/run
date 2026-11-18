@@ -79,7 +79,7 @@ def start():
         state['web_port'] = port()
     save(state)
     # Do not inherit provider credentials, Rails URLs, or frontend analytics keys.
-    env = {key: value for key, value in os.environ.items() if not key.startswith(('CLERK_', 'STRIPE_', 'AWS_', 'RESEND_', 'VITE_', 'DATABASE_', 'RAILS_'))}
+    env = {key: value for key, value in os.environ.items() if not key.startswith(('CLERK_', 'STRIPE_', 'AWS_', 'RESEND_', 'GITHUB_', 'VITE_', 'DATABASE_', 'RAILS_'))}
     env.update(CLERK_PRIMARY_ENVIRONMENT='development', CLERK_DEVELOPMENT_ISSUER='https://test.clerk.invalid', RAILS_ENV='test', DATABASE_URL=f'postgresql://localhost/{database}', PARALLEL_WORKERS='1', QA_API_PORT=str(state['api_port']), QA_WEB_PORT=str(state['web_port']))
     try:
         command(['createdb', '-h', 'localhost', database])

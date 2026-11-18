@@ -33,9 +33,11 @@ module Api
       end
 
       def change(extension, removing: false)
+        return render json: { errors: [ "A reason is required for every change" ] }, status: :unprocessable_entity unless params[:reason].is_a?(String) && params[:reason].present?
+
         if !removing && params.key?(:submissions_close_at)
-          raw = params[:submissions_close_at].to_s
-          unless raw.match?(/(?:Z|[+-]\d{2}:\d{2})\z/) && (Time.iso8601(raw) rescue nil)
+          raw = params[:submissions_close_at]
+          unless raw.is_a?(String) && raw.match?(/(?:Z|[+-]\d{2}:\d{2})\z/) && (Time.iso8601(raw) rescue nil)
             return render json: { errors: [ "Deadline must be an ISO timestamp with a UTC offset" ] }, status: :unprocessable_entity
           end
         end
@@ -51,7 +53,7 @@ module Api
       end
 
       def payload
-        { extensions: @enrollment.learner_extensions.order(:id).map(&:staff_json) }
+        { personal_pace: @enrollment.cohort.personal_pace?, extensions: @enrollment.learner_extensions.includes(:granted_by).order(:id).map(&:staff_json) }
       end
     end
   end
