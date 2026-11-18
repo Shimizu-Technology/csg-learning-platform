@@ -55,7 +55,7 @@ class StudentToday
       course_week: course_week,
       counts: library? ? nil : @progress.overall.slice(:completed_lessons, :total_lessons),
       next_lesson: next_lesson_json,
-      this_week: program_active? ? @progress.pace[:this_week] : nil,
+      this_week: program_active? && !paced? ? @progress.pace&.dig(:this_week) : nil,
       pace: pace_json,
       catch_up_plan: catch_up_plan_json,
       needs_you: { count: needs_you.size, items: needs_you },
@@ -68,11 +68,17 @@ class StudentToday
       # Someone the learner can message now (StaffContact); nil hides every message action.
       contact: @work.person_json(@work.contact),
       # "Ask for a catch-up plan" only where plans exist and someone can be asked.
-      can_ask_for_plan: program_active? && @features["learning_plans"] == true && @work.contact.present?,
+      can_ask_for_plan: program_active? && !paced? && @features["learning_plans"] == true && @work.contact.present?,
       review_response_time: @cohort.effective_review_response_time,
       support: support_json,
       recently_added: library? ? recently_added : []
-    }
+    }.tap do |json|
+      # Only cohorts with personal pace on get the key, so every other
+      # cohort's Today is unchanged (W9.1).
+      # After staff turn pace off, a learner's chosen pace stays on Today,
+      # read-only (it can't be changed), rather than vanishing.
+      json[:personal_pace] = LearnerPace.new(@enrollment, features: @features).as_json(@progress) if paced?
+    end
   end
 
   private
@@ -87,10 +93,17 @@ class StudentToday
 
   def program_active? = mode == "program" && !@read_only
 
+  def personal_pace? = @cohort.personal_pace?
+
+  # Paced by a chosen pace: the cohort has pace on, or a pace chosen before
+  # staff turned it off is still the learner's plan. Its weeks are the plan's,
+  # and LearnerProgress#pace may be nil (a plan with nothing to schedule).
+  def paced? = personal_pace? || @progress.plan&.learner_pace? == true
+
   # "Week 11 of 16" for a dated program, the same rule as Learn's outline.
   def course_week
     today = @progress.today
-    return nil unless mode == "program" && @cohort.start_date && @cohort.end_date && today >= @cohort.start_date
+    return nil unless mode == "program" && !personal_pace? && @cohort.start_date && @cohort.end_date && today >= @cohort.start_date
 
     total = ((@cohort.end_date - @cohort.start_date).to_i / 7) + 1
     { current: [ ((today - @cohort.start_date).to_i / 7) + 1, total ].min, total: total }
@@ -112,7 +125,7 @@ class StudentToday
       kind: LessonKind.for(lesson),
       module_id: mod.id,
       module_name: mod.name,
-      week: mode == "program" ? (mod.day_offset.to_i + lesson.release_day) / 7 + 1 : nil,
+      week: mode == "program" && !personal_pace? ? (mod.day_offset.to_i + lesson.release_day) / 7 + 1 : nil,
       number: @progress.lessons.index(lesson) + 1,
       position: siblings.index(lesson).to_i + 1,
       module_lesson_count: siblings.size,
@@ -124,6 +137,7 @@ class StudentToday
     return nil unless program_active?
 
     pace = @progress.pace
+    return nil unless pace
     { behind: pace[:behind], weeks_behind: pace[:weeks_behind], overdue_count: pace[:overdue_lessons].size }
   end
 
@@ -133,6 +147,7 @@ class StudentToday
   def catch_up_plan_json
     plan = @progress.plan
     return nil unless plan && !library?
+    return nil if plan.learner_pace? # A chosen pace is "Your pace" (personal_pace), not a catch-up plan.
 
     milestone_dates = plan.milestones.flat_map { |item| item["lesson_ids"].map { |id| [ id, item["due_on"] ] } }.to_h
     lessons = @progress.lessons.index_by(&:id)

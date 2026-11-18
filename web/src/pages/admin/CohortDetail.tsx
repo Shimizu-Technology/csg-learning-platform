@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { ModuleSettings } from './cohortSettings/ModuleSettings'
 import { ResourceSettingsDialog } from './cohortSettings/ResourceSettingsDialog'
 import { SettingsFields } from './cohortSettings/SettingsFields'
-import { toDateInputValue } from './cohortSettings/settingsForm'
+import { formatPaceWeeks, toDateInputValue } from './cohortSettings/settingsForm'
 import { useCohortSettings } from './cohortSettings/useCohortSettings'
 
 export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> } = {}) {
@@ -26,6 +26,8 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     editCourseDelivery,
     editAccessEnd,
     editSupportEnd,
+    editPaceWeeks,
+    editPaceEnabled,
     editStartDate,
     editGithubOrganization,
     editStatus,
@@ -75,6 +77,8 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
             editCourseDelivery !== (cohort.course_delivery || 'program') ||
             editAccessEnd !== (cohort.guided_access_ends_on || '') ||
             editSupportEnd !== (cohort.guided_support_ends_on || '') ||
+            editPaceEnabled !== Boolean(cohort.learner_pace_weeks?.length) ||
+            (editPaceEnabled && editPaceWeeks !== formatPaceWeeks(cohort.learner_pace_weeks)) ||
             JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || []) ||
             JSON.stringify(forms) !== JSON.stringify(buildFormsFromCohort(cohort)) ||
             JSON.stringify(submissionWindows) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort))

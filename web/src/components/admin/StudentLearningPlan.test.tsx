@@ -78,7 +78,7 @@ it('says what the student sees while staff edit, with and without a saved plan',
   expect(container.textContent).toContain('Until then they see the regular curriculum')
   await click('Cancel')
 
-  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
+  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'staff', pace_weeks: null, pace_changes_count: 0, lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
   getPlan.mockResolvedValue({ data: personal })
   await act(async () => root.unmount()); root = createRoot(container)
   await mount(); await click('Edit personal plan')
@@ -87,14 +87,14 @@ it('says what the student sees while staff edit, with and without a saved plan',
 })
 
 it('restores regular curriculum after confirmation and includes the current version', async () => {
-  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
+  const personal: LearningPlanManagement = { ...regular, learning_plan: { id: 4, active: true, title: 'Personal finish', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'staff', pace_weeks: null, pace_changes_count: 0, lock_version: 3, updated_at: '2026-10-24T10:00:00Z' } }
   getPlan.mockResolvedValue({ data: personal }); savePlan.mockResolvedValue({ data: regular })
   await mount(); await click('Return to regular curriculum'); expect(savePlan).not.toHaveBeenCalled(); await click('Restore regular curriculum')
   expect(savePlan).toHaveBeenCalledWith(8, expect.objectContaining({ active: false, lock_version: 3 }))
 })
 
 it('starts editing a restored plan clean and protects subsequent edits', async () => {
-  getPlan.mockResolvedValue({ data: { ...regular, learning_plan: { id: 4, active: false, title: 'Restored plan', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], lock_version: 1, updated_at: '2026-10-24T10:00:00Z' } } })
+  getPlan.mockResolvedValue({ data: { ...regular, learning_plan: { id: 4, active: false, title: 'Restored plan', description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'staff' as const, pace_weeks: null, pace_changes_count: 0, lock_version: 1, updated_at: '2026-10-24T10:00:00Z' } } })
   await mount(); await click('Customize plan')
   let event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(false)
   expect(container.querySelector('[data-testid="plan-save-bar"]')?.textContent).toContain('No changes yet')
@@ -224,4 +224,76 @@ it('links milestone lessons with enrollment and return context instead of joinin
   expect(link).toBeTruthy()
   expect(link.getAttribute('href')).toContain('/admin/lessons/12?cohort_id=4')
   expect(link.getAttribute('href')).toContain('return_to=')
+})
+
+const pacePlan = (title: string, lock: number): LearningPlanManagement => ({ ...regular, learning_plan: { id: 4, active: true, title, description: null, target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [], source: 'learner_pace', pace_weeks: 4, pace_changes_count: 0, lock_version: lock, updated_at: '2026-10-24T10:00:00Z' } })
+const renderWith = (outsideChange: number) => act(async () => root.render(<TestRouter><StudentLearningPlan enrollmentId={8} cohortId={3} onSaved={vi.fn()} outsideChange={outsideChange} /></TestRouter>))
+async function typeTitle(value: string) {
+  const title = container.querySelector<HTMLInputElement>('input[maxlength="160"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, value)
+    title.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+async function leaveDraft() {
+  await click('Cancel')
+  const discard = buttons().find((element) => element.textContent === 'Discard changes')
+  if (discard) await act(async () => discard.click())
+}
+
+it('keeps an open draft when the plan changes elsewhere, and shows the new plan once the draft is discarded', async () => {
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 4 weeks', 3) })
+  await renderWith(0)
+  expect(container.textContent).toContain('Made from the pace the learner chose (4 weeks)')
+  await click('Edit personal plan')
+  await typeTitle('My draft title')
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 6 weeks', 4) })
+  const loads = getPlan.mock.calls.length
+  await renderWith(1)
+  expect(getPlan.mock.calls.length).toBe(loads)
+  expect(container.querySelector<HTMLInputElement>('input[maxlength="160"]')!.value).toBe('My draft title')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')?.textContent).toContain('Your draft is kept')
+
+  await leaveDraft()
+  expect(getPlan.mock.calls.length).toBe(loads + 1)
+  expect(container.textContent).toContain('Your pace: 6 weeks')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')).toBeNull()
+})
+
+it('never lets an automatic reload that was in flight replace a draft started meanwhile', async () => {
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 4 weeks', 3) })
+  await renderWith(0)
+  let finish: (value: { data: LearningPlanManagement }) => void = () => {}
+  getPlan.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+  await renderWith(1) // the pace changed elsewhere: an automatic reload starts
+  await click('Edit personal plan')
+  await typeTitle('Started during the reload')
+  await act(async () => finish({ data: pacePlan('Your pace: 6 weeks', 4) }))
+  expect(container.querySelector<HTMLInputElement>('input[maxlength="160"]')!.value).toBe('Started during the reload')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')?.textContent).toContain('Your draft is kept')
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 6 weeks', 4) })
+  await leaveDraft()
+  expect(container.textContent).toContain('Your pace: 6 weeks')
+})
+
+it('never lets the reload after discarding a stale draft replace a draft opened before it answers', async () => {
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 4 weeks', 3) })
+  await renderWith(0)
+  await click('Edit personal plan')
+  await typeTitle('First draft')
+  await renderWith(1) // the pace changed elsewhere while editing
+  expect(container.querySelector('[data-plan-changed-elsewhere]')).not.toBeNull()
+
+  let finish: (value: { data: LearningPlanManagement }) => void = () => {}
+  getPlan.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+  await leaveDraft() // discarding starts the reload
+  await click('Edit personal plan') // a new draft, before the reload answers
+  await typeTitle('Second draft')
+  await act(async () => finish({ data: pacePlan('Your pace: 6 weeks', 4) }))
+  expect(container.querySelector<HTMLInputElement>('input[maxlength="160"]')!.value).toBe('Second draft')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')?.textContent).toContain('Your draft is kept')
+
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 6 weeks', 4) })
+  await leaveDraft()
+  expect(container.textContent).toContain('Your pace: 6 weeks')
 })

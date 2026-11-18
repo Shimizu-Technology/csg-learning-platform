@@ -4503,6 +4503,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/enrollments/{enrollment_id}/pace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** A learner's personal start and pace (the learner, or staff who teach the cohort) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PersonalPaceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonalPaceResponse"];
+                    };
+                };
+            };
+        };
+        /** Choose or change a pace; staff can also set the personal start */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PersonalPaceUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description PersonalPaceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonalPaceResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/private_meetings": {
         parameters: {
             query?: never;
@@ -7975,6 +8041,8 @@ export interface components {
                 public_duration: string | null;
                 public_prerequisites: string | null;
                 public_preview: string | null;
+                /** @description Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1). */
+                learner_pace_weeks: number[] | null;
             };
         };
         StudentCommunicationMessage: {
@@ -8153,6 +8221,13 @@ export interface components {
             next_check_in_on: string | null;
             milestones: components["schemas"]["LearningPlanMilestone"][];
             lesson_overrides: components["schemas"]["LearningPlanLessonOverride"][];
+            /**
+             * @description Included only in revisions of a chosen pace.
+             * @enum {string}
+             */
+            source?: "learner_pace";
+            /** @description Included only in revisions of a chosen pace. */
+            pace_weeks?: number | null;
         };
         LearningPlanRecord: {
             active: boolean;
@@ -8165,6 +8240,14 @@ export interface components {
             id: number;
             lock_version: number;
             updated_at: string;
+            /**
+             * @description A staff plan, or one generated from a chosen pace (W9.1). Saving in the editor makes it a staff plan.
+             * @enum {string}
+             */
+            source: "staff" | "learner_pace";
+            pace_weeks: number | null;
+            /** @description Pace changes the learner has made. */
+            pace_changes_count: number;
         };
         /** @description A lesson assigned to the student, in course order, with where this student stands on it. */
         LearningPlanEditorLesson: {
@@ -8921,6 +9004,8 @@ export interface components {
             todo: boolean;
             /** @description The block a Redo was requested on, for a #block- anchor. */
             redo_block_id: number | null;
+            /** @description Included only when the cohort has learner-chosen pace on: the lesson's milestone date in the learner's plan, null when it isn't in one. */
+            due_on?: string | null;
         };
         CourseOutlineNextLesson: {
             id: number;
@@ -8939,6 +9024,8 @@ export interface components {
             redo_block_id: number | null;
             module_id: number;
             group_key: string | null;
+            /** @description Included only when the cohort has learner-chosen pace on: the lesson's milestone date. */
+            due_on?: string | null;
         };
         /** @description Counted lessons and how many are complete, by LearnerProgress.lesson_counts. */
         CourseOutlineCounts: {
@@ -8994,6 +9081,14 @@ export interface components {
                 redo: number;
             };
             modules: components["schemas"]["CourseOutlineModule"][];
+            /** @description Included only when the cohort has learner-chosen pace on (W9.1): the learner's own start, chosen pace and firm final date. */
+            personal_pace?: {
+                starts_on: string | null;
+                weeks: number | null;
+                ends_on: string | null;
+                /** @description The plan is a chosen pace with a final project, so its end date is the final project's due date. */
+                final_project: boolean;
+            };
         };
         CourseOutlineResponse: {
             outline: components["schemas"]["CourseOutline"];
@@ -9228,6 +9323,8 @@ export interface components {
                 title: string;
                 path: string;
             } | null;
+            /** @description Included only when the cohort has learner-chosen pace on (W9.1); other cohorts' Today is unchanged. */
+            personal_pace?: components["schemas"]["PersonalPace"];
         };
         CourseReceiptResponse: {
             /** Format: uri */
@@ -9535,6 +9632,103 @@ export interface components {
         };
         EditorPreferencesResponse: {
             editor_preferences: components["schemas"]["EditorPreferences"];
+        };
+        /** @description One soft weekly milestone of a learner's plan, measured by LearnerProgress#milestone_pace. */
+        PersonalPaceMilestone: {
+            title: string;
+            due_on: string;
+            /** @description Required lessons with steps in this milestone. */
+            total: number;
+            /** @description Of those, lessons with every step handed in (waiting for review counts). */
+            completed: number;
+            /**
+             * @description done: every lesson handed in; behind: its date passed first; current: the first unfinished milestone not yet due; upcoming: after that.
+             * @enum {string}
+             */
+            status: "done" | "behind" | "current" | "upcoming";
+        };
+        PersonalPaceMilestoneLesson: {
+            id: number;
+            title: string;
+            kind: components["schemas"]["LessonKind"];
+            status: components["schemas"]["LearnerLessonStatus"];
+            available: boolean;
+        };
+        /** @description The first milestone that isn't done, with its lessons. */
+        PersonalPaceNextMilestone: {
+            title: string;
+            due_on: string;
+            /** @description Required lessons with steps in this milestone. */
+            total: number;
+            /** @description Of those, lessons with every step handed in (waiting for review counts). */
+            completed: number;
+            /**
+             * @description done: every lesson handed in; behind: its date passed first; current: the first unfinished milestone not yet due; upcoming: after that.
+             * @enum {string}
+             */
+            status: "done" | "behind" | "current" | "upcoming";
+            lessons: components["schemas"]["PersonalPaceMilestoneLesson"][];
+        };
+        /** @description A learner's personal start and chosen pace (W9.1, LearnerPace#as_json). */
+        PersonalPace: {
+            /** @description The enrollment to choose a pace for (PUT /api/v1/enrollments/{enrollment_id}/pace). */
+            enrollment_id: number;
+            /** @description Pace can be chosen: the cohort offers paces and its learning_plans switch is on. */
+            available: boolean;
+            /** @description Paces the cohort offers, in weeks. */
+            options: number[];
+            /** @description The chosen pace; null until one is chosen, or while a staff plan applies. */
+            weeks: number | null;
+            /** @description Who wrote the active plan: a chosen pace, or a staff plan that replaced it. Null without an active plan. */
+            plan_source: ("staff" | "learner_pace") | null;
+            /** @description Enrollment#personal_start_on: a staff-set start, otherwise the cohort start or the learner's first open, whichever is later. */
+            starts_on: string | null;
+            start_set_by_staff: boolean;
+            /** @description The plan's target date: the firm final-project date for a chosen pace. */
+            ends_on: string | null;
+            /** @description Why a chosen pace runs past the weeks chosen: some planned lessons open after it would have ended, or it was chosen or re-planned after that end. Null when it fits or no pace is chosen. */
+            adjusted_for: ("lessons_open_later" | "late_start") | null;
+            /** @description What each offered pace would schedule if chosen now (the same generator, not saved). Empty when the learner can't choose or change. */
+            choices: {
+                weeks: number;
+                /** @description The firm date the server would schedule for this pace if chosen now. */
+                ends_on: string;
+                adjusted_for: ("lessons_open_later" | "late_start") | null;
+            }[];
+            /** @description Week of the chosen pace that today falls in, from 1; null before the start or without a pace. */
+            current_week: number | null;
+            /** @enum {string} */
+            status: "not_chosen" | "on_track" | "behind" | "done" | "staff_plan";
+            /** @description Milestones whose date passed with lessons unfinished. */
+            weeks_behind: number;
+            final_project: {
+                lesson_id: number;
+                title: string;
+                due_on: string;
+                status: components["schemas"]["LearnerLessonStatus"];
+            } | null;
+            next_milestone: components["schemas"]["PersonalPaceNextMilestone"] | null;
+            milestones: components["schemas"]["PersonalPaceMilestone"][];
+            /** @description The learner can choose or change their pace now. */
+            can_change: boolean;
+            /** @description Pace changes the learner has left (two in all); staff changes don't count. */
+            changes_left: number;
+            /** @description Author of the plan's latest revision. */
+            chosen_by: {
+                id: number;
+                full_name: string;
+            } | null;
+            chosen_at: string | null;
+        };
+        PersonalPaceResponse: {
+            /** @description Null when the cohort has no learner-chosen pace. */
+            personal_pace: components["schemas"]["PersonalPace"] | null;
+        };
+        PersonalPaceUpdateRequest: {
+            /** @description Choose or change the pace. Learners pick from the cohort's options; staff may set 1 to 26 weeks. */
+            weeks?: number;
+            /** @description Staff: set (or clear with null) this learner's personal start. */
+            starts_on?: string | null;
         };
     };
     responses: {

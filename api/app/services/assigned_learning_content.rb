@@ -8,6 +8,9 @@ class AssignedLearningContent
     modules = modules.to_a
     ActiveRecord::Associations::Preloader.new(records: modules, associations: { lessons: :content_blocks }).call
     @module_assignments = enrollment.module_assignments.index_by(&:module_id)
+    # A personal-pace start (ModuleAssignment#effective_start_date) reads the
+    # enrollment; hand it over rather than load it once per module.
+    @module_assignments.each_value { |assignment| assignment.association(:enrollment).target = enrollment }
     @lesson_assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
     @lessons_by_module = modules.each_with_object({}) do |mod, index|
       lessons = mod.lessons.select { |lesson| @module_assignments.key?(mod.id) || @lesson_assignments.key?(lesson.id) }

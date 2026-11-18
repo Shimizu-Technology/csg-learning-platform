@@ -21,12 +21,20 @@ export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss 
     finally { setSaving(false) }
   }
   const next = today.next_lesson
+  // Only advertise choosing a pace when the learner can choose one (no staff plan in its place).
+  const choosesPace = Boolean(today.personal_pace?.available) && today.personal_pace?.status !== 'staff_plan'
+  // A pace chosen before staff turned pace off stays, read-only, with its targets and firm date.
+  const keptPace = !choosesPace && today.personal_pace?.plan_source === 'learner_pace' && today.personal_pace.weeks !== null
   return <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="welcome-title">
     <p className="text-xs font-semibold text-primary-ink">Start here</p>
     <h2 id="welcome-title" className="mt-1 text-xl font-bold text-ink">Here’s how your course works</h2>
     <ol className="mt-4 divide-y divide-line border-t border-line">
-      <Step number={1} title={today.mode === 'self_paced' ? 'Learn at your own pace' : 'Follow the class schedule'}>
-        {today.mode === 'self_paced' ? 'Read or watch lessons, try the exercises, and submit your work. There are no class times or deadlines.' : 'Learn has your lessons and release dates. Today shows your next step and work that needs you.'}
+      <Step number={1} title={choosesPace ? 'Learn at the pace you choose' : keptPace ? 'Keep to your pace' : today.mode === 'self_paced' ? 'Learn at your own pace' : 'Follow the class schedule'}>
+        {choosesPace
+          ? 'Every lesson is open, unless your instructor schedules one later. Your pace sets a target for each week, and Today shows how you’re doing. Only the final project has a firm date.'
+          : keptPace
+            ? 'Your plan keeps its weekly targets and one firm final-project date, shown on Today. Your instructor can change it.'
+          : today.mode === 'self_paced' ? 'Read or watch lessons, try the exercises, and submit your work. There are no class times or deadlines.' : 'Learn has your lessons and release dates. Today shows your next step and work that needs you.'}
       </Step>
       <Step number={2} title="Your instructor reviews your exercises">
         {today.reviewer?.full_name ?? 'Your instructor'} reviews your exercises, {reviewTiming(data.review_response_time)}.

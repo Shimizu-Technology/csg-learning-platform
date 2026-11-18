@@ -152,6 +152,7 @@ class Enrollment < ApplicationRecord
   has_many :knowledge_check_attempts, dependent: :nullify
 
   validates :user_id, uniqueness: { scope: :cohort_id }
+  validate :starts_on_needs_personal_pace
 
   before_save :record_paused_library
   before_validation :record_pause_date
@@ -198,7 +199,18 @@ class Enrollment < ApplicationRecord
     !cohort.self_paced? && instructor_support_active?
   end
 
+  # The day this learner's own course starts in a personal-pace cohort (W9.1):
+  # a date staff set, otherwise the cohort start or the learner's first open,
+  # whichever is later, so a late joiner starts when they arrive. Nil when the
+  # cohort has no personal pace. Pass `in_cohort` when the caller holds it.
+  def personal_start_on(in_cohort = cohort)
+    return nil unless in_cohort.personal_pace?
+
+    starts_on || [ in_cohort.start_date, first_opened_at&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date ].compact.max
+  end
+
   def record_first_course_open!
+    return record_personal_first_open! if cohort.personal_release?
     return unless cohort.self_paced?
 
     with_lock do
@@ -209,7 +221,37 @@ class Enrollment < ApplicationRecord
 
       opened_at = Time.current
       update!(first_opened_at: opened_at, support_expires_at: [ opened_at + (self_paced_support_weeks || cohort.self_paced_support_weeks).weeks, access_expires_at ].compact.min)
+      follow_first_open!
     end
+  end
+
+  # Guided personal-pace cohorts only need the date (support terms stay the
+  # cohort's).
+  #
+  # The date and any re-plan it causes commit together under the row lock, so
+  # a failed re-plan leaves the course unopened and the next open tries again.
+  def record_personal_first_open!
+    return if first_opened_at.present? || !active?
+
+    with_lock do
+      return if first_opened_at.present? || !active?
+
+      update_columns(first_opened_at: Time.current, updated_at: Time.current)
+      follow_first_open!
+    end
+  end
+
+  # A pace chosen before the first open (by staff) was planned from the cohort
+  # start. When the first open moves the start later, in any personal-pace
+  # cohort, the plan moves with it. A start staff set is left alone; staff
+  # module dates are still honored by the re-plan. Call inside this row's lock,
+  # right after first_opened_at is set.
+  def follow_first_open!
+    return unless cohort.personal_pace? && starts_on.nil?
+    return unless first_opened_at.in_time_zone(LearningCalendar::TIMEZONE).to_date > cohort.start_date
+    return unless LearningPlan.where(enrollment_id: id, active: true, source: "learner_pace").exists?
+
+    LearnerPace.new(self).regenerate!(actor: user)
   end
 
   def ensure_alumni_curriculum_modules!
@@ -243,6 +285,12 @@ class Enrollment < ApplicationRecord
   end
 
   private
+
+  def starts_on_needs_personal_pace
+    return unless will_save_change_to_starts_on? && starts_on.present?
+
+    errors.add(:starts_on, "can only be set in a course with personal pace on") unless cohort&.personal_pace?
+  end
 
   # Snapshot agreed terms for new guided enrollments. Editing cohort defaults
   # never shortens or extends an existing student's purchase automatically.

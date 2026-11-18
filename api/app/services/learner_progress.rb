@@ -327,9 +327,18 @@ class LearnerProgress
   # straggler doesn't read as months behind. Self-paced courses, the alumni
   # library and read-only enrollments (paused, ended) have no schedule to keep,
   # so they have no pace. Personal-plan exceptions decide what is required.
+  #
+  # Personal pace (W9.1): in a cohort with personal pace on, the schedule is
+  # the learner's own plan, so "behind" is measured against its milestones
+  # (`milestone_pace`) for guided and self-paced learners alike, and there is
+  # no pace until a plan exists.
   def pace
     return @pace if defined?(@pace)
-    return @pace = nil if @cohort.self_paced? || @cohort.alumni? || !@enrollment.active?
+    return @pace = nil if @cohort.alumni? || !@enrollment.active?
+    # A chosen pace stays the measure after staff turn pace off for the cohort
+    # (StudentToday keeps showing it read-only); release goes back to the calendar.
+    return @pace = milestone_pace if @cohort.personal_pace? || @plan&.learner_pace?
+    return @pace = nil if @cohort.self_paced?
 
     week_start = @today.beginning_of_week(:monday)
     # A lesson with no steps has nothing to finish (lesson_counts), so it is in
@@ -351,6 +360,54 @@ class LearnerProgress
       weeks_behind: weeks,
       overdue_lessons: overdue,
       this_week: { total: this_week.size, completed: this_week.count { |lesson| lesson_progress(lesson).completed }, ends_on: week_start + 6.days }
+    }
+  end
+
+  # Where a learner stands against their plan's milestones (personal pace).
+  # A milestone counts its required lessons that have steps. It is "done"
+  # when every one is handed in (waiting for review counts, as everywhere),
+  # "behind" when its date has passed with lessons the learner can open still
+  # unfinished, "current" for the first unfinished
+  # one not yet due, and "upcoming" after that. Overdue work is the open,
+  # unfinished lessons of behind milestones; each distinct overdue due date is
+  # a week behind, since milestones are weekly. `this_week` is the milestone that
+  # covers today. Nil without a plan or milestones.
+  def milestone_pace
+    return nil unless @plan && @plan.milestones.any?
+
+    by_id = @lessons.index_by(&:id)
+    current_found = false
+    milestones = @plan.milestones.map do |item|
+      lessons = item["lesson_ids"].filter_map { |id| by_id[id] }
+        .select { |lesson| required?(lesson) && lesson_progress(lesson).total_blocks.positive? }
+      due_on = Date.iso8601(item["due_on"])
+      completed = lessons.count { |lesson| lesson_progress(lesson).completed }
+      # Only work the learner can open makes them behind; a lesson staff hold
+      # back past its target date doesn't.
+      overdue_open = due_on < @today && lessons.any? { |lesson| !lesson_progress(lesson).completed && lesson_progress(lesson).available }
+      status = if completed == lessons.size
+        "done"
+      elsif overdue_open
+        "behind"
+      elsif !current_found
+        current_found = true
+        "current"
+      else
+        "upcoming"
+      end
+      { title: item["title"], due_on: due_on, lessons: lessons, total: lessons.size, completed: completed, status: status }
+    end
+    behind = milestones.select { |milestone| milestone[:status] == "behind" }
+    overdue = behind.flat_map { |milestone| milestone[:lessons].reject { |lesson| lesson_progress(lesson).completed || !lesson_progress(lesson).available } }
+    covering = milestones.find { |milestone| milestone[:due_on] >= @today }
+    {
+      behind: behind.any?,
+      # Weeks, not milestones: a week's lessons and the final project can share a date.
+      weeks_behind: behind.map { |milestone| milestone[:due_on] }.uniq.size,
+      overdue_lessons: overdue,
+      this_week: covering && covering.slice(:total, :completed).merge(ends_on: covering[:due_on]),
+      milestones: milestones,
+      next_milestone: milestones.find { |milestone| milestone[:status] != "done" }
     }
   end
 

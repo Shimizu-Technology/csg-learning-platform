@@ -42,6 +42,7 @@ const EXCEPTIONS: Record<string, RecordNameException> = {
   // Rendered inside a row link through a JSX variable.
   'src/pages/student/Dashboard.tsx mod.name': 'Row content of the module row link (plain when locked)',
   'src/pages/student/Materials.tsx lesson.title': 'Row content of the lesson row link (plain when locked)',
+  'src/components/student/PersonalPaceCard.tsx lesson.title': 'Row content of the milestone lesson row link (plain when locked)',
   // Inside the learning-plan editor: context for picking lessons; a link would leave an unsaved draft.
   'src/components/admin/StudentLearningPlan.tsx lessonsById.get(id).module_name': 'Context line under a lesson in the plan draft',
   'src/components/admin/learningPlan/LessonPicker.tsx mod.name': 'Group heading in the lesson picker dialog',

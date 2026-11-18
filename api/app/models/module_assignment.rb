@@ -34,7 +34,11 @@ class ModuleAssignment < ApplicationRecord
   def effective_start_date(cohort = nil)
     return unlock_date_override if unlock_date_override.present?
 
-    curriculum_module.start_date_for(cohort || enrollment.cohort)
+    cohort ||= enrollment.cohort
+    # A guided personal-pace cohort opens the module on the learner's own start.
+    return enrollment.personal_start_on(cohort) if cohort.personal_release?
+
+    curriculum_module.start_date_for(cohort)
   end
 
   # True if the module is accessible right now — either force-unlocked
