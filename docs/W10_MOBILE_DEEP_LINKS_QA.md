@@ -42,7 +42,10 @@ association was exercised on this host. No EAS build or store setting changed.
 ## Leon's iPhone check after the next native build
 
 Use a student and an instructor account with a real cohort, lesson, booking and
-submission. Use a second enrolled cohort to check that context does not switch.
+submission. Use a second enrolled cohort to check cohort switching: a link that
+carries `cohort_id` for the other cohort switches the selected cohort on purpose,
+and the destination screen (the lesson screen included) shows "Switched to
+<cohort>" for about seven seconds, so the switch is never silent.
 Run these on both a terminated app and a running/backgrounded app where applicable.
 
 1. From Mail or Notes, tap production HTTPS links to a lesson/block, submission,

@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { gradingQueueKey, nextGradingQueueToken } from '@/lib/grading-queue';
 import { LearningCard } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { StaffOnlyScreen } from '@/components/staff-only-screen';
 import { fonts } from '@/constants/csg-theme';
 import { demoStaffSubmissions } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
@@ -44,7 +45,7 @@ export default function StaffGradingScreen() {
     router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), queue, ...(submission.cohort_id ? { cohort_id: String(submission.cohort_id), student_id: String(submission.user_id) } : {}) } });
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="The grading queue is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!user?.is_staff) return <StaffOnlyScreen message="The grading queue is available to instructors and admins." />;
   const submissions = query.data?.submissions || [];
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><BackButton style={styles.back} /><View style={styles.headerCopy}><Text style={styles.kicker}>STAFF WORKFLOW</Text><Text style={styles.headerTitle}>Grading queue</Text></View><View style={styles.count}><Text style={styles.countText}>{submissions.length}</Text></View></View>

@@ -10,6 +10,7 @@ import { useSession } from '@/providers/session-provider';
 import { fonts } from '@/constants/csg-theme';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { CommunityStandardsGate } from '@/components/community-standards-gate';
+import { requiresStaff } from '@/lib/notification-path';
 
 // SDK 57 getRoutesCore supports initialRouteName (and the newer anchor alias).
 export const unstable_settings = { initialRouteName: '(tabs)' };
@@ -36,7 +37,7 @@ export default function AppLayout() {
   if (user.community_policy && !user.community_policy.accepted) {
     return <CommunityStandardsGate policy={user.community_policy} accountEmail={user.email} onSignOut={signOut} onAccept={async () => { await api.acceptCommunityPolicy(user.community_policy!.version); await refresh(); }} />;
   }
-  if (!user.is_staff && pathname.startsWith('/staff')) return <Redirect href={'/link-unavailable' as Href} />;
+  if (!user.is_staff && requiresStaff(pathname)) return <Redirect href={'/link-unavailable' as Href} />;
   const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={c.text.body} size={22} /></Pressable>;
   return (
     <Stack screenOptions={{ statusBarStyle: dark ? 'light' : 'dark', headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerBackButtonDisplayMode: 'minimal', headerBackTitle: 'Back', headerShadowVisible: false, contentStyle: { backgroundColor: c.surface.page } }}>
@@ -50,6 +51,7 @@ export default function AppLayout() {
       <Stack.Screen name="resources" options={{ headerShown: false }} />
       <Stack.Screen name="recordings" options={{ headerShown: false }} />
       <Stack.Screen name="recordings/link" options={{ headerShown: false }} />
+      <Stack.Screen name="recordings/upload" options={{ headerShown: false }} />
       <Stack.Screen name="cohort/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="cohort/[id]/schedule" options={{ headerShown: false }} />
       <Stack.Screen name="recording/[id]" options={{ headerShown: false }} />
@@ -65,6 +67,7 @@ export default function AppLayout() {
       <Stack.Screen name="compose" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, title: 'New message', headerRight: closeButton }} />
       <Stack.Screen name="search" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, headerShown: false }} />
       <Stack.Screen name="manage-communications" options={{ title: 'Communication settings' }} />
+      <Stack.Screen name="link-unavailable" options={{ headerShown: false, title: 'Link unavailable' }} />
     </Stack>
   );
 }

@@ -22,3 +22,9 @@ it('opens the accepted exact destination', async () => {
   fireEvent.press(screen.getByLabelText('Open on the web'));
   await waitFor(() => expect(mockHandoff).toHaveBeenCalledWith({}, mockPath));
 });
+it('shows one Back control and a readable heading', () => {
+  mockPath = '/staff/student/3?cohort_id=1'; mockRole = 'student';
+  const screen = render(<LinkUnavailable />);
+  expect(screen.getAllByRole('button').map((button) => button.props.accessibilityLabel)).toEqual(['Back to Today']);
+  expect(screen.getByRole('header')).toHaveTextContent('This link needs the web app');
+});

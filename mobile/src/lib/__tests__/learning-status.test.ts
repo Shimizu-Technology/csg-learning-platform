@@ -1,6 +1,6 @@
 import { contrastRatio } from '@/test-utils/contrast';
 import { themes } from '@/constants/csg-theme';
-import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, lessonPageProgress, lessonStatus, submissionStatus, weeklyItemStatus } from '../learning-status';
+import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, lessonPageProgress, lessonStatus, submissionStatus, weeklyItemStatus, notYetOpen } from '../learning-status';
 import type { LessonContentBlock } from '../types';
 
 function block(overrides: Partial<LessonContentBlock>): LessonContentBlock {
@@ -97,4 +97,13 @@ describe('server learner status (AS-10)', () => {
     expect(lessonStatus({ completed: false, available: false })).toBe('upcoming');
     expect(weeklyItemStatus({ state: 'completed', review_status: 'redo_requested' })).toBe('redo');
   });
+});
+
+it('recognizes the API refusal for lessons and modules that open later', () => {
+  const refusal = (status: number, message: string) => Object.assign(new Error(message), { status });
+  expect(notYetOpen(refusal(403, 'Lesson is not unlocked yet'))).toBe(true);
+  expect(notYetOpen(refusal(403, 'Module is not unlocked yet'))).toBe(true);
+  expect(notYetOpen(refusal(403, 'You are not enrolled in this cohort'))).toBe(false);
+  expect(notYetOpen(refusal(500, 'Lesson is not unlocked yet'))).toBe(false);
+  expect(notYetOpen(null)).toBe(false);
 });
