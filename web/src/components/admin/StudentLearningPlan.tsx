@@ -90,11 +90,13 @@ export function StudentLearningPlan({ enrollmentId, cohortId, onSaved, outsideCh
     if (editingRef.current) setChangedElsewhere(true)
     else void load({ automatic: true })
   }, [outsideChange, load])
-  // Leaving a draft that went stale (cancel or discard) shows the plan as it is now.
+  // Leaving a draft that went stale (cancel or discard) shows the plan as it is
+  // now. It's an automatic reload too: a draft opened again before it answers
+  // was started from the stale plan, so it keeps the draft and the notice.
   useEffect(() => {
     if (editing || !changedElsewhere) return
     setChangedElsewhere(false)
-    void load()
+    void load({ automatic: true })
   }, [editing, changedElsewhere, load])
 
   async function save(value: LearningPlanInput) {

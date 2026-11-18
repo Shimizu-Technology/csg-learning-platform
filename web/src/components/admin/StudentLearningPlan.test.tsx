@@ -275,3 +275,25 @@ it('never lets an automatic reload that was in flight replace a draft started me
   await leaveDraft()
   expect(container.textContent).toContain('Your pace: 6 weeks')
 })
+
+it('never lets the reload after discarding a stale draft replace a draft opened before it answers', async () => {
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 4 weeks', 3) })
+  await renderWith(0)
+  await click('Edit personal plan')
+  await typeTitle('First draft')
+  await renderWith(1) // the pace changed elsewhere while editing
+  expect(container.querySelector('[data-plan-changed-elsewhere]')).not.toBeNull()
+
+  let finish: (value: { data: LearningPlanManagement }) => void = () => {}
+  getPlan.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+  await leaveDraft() // discarding starts the reload
+  await click('Edit personal plan') // a new draft, before the reload answers
+  await typeTitle('Second draft')
+  await act(async () => finish({ data: pacePlan('Your pace: 6 weeks', 4) }))
+  expect(container.querySelector<HTMLInputElement>('input[maxlength="160"]')!.value).toBe('Second draft')
+  expect(container.querySelector('[data-plan-changed-elsewhere]')?.textContent).toContain('Your draft is kept')
+
+  getPlan.mockResolvedValue({ data: pacePlan('Your pace: 6 weeks', 4) })
+  await leaveDraft()
+  expect(container.textContent).toContain('Your pace: 6 weeks')
+})

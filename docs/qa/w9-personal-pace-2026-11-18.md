@@ -294,3 +294,4 @@ That failure looks like an intermittent test, and I'm reporting it here rather t
 - Browser, at 390 and 1280 in light and dark:
   - Fix spec: 24 of 24.
   - Original journeys: 24 of 24.
+- **Reload after a discard.** This reload now goes through the same automatic-reload guard. If staff open a new draft before it answers, the new draft is kept with the notice, because it was started from the stale plan. The regression test fails when the guard is removed. Web: 252 files, 3,499 tests; typecheck, lint and build pass. This closes the CodeRabbit loop for #313; anything later is recorded as a residual in the PR body.
