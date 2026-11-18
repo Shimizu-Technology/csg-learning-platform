@@ -60,3 +60,26 @@ describe('lesson response cache compatibility', () => {
     expect(result.fromCache).toBe(true)
   })
 })
+
+describe('GitHub connection status never uses the offline cache', () => {
+  it.each([
+    ['getGithubAppInstallations', '/api/v1/cohorts/1/github_app_installations'],
+    ['getGithubRepositoryBindings', '/api/v1/enrollments/1/github_repository_bindings'],
+  ] as const)('%s bypasses old cached status and never caches a live response', async (method, endpoint) => {
+    vi.useFakeTimers()
+    setApiCacheScope('staff:9')
+    setAuthTokenGetter(async () => 'synthetic')
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, text: async () => JSON.stringify({ installations: [] }) })
+    vi.stubGlobal('fetch', fetchMock)
+    await api[method](1)
+    const key = `csg-api-cache:staff:9:${endpoint}`
+    expect(localStorage.getItem(key)).toBeNull()
+    localStorage.setItem(key, JSON.stringify({ data: { stale: true }, savedAt: Date.now() }))
+    fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({ error: 'Unavailable' }) })
+    const failed = api[method](1)
+    await vi.runAllTimersAsync()
+    expect(await failed).toMatchObject({ data: null, error: 'Unavailable' })
+    expect((await failed).fromCache).toBeUndefined()
+    expect(fetchMock.mock.calls.every(([, options]) => options.cache === 'no-store')).toBe(true)
+  })
+})

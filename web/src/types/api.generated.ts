@@ -5332,7 +5332,7 @@ export interface paths {
                         "application/json": components["schemas"]["GithubRepositoryBindingResponse"];
                     };
                 };
-                /** @description Concurrent binding save; reload and retry */
+                /** @description Concurrent binding save or content moved during curriculum copy; reload and retry */
                 409: {
                     headers: {
                         [name: string]: unknown;

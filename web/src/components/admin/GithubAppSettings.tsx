@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Github } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { components } from '../../types/api.generated'
@@ -12,17 +12,23 @@ export function GithubAppSettings({ cohortId }: { cohortId: number }) {
   const [setup, setSetup] = useState<components['schemas']['GithubAppPrepareResponse'] | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [loadError, setLoadError] = useState('')
+  const requestVersion = useRef(0)
   const load = useCallback(async () => {
-    const result = await api.getGithubAppInstallations(cohortId)
-    if (result.data) setData(result.data)
-    else setMessage(result.error || 'Could not load GitHub connections. Try again.')
+    const version = ++requestVersion.current
+    try {
+      const result = await api.getGithubAppInstallations(cohortId)
+      if (version !== requestVersion.current) return
+      if (result.error || result.fromCache || !result.data) throw new Error(result.error || 'Current connection status is unavailable.')
+      setData(result.data); setLoadError('')
+    } catch (error) { if (version === requestVersion.current) setLoadError((error as Error).message) }
   }, [cohortId])
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { setData(null); void load(); return () => { requestVersion.current += 1 } }, [load])
   async function prepare() {
     setBusy(true); setMessage('')
     try {
       const result = await api.prepareGithubAppInstallation(cohortId)
-      if (!result.data) throw new Error(result.error || 'Could not prepare the connection. Try again.')
+      if (result.error || result.fromCache || !result.data) throw new Error(result.error || 'Could not prepare the connection. Try again.')
       setSetup(result.data)
     } catch (error) { setMessage((error as Error).message) }
     finally { setBusy(false) }
@@ -30,7 +36,8 @@ export function GithubAppSettings({ cohortId }: { cohortId: number }) {
   return <section className="app-surface space-y-4 p-5" aria-label="GitHub App connection">
     <h2 className="flex items-center gap-2 text-lg font-bold"><Github className="h-5 w-5" aria-hidden="true" />GitHub App connection</h2>
     <p className="text-sm text-ink-secondary">Connect installations that can read learners’ personal repositories. Learners must verify their own repository before staff can sync it.</p>
-    {!data && <Button variant="secondary" onClick={() => void load()}>Reload connections</Button>}
+    <Button variant="secondary" disabled={busy} onClick={() => void load()}>Reload connections</Button>
+    {loadError && <p role="alert" className="text-sm text-danger-ink">{loadError} Reload connections to confirm current status.</p>}
     {data && <>
       {!data.configured && <p className="text-sm text-ink-secondary">GitHub App setup is awaiting deployment configuration. Ask your administrator to finish setup.</p>}
       <ul className="space-y-3">{data.installations.map(row => <li key={row.id} className="rounded-xl border border-line p-3 text-sm">
@@ -44,10 +51,12 @@ export function GithubAppSettings({ cohortId }: { cohortId: number }) {
         <a className="app-link inline-flex min-h-11 items-center" href={setup.installation_url} target="_blank" rel="noreferrer">Choose repositories on GitHub</a>
         <p className="text-sm text-ink-secondary">Return here to confirm the installation ID, or follow GitHub’s setup redirect. Complete setup within 15 minutes; prepare again if it expires.</p>
         <form className="space-y-3" onSubmit={async event => {
-          event.preventDefault(); setBusy(true); setMessage('')
+          event.preventDefault(); requestVersion.current += 1; setBusy(true); setMessage('')
           try {
             const result = await api.connectGithubAppInstallation(cohortId, { state: setup.state, installation_id: Number(installationId) })
-            if (!result.data) throw new Error(result.error || 'Could not connect. Prepare setup again and retry.')
+            if (result.error || result.fromCache || !result.data) throw new Error(result.error || 'Could not connect. Prepare setup again and retry.')
+            const saved = result.data.installation
+            setData(current => current && { ...current, installations: current.installations.some(row => row.id === saved.id) ? current.installations.map(row => row.id === saved.id ? saved : row) : [...current.installations, saved] })
             setMessage('Installation connected. Repository verification is now available.'); setInstallationId(''); setSetup(null); await load()
           } catch (error) { setMessage((error as Error).message) }
           finally { setBusy(false) }

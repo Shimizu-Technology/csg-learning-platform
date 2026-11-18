@@ -9,8 +9,15 @@ class GithubAppInstallation < ApplicationRecord
   validates :repository_selection, inclusion: { in: %w[all selected] }
   validates :connection_state, inclusion: { in: %w[connected failed] }
 
-  def fail_connection!(reason)
-    update!(connection_state: "failed", failure_reason: reason, checked_at: Time.current)
-    github_repository_bindings.update_all(verification_state: "failed", failure_reason: reason, verified_at: nil, updated_at: Time.current)
+  before_save { self.connection_generation = SecureRandom.uuid }
+
+  def fail_connection!(reason, expected_generation:, expected_state:)
+    with_lock do
+      return false unless connection_generation == expected_generation && connection_state == expected_state
+
+      update!(connection_state: "failed", failure_reason: reason, checked_at: Time.current)
+      github_repository_bindings.update_all(verification_state: "failed", failure_reason: reason, verified_at: nil, updated_at: Time.current)
+      true
+    end
   end
 end

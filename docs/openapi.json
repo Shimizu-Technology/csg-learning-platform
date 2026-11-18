@@ -4358,7 +4358,7 @@
             }
           },
           "409": {
-            "description": "Concurrent binding save; reload and retry"
+            "description": "Concurrent binding save or content moved during curriculum copy; reload and retry"
           }
         },
         "requestBody": {

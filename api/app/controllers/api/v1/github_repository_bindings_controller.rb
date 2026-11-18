@@ -25,13 +25,19 @@ module Api
       end
 
       def create
-        installation = available_installations.find(record_id!(:github_app_installation_id))
-        mod = @enrollment.cohort.curriculum.modules.find(record_id!(:curriculum_module_id)) if params[:curriculum_module_id].present?
-        binding = @enrollment.github_repository_bindings.find_or_initialize_by(curriculum_module_id: mod&.id)
-        name = params[:full_name].to_s.strip
-        # An explicit rebind resets numeric provenance. Existing URL submissions
-        # are never turned into verified bindings by migration or inference.
-        binding.update!(github_app_installation: installation, full_name: name, repository_id: nil, github_user_id: nil, github_username: nil, verification_state: "pending", failure_reason: nil, verified_at: nil, checked_at: nil)
+        binding = @enrollment.with_learning_write_guard(request_started_at: @learning_request_started_at) do
+          # The guard waits for a curriculum copy and reloads the enrollment.
+          # Resolve module membership against its current cohort only afterwards.
+          raise ActiveRecord::RecordNotFound unless GithubRepositoryAccess.enabled?(@enrollment.cohort) && @enrollment.active?
+          installation = available_installations.find(record_id!(:github_app_installation_id))
+          mod = @enrollment.cohort.curriculum.modules.find(record_id!(:curriculum_module_id)) if params[:curriculum_module_id].present?
+          binding = @enrollment.github_repository_bindings.find_or_initialize_by(curriculum_module_id: mod&.id)
+          name = params[:full_name].to_s.strip
+          # An explicit rebind resets numeric provenance. Existing URL submissions
+          # are never turned into verified bindings by migration or inference.
+          binding.update!(github_app_installation: installation, full_name: name, repository_id: nil, github_user_id: nil, github_username: nil, verification_state: "pending", failure_reason: nil, verified_at: nil, checked_at: nil)
+          binding
+        end
         render json: { binding: GithubAppSerializer.binding(binding) }
       end
 

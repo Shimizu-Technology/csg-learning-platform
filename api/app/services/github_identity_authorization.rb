@@ -9,10 +9,11 @@ class GithubIdentityAuthorization
 
     nonce = SecureRandom.urlsafe_base64(32)
     verifier = SecureRandom.urlsafe_base64(48)
-    user.with_lock { user.update!(github_authorization_nonce_digest: Digest::SHA256.hexdigest(nonce)) }
+    generation = SecureRandom.uuid
+    user.with_lock { user.update!(github_authorization_nonce_digest: Digest::SHA256.hexdigest(nonce), github_authorization_generation: generation) }
     state = encryptor.encrypt_and_sign({ "user_id" => user.id, "enrollment_id" => enrollment.id,
       "client_id" => GithubAppCredentials.client_id, "callback_url" => GithubAppCredentials.user_callback_url,
-      "nonce" => nonce, "code_verifier" => verifier }, purpose: PURPOSE, expires_in: 10.minutes)
+      "nonce" => nonce, "generation" => generation, "code_verifier" => verifier }, purpose: PURPOSE, expires_in: 10.minutes)
     challenge = Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
     { authorization_url: client.authorization_url(state: state, code_challenge: challenge) }
   end
@@ -30,13 +31,13 @@ class GithubIdentityAuthorization
     # verifier lives only inside authenticated encrypted state, not a DB row.
     user.with_lock do
       expected = Digest::SHA256.hexdigest(context.fetch("nonce"))
-      unless user.github_authorization_nonce_digest.present? && ActiveSupport::SecurityUtils.secure_compare(user.github_authorization_nonce_digest, expected)
+      unless user.github_authorization_generation == context.fetch("generation") && user.github_authorization_nonce_digest.present? && ActiveSupport::SecurityUtils.secure_compare(user.github_authorization_nonce_digest, expected)
         raise ActiveRecord::RecordNotFound
       end
       user.update!(github_authorization_nonce_digest: nil)
     end
     person = client.identity(code: code, code_verifier: context.fetch("code_verifier"))
-    user.record_verified_github_identity!(id: person.fetch(:id), login: person.fetch(:login))
+    user.record_verified_github_identity!(id: person.fetch(:id), login: person.fetch(:login), authorization_generation: context.fetch("generation"))
     { github_identity: GithubAppSerializer.identity(user), enrollment_id: enrollment.id, cohort_id: enrollment.cohort_id }
   rescue ActiveSupport::MessageEncryptor::InvalidMessage, KeyError, TypeError
     raise ActiveRecord::RecordNotFound

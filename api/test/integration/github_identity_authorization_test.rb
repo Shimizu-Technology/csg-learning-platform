@@ -141,6 +141,24 @@ class GithubIdentityAuthorizationTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "profile username write rechecks proof committed after authentication loaded the user" do
+    student_id = @student.id
+    callback = proc do |controller|
+      if controller.action_name == "update" && controller.send(:current_user).id == student_id
+        User.find(student_id).record_verified_github_identity!(id: "24680", login: "just-proven")
+      end
+    end
+    Api::V1::ProfileController.before_action(callback)
+    as_app_user(@student) do
+      patch "/api/v1/profile", headers: app_headers, params: { github_username: "victim-login" }, as: :json
+      assert_response :unprocessable_entity
+    end
+    assert_equal "just-proven", @student.reload.github_username
+    assert_equal "24680", @student.github_user_id
+  ensure
+    Api::V1::ProfileController.skip_before_action(callback) if callback
+  end
+
   test "legacy Off profile stays editable and duplicate unverified usernames remain allowed" do
     @cohort.update!(settings: {})
     @other.update!(github_username: "victim-gh")

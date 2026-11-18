@@ -92,6 +92,7 @@ class User < ApplicationRecord
     exclusion: { in: RESERVED_HANDLES, message: "is reserved" }
 
   validates :github_user_id, allow_nil: true, format: { with: /\A[1-9]\d{0,18}\z/ }, uniqueness: { case_sensitive: false }
+  before_validation :lock_current_github_identity_for_username_write
   before_validation :preserve_proven_github_username
   validate :protect_verified_github_identity
   attr_reader :github_username_warning
@@ -101,8 +102,11 @@ class User < ApplicationRecord
   end
 
   # Called only after server-side OAuth /user proof, never with browser IDs.
-  def record_verified_github_identity!(id:, login:)
+  def record_verified_github_identity!(id:, login:, authorization_generation: nil)
     with_lock do
+      if authorization_generation && github_authorization_generation != authorization_generation
+        raise ActiveRecord::RecordNotFound
+      end
       @recording_github_identity = true
       update!(github_user_id: id.to_s, github_verified_login: login, github_verified_at: Time.current, github_username: login)
       GithubRepositoryBinding.where(enrollment_id: enrollments.select(:id)).update_all(verification_state: "failed",
@@ -118,6 +122,18 @@ class User < ApplicationRecord
     if github_user_id_in_database.present? && !value.to_s.casecmp?(github_username_in_database.to_s)
       "GitHub username is verified; skipped this change. Reconnect GitHub to change it."
     end
+  end
+
+  # save's transaction retains this row lock through validation and the write.
+  # Reload current proof before applying the caller's intended changes; dirty
+  # tracking on a previously loaded instance is not a database identity check.
+  def lock_current_github_identity_for_username_write
+    return if new_record? || @recording_github_identity || !will_save_change_to_github_username?
+
+    intended = changes_to_save.transform_values(&:last)
+    self.class.lock.find(id)
+    reload
+    assign_attributes(intended)
   end
 
   def preserve_proven_github_username

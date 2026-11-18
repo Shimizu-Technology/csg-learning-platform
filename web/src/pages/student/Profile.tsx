@@ -44,6 +44,10 @@ export function Profile() {
   const githubEdited = useRef(false)
   const profileLoaded = useRef(false)
   const [githubUsername, setGithubUsername] = useState('')
+  const [githubReconnectAvailable, setGithubReconnectAvailable] = useState<Record<number, boolean>>({})
+  const onGithubReconnectAvailabilityChange = useCallback((id: number, available: boolean) => {
+    setGithubReconnectAvailable(current => current[id] === available ? current : { ...current, [id]: available })
+  }, [])
   const handleEdited = useRef(false)
   const [handle, setHandle] = useState('')
   const [handleError, setHandleError] = useState<string | null>(null)
@@ -173,6 +177,8 @@ export function Profile() {
   if (loading) return <LoadingSpinner message="Loading profile..." />
   if (!data) return <div className="app-page max-w-2xl"><h1 className="app-title">Profile</h1><p role="alert" className="text-ink-secondary">{loadError || 'Could not load your profile.'}</p><Button onClick={() => void loadProfile()}>Try again</Button></div>
 
+  const githubEnrollments = sessionUser?.role === 'student' ? data.enrollments.filter(enrollment => enrollment.github_app_enabled && enrollment.status === 'active') : []
+  const canReconnectGithub = githubEnrollments.some(enrollment => githubReconnectAvailable[enrollment.id])
   return (
     <div className="app-page max-w-2xl">
       {v2 ? <PageHeader eyebrow="Account & preferences" title="Profile" description="Keep your class identity and connected accounts up to date." /> : <header>
@@ -215,7 +221,7 @@ export function Profile() {
           </div>
         </div>
 
-        {data.user.github_identity?.id && <p className="text-sm text-ink-secondary">Your GitHub username is verified. Use Reconnect GitHub below to change it.</p>}
+        {data.user.github_identity?.id && <p className="text-sm text-ink-secondary">Your GitHub username is verified. {canReconnectGithub ? 'Use Reconnect GitHub below to change it.' : 'Contact your instructor or an administrator if you need to reconnect. GitHub connections are unavailable for your current enrollments.'}</p>}
 
         {/* Handle (M-13): tells same-name people apart without showing emails */}
         <div>
@@ -323,7 +329,7 @@ export function Profile() {
         </div>
       </section>
 
-      {sessionUser?.role === 'student' && data.enrollments.filter(enrollment => enrollment.github_app_enabled && enrollment.status === 'active').map(enrollment => <GithubRepositorySettings key={enrollment.id} enrollmentId={enrollment.id} title={`${enrollment.cohort_name} · GitHub repository`} />)}
+      {githubEnrollments.map(enrollment => <GithubRepositorySettings key={enrollment.id} enrollmentId={enrollment.id} onReconnectAvailabilityChange={onGithubReconnectAvailabilityChange} title={`${enrollment.cohort_name} · GitHub repository`} />)}
 
       {sessionUser?.role === 'admin' && <><FeatureSettings />
             <AgentPostingTokens /></>}

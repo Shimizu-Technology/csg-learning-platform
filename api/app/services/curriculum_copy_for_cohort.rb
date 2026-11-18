@@ -391,6 +391,8 @@ class CurriculumCopyForCohort
         @lesson_map.to_json
       ])
     end
+    # Binding saves take the same enrollment write guard before resolving a
+    # module, so none can insert a source-module binding after this remap.
     @counts["github_repository_bindings"] = remap_column(GithubRepositoryBinding.where(enrollment_id: @enrollment_ids), :curriculum_module_id, @module_map)
     @counts["module_assignments"] = remap_column(ModuleAssignment.where(enrollment_id: @enrollment_ids), :module_id, @module_map)
     @counts["lesson_assignments"] = remap_column(LessonAssignment.where(enrollment_id: @enrollment_ids), :lesson_id, @lesson_map)

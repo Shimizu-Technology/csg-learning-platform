@@ -3,6 +3,8 @@ require Rails.root.join("db/migrate/20261118170000_create_github_app_bindings").
 
 require Rails.root.join("db/migrate/20261119030000_prove_github_user_identities").to_s
 
+require Rails.root.join("db/migrate/20261119050000_guard_github_app_operations").to_s
+
 class CreateGithubAppBindingsTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
@@ -28,6 +30,7 @@ class CreateGithubAppBindingsTest < ActiveSupport::TestCase
       migration&.migrate(:up) unless ActiveRecord::Base.connection.table_exists?(:github_repository_bindings)
     ensure
       ProveGithubUserIdentities.new.migrate(:up)
+      GuardGithubAppOperations.new.migrate(:up)
       ActiveRecord::Base.connection_handler.connection_pool_list.each { |pool| pool.connections.each(&:clear_cache!) }
       [ GithubAppInstallation, GithubRepositoryBinding ].each(&:reset_column_information)
     end

@@ -9,6 +9,7 @@ class GithubCheckRunSyncService
   end
 
   def call
+    @repository_access = nil
     cohort = submission.enrollment&.cohort
     features = FeatureSwitches.for(cohort: cohort)
     return failure("GitHub checks are disabled for this course") unless features["github_sync"]
@@ -23,7 +24,8 @@ class GithubCheckRunSyncService
       return failure("Submission repository does not match the verified binding") unless @app_binding.full_name.casecmp?("#{owner}/#{repository}")
 
       @app_client ||= GithubAppClient.new
-      GithubRepositoryAccess.new(@app_binding, client: @app_client).repository!
+      @repository_access = GithubRepositoryAccess.new(@app_binding, client: @app_client)
+      @repository_access.repository!
     end
 
     result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
@@ -39,7 +41,7 @@ class GithubCheckRunSyncService
   rescue GithubRepositoryAccess::BindingChanged => error
     failure(error.message)
   rescue GithubAppClient::Error => error
-    GithubRepositoryAccess.new(@app_binding, client: @app_client).fail_current_verification!(error) if @app_binding
+    @repository_access&.fail_current_verification!(error)
     failure(error.message)
   rescue URI::InvalidURIError
     failure("The submission repository URL is invalid")

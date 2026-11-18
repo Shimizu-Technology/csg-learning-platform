@@ -898,7 +898,7 @@ export const api = {
   completeGithubIdentity: (data: { state: string; code: string }) =>
     fetchApi<components['schemas']['GithubIdentityConnectResponse']>('/api/v1/github_identity/callback', { method: 'POST', body: JSON.stringify(data) }),
   getGithubAppInstallations: (cohortId: number) =>
-    fetchApi<components['schemas']['GithubAppInstallationsResponse']>(`/api/v1/cohorts/${cohortId}/github_app_installations`),
+    fetchApi<components['schemas']['GithubAppInstallationsResponse']>(`/api/v1/cohorts/${cohortId}/github_app_installations`, { cache: 'no-store' }),
   prepareGithubAppInstallation: (cohortId: number) =>
     fetchApi<components['schemas']['GithubAppPrepareResponse']>(`/api/v1/cohorts/${cohortId}/github_app_installations/prepare`, { method: 'POST' }),
   connectGithubAppInstallation: (cohortId: number, data: { state: string; installation_id: number }) =>
@@ -906,7 +906,7 @@ export const api = {
   completeGithubAppSetup: (data: { state: string; installation_id: number }) =>
     fetchApi<components['schemas']['GithubAppConnectionResponse']>('/api/v1/github_app/setup', { method: 'POST', body: JSON.stringify(data) }),
   getGithubRepositoryBindings: (enrollmentId: number) =>
-    fetchApi<components['schemas']['GithubRepositoryBindingsResponse']>(`/api/v1/enrollments/${enrollmentId}/github_repository_bindings`),
+    fetchApi<components['schemas']['GithubRepositoryBindingsResponse']>(`/api/v1/enrollments/${enrollmentId}/github_repository_bindings`, { cache: 'no-store' }),
   saveGithubRepositoryBinding: (enrollmentId: number, data: { full_name: string; github_app_installation_id: number; curriculum_module_id: number | null }) =>
     fetchApi<components['schemas']['GithubRepositoryBindingResponse']>(`/api/v1/enrollments/${enrollmentId}/github_repository_bindings`, { method: 'POST', body: JSON.stringify(data) }),
   verifyGithubRepositoryBinding: (enrollmentId: number, id: number) =>

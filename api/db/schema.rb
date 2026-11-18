@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -517,6 +517,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_030000) do
     t.datetime "checked_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "connection_generation"
     t.index ["cohort_id", "installation_id"], name: "index_github_installations_on_cohort_and_external_id", unique: true
     t.index ["cohort_id"], name: "index_github_app_installations_on_cohort_id"
   end
@@ -723,7 +724,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_030000) do
     t.integer "pace_changes_count", default: 0, null: false
     t.index ["enrollment_id"], name: "index_learning_plans_on_enrollment_id", unique: true
     t.check_constraint "pace_weeks IS NULL OR pace_weeks > 0", name: "learning_plans_pace_weeks_positive"
-    t.check_constraint "source::text = ANY (ARRAY['staff'::character varying, 'learner_pace'::character varying]::text[])", name: "learning_plans_source_valid"
+    t.check_constraint "source::text = ANY (ARRAY['staff'::character varying::text, 'learner_pace'::character varying::text])", name: "learning_plans_source_valid"
   end
 
   create_table "lesson_assignments", force: :cascade do |t|
@@ -1379,6 +1380,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_030000) do
     t.string "github_verified_login"
     t.datetime "github_verified_at"
     t.string "github_authorization_nonce_digest"
+    t.string "github_authorization_generation"
     t.index "lower((github_user_id)::text)", name: "index_users_on_verified_github_user_id", unique: true, where: "(github_user_id IS NOT NULL)"
     t.index "to_tsvector('simple'::regconfig, (((((COALESCE(first_name, ''::character varying))::text || ' '::text) || (COALESCE(last_name, ''::character varying))::text) || ' '::text) || (COALESCE(handle, ''::character varying))::text))", name: "index_users_search_document", using: :gin
     t.index ["archived_at"], name: "index_users_on_archived_at"

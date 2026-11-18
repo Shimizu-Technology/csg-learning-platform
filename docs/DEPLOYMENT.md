@@ -1239,7 +1239,8 @@ GitHub authorization proves repository ownership. No additional user or
 organization-membership permission is required.
 
 In cohort Settings, prepare the installation, open GitHub,
-and confirm the callback. An admin can also confirm an installation ID manually
+and confirm the callback. Connection generations prevent late failures from
+undoing a newer reconnect or successful repository verification. An admin can also confirm an installation ID manually
 using that same prepared state. Reconnect through the same flow after revoked
 access. A learner's personal installation may require the learner to grant
 access on GitHub and share the installation ID with the admin.
@@ -1247,7 +1248,10 @@ access on GitHub and share the installation ID with the admin.
 The learner first selects **Connect GitHub** in Profile, authorizes their own
 account on GitHub, and confirms the returned identity. The server uses a
 10-minute authenticated encrypted state bound to the Learn user, enrollment,
-client and callback, a one-use nonce, and S256 PKCE. OAuth access/refresh tokens
+client and callback, a one-use nonce, and S256 PKCE. Each preparation also
+records a new authorization generation; an in-flight completion cannot replace
+a later preparation or completed connection. Preparations from before the
+generation migration must be started again. OAuth access/refresh tokens
 are used only in memory to read `/user`. Learn then attempts to revoke that user
 token with `DELETE /applications/{client_id}/token`, using the existing client
 credentials. Revocation is best-effort: a provider failure does not fail identity
@@ -1269,7 +1273,9 @@ without proof cannot verify or sync.
 Unverified Off cohorts still trust the self-entered username, as before.
 
 In student Access (admin), or Profile (learner), save `owner/repository` as an
-enrollment default or a module override, then Verify. A module binding takes
+enrollment default or a module override, then Verify. Binding saves serialize with cohort copies and return `content_moved` if the
+copy moved the enrollment while the request was in flight. Reload, choose the
+current module and retry. A module binding takes
 precedence even while pending/failed; it never silently falls back to a different
 repository. Verification checks installation access, the numeric repository ID,
 and ownership by the OAuth-proven GitHub user ID. The personal installation's
@@ -1299,3 +1305,8 @@ and [GraphQL repository identity](https://docs.github.com/en/graphql/reference/r
 Real App installation, personal/private-repository access and token revocation
 still require a disposable staging integration pass before rollout. The local
 QA harness simulates the client boundary and blocks external HTTP.
+
+GitHub connection and binding status bypass the offline response cache. A failed
+refresh shows an error and preserves the last confirmed state; a saved pending
+binding remains visible even if its follow-up refresh fails. Reconnect guidance
+appears only when an active enrollment actually offers that control.
