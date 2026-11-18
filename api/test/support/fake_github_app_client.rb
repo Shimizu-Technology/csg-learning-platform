@@ -1,12 +1,11 @@
 # No transport calls. Shared by automated tests and the guarded local QA harness.
 class FakeGithubAppClient
   attr_reader :calls
-  attr_accessor :failure, :repository_owner, :repository_name
+  attr_accessor :failure, :repository_owner
 
   def initialize
     @calls = []
     @repository_owner = "app-learner"
-    @repository_name = "prework-exercises"
   end
 
   def installation(id)
@@ -24,7 +23,7 @@ class FakeGithubAppClient
     end
     owner = full_name.start_with?("wrong-owner/") ? "wrong-owner" : repository_owner
     name = full_name.split("/").last
-    { "id" => repository_id || 98765, "full_name" => "#{owner}/#{name}", "owner" => { "login" => owner, "type" => "User" } }
+    { "id" => repository_id || (name == "prework-exercises" ? 98765 : 98766), "full_name" => "#{owner}/#{name}", "owner" => { "login" => owner, "type" => "User" } }
   end
 
   def files(installation:, repository:, filenames:)
