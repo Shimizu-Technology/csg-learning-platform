@@ -235,7 +235,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
-    submission = Submission.order(:created_at).last
+    submission = Submission.find(response.parsed_body.fetch("submission").fetch("id"))
     assert_equal "repo_and_live_url_submission", submission.submission_type
     assert_equal "https://github.com/student/project", submission.repo_url
     assert_equal "https://student-project.example.com", submission.live_url
@@ -257,7 +257,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
-    submission = Submission.order(:created_at).last
+    submission = Submission.find(response.parsed_body.fetch("submission").fetch("id"))
     assert_equal "repo_url_submission", submission.submission_type
     assert_equal "https://github.com/student/repo-only", submission.repo_url
     assert_equal "Backend review requested", submission.notes
@@ -275,7 +275,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
-    submission = Submission.order(:created_at).last
+    submission = Submission.find(response.parsed_body.fetch("submission").fetch("id"))
     assert_equal "text_submission", submission.submission_type
     assert_equal "def solve; :ok end", submission.text
 
