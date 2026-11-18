@@ -218,3 +218,14 @@ It found three P2s. Each one reproduced with its probes (`/tmp/pr313-review-prob
 - **Merge:** branch merged with `origin/main` at `c8b34f51`.
 
 **Residual:** a learner whose whole course is held back by a staff module date still sees "Every lesson is open from <start>" on the picker before choosing. Their targets and final date are right, and the card says why after they choose.
+
+**ASUS gate on `d16924d9`:** run once on the final source, then one stage re-run.
+
+- Unprepared API: 2,368 runs, 0 failures. RuboCop and Brakeman are clean, and every web and mobile stage passed.
+- Prepared API, first run: 1 failure, in `UpdateDraftsTest#test_the_feed_sends_the_same_number_of_queries_for_one_update_or_five`. The feed returned 4 of 5 updates (seed 9677).
+  - The test covers announcements code this PR doesn't change.
+  - It passes locally on seed 9677 and four other seeds.
+  - It passed in the unprepared run of the same gate.
+- Prepared API, re-run on ASUS with the same environment and port adapter: 2,368 runs, 0 failures, 1 existing skip.
+
+That failure looks like an intermittent test, and I'm reporting it here rather than calling the first prepared run clean.
