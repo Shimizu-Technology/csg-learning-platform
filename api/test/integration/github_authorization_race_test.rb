@@ -108,7 +108,9 @@ class GithubAuthorizationRaceTest < ActionDispatch::IntegrationTest
         2.times do
           @threads << Thread.new do
             ActiveRecord::Base.connection_pool.with_connection do |connection|
-              connection_ids << connection.select_value("SELECT pg_backend_pid()")
+              # Transaction pooling can reuse a server PID across autocommit
+              # queries; identity here belongs to the checked-out Rails client.
+              connection_ids << connection.object_id
               result = callback(state, "concurrent")
               results << result
               result
