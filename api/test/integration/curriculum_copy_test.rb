@@ -211,6 +211,9 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
 
   test "learner writes against old block and check ids land on the copy" do
     copy_as_admin!
+    # These are fresh post-copy requests, not writes that crossed the copy.
+    # Keep their request clock strictly after the move, including on WSL.
+    travel 1.second
     new_id = ->(type, record) { ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: type, old_id: record.id).new_id }
 
     as_user(@f.classmate) { patch "/api/v1/progress", params: { content_block_id: @f.blocks[:video].id, status: "completed" }, headers: auth_headers, as: :json }
