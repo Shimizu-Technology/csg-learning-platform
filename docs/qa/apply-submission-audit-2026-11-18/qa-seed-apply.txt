@@ -1,0 +1,4 @@
+Refused decisions; inspect JSON report
+{"status":"refused","reason":"baseline must contain exactly 82 library blocks; curriculum must be unique"}
+Summary: {"applied":0,"skipped":0,"refused":1,"dry_run":0,"already_applied":0}
+{"apply":true,"counts":{"applied":0,"skipped":0,"refused":1,"dry_run":0,"already_applied":0},"blocks":[{"status":"refused","reason":"baseline must contain exactly 82 library blocks; curriculum must be unique"}]}
