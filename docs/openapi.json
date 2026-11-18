@@ -4243,9 +4243,6 @@
           },
           "404": {
             "description": "Not found"
-          },
-          "422": {
-            "description": "Invalid extension"
           }
         }
       },
@@ -25701,6 +25698,11 @@
           "granted_at",
           "removed_at",
           "revisions"
+        ],
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LearnerExtensionInput"
+          }
         ]
       },
       "LearnerExtensionsResponse": {

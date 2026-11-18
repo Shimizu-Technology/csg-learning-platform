@@ -24,6 +24,8 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     grant
     assert_response :success
     id = response.parsed_body.fetch("extensions").first.fetch("id")
+    get @path, headers: headers(@teacher)
+    assert_response :success
     submit
     assert_response :success
     patch "#{@path}/#{id}", params: input.merge(reason: "Changed"), headers: headers(@teacher), as: :json
@@ -44,6 +46,21 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
       get @path, headers: headers(actor)
       assert_response :not_found
     end
+  end
+
+  test "unknown grants are not found and invalid changes preserve history" do
+    patch "#{@path}/99999999", params: input, headers: headers(@teacher), as: :json
+    assert_response :not_found
+    delete "#{@path}/99999999", params: { reason: "Missing" }, headers: headers(@teacher), as: :json
+    assert_response :not_found
+    grant
+    id = response.parsed_body.fetch("extensions").first.fetch("id")
+    patch "#{@path}/#{id}", params: input.merge(reason: ""), headers: headers(@teacher), as: :json
+    assert_response :unprocessable_entity
+    delete "#{@path}/#{id}", params: { reason: "" }, headers: headers(@teacher), as: :json
+    assert_response :unprocessable_entity
+    assert_equal 1, LearnerExtension.find(id).revisions.size
+    assert_nil LearnerExtension.find(id).removed_at
   end
 
   test "program effective windows are byte identical without grants" do

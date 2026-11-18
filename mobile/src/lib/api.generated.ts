@@ -5227,13 +5227,6 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Invalid extension */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
             };
         };
         put?: never;
@@ -9960,7 +9953,7 @@ export interface components {
             revisions: {
                 [key: string]: unknown;
             }[];
-        };
+        } & WithRequired<components["schemas"]["LearnerExtensionInput"], "scope" | "lesson_id" | "module_id" | "week_number" | "submissions_close_at" | "reason">;
         LearnerExtensionsResponse: {
             extensions: components["schemas"]["LearnerExtension"][];
         };
@@ -10288,3 +10281,6 @@ export interface operations {
         };
     };
 }
+type WithRequired<T, K extends keyof T> = T & {
+    [P in K]-?: T[P];
+};
