@@ -14,7 +14,7 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.clearAllMocks() }
 
 const base: PersonalPace = {
   enrollment_id: 41, available: true, options: [3, 4, 6], weeks: null, plan_source: null, starts_on: '2026-11-18', start_set_by_staff: false,
-  ends_on: null, current_week: null, status: 'not_chosen', weeks_behind: 0, final_project: null, next_milestone: null, milestones: [],
+  ends_on: null, adjusted_for: null, current_week: null, status: 'not_chosen', weeks_behind: 0, final_project: null, next_milestone: null, milestones: [],
   can_change: true, changes_left: 2, chosen_by: null, chosen_at: null,
 }
 const chosen: PersonalPace = {
@@ -94,4 +94,10 @@ it('hides itself for a staff plan or when plans are off', async () => {
   expect(host.innerHTML).toBe('')
   await render({ ...base, available: false })
   expect(host.innerHTML).toBe('')
+})
+
+it('says when the pace was adjusted because lessons open later', async () => {
+  await render({ ...chosen, weeks: 3, ends_on: '2027-01-05', adjusted_for: 'lessons_open_later' })
+  expect(host.querySelector('[data-pace-adjusted="lessons_open_later"]')?.textContent).toContain('This pace was adjusted because some lessons open later than 3 weeks would end.')
+  expect(host.textContent).toContain('Final project due Tue, Jan 5')
 })

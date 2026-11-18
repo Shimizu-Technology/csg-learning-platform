@@ -181,3 +181,40 @@ this task; it is borrowed and was left running. The branch test databases
 - Question for Leon: should first open also anchor the start when it comes
   before the cohort start date? It currently doesn't, because the start is
   max(cohort start, first open).
+
+## Fix round 2: independent Codex review of a5ac0a7f
+
+The review confirmed several things:
+
+- Off-cohort isolation is byte-identical.
+- 3, 4 and 6-week dates are right at Guam midnight.
+- The paused snapshot and expired access still apply.
+- Query fixtures grow, the migration is safe, and the contract is additive.
+
+It found three P2s. Each one reproduced with its probes (`/tmp/pr313-review-probes.rb` on the mini), and each is now fixed with a regression test in `personal_pace_test.rb`.
+
+1. **A self-paced plan didn't follow a delayed first open.** Re-planning on first open had only run for guided cohorts.
+   - Now `Enrollment#follow_first_open!` runs from both first-open paths, for every opted-in delivery mode. A start date staff set is kept, and staff module dates are still honored.
+   - The self-paced probe now gives a start of Dec 9, an end of Jan 5, week 1, on track.
+2. **Targets could fall before their lessons open.** The opening week had been clamped to the plan's last week.
+   - Now no target falls before its lessons open. Lessons that are open on time still spread over the weeks the learner chose. A lesson that opens later goes in its opening week.
+   - When lessons open after the chosen pace would end, the plan, including the firm final date, runs to the week the last one opens.
+   - I chose "extend and say why" over "only offer paces that fit". It's simpler and honest, and the learner keeps their choice.
+   - The pace JSON now has `adjusted_for` (`lessons_open_later` or `late_start`, otherwise null). The learner card and the staff panel each show a sentence explaining it.
+   - The probe with access opening Jan 4 and a 3-week pace now gives targets and a final date of Jan 5.
+3. **Changing pace could pick the wrong final project.**
+   - The final project is now the last required project lesson, finished or not, both in generation and in `final_project`. Completion only decides what gets a new target.
+   - The probe now keeps the real final project (status done), whether or not there's an earlier project.
+
+**Checks**
+
+- **API, focused:** 191 runs in both prepared-statement modes, 0 failures. This covers the pace and parity tests, the migration, Today, the outline, learning plans, guided, self-paced and paused access, LearnerProgress, lesson access, digests, the OpenAPI contract and Enrollment. RuboCop: no offenses.
+- **Reviewer's probes:** all 5 pass on the fixed code.
+- **Web:** vitest 249 files, 3,489 tests; typecheck and lint pass.
+- **Mobile:** typecheck, lint (0 errors) and jest (142 suites, 1,820 tests) pass.
+- **Browser:**
+  - `w9-personal-pace-fixes.spec.ts` (new, with `w9-personal-pace-fixtures.rb fixes`) covers the three cases at 390 and 1280, light and dark: 12 of 12 pass. Captures are `fix-*.png`.
+  - The original six journeys pass again, 24 of 24.
+- **Merge:** branch merged with `origin/main` at `c8b34f51`.
+
+**Residual:** a learner whose whole course is held back by a staff module date still sees "Every lesson is open from <start>" on the picker before choosing. Their targets and final date are right, and the card says why after they choose.

@@ -119,6 +119,7 @@ class LearnerPace
       starts_on: start,
       start_set_by_staff: @enrollment.starts_on.present?,
       ends_on: plan&.target_date,
+      adjusted_for: chosen ? adjusted_for(plan, progress, start) : nil,
       current_week: chosen && start && progress.today >= start ? ((progress.today - start).to_i / 7) + 1 : nil,
       status: status(plan, pace, chosen),
       weeks_behind: pace ? pace[:weeks_behind] : 0,
@@ -153,12 +154,26 @@ class LearnerPace
     end)
   end
 
+  # The last required project lesson, finished or not, due on the plan's firm date.
   def final_project(plan, progress)
-    return nil unless plan&.target_date
+    return nil unless plan&.learner_pace? && plan.target_date
 
-    milestone = plan.milestones.reverse.find { |item| item["due_on"] == plan.target_date.iso8601 }
-    lesson = milestone && progress.lessons.reverse.find { |item| item.project? && milestone["lesson_ids"].include?(item.id) }
+    lesson = progress.lessons.reverse.find { |item| item.project? && progress.required?(item) && progress.lesson_progress(item).total_blocks.positive? }
     lesson && { lesson_id: lesson.id, title: lesson.title, due_on: plan.target_date, status: progress.lesson_progress(lesson).status }
+  end
+
+  # Why a chosen pace runs past the weeks chosen: some planned lessons open
+  # after it would have ended ("lessons_open_later"), or it was chosen or
+  # re-planned after that end had passed ("late_start"). Nil when it fits.
+  def adjusted_for(plan, progress, start)
+    return nil unless plan&.learner_pace? && plan.pace_weeks && plan.target_date && start
+
+    nominal_end = start + (plan.pace_weeks * 7) - 1
+    return nil unless plan.target_date > nominal_end
+
+    planned = plan.milestones.flat_map { |item| item["lesson_ids"] }.to_set
+    later = progress.lessons.any? { |lesson| planned.include?(lesson.id) && (opens = progress.scheduled_on(lesson)) && opens > nominal_end }
+    later ? "lessons_open_later" : "late_start"
   end
 
   # `keep_past: false` regenerates from scratch, for a moved start.
@@ -167,9 +182,7 @@ class LearnerPace
     today = progress.today
     week_of = ->(date) { date < start ? 1 : ((date - start).to_i / 7) + 1 }
     current_week = week_of.call(today)
-    last_week = [ weeks, current_week ].max
     due = ->(week) { start + (week * 7) - 1 }
-    target = due.call(last_week)
 
     # Exceptions only carry over from a plan in use; an old inactive plan's may name lessons no longer assigned.
     overrides = plan.persisted? && plan.active? ? Array(plan.lesson_overrides) : []
@@ -185,16 +198,24 @@ class LearnerPace
     end
     kept_ids = kept.flat_map { |item| item["lesson_ids"] }.to_set
 
-    # A lesson goes no earlier than the week it opens (a staff module date can be
-    # later than the start); one that is locked with no date isn't planned.
+    # No target falls before its lessons open. A lesson goes in the week it
+    # opens or later (a staff module date can be later than the start), and
+    # one locked with no date isn't planned. When lessons open after the
+    # chosen pace would end, the plan runs to the week the last one opens;
+    # `as_json` tells the learner and staff why (adjusted_for).
     opens_week = lessons.to_h do |lesson|
       opens = progress.available?(lesson) ? today : progress.scheduled_on(lesson)
-      [ lesson.id, opens && [ week_of.call(opens), last_week ].min ]
+      [ lesson.id, opens && week_of.call(opens) ]
     end
-    remaining = lessons.reject { |lesson| finished.include?(lesson.id) || kept_ids.include?(lesson.id) || opens_week[lesson.id].nil? }
-    final = remaining.reverse.find(&:project?)
-    remaining -= [ final ] if final
-    slots = (current_week..last_week).to_a
+    # The final project is the last required project, done or not; only what
+    # is unfinished gets a target.
+    final = lessons.reverse.find(&:project?)
+    remaining = lessons.reject { |lesson| lesson == final || finished.include?(lesson.id) || kept_ids.include?(lesson.id) || opens_week[lesson.id].nil? }
+    schedule_final = final && !finished.include?(final.id) && !kept_ids.include?(final.id) && opens_week[final.id]
+    last_week = [ weeks, current_week, *remaining.map { |lesson| opens_week[lesson.id] }, (opens_week[final.id] if schedule_final) ].compact.max
+    target = due.call(last_week)
+    # Lessons spread over the weeks chosen; one that opens later moves to its week.
+    slots = (current_week..[ weeks, current_week ].max).to_a
     by_week = remaining.each_with_index.group_by do |lesson, index|
       [ slots[index * slots.size / remaining.size], opens_week[lesson.id] ].max
     end
@@ -202,7 +223,7 @@ class LearnerPace
       { "title" => "Week #{week}", "due_on" => due.call(week).iso8601, "lesson_ids" => entries.map { |lesson, _| lesson.id } }
     end
     milestones = kept + weekly
-    milestones << { "title" => "Final project", "due_on" => target.iso8601, "lesson_ids" => [ final.id ] } if final
+    milestones << { "title" => "Final project", "due_on" => target.iso8601, "lesson_ids" => [ final.id ] } if schedule_final
 
     {
       active: true,

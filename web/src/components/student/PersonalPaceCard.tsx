@@ -79,6 +79,11 @@ export function PersonalPaceCard({ pace, totalLessons, lessonPath, contactName, 
             {next.status === 'behind' ? 'Target was ' : 'Target '}<span className="font-semibold tabular-nums text-ink">{formatShortDate(next.due_on, '', DATE)}</span>
             {behind && next.status === 'behind' && '. Catch up on these first, then keep going.'}
           </p>
+          {pace.adjusted_for && (
+            <p className="mt-2 rounded-xl border border-info-line bg-info-soft px-3 py-2 text-sm text-info-ink" data-pace-adjusted={pace.adjusted_for}>
+              {adjustedNote(pace)}
+            </p>
+          )}
           <ul className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line" data-pace-lessons="">
             {next.lessons.map((lesson) => (
               <li key={lesson.id}>
@@ -116,6 +121,22 @@ export function PersonalPaceCard({ pace, totalLessons, lessonPath, contactName, 
       </Collapse>
     </section>
   )
+}
+
+/** Why the plan runs past the weeks chosen (the server's `adjusted_for`), in the learner's words. */
+export function adjustedNote(pace: PersonalPace, audience: 'learner' | 'staff' = 'learner') {
+  const weeks = `${pace.weeks} ${pace.weeks === 1 ? 'week' : 'weeks'}`
+  if (pace.adjusted_for === 'lessons_open_later') {
+    return audience === 'learner'
+      ? `This pace was adjusted because some lessons open later than ${weeks} would end. Your targets and final date follow when they open.`
+      : `Adjusted past ${weeks}: some lessons open later than this pace would end, so targets wait for them.`
+  }
+  if (pace.adjusted_for === 'late_start') {
+    return audience === 'learner'
+      ? `This pace was extended because it started after ${weeks} from your start had passed.`
+      : `Extended past ${weeks}: the pace was set after those weeks had passed.`
+  }
+  return null
 }
 
 function MilestoneLesson({ lesson }: { lesson: NonNullable<PersonalPace['next_milestone']>['lessons'][number] }) {

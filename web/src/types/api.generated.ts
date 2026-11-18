@@ -9684,6 +9684,8 @@ export interface components {
             start_set_by_staff: boolean;
             /** @description The plan's target date: the firm final-project date for a chosen pace. */
             ends_on: string | null;
+            /** @description Why a chosen pace runs past the weeks chosen: some planned lessons open after it would have ended, or it was chosen or re-planned after that end. Null when it fits or no pace is chosen. */
+            adjusted_for: ("lessons_open_later" | "late_start") | null;
             /** @description Week of the chosen pace that today falls in, from 1; null before the start or without a pace. */
             current_week: number | null;
             /** @enum {string} */

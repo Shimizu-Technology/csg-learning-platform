@@ -25175,6 +25175,21 @@
             ],
             "description": "The plan's target date: the firm final-project date for a chosen pace."
           },
+          "adjusted_for": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "lessons_open_later",
+                  "late_start"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a chosen pace runs past the weeks chosen: some planned lessons open after it would have ended, or it was chosen or re-planned after that end. Null when it fits or no pace is chosen."
+          },
           "current_week": {
             "anyOf": [
               {
@@ -25299,6 +25314,7 @@
           "starts_on",
           "start_set_by_staff",
           "ends_on",
+          "adjusted_for",
           "current_week",
           "status",
           "weeks_behind",

@@ -221,14 +221,12 @@ class Enrollment < ApplicationRecord
 
       opened_at = Time.current
       update!(first_opened_at: opened_at, support_expires_at: [ opened_at + (self_paced_support_weeks || cohort.self_paced_support_weeks).weeks, access_expires_at ].compact.min)
+      follow_first_open!
     end
   end
 
   # Guided personal-pace cohorts only need the date (support terms stay the
   # cohort's). One conditional write, so two first opens can't disagree.
-  #
-  # A pace staff chose before this first open was planned from the cohort
-  # start; when the first open moves the start later, the plan follows it.
   def record_personal_first_open!
     return if first_opened_at.present? || !active?
 
@@ -236,10 +234,20 @@ class Enrollment < ApplicationRecord
     claimed = self.class.where(id: id, first_opened_at: nil).update_all(first_opened_at: opened_at, updated_at: opened_at).positive?
     self.first_opened_at = self.class.where(id: id).pick(:first_opened_at)
     clear_attribute_change(:first_opened_at)
-    return unless claimed && starts_on.nil? && first_opened_at.in_time_zone(LearningCalendar::TIMEZONE).to_date > cohort.start_date
+    with_lock { follow_first_open! } if claimed
+  end
+
+  # A pace chosen before the first open (by staff) was planned from the cohort
+  # start. When the first open moves the start later, in any personal-pace
+  # cohort, the plan moves with it. A start staff set is left alone; staff
+  # module dates are still honored by the re-plan. Call inside this row's lock,
+  # right after first_opened_at is set.
+  def follow_first_open!
+    return unless cohort.personal_pace? && starts_on.nil?
+    return unless first_opened_at.in_time_zone(LearningCalendar::TIMEZONE).to_date > cohort.start_date
     return unless LearningPlan.where(enrollment_id: id, active: true, source: "learner_pace").exists?
 
-    with_lock { LearnerPace.new(self).regenerate!(actor: user) }
+    LearnerPace.new(self).regenerate!(actor: user)
   end
 
   def ensure_alumni_curriculum_modules!

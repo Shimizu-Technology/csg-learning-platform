@@ -270,6 +270,71 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     assert_equal false, today.dig("pace", "behind")
   end
 
+  test "a self-paced pace staff set before the first open follows the delayed first open" do
+    @cohort.update!(course_delivery: "self_paced")
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { weeks: 4 }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert_equal "2026-12-13", response.parsed_body.dig("personal_pace", "ends_on")
+    travel_to NOW + 21.days # First open Dec 9.
+    pace = fetch_today["personal_pace"]
+    assert_equal [ "2026-12-09", "2027-01-05", 1, "on_track", nil ], pace.values_at("starts_on", "ends_on", "current_week", "status", "adjusted_for")
+    @enrollment.reload
+    assert_equal @enrollment.first_opened_at + @enrollment.self_paced_support_weeks.weeks, @enrollment.support_expires_at, "self-paced support still starts at the first open"
+
+    # A start staff set is kept: a later first open doesn't move it.
+    other = person("staffstart", :student)
+    enrollment = enroll(other, @cohort)
+    put "/api/v1/enrollments/#{enrollment.id}/pace", params: { starts_on: "2026-12-10" }, headers: headers(@teacher), as: :json
+    put "/api/v1/enrollments/#{enrollment.id}/pace", params: { weeks: 4 }, headers: headers(@teacher), as: :json
+    travel_to NOW + 28.days
+    assert_equal [ "2026-12-10", "2027-01-06" ], fetch_today(other)["personal_pace"].values_at("starts_on", "ends_on")
+  end
+
+  test "no target falls before its lessons open: a pace that can't fit runs to the opening week and says why" do
+    late_module = @curriculum.modules.create!(name: "Projects", position: 1, day_offset: 21, schedule_days: "weekdays")
+    @project.update!(module_id: late_module.id)
+    @enrollment.module_assignments.create!(curriculum_module: late_module, unlock_date_override: Date.new(2027, 1, 4))
+    fetch_today
+    pace = choose(3)
+    # The twelve lessons open now spread over the three weeks chosen; the
+    # project opens Jan 4 (week 7), so the plan and its firm date run to week 7.
+    assert_equal [ [ "Week 1", "2026-11-24", 4 ], [ "Week 2", "2026-12-01", 4 ], [ "Week 3", "2026-12-08", 4 ], [ "Final project", "2027-01-05", 1 ] ],
+      pace["milestones"].map { |item| item.values_at("title", "due_on", "total") }
+    assert_equal [ "2027-01-05", "lessons_open_later" ], pace.values_at("ends_on", "adjusted_for")
+    assert_equal "2027-01-05", pace.dig("final_project", "due_on")
+
+    # Everything held back past the chosen end: every target is on or after Jan 4.
+    @enrollment.module_assignments.where(module_id: @module.id).update_all(unlock_date_override: Date.new(2027, 1, 4))
+    @enrollment.learning_plan.destroy!
+    pace = choose(3)
+    assert pace["milestones"].all? { |item| Date.iso8601(item["due_on"]) >= Date.new(2027, 1, 4) }, pace["milestones"].inspect
+    assert_equal "lessons_open_later", pace["adjusted_for"]
+  end
+
+  test "a pace chosen after its weeks have passed says it started late" do
+    travel_to NOW + 35.days # Week 6 from the cohort start
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { weeks: 3, starts_on: nil }, headers: headers(@teacher), as: :json
+    @enrollment.update_column(:first_opened_at, nil)
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { starts_on: "2026-11-16" }, headers: headers(@teacher), as: :json
+    put "/api/v1/enrollments/#{@enrollment.id}/pace", params: { weeks: 3 }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert_equal [ "late_start", "2026-12-27" ], response.parsed_body["personal_pace"].values_at("adjusted_for", "ends_on")
+  end
+
+  test "the final project stays the final project after it's finished and the pace changes" do
+    @lessons.first.update!(lesson_type: :project) # an earlier, unfinished project
+    fetch_today
+    choose(4)
+    complete(@project)
+    pace = choose(6)
+    assert_equal [ @project.id, "done" ], pace["final_project"].values_at("lesson_id", "status")
+    assert_not pace["milestones"].any? { |item| item["title"] == "Final project" }, "finished work gets no new target"
+    assert_equal "2026-12-29", pace["ends_on"]
+
+    @lessons.first.update!(lesson_type: :exercise) # no earlier project at all
+    assert_equal @project.id, fetch_today.dig("personal_pace", "final_project", "lesson_id")
+  end
+
   test "staff can move a paused learner's start: it saves, with no re-plan" do
     fetch_today
     choose(4)

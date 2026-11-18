@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
+import { adjustedNote } from '../student/PersonalPaceCard'
 import type { PersonalPace } from '../../types/api'
 
 /*
@@ -105,6 +106,7 @@ export function StudentPacePanel({ enrollmentId, onSaved }: { enrollmentId: numb
         <div className="min-w-0"><dt className="text-ink-muted">Next target</dt><dd className="font-semibold text-ink [overflow-wrap:anywhere]">{next ? <>{next.title} · <span className="tabular-nums">{next.completed} of {next.total}</span><span className="block text-xs font-normal tabular-nums text-ink-muted">by {formatShortDate(next.due_on)}</span></> : '—'}</dd></div>
         <div className="min-w-0"><dt className="text-ink-muted">Firm final date</dt><dd className="flex items-center gap-1 font-semibold tabular-nums text-ink">{pace.ends_on ? <><Flag className="h-4 w-4 text-primary-ink" aria-hidden="true" />{formatShortDate(pace.ends_on)}</> : '—'}</dd></div>
       </dl>
+      {pace.adjusted_for && <p className="rounded-xl border border-info-line bg-info-soft px-3 py-2 text-sm text-info-ink" data-pace-adjusted={pace.adjusted_for}>{adjustedNote(pace, 'staff')}</p>}
 
       {pace.milestones.length > 0 && (
         <ol className="flex flex-wrap gap-2" aria-label="Weekly targets">
