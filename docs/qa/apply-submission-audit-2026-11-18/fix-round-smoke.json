@@ -1,0 +1,96 @@
+{
+  "environment": "Synthetic, disposable local test database; not production content",
+  "cutoff": "2026-11-17T14:56:00.000000Z",
+  "export_source": "production_export",
+  "exported_blocks": 99,
+  "library_count": 82,
+  "before_export_and_dry_run": {
+    "tables": 86,
+    "sha256": "c6b16bc9974f822a387b344be2189c9c07d73f1a515965c5ef682bfbc8d9ec71"
+  },
+  "after_export_and_dry_run": {
+    "tables": 86,
+    "sha256": "c6b16bc9974f822a387b344be2189c9c07d73f1a515965c5ef682bfbc8d9ec71"
+  },
+  "dry_run_counts": {
+    "applied": 0,
+    "skipped": 5,
+    "refused": 0,
+    "dry_run": 99,
+    "already_applied": 0
+  },
+  "apply_counts": {
+    "applied": 99,
+    "skipped": 5,
+    "refused": 0,
+    "dry_run": 0,
+    "already_applied": 0
+  },
+  "rerun_counts": {
+    "applied": 0,
+    "skipped": 5,
+    "refused": 0,
+    "dry_run": 0,
+    "already_applied": 99
+  },
+  "before_rerun": {
+    "tables": 86,
+    "sha256": "4964a2d1c6da889553a8c1783fdcd95f9fba2c1c0439bdb14fe69b662e19e057"
+  },
+  "after_rerun": {
+    "tables": 86,
+    "sha256": "4964a2d1c6da889553a8c1783fdcd95f9fba2c1c0439bdb14fe69b662e19e057"
+  },
+  "dry_run_companion_example": {
+    "id": 356,
+    "curriculum": "Synthetic audit bootcamp",
+    "lesson": "Synthetic lesson 356",
+    "title": "Deploy assignment 356",
+    "action": "companion",
+    "current": {
+      "block_type": "text",
+      "submission_type": "manual_complete",
+      "digest": "c13ee580306f9af5a29de8ca59d60dc6bf76834a866deafc3d32693d23cb2132"
+    },
+    "target": "repo_and_live_url_submission",
+    "completion_impact": {
+      "completed_learners": 0,
+      "cohorts": []
+    },
+    "completed_block_learners": 0,
+    "cohorts": [],
+    "status": "dry_run",
+    "companion": {
+      "title": "Exercise: Deploy assignment 356",
+      "body": "<p>Submit your completed repository and deployment URLs.</p>",
+      "submission_type": "repo_and_live_url_submission"
+    },
+    "lesson_impact": {
+      "requires_submission": {
+        "before": false,
+        "after": true
+      },
+      "sibling_changes": [
+        {
+          "id": 1,
+          "title": "Sibling reading",
+          "approved": false,
+          "before": {
+            "effective_types": {
+              "default": "manual_complete",
+              "cohorts": []
+            },
+            "content_digest": "474d66535dd0e34fd98300d2aac06ad6868fba0958d4ba66d34f377dd63701d2"
+          },
+          "after": {
+            "effective_types": {
+              "default": "manual_complete",
+              "cohorts": []
+            },
+            "content_digest": "58e1215c0221a9ca3b75c1091b8fc8f0275b270f8a2bc53159863c67c0b1167f"
+          }
+        }
+      ]
+    }
+  }
+}

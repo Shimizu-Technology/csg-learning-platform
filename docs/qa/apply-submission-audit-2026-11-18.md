@@ -1,84 +1,94 @@
 # Submission audit operations task — November 18, 2026
 
-Implementation base: `6c169d6d`, `origin/main`. Execution owner: implementation worker on the Mac mini. Production was never accessed. Hold for lead review and the missing content-baseline acceptance below.
+PR #309, branch `ops/apply-submission-audit`, based on `6c169d6d`. Execution owner: implementation worker on the Mac mini. No production access, merge or PR watch. This record supersedes the original baseline format and instructions on `98b232b4`.
 
-CSG Learn shares curriculum → module → lesson → block content across cohorts. Students retain recorded completion when an existing work block gains a submission type; adding new work can reopen a completed lesson. Sources: the task brief, `SubmissionAudit`, `SubmissionAuditReview`, `LessonBlockEditor`, `LessonCompletionImpact`, and `docs/qa/submission-audit-2026-11-17.md`.
+CSG Learn shares curriculum → module → lesson → block content across cohorts. Changing an existing work block's submission type retains completion; adding work can reopen a completed lesson. Changing `lesson.requires_submission` can also change siblings' implicit submission types. Sources: the task brief, `SubmissionAudit`, `SubmissionAuditReview`, `LessonBlockEditor`, `LessonCompletionImpact`, `ContentBlock#legacy_submission_type`, and `docs/qa/submission-audit-2026-11-17.md`.
 
-## Runbook
+## Lead-only production runbook
 
-Task: `ops:apply_submission_audit_20261118`. It applies 99 decisions: 82 library practice reviews selected by curriculum, nine bootcamp practice reviews, two existing-work submission changes, and six companion exercises. Five W9 decisions are reported as deferred and never changed.
+Set `ADMIN_USER_ID` to the intended active admin's numeric ID. Archived admins and Clerk IDs starting with `pending_` are rejected. All production commands below belong to the lead after code review. The worker ran only disposable local databases.
 
-Supply `ADMIN_USER_ID` and `AUDIT_BASELINE`. The baseline must be the original audit export from `d68e0b3`, with this envelope:
+First export a baseline with the approved cutoff:
 
-```json
+```sh
+cd /opt/render/project/src/api && CUTOFF=2026-11-17T14:56:00Z bin/rails ops:export_submission_audit_baseline > /tmp/submission-audit-baseline-20261118.json 2> /tmp/submission-audit-library-20261118.log
+```
+
+This task runs in a read-only, repeatable-read transaction. It selects the named library curriculum's audit candidates using `candidate?`, including rows already reviewed in the UI. It requires exactly 82 library candidates and refuses overlap with any fixed practice, type, companion or deferred ID. It exports those 82 plus the 17 fixed approved IDs, rather than using `SubmissionAudit.rows`, which omits valid reviews. The resulting 82 library IDs must equal the apply task's current curriculum selection.
+
+Inspect the exit status and `/tmp/submission-audit-library-20261118.log`. It prints the full library ID list, count, titles and lesson titles for comparison with Leon's decision document. Confirm all 82 are approved. The exporter lists **every** selected block and lesson whose `updated_at` exceeds the cutoff, and all missing fixed blocks. A refused export exits 1 and emits an offenders report instead of a usable baseline. Do not increase the cutoff to bypass a refusal; obtain a new decision for changed content.
+
+A successful stdout file has this format (extra title fields support review):
+
+```text
 {
-  "audit_commit": "d68e0b3",
-  "blocks": [
-    {
-      "id": 57,
-      "lesson_id": "original audited lesson ID",
-      "curriculum_id": "original audited curriculum ID",
-      "curriculum_name": "original audited curriculum name",
-      "content_digest": "original 64-character SHA-256 digest"
-    }
-  ]
+  source: "production_export",
+  exported_at: ISO-8601 timestamp,
+  cutoff: ISO-8601 timestamp,
+  library_ids: [82 selected IDs],
+  blocks: [{id, title, lesson_id, lesson_title, curriculum_id, curriculum_name,
+            content_digest, block_updated_at, lesson_updated_at}]
 }
 ```
 
-The example documents the format, not runnable baseline data. Preserve all 82 library rows and the 17 other approved rows. A complete original audit export may include other rows; these remain untouched. Do not generate replacement digests from today's production content: that would erase drift evidence. Keep the baseline outside source control and have the lead review its provenance.
+The file makes no claim to be an original `d68e0b3` export. The old `audit_commit` envelope is rejected. Apply checks each baseline timestamp against its cutoff, then rechecks current block/lesson timestamps and the digest before any pending decision writes. Structurally verified completed decisions are no-ops on reruns; the script's own editor writes may legitimately have newer timestamps. Keep the baseline outside source control.
 
-The lead runs these commands only after review, with the approved baseline installed at `/tmp/submission-audit-d68e0b3.json` and `ADMIN_USER_ID` exported to the intended admin's numeric ID:
-
-```sh
-cd /opt/render/project/src/api && DRY_RUN=1 APPLY=0 AUDIT_BASELINE=/tmp/submission-audit-d68e0b3.json bin/rails ops:apply_submission_audit_20261118
-```
-
-Inspect every row and its cohort/learner impact. Then, after the dry run is accepted:
+After comparing the exported selection with Leon's decisions, dry run:
 
 ```sh
-cd /opt/render/project/src/api && DRY_RUN=0 APPLY=1 AUDIT_BASELINE=/tmp/submission-audit-d68e0b3.json bin/rails ops:apply_submission_audit_20261118
+cd /opt/render/project/src/api && ADMIN_USER_ID="${ADMIN_USER_ID:?set the approved admin ID}" DRY_RUN=1 APPLY=0 AUDIT_BASELINE=/tmp/submission-audit-baseline-20261118.json bin/rails ops:apply_submission_audit_20261118
 ```
 
-Without `APPLY=1`, the task is read-only. `DRY_RUN=1` overrides `APPLY=1`. Refusals return exit status 1; successful dry runs, applies and idempotent reruns return 0. Stdout contains JSON decision rows, a summary, then a complete JSON report on the last stdout line. Diagnostics go to stderr. Counts distinguish `applied`, `dry_run`, `already_applied`, `skipped` and `refused`.
+Inspect all rows, learner/cohort impact, companion titles/instructions, `lesson_impact.requires_submission.before/after`, and `lesson_impact.sibling_changes`. These are planned outcomes; a refused lesson does not commit its projected changes. Each changed sibling includes ID, title, approval status, before/after effective types (default and each using cohort), and before/after audit digests. A digest-only sibling change is reported; an unapproved sibling's effective type change refuses the whole lesson. Deferred W9 blocks are not approved for such changes.
 
-Each row includes source context, current type/digest, intended change, source-block completed learners, canonical completed-lesson impact, and all using cohorts. The latter includes cohorts with no completed learners, so Cohort 3 remains visible even when nobody has finished that lesson. Completion impact uses `LessonCompletionImpact`; a nonzero count refuses companions and never submits a reopen acknowledgement.
+After accepting the dry run, apply:
 
-The task locks each lesson and its blocks, validates all that lesson's decisions, and commits one transaction per lesson. A refused decision leaves that whole lesson unchanged; other valid lessons may still apply. Fix drift by obtaining a new explicit decision, not by editing the baseline to match current data. A rerun skips completed decisions and retries unapplied ones. Existing work with a conflicting effective submission type refuses the type change under the same block locks used by learner writes. Content changes go through `LessonBlockEditor`; practice reviews use the same model/digest update as the audit controller.
+```sh
+cd /opt/render/project/src/api && ADMIN_USER_ID="${ADMIN_USER_ID:?set the approved admin ID}" DRY_RUN=0 APPLY=1 AUDIT_BASELINE=/tmp/submission-audit-baseline-20261118.json bin/rails ops:apply_submission_audit_20261118
+```
 
-New exercises carry a source ID and original digest in metadata for idempotency. Reruns verify their type, instructions, title, placement, source digest and lesson submission flag. For already-applied changes, digest verification reconstructs only the permitted original submission state and legacy lesson flag and compares the exact SHA-256. This accounts for the editor updating `requires_submission`, including multiple decisions sharing a lesson. No database schema or application behavior changes.
+Without `APPLY=1`, the task is read-only. `DRY_RUN=1` overrides `APPLY=1`. Refusals exit 1; successful export, dry run, apply and idempotent rerun exit 0. Apply stdout contains JSON decision rows, a summary and a complete JSON report on its last line. Export stdout is one JSON object; its human comparison data and offenders also go to stderr.
 
-## Agent-executed acceptance
+## Write behavior and refusal rules
 
-Required focused scenarios passed locally: all three decision types, 82 curriculum-selected practice reviews, dry run with unchanged records/timestamps, explicit apply, `DRY_RUN` overriding apply, idempotent rerun, changed source refusal, changed companion refusal, missing baseline/moved block refusal, unexpected library candidate refusal, conflicting submissions, completed-lesson refusal with Cohort 3 impact, existing completion preservation, shared-lesson idempotency, and shared-lesson rollback.
+The task covers 99 approved decisions: 82 library practice reviews, nine bootcamp practice reviews, two existing-work submission changes and six companion exercises. Five W9 decisions are reported as deferred without writes. Global library membership or overlapping IDs refuse the whole run before any lesson writes.
 
-Focused command (run from `api/` with a disposable local `DATABASE_URL` and `PARALLEL_WORKERS=1`):
+Each lesson is locked and committed in its own transaction. A refusal leaves that entire lesson unchanged, while other valid lessons may apply. Practice-only lessons take `FOR NO KEY UPDATE` block locks. Content-editing lessons retain learner-exclusive locks while checking learner evidence. Statement and connection errors produce per-lesson refusals and a final report.
+
+Content writes use `LessonBlockEditor`. Before writing, the task projects the editor's recalculation of `requires_submission` without saving anything. It refuses unapproved effective-type changes, then checks actual saved digests and the lesson flag against that projection before commit. Conflicting learner submissions refuse type changes. Nonzero `LessonCompletionImpact` refuses companions; the task never acknowledges reopening a completed lesson.
+
+A companion source must be instructional, not an existing exercise, code challenge or checkpoint. Its title is `Exercise: <source title>`, falling back to `Exercise: Your work`; its body copies the source's body, matching the UI shortcut, with the UI fallback when blank. Both appear in the dry-run report. Adding the companion also records a reviewer-stamped practice review of the source's final digest, removing it from the audit queue.
+
+Companion markers are searched across all lessons. A marked companion moved away from its source refuses the decision instead of creating a replacement. Reruns verify marker provenance, source content, companion title/body/type/placement and the source review. Expected editor changes to the legacy lesson flag are included in digest verification. No schema, model, service, controller, frontend or mobile behavior changed.
+
+## Fix-round acceptance
+
+The independent Opus review supplied by the lead covered `98b232b4`; it confirmed service writes, lock order, a no-write dry run, drift refusal, idempotency, completion preservation and byte-identical HTML siblings. It identified the issues addressed in this round. That prior review is not approval of this new head.
+
+Agent-executed focused coverage includes the original decision/drift/completion cases plus overlap with all four fixed-decision groups; companion and type-change refusal for an implicit-type sibling; safe digest-only sibling changes with byte-identical HTML; copied companion preview and blank-title fallback; source audit dismissal; work-block refusal; a moved companion rerun; timestamp-only drift; post-cutoff baseline refusal; pending admin refusal; statement/connection-error reports; practice-only lock strength; reviewed-row export; full offender reporting; library-count/overlap refusal; and export → apply → post-cutoff idempotent rerun.
+
+From `api/`, using a disposable local `DATABASE_URL` with `?prepared_statements=true` and then `?prepared_statements=false`, and `PARALLEL_WORKERS=1`:
 
 ```sh
 bin/rails test test/lib/ops/apply_submission_audit_20261118_test.rb test/integration/lesson_block_editor_test.rb test/integration/submission_audit_recheck_test.rb test/integration/submission_audit_test.rb test/services/submission_audit_test.rb
 ```
 
-Prepared statements enabled: connection reported `true`; 100 tests / 429 assertions, zero failures/errors/skips. Disabled: connection reported `false`; 100 tests / 429 assertions, zero failures/errors/skips. RuboCop passed across 799 files; Brakeman reported zero errors and zero security warnings (one existing ignored warning).
+Prepared statements enabled: **123 tests / 557 assertions**, zero failures/errors/skips. Disabled: **123 tests / 557 assertions**, zero failures/errors/skips. Both connection settings were explicitly queried. The first disabled-mode pass found a test-only instrumentation assumption about bound SQL values; the lock assertion now supports both bound and inlined SQL. RuboCop: **800 files, no offenses**. Brakeman: **zero errors and zero security warnings**, with one existing ignored warning.
 
-The full ASUS suite is not required by this task's standalone-script scope. No app service, controller, model, schema, frontend or mobile file changed. Browser/mobile and production provider checks are outside this CLI change.
-
-## Missing production-mirroring seed and original audit baseline
-
-The checked-in `scripts/qa/seed.rb` creates `QA Program Lab`, `QA Self Paced Lab`, and `QA Alumni Lab` with synthetic content. `docs/qa/README.md` explicitly says historical production-curriculum seeds must not be reused. Neither that seed nor the dated audit document contains the original 99 production digests. The brief's production-mirroring seed was not found in this checkout. The worker requested the original audit artifact; it has not been supplied.
-
-Both modes were executed against the actual repository QA seed in the disposable local database `csg_qa_ops_apply_audit`. An explicitly empty baseline envelope was used to verify fail-closed behavior; this is not evidence of applying real approved content. Dry run returned exit 1:
+The real CLI export → dry run → apply → rerun also passed in `csg_ops_apply_submission_audit_fix_qa`, using a synthetic 99-decision dataset with timestamps before the requested cutoff and an HTML sibling. Export produced 99 rows and 82 library IDs. Summaries:
 
 ```text
-Summary: {"applied":0,"skipped":0,"refused":1,"dry_run":0,"already_applied":0}
+Summary: {"applied":0,"skipped":5,"refused":0,"dry_run":99,"already_applied":0}
+Summary: {"applied":99,"skipped":5,"refused":0,"dry_run":0,"already_applied":0}
+Summary: {"applied":0,"skipped":5,"refused":0,"dry_run":0,"already_applied":99}
 ```
 
-```json
-{"apply":false,"counts":{"applied":0,"skipped":0,"refused":1,"dry_run":0,"already_applied":0},"blocks":[{"status":"refused","reason":"baseline must contain exactly 82 library blocks; curriculum must be unique"}]}
-```
+All **86 tables** (84 application tables plus Rails metadata tables) were hashed before export and after dry run: both hashes were `c6b16bc9974f822a387b344be2189c9c07d73f1a515965c5ef682bfbc8d9ec71`. The hashes before/after the rerun also matched: `4964a2d1c6da889553a8c1783fdcd95f9fba2c1c0439bdb14fe69b662e19e057`. Summary data and a complete companion/sibling preview are in `apply-submission-audit-2026-11-18/fix-round-smoke.json`.
 
-Apply returned exit 1 with the same refusal and `"apply":true`. Full output is in `apply-submission-audit-2026-11-18/qa-seed-dry-run.txt` and `qa-seed-apply.txt`. The combined SHA-256 over blocks, lessons and audit reviews before/after both runs is unchanged: `760f98ce4c3bc342ce4b6069b1dd567554440401b3db63d082cb535f72d37cbe`.
+This synthetic smoke does not establish the real production membership or learner counts. The production-mirroring seed mentioned in the original brief remains unavailable here; the repository's ordinary QA seed is explicitly synthetic. The previous `qa-seed-*.txt` and hashes are historical refusal evidence for `98b232b4`, not current-baseline acceptance. The lead must inspect the real cutoff export and dry-run impact before production writes.
 
-**Blocked required acceptance:** a successful dry run and apply against the production-mirroring content seed. The synthetic tests pass, but they cannot establish the original production candidate membership or digests. Keep the PR draft until the lead supplies the original baseline and an authorized local seed, reruns both modes, inspects the real impact report, and records the result. No production command was executed by this worker.
+No full ASUS suite is required for this standalone script/test scope. Browser/mobile, production integrations and deployment behavior were not exercised.
 
-## Resource disposition
+## Cleanup and hold
 
-Only disposable local databases were created. No app server, browser tab, simulator, emulator, container, or remote runner was started. Shared Postgres was already running and remains borrowed. The original checkout was restored clean after moving task-owned untracked files into the worktree. Cleanup and final PR/head status are recorded in the handoff.
+Only disposable local databases were created. No app server, browser tab, simulator, emulator, container or ASUS job was started. Shared Postgres was already running and remains borrowed. Both task databases (`csg_ops_apply_submission_audit_fix_test` and `csg_ops_apply_submission_audit_fix_qa`) were dropped after final checks; lifecycle session `manual-20261118-113653-42739-3126` reports no active owned resources. The original checkout remains untouched. PR #309 remains held for lead review; the branch/worktree and updated local handoff are preserved. Final head, CI/review status and cleanup confirmation are reported at handback.
