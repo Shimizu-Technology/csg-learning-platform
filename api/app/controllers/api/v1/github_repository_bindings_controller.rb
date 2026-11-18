@@ -20,8 +20,8 @@ module Api
       end
 
       def create
-        installation = @enrollment.cohort.github_app_installations.find(params[:github_app_installation_id])
-        mod = @enrollment.cohort.curriculum.modules.find(params[:curriculum_module_id]) if params[:curriculum_module_id].present?
+        installation = @enrollment.cohort.github_app_installations.find(record_id!(:github_app_installation_id))
+        mod = @enrollment.cohort.curriculum.modules.find(record_id!(:curriculum_module_id)) if params[:curriculum_module_id].present?
         binding = @enrollment.github_repository_bindings.find_or_initialize_by(curriculum_module_id: mod&.id)
         name = params[:full_name].to_s.strip
         # An explicit rebind resets numeric provenance. Existing URL submissions
@@ -42,6 +42,13 @@ module Api
       end
 
       private
+
+      def record_id!(key)
+        value = params[key]
+        raise ActiveRecord::RecordNotFound unless value.to_s.match?(/\A[1-9]\d{0,18}\z/) && value.to_i <= 9_223_372_036_854_775_807
+
+        value.to_i
+      end
 
       def set_enrollment!
         scope = StaffCohortScope.new(current_user)

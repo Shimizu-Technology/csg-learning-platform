@@ -141,6 +141,17 @@ class GithubAppBindingsTest < ActionDispatch::IntegrationTest
     assert_empty @fake.calls
   end
 
+  test "malformed installation and module ids get uniform 404 without provider calls" do
+    as_app_user(@student) do
+      [ { github_app_installation_id: [ @installation.id ] }, { github_app_installation_id: @installation.id, curriculum_module_id: [ @mod.id ] } ].each do |input|
+        post bindings_path, headers: app_headers, params: input.merge(full_name: @binding.full_name), as: :json
+        assert_response :not_found
+        assert_equal({ "error" => "Not found" }, response.parsed_body)
+      end
+    end
+    assert_empty @fake.calls
+  end
+
   test "module binding does not replace default and cross enrollment binding ids refuse" do
     with_app_provider do
       as_app_user(@student) do
