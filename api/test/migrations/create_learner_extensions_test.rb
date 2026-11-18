@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261119050000_create_learner_extensions").to_s
+require Rails.root.join("db/migrate/20261119070000_create_learner_extensions").to_s
 
 class CreateLearnerExtensionsTest < ActiveSupport::TestCase
   test "extension tables round trip with pooled statement caches cleared" do
