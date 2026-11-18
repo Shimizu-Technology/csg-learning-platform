@@ -40,6 +40,7 @@ export const ROUTE_TITLES: Array<[path: string, name: string]> = [
   ['/modules/:id', 'Module'],
   ['/lessons/:id', 'Lesson'],
   ['/profile', 'Profile'],
+  ['/github-app/setup', 'Confirm GitHub installation'],
   ['/recordings', TERMS.recordings],
   ['/resources', TERMS.resources],
   ['/announcements', TERMS.updates],

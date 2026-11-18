@@ -170,6 +170,26 @@ class GithubAppBindingsTest < ActionDispatch::IntegrationTest
     assert_match "username changed", response.parsed_body.fetch("bindings").first.fetch("failure_reason")
   end
 
+  test "manual sync and check refresh route through App without a legacy token" do
+    previous_token = ENV.delete("GITHUB_ORGANIZATION_ADMIN_TOKEN")
+    GithubRepositoryAccess.new(@binding, client: @fake).verify!
+    with_app_provider do
+      as_app_user(@instructor) do
+        post "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/sync_github/#{@student.id}", headers: app_headers
+        assert_response :success
+        assert_equal 1, response.parsed_body.fetch("synced")
+        submission = @enrollment.submissions.sole
+        post "/api/v1/submissions/#{submission.id}/github_checks", headers: app_headers
+        assert_response :success
+        assert_equal 1, response.parsed_body.dig("github_checks", "summary", "passed")
+      end
+    end
+    assert @fake.calls.any? { |call| call.first == :files }
+    assert @fake.calls.any? { |call| call.first == :checks }
+  ensure
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = previous_token
+  end
+
   test "learner profile has optional App flag only on opted in enrollments" do
     as_app_user(@student) { get "/api/v1/profile", headers: app_headers }
     assert_response :success

@@ -24,7 +24,7 @@ export function GithubRepositorySettings({ enrollmentId, title = 'GitHub reposit
   useEffect(() => { void load() }, [load])
   return <section className="app-surface space-y-4 p-5 sm:p-6" aria-label={title}>
     <h2 className="text-lg font-bold">{title}</h2>
-    <p className="text-sm text-ink-secondary">Use a personal repository owned by the GitHub username on the learner’s profile. An administrator must connect an installation with access to it first.</p>
+    <p className="text-sm text-ink-secondary">Use the learner’s personal repository. Its owner must match the GitHub username on their profile. An administrator must connect an installation with access to it first.</p>
     {!data && <Button variant="secondary" onClick={() => void load()}>Reload repositories</Button>}
     {data && <>
       <ul className="space-y-3">{data.bindings.map(binding => <li key={binding.id} className="space-y-2 rounded-xl border border-line p-4">
