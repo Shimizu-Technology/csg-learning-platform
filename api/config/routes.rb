@@ -218,6 +218,8 @@ Rails.application.routes.draw do
         end
       end
 
+      post "github_identity/callback", to: "github_identities#callback"
+      post "enrollments/:enrollment_id/github_identity/prepare", to: "github_identities#prepare"
       post "github_app/setup", to: "github_app_installations#callback"
 
       # Cohorts with nested enrollments

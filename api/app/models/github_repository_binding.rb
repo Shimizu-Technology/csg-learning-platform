@@ -10,7 +10,8 @@ class GithubRepositoryBinding < ApplicationRecord
   validate :same_cohort_and_curriculum
 
   def identity_current?
-    github_username.present? && github_username.casecmp?(enrollment.user.github_username.to_s)
+    user = enrollment.user
+    user.github_identity_verified? && github_user_id == user.github_user_id && github_username.present? && github_username.casecmp?(user.github_verified_login)
   end
 
   def fail_verification!(reason)

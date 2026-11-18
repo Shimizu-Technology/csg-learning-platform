@@ -5332,6 +5332,13 @@ export interface paths {
                         "application/json": components["schemas"]["GithubRepositoryBindingResponse"];
                     };
                 };
+                /** @description Concurrent binding save; reload and retry */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -5369,6 +5376,87 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["GithubRepositoryBindingResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/github_identity/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare one-use GitHub user authorization for own active App-enabled enrollment */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubIdentityPrepareResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/github_identity/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prove own GitHub identity with signed state and server-side PKCE token exchange */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        state: string;
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubIdentityConnectResponse"];
                     };
                 };
             };
@@ -6461,6 +6549,7 @@ export interface components {
             first_name: string | null;
             last_name: string | null;
             github_username: string | null;
+            github_identity?: components["schemas"]["GithubIdentity"];
         };
         ProfileShowUser: {
             id: number;
@@ -6472,6 +6561,7 @@ export interface components {
             last_name: string | null;
             github_username: string | null;
             role: string;
+            github_identity?: components["schemas"]["GithubIdentity"];
         };
         ProfileResponse: {
             user: components["schemas"]["ProfileShowUser"];
@@ -9838,6 +9928,7 @@ export interface components {
             failure_reason: string | null;
             verified_at: string | null;
             checked_at: string | null;
+            github_user_id: string | null;
         };
         GithubRepositoryBindingResponse: {
             binding: components["schemas"]["GithubRepositoryBinding"];
@@ -9856,6 +9947,22 @@ export interface components {
             bindings: components["schemas"]["GithubRepositoryBinding"][];
             installations: components["schemas"]["GithubBindingInstallation"][];
             modules: components["schemas"]["GithubBindingModule"][];
+            github_identity: components["schemas"]["GithubIdentity"];
+            can_connect_github: boolean;
+        };
+        GithubIdentity: {
+            id: string | null;
+            login: string | null;
+            /** Format: date-time */
+            verified_at: string | null;
+        };
+        GithubIdentityPrepareResponse: {
+            authorization_url: string;
+        };
+        GithubIdentityConnectResponse: {
+            github_identity: components["schemas"]["GithubIdentity"];
+            enrollment_id: number;
+            cohort_id: number;
         };
     };
     responses: {

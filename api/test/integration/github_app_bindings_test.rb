@@ -36,7 +36,7 @@ class GithubAppBindingsTest < ActionDispatch::IntegrationTest
         assert_response :success
         installation = response.parsed_body.fetch("installation")
         assert_equal "selected", installation.fetch("repository_selection")
-        assert_equal "synthetic-school", installation.fetch("account_login")
+        assert_equal "app-learner", installation.fetch("account_login")
         assert_equal 12345, installation.fetch("app_id")
         assert_no_secrets(response.body)
         post "/api/v1/github_app/setup", headers: app_headers, params: { state: state, installation_id: 999 }, as: :json
@@ -174,11 +174,11 @@ class GithubAppBindingsTest < ActionDispatch::IntegrationTest
       @enrollment.github_repository_bindings.create!(github_app_installation: @installation, curriculum_module: mod, full_name: @binding.full_name)
     end
     assert_equal queries, count_queries { as_app_user(@student) { get bindings_path, headers: app_headers } }
-    @student.update!(github_username: "new-identity")
+    @student.record_verified_github_identity!(id: "24680", login: "new-identity")
     as_app_user(@student) { get bindings_path, headers: app_headers }
     assert_response :success
     assert_equal "failed", response.parsed_body.fetch("bindings").first.fetch("verification_state")
-    assert_match "username changed", response.parsed_body.fetch("bindings").first.fetch("failure_reason")
+    assert_match "identity", response.parsed_body.fetch("bindings").first.fetch("failure_reason")
   end
 
   test "manual sync and check refresh route through App without a legacy token" do

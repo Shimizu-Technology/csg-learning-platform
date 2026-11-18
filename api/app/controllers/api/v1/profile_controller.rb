@@ -19,6 +19,7 @@ module Api
             full_name: current_user.full_name,
             role: current_user.role,
             github_username: current_user.github_username,
+            **(current_user.github_identity_verified? ? { github_identity: GithubAppSerializer.identity(current_user) } : {}),
             avatar_url: current_user.avatar_url,
             handle: current_user.handle
           },
@@ -50,6 +51,7 @@ module Api
               last_name: current_user.last_name,
               full_name: current_user.full_name,
               github_username: current_user.github_username,
+              **(current_user.github_identity_verified? ? { github_identity: GithubAppSerializer.identity(current_user) } : {}),
               avatar_url: current_user.avatar_url,
               handle: current_user.handle
             }

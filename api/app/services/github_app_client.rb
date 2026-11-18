@@ -12,6 +12,7 @@ class GithubAppClient
     end
   end
 
+  PROVIDER_ERROR = "GitHub is temporarily unavailable; try again".freeze
   BASE = "https://api.github.com".freeze
   TOKEN_CACHE = ActiveSupport::Cache::MemoryStore.new(size: 1.megabyte)
 
@@ -21,10 +22,17 @@ class GithubAppClient
 
   def installation(installation_id)
     result = request(:get, "/app/installations/#{Integer(installation_id)}", token: app_jwt)
+    account = result.fetch("account")
+    unless result.fetch("id").to_i == Integer(installation_id) && account.is_a?(Hash) && positive_id?(account.fetch("id")) && account.fetch("login").is_a?(String) &&
+        %w[User Organization].include?(account.fetch("type")) && %w[all selected].include?(result.fetch("repository_selection")) && result.fetch("permissions").is_a?(Hash)
+      raise Error, PROVIDER_ERROR
+    end
     raise Error, "Installation belongs to another GitHub App" unless result.fetch("app_id").to_s == @credentials.app_id
     raise Error, "GitHub installation is suspended; reconnect access" if result["suspended_at"].present?
 
     result
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
   end
 
   def repository(installation:, full_name:, repository_id: nil)
@@ -33,8 +41,14 @@ class GithubAppClient
     path = repository_id ? "/repositories/#{Integer(repository_id)}" : "/repos/#{full_name}"
     repo = installation_request(installation, :get, path, repository_id: repository_id)
     id = Integer(repo.fetch("id"))
+    unless positive_id?(id) && repo.fetch("full_name").is_a?(String) && repo.fetch("owner").is_a?(Hash) && positive_id?(repo.fetch("owner").fetch("id")) &&
+        repo.fetch("owner").fetch("login").is_a?(String) && %w[User Organization].include?(repo.fetch("owner").fetch("type")) && [ true, false ].include?(repo.fetch("fork"))
+      raise Error, PROVIDER_ERROR
+    end
     installation_token(installation, repository_id: id)
     repo
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
   end
 
   def files(installation:, repository:, filenames:)
@@ -44,20 +58,39 @@ class GithubAppClient
     owner, name = repository.fetch("full_name").split("/")
     query = "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name, followRenames: false) { fullDatabaseId defaultBranchRef { target { ... on Commit { oid } } } #{fragments} } }"
     result = installation_request(installation, :post, "/graphql", repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } })
-    repo = result.dig("data", "repository")
-    raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo["fullDatabaseId"].to_i == repository.fetch("id").to_i && result["errors"].blank?
+    repo = result.fetch("data").fetch("repository")
+    raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo.fetch("fullDatabaseId").to_i == repository.fetch("id").to_i && result["errors"].blank?
 
-    { files: filenames.each_with_index.filter_map { |filename, index| { "name" => filename, "text" => repo.dig("file_#{index}", "text") } if repo.dig("file_#{index}", "text").present? },
-      commit_hash: repo.dig("defaultBranchRef", "target", "oid"), error: nil }
+    branch = repo.fetch("defaultBranchRef")
+    files = filenames.each_with_index.filter_map do |filename, index|
+      blob = repo.fetch("file_#{index}")
+      text = blob&.fetch("text", nil)
+      raise Error, PROVIDER_ERROR unless text.nil? || text.is_a?(String)
+
+      { "name" => filename, "text" => text } if text.present?
+    end
+    { files: files, commit_hash: branch&.fetch("target")&.fetch("oid"), error: nil }
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
   end
 
   def checks(installation:, repository_id:, full_name:, sha:, page:)
     raise Error, "Invalid submission commit SHA" unless sha.to_s.match?(/\A[a-fA-F0-9]{6,64}\z/)
 
-    installation_request(installation, :get, "/repos/#{full_name}/commits/#{sha}/check-runs", repository_id: repository_id, query: { filter: "latest", per_page: 100, page: page })
+    result = installation_request(installation, :get, "/repos/#{full_name}/commits/#{sha}/check-runs", repository_id: repository_id, query: { filter: "latest", per_page: 100, page: page })
+    unless result.fetch("check_runs").is_a?(Array) && result.fetch("total_count").is_a?(Integer) && result["total_count"] >= 0
+      raise Error, PROVIDER_ERROR
+    end
+    result
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
   end
 
   private
+
+  def positive_id?(value)
+    value.to_s.match?(/\A[1-9]\d{0,18}\z/) && value.to_i <= 9_223_372_036_854_775_807
+  end
 
   def app_jwt
     raise Error, "GitHub App credentials are not configured" unless @credentials.configured?
@@ -81,7 +114,7 @@ class GithubAppClient
     payload = repository_id ? { repository_ids: [ Integer(repository_id) ] } : {}
     result = request(:post, "/app/installations/#{installation.installation_id}/access_tokens", token: app_jwt, body: payload)
     ttl = [ Time.iso8601(result.fetch("expires_at")) - @now.call - 60, 5.minutes.to_i ].min
-    raise Error, "GitHub returned an expired installation token" unless ttl.positive? && result["token"].present?
+    raise Error, "GitHub returned an expired installation token" unless ttl.positive? && result.fetch("token").is_a?(String) && result["token"].present?
 
     @cache.write(key, result.fetch("token"), expires_in: ttl)
     result.fetch("token")
@@ -115,7 +148,10 @@ class GithubAppClient
       end
       raise Error.new(message, status: response.code.to_i)
     end
-    response.parsed_response
+    value = response.parsed_response
+    raise Error, PROVIDER_ERROR unless value.is_a?(Hash)
+
+    value
   rescue Error
     raise
   rescue StandardError

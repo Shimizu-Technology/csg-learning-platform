@@ -889,6 +889,10 @@ export const api = {
   },
   getSubmission: (id: number) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),
+  prepareGithubIdentity: (enrollmentId: number) =>
+    fetchApi<components['schemas']['GithubIdentityPrepareResponse']>(`/api/v1/enrollments/${enrollmentId}/github_identity/prepare`, { method: 'POST' }),
+  completeGithubIdentity: (data: { state: string; code: string }) =>
+    fetchApi<components['schemas']['GithubIdentityConnectResponse']>('/api/v1/github_identity/callback', { method: 'POST', body: JSON.stringify(data) }),
   getGithubAppInstallations: (cohortId: number) =>
     fetchApi<components['schemas']['GithubAppInstallationsResponse']>(`/api/v1/cohorts/${cohortId}/github_app_installations`),
   prepareGithubAppInstallation: (cohortId: number) =>

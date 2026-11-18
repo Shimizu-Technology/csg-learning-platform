@@ -201,18 +201,21 @@ export function Profile() {
           <div className="flex gap-2">
             <input
               id="profile-github-username"
+              disabled={Boolean(data.user.github_identity?.id)}
               type="text"
               value={githubUsername}
               onChange={(e) => { githubEdited.current = true; setGithubUsername(e.target.value) }}
               placeholder="Enter your GitHub username"
               className="app-control min-w-0 flex-1"
             />
-            <Button onClick={handleSave} disabled={saving}>
+            {!data.user.github_identity?.id && <Button onClick={handleSave} disabled={saving}>
               {saved ? <Check className="h-4 w-4" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
               {saved ? 'Saved' : 'Save'}
-            </Button>
+            </Button>}
           </div>
         </div>
+
+        {data.user.github_identity?.id && <p className="text-sm text-ink-secondary">Your GitHub username is verified. Use Reconnect GitHub below to change it.</p>}
 
         {/* Handle (M-13): tells same-name people apart without showing emails */}
         <div>

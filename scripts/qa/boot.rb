@@ -53,4 +53,9 @@ if ENV["QA_GITHUB_APP"] == "1"
   GithubAppCredentials.define_singleton_method(:app_id) { '12345' }
   GithubAppCredentials.define_singleton_method(:slug) { 'synthetic-app' }
   GithubAppCredentials.define_singleton_method(:configured?) { true }
+  require_relative '../../api/test/support/fake_github_user_authorization_client'
+  GithubUserAuthorizationClient.define_singleton_method(:new) { |**| FakeGithubUserAuthorizationClient.new }
+  GithubAppCredentials.define_singleton_method(:client_id) { 'synthetic-client' }
+  GithubAppCredentials.define_singleton_method(:oauth_configured?) { true }
+  GithubAppCredentials.define_singleton_method(:user_callback_url) { "http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/github-app/authorize" }
 end

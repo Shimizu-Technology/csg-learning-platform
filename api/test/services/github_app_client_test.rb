@@ -30,7 +30,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
         return Response.new(201, { "token" => "synthetic-token-#{@tokens}", "expires_at" => (token_expiry || 1.hour.from_now).iso8601 })
       end
       if url.end_with?("/app/installations/123")
-        return Response.new(200, { "app_id" => wrong_app ? 99 : 12345, "suspended_at" => suspended ? Time.current.iso8601 : nil })
+        return Response.new(200, { "id" => 123, "account" => { "id" => 24680, "login" => "app-learner", "type" => "User" }, "repository_selection" => "selected", "permissions" => {}, "app_id" => wrong_app ? 99 : 12345, "suspended_at" => suspended ? Time.current.iso8601 : nil })
       end
       return Response.new(403, { "message" => "SECRET provider details" }) if revoked
       if unauthorized
@@ -44,7 +44,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
       if url.end_with?("/check-runs")
         return Response.new(200, { "total_count" => 0, "check_runs" => [] })
       end
-      Response.new(200, { "id" => 98765, "full_name" => "app-learner/prework-exercises", "owner" => { "login" => "app-learner", "type" => "User" } })
+      Response.new(200, { "id" => 98765, "full_name" => "app-learner/prework-exercises", "fork" => false, "owner" => { "id" => 24680, "login" => "app-learner", "type" => "User" } })
     end
   end
 
@@ -116,6 +116,31 @@ class GithubAppClientTest < ActiveSupport::TestCase
     assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }
     assert_equal 1, token_calls.size
     assert_equal 1, @transport.calls.size
+  end
+
+  test "unexpected provider bodies become generic errors at every public boundary" do
+    [ {}, [], { "token" => "SECRET" } ].each do |body|
+      [ :installation, :repository, :files, :checks ].each do |operation|
+        transport = Transport.new
+        original = transport.method(:request)
+        transport.define_singleton_method(:request) do |method, url, options|
+          url.end_with?("/access_tokens") ? original.call(method, url, options) : Response.new(200, body)
+        end
+        client = GithubAppClient.new(transport: transport, credentials: Credentials.new("12345", "app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+        error = assert_raises(GithubAppClient::Error) do
+          case operation
+          when :installation then client.installation(123)
+          when :repository then client.repository(installation: @installation, full_name: "app-learner/prework-exercises")
+          when :files then client.files(installation: @installation, repository: { "id" => 98765, "full_name" => "app-learner/prework-exercises" }, filenames: [ "111.rb" ])
+          when :checks then client.checks(installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises", sha: "a" * 40, page: 1)
+          end
+        end
+        assert_equal GithubAppClient::PROVIDER_ERROR, error.message
+      end
+    end
+    @transport.define_singleton_method(:post) { |*args, **kwargs| Response.new(201, {}) }
+    error = assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }
+    assert_equal GithubAppClient::PROVIDER_ERROR, error.message
   end
 
   private

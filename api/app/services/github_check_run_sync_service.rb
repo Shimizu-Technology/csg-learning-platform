@@ -9,13 +9,15 @@ class GithubCheckRunSyncService
   end
 
   def call
-    return failure("GitHub checks are disabled for this course") unless FeatureSwitches.for(cohort: submission.enrollment&.cohort)["github_sync"]
+    cohort = submission.enrollment&.cohort
+    features = FeatureSwitches.for(cohort: cohort)
+    return failure("GitHub checks are disabled for this course") unless features["github_sync"]
 
     owner, repository = repository_coordinates
     return failure("A GitHub repository URL is required before checks can be refreshed") unless owner && repository
     return failure("A commit SHA is required before checks can be refreshed") if submission.commit_sha.blank?
 
-    if GithubRepositoryAccess.enabled?(submission.enrollment&.cohort)
+    if cohort && features["github_app"] == true
       @app_binding = GithubRepositoryAccess.binding_for(enrollment: submission.enrollment, curriculum_module_id: submission.content_block.lesson.module_id)
       return failure("Verify a repository binding before refreshing checks") unless @app_binding
       return failure("Submission repository does not match the verified binding") unless @app_binding.full_name.casecmp?("#{owner}/#{repository}")

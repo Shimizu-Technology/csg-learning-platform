@@ -4356,6 +4356,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Concurrent binding save; reload and retry"
           }
         },
         "requestBody": {
@@ -4419,6 +4422,73 @@
                 "schema": {
                   "$ref": "#/components/schemas/GithubRepositoryBindingResponse"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/github_identity/prepare": {
+      "post": {
+        "summary": "Prepare one-use GitHub user authorization for own active App-enabled enrollment",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubIdentityPrepareResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/github_identity/callback": {
+      "post": {
+        "summary": "Prove own GitHub identity with signed state and server-side PKCE token exchange",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubIdentityConnectResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state",
+                  "code"
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -9766,6 +9836,9 @@
                 "type": "null"
               }
             ]
+          },
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
           }
         },
         "required": [
@@ -9836,6 +9909,9 @@
           },
           "role": {
             "type": "string"
+          },
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
           }
         },
         "required": [
@@ -25268,6 +25344,12 @@
               "string",
               "null"
             ]
+          },
+          "github_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -25281,7 +25363,8 @@
           "verification_state",
           "failure_reason",
           "verified_at",
-          "checked_at"
+          "checked_at",
+          "github_user_id"
         ],
         "additionalProperties": false
       },
@@ -25357,12 +25440,82 @@
             "items": {
               "$ref": "#/components/schemas/GithubBindingModule"
             }
+          },
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
+          },
+          "can_connect_github": {
+            "type": "boolean"
           }
         },
         "required": [
           "bindings",
           "installations",
-          "modules"
+          "modules",
+          "github_identity",
+          "can_connect_github"
+        ],
+        "additionalProperties": false
+      },
+      "GithubIdentity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "login": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "login",
+          "verified_at"
+        ],
+        "additionalProperties": false
+      },
+      "GithubIdentityPrepareResponse": {
+        "type": "object",
+        "properties": {
+          "authorization_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "additionalProperties": false
+      },
+      "GithubIdentityConnectResponse": {
+        "type": "object",
+        "properties": {
+          "github_identity": {
+            "$ref": "#/components/schemas/GithubIdentity"
+          },
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "github_identity",
+          "enrollment_id",
+          "cohort_id"
         ],
         "additionalProperties": false
       }

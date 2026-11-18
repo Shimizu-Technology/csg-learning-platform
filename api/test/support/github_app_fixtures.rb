@@ -22,7 +22,8 @@ module GithubAppFixtures
     @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @enrollment = Enrollment.create!(cohort: @cohort, user: @student, status: :active)
     SchoolSetting.current.update!(features: { github_app: true })
-    @installation = @cohort.github_app_installations.create!(app_id: 12345, installation_id: 123, account_id: 456, account_login: "app-learner", account_type: "User", repository_selection: "selected", connected_at: Time.current, checked_at: Time.current)
+    @installation = @cohort.github_app_installations.create!(app_id: 12345, installation_id: 123, account_id: 24680, account_login: "app-learner", account_type: "User", repository_selection: "selected", connected_at: Time.current, checked_at: Time.current)
+    @student.record_verified_github_identity!(id: "24680", login: "app-learner")
     @binding = @enrollment.github_repository_bindings.create!(github_app_installation: @installation, full_name: "app-learner/prework-exercises")
     @fake = FakeGithubAppClient.new
   end

@@ -1,3 +1,4 @@
+import { GithubIdentityCallback } from './pages/student/GithubIdentityCallback'
 import { GithubAppSetup } from './pages/admin/GithubAppSetup'
 import { NotFoundRoute } from './components/shared/NotFound'
 import { NoAccess } from './components/shared/NoAccess'
@@ -142,6 +143,7 @@ function AppRoutes() {
             <Route path="/materials" element={<SuspendedRoute><LearnRoute /></SuspendedRoute>} />
             <Route path="/modules/:id" element={<SuspendedRoute><ModuleRoute /></SuspendedRoute>} />
             <Route path="/lessons/:id" element={<SuspendedRoute><LessonView /></SuspendedRoute>} />
+            <Route path="/github-app/authorize" element={<GithubIdentityCallback />} />
             <Route path="/github-app/setup" element={<GithubAppSetup />} />
             <Route path="/profile" element={<SuspendedRoute><Profile /></SuspendedRoute>} />
             <Route path="/recordings" element={<SuspendedRoute><Recordings /></SuspendedRoute>} />

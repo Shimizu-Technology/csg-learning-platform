@@ -13,9 +13,10 @@ class GithubSyncService
   # new block ids, so the enrollment guard refuses the sync (content_moved,
   # raised to the caller) instead of saving on the shared blocks.
   def sync_student(user:, cohort:, curriculum_module:, repository_name_override: nil, request_started_at: Time.current)
-    return { synced: 0, errors: [ "GitHub sync is disabled for this course" ] } unless FeatureSwitches.for(cohort: cohort)["github_sync"]
+    features = @sync_cohort_id == cohort.id ? @cohort_features : FeatureSwitches.for(cohort: cohort)
+    return { synced: 0, errors: [ "GitHub sync is disabled for this course" ] } unless features["github_sync"]
 
-    app_enabled = GithubRepositoryAccess.enabled?(cohort)
+    app_enabled = features["github_app"] == true
     errors = []
     repo_name = repository_name_override.presence || cohort.repository_name
     enrollment = app_enabled && @app_enrollments ? @app_enrollments[user.id] : user.enrollments.find_by(cohort: cohort)
@@ -159,9 +160,11 @@ class GithubSyncService
   # Sync all active students in a cohort for a given module
   def sync_cohort_module(cohort:, curriculum_module:, repository_name_override: nil, request_started_at: Time.current)
     results = {}
+    @sync_cohort_id = cohort.id
+    @cohort_features = FeatureSwitches.for(cohort: cohort)
 
     enrollments = cohort.enrollments.active.includes(:user)
-    if GithubRepositoryAccess.enabled?(cohort)
+    if @cohort_features["github_app"] == true
       enrollments = enrollments.includes(github_repository_bindings: [ :github_app_installation, :curriculum_module ])
       @app_enrollments = enrollments.index_by(&:user_id)
       @app_enrollments.each_value { |row| row.cohort = cohort }
@@ -178,6 +181,8 @@ class GithubSyncService
     results
   ensure
     @app_enrollments = nil
+    @cohort_features = nil
+    @sync_cohort_id = nil
   end
 
   private

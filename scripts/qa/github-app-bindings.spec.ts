@@ -61,10 +61,10 @@ for (const theme of ['light', 'dark'] as const) {
       await region.getByRole('button', { name: 'Confirm installation' }).click()
       await expect(region.getByText('Installation connected. Repository verification is now available.')).toBeVisible()
       await page.reload()
-      await expect(region.getByText('synthetic-school · Connected')).toBeVisible()
+      await expect(region.getByText('app-learner · Connected')).toBeVisible()
       const response = await page.request.get('/api/v1/cohorts/1/github_app_installations', { headers: headers() })
       const body = await response.json()
-      expect(body.installations[0]).toMatchObject({ app_id: 12345, installation_id: 70001, repository_selection: 'selected', account_login: 'synthetic-school' })
+      expect(body.installations[0]).toMatchObject({ app_id: 12345, installation_id: 70001, repository_selection: 'selected', account_login: 'app-learner' })
       expect(JSON.stringify(body)).not.toMatch(/private_key|webhook_secret|access_token/)
       await evidence(page, 'installation', info.project.name, theme)
       await region.getByRole('button', { name: 'Prepare installation' }).click()
@@ -84,6 +84,12 @@ for (const theme of ['light', 'dark'] as const) {
     })
 
     test('G02 default binding pending verified reload and API persisted identity', async ({ page }, info) => {
+      await open(page, '/profile', 3)
+      const own = page.getByRole('region', { name: 'QA Program · GitHub repository', exact: true })
+      await own.getByRole('button', { name: /^(Connect|Reconnect) GitHub$/ }).click()
+      await page.getByRole('link', { name: 'Continue as app-learner' }).click()
+      await page.getByRole('button', { name: 'Confirm GitHub identity', exact: true }).click()
+      await expect(page.getByRole('status').filter({ hasText: 'GitHub connected as app-learner' })).toBeVisible()
       await open(page, '/admin/cohorts/1/students/3/access')
       const region = page.getByRole('region', { name: 'GitHub repository', exact: true })
       await region.getByRole('textbox', { name: 'Repository (owner/name)' }).fill('app-learner/prework-exercises')
@@ -106,7 +112,7 @@ for (const theme of ['light', 'dark'] as const) {
       await open(page, '/admin/cohorts/1/students/3/access')
       const region = page.getByRole('region', { name: 'GitHub repository', exact: true })
       const row = region.getByRole('listitem').filter({ hasText: 'Enrollment default' })
-      for (const [name, reason] of [['wrong-owner/prework-exercises', "Repository must belong"], ['app-learner/unselected', 'check selected repositories']]) {
+      for (const [name, reason] of [['wrong-owner/prework-exercises', "Repository must belong"], ['app-learner/unselected', 'check selected repositories'], ['victim-gh/prework-exercises', 'verified GitHub identity'], ['app-learner/forked-repo', 'Forked repositories']]) {
         await region.getByRole('textbox', { name: 'Repository (owner/name)' }).fill(name)
         await region.getByRole('button', { name: 'Save repository', exact: true }).click()
         await expect(row.getByText('Pending verification')).toBeVisible()
@@ -145,6 +151,9 @@ for (const theme of ['light', 'dark'] as const) {
     test('G05 learner own profile verifies and instructor other learner get uniform 404', async ({ page }) => {
       await open(page, '/profile', 3)
       const region = page.getByRole('region', { name: 'QA Program · GitHub repository', exact: true })
+      await expect(page.getByRole('textbox', { name: 'GitHub username', exact: true })).toBeDisabled()
+      const impersonate = await page.request.patch('/api/v1/profile', { headers: headers(3), data: { github_username: 'victim-gh' } })
+      expect(impersonate.status()).toBe(422)
       const row = region.getByRole('listitem').filter({ hasText: 'Enrollment default' })
       await row.getByRole('button', { name: 'Verify repository', exact: true }).click()
       await expect(row.getByText('Verified', { exact: true })).toBeVisible()

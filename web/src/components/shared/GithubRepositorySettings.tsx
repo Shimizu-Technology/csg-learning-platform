@@ -24,9 +24,19 @@ export function GithubRepositorySettings({ enrollmentId, title = 'GitHub reposit
   useEffect(() => { void load() }, [load])
   return <section className="app-surface space-y-4 p-5 sm:p-6" aria-label={title}>
     <h2 className="text-lg font-bold">{title}</h2>
-    <p className="text-sm text-ink-secondary">Use the learner’s personal repository. Its owner must match the GitHub username on their profile. An administrator must connect an installation with access to it first.</p>
+    <p className="text-sm text-ink-secondary">Connect GitHub to prove the learner’s identity. Use an original personal repository and an installation for that account. Forks and organization repositories are not accepted.</p>
     {!data && <Button variant="secondary" onClick={() => void load()}>Reload repositories</Button>}
     {data && <>
+      {data.github_identity.id ? <p className="text-sm text-success-ink">GitHub identity verified: <strong>{data.github_identity.login}</strong></p> : <p className="text-sm text-ink-secondary">The learner must connect GitHub from their profile before a repository can be verified.</p>}
+      {data.can_connect_github && <Button variant="secondary" disabled={busy} onClick={async () => {
+        setBusy(true); setMessage('')
+        try {
+          const result = await api.prepareGithubIdentity(enrollmentId)
+          if (!result.data) throw new Error(result.error || 'Could not start GitHub authorization. Try again.')
+          window.location.assign(result.data.authorization_url)
+        } catch (error) { setMessage((error as Error).message); setBusy(false) }
+      }}>{data.github_identity.id ? 'Reconnect GitHub' : 'Connect GitHub'}</Button>}
+
       <ul className="space-y-3">{data.bindings.map(binding => <li key={binding.id} className="space-y-2 rounded-xl border border-line p-4">
         <p className="break-all font-semibold">{binding.full_name}</p>
         <p className="text-sm text-ink-secondary">{binding.curriculum_module_id ? data.modules.find(mod => mod.id === binding.curriculum_module_id)?.name || 'Module' : 'Enrollment default'} · <strong className={binding.verification_state === 'verified' ? 'text-success-ink' : binding.verification_state === 'failed' ? 'text-danger-ink' : ''}>{binding.verification_state === 'verified' ? 'Verified' : binding.verification_state === 'failed' ? 'Failed' : 'Pending verification'}</strong></p>
@@ -47,7 +57,7 @@ export function GithubRepositorySettings({ enrollmentId, title = 'GitHub reposit
           <Button variant="quiet" disabled={busy} onClick={() => { setName(binding.full_name); setModuleId(String(binding.curriculum_module_id || '')); setInstallation(String(binding.github_app_installation_id)); setMessage('Edit the repository below, then save and verify again.') }}>Edit repository</Button>
         </div>
       </li>)}</ul>
-      {!data.installations.length ? <p className="text-sm text-ink-secondary">Ask an administrator to connect a GitHub installation for this cohort.</p> : <form className="space-y-3 border-t border-line pt-4" onSubmit={async event => {
+      {!data.installations.length ? <p className="text-sm text-ink-secondary">After connecting GitHub, ask an administrator to connect your personal GitHub installation for this cohort.</p> : <form className="space-y-3 border-t border-line pt-4" onSubmit={async event => {
         event.preventDefault(); setBusy(true); setMessage('')
         try {
           const result = await api.saveGithubRepositoryBinding(enrollmentId, { full_name: name.trim(), github_app_installation_id: Number(installation), curriculum_module_id: moduleId ? Number(moduleId) : null })

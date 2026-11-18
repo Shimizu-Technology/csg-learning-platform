@@ -1213,6 +1213,9 @@ Configure these API environment variables, or the equivalent Rails credentials:
 | `GITHUB_APP_ID` | `github_app.id` |
 | `GITHUB_APP_SLUG` | `github_app.slug` |
 | `GITHUB_APP_PRIVATE_KEY` | `github_app.private_key` |
+| `GITHUB_APP_CLIENT_ID` | `github_app.client_id` |
+| `GITHUB_APP_CLIENT_SECRET` | `github_app.client_secret` |
+| `GITHUB_APP_USER_CALLBACK_URL` (optional override) | `github_app.user_callback_url` |
 
 The private key may contain literal newlines or escaped `\n`. Keep it in the
 secret store. Installation tokens are minted with RS256 JWTs and cached in
@@ -1226,18 +1229,40 @@ personal GitHub accounts. Request repository **Contents: read**, **Checks: read*
 and **Metadata: read** (automatic). Prefer selected repositories. Set the App's
 Setup URL to `https://learn.codeschoolofguam.com/github-app/setup` (replace the
 origin for a separate pilot). This is an authenticated web callback, not a
-webhook. Clerk remains login; no OAuth client secret or organization-membership
-permission is needed. In cohort Settings, prepare the installation, open GitHub,
+webhook. Register **User authorization callback URL** separately as
+`https://learn.codeschoolofguam.com/github-app/authorize`. The default callback
+uses `FRONTEND_URL` plus `/github-app/authorize`; the optional override must use
+HTTPS (HTTP loopback is allowed outside production). Keep automatic user
+authorization during installation disabled: installation setup and user
+identity authorization use separate state purposes. Clerk remains Learn login;
+GitHub authorization proves repository ownership. No additional user or
+organization-membership permission is required.
+
+In cohort Settings, prepare the installation, open GitHub,
 and confirm the callback. An admin can also confirm an installation ID manually
 using that same prepared state. Reconnect through the same flow after revoked
 access. A learner's personal installation may require the learner to grant
 access on GitHub and share the installation ID with the admin.
 
+The learner first selects **Connect GitHub** in Profile, authorizes their own
+account on GitHub, and confirms the returned identity. The server uses a
+10-minute authenticated encrypted state bound to the Learn user, enrollment,
+client and callback, a one-use nonce, and S256 PKCE. OAuth access/refresh tokens
+are used only in memory to read `/user`. Only the verified numeric user ID,
+login and timestamp are saved; no token or OAuth secret is stored or returned.
+Verified IDs are unique across Learn users; duplicate legacy usernames are
+untouched. Verified usernames require Reconnect GitHub to change, which resets
+binding verification. App-enabled users without proof cannot verify or sync.
+Unverified Off cohorts still trust the self-entered username, as before.
+
 In student Access (admin), or Profile (learner), save `owner/repository` as an
 enrollment default or a module override, then Verify. A module binding takes
 precedence even while pending/failed; it never silently falls back to a different
 repository. Verification checks installation access, the numeric repository ID,
-and ownership by the profile's current GitHub username. Changed identity,
+and ownership by the OAuth-proven GitHub user ID. The personal installation's
+account ID and repository owner's ID must both equal that ID. Learners see only
+their own personal installations. **Forks and organization-owned repositories
+are refused**; this slice has no staff approval override. Changed identity,
 renames/transfers and removed access require explicit re-verification/rebinding.
 Old submission URLs are not backfilled. Source reads compare GraphQL `fullDatabaseId`
 with the numeric binding and do not follow renames. Manual source sync and check refresh use
@@ -1252,7 +1277,8 @@ Add **Issues: write** for the feedback slice. **Actions: read** is deferred unti
 workflow-run provenance requires it; repository contents write and organization
 membership administration are unnecessary.
 
-Provider contract references: [GitHub App JWTs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app),
+Provider contract references: [GitHub user authorization and PKCE](https://docs.github.com/en/enterprise-cloud@latest/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),
+[GitHub App JWTs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app),
 [installation tokens and repository restrictions](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app),
 [check-run reads](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference),
 and [GraphQL repository identity](https://docs.github.com/en/graphql/reference/repos#repository).

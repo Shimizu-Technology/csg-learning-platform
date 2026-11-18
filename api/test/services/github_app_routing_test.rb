@@ -48,11 +48,11 @@ class GithubAppRoutingTest < ActiveSupport::TestCase
     assert_equal "failed", @binding.reload.verification_state
     @fake.repository_owner = "app-learner"
     GithubRepositoryAccess.new(@binding.reload, client: @fake).verify!
-    @student.update!(github_username: "changed-learner")
+    @student.record_verified_github_identity!(id: "24680", login: "changed-learner")
     @fake.calls.clear
     assert_equal 0, service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)[:synced]
     assert_empty @fake.calls
-    @student.update!(github_username: "app-learner")
+    @student.record_verified_github_identity!(id: "24680", login: "app-learner")
     GithubRepositoryAccess.new(@binding.reload, client: @fake).verify!
     @fake.failure = GithubAppClient::Error.new("Repository access revoked", status: 403)
     assert_equal 0, service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)[:synced]

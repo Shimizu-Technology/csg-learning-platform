@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -552,6 +552,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_170000) do
     t.datetime "checked_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "github_user_id"
     t.index ["curriculum_module_id"], name: "index_github_repository_bindings_on_curriculum_module_id"
     t.index ["enrollment_id", "curriculum_module_id"], name: "index_github_bindings_on_enrollment_and_module", unique: true, where: "(curriculum_module_id IS NOT NULL)"
     t.index ["enrollment_id"], name: "index_github_bindings_on_enrollment_default", unique: true, where: "(curriculum_module_id IS NULL)"
@@ -1367,6 +1368,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_170000) do
     t.integer "role", default: 0, null: false
     t.datetime "updated_at", null: false
     t.boolean "web_push_notifications_enabled", default: true, null: false
+    t.string "github_user_id"
+    t.string "github_verified_login"
+    t.datetime "github_verified_at"
+    t.string "github_authorization_nonce_digest"
+    t.index "lower((github_user_id)::text)", name: "index_users_on_verified_github_user_id", unique: true, where: "(github_user_id IS NOT NULL)"
     t.index "to_tsvector('simple'::regconfig, (((((COALESCE(first_name, ''::character varying))::text || ' '::text) || (COALESCE(last_name, ''::character varying))::text) || ' '::text) || (COALESCE(handle, ''::character varying))::text))", name: "index_users_search_document", using: :gin
     t.index ["archived_at"], name: "index_users_on_archived_at"
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true

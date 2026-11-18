@@ -1,18 +1,21 @@
 # No transport calls. Shared by automated tests and the guarded local QA harness.
 class FakeGithubAppClient
   attr_reader :calls
-  attr_accessor :failure, :repository_owner
+  attr_accessor :failure, :repository_owner, :repository_owner_id, :fork, :owner_type
 
   def initialize
     @calls = []
     @repository_owner = "app-learner"
+    @repository_owner_id = 24680
+    @fork = false
+    @owner_type = "User"
   end
 
   def installation(id)
     @calls << [ :installation, id ]
     raise failure if failure
 
-    { "id" => id.to_i, "app_id" => 12345, "account" => { "id" => 24680, "login" => "synthetic-school", "type" => "Organization" }, "repository_selection" => "selected", "permissions" => { "contents" => "read", "checks" => "read", "metadata" => "read" } }
+    { "id" => id.to_i, "app_id" => 12345, "account" => { "id" => 24680, "login" => "app-learner", "type" => "User" }, "repository_selection" => "selected", "permissions" => { "contents" => "read", "checks" => "read", "metadata" => "read" } }
   end
 
   def repository(installation:, full_name:, repository_id: nil)
@@ -23,7 +26,7 @@ class FakeGithubAppClient
     end
     owner = full_name.start_with?("wrong-owner/") ? "wrong-owner" : repository_owner
     name = full_name.split("/").last
-    { "id" => repository_id || (name == "prework-exercises" ? 98765 : 98766), "full_name" => "#{owner}/#{name}", "owner" => { "login" => owner, "type" => "User" } }
+    { "id" => repository_id || (name == "prework-exercises" ? 98765 : 98766), "full_name" => "#{owner}/#{name}", "fork" => (fork || name == "forked-repo"), "owner" => { "id" => (owner == "wrong-owner" || full_name.start_with?("victim-gh/") ? 86420 : repository_owner_id), "login" => owner, "type" => owner_type } }
   end
 
   def files(installation:, repository:, filenames:)
