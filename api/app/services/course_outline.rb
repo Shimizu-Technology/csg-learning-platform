@@ -110,7 +110,7 @@ class CourseOutline
         key: "m#{mod.id}-#{index + 1}",
         label: group_label(week, index, grouped.size, lessons),
         week: program? ? week : nil,
-        opens_on: program? ? opens_on(mod, items) : nil,
+        opens_on: program? || personal_pace? ? opens_on(mod, items) : nil,
         available: items.any?(&:available),
         current: next_lesson.present? && items.any? { |entry| entry.lesson.id == next_lesson.id },
         this_week: false,

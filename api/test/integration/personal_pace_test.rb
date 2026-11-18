@@ -103,6 +103,7 @@ class PersonalPaceTest < ActionDispatch::IntegrationTest
     outline = fetch_outline(late)
     first = outline["modules"].first["groups"].first["lessons"].first
     assert_equal [ false, "2026-12-02", "upcoming" ], first.values_at("available", "opens_on", "status")
+    assert_equal [ "2026-12-02" ], outline["modules"].first["groups"].map { |group| group["opens_on"] }.uniq
     assert_equal "self_paced", outline["mode"]
     assert_equal({ "starts_on" => "2026-12-02", "weeks" => nil, "ends_on" => nil }, outline["personal_pace"])
 

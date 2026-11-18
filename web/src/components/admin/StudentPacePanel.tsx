@@ -110,7 +110,7 @@ export function StudentPacePanel({ enrollmentId, onSaved }: { enrollmentId: numb
         <ol className="flex flex-wrap gap-2" aria-label="Weekly targets">
           {pace.milestones.map((milestone, index) => (
             <li key={`${milestone.title}-${index}`}>
-              <Badge tone={milestone.status === 'done' ? 'success' : milestone.status === 'behind' ? 'warning' : milestone.status === 'current' ? 'brand' : 'neutral'}>
+              <Badge tone={milestone.status === 'done' ? 'success' : milestone.status === 'behind' ? 'warning' : milestone.status === 'current' ? 'info' : 'neutral'}>
                 {milestone.title} · <span className="tabular-nums">{milestone.completed}/{milestone.total}</span>
               </Badge>
             </li>
