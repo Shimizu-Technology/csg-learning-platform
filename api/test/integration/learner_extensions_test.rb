@@ -43,8 +43,10 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     [ @student, person("outsider", :instructor) ].each do |actor|
       post @path, params: input, headers: headers(actor), as: :json
       assert_response :not_found
+      assert_equal({ "error" => "Not found" }, response.parsed_body)
       get @path, headers: headers(actor)
       assert_response :not_found
+      assert_equal({ "error" => "Not found" }, response.parsed_body)
     end
   end
 

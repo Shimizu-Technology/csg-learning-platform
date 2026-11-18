@@ -4,6 +4,9 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :set_enrollment
+      rescue_from ActiveRecord::RecordNotFound do
+        render json: { error: "Not found" }, status: :not_found
+      end
 
       def index
         render json: payload
