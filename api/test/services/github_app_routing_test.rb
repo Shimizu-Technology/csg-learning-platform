@@ -91,6 +91,11 @@ class GithubAppRoutingTest < ActiveSupport::TestCase
     original = HTTParty.method(:post)
     HTTParty.define_singleton_method(:post) { |url, **options| calls << [ url, options ]; response }
     service = GithubSyncService.new(github_token: "legacy-synthetic-token", app_client: @fake)
+    # The curriculum-copy concurrency suite prepends its own local provider.
+    # Bind the actual legacy method here to assert its HTTP bytes independently.
+    legacy_fetch = GithubSyncService.instance_method(:fetch_exercise_files)
+    legacy_fetch = legacy_fetch.super_method until legacy_fetch.owner == GithubSyncService
+    service.define_singleton_method(:fetch_exercise_files, legacy_fetch.bind(service))
     result = service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)
     assert_equal({ synced: 1, errors: [] }, result)
     assert_empty @fake.calls
