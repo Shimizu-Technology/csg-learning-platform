@@ -52,11 +52,11 @@ byte after W9.1 and after merging main. The new keys (`personal_pace`, and
 
 | Check | Result |
 |---|---|
-| New API tests: `personal_pace_test.rb` (14 tests: release, late joiner, staff start, choose/change/limit, staff override, editor takeover, auth, switch off, self-paced, digests, two QueryCounter growth tests) | Pass |
+| New API tests: `personal_pace_test.rb` (18 tests: release, late joiner, staff start, choose/change/limit, staff override, editor takeover, auth, switch off, self-paced, digests, two QueryCounter growth tests, and four regressions from the independent review) | Pass |
 | Golden parity test (above) | Pass |
 | Migration test (down, insert, up twice, defaults, check constraint, pooled caches cleared) | Pass |
 | Related suites locally (outline, Today, learning plans, paused read gates, guided/self-paced access, lesson read access, LearnerProgress, digests, OpenAPI contract, curriculum copy) | Pass |
-| Full API suite, prepared statements on and off, RuboCop, Brakeman, web and mobile gates on ASUS (`scripts/qa/w9-personal-pace-gate.sh`) | See "ASUS gate" below |
+| Full API suite, prepared statements on and off, RuboCop, Brakeman, web and mobile gates on ASUS (`scripts/qa/w9-personal-pace-gate.sh`) | Pass, 0 failed stages (see "ASUS gate") |
 | Web, local: typecheck, lint, vitest (249 files, 3,485 tests), build, `api:check` | Pass |
 | Mobile, local: typecheck, lint (0 errors, existing warnings), jest (141 suites, 1,809 tests) | Pass |
 
@@ -93,7 +93,50 @@ them were fixed and then retested:
 - An outline part captured mid-expand looked empty. The spec now waits for the
   expand to finish, and locked parts now say when they open.
 
-Final browser pass: see "Final pass" below.
+### Final pass
+
+Commit `c86806dd` (branch merged with `origin/main` at `a11925a6`, which
+includes #311). All 24 runs passed: 6 cases at 1280 and 390, in light and
+dark. The screenshots in the folder are from this pass.
+
+## ASUS gate
+
+`asus-test --postgres csg_learning_platform_test <repo> -- bash scripts/qa/w9-personal-pace-gate.sh`
+on `c86806dd` had 0 failed stages:
+
+- API: 2,320 runs, 44,135 assertions, 0 failures, 0 errors, 1 existing skip.
+  This held with prepared statements on and with `prepared_statements=false`,
+  using the runner's port adapter.
+- OpenAPI coverage: no untested responses and no unexercised schemas.
+- RuboCop: 803 files, no offenses. Brakeman: 0 security warnings.
+- Web: typecheck, lint, vitest (249 files), build, bundle check and `api:check`
+  all passed.
+- Mobile: typecheck, lint and jest (1,809 tests) all passed.
+
+An earlier run on the pre-merge head failed only on OpenAPI schema coverage.
+`PersonalPaceUpdateRequest` is a request-only schema, and it is now in the
+coverage exceptions.
+
+## Independent review
+
+A separate agent reviewed the diff and probed it with tests. It found three
+medium defects, and each now has a fix and a regression test:
+
+- A pace staff set before the learner's first open didn't follow the start
+  when the first open moved it.
+- Lessons held back by a staff module date were scheduled early and made the
+  learner "behind".
+- A staff start change for a paused learner saved but returned 422.
+
+It also found three smaller issues, all fixed:
+
+- The staff pace panel went stale after a plan-editor save.
+- "Set pace" stayed enabled over a staff plan.
+- Exceptions copied from an inactive plan could block a save.
+
+The review found nothing material in authorization, double-submit, off-cohort
+parity, date math, `LessonReadAccess.lookup` strict loading or query counts.
+CodeRabbit reviews the PR.
 
 ### Not covered here
 
