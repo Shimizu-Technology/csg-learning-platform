@@ -12,6 +12,7 @@ module LocalHTTPOnly
     super
   end
 end
+
 Net::HTTP.prepend(LocalHTTPOnly)
 require_relative '../../api/config/environment'
 ActiveJob::Base.queue_adapter = :test
@@ -58,4 +59,27 @@ if ENV["QA_GITHUB_APP"] == "1"
   GithubAppCredentials.define_singleton_method(:client_id) { 'synthetic-client' }
   GithubAppCredentials.define_singleton_method(:oauth_configured?) { true }
   GithubAppCredentials.define_singleton_method(:user_callback_url) { "http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/github-app/authorize" }
+end
+
+# Revision acceptance uses the same fake provider boundary, controlled by an
+# owned local fixture file. Preserve the loopback DB and HTTP guards above.
+if ENV["QA_GITHUB_REVISIONS"] == "1"
+  require_relative '../../api/test/support/fake_github_app_client'
+  GithubAppClient.define_singleton_method(:new) do |**|
+    data = JSON.parse(File.read(Rails.root.join('../.qa-local/github-submitted-source.json')))
+    FakeGithubAppClient.new.tap do |client|
+      client.source_text = data.fetch('text')
+      client.commit_sha = data.fetch('sha')
+    end
+  end
+  # A synthetic token satisfies the legacy controller's presence check only.
+  Api::V1::CohortGradingController.define_method(:resolve_github_token) { 'synthetic-local-only' }
+  GithubSyncService.prepend(Module.new do
+    private
+
+    def fetch_exercise_files(_owner, _repo_name, filenames)
+      data = JSON.parse(File.read(Rails.root.join('../.qa-local/github-submitted-source.json')))
+      { files: filenames.map { |name| { 'name' => name, 'text' => data.fetch('text') } }, commit_hash: data.fetch('sha'), error: nil }
+    end
+  end)
 end

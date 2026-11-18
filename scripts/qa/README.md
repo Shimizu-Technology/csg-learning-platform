@@ -366,3 +366,17 @@ is in `.qa-local/github-app-bindings/`; use `scripts/qa/run clean` afterward.
 The full secret-free ASUS gate remains `scripts/qa/first-run-states-gate.sh`,
 including both API prepared-statement modes and its migration subprocess port
 adapter.
+
+### Submitted GitHub revisions (X-6 slice 3)
+
+Start a fresh owned harness with `QA_GITHUB_REVISIONS=1 scripts/qa/run start`.
+From `api/`, run `DATABASE_URL=postgresql://localhost/<owned qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/github-submitted-revisions-fixtures.rb setup`.
+Then run `QA_SPEC=github-submitted-revisions.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts` from the root.
+
+The eight cases cover sync, grading, changed content, preserved prior grades and
+feedback, read-only prior attempts, identical content at a new SHA, and legacy Off
+behavior at 390/1280 in light/dark. The provider reads only an owned synthetic
+source file; no real push, GitHub request, check evaluation, or issue delivery is
+performed. Each case resets only the fixture's two exercises. Evidence stays in
+`.qa-local/github-submitted-revisions/`. Finish with `scripts/qa/run clean` and
+lifecycle cleanup. See `docs/qa/github-submitted-revisions-2026-11-18.md`.

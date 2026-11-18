@@ -87,4 +87,17 @@ class Submission < ApplicationRecord
 
   validates :content_block_id, presence: true
   validates :user_id, presence: true
+  validate :preserve_captured_github_revision, on: :update
+
+  private
+
+  def preserve_captured_github_revision
+    return if github_revision_in_database.blank?
+
+    # Grades, feedback, rubric results and issue delivery can still be saved.
+    # Curriculum copies remap block ids without changing the captured evidence.
+    if %w[github_revision text commit_sha branch github_code_url num_submissions].any? { |field| will_save_change_to_attribute?(field) }
+      errors.add(:base, "Submitted GitHub source is immutable; sync changed content as a new attempt")
+    end
+  end
 end

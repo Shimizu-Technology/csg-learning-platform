@@ -11,7 +11,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
 
   class Transport
     attr_reader :calls
-    attr_accessor :unauthorized, :revoked, :unselected, :token_expiry, :suspended, :wrong_app, :graphql_repository_id
+    attr_accessor :unauthorized, :revoked, :unselected, :token_expiry, :suspended, :wrong_app, :graphql_repository_id, :source_truncated, :source_byte_size
     def initialize
       @calls = []
       @tokens = 0
@@ -39,7 +39,8 @@ class GithubAppClientTest < ActiveSupport::TestCase
       end
       if url.end_with?("/graphql")
         return Response.new(200, { "data" => { "repository" => { "fullDatabaseId" => (graphql_repository_id || 98765).to_s,
-          "defaultBranchRef" => { "target" => { "oid" => "c" * 40 } }, "file_0" => { "text" => "puts 'source'" } } } })
+          "defaultBranchRef" => { "name" => "main", "target" => { "oid" => "c" * 40 } },
+          "file_0" => { "text" => "puts 'source'", "byteSize" => source_byte_size || "puts 'source'".bytesize, "isTruncated" => source_truncated || false } } } })
       end
       if url.end_with?("/check-runs")
         return Response.new(200, { "total_count" => 0, "check_runs" => [] })
@@ -102,10 +103,14 @@ class GithubAppClientTest < ActiveSupport::TestCase
     result = @client.files(installation: @installation, repository: repository, filenames: [ "nested/111.rb" ])
     assert_equal [ { "name" => "nested/111.rb", "text" => "puts 'source'" } ], result[:files]
     assert_equal "c" * 40, result[:commit_hash]
+    assert_equal "main", result[:branch]
     assert_nil result[:error]
     query = JSON.parse(@transport.calls.last[2].fetch(:body)).fetch("query")
     assert_includes query, "fullDatabaseId"
     assert_includes query, "followRenames: false"
+    assert_includes query, "#{'c' * 40}:nested/111.rb"
+    refute_includes query, "HEAD:"
+    assert_equal 2, @transport.calls.count { |call| call[1].end_with?("/graphql") }
     assert_equal [ 4_000_000_000 ], JSON.parse(token_calls.sole[2].fetch(:body)).fetch("repository_ids")
     @transport.graphql_repository_id += 1
     assert_raises(GithubAppClient::Error) { @client.files(installation: @installation, repository: repository, filenames: [ "nested/111.rb" ]) }
@@ -116,6 +121,17 @@ class GithubAppClientTest < ActiveSupport::TestCase
     assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }
     assert_equal 1, token_calls.size
     assert_equal 1, @transport.calls.size
+  end
+
+  test "truncated or incomplete text cannot be presented as immutable full source" do
+    repository = { "id" => 98765, "full_name" => "app-learner/prework-exercises" }
+    @transport.source_truncated = true
+    error = assert_raises(GithubAppClient::Error) { @client.files(installation: @installation, repository: repository, filenames: [ "111.rb" ]) }
+    assert_match "truncated source", error.message
+    @transport.source_truncated = false
+    @transport.source_byte_size = 100
+    error = assert_raises(GithubAppClient::Error) { @client.files(installation: @installation, repository: repository, filenames: [ "111.rb" ]) }
+    assert_match "complete UTF-8 source", error.message
   end
 
   test "unexpected provider bodies become generic errors at every public boundary" do

@@ -6574,6 +6574,53 @@
               "number",
               "null"
             ]
+          },
+          "github_revision": {
+            "type": "object",
+            "description": "Included only for staff when an immutable GitHub revision was captured. Source is retained in text; historical attempts omit this field.",
+            "properties": {
+              "version": {
+                "type": "integer",
+                "const": 1
+              },
+              "binding_id": {
+                "type": "integer"
+              },
+              "repository_id": {
+                "type": "integer"
+              },
+              "repository_full_name": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "content_digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "source_bytes": {
+                "type": "integer"
+              },
+              "captured_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "version",
+              "binding_id",
+              "repository_id",
+              "repository_full_name",
+              "paths",
+              "content_digest",
+              "source_bytes",
+              "captured_at"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

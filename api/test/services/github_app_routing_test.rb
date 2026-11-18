@@ -21,7 +21,9 @@ class GithubAppRoutingTest < ActiveSupport::TestCase
     GithubRepositoryAccess.new(override, client: @fake).verify!
     result = service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)
     assert_empty result[:errors]
-    assert_match "app-learner/module-repo/blob", submission.reload.github_code_url
+    # Identical source in another binding never moves the captured revision.
+    assert_equal 0, result[:synced]
+    assert_match "app-learner/prework-exercises/blob", submission.reload.github_code_url
   end
 
   test "checks use exact submitted SHA through App only when repository matches binding" do

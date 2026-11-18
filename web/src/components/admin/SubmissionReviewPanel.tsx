@@ -371,6 +371,13 @@ export function SubmissionReviewPanel({
         {submission.grade && <GradeDisplay grade={submission.grade} size="md" />}
       </header>
       </>}
+      {submission.github_revision && (
+        <p className="break-words text-sm text-ink-secondary">
+          Submitted revision <code>{submission.commit_sha?.slice(0, 8)}</code>
+          {' · '}<time dateTime={submission.github_revision.captured_at}>{formatShortDateTime(submission.github_revision.captured_at)}</time>
+          {' · '}{submission.github_revision.paths.join(', ')}
+        </p>
+      )}
       {showRecordLink && (
         <Link
           className="app-link inline-flex min-h-11 items-center gap-2 text-sm"
@@ -437,7 +444,7 @@ export function SubmissionReviewPanel({
           </div>
         ) : (
           <p className="text-sm text-ink-muted">
-            No inline code submitted. Review the links and notes above.
+            {submission.github_revision ? 'The captured file is empty.' : 'No inline code submitted. Review the links and notes above.'}
           </p>
         )}
       </div>
@@ -529,6 +536,8 @@ export function SubmissionReviewPanel({
                 ? 'Latest'
                 : 'Previous'}{' '}
             · {gradeLabel(attempt.grade) || 'Waiting for review'}
+            {attempt.github_revision && <> · {attempt.commit_sha?.slice(0, 8)} · {formatShortDateTime(attempt.github_revision.captured_at)}</>}
+            {submission.github_revision && !attempt.github_revision && <> · Historical source; revision not captured</>}
           </Link>
         ))}
       </details>

@@ -1,7 +1,7 @@
 # No transport calls. Shared by automated tests and the guarded local QA harness.
 class FakeGithubAppClient
   attr_reader :calls
-  attr_accessor :failure, :repository_owner, :repository_owner_id, :fork, :owner_type
+  attr_accessor :failure, :repository_owner, :repository_owner_id, :fork, :owner_type, :source_text, :commit_sha
 
   def initialize
     @calls = []
@@ -9,6 +9,8 @@ class FakeGithubAppClient
     @repository_owner_id = 24680
     @fork = false
     @owner_type = "User"
+    @source_text = "puts 'synthetic source'"
+    @commit_sha = "a" * 40
   end
 
   def installation(id)
@@ -33,7 +35,7 @@ class FakeGithubAppClient
     @calls << [ :files, installation.id, repository.fetch("id"), filenames ]
     raise failure if failure
 
-    { files: filenames.map { |name| { "name" => name, "text" => "puts 'synthetic source'" } }, commit_hash: "a" * 40, error: nil }
+    { files: filenames.map { |name| { "name" => name, "text" => source_text } }, commit_hash: commit_sha, branch: "main", error: nil }
   end
 
   def checks(installation:, repository_id:, full_name:, sha:, page:)
