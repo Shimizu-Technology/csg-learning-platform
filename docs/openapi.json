@@ -4164,6 +4164,266 @@
           }
         }
       }
+    },
+    "/api/v1/cohorts/{cohort_id}/github_app_installations": {
+      "get": {
+        "summary": "List cohort installations (admin; both App gates required)",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppInstallationsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Confirm installation with admin/cohort-bound state",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string"
+                  },
+                  "installation_id": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "state",
+                  "installation_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/github_app_installations/prepare": {
+      "post": {
+        "summary": "Prepare signed installation state (admin; both gates required)",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppPrepareResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/github_app/setup": {
+      "post": {
+        "summary": "Confirm installation with admin/cohort-bound state",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubAppConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string"
+                  },
+                  "installation_id": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "state",
+                  "installation_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings": {
+      "get": {
+        "summary": "List own or admin-managed enrollment bindings (both gates required)",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubRepositoryBindingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Save or verify own or admin-managed enrollment repository binding",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubRepositoryBindingResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "full_name": {
+                    "type": "string"
+                  },
+                  "github_app_installation_id": {
+                    "type": "integer"
+                  },
+                  "curriculum_module_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "full_name",
+                  "github_app_installation_id",
+                  "curriculum_module_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings/{id}/verify": {
+      "post": {
+        "summary": "Save or verify own or admin-managed enrollment repository binding",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubRepositoryBindingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9311,6 +9571,10 @@
               "string",
               "null"
             ]
+          },
+          "github_app_enabled": {
+            "type": "boolean",
+            "description": "Included when this enrollment has GitHub App access enabled."
           }
         },
         "required": [
@@ -24814,6 +25078,291 @@
         },
         "required": [
           "editor_preferences"
+        ],
+        "additionalProperties": false
+      },
+      "GithubAppInstallation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "app_id": {
+            "type": "integer"
+          },
+          "installation_id": {
+            "type": "integer"
+          },
+          "account_id": {
+            "type": "integer"
+          },
+          "account_login": {
+            "type": "string"
+          },
+          "account_type": {
+            "type": "string",
+            "enum": [
+              "User",
+              "Organization"
+            ]
+          },
+          "repository_selection": {
+            "type": "string",
+            "enum": [
+              "all",
+              "selected"
+            ]
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "connection_state": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "failed"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connected_at": {
+            "type": "string"
+          },
+          "checked_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "app_id",
+          "installation_id",
+          "account_id",
+          "account_login",
+          "account_type",
+          "repository_selection",
+          "permissions",
+          "connection_state",
+          "failure_reason",
+          "connected_at",
+          "checked_at"
+        ],
+        "additionalProperties": false
+      },
+      "GithubAppInstallationsResponse": {
+        "type": "object",
+        "properties": {
+          "installations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubAppInstallation"
+            }
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "installations",
+          "configured"
+        ],
+        "additionalProperties": false
+      },
+      "GithubAppPrepareResponse": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "installation_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "installation_url"
+        ],
+        "additionalProperties": false
+      },
+      "GithubAppConnectionResponse": {
+        "type": "object",
+        "properties": {
+          "installation": {
+            "$ref": "#/components/schemas/GithubAppInstallation"
+          },
+          "cohort_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "installation",
+          "cohort_id"
+        ],
+        "additionalProperties": false
+      },
+      "GithubRepositoryBinding": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "curriculum_module_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "github_app_installation_id": {
+            "type": "integer"
+          },
+          "repository_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "github_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification_state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "verified",
+              "failed"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verified_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "enrollment_id",
+          "curriculum_module_id",
+          "github_app_installation_id",
+          "repository_id",
+          "full_name",
+          "github_username",
+          "verification_state",
+          "failure_reason",
+          "verified_at",
+          "checked_at"
+        ],
+        "additionalProperties": false
+      },
+      "GithubRepositoryBindingResponse": {
+        "type": "object",
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/GithubRepositoryBinding"
+          }
+        },
+        "required": [
+          "binding"
+        ],
+        "additionalProperties": false
+      },
+      "GithubBindingInstallation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "account_login": {
+            "type": "string"
+          },
+          "connection_state": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "account_login",
+          "connection_state"
+        ],
+        "additionalProperties": false
+      },
+      "GithubBindingModule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "GithubRepositoryBindingsResponse": {
+        "type": "object",
+        "properties": {
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubRepositoryBinding"
+            }
+          },
+          "installations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubBindingInstallation"
+            }
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubBindingModule"
+            }
+          }
+        },
+        "required": [
+          "bindings",
+          "installations",
+          "modules"
         ],
         "additionalProperties": false
       }

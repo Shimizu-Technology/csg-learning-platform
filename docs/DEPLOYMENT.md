@@ -1198,3 +1198,62 @@ also records that retry timing. Push expiry after 24 hours is independent of
 fan-out completion, so a poisoned fan-out cannot retain an alert indefinitely.
 Settled fan-outs clear their stored recipient IDs. Archived updates stay archived;
 post a new update rather than restoring an interrupted archived publication.
+
+### GitHub App connections (X-6 slice 2)
+
+Leave `github_app` Off until the App and a disposable repository have been
+verified. App access requires **both** School Features → GitHub App access On
+and the cohort's feature override explicitly On. Inherit leaves the cohort Off.
+Existing cohorts continue using `GITHUB_ORGANIZATION_ADMIN_TOKEN`.
+
+Configure these API environment variables, or the equivalent Rails credentials:
+
+| ENV name | Rails credentials key |
+| --- | --- |
+| `GITHUB_APP_ID` | `github_app.id` |
+| `GITHUB_APP_SLUG` | `github_app.slug` |
+| `GITHUB_APP_PRIVATE_KEY` | `github_app.private_key` |
+
+The private key may contain literal newlines or escaped `\n`. Keep it in the
+secret store. Installation tokens are minted with RS256 JWTs and cached in
+process memory for at most five minutes, with a one-minute expiry margin. A 401
+invalidates the cached token and retries once. No key or token is stored in a row
+or sent to the browser. Rails `SECRET_KEY_BASE` must be stable for the signed
+15-minute setup state to survive API requests.
+
+Register the App for installation on **any account**, including learners'
+personal GitHub accounts. Request repository **Contents: read**, **Checks: read**,
+and **Metadata: read** (automatic). Prefer selected repositories. Set the App's
+Setup URL to `https://learn.codeschoolofguam.com/github-app/setup` (replace the
+origin for a separate pilot). This is an authenticated web callback, not a
+webhook. Clerk remains login; no OAuth client secret or organization-membership
+permission is needed. In cohort Settings, prepare the installation, open GitHub,
+and confirm the callback. An admin can also confirm an installation ID manually
+using that same prepared state. Reconnect through the same flow after revoked
+access. A learner's personal installation may require the learner to grant
+access on GitHub and share the installation ID with the admin.
+
+In student Access (admin), or Profile (learner), save `owner/repository` as an
+enrollment default or a module override, then Verify. A module binding takes
+precedence even while pending/failed; it never silently falls back to a different
+repository. Verification checks installation access, the numeric repository ID,
+and ownership by the profile's current GitHub username. Changed identity,
+renames/transfers and removed access require explicit re-verification/rebinding.
+Old submission URLs are not backfilled. Manual source sync and check refresh use
+the App only for these opted-in cohorts; issue delivery and organization
+invitations retain their existing paths in this slice.
+
+**Deferred configuration:** no events or webhook URL are required by slice 2;
+leave webhooks inactive. Slice 5 will need `GITHUB_APP_WEBHOOK_SECRET` (or
+`github_app.webhook_secret`) and the `check_run`, `push`, `installation`, and
+`installation_repositories` events. Do not enter the webhook secret into Learn.
+Add **Issues: write** for the feedback slice. **Actions: read** is deferred until
+workflow-run provenance requires it; repository contents write and organization
+membership administration are unnecessary.
+
+Provider contract references: [GitHub App JWTs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app),
+[installation tokens and repository restrictions](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app),
+[check-run reads](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference).
+Real App installation, personal/private-repository access and token revocation
+still require a disposable staging integration pass before rollout. The local
+QA harness simulates the client boundary and blocks external HTTP.

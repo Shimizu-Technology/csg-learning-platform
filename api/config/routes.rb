@@ -218,6 +218,8 @@ Rails.application.routes.draw do
         end
       end
 
+      post "github_app/setup", to: "github_app_installations#callback"
+
       # Cohorts with nested enrollments
       resources :cohorts, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
@@ -225,6 +227,9 @@ Rails.application.routes.draw do
         end
         post "setup_readiness", on: :member
         post "enrollments/bulk", to: "enrollments#bulk"
+        resources :github_app_installations, only: [ :index, :create ] do
+          post :prepare, on: :collection
+        end
         resources :enrollments, only: [ :index, :create ]
         resources :instructor_assignments, only: [ :index, :create, :destroy ], controller: "cohort_instructor_assignments" do
           patch :lesson_editing, on: :member
@@ -262,6 +267,9 @@ Rails.application.routes.draw do
 
       # Enrollments with access overrides
       resources :enrollments, only: [ :show, :update, :destroy ] do
+        resources :github_repository_bindings, only: [ :index, :create ] do
+          post :verify, on: :member
+        end
         resource :learning_plan, only: [ :show, :update ]
         resources :module_assignments, only: [ :index, :create ]
         resources :lesson_assignments, only: [ :index, :create ]

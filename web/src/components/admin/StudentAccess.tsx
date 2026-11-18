@@ -1,3 +1,4 @@
+import { GithubRepositorySettings } from '../shared/GithubRepositorySettings'
 import { useCallback, useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
@@ -235,6 +236,7 @@ export function StudentAccess({
   const assignments = new Map(enrollment.module_assignments.map((item) => [item.module_id, item]))
   return (
     <div className="space-y-6">
+      {staff?.is_admin && cohort.features?.github_app === true && enrollment.status === 'active' && <GithubRepositorySettings enrollmentId={enrollment.id} />}
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="app-surface p-5 sm:p-6">
           <h2 className="text-lg font-bold text-ink">Enrollment access</h2>

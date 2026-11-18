@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -500,6 +500,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
     t.check_constraint "usage_count >= 0", name: "feedback_snippets_usage_count_nonnegative"
   end
 
+  create_table "github_app_installations", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.bigint "app_id", null: false
+    t.bigint "installation_id", null: false
+    t.bigint "account_id", null: false
+    t.string "account_login", null: false
+    t.string "account_type", null: false
+    t.string "repository_selection", null: false
+    t.jsonb "permissions", default: {}, null: false
+    t.string "connection_state", default: "connected", null: false
+    t.string "failure_reason"
+    t.datetime "connected_at", null: false
+    t.datetime "checked_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cohort_id", "installation_id"], name: "index_github_installations_on_cohort_and_external_id", unique: true
+    t.index ["cohort_id"], name: "index_github_app_installations_on_cohort_id"
+  end
+
   create_table "github_check_runs", force: :cascade do |t|
     t.string "app_slug"
     t.datetime "completed_at"
@@ -518,6 +537,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
     t.index ["submission_id", "external_id"], name: "index_github_check_runs_on_submission_id_and_external_id", unique: true
     t.index ["submission_id", "head_sha"], name: "index_github_check_runs_on_submission_id_and_head_sha"
     t.index ["submission_id"], name: "index_github_check_runs_on_submission_id"
+  end
+
+  create_table "github_repository_bindings", force: :cascade do |t|
+    t.bigint "enrollment_id", null: false
+    t.bigint "curriculum_module_id"
+    t.bigint "github_app_installation_id", null: false
+    t.bigint "repository_id"
+    t.string "full_name", null: false
+    t.string "github_username"
+    t.string "verification_state", default: "pending", null: false
+    t.string "failure_reason"
+    t.datetime "verified_at"
+    t.datetime "checked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_module_id"], name: "index_github_repository_bindings_on_curriculum_module_id"
+    t.index ["enrollment_id", "curriculum_module_id"], name: "index_github_bindings_on_enrollment_and_module", unique: true, where: "(curriculum_module_id IS NOT NULL)"
+    t.index ["enrollment_id"], name: "index_github_bindings_on_enrollment_default", unique: true, where: "(curriculum_module_id IS NULL)"
+    t.index ["enrollment_id"], name: "index_github_repository_bindings_on_enrollment_id"
+    t.index ["github_app_installation_id"], name: "index_github_repository_bindings_on_github_app_installation_id"
   end
 
   create_table "help_request_replies", force: :cascade do |t|
@@ -1443,7 +1482,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_150000) do
   add_foreign_key "feature_switch_changes", "cohorts"
   add_foreign_key "feature_switch_changes", "users", column: "actor_id"
   add_foreign_key "feedback_snippets", "users", column: "created_by_id"
+  add_foreign_key "github_app_installations", "cohorts"
   add_foreign_key "github_check_runs", "submissions"
+  add_foreign_key "github_repository_bindings", "enrollments"
+  add_foreign_key "github_repository_bindings", "github_app_installations"
+  add_foreign_key "github_repository_bindings", "modules", column: "curriculum_module_id"
   add_foreign_key "help_request_replies", "help_requests"
   add_foreign_key "help_request_replies", "users", column: "author_id"
   add_foreign_key "help_requests", "cohorts"

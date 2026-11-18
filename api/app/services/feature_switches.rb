@@ -14,6 +14,7 @@ class FeatureSwitches
     "knowledge_checks" => true,
     "help_requests" => true,
     "github_sync" => true,
+    "github_app" => false,
     "announcements" => true,
     "interventions" => true,
     "learning_plans" => true,
@@ -23,7 +24,12 @@ class FeatureSwitches
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
   def self.for(cohort: nil, school: nil)
-    (school || self.school).merge((cohort&.settings&.dig("features") || {}).slice(*KEYS).compact)
+    defaults = school || self.school
+    overrides = (cohort&.settings&.dig("features") || {}).slice(*KEYS).compact
+    resolved = defaults.merge(overrides)
+    # App access requires both school activation and an explicit cohort opt-in.
+    resolved["github_app"] = defaults["github_app"] == true && overrides["github_app"] == true if cohort
+    resolved
   end
 
   # Preview/audit callers must not lazily create a settings row.

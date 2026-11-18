@@ -7,6 +7,8 @@ class CurriculumModule < ApplicationRecord
     Enrollment.capture_missing_paused_libraries!(Enrollment.joins(:cohort).where(cohorts: { curriculum_id: curriculum_id }))
   end
 
+  has_many :github_repository_bindings, dependent: :destroy
+
   self.table_name = "modules"
 
   SCHEDULE_PATTERNS = {

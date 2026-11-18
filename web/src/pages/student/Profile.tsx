@@ -1,3 +1,4 @@
+import { GithubRepositorySettings } from '../../components/shared/GithubRepositorySettings'
 import { PurchaseReceipt } from '../../components/student/PurchaseReceipt'
 import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
@@ -318,6 +319,8 @@ export function Profile() {
           <ThemeChoice />
         </div>
       </section>
+
+      {sessionUser?.role === 'student' && data.enrollments.filter(enrollment => enrollment.github_app_enabled && enrollment.status === 'active').map(enrollment => <GithubRepositorySettings key={enrollment.id} enrollmentId={enrollment.id} title={`${enrollment.cohort_name} · GitHub repository`} />)}
 
       {sessionUser?.role === 'admin' && <><FeatureSettings />
             <AgentPostingTokens /></>}

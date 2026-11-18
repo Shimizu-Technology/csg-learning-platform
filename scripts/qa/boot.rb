@@ -44,3 +44,13 @@ if ENV["QA_STAFF_RELIABILITY"] == "1"
   S3Service.define_singleton_method(:configured?) { true }
   S3Service.define_singleton_method(:generate_presigned_url) { |*args, **kwargs| "http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/synthetic-video.mp4" }
 end
+
+# Explicit opt-in simulation at the App client boundary, with all HTTP guards
+# retained. No secret or real GitHub App is needed for browser acceptance.
+if ENV["QA_GITHUB_APP"] == "1"
+  require_relative '../../api/test/support/fake_github_app_client'
+  GithubAppClient.define_singleton_method(:new) { |**| FakeGithubAppClient.new }
+  GithubAppCredentials.define_singleton_method(:app_id) { '12345' }
+  GithubAppCredentials.define_singleton_method(:slug) { 'synthetic-app' }
+  GithubAppCredentials.define_singleton_method(:configured?) { true }
+end

@@ -30,6 +30,7 @@ module Api
               curriculum_name: CurriculumName.in_cohort(e.cohort),
               status: e.status,
               enrolled_at: e.enrolled_at,
+              **(GithubRepositoryAccess.enabled?(e.cohort) ? { github_app_enabled: true } : {}),
               # Withdrawn or expired enrollments no longer open the cohort, so they show as text.
               can_open: readable_ids.include?(e.id),
               **(FeatureSwitches.for(cohort: e.cohort)["student_experience_v2"] == true ? { purchase_id: purchases[e.cohort_id]&.id, access_expires_at: e.access_expires_at } : {})

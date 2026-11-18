@@ -1,4 +1,5 @@
 class Enrollment < ApplicationRecord
+  has_many :github_repository_bindings, dependent: :destroy
   class StaleLearningWrite < StandardError
     attr_reader :code
 

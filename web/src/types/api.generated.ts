@@ -5124,6 +5124,261 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/github_app_installations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List cohort installations (admin; both App gates required) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppInstallationsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Confirm installation with admin/cohort-bound state */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        state: string;
+                        installation_id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppConnectionResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/github_app_installations/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare signed installation state (admin; both gates required) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppPrepareResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/github_app/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm installation with admin/cohort-bound state */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        state: string;
+                        installation_id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubAppConnectionResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List own or admin-managed enrollment bindings (both gates required) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubRepositoryBindingsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Save or verify own or admin-managed enrollment repository binding */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        full_name: string;
+                        github_app_installation_id: number;
+                        curriculum_module_id: number | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubRepositoryBindingResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/github_repository_bindings/{id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save or verify own or admin-managed enrollment repository binding */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubRepositoryBindingResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6172,6 +6427,8 @@ export interface components {
             can_open: boolean;
             purchase_id?: number | null;
             access_expires_at?: string | null;
+            /** @description Included when this enrollment has GitHub App access enabled. */
+            github_app_enabled?: boolean;
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -9535,6 +9792,70 @@ export interface components {
         };
         EditorPreferencesResponse: {
             editor_preferences: components["schemas"]["EditorPreferences"];
+        };
+        GithubAppInstallation: {
+            id: number;
+            cohort_id: number;
+            app_id: number;
+            installation_id: number;
+            account_id: number;
+            account_login: string;
+            /** @enum {string} */
+            account_type: "User" | "Organization";
+            /** @enum {string} */
+            repository_selection: "all" | "selected";
+            permissions: {
+                [key: string]: string;
+            };
+            /** @enum {string} */
+            connection_state: "connected" | "failed";
+            failure_reason: string | null;
+            connected_at: string;
+            checked_at: string;
+        };
+        GithubAppInstallationsResponse: {
+            installations: components["schemas"]["GithubAppInstallation"][];
+            configured: boolean;
+        };
+        GithubAppPrepareResponse: {
+            state: string;
+            installation_url: string;
+        };
+        GithubAppConnectionResponse: {
+            installation: components["schemas"]["GithubAppInstallation"];
+            cohort_id: number;
+        };
+        GithubRepositoryBinding: {
+            id: number;
+            enrollment_id: number;
+            curriculum_module_id: number | null;
+            github_app_installation_id: number;
+            repository_id: number | null;
+            full_name: string;
+            github_username: string | null;
+            /** @enum {string} */
+            verification_state: "pending" | "verified" | "failed";
+            failure_reason: string | null;
+            verified_at: string | null;
+            checked_at: string | null;
+        };
+        GithubRepositoryBindingResponse: {
+            binding: components["schemas"]["GithubRepositoryBinding"];
+        };
+        GithubBindingInstallation: {
+            id: number;
+            account_login: string;
+            /** @enum {string} */
+            connection_state: "connected" | "failed";
+        };
+        GithubBindingModule: {
+            id: number;
+            name: string;
+        };
+        GithubRepositoryBindingsResponse: {
+            bindings: components["schemas"]["GithubRepositoryBinding"][];
+            installations: components["schemas"]["GithubBindingInstallation"][];
+            modules: components["schemas"]["GithubBindingModule"][];
         };
     };
     responses: {
