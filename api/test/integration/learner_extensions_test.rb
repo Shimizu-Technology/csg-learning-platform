@@ -106,7 +106,7 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     plan = @enrollment.learning_plan.reload
     assert_equal target.to_date, plan.target_date
     assert plan.revisions.count >= 2
-    LearnerPace.new(@enrollment.reload).choose!(weeks: 4, actor: @teacher)
+    LearnerPace.new(@enrollment.reload).choose!(weeks: 12, actor: @teacher)
     assert_equal target.to_date, @enrollment.learning_plan.reload.target_date
     assert_equal target.to_i, SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: @lesson, enrollment: @enrollment.reload)[:submissions_close_at].to_i
     assert_equal "Medical leave", @enrollment.learner_extensions.first.reason

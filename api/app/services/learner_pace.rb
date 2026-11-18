@@ -260,7 +260,7 @@ class LearnerPace
     if extension
       extended_target = extension.submissions_close_at.in_time_zone("Pacific/Guam").to_date
       shift = (extended_target - target).to_i
-      if shift.positive?
+      unless shift.zero?
         milestones = milestones.map do |milestone|
           date = Date.iso8601(milestone.fetch("due_on"))
           date >= today ? milestone.merge("due_on" => (date + shift).iso8601) : milestone
