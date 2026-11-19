@@ -253,6 +253,7 @@ class LessonBlockEditor
       require_watch_reset_confirmation!(block)
       block.confirm_watch_reset = confirmed_watch_resets.include?(block.id)
       block.verified_s3_video_key = block.s3_video_key if @verified_video_keys.include?(block.s3_video_key)
+      block.verified_video_version_keys = @verified_video_keys
       old_key = block.s3_video_key_in_database
       key_changed = block.will_save_change_to_s3_video_key?
       # A confirmed replacement resets watch progress in ContentBlock.

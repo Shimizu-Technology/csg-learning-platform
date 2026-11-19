@@ -45,7 +45,7 @@ class ContentBlock < ApplicationRecord
   # Set by an authoring path that already checked the new s3_video_key in
   # storage earlier in the same transaction (S3ObjectCleanup.verify_attachment),
   # so validation doesn't repeat the S3 request while block locks are held.
-  attr_accessor :verified_s3_video_key
+  attr_accessor :verified_s3_video_key, :verified_video_version_keys
 
   scope :ordered, -> { order(:position) }
 
@@ -306,6 +306,7 @@ class ContentBlock < ApplicationRecord
       ids << item["id"]
       next unless will_save_change_to_metadata?
       next if video_version_keys(metadata_in_database).include?(item["s3_video_key"]) || item["s3_video_key"] == s3_video_key
+      next if verified_video_version_keys&.include?(item["s3_video_key"]) && ApplicationRecord.connection.transaction_open?
 
       problem = ApplicationRecord.transaction { S3ObjectCleanup.verify_attachment(item["s3_video_key"]) }
       errors.add(:metadata, "video version #{problem}") if problem
