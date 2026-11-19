@@ -30,7 +30,7 @@ The repair is manual and never runs at deploy/boot. Snapshot uses a repeatable-r
 
 The audited source has no objectives, rubrics, checks, course files or hosted uploads. The task refuses a new dependency rather than silently copying an incomplete relationship. Source lesson 4's retired dead Vimeo URL is cleared directly so no watch history is reset. Its text and blocks remain. All other content edits use normal validations.
 
-Resources PRs #3 and #4 merged during implementation. The current maintained auth guides use cookie sessions; this JWT course retains the exact matching Alumni archive references, with an explicit lesson-level JWT/client contract. Follow-up: publish maintained JWT guides or deliberately migrate a future curriculum's backend and frontend together. Never point Lance at a cookie guide mid-course. Resources deploy PR #5 is merged, and all replacement paths were checked against the merged main tree.
+Resources PRs #3 and #4 merged during implementation. Lance retains the exact matching Alumni archive JWT references, with an explicit single-client contract. Leon subsequently approved cookie sessions for the separate Cohort 4 draft: its password/signup/login/ownership and React auth lessons now teach HTTP-only first-party SameSite=Lax cookies, CSRF protection, and a shared session client. Vite proxies /api in development; Netlify proxies /api/* to Render before the SPA fallback in production. The copied legacy JWT/cross-origin clips in 203–206 and 231 are optional contrast, not required instruction. Resources deploy PR #5 is merged, and all replacement paths were checked against the merged main tree.
 
 ## Engineering checks
 
@@ -41,3 +41,9 @@ Resources PRs #3 and #4 merged during implementation. The current maintained aut
 - Production browser check reached Clerk sign-in; no authenticated browser session was available. Production read-only verification will use Rails domain projections and raw records over Render SSH.
 
 Lead clarification: Cohort 4 auth approach is **pending Leon’s decision (token vs cookie)**. The copy retains the source token lessons without choosing a new approach; only ordering changes now. Lance remains on JWTs and the matching archive links. The Git lesson uses `web-development/02-git-github/branches_and_pull_requests.md`, supplied by the lead after Resources #3–#5 merged without renames.
+
+## Cohort 4 session decision
+
+Leon approved cookie/session auth in the lead update. Only the copy changes: 203–206, 228–229 are rewritten around the matched session guides; 205 becomes “Log In with a Rails Session”. Serializer lessons 198–202 point forward to the session guide. 221–226 share the session/CSRF client and use Vite’s same-origin /api proxy. 210/234 acceptance checks use session expiry, CSRF and two-user isolation. 230’s HTTPie checks keep its cookie jar and expect session-login 200. 231 teaches a Netlify /api/* proxy rewrite ahead of the SPA fallback, VITE_API_BASE_URL=/api/v1, first-party Secure cookies in production and SameSite=Lax. The copied old token recordings (203–206) and cross-origin deployment recording (231) become optional historical context. The source curriculum, JWT lesson bodies and source video ranges stay unchanged. Final wording is being checked against the Resources worker’s same-origin guide follow-up.
+
+Final pre-cookie full API rerun: 2,484 runs, 45,722 assertions, no failures/errors, 1 expected skip. Cookie-focused suite: 4 tests, 507 assertions, no failures/errors. Full final API rerun and final-head CI pending.

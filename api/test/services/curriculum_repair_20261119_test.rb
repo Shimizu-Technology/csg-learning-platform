@@ -76,12 +76,24 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
       assert mapped.call(221).release_day < mapped.call(223).release_day
       assert_not mapped.call(232).required?
       assert_not mapped.call(235).required?
+      assert_equal "Log In with a Rails Session", mapped.call(205).title
+      [ 203, 204, 205, 206, 228, 229 ].each do |id|
+        assert_match(/guide_(?:rails_api|react)_cookie_authentication/, mapped.call(id).primary_assignment_block.body)
+      end
+      assert_includes mapped.call(228).primary_assignment_block.body, "SameSite=Lax"
+      assert_includes mapped.call(231).primary_assignment_block.body, "/api/* https://YOUR-API.onrender.com/api/:splat"
+      assert_includes mapped.call(230).primary_assignment_block.body, "login status (200)"
+      assert_includes Lesson.find(228).primary_assignment_block.body, "borrowed-token"
+      assert_includes Lesson.find(221).primary_assignment_block.body, "jwt-client"
+      assert_includes mapped.call(221).primary_assignment_block.body, "cookie-client"
+      assert_not_includes mapped.call(221).primary_assignment_block.body, "jwt-client"
+
       assert_not mapped.call(238).required?
       assert mapped.call(239).required?
       assert_equal live_video_before, ContentBlock.where(lesson_id: 221, block_type: :video).sole.metadata
       copied_blocks = ContentBlock.where(lesson_id: copy.modules.flat_map { |mod| mod.all_lessons.ids })
       copied_blocks.each do |block|
-        assert_no_match(/borrowed-token|remove-borrowed-token|organizer_api|Actualize/, block.body.to_s)
+        assert_no_match(/borrowed-token|remove-borrowed-token|organizer_api|Actualize|_archive\/csg\/AUTHENTICATION/, block.body.to_s)
         required_seconds = block.metadata.fetch("video_segments", []).sum { |s| s["required"] ? s["end_seconds"] - s["start_seconds"] : 0 }
         assert_operator required_seconds, :<=, 1800
       end

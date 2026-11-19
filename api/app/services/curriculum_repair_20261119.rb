@@ -199,8 +199,50 @@ class CurriculumRepair20261119
       exercise(@copy, id)["body"] = "<p><strong>Prerequisite:</strong> finish signup/login and session restoration first. Sign in through your React login form. AuthContext sends the Bearer token; keep Rails authorization enabled. Check a missing/invalid session returns to login and each user sees only their own data.</p>" + exercise(@copy, id)["body"]
     end
     exercise(@copy, 228)["body"] = asset("client") + exercise(@copy, 228)["body"]
+    use_cookie_sessions!
     rewrite_repeats!
     VIDEO_LIMITS.each { |id| trim_video!(id) }
+  end
+
+  def use_cookie_sessions!
+    rails_guide = "#{RESOURCES}web-development/03-rails/guide_rails_api_cookie_authentication.md"
+    react_guide = "#{RESOURCES}web-development/04-react/guide_react_cookie_authentication.md"
+    @copy.fetch("ContentBlock").each do |block|
+      next unless block["body"]
+
+      block["body"] = block["body"].gsub(%r{<div data-csg-fix="jwt-client">.*?</div>}m, "")
+        .gsub("#{RESOURCES}_archive/csg/AUTHENTICATION/guide_implementing_rails_authentication.md", rails_guide)
+        .gsub("#{RESOURCES}_archive/csg/AUTHENTICATION/guide_implementing_react_authentication_v2.md", react_guide)
+        .gsub("AuthContext sends the Bearer token", "AuthContext restores the cookie session")
+        .gsub("Verify protected requests require a valid bearer token", "Verify protected requests require a valid session and all writes require a matching CSRF token")
+        .gsub("missing or invalid token and two-user data isolation", "missing or expired session, invalid CSRF on writes, and two-user data isolation")
+        .gsub("Allow the Vite development URL in backend CORS", "Configure Vite server.proxy for /api and set VITE_API_BASE_URL=/api/v1")
+    end
+    [ 198, 199, 200, 201, 202 ].each do |id|
+      exercise(@copy, id)["body"] += "<p>For the authentication lessons that follow, this curriculum uses the <a href=\"#{rails_guide}\">CSG Rails cookie-session guide</a>. Keep serializers limited to safe user fields; never expose password_digest or session secrets.</p>"
+    end
+    [ 203, 204, 205, 206, 228, 229, 231 ].each do |id|
+      exercise(@copy, id)["body"] = asset("cookie-#{id}")
+    end
+    lesson(@copy, 205)["title"] = "Log In with a Rails Session"
+    [ 221, 222, 223, 224, 225, 226, 228, 229 ].each do |id|
+      exercise(@copy, id)["body"] = asset("cookie-client") + exercise(@copy, id)["body"]
+    end
+    exercise(@copy, 230)["body"] = exercise(@copy, 230)["body"]
+      .gsub("Use Params and the Auth panel.", "Use Params and keep HTTPie's session cookie jar enabled. Fetch /api/v1/csrf and send X-CSRF-Token on writes, refreshing it after login.")
+      .gsub("Check missing-token and second-user requests too.", "Check missing/expired sessions, CSRF rejection, and a second user too.")
+      .gsub("live login status (201 for the class API), without the response token or credentials", "live session login status (200), without cookie values, CSRF values or credentials")
+    exercise(@copy, 232)["body"] = "<p>This optional diagnostic lab contrasts cross-origin requests with the required same-origin proxy route. Reproduce a harmless direct cross-origin failure locally, inspect the Console and Network panels, then restore Vite's /api proxy. Do not disable CSRF or change production cookie settings. The normal course flow uses first-party SameSite=Lax cookies and does not require browser calls to the Render hostname.</p><p>Use the <a href=\"#{RESOURCES}web-development/05-deployment/guide_deployment_to_render_and_netlify.md\">same-origin deployment guide</a>. Explain how a proxy routing error, an API 401/422, and a browser CORS rejection differ. This recording is optional context.</p>"
+    # These historical clips teach token auth or direct cross-origin deployment.
+    # Keep them available as optional contrast; the cookie guides teach the work.
+    [ 203, 204, 205, 206, 231 ].each do |id|
+      blocks(@copy, id).each do |block|
+        block.fetch("metadata", {}).fetch("video_segments", []).each do |segment|
+          segment["required"] = false
+          segment["label"] = "Optional historical approach: #{segment['label']}"
+        end
+      end
+    end
   end
 
   def generic(text)
