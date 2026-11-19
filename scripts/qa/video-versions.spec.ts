@@ -65,6 +65,8 @@ test('author uploads, labels, reorders and removes; learner switches, resumes an
     await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.seeking)).toBe(false)
     await page.locator('video').evaluate((v: HTMLVideoElement) => v.play())
     await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThanOrEqual(2)
+    await switcher.getByRole('button', { name: 'Studio', exact: true }).click()
+    expect(await page.locator('video').evaluate((v: HTMLVideoElement) => v.paused)).toBe(false)
     await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause())
     await expect.poll(savedWatch).toBeGreaterThan(before)
     const watched = await savedWatch()

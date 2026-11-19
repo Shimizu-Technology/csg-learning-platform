@@ -13,12 +13,13 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   const [selectedVersion, setSelectedVersion] = useState(() => rememberedVersion(block.id, versions))
   const versionId = versions.some((v) => v.id === selectedVersion) ? selectedVersion : versions[0]?.id
   const selectVideoVersion = useCallback((id: string) => {
+    if (id === versionId) return
     s3VideoRef.current?.prepareSourceChange()
     setSelectedVersion(id)
     try { localStorage.setItem(`video-version:${block.id}`, id) } catch { /* optional storage */ }
     setActiveVideoSegment(null)
     setCompletedVideoSegment(null)
-  }, [block.id])
+  }, [block.id, versionId])
   const [activeVideoSegment, setActiveVideoSegment] = useState<VideoSegment | null>(null)
   const [completedVideoSegment, setCompletedVideoSegment] = useState<VideoSegment | null>(null)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
