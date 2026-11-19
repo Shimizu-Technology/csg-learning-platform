@@ -12,6 +12,11 @@ namespace :curriculum do
       puts "Snapshot saved to #{path}"
     end
 
+    desc "Held link phase: dry-run by default; apply also requires LINK_ACCESS_CONFIRMED=1 and a fresh snapshot"
+    task repoint: :environment do
+      CurriculumRepair20261119.new.run_repoint(apply: ENV["APPLY"] == "1", snapshot_path: ENV["SNAPSHOT_PATH"], access_confirmed: ENV["LINK_ACCESS_CONFIRMED"] == "1")
+    end
+
     desc "Print full live diff and desired Cohort 4 tree; APPLY=1 requires an unchanged SNAPSHOT_PATH"
     task run: :environment do
       CurriculumRepair20261119.new.run(apply: ENV["APPLY"] == "1", snapshot_path: ENV["SNAPSHOT_PATH"])

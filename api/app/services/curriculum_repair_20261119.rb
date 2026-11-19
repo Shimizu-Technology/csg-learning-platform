@@ -72,6 +72,7 @@ class CurriculumRepair20261119
       prepare_shared!
       @copy = @shared.slice(*CONTENT_MODELS.map(&:name)).deep_dup
       prepare_copy!
+      defer_live_links!(before)
       @output.puts JSON.pretty_generate(diff(before))
       return unless apply
 
@@ -98,7 +99,91 @@ class CurriculumRepair20261119
     end
   end
 
+  # Separate, explicitly held phase: run only once student access is arranged.
+  def run_repoint(apply: false, snapshot_path: nil, access_confirmed: false)
+    ApplicationRecord.transaction do
+      ApplicationRecord.connection.execute("SET LOCAL lock_timeout = '5s'")
+      ApplicationRecord.connection.execute("SET LOCAL statement_timeout = '60s'")
+      lock_source! if apply
+      raise "Apply the primary repair before re-pointing guides" unless Curriculum.exists?(course_package_key: COPY_KEY)
+
+      before = self.class.snapshot
+      @shared = before.fetch("tables").deep_dup
+      @shared.fetch("ContentBlock").each do |row|
+        row["body"] = repoint(row["body"])
+        row["solution"] = repoint(row["solution"])
+        if row["lesson_id"] == 230 && row["body"]
+          current_intro = asset("deploy").match(%r{\A<p>.*?</p>}m).to_s
+          row["body"] = row["body"].sub(%r{<p data-csg-link-hold="deploy-guide">.*?</p>}m, current_intro)
+        end
+        if [ 129, 131, 213, 218 ].include?(row["lesson_id"]) && row["body"]&.include?('data-csg-fix="terminal"')
+          node_link = asset("wsl").match(%r{<a href="[^"]+/install_node\.md">.*?</a>}).to_s
+          row["body"] = row["body"].sub("CSG setup instructions from your instructor", node_link)
+        end
+      end
+      git_id = @shared.fetch("Lesson").find { |row| row["title"] == GIT_TITLE }.fetch("id")
+      git_link = asset("git").match(%r{<p><a href="[^"]+/branches_and_pull_requests\.md">.*?</a></p>}).to_s
+      exercise(@shared, git_id)["body"] = exercise(@shared, git_id)["body"].sub(%r{<p data-csg-link-hold="git-guide">.*?</p>}, git_link)
+      unless exercise(@shared, 208)["body"].include?("web-development/03-rails/guide_api_versioning.md")
+        exercise(@shared, 208)["body"] += version_reference
+      end
+      originals = before.fetch("tables").fetch("ContentBlock").index_by { |row| row["id"] }
+      changes = @shared.fetch("ContentBlock").filter_map do |row|
+        fields = %w[body solution].select { |key| row[key] != originals.fetch(row["id"])[key] }
+        { id: row["id"], lesson_id: row["lesson_id"], fields: fields.to_h { |key| [ key, { before: originals.fetch(row["id"])[key], after: row[key] } ] } } if fields.any?
+      end
+      @output.puts JSON.pretty_generate(mode: "dry_run_repoint", held_until: "Lance has Resources read access", changes: changes)
+      return unless apply && changes.any?
+
+      raise "Resources access must be confirmed before re-pointing live guides" unless access_confirmed
+      raise "SNAPSHOT_PATH is required for apply" unless snapshot_path.present?
+      raise "Snapshot is stale; export and review again" unless JSON.parse(File.read(snapshot_path)).fetch("tables") == before.fetch("tables")
+
+      states_before = lance_completions
+      protected = PROTECTED_MODELS.map(&:name) + %w[LearningPlan LearningPlanRevision]
+      @shared.fetch("ContentBlock").each { |row| update_row!(ContentBlock, row) }
+      after = self.class.snapshot.fetch("tables")
+      raise "Re-point changed learner or plan records" unless before.fetch("tables").slice(*protected) == after.slice(*protected)
+      raise "Re-point changed completion states" unless states_before == lance_completions
+
+      @output.puts JSON.generate(status: "repoint_applied", changed_blocks: changes.size)
+    end
+  end
+
   private
+
+  def version_reference
+    "<p><a href=\"#{RESOURCES}web-development/03-rails/guide_api_versioning.md\">CSG API versioning guide</a>: move every route and controller together, then retest in HTTPie before connecting React.</p>"
+  end
+
+  def defer_live_links!(before)
+    originals = before.fetch("tables").fetch("ContentBlock").index_by { |row| row["id"] }
+    @shared.fetch("ContentBlock").each do |row|
+      original_row = originals[row["id"]]
+      row["solution"] = csg_wording(original_row["solution"]) if original_row
+      next unless row["body"]
+
+      original = original_row&.fetch("body").to_s
+      body = row["body"].gsub(%r{<a href="#{Regexp.escape(RESOURCES)}web-development/01-setup/install_node\.md">.*?</a>}, "CSG setup instructions from your instructor")
+      if row["lesson_id"] == -1
+        body = body.gsub(%r{<p><a href="#{Regexp.escape(RESOURCES)}web-development/02-git-github/branches_and_pull_requests\.md">.*?</a></p>}, '<p data-csg-link-hold="git-guide">The complete branch and PR steps are above. The matching CSG guide will be linked once access is arranged.</p>')
+      end
+      body = body.gsub(%r{<p><a href="#{Regexp.escape(RESOURCES)}web-development/03-rails/guide_api_versioning\.md">.*?</p>}, "") if row["lesson_id"] == 208
+      row["body"] = body.gsub(%r{https://github.com/Code-School-of-Guam-Alumni/Resources/[^\s"<>\)]+}) do |url|
+        next url if original.include?(url)
+
+        match = GUIDE_PATHS.find { |old, current| url == RESOURCES + current && original.include?(OLD_RESOURCES + old) }
+        raise "No accessible original for held guide #{url}" unless match
+
+        OLD_RESOURCES + match.first
+      end
+      if row["lesson_id"] == 230
+        old_guide = row["body"].match(%r{<a href="#{Regexp.escape(OLD_RESOURCES)}updated/05-deployment/guide_deployment_to_render_and_netlify\.md">.*?</a>}).to_s
+        intro = "<p data-csg-link-hold=\"deploy-guide\">Deploy Rails to Render and React to Netlify. Follow this written checklist and the Render Rails 8 documentation below for current settings. #{old_guide} is the frozen Cohort 3 reference; its old build commands are superseded by this checklist. Maintained-guide access is being arranged.</p>"
+        row["body"] = row["body"].sub(%r{\A<p>.*?</p>}m, intro)
+      end
+    end
+  end
 
   def lock_source!
     Curriculum.lock_for_content!(SOURCE_ID, "FOR UPDATE")
@@ -154,7 +239,7 @@ class CurriculumRepair20261119
     end
     (221..226).each { |id| exercise(@shared, id)["body"] = "#{asset('client')}\n#{asset('token')}\n#{exercise(@shared, id)['body']}" }
     exercise(@shared, 228)["body"] = "<div data-csg-fix=\"remove-borrowed-token\"><h3>Replace the borrowed token</h3><p>Remove the temporary token/header block from App.jsx. In DevTools run <code>localStorage.removeItem(\"token\")</code>, then reload so the old Axios header is gone. Build the real login form and AuthContext below. They must use the same api instance from src/lib/api.js, including api.defaults.headers.common[&quot;Authorization&quot;]. Verify that logging in sets the header, refresh restores it, and logout clears storage and the header. Do not keep two competing token setups.</p></div>\n#{exercise(@shared, 228)['body']}"
-    exercise(@shared, 208)["body"] += "<p><a href=\"#{RESOURCES}web-development/03-rails/guide_api_versioning.md\">CSG API versioning guide</a>: move every route and controller together, then retest in HTTPie before connecting React.</p>"
+    exercise(@shared, 208)["body"] += version_reference
     [ 203, 204, 205, 206, 228, 229 ].each do |id|
       exercise(@shared, id)["body"] += "<p>HTTPie desktop: signup, login and password changes use Body → Form → URL-encoded name/value rows. Never put passwords, tokens or other secrets in Params or the URL. Params are for non-sensitive query values such as search, filters and IDs. Send Bearer tokens in the Auth panel.</p>"
     end
@@ -379,6 +464,8 @@ class CurriculumRepair20261119
     else
       record.update!(changed)
     end
+    # Match the editor's optimistic-lock boundary after a batch authoring edit.
+    record.lesson.touch if model == ContentBlock
   end
 
   def persist_copy!

@@ -22,6 +22,9 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
     ContentBlock.create!(lesson_id: 4, block_type: :video, position: 0, video_url: "https://vimeo.com/841396051/bffa0be03b")
     ContentBlock.create!(lesson_id: 132, block_type: :video, position: 0, video_url: "https://youtu.be/lMnW4KklcUs", metadata: { video_segments: [ { "start_seconds" => 0, "end_seconds" => 2656, "required" => true, "label" => "Ruby review" } ] })
     ContentBlock.create!(lesson_id: 221, block_type: :video, position: 0, video_url: "https://youtu.be/3SW_W7PmEd4", metadata: { video_segments: [ { "start_seconds" => 1440, "end_seconds" => 2644, "required" => true, "label" => "Axios" }, { "start_seconds" => 5341, "end_seconds" => 7411, "required" => true, "label" => "State" } ] })
+    Lesson.find(228).primary_assignment_block.update!(body: '<p><a href="https://github.com/Code-School-of-Guam-Cohort-3/resources/blob/main/AUTHENTICATION/guide_implementing_react_authentication_v2.md">Current working token guide</a></p>')
+    Lesson.find(230).primary_assignment_block.update!(body: '<p><a href="https://github.com/Code-School-of-Guam-Cohort-3/resources/blob/main/updated/05-deployment/guide_deployment_to_render_and_netlify.md">Working deployment guide</a></p>')
+    ContentBlock.create!(lesson_id: 230, block_type: :video, position: 0, video_url: "https://youtu.be/Otzinb2xcuQ", metadata: { video_segments: [ { "start_seconds" => 0, "end_seconds" => 30, "required" => true, "label" => "Deploy concepts" } ] })
     @block = Lesson.find(213).primary_assignment_block
     @progress = Progress.create!(content_block: @block, user: student, enrollment: @enrollment, status: :completed)
     @submission = Submission.create!(content_block: Lesson.find(203).primary_assignment_block, user: student, enrollment: @enrollment, text: "Original work", grade: :B, feedback: "Keep this feedback", graded_by_id: 1)
@@ -65,6 +68,9 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
         assert_match(/\A<(?:p|div|h[1-6])(?:\s|>)/, Lesson.find(id).primary_assignment_block.body)
       end
       assert_equal "markdown", git.primary_assignment_block.metadata.fetch("language")
+      assert_includes Lesson.find(228).primary_assignment_block.body, "Code-School-of-Guam-Cohort-3/resources"
+      assert_not_includes git.primary_assignment_block.body, "/Resources/"
+      assert_not_includes Lesson.find(129).primary_assignment_block.body, "/Resources/"
       assert_includes Lesson.find(221).primary_assignment_block.body, "Body → Form → URL-encoded"
       assert_includes Lesson.find(205).primary_assignment_block.body, "Never put passwords, tokens or other secrets in Params"
       assert_includes Lesson.find(129).primary_assignment_block.body, "wsl --list --quiet"
@@ -159,6 +165,32 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
     assert segments.find { |item| item["label"] == "Missing required flag" }.fetch("required")
     assert_not segments.find { |item| item["label"].include?("Beyond lesson budget") }.fetch("required")
     assert_equal 1704, segments.sum { |item| item["required"] ? item["end_seconds"] - item["start_seconds"] : 0 }
+  end
+
+  test "held live links have a separate read-only diff, access gate, snapshot guard and idempotent apply" do
+    snapshot_file { |path| CurriculumRepair20261119.new(output: StringIO.new).run(apply: true, snapshot_path: path) }
+    before = CurriculumRepair20261119.snapshot.fetch("tables")
+    dry = StringIO.new
+    CurriculumRepair20261119.new(output: dry).run_repoint
+    assert_equal before, CurriculumRepair20261119.snapshot.fetch("tables")
+    diff = JSON.parse(dry.string)
+    assert_equal "dry_run_repoint", diff.fetch("mode")
+    assert diff.fetch("changes").any? { |row| row["lesson_id"] == 228 }
+    snapshot_file do |path|
+      assert_raises(RuntimeError) { CurriculumRepair20261119.new(output: StringIO.new).run_repoint(apply: true, snapshot_path: path) }
+      assert_equal before, CurriculumRepair20261119.snapshot.fetch("tables")
+      lesson_version = Lesson.find(228).updated_at
+      CurriculumRepair20261119.new(output: StringIO.new).run_repoint(apply: true, snapshot_path: path, access_confirmed: true)
+      assert_operator Lesson.find(228).updated_at, :>, lesson_version
+      assert_includes Lesson.find(228).primary_assignment_block.body, "_archive/csg/AUTHENTICATION/guide_implementing_react_authentication_v2.md"
+      protected = CurriculumRepair20261119::PROTECTED_MODELS.map(&:name) + %w[LearningPlan LearningPlanRevision]
+      assert_equal before.slice(*protected), CurriculumRepair20261119.snapshot.fetch("tables").slice(*protected)
+      after = CurriculumRepair20261119.snapshot.fetch("tables")
+      output = StringIO.new
+      CurriculumRepair20261119.new(output: output).run_repoint(apply: true, snapshot_path: path, access_confirmed: true)
+      assert_empty JSON.parse(output.string).fetch("changes")
+      assert_equal after, CurriculumRepair20261119.snapshot.fetch("tables")
+    end
   end
 
   test "unreviewed source dependencies refuse a partial copy" do
