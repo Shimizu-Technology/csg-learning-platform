@@ -88,6 +88,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         setError('Failed to load video')
       }
       return url ? generation : null
+    }).catch(() => {
+      if (generation !== requestGeneration.current) return null
+      sourceChangePendingRef.current = false
+      pendingSeekRef.current = null
+      setError('Failed to load video')
+      return null
     })
   }, [fetchStreamUrl])
 
@@ -255,7 +261,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener('seeked', handleSeeked)
       video.removeEventListener('canplay', handleCanPlay)
     }
-  }, [streamUrl, error, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
+  }, [streamUrl, error, loading, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
 
   useEffect(() => {
     return () => {
@@ -310,6 +316,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       const video = videoRef.current
       sourceChangePendingRef.current = true
       pendingSeekRef.current = { seconds: video?.currentTime ?? lastTimeRef.current, play: video ? !video.paused : false }
+      lastTimeRef.current = pendingSeekRef.current.seconds
       video?.pause()
       sendProgress(false)
       lastTickAtRef.current = null

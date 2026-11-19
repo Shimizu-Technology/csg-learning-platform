@@ -224,13 +224,13 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       if (!referenced.has(key)) removedVersionKeys.current.add(key)
     }
     for (const upload of uploads) {
-      if (upload.deferPersistence && upload.status === 'waiting' && upload.s3Key && removedVersionKeys.current.has(upload.s3Key) && !referenced.has(upload.s3Key)) {
+      if (status !== 'saving' && upload.deferPersistence && upload.status === 'waiting' && upload.s3Key && removedVersionKeys.current.has(upload.s3Key) && !referenced.has(upload.s3Key)) {
         cancelUpload(upload.id)
         removedVersionKeys.current.delete(upload.s3Key)
       }
     }
     previousVersionKeys.current = keys
-  }, [draft, uploads, cancelUpload])
+  }, [draft, uploads, cancelUpload, status])
 
   const problems = useMemo(() => (draft ? draftProblems(draft) : new Map<string, string>()), [draft])
   const firstProblem = problems.size ? [...problems.values()][0] : null
@@ -408,9 +408,15 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const selectedBlock = blocks.find((block) => block.key === selectedKey) || null
   const canAdd = blocks.length < MAX_BLOCKS
 
+  const editorMounted = useRef(true)
+  useEffect(() => {
+    editorMounted.current = true
+    return () => { editorMounted.current = false }
+  }, [])
+
   const appendVideoVersion = useCallback((key: string, version: VideoVersion, expectedSource: string | null) => {
     const owner = draftRef.current?.blocks.find((block) => block.key === key)
-    if (!owner?.s3_video_key || owner.s3_video_key !== expectedSource || !['video', 'recording'].includes(owner.block_type) || videoVersions(owner.metadata).length >= 8) return false
+    if (!editorMounted.current || !owner?.s3_video_key || owner.s3_video_key !== expectedSource || !['video', 'recording'].includes(owner.block_type) || videoVersions(owner.metadata).length >= 8) return false
     setDraft((current) => current && ({ ...current, blocks: current.blocks.map((block) => {
       if (block.key !== key || !block.s3_video_key) return block
       const versions = videoVersions(block.metadata)

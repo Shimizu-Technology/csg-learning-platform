@@ -32,12 +32,13 @@ describe('VideoPlayer section seeking', () => {
     roots.push(root)
     const ref = createRef<VideoPlayerHandle>()
     const save = vi.fn()
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
     const first = vi.fn(async () => '/studio.mp4')
     const second = vi.fn(async () => '/desktop.mp4')
     await act(async () => root.render(<VideoPlayer ref={ref} title="Versions" initialTotalWatched={35} fetchStreamUrl={first} onSaveProgress={save} />))
     const video = container.querySelector('video')!
     Object.defineProperty(video, 'duration', { configurable: true, value: 120 })
-    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
     act(() => video.dispatchEvent(new Event('loadedmetadata')))
     video.currentTime = 42
     vi.spyOn(video, 'pause').mockImplementation(() => undefined)
@@ -50,9 +51,25 @@ describe('VideoPlayer section seeking', () => {
     replacement.currentTime = 0
     act(() => replacement.dispatchEvent(new Event('loadedmetadata')))
     expect(replacement.currentTime).toBe(42)
+    expect(play).toHaveBeenCalledOnce()
     expect(replacement.getAttribute('src')).toBe('/desktop.mp4')
     act(() => replacement.dispatchEvent(new Event('pause')))
     expect(save).toHaveBeenLastCalledWith({ last_position_seconds: 42, total_watched_seconds: 35, duration_seconds: 120 }, false)
+  })
+
+  it('recovers from a rejected stream request without leaving the loading state stuck', async () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    roots.push(root)
+    const save = vi.fn()
+    await act(async () => root.render(<VideoPlayer title="Versions" fetchStreamUrl={async () => { throw new Error('offline') }} onSaveProgress={save} />))
+    expect(container.textContent).toContain('Failed to load video')
+    await act(async () => root.render(<VideoPlayer title="Versions" fetchStreamUrl={async () => '/recovered.mp4'} onSaveProgress={save} />))
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'duration', { configurable: true, value: 120 })
+    act(() => video.dispatchEvent(new Event('loadedmetadata')))
+    act(() => video.dispatchEvent(new Event('pause')))
+    expect(save).toHaveBeenLastCalledWith({ last_position_seconds: 0, total_watched_seconds: 0, duration_seconds: 120 }, false)
   })
 
   it('applies a section jump requested before the stream metadata is ready', async () => {
