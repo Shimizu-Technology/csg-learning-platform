@@ -26,6 +26,31 @@ describe('VideoPlayer section seeking', () => {
     expect(save).toHaveBeenLastCalledWith({last_position_seconds:100,total_watched_seconds:0,duration_seconds:100},true)
   })
 
+  it('switches streams at the current position and retains cumulative watched time', async () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    roots.push(root)
+    const ref = createRef<VideoPlayerHandle>()
+    const save = vi.fn()
+    const first = vi.fn(async () => '/studio.mp4')
+    const second = vi.fn(async () => '/desktop.mp4')
+    await act(async () => root.render(<VideoPlayer ref={ref} title="Versions" initialTotalWatched={35} fetchStreamUrl={first} onSaveProgress={save} />))
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'duration', { configurable: true, value: 120 })
+    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+    act(() => video.dispatchEvent(new Event('loadedmetadata')))
+    video.currentTime = 42
+    vi.spyOn(video, 'pause').mockImplementation(() => undefined)
+    act(() => ref.current?.prepareSourceChange())
+    await act(async () => root.render(<VideoPlayer ref={ref} title="Versions" initialTotalWatched={0} fetchStreamUrl={second} onSaveProgress={save} />))
+    video.currentTime = 0
+    act(() => video.dispatchEvent(new Event('loadedmetadata')))
+    expect(video.currentTime).toBe(42)
+    expect(video.getAttribute('src')).toBe('/desktop.mp4')
+    act(() => video.dispatchEvent(new Event('pause')))
+    expect(save).toHaveBeenLastCalledWith({ last_position_seconds: 42, total_watched_seconds: 35, duration_seconds: 120 }, false)
+  })
+
   it('applies a section jump requested before the stream metadata is ready', async () => {
     let resolveStream!: (value: string) => void
     const stream = new Promise<string>((resolve) => { resolveStream = resolve })

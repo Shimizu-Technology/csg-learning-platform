@@ -557,6 +557,15 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": false,
+            "description": "Stable id of an attached video version. Omit to play the first version (or the legacy upload).",
+            "schema": {
+              "type": "string"
+            }
           }
         ]
       }

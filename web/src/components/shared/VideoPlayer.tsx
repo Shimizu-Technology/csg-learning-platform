@@ -20,6 +20,7 @@ interface VideoPlayerProps {
 }
 
 export interface VideoPlayerHandle {
+  prepareSourceChange: () => void
   seekTo: (seconds: number, play?: boolean) => void
 }
 
@@ -71,8 +72,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     setBuffering(false)
   }, [])
 
+  const requestGeneration = useRef(0)
   const loadUrl = useCallback(() => {
+    const generation = ++requestGeneration.current
     return fetchStreamUrl().then((url) => {
+      if (generation !== requestGeneration.current) return
       if (url) {
         setStreamUrl(url)
         setError(null)
@@ -285,6 +289,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   }
 
   useImperativeHandle(ref, () => ({
+    prepareSourceChange() {
+      const video = videoRef.current
+      if (!video) return
+      pendingSeekRef.current = { seconds: video.currentTime, play: !video.paused }
+      video.pause()
+      sendProgress(false)
+      lastTickAtRef.current = null
+    },
     seekTo(seconds: number, play = true) {
       const video = videoRef.current
       const requested = Math.max(0, Math.floor(seconds))
@@ -302,7 +314,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       showBufferingSoon()
       if (play) void video.play()
     },
-  }), [showBufferingSoon])
+  }), [showBufferingSoon, sendProgress])
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const video = videoRef.current

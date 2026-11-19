@@ -1,3 +1,4 @@
+import { videoVersions } from '../../lib/videoVersions'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
@@ -322,7 +323,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     setStatus('idle')
     setDraft((current) => applySavedIds(current, sent, savedLesson))
     for (const upload of currentUploads) {
-      if (upload.deferPersistence && upload.status === 'waiting' && upload.contentBlockId && savedBlocks.get(upload.contentBlockId)?.s3_video_key === upload.s3Key) {
+      if (upload.deferPersistence && upload.status === 'waiting' && [...savedBlocks.values()].some((block) => block.s3_video_key === upload.s3Key || videoVersions(block.metadata).some((version) => version.s3_video_key === upload.s3Key))) {
         completeUpload(upload.id)
       }
     }

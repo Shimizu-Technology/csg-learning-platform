@@ -22,6 +22,8 @@ class ContentBlock < ApplicationRecord
   validates :block_type, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   before_validation :normalize_video_url
+  validate :video_versions_are_valid
+  after_update_commit :cleanup_removed_video_versions
   validate :video_url_is_http
   validate :rubric_matches_curriculum
   validate :rubric_change_preserves_recorded_results
@@ -255,7 +257,54 @@ class ContentBlock < ApplicationRecord
     exercise_like? || submission_checkpoint?
   end
 
+  # The legacy source remains the block's watch-credit anchor. Old clients use
+  # video_stream without a version id and receive the first version as well.
+  def video_versions
+    value = metadata.to_h["video_versions"]
+    value.is_a?(Array) ? value : []
+  end
+
+  def video_version_keys(value = metadata)
+    Array(value.to_h["video_versions"]).filter_map { |item| item["s3_video_key"] if item.is_a?(Hash) }.uniq
+  end
+
   private
+
+  def video_versions_are_valid
+    raw = metadata.to_h["video_versions"]
+    return if raw.nil? || raw == []
+
+    unless (video? || recording?) && s3_video_key.present? && raw.is_a?(Array) && raw.length.between?(1, 8)
+      errors.add(:metadata, "video versions need a hosted video block and between 1 and 8 versions")
+      return
+    end
+    ids = []
+    raw.each do |item|
+      unless item.is_a?(Hash) && item["id"].is_a?(String) && item["id"].match?(/\A[a-zA-Z0-9_-]{1,80}\z/) &&
+          item["label"].is_a?(String) && item["label"].strip.length.between?(1, 40) && S3ObjectCleanup.managed_key?(item["s3_video_key"])
+        errors.add(:metadata, "each video version needs a unique id, short label and managed video upload")
+        next
+      end
+      ids << item["id"]
+      next unless will_save_change_to_metadata?
+      next if video_version_keys(metadata_in_database).include?(item["s3_video_key"]) || item["s3_video_key"] == s3_video_key
+
+      problem = ApplicationRecord.transaction { S3ObjectCleanup.verify_attachment(item["s3_video_key"]) }
+      errors.add(:metadata, "video version #{problem}") if problem
+    end
+    errors.add(:metadata, "video version ids must be unique") if ids.uniq.length != ids.length
+    if persisted? && will_save_change_to_s3_video_key?
+      errors.add(:metadata, "remove video versions before replacing the underlying video")
+    end
+  end
+
+  def cleanup_removed_video_versions
+    return unless previous_changes.key?("metadata")
+
+    old = previous_changes["metadata"].first
+    (video_version_keys(old) - video_version_keys).each { |key| S3ObjectCleanup.delete_if_unreferenced(key) }
+  end
+
 
   def preserve_learner_evidence
     lock_against_learner_writes!
@@ -276,7 +325,7 @@ class ContentBlock < ApplicationRecord
   end
 
   def delete_stored_video
-    S3ObjectCleanup.delete_if_unreferenced(s3_video_key)
+    ([ s3_video_key ] + video_version_keys).compact.uniq.each { |key| S3ObjectCleanup.delete_if_unreferenced(key) }
   end
 
   def stored_video_object_is_attachable

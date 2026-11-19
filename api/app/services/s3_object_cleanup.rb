@@ -85,7 +85,8 @@ class S3ObjectCleanup
     private
 
     def referenced?(key)
-      Recording.exists?(s3_key: key) || ContentBlock.exists?(s3_video_key: key)
+      Recording.exists?(s3_key: key) || ContentBlock.exists?(s3_video_key: key) ||
+        ContentBlock.where("metadata @> ?::jsonb", { video_versions: [ { s3_video_key: key } ] }.to_json).exists?
     end
   end
 end

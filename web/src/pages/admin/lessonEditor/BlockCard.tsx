@@ -4,6 +4,8 @@ import { Modal } from '../../../components/shared/Modal'
 import { LazyMarkdownEditor } from '../../../components/shared/LazyMarkdownEditor'
 import { MarkdownRenderer } from '../../../components/shared/MarkdownRenderer'
 import { CodeEditor, detectLanguage } from '../../../components/shared/CodeEditor'
+import { videoVersions } from '../../../lib/videoVersions'
+import { VideoVersionsEditor } from '../../../components/admin/VideoVersionsEditor'
 import { VideoUploadField } from '../../../components/admin/VideoUploadField'
 import { AdminVideoPreview } from '../../../components/admin/AdminVideoPreview'
 import { VideoSegmentEditor } from '../../../components/admin/VideoSegmentEditor'
@@ -198,7 +200,7 @@ export function BlockCard({
 
         {isVideo && (
           <div className="grid grid-cols-1 gap-3">
-            {block.id !== null && !readOnly ? (
+            {videoVersions(block.metadata).length > 0 ? <p className="text-sm text-ink-secondary">Manage the versions below. Remove all versions before replacing the original upload.</p> : block.id !== null && !readOnly ? (
               <VideoUploadField
                 contentBlockId={block.id}
                 lessonId={lessonId}
@@ -227,6 +229,7 @@ export function BlockCard({
                 {!readOnly && <p className="mt-1.5 text-xs text-ink-muted">To upload a video file instead, wait for this block to save, then choose Upload.</p>}
               </div>
             )}
+            {block.s3_video_key && !readOnly && <VideoVersionsEditor metadata={block.metadata} sourceKey={block.s3_video_key} onChange={(metadata) => onChange({ metadata })} />}
             {(block.video_url.trim() || block.s3_video_key) && (
               <AdminVideoPreview contentBlockId={block.id} s3VideoKey={block.s3_video_key} videoUrl={block.video_url} title={block.title} />
             )}

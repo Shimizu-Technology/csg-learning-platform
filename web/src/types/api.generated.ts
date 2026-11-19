@@ -778,7 +778,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Stable id of an attached video version. Omit to play the first version (or the legacy upload). */
+                    version_id?: string;
+                };
                 header?: never;
                 path: {
                     id: number;

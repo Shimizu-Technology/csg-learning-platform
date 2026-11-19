@@ -1,0 +1,80 @@
+import { test, expect } from '../../web/node_modules/@playwright/test/index.mjs'
+import { readFileSync } from 'node:fs'
+import { checkedLifecycle } from './ownership.mjs'
+const ids = JSON.parse(readFileSync(new URL('../../.qa-local/video-versions.json', import.meta.url), 'utf8'))
+const media = readFileSync(new URL('../../.qa-local/synthetic.mp4', import.meta.url))
+const session = process.env.DEV_LIFECYCLE_SESSION!
+test.setTimeout(90_000)
+test('author uploads, labels, reorders and removes; learner switches, resumes and remembers', async ({ page }, info) => {
+  const tab = `video-versions-${info.project.name}`
+  checkedLifecycle(session, 'claim', tab)
+  try {
+    await page.route('**/*', async route => {
+      const url = new URL(route.request().url())
+      if (!['localhost', '127.0.0.1'].includes(url.hostname)) return route.abort()
+      if (url.pathname === '/api/v1/video_presign') return route.fulfill({ json: { upload_url: `${url.origin}/qa-storage`, fields: {}, s3_key: 'content_videos/22222222-2222-4222-8222-222222222222/desktop.mp4' } })
+      if (url.pathname === '/qa-storage') return route.fulfill({ status: 204 })
+      if (url.pathname.endsWith('/video_stream')) return route.fulfill({ json: { stream_url: `${url.origin}/qa-media.mp4?version=${url.searchParams.get('version_id') || 'default'}`, expires_at: new Date(Date.now() + 3600000).toISOString(), video_progress: null } })
+      if (url.pathname === '/qa-media.mp4') {
+        const range = route.request().headers().range?.match(/bytes=(\d+)-(\d*)/)
+        const start = range ? Number(range[1]) : 0
+        const end = range?.[2] ? Math.min(Number(range[2]), media.length - 1) : media.length - 1
+        return route.fulfill({ status: range ? 206 : 200, contentType: 'video/mp4', headers: { 'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1), ...(range ? { 'Content-Range': `bytes ${start}-${end}/${media.length}` } : {}) }, body: media.subarray(start, end + 1) })
+      }
+      return route.continue()
+    })
+    await page.goto(`/admin/lessons/${ids.lesson}/edit?qa_user=1`)
+    const versions = page.getByRole('group', { name: 'Video versions', exact: true })
+    await expect(versions).toBeVisible()
+    // Each viewport starts by resetting versions through the actual editor.
+    while (await versions.getByRole('button', { name: /^Remove / }).count()) {
+      await versions.getByRole('button', { name: /^Remove / }).first().click()
+    }
+    await page.getByLabel('Upload video version', { exact: true }).setInputFiles({ name: 'desktop.mp4', mimeType: 'video/mp4', buffer: media })
+    await expect(versions.getByRole('textbox')).toHaveCount(2)
+    await versions.getByRole('textbox').nth(0).fill('Studio')
+    await versions.getByRole('textbox').nth(1).fill('Real desktop')
+    const save = async () => {
+      await page.getByRole('button', { name: 'Save', exact: true }).click()
+      await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      await expect(page.getByText(/^Saved/).first()).toBeVisible()
+    }
+    await save()
+    await page.reload()
+    await expect(versions.getByRole('textbox').nth(0)).toHaveValue('Studio')
+    await expect(versions.getByRole('textbox').nth(1)).toHaveValue('Real desktop')
+    await versions.getByRole('button', { name: 'Move Real desktop up', exact: true }).click()
+    await save()
+    await page.reload()
+    await expect(versions.getByRole('textbox').nth(0)).toHaveValue('Real desktop')
+    await versions.getByRole('button', { name: 'Move Studio up', exact: true }).click()
+    await save()
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `.qa-local/video-editor-${info.project.name}.png`, fullPage: true })
+    await page.goto(`/lessons/${ids.lesson}?cohort_id=${ids.cohort}&qa_user=3`)
+    const switcher = page.getByRole('group', { name: 'Video version', exact: true })
+    await expect(switcher.getByRole('button', { name: 'Studio', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(1)
+    await page.locator('video').evaluate((v: HTMLVideoElement) => { v.currentTime = 12 })
+    await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(12, 0)
+    await page.getByRole('button', { name: 'Real desktop', exact: true }).focus()
+    await page.keyboard.press('Enter')
+    await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(12, 0)
+    await expect(page.locator('video')).toHaveAttribute('src', /version=/)
+    await expect(page.getByRole('button', { name: 'Real desktop', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Real desktop', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `.qa-local/video-learner-${info.project.name}.png`, fullPage: true })
+    await page.goto(`/admin/lessons/${ids.lesson}/edit?qa_user=1`)
+    await versions.getByRole('button', { name: 'Remove Real desktop', exact: true }).click()
+    await save()
+    await page.reload()
+    await expect(versions.getByRole('textbox')).toHaveCount(1)
+    await page.goto(`/lessons/${ids.lesson}?cohort_id=${ids.cohort}&qa_user=3`)
+    await expect(page.getByRole('group', { name: 'Video version', exact: true })).toHaveCount(0)
+  } finally {
+    await page.close()
+    checkedLifecycle(session, 'release', tab)
+  }
+})

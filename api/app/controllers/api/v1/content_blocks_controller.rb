@@ -169,11 +169,21 @@ module Api
           return
         end
 
+        version = if params[:version_id].present?
+          @content_block.video_versions.find { |item| item["id"] == params[:version_id] }
+        else
+          @content_block.video_versions.first
+        end
+        if params[:version_id].present? && version.nil?
+          render json: { error: "Video version not found" }, status: :not_found
+          return
+        end
+
         expiry = video_stream_expiry_for(@learning_read_enrollment)
         return unless expiry
 
         expires_at = expiry.seconds.from_now
-        url = S3Service.generate_presigned_url(@content_block.s3_video_key, expires_in: expiry)
+        url = S3Service.generate_presigned_url(version ? version["s3_video_key"] : @content_block.s3_video_key, expires_in: expiry)
         progress = current_user.progresses.find_by(enrollment: @learning_read_enrollment, content_block: @content_block) unless current_user.staff?
 
         render json: {

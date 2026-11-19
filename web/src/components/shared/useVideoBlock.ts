@@ -1,3 +1,4 @@
+import { videoVersions, rememberedVersion } from '../../lib/videoVersions'
 import { getYouTubeId, getVimeoEmbed } from '../../lib/videoUrls'
 import Player, { type VimeoUrl } from '@vimeo/player'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -8,6 +9,16 @@ import type { ContentBlockRendererProps } from './contentBlockTypes'
 import type { VideoPlayerHandle } from './VideoPlayer'
 
 export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsContext, onProgressUpdate, isCompleted, setIsCompleted }: ContentBlockRendererProps & { isCompleted: boolean; setIsCompleted: React.Dispatch<React.SetStateAction<boolean>> }) {
+  const versions = useMemo(() => videoVersions(block.metadata), [block.metadata])
+  const [selectedVersion, setSelectedVersion] = useState(() => rememberedVersion(block.id, versions))
+  const versionId = versions.some((v) => v.id === selectedVersion) ? selectedVersion : versions[0]?.id
+  const selectVideoVersion = useCallback((id: string) => {
+    s3VideoRef.current?.prepareSourceChange()
+    setSelectedVersion(id)
+    try { localStorage.setItem(`video-version:${block.id}`, id) } catch { /* optional storage */ }
+    setActiveVideoSegment(null)
+    setCompletedVideoSegment(null)
+  }, [block.id])
   const [activeVideoSegment, setActiveVideoSegment] = useState<VideoSegment | null>(null)
   const [completedVideoSegment, setCompletedVideoSegment] = useState<VideoSegment | null>(null)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
@@ -169,9 +180,9 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   }, [block.id, block.block_type, block.video_url, finishActiveVideoSegment, markVideoCompleted, segmentForPlaybackPosition])
 
   const fetchBlockStreamUrl = useCallback(async () => {
-    const res = await api.getContentBlockVideoStream(block.id, cohortId)
+    const res = await api.getContentBlockVideoStream(block.id, cohortId, versionId)
     return res.data?.stream_url || null
-  }, [block.id, cohortId])
+  }, [block.id, cohortId, versionId])
 
   const saveBlockProgress = useCallback((data: import('./VideoPlayer').VideoProgressData) => {
     if (isStaff || readOnly) return
@@ -218,5 +229,5 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
       void vimeoPlayerRef.current.setCurrentTime(seconds).then(() => vimeoPlayerRef.current?.play()).catch(() => undefined)
     }
   }, [block.s3_video_key, block.video_url])
- return { activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect }
+ return { versions, versionId, selectVideoVersion, activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect }
 }

@@ -1283,8 +1283,8 @@ export const api = {
       `/api/v1/content_blocks/${blockId}/video_presign`,
       { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
     ),
-  getContentBlockVideoStream: (blockId: number, cohortId?: number) =>
-    fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream${queryString({ cohort_id: cohortId })}`),
+  getContentBlockVideoStream: (blockId: number, cohortId?: number, versionId?: string) =>
+    fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream${queryString({ cohort_id: cohortId, version_id: versionId })}`),
   updateContentBlockVideoProgress: (blockId: number, data: Omit<VideoProgressInput, 'cohort_id'>, cohortId?: number) =>
     fetchApi<VideoProgressResponse>(`/api/v1/content_blocks/${blockId}/video_progress`, {
       method: 'PATCH', body: JSON.stringify({ ...data, cohort_id: cohortId, watch_credit_version: 2 }),
