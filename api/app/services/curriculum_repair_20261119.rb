@@ -150,6 +150,58 @@ class CurriculumRepair20261119
     end
   end
 
+  def self.copy_reference_snapshot
+    copy = Curriculum.find_by!(course_package_key: COPY_KEY)
+    lessons = Lesson.where(module_id: copy.modules.select(:id))
+    snapshot.merge("copy_tables" => {
+      "Curriculum" => [ copy ], "CurriculumModule" => copy.modules.order(:id),
+      "Lesson" => lessons.order(:id), "ContentBlock" => ContentBlock.where(lesson_id: lessons.select(:id)).order(:id)
+    }.transform_values { |records| JSON.parse(records.map(&:attributes).to_json) })
+  end
+
+  # Follow-up for copies made before personal reference-list items were removed.
+  # The source curriculum and all learner/plan records must remain byte-for-byte equal.
+  def run_copy_references(apply: false, snapshot_path: nil)
+    ApplicationRecord.transaction do
+      connection = ApplicationRecord.connection
+      connection.execute("SET LOCAL lock_timeout = '5s'")
+      connection.execute("SET LOCAL statement_timeout = '60s'")
+      lock_source! if apply
+      copy = Curriculum.find_by!(course_package_key: COPY_KEY)
+      copy.lock! if apply
+      raise "Reference repair only supports an unassigned draft" unless copy.draft? && !copy.cohorts.exists?
+
+      if apply
+        copy.modules.order(:id).lock.load
+        Lesson.where(module_id: copy.modules.select(:id)).order(:id).lock.load
+        ContentBlock.where(lesson_id: Lesson.where(module_id: copy.modules.select(:id)).select(:id)).order(:id).lock.load
+      end
+      before = self.class.copy_reference_snapshot
+      changes = before.fetch("copy_tables").fetch("ContentBlock").filter_map do |row|
+        fields = %w[body solution].filter_map do |key|
+          value = generic(row[key])
+          [ key, { before: row[key], after: value } ] if value != row[key]
+        end.to_h
+        { id: row["id"], lesson_id: row["lesson_id"], fields: fields } if fields.any?
+      end
+      @output.puts JSON.pretty_generate(mode: "dry_run_copy_references", curriculum_id: copy.id, changes: changes)
+      return unless apply && changes.any?
+
+      raise "SNAPSHOT_PATH is required for apply" unless snapshot_path.present?
+      saved = JSON.parse(File.read(snapshot_path))
+      raise "Snapshot is stale; export and review again" unless saved.except("exported_at", "source_commit") == before.except("exported_at", "source_commit")
+
+      changes.each do |change|
+        row = before.fetch("copy_tables").fetch("ContentBlock").find { |block| block["id"] == change[:id] }.deep_dup
+        change[:fields].each { |key, values| row[key] = values[:after] }
+        update_row!(ContentBlock, row)
+      end
+      raise "Source or learner records changed; rolling back" unless self.class.snapshot.fetch("tables") == before.fetch("tables")
+
+      @output.puts JSON.generate(status: "copy_references_applied", curriculum_id: copy.id, changed_blocks: changes.size, source_and_learner_records_unchanged: true)
+    end
+  end
+
   private
 
   def version_reference
@@ -345,10 +397,20 @@ class CurriculumRepair20261119
   def generic(text)
     return text unless text
 
-    text.gsub(%r{<p><a href="https://github.com/Code-School-of-Guam-Alumni/Learning-Examples/blob/main/LANCE\.md[^"]*">.*?</a></p>}m, "")
-      .gsub(/organizer_frontend/i, "mini_capstone_frontend").gsub(/organizer_api/i, "mini_capstone_api")
-      .gsub(/the Organizer React Client/i, "your mini-capstone React client").gsub(/the Organizer MVP/i, "your mini-capstone MVP")
-      .gsub(/\b(?:your |the )?organizer\b/i, "your mini-capstone")
+    clean = text.gsub(%r{<p><a href="https://github.com/Code-School-of-Guam-Alumni/Learning-Examples/blob/main/LANCE\.md[^"]*">.*?</a></p>}m, "")
+    clean = clean.gsub(%r{<section data-csg-reference-map="[^"]+">.*?</section>}m) do |section|
+      section.gsub(%r{<li>.*?</li>}m) do |item|
+        item.match?(%r{\bLance\b|github\.com/Code-School-of-Guam-Cohort-3/(?:organizer_api|mini_capstone_api)/}i) ? "" : item
+      end
+    end
+    # Project names in prose are generic; reference URLs retain their real paths.
+    clean.split(%r{(https?://[^\s"<>]+)}).each_with_index.map do |part, index|
+      next part if index.odd?
+
+      part.gsub(/organizer_frontend/i, "mini_capstone_frontend").gsub(/organizer_api/i, "mini_capstone_api")
+        .gsub(/the Organizer React Client/i, "your mini-capstone React client").gsub(/the Organizer MVP/i, "your mini-capstone MVP")
+        .gsub(/\b(?:your |the )?organizer\b/i, "your mini-capstone")
+    end.join
   end
 
   def rewrite_repeats!
