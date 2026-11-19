@@ -412,6 +412,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       <video
         ref={videoRef}
         src={streamUrl}
+        muted={muted}
         className="absolute inset-0 w-full h-full object-contain"
         onClick={togglePlay}
         playsInline

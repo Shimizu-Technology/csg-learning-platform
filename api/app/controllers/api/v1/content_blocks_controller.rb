@@ -206,7 +206,7 @@ module Api
         # via the first-reporter lock below, corrupting the authoritative
         # duration the moment a real video is later attached.
         linked_provider = Recording.source_kind_for(@content_block.video_url)
-        linked_video = %w[video recording].include?(@content_block.block_type) && %w[youtube vimeo].include?(linked_provider)
+        linked_video = @content_block.s3_video_key.blank? && %w[video recording].include?(@content_block.block_type) && %w[youtube vimeo].include?(linked_provider)
         unless @content_block.s3_video_key.present? || linked_video
           render json: { error: "Content block has no video to track" }, status: :unprocessable_entity
           return

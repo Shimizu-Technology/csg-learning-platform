@@ -41,6 +41,8 @@ describe('VideoPlayer section seeking', () => {
     Object.defineProperty(video, 'paused', { configurable: true, value: false })
     act(() => video.dispatchEvent(new Event('loadedmetadata')))
     video.currentTime = 42
+    act(() => (container.querySelector('button[aria-label="Mute"]') as HTMLButtonElement).click())
+    expect(video.muted).toBe(true)
     vi.spyOn(video, 'pause').mockImplementation(() => undefined)
     act(() => ref.current?.prepareSourceChange())
     video.currentTime = 0
@@ -51,6 +53,7 @@ describe('VideoPlayer section seeking', () => {
     replacement.currentTime = 0
     act(() => replacement.dispatchEvent(new Event('loadedmetadata')))
     expect(replacement.currentTime).toBe(42)
+    expect(replacement.muted).toBe(true)
     expect(play).toHaveBeenCalledOnce()
     expect(replacement.getAttribute('src')).toBe('/desktop.mp4')
     act(() => replacement.dispatchEvent(new Event('pause')))

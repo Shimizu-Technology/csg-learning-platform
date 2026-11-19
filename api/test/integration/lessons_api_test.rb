@@ -1240,7 +1240,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     other = "content_videos/22222222-2222-4222-8222-222222222222/desktop.mp4"
     versions = [ { id: "studio", label: "Studio", s3_video_key: @video_block.s3_video_key },
       { id: "desktop", label: "Real desktop", s3_video_key: other } ]
-    @video_block.update!(s3_video_duration_seconds: 300, metadata: { video_versions: versions.reverse })
+    @video_block.update!(s3_video_duration_seconds: 300, video_url: "https://youtu.be/synthetic", metadata: { video_versions: versions.reverse })
     original_configured = S3Service.method(:configured?)
     original_url = S3Service.method(:generate_presigned_url)
     S3Service.define_singleton_method(:configured?) { true }
