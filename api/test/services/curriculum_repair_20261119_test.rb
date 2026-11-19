@@ -24,6 +24,9 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
     ContentBlock.create!(lesson_id: 221, block_type: :video, position: 0, video_url: "https://youtu.be/3SW_W7PmEd4", metadata: { video_segments: [ { "start_seconds" => 1440, "end_seconds" => 2644, "required" => true, "label" => "Axios" }, { "start_seconds" => 5341, "end_seconds" => 7411, "required" => true, "label" => "State" } ] })
     Lesson.find(228).primary_assignment_block.update!(body: '<p><a href="https://github.com/Code-School-of-Guam-Cohort-3/resources/blob/main/AUTHENTICATION/guide_implementing_react_authentication_v2.md">Current working token guide</a></p>')
     Lesson.find(230).primary_assignment_block.update!(body: '<p><a href="https://github.com/Code-School-of-Guam-Cohort-3/resources/blob/main/updated/05-deployment/guide_deployment_to_render_and_netlify.md">Working deployment guide</a></p>')
+    @reference_url = "https://example.invalid/organizer_api/guide_organizer_frontend.md"
+    @personal_reference = '<section data-csg-reference-map="v1"><h3>Reference code</h3><ul><li><a href="https://example.invalid/organizer_api/guide_organizer_frontend.md">Associations reference</a></li><li><a href="https://github.com/Code-School-of-Guam-Cohort-3/organizer_api/compare/abc...def">Lance\'s association change</a> — Lance classroom change</li></ul></section>'
+    Lesson.find(191).primary_assignment_block.update!(body: "<p>Build in your organizer_api.</p>" + @personal_reference)
     ContentBlock.create!(lesson_id: 230, block_type: :video, position: 0, video_url: "https://youtu.be/Otzinb2xcuQ", metadata: { video_segments: [ { "start_seconds" => 0, "end_seconds" => 30, "required" => true, "label" => "Deploy concepts" } ] })
     @block = Lesson.find(213).primary_assignment_block
     @progress = Progress.create!(content_block: @block, user: student, enrollment: @enrollment, status: :completed)
@@ -80,6 +83,11 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
       assert_empty copy.cohorts
       mapping = JSON.parse(copy.course_package_content_snapshot).fetch("lesson_ids")
       mapped = ->(id) { Lesson.find(mapping.fetch(id.to_s)) }
+      assert_includes mapped.call(191).primary_assignment_block.body, @reference_url
+      assert_not_includes mapped.call(191).primary_assignment_block.body, "Lance"
+      assert_not_includes mapped.call(191).primary_assignment_block.body, "/mini_capstone_api/"
+      assert_includes mapped.call(191).primary_assignment_block.body, "your mini_capstone_api"
+      assert_includes Lesson.find(191).primary_assignment_block.body, "Lance"
       assert mapped.call(208).release_day < mapped.call(203).release_day
       assert_equal 49, mapped.call(208).release_day
       assert_equal 50, mapped.call(203).release_day
@@ -110,7 +118,8 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
       assert_equal live_video_before, ContentBlock.where(lesson_id: 221, block_type: :video).sole.metadata
       copied_blocks = ContentBlock.where(lesson_id: copy.modules.flat_map { |mod| mod.all_lessons.ids })
       copied_blocks.each do |block|
-        assert_no_match(/borrowed-token|remove-borrowed-token|organizer_api|Actualize|_archive\/csg\/AUTHENTICATION/, block.body.to_s)
+        assert_no_match(/borrowed-token|remove-borrowed-token|Actualize|_archive\/csg\/AUTHENTICATION/, block.body.to_s)
+        assert_no_match(/organizer_api/, block.body.to_s.gsub(%r{https?://[^\s"<>]+}, ""))
         required_seconds = block.metadata.fetch("video_segments", []).sum { |s| s["required"] ? s["end_seconds"] - s["start_seconds"] : 0 }
         assert_operator required_seconds, :<=, 1800
       end
@@ -197,6 +206,43 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
     LearningObjective.create!(curriculum: @curriculum, title: "New objective", code: "NEW", success_criteria: "Explain the change", position: 1)
     error = assert_raises(RuntimeError) { CurriculumRepair20261119.new(output: @output).run }
     assert_match(/extend and review copier/, error.message)
+  end
+
+  test "copy reference repair is snapshot guarded, preserves live records and references, and is idempotent" do
+    copy = nil
+    snapshot_file { |path| copy = CurriculumRepair20261119.new(output: StringIO.new).run(apply: true, snapshot_path: path) }
+    mapping = JSON.parse(copy.course_package_content_snapshot).fetch("lesson_ids")
+    block = Lesson.find(mapping.fetch("191")).primary_assignment_block
+    block.update!(body: @personal_reference.sub("/organizer_api/compare/", "/mini_capstone_api/compare/"))
+    source_before = CurriculumRepair20261119.snapshot.fetch("tables")
+    block.lesson.update_columns(updated_at: 5.minutes.ago)
+    parent_version = block.lesson.reload.updated_at
+    before = CurriculumRepair20261119.copy_reference_snapshot
+    output = StringIO.new
+    repair = CurriculumRepair20261119.new(output: output)
+    repair.run_copy_references
+    assert_equal before.except("exported_at"), CurriculumRepair20261119.copy_reference_snapshot.except("exported_at")
+    assert_equal [ block.id ], JSON.parse(output.string).fetch("changes").map { |row| row["id"] }
+    assert_raises(RuntimeError) { repair.run_copy_references(apply: true) }
+    Tempfile.create("copy-references") do |file|
+      # Export metadata is not a content-version guard; rows are exact.
+      file.write(JSON.generate(before.merge("exported_at" => "2000-01-01T00:00:00Z")))
+      file.flush
+      block.update_columns(body: block.body + "<p>Concurrent draft edit.</p>")
+      assert_raises(RuntimeError) { repair.run_copy_references(apply: true, snapshot_path: file.path) }
+      block.update_columns(body: before.fetch("copy_tables").fetch("ContentBlock").find { |row| row["id"] == block.id }.fetch("body"))
+      repair.run_copy_references(apply: true, snapshot_path: file.path)
+      assert_equal source_before, CurriculumRepair20261119.snapshot.fetch("tables")
+      assert_includes block.reload.body, @reference_url
+      assert_not_includes block.body, "Lance"
+      assert_not_includes block.body, "/mini_capstone_api/compare/"
+      assert_operator block.lesson.reload.updated_at, :>, parent_version
+      after = CurriculumRepair20261119.copy_reference_snapshot.except("exported_at")
+      repair.run_copy_references(apply: true, snapshot_path: file.path)
+      assert_equal after, CurriculumRepair20261119.copy_reference_snapshot.except("exported_at")
+    end
+    copy.update!(status: :active)
+    assert_raises(RuntimeError) { repair.run_copy_references(apply: true) }
   end
 
   private
