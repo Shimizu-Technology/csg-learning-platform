@@ -74,6 +74,12 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
       assert_empty copy.cohorts
       mapping = JSON.parse(copy.course_package_content_snapshot).fetch("lesson_ids")
       mapped = ->(id) { Lesson.find(mapping.fetch(id.to_s)) }
+      assert mapped.call(208).release_day < mapped.call(203).release_day
+      assert_equal 49, mapped.call(208).release_day
+      assert_equal 50, mapped.call(203).release_day
+      assert_includes mapped.call(185).primary_assignment_block.body, "rename available to checked_out"
+      assert_includes mapped.call(186).primary_assignment_block.body, "unique ISBN"
+      assert_includes mapped.call(143).primary_assignment_block.body, "For now"
       assert mapped.call(228).release_day < mapped.call(229).release_day
       assert mapped.call(229).release_day < mapped.call(221).release_day
       assert mapped.call(221).release_day < mapped.call(223).release_day

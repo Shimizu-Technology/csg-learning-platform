@@ -192,6 +192,13 @@ class CurriculumRepair20261119
       row["metadata"]["curriculum_20261119_source_lesson_id"] = row["lesson_id"]
       row["body"] = row["body"]&.gsub(%r{<div data-csg-fix="(?:borrowed-token|remove-borrowed-token)">.*?</div>}m, "")
     end
+    # Versioning is a prerequisite of the cookie guides' Api::V1 controllers.
+    lesson(@copy, 208)["release_day"] = 49
+    [ 203, 204, 205, 206 ].each_with_index { |id, index| lesson(@copy, id)["release_day"] = 50 + index }
+    lesson(@copy, 207).merge!("release_day" => 53, "position" => 2)
+    (143..146).each do |id|
+      exercise(@copy, id)["body"] += "<p>For now, use fictional local data, plain JSON and a happy-path create so you can see the request/controller/database flow. This is a named learning step: versioned routes follow in the API-versioning lesson before authentication; validations and useful failure responses arrive in the validations/happy-and-sad-path unit; serializers follow in the serializer unit; session authentication and ownership checks come before deployment. Do not deploy an unprotected multi-user app.</p>"
+    end
     # Login and session restoration precede the FIRST protected read, not only
     # create/update/delete. Introduce forms and router scaffolding in 228.
     order = [ 228, 229, 221, 222, 223, 224, 225, 226, 227, 230, 231, 232, 233, 234, 235, 236, 237 ]
@@ -224,10 +231,11 @@ class CurriculumRepair20261119
     [ 198, 199, 200, 201, 202 ].each do |id|
       exercise(@copy, id)["body"] += "<p>For the authentication lessons that follow, this curriculum uses the <a href=\"#{rails_guide}\">CSG Rails cookie-session guide</a>. Keep serializers limited to safe user fields; never expose password_digest or session secrets.</p>"
     end
-    [ 203, 204, 205, 206, 228, 229, 231 ].each do |id|
+    [ 203, 204, 205, 206, 208, 228, 229, 231 ].each do |id|
       exercise(@copy, id)["body"] = asset("cookie-#{id}")
     end
     lesson(@copy, 205)["title"] = "Log In with a Rails Session"
+    exercise(@copy, 212)["body"] = exercise(@copy, 212)["body"].gsub(/authentication header/i, "session cookie and CSRF header")
     [ 221, 222, 223, 224, 225, 226, 228, 229 ].each do |id|
       exercise(@copy, id)["body"] = asset("cookie-client") + exercise(@copy, id)["body"]
     end
@@ -265,18 +273,39 @@ class CurriculumRepair20261119
       optional = id.between?(165, 169) || id.between?(183, 190)
       row["required"] = false if optional
       row["title"] = "Optional: #{row['title']}" if optional
-      target = id.between?(183, 190) ? "a separate Library Management System practice API" : "your existing mini-capstone API"
+      target = if id.between?(183, 190)
+        "a separate Library Management System practice API"
+      elsif id.between?(151, 169) || id == 171
+        "your local practice_api"
+      else
+        "your existing mini-capstone API"
+      end
       focus = case id
-      when 148, 153 then "create one valid record and one invalid record; explain the saved attributes and validation response"
-      when 149 then "run index, show, create, update and destroy against the same resource, one request at a time"
-      when 151, 171, 189 then "add repeat-safe demo seed data, run it twice, and check that the second run creates no duplicates"
+      when 148 then "generate a model for your own domain, inspect its migration, migrate, check schema.rb, and create fictional demo data. For now verify the happy path; add validation failures in the later validations unit"
+      when 153 then "create one fictional record through the API and verify its saved attributes. For now this practices the happy path; the validations unit adds invalid-data handling"
+      when 149 then "run index, show, create, update and destroy against the same fictional resource, one request at a time; implement from memory before consulting the reference"
+      when 151 then "generate a Person model with name and age, inspect and run its migration, seed fictional people, and verify Person.all in rails console"
+      when 165 then "generate and boot a new API, verify its welcome page, then stop the server and push the separate repository"
+      when 166 then "generate a Recipe model with name, chef, ingredients, directions and prep_time, inspect the migration, migrate, and verify schema.rb"
+      when 167 then "create three fictional recipes in rails console, read them in different ways, update one, then delete one; explain which operations persist"
+      when 168 then "generate the recipes controller and implement CRUD from memory, explaining each action; use the earlier full teaching pass only when stuck"
+      when 169 then "add GET index/show, POST create, PUT/PATCH update and DELETE destroy routes, and test each through HTTPie; submit the route/request/status evidence"
+      when 171, 189 then "upgrade the earlier simple .create seed to repeat-safe demo data, run it twice, and check that the second run creates no duplicates. Never drop a production database to reseed. In the library lab include at least five authors and ten books"
       when 152 then "read the collection through index and verify the JSON matches the stored records"
       when 154 then "read one record through show and test a missing ID"
       when 155 then "update one record and prove the other records did not change"
       when 156 then "delete one record and verify the second delete has an intentional missing-record response"
-      else "apply the named topic without replaying the full CRUD tutorial, then test a happy path and a failure path"
+      when 183 then "plan books and authors, create and boot the API, and record the model/migration/validation/route acceptance checklist; this is an integrated transfer exercise"
+      when 184 then "generate Author (name, age, nationality) and Book (title, genre, published_year, available) with appropriate types; migrate and inspect the schema"
+      when 185 then "use new migrations to add author biography, remove nationality, add book page_count and ISBN, and rename available to checked_out; verify the schema after each migration"
+      when 186 then "require author name and positive age; require book title, genre and published_year, unique ISBN and positive page_count; default checked_out to false. Prove valid and invalid cases in rails console"
+      when 187 then "generate controllers and CRUD routes for both models, implementing from memory and testing one action/route at a time; explain any model-name changes in error handling"
+      when 188 then "test missing fields, invalid age, duplicate ISBN, missing records and invalid updates, plus valid CRUD; return meaningful JSON and status codes"
+      when 190 then "check both models, migrations, controllers, routes, validations, seeds and happy/sad responses; write which step was difficult, the exact error, how you debugged it and which reference helped"
+      else raise "Unspecified practice focus #{id}"
       end
-      exercise(@copy, id)["body"] = "<p>You have completed the first Rails console, API, seeding and params lessons. This is #{optional ? 'optional retrieval practice' : 'practice applying it to your own project'}, not another follow-along build.</p><p>In #{target}, #{focus}. Use the model names and attributes in your own schema. For HTTP requests use the HTTPie desktop app, one tab per request, with name/value rows in Params. Read the response and the Rails log after every request.</p><p>Try it from memory first, then consult the <a href=\"#{RESOURCES}web-development/03-rails/guide_rails_api_crud.md\">CSG Rails CRUD guide</a> if needed. Explain one difference between your app and the guide. Do not copy unrelated model names into error handling.</p><p>Commit on a feature branch, push and open a PR. Submit your work using the existing field below; include the PR link and tested request/status results in Notes (or in the text answer). Done when the change works, the failure is handled, and your evidence explains both.</p>"
+      acceptance = id < 171 ? "the happy path works and your evidence names the invalid/missing-data cases to revisit in the later validation and sad-path unit" : "the change works, the failure is handled, and your evidence explains both"
+      exercise(@copy, id)["body"] = "<p>You have completed the first Rails console, API, seeding and params lessons. This is #{optional ? 'optional retrieval practice' : 'practice applying it to your own project'}, not another follow-along build.</p><p>In #{target}, #{focus}. Use the model names and attributes in your own schema. For HTTP requests use the HTTPie desktop app, one tab per request, with name/value rows in Params. Read the response and the Rails log after every request.</p><p>Try it from memory first, then consult the <a href=\"#{RESOURCES}web-development/03-rails/guide_rails_api_crud.md\">CSG Rails CRUD guide</a> if needed. Explain one difference between your app and the guide. Do not copy unrelated model names into error handling.</p><p>Commit on a feature branch, push and open a PR. Submit your work using the existing field below; include the PR link and tested request/status results in Notes (or in the text answer). Done when #{acceptance}.</p>"
       blocks(@copy, id).select { |b| b["metadata"].key?("video_segments") }.each do |block|
         block["metadata"]["video_segments"].each { |segment| segment["required"] = false }
       end
@@ -293,6 +322,11 @@ class CurriculumRepair20261119
       # section exists, the written exercise teaches the required work and the
       # full recording becomes optional review. Never invent unreviewed cuts.
       segments.each do |segment|
+        # Browser arithmetic is prework review; keep the Node/variables/objects
+        # progression required instead of dropping its final core concept.
+        if id == 213 && [ "Use JavaScript in the browser console", "Practice console.log and arithmetic" ].include?(segment["label"])
+          segment["required"] = false
+        end
         length = segment.fetch("end_seconds") - segment.fetch("start_seconds")
         required = segment.fetch("required", true) != false && length <= budget
         segment["required"] = !!required
@@ -303,6 +337,9 @@ class CurriculumRepair20261119
     end
     body = exercise(@copy, id)["body"]
     body = body.gsub(%r{<p><strong>Watch:</strong>.*?</p>}m, "")
+    if id == 132
+      body = body.gsub("Follow the video in creating the Task Tracker CLI", "Try building the Task Tracker CLI from the prework concepts first; use the optional recording as a walkthrough if needed")
+    end
     exercise(@copy, id)["body"] = "<p><strong>Viewing:</strong> only sections marked Required in the player are required (at most 30 minutes total). Other sections are optional review. The written exercise and submission remain required; use the guide when a recording section is optional.</p>" + body
   end
 
