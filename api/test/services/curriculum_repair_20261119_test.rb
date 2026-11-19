@@ -77,6 +77,8 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
       assert_not mapped.call(232).required?
       assert_not mapped.call(235).required?
       assert_equal "Log In with a Rails Session", mapped.call(205).title
+      assert_includes mapped.call(231).primary_assignment_block.body, "/api/* https://YOUR-API.onrender.com/api/:splat 200"
+      assert_includes mapped.call(231).primary_assignment_block.body, "/* /index.html 200"
       [ 203, 204, 205, 206, 228, 229 ].each do |id|
         assert_match(/guide_(?:rails_api|react)_cookie_authentication/, mapped.call(id).primary_assignment_block.body)
       end
