@@ -21,6 +21,25 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
   end
 
+  test "version authoring persists the original duration without changing learner work" do
+    key = "content_videos/11111111-1111-4111-8111-111111111111/original.mp4"
+    other = "content_videos/22222222-2222-4222-8222-222222222222/alternate.mp4"
+    @video.update!(video_url: nil, s3_video_key: key, s3_video_duration_seconds: nil)
+    progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video,
+      status: :in_progress, video_total_watched: 10, video_last_position: 10)
+    before = progress.attributes
+    blocks = payload[:blocks]
+    blocks.find { |block| block[:id] == @video.id }[:metadata] = {
+      video_versions_duration_seconds: 300,
+      video_versions: [ { id: "studio", label: "Studio", s3_video_key: key }, { id: "desktop", label: "Real desktop", s3_video_key: other } ]
+    }
+    put_editor(@admin, payload(blocks: blocks))
+    assert_response :success
+    assert_equal 300, @video.reload.s3_video_duration_seconds
+    assert_equal "studio", @video.video_versions.first["id"]
+    assert_equal before, progress.reload.attributes
+  end
+
   test "admin reads every block in order with editor context" do
     get_editor(@admin)
 

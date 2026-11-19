@@ -267,6 +267,32 @@ class LessonMoveDuplicateTest < ActionDispatch::IntegrationTest
     assert_equal [ @first.id, @second.id, @third.id ], @basics.lessons.reload.map(&:id)
   end
 
+  test "versioned lesson duplication verifies every key in order before row locks" do
+    anchor = "content_videos/ffffffff-ffff-4fff-8fff-ffffffffffff/studio.mp4"
+    alternate = "content_videos/00000000-0000-4000-8000-000000000000/desktop.mp4"
+    @first.content_blocks.create!(block_type: :video, position: 0, s3_video_key: anchor, s3_video_duration_seconds: 300,
+      metadata: { video_versions: [ { id: "studio", label: "Studio", s3_video_key: anchor }, { id: "desktop", label: "Real desktop", s3_video_key: alternate } ] })
+    events = []
+    original_configured = S3Service.method(:configured?)
+    original_exists = S3Service.method(:object_exists?)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:object_exists?) { |key| events << [ :storage, key ]; true }
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      events << [ :row_lock ] if payload[:sql].match?(/\bFOR (NO KEY UPDATE|UPDATE|KEY SHARE|SHARE)\b/)
+    end
+    copy = LessonDuplicate.new(lesson: @first, user: @admin).duplicate!
+    assert_equal [ [ :storage, alternate ], [ :storage, anchor ] ], events.first(2)
+    assert_equal [ alternate, anchor ], events.select { |event| event.first == :storage }.map(&:last), "copied blocks reuse the verified keys under row locks"
+    assert events.drop(2).any? { |event| event.first == :row_lock }
+    assert_equal [ "studio", "desktop" ], copy.content_blocks.first.video_versions.map { |v| v["id"] }
+    assert_equal 300, copy.content_blocks.first.s3_video_duration_seconds
+    assert_empty Progress.where(content_block_id: copy.content_blocks.select(:id))
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    S3Service.define_singleton_method(:configured?, original_configured) if original_configured
+    S3Service.define_singleton_method(:object_exists?, original_exists) if original_exists
+  end
+
   test "a duplicated hosted video shares the stored object" do
     video = @first.content_blocks.create!(block_type: :video, position: 0, title: "Walkthrough", s3_video_key: "content_videos/11111111-1111-4111-8111-111111111111/walkthrough.mp4",
                                           s3_video_content_type: "video/mp4", s3_video_size: 20, s3_video_duration_seconds: 300)

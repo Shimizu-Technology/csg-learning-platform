@@ -1236,6 +1236,35 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     refute @lesson.reload.archived?
   end
 
+  test "version streams select only attached uploads and share the existing block progress" do
+    other = "content_videos/22222222-2222-4222-8222-222222222222/desktop.mp4"
+    versions = [ { id: "studio", label: "Studio", s3_video_key: @video_block.s3_video_key },
+      { id: "desktop", label: "Real desktop", s3_video_key: other } ]
+    @video_block.update!(s3_video_duration_seconds: 300, video_url: "https://youtu.be/synthetic", metadata: { video_versions: versions.reverse })
+    original_configured = S3Service.method(:configured?)
+    original_url = S3Service.method(:generate_presigned_url)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:generate_presigned_url) { |key, **| "https://signed.example/#{key}" }
+    [ [ nil, other ], [ "studio", @video_block.s3_video_key ], [ "desktop", other ] ].each do |id, key|
+      as_user(@student) { get "/api/v1/content_blocks/#{@video_block.id}/video_stream", params: { version_id: id }, headers: auth_headers }
+      assert_response :success
+      assert_equal "https://signed.example/#{key}", response.parsed_body["stream_url"]
+    end
+    as_user(@student) { get "/api/v1/content_blocks/#{@video_block.id}/video_stream", params: { version_id: "not-attached" }, headers: auth_headers }
+    assert_response :not_found
+    assert_equal 0, Progress.where(content_block: @video_block).count
+    as_user(@student) do
+      patch "/api/v1/content_blocks/#{@video_block.id}/video_progress",
+        params: { last_position_seconds: 10, total_watched_seconds: 10, duration_seconds: 60, watch_credit_version: 2 }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal 300, @video_block.reload.s3_video_duration_seconds
+    assert_equal 300, Progress.find_by!(content_block: @video_block).video_duration
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if original_configured
+    S3Service.define_singleton_method(:generate_presigned_url, original_url) if original_url
+  end
+
   test "student video stream response includes explicit signed URL expiry" do
     expires_in = with_s3_stream_url("https://signed.example/lesson.mp4") do
       as_user(@student) do

@@ -366,3 +366,19 @@ is in `.qa-local/github-app-bindings/`; use `scripts/qa/run clean` afterward.
 The full secret-free ASUS gate remains `scripts/qa/first-run-states-gate.sh`,
 including both API prepared-statement modes and its migration subprocess port
 adapter.
+
+### Video versions
+
+After starting a fresh harness, run `video-versions-fixtures.rb` from `api/`
+with the exact owned `DATABASE_URL` printed by startup. The fixture's boot guard
+requires a local `csg_qa_` database. Generate a local 60-second test clip:
+
+```sh
+ffmpeg -f lavfi -i color=c=darkblue:s=640x360:r=10 -t 60 -c:v libx264 -pix_fmt yuv420p .qa-local/synthetic.mp4
+```
+
+Run `QA_SPEC=video-versions.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
+The spec covers 1280/390 Chromium, editor persistence and learner source/position/
+preference behavior. It intercepts only storage presign/upload/stream responses
+and synthetic media; authoring and progress still reach the local Rails API.
+No real storage provider or student data is used. Cleanup with `scripts/qa/run clean`.

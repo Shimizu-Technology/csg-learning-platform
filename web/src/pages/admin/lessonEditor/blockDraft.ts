@@ -50,6 +50,7 @@ export interface BlockDraft {
   s3_video_key: string | null
   s3_video_content_type: string | null
   s3_video_size: number | null
+  s3_video_duration_seconds?: number | null
   /** The block's own submission type; null falls back to the lesson's legacy rule. */
   submission_type: string | null
   submission_config: Record<string, unknown>
@@ -109,6 +110,7 @@ export function blockFromServer(block: ContentBlockSummary, key = savedKey(block
     s3_video_key: block.s3_video_key || null,
     s3_video_content_type: block.s3_video_content_type || null,
     s3_video_size: block.s3_video_size ?? null,
+    s3_video_duration_seconds: block.s3_video_duration_seconds ?? null,
     submission_type: block.submission_type_explicit || null,
     submission_config: (block.submission_config || {}) as Record<string, unknown>,
     rubric_id: block.rubric?.id ?? null,
@@ -170,8 +172,12 @@ export function emptyCheck(): CheckDraft {
 
 /** A copy saved as a new block: same content, its own retrieval check, no learner work. */
 export function duplicateBlock(block: BlockDraft): BlockDraft {
+  const copy = structuredClone(block)
+  if (block.s3_video_duration_seconds && Array.isArray(copy.metadata.video_versions) && copy.metadata.video_versions.length) {
+    copy.metadata.video_versions_duration_seconds = block.s3_video_duration_seconds
+  }
   return {
-    ...structuredClone(block),
+    ...copy,
     key: newKey(),
     id: null,
     check_locked: false,
@@ -243,6 +249,9 @@ export function draftPayload(
     const saved = block.id ? options.baseline.get(block.id) : undefined
     const payload: LessonBlockInput = {
       ...(block.id ? { id: block.id } : { client_id: block.key, metadata: block.metadata }),
+      ...(JSON.stringify(block.metadata.video_versions) !== JSON.stringify(saved?.metadata.video_versions) ||
+        block.metadata.video_versions_duration_seconds !== saved?.metadata.video_versions_duration_seconds
+        ? { metadata: { ...block.metadata } } : {}),
       block_type: block.block_type,
       title: nullable(block.title),
       body: nullable(block.body),

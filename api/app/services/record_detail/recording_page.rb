@@ -63,7 +63,11 @@ class RecordDetail
 
     def lessons(recording, cohort)
       matches = []
-      matches << ContentBlock.where(s3_video_key: recording.s3_key) if recording.s3_key.present?
+      if recording.s3_key.present?
+        matches << ContentBlock.where(s3_video_key: recording.s3_key).or(
+          ContentBlock.where("metadata @> ?::jsonb", { video_versions: [ { s3_video_key: recording.s3_key } ] }.to_json)
+        )
+      end
       matches << ContentBlock.where(video_url: recording.source_url) if recording.source_url.present?
       return [] if matches.empty?
 
