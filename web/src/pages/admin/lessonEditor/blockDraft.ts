@@ -172,8 +172,12 @@ export function emptyCheck(): CheckDraft {
 
 /** A copy saved as a new block: same content, its own retrieval check, no learner work. */
 export function duplicateBlock(block: BlockDraft): BlockDraft {
+  const copy = structuredClone(block)
+  if (block.s3_video_duration_seconds && Array.isArray(copy.metadata.video_versions) && copy.metadata.video_versions.length) {
+    copy.metadata.video_versions_duration_seconds = block.s3_video_duration_seconds
+  }
   return {
-    ...structuredClone(block),
+    ...copy,
     key: newKey(),
     id: null,
     check_locked: false,
