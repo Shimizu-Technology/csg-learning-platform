@@ -39,3 +39,5 @@ Resources PRs #3 and #4 merged during implementation. The current maintained aut
 - RuboCop: 850 files, no offenses. Brakeman: no warnings. bundler-audit: no vulnerabilities. Web API types, audited dependency policy and complete check passed (255 test files / 3,522 tests, lint, TypeScript, build and bundle checks).
 - Local UI found and fixed an HTML-format detection issue before publication: leading section tags render as literal source in the existing renderer, so new containers use div tags. Added a regression assertion and reran the affected browser journey.
 - Production browser check reached Clerk sign-in; no authenticated browser session was available. Production read-only verification will use Rails domain projections and raw records over Render SSH.
+
+Lead clarification: Cohort 4 auth approach is **pending Leon’s decision (token vs cookie)**. The copy retains the source token lessons without choosing a new approach; only ordering changes now. Lance remains on JWTs and the matching archive links. The Git lesson uses `web-development/02-git-github/branches_and_pull_requests.md`, supplied by the lead after Resources #3–#5 merged without renames.
