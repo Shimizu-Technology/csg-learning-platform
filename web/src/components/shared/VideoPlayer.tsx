@@ -73,40 +73,51 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   }, [])
 
   const requestGeneration = useRef(0)
+  const sourceChangePendingRef = useRef(false)
+  const refreshCleanupRef = useRef<(() => void) | null>(null)
   const loadUrl = useCallback(() => {
     const generation = ++requestGeneration.current
     return fetchStreamUrl().then((url) => {
-      if (generation !== requestGeneration.current) return
+      if (generation !== requestGeneration.current) return null
       if (url) {
         setStreamUrl(url)
         setError(null)
       } else {
+        sourceChangePendingRef.current = false
+        pendingSeekRef.current = null
         setError('Failed to load video')
       }
+      return url ? generation : null
     })
   }, [fetchStreamUrl])
 
   useEffect(() => {
-    loadUrl().then(() => setLoading(false))
+    loadUrl().then((generation) => {
+      if (generation !== null || !sourceChangePendingRef.current) setLoading(false)
+    })
 
     const refreshTimer = setInterval(() => {
       const video = videoRef.current
       const savedTime = video?.currentTime ?? 0
       const wasPaused = video?.paused ?? true
 
-      loadUrl().then(() => {
+      loadUrl().then((generation) => {
+        if (generation === null || generation !== requestGeneration.current) return
         const v = videoRef.current
         if (!v || savedTime <= 0) return
         const onLoaded = () => {
+          v.removeEventListener('loadedmetadata', onLoaded)
+          if (generation !== requestGeneration.current) return
           v.currentTime = savedTime
           if (!wasPaused) v.play()
-          v.removeEventListener('loadedmetadata', onLoaded)
         }
+        refreshCleanupRef.current?.()
+        refreshCleanupRef.current = () => v.removeEventListener('loadedmetadata', onLoaded)
         v.addEventListener('loadedmetadata', onLoaded)
       })
     }, URL_REFRESH_MS)
 
-    return () => clearInterval(refreshTimer)
+    return () => { clearInterval(refreshTimer); refreshCleanupRef.current?.() }
   }, [loadUrl])
 
   const sendProgress = useCallback((ended: boolean) => {
@@ -124,6 +135,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     const handleLoaded = () => {
       setDuration(video.duration)
+      sourceChangePendingRef.current = false
       const pendingSeek = pendingSeekRef.current
       if (pendingSeek) {
         const maximum = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : pendingSeek.seconds
@@ -177,6 +189,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       // the player can sit forever on a black box or spinner with no user
       // feedback. Collapse buffering, stop the playing state, and render the
       // existing error fallback instead.
+      sourceChangePendingRef.current = false
+      pendingSeekRef.current = null
       hideBuffering()
       setLoading(false)
       setPlaying(false)
@@ -241,7 +255,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener('seeked', handleSeeked)
       video.removeEventListener('canplay', handleCanPlay)
     }
-  }, [streamUrl, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
+  }, [streamUrl, error, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
 
   useEffect(() => {
     return () => {
@@ -290,12 +304,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   useImperativeHandle(ref, () => ({
     prepareSourceChange() {
+      ++requestGeneration.current
+      refreshCleanupRef.current?.()
+      if (sourceChangePendingRef.current) return
       const video = videoRef.current
-      if (!video) return
-      pendingSeekRef.current = { seconds: video.currentTime, play: !video.paused }
-      video.pause()
+      sourceChangePendingRef.current = true
+      pendingSeekRef.current = { seconds: video?.currentTime ?? lastTimeRef.current, play: video ? !video.paused : false }
+      video?.pause()
       sendProgress(false)
       lastTickAtRef.current = null
+      setError(null)
+      setLoading(true)
+      setStreamUrl(null)
     },
     seekTo(seconds: number, play = true) {
       const video = videoRef.current

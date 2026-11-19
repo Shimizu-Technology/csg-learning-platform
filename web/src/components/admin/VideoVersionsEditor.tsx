@@ -1,37 +1,36 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useUpload } from '../../contexts/UploadContext'
 import { videoVersions, type VideoVersion } from '../../lib/videoVersions'
 import { isSupportedVideoFile, VIDEO_FILE_ACCEPT } from '../../lib/videoUploadValidation'
 import { Button } from '../ui/Button'
 
-export function VideoVersionsEditor({ metadata, sourceKey, onChange }: {
-  metadata: Record<string, unknown>; sourceKey: string; onChange: (metadata: Record<string, unknown>) => void
+export function VideoVersionsEditor({ metadata, anchorDuration, onChange, onAppendVersion }: {
+  metadata: Record<string, unknown>; anchorDuration?: number | null; onChange: (metadata: Record<string, unknown>) => void; onAppendVersion: (version: VideoVersion) => boolean
 }) {
-  const { startVideoUpload } = useUpload()
+  const { startVideoUpload, cancelUpload } = useUpload()
   const versions = videoVersions(metadata)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
-  const latest = useRef({ metadata, onChange })
-  latest.current = { metadata, onChange }
   const save = (next: VideoVersion[]) => onChange({ ...metadata, video_versions: next })
   const upload = async (file: File) => {
+    if (!anchorDuration && !Number(metadata.video_versions_duration_seconds)) { setError('Enter the original video length before adding a version.'); return }
     if (!isSupportedVideoFile(file) || file.size > 5 * 1024 ** 3) { setError('Choose a video smaller than 5 GB.'); return }
     setUploading(true)
     setError('')
-    const { result } = startVideoUpload(file, { deferPersistence: true })
+    const { result, uploadId } = startVideoUpload(file, { deferPersistence: true })
     const uploaded = await result
     setUploading(false)
     if (!uploaded) { setError('Upload failed. Please try again.'); return }
-    const current = latest.current
-    const items = videoVersions(current.metadata)
-    current.onChange({ ...current.metadata, video_versions: [
-      ...(items.length ? items : [{ id: crypto.randomUUID(), label: 'Original', s3_video_key: sourceKey }]),
-      { id: crypto.randomUUID(), label: 'Alternate', s3_video_key: uploaded.s3Key },
-    ] })
+    if (!onAppendVersion({ id: crypto.randomUUID(), label: 'Alternate', s3_video_key: uploaded.s3Key })) {
+      cancelUpload(uploadId)
+    }
   }
   return <fieldset className="min-w-0 space-y-3 rounded-xl border border-line p-3">
     <legend className="px-1 text-sm font-semibold">Video versions</legend>
     <p className="text-sm text-ink-secondary">The first version plays by default. All versions share this block’s watch progress. Removing every version restores the original upload.</p>
+    {!anchorDuration && <label className="block text-sm">Original video length (seconds)
+      <input className="app-control mt-1 w-full" type="number" min={1} max={28800} step={1} value={Number(metadata.video_versions_duration_seconds) || ''} onChange={(event) => onChange({ ...metadata, video_versions_duration_seconds: Number(event.target.value) })} />
+    </label>}
     {versions.map((version, index) => <div key={version.id} className="flex flex-wrap items-center gap-2">
       <label className="min-w-0 basis-full text-sm">Version {index + 1}{index === 0 ? ' (default)' : ''}
         <input className="app-control mt-1 w-full" maxLength={40} value={version.label} onChange={(e) => save(versions.map((v) => v.id === version.id ? { ...v, label: e.target.value } : v))} />

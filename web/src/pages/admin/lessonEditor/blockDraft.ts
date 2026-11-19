@@ -50,6 +50,7 @@ export interface BlockDraft {
   s3_video_key: string | null
   s3_video_content_type: string | null
   s3_video_size: number | null
+  s3_video_duration_seconds?: number | null
   /** The block's own submission type; null falls back to the lesson's legacy rule. */
   submission_type: string | null
   submission_config: Record<string, unknown>
@@ -109,6 +110,7 @@ export function blockFromServer(block: ContentBlockSummary, key = savedKey(block
     s3_video_key: block.s3_video_key || null,
     s3_video_content_type: block.s3_video_content_type || null,
     s3_video_size: block.s3_video_size ?? null,
+    s3_video_duration_seconds: block.s3_video_duration_seconds ?? null,
     submission_type: block.submission_type_explicit || null,
     submission_config: (block.submission_config || {}) as Record<string, unknown>,
     rubric_id: block.rubric?.id ?? null,

@@ -7,7 +7,7 @@ class VideoVersionsTest < ActiveSupport::TestCase
     lesson = mod.lessons.create!(title: "Versions", position: 0, release_day: 0)
     @key = "content_videos/11111111-1111-4111-8111-111111111111/original.mp4"
     @other = "content_videos/22222222-2222-4222-8222-222222222222/other.mp4"
-    @block = lesson.content_blocks.create!(block_type: :video, position: 0, s3_video_key: @key)
+    @block = lesson.content_blocks.create!(block_type: :video, position: 0, s3_video_key: @key, s3_video_duration_seconds: 300)
     @versions = [ { "id" => "studio", "label" => "Studio", "s3_video_key" => @key },
       { "id" => "desktop", "label" => "Real desktop", "s3_video_key" => @other } ]
   end
@@ -36,6 +36,21 @@ class VideoVersionsTest < ActiveSupport::TestCase
     @block.update!(metadata: { video_versions: [] })
     refute S3ObjectCleanup.send(:referenced?, @other)
     assert S3ObjectCleanup.send(:referenced?, @key)
+  end
+
+  test "versions require an author-established duration before any learner report" do
+    @block.s3_video_duration_seconds = nil
+    @block.metadata = { video_versions: @versions }
+    refute @block.valid?
+    @block.metadata["video_versions_duration_seconds"] = 300
+    @block.save!
+    assert_equal 300, @block.reload.s3_video_duration_seconds
+  end
+
+  test "replacing the original clears its old version duration hint" do
+    @block.update!(metadata: { video_versions: [], video_versions_duration_seconds: 300 })
+    @block.update!(s3_video_key: @other, s3_video_duration_seconds: nil)
+    assert_nil @block.reload.metadata["video_versions_duration_seconds"]
   end
 
   test "legacy clients cannot replace underlying media with versions still attached" do

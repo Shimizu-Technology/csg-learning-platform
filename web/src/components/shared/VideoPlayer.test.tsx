@@ -42,12 +42,16 @@ describe('VideoPlayer section seeking', () => {
     video.currentTime = 42
     vi.spyOn(video, 'pause').mockImplementation(() => undefined)
     act(() => ref.current?.prepareSourceChange())
-    await act(async () => root.render(<VideoPlayer ref={ref} title="Versions" initialTotalWatched={0} fetchStreamUrl={second} onSaveProgress={save} />))
     video.currentTime = 0
-    act(() => video.dispatchEvent(new Event('loadedmetadata')))
-    expect(video.currentTime).toBe(42)
-    expect(video.getAttribute('src')).toBe('/desktop.mp4')
-    act(() => video.dispatchEvent(new Event('pause')))
+    act(() => ref.current?.prepareSourceChange())
+    await act(async () => root.render(<VideoPlayer ref={ref} title="Versions" initialTotalWatched={0} fetchStreamUrl={second} onSaveProgress={save} />))
+    const replacement = container.querySelector('video')!
+    Object.defineProperty(replacement, 'duration', { configurable: true, value: 120 })
+    replacement.currentTime = 0
+    act(() => replacement.dispatchEvent(new Event('loadedmetadata')))
+    expect(replacement.currentTime).toBe(42)
+    expect(replacement.getAttribute('src')).toBe('/desktop.mp4')
+    act(() => replacement.dispatchEvent(new Event('pause')))
     expect(save).toHaveBeenLastCalledWith({ last_position_seconds: 42, total_watched_seconds: 35, duration_seconds: 120 }, false)
   })
 

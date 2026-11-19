@@ -22,6 +22,8 @@ class ContentBlock < ApplicationRecord
   validates :block_type, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   before_validation :normalize_video_url
+  before_validation :clear_replaced_video_version_duration
+  before_validation :establish_video_version_duration
   validate :video_versions_are_valid
   after_update_commit :cleanup_removed_video_versions
   validate :video_url_is_http
@@ -270,6 +272,19 @@ class ContentBlock < ApplicationRecord
 
   private
 
+  def clear_replaced_video_version_duration
+    return unless persisted? && will_save_change_to_s3_video_key?
+
+    self.metadata = metadata.to_h.except("video_versions_duration_seconds")
+  end
+
+  def establish_video_version_duration
+    return if video_versions.empty? || s3_video_duration_seconds.present?
+
+    seconds = metadata.to_h["video_versions_duration_seconds"]
+    self.s3_video_duration_seconds = seconds if seconds.is_a?(Integer) && seconds.between?(1, 28_800)
+  end
+
   def video_versions_are_valid
     raw = metadata.to_h["video_versions"]
     return if raw.nil? || raw == []
@@ -277,6 +292,9 @@ class ContentBlock < ApplicationRecord
     unless (video? || recording?) && s3_video_key.present? && raw.is_a?(Array) && raw.length.between?(1, 8)
       errors.add(:metadata, "video versions need a hosted video block and between 1 and 8 versions")
       return
+    end
+    unless s3_video_duration_seconds.to_i.positive?
+      errors.add(:metadata, "set the original video duration before adding versions")
     end
     ids = []
     raw.each do |item|
@@ -304,7 +322,6 @@ class ContentBlock < ApplicationRecord
     old = previous_changes["metadata"].first
     (video_version_keys(old) - video_version_keys).each { |key| S3ObjectCleanup.delete_if_unreferenced(key) }
   end
-
 
   def preserve_learner_evidence
     lock_against_learner_writes!

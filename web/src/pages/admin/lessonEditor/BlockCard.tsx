@@ -4,7 +4,7 @@ import { Modal } from '../../../components/shared/Modal'
 import { LazyMarkdownEditor } from '../../../components/shared/LazyMarkdownEditor'
 import { MarkdownRenderer } from '../../../components/shared/MarkdownRenderer'
 import { CodeEditor, detectLanguage } from '../../../components/shared/CodeEditor'
-import { videoVersions } from '../../../lib/videoVersions'
+import { videoVersions, type VideoVersion } from '../../../lib/videoVersions'
 import { VideoVersionsEditor } from '../../../components/admin/VideoVersionsEditor'
 import { VideoUploadField } from '../../../components/admin/VideoUploadField'
 import { AdminVideoPreview } from '../../../components/admin/AdminVideoPreview'
@@ -45,6 +45,7 @@ interface BlockCardProps {
   dropIndicator?: 'before' | 'after' | null
   onSelect: () => void
   onChange: (patch: Partial<BlockDraft>) => void
+  onAddVideoVersion?: (version: VideoVersion) => boolean
   onMove: (to: number) => void
   onDuplicate: () => void
   onDelete: () => void
@@ -57,7 +58,7 @@ interface BlockCardProps {
 
 export function BlockCard({
   block, index, total, lessonId, activity, selected, problem, readOnly = false, dropIndicator,
-  onSelect, onChange, onMove, onDuplicate, onDelete, onDragStart, onDragOver, onDrop, onDragEnd, canDuplicate,
+  onSelect, onChange, onAddVideoVersion, onMove, onDuplicate, onDelete, onDragStart, onDragOver, onDrop, onDragEnd, canDuplicate,
 }: BlockCardProps) {
   const id = useId()
   const [solutionOpen, setSolutionOpen] = useState(false)
@@ -86,9 +87,9 @@ export function BlockCard({
   }
 
   const handleUploaded = useCallback((data: { s3_video_key: string; s3_video_content_type: string; s3_video_size: number }) => {
-    onChange({ s3_video_key: data.s3_video_key, s3_video_content_type: data.s3_video_content_type, s3_video_size: data.s3_video_size })
-  }, [onChange])
-  const handleRemoved = useCallback(() => onChange({ s3_video_key: null, s3_video_content_type: null, s3_video_size: null }), [onChange])
+    onChange({ s3_video_key: data.s3_video_key, s3_video_content_type: data.s3_video_content_type, s3_video_size: data.s3_video_size, s3_video_duration_seconds: null, metadata: { ...block.metadata, video_versions_duration_seconds: undefined } })
+  }, [onChange, block.metadata])
+  const handleRemoved = useCallback(() => onChange({ s3_video_key: null, s3_video_content_type: null, s3_video_size: null, s3_video_duration_seconds: null, metadata: { ...block.metadata, video_versions_duration_seconds: undefined } }), [onChange, block.metadata])
   const handleUrl = useCallback((url: string) => onChange({ video_url: url }), [onChange])
 
   const reviewed = REVIEWED_SUBMISSION_TYPES.has(block.submission_type || '')
@@ -229,7 +230,7 @@ export function BlockCard({
                 {!readOnly && <p className="mt-1.5 text-xs text-ink-muted">To upload a video file instead, wait for this block to save, then choose Upload.</p>}
               </div>
             )}
-            {block.s3_video_key && !readOnly && <VideoVersionsEditor metadata={block.metadata} sourceKey={block.s3_video_key} onChange={(metadata) => onChange({ metadata })} />}
+            {block.s3_video_key && !readOnly && <VideoVersionsEditor metadata={block.metadata} onAppendVersion={(version) => onAddVideoVersion?.(version) ?? false} anchorDuration={block.s3_video_duration_seconds} onChange={(metadata) => onChange({ metadata })} />}
             {(block.video_url.trim() || block.s3_video_key) && (
               <AdminVideoPreview contentBlockId={block.id} s3VideoKey={block.s3_video_key} videoUrl={block.video_url} title={block.title} />
             )}

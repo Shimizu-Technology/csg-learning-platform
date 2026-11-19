@@ -224,7 +224,7 @@ module Api
         # makes only one writer succeed; the loser re-reads the winner's value.
         with_learning_write_guard(@learning_write_enrollment) do
           authoritative_duration = linked_video ? params[:duration_seconds].to_i.clamp(0, 28_800) : @content_block.s3_video_duration_seconds
-          if !linked_video && authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
+          if !linked_video && @content_block.video_versions.empty? && authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
             candidate = params[:duration_seconds].to_i
             updated = ContentBlock.where(id: @content_block.id, s3_video_duration_seconds: nil)
                                   .update_all(s3_video_duration_seconds: candidate)

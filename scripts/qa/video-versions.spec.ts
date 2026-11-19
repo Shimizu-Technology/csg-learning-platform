@@ -8,12 +8,17 @@ test.setTimeout(90_000)
 test('author uploads, labels, reorders and removes; learner switches, resumes and remembers', async ({ page }, info) => {
   const tab = `video-versions-${info.project.name}`
   checkedLifecycle(session, 'claim', tab)
+  let uploads = 0
+  let finishUpload: () => void = () => undefined
   try {
     await page.route('**/*', async route => {
       const url = new URL(route.request().url())
       if (!['localhost', '127.0.0.1'].includes(url.hostname)) return route.abort()
       if (url.pathname === '/api/v1/video_presign') return route.fulfill({ json: { upload_url: `${url.origin}/qa-storage`, fields: {}, s3_key: 'content_videos/22222222-2222-4222-8222-222222222222/desktop.mp4' } })
-      if (url.pathname === '/qa-storage') return route.fulfill({ status: 204 })
+      if (url.pathname === '/qa-storage') {
+        if (++uploads === 2) await new Promise<void>((resolve) => { finishUpload = resolve })
+        return route.fulfill({ status: 204 })
+      }
       if (url.pathname.endsWith('/video_stream')) return route.fulfill({ json: { stream_url: `${url.origin}/qa-media.mp4?version=${url.searchParams.get('version_id') || 'default'}`, expires_at: new Date(Date.now() + 3600000).toISOString(), video_progress: null } })
       if (url.pathname === '/qa-media.mp4') {
         const range = route.request().headers().range?.match(/bytes=(\d+)-(\d*)/)
@@ -30,8 +35,21 @@ test('author uploads, labels, reorders and removes; learner switches, resumes an
     while (await versions.getByRole('button', { name: /^Remove / }).count()) {
       await versions.getByRole('button', { name: /^Remove / }).first().click()
     }
+    if (await page.getByLabel('Original video length (seconds)', { exact: true }).count()) await page.getByLabel('Original video length (seconds)', { exact: true }).fill('60')
     await page.getByLabel('Upload video version', { exact: true }).setInputFiles({ name: 'desktop.mp4', mimeType: 'video/mp4', buffer: media })
     await expect(versions.getByRole('textbox')).toHaveCount(2)
+    await expect(page.getByText('Uploaded to storage. Waiting for the exercise to finish attaching...', { exact: true })).toBeVisible()
+    await versions.getByRole('button', { name: 'Remove Alternate', exact: true }).click()
+    await expect(page.getByText('Uploaded to storage. Waiting for the exercise to finish attaching...', { exact: true })).toHaveCount(0)
+    const uploadStarted = page.waitForRequest('**/qa-storage')
+    await page.getByLabel('Upload video version', { exact: true }).setInputFiles({ name: 'desktop.mp4', mimeType: 'video/mp4', buffer: media })
+    await uploadStarted
+    await page.getByRole('button', { name: 'Preview', exact: true }).click()
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await versions.getByRole('textbox').nth(0).fill('Studio')
+    finishUpload()
+    await expect(versions.getByRole('textbox')).toHaveCount(2)
+    await expect(versions.getByRole('textbox').nth(0)).toHaveValue('Studio')
     await versions.getByRole('textbox').nth(0).fill('Studio')
     await versions.getByRole('textbox').nth(1).fill('Real desktop')
     const save = async () => {
@@ -58,7 +76,7 @@ test('author uploads, labels, reorders and removes; learner switches, resumes an
     const savedWatch = async () => {
       const response = await page.request.get(`/api/v1/lessons/${ids.lesson}?cohort_id=${ids.cohort}`, { headers: { Authorization: 'Bearer test_token_3' } })
       expect(response.ok()).toBe(true)
-      return (await response.json()).lesson.content_blocks.find((b: { id: number }) => b.id === ids.block).progress.video_total_watched as number
+      return (await response.json()).lesson.content_blocks.find((b: { id: number }) => b.id === ids.block).progress?.video_total_watched as number
     }
     const before = await savedWatch() || 0
     await page.locator('video').evaluate((v: HTMLVideoElement) => { v.currentTime = 0 })
@@ -78,7 +96,8 @@ test('author uploads, labels, reorders and removes; learner switches, resumes an
     await expect(page.locator('video')).not.toHaveAttribute('src', previousSource!)
     await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2)
     await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(12, 0)
-    await expect(page.locator('video')).toHaveAttribute('src', /version=/)
+    const selectedId = await page.evaluate((id) => localStorage.getItem(`video-version:${id}`), ids.block)
+    expect(new URL((await page.locator('video').getAttribute('src'))!).searchParams.get('version')).toBe(selectedId)
     await expect(page.getByRole('button', { name: 'Real desktop', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await page.locator('video').evaluate((v: HTMLVideoElement) => v.play())
     await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThanOrEqual(14)

@@ -6001,6 +6001,13 @@
               "complete"
             ],
             "description": "Lesson block evidence from LearnerProgress for the new student experience."
+          },
+          "s3_video_duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Authoritative duration of the original hosted upload (staff only)."
           }
         },
         "required": [
