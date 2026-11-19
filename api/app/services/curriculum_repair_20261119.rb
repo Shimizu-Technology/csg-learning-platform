@@ -155,6 +155,9 @@ class CurriculumRepair20261119
     (221..226).each { |id| exercise(@shared, id)["body"] = "#{asset('client')}\n#{asset('token')}\n#{exercise(@shared, id)['body']}" }
     exercise(@shared, 228)["body"] = "<div data-csg-fix=\"remove-borrowed-token\"><h3>Replace the borrowed token</h3><p>Remove the temporary token/header block from App.jsx. In DevTools run <code>localStorage.removeItem(\"token\")</code>, then reload so the old Axios header is gone. Build the real login form and AuthContext below. They must use the same api instance from src/lib/api.js, including api.defaults.headers.common[&quot;Authorization&quot;]. Verify that logging in sets the header, refresh restores it, and logout clears storage and the header. Do not keep two competing token setups.</p></div>\n#{exercise(@shared, 228)['body']}"
     exercise(@shared, 208)["body"] += "<p><a href=\"#{RESOURCES}web-development/03-rails/guide_api_versioning.md\">CSG API versioning guide</a>: move every route and controller together, then retest in HTTPie before connecting React.</p>"
+    [ 203, 204, 205, 206, 228, 229 ].each do |id|
+      exercise(@shared, id)["body"] += "<p>HTTPie desktop: signup, login and password changes use Body → Form → URL-encoded name/value rows. Never put passwords, tokens or other secrets in Params or the URL. Params are for non-sensitive query values such as search, filters and IDs. Send Bearer tokens in the Auth panel.</p>"
+    end
     exercise(@shared, 230)["body"] = asset("deploy")
     [ 230, 231 ].each do |id|
       lesson(@shared, id)["requires_submission"] = true
@@ -229,7 +232,7 @@ class CurriculumRepair20261119
       exercise(@copy, id)["body"] = asset("cookie-client") + exercise(@copy, id)["body"]
     end
     exercise(@copy, 230)["body"] = exercise(@copy, 230)["body"]
-      .gsub("Use Params and the Auth panel.", "Use Params and keep HTTPie's session cookie jar enabled. Fetch /api/v1/csrf and send X-CSRF-Token on writes, refreshing it after login.")
+      .gsub("Put Bearer tokens in the Auth panel, never the URL.", "Keep HTTPie's session cookie jar enabled. Fetch /api/v1/csrf and send X-CSRF-Token on writes, refreshing it after login.")
       .gsub("Check missing-token and second-user requests too.", "Check missing/expired sessions, CSRF rejection, and a second user too.")
       .gsub("live login status (201 for the class API), without the response token or credentials", "live session login status (200), without cookie values, CSRF values or credentials")
     exercise(@copy, 230)["body"] += "<p>For this cookie-session curriculum, keep auth responses at Cache-Control: no-store and personalized API responses uncached. Follow the maintained deployment guide for Render TLS termination, including config.assume_ssl = true in production when needed; keep force_ssl and CSRF protection enabled.</p>"
@@ -281,6 +284,7 @@ class CurriculumRepair20261119
   end
 
   def trim_video!(id)
+    budget = 1_800
     blocks(@copy, id).each do |block|
       segments = block.fetch("metadata", {})["video_segments"]
       next unless segments
@@ -288,10 +292,9 @@ class CurriculumRepair20261119
       # Keep the original reviewed boundaries intact. Where no focused <=30m
       # section exists, the written exercise teaches the required work and the
       # full recording becomes optional review. Never invent unreviewed cuts.
-      budget = 1_800
       segments.each do |segment|
         length = segment.fetch("end_seconds") - segment.fetch("start_seconds")
-        required = segment["required"] && length <= budget
+        required = segment.fetch("required", true) != false && length <= budget
         segment["required"] = !!required
         segment["label"] = "Optional review: #{segment['label']}" unless required
         budget -= length if required

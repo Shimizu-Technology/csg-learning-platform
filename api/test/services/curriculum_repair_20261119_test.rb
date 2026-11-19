@@ -65,6 +65,9 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
         assert_match(/\A<(?:p|div|h[1-6])(?:\s|>)/, Lesson.find(id).primary_assignment_block.body)
       end
       assert_equal "markdown", git.primary_assignment_block.metadata.fetch("language")
+      assert_includes Lesson.find(221).primary_assignment_block.body, "Body → Form → URL-encoded"
+      assert_includes Lesson.find(205).primary_assignment_block.body, "Never put passwords, tokens or other secrets in Params"
+      assert_includes Lesson.find(129).primary_assignment_block.body, "wsl --list --quiet"
       assert_equal "repo_and_live_url_submission", Lesson.find(230).primary_assignment_block.submission_type
       assert_nil ContentBlock.where(lesson_id: 4, block_type: :video).sole.video_url
       assert copy.draft?
@@ -116,6 +119,40 @@ class CurriculumRepair20261119Test < ActiveSupport::TestCase
     assert_nil Curriculum.find_by(course_package_key: CurriculumRepair20261119::COPY_KEY)
     assert_equal "manual_complete", @block.reload.submission_type
     assert_equal "Concurrent plan change", @plan.reload.title
+  end
+
+  test "a failure after source and copy writes rolls everything back and the same snapshot can retry" do
+    snapshot_file do |path|
+      before = CurriculumRepair20261119.snapshot.fetch("tables")
+      counts = [ Curriculum.count, Lesson.count, ContentBlock.count, LessonAssignment.count, LearningPlanRevision.count ]
+      failing = Class.new(CurriculumRepair20261119) do
+        private
+
+        def persist_copy!
+          super
+          raise "Injected failure after copied content"
+        end
+      end
+      error = assert_raises(RuntimeError) { failing.new(output: StringIO.new).run(apply: true, snapshot_path: path) }
+      assert_match(/Injected failure/, error.message)
+      assert_equal before, CurriculumRepair20261119.snapshot.fetch("tables")
+      assert_equal counts, [ Curriculum.count, Lesson.count, ContentBlock.count, LessonAssignment.count, LearningPlanRevision.count ]
+      assert_nil Curriculum.find_by(course_package_key: CurriculumRepair20261119::COPY_KEY)
+      copy = CurriculumRepair20261119.new(output: StringIO.new).run(apply: true, snapshot_path: path)
+      assert copy.draft?
+      assert_equal 1, Curriculum.where(course_package_key: CurriculumRepair20261119::COPY_KEY).count
+    end
+  end
+
+  test "the viewing budget spans blocks and missing required flags retain required-by-default semantics" do
+    ContentBlock.create!(lesson_id: 221, block_type: :video, position: 2, video_url: "https://youtu.be/3SW_W7PmEd4",
+      metadata: { video_segments: [ { "start_seconds" => 8000, "end_seconds" => 8500, "label" => "Missing required flag" }, { "start_seconds" => 8500, "end_seconds" => 9000, "label" => "Beyond lesson budget" } ] })
+    CurriculumRepair20261119.new(output: @output).run
+    copied = JSON.parse(@output.string).fetch("copy").fetch("content_blocks").select { |b| b["lesson_id"] == 221 }
+    segments = copied.flat_map { |b| b.fetch("metadata", {}).fetch("video_segments", []) }
+    assert segments.find { |item| item["label"] == "Missing required flag" }.fetch("required")
+    assert_not segments.find { |item| item["label"].include?("Beyond lesson budget") }.fetch("required")
+    assert_equal 1704, segments.sum { |item| item["required"] ? item["end_seconds"] - item["start_seconds"] : 0 }
   end
 
   test "unreviewed source dependencies refuse a partial copy" do
