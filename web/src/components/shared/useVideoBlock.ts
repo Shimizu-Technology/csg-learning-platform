@@ -185,15 +185,26 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
     return res.data?.stream_url || null
   }, [block.id, cohortId, versionId])
 
+  // Refresh the lesson when the block becomes complete, not on every later
+  // save that reports it complete again. A ref, so saves already in flight
+  // see the first completion.
+  const completionReportedRef = useRef(isCompleted)
+  useEffect(() => {
+    completionReportedRef.current = isCompleted
+  }, [block.id, isCompleted])
+
   const saveBlockProgress = useCallback((data: import('./VideoPlayer').VideoProgressData) => {
     if (isStaff || readOnly) return
     api.updateContentBlockVideoProgress(block.id, data, cohortId).then(res => {
       if (res.data?.video_progress?.completed) {
+        if (!completionReportedRef.current) {
+          completionReportedRef.current = true
+          onProgressUpdate?.()
+        }
         setIsCompleted(true)
-        onProgressUpdate?.()
       }
     })
-  }, [block.id, cohortId, isStaff, readOnly, onProgressUpdate])
+  }, [block.id, cohortId, isStaff, readOnly, onProgressUpdate, setIsCompleted])
 
   const handleVideoSegmentSelect = useCallback((segment: VideoSegment) => {
     const seconds = segment.start_seconds
