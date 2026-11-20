@@ -44,6 +44,31 @@ describe('VideoPlayer section seeking', () => {
     expect(second).not.toHaveBeenCalled()
   })
 
+  it('autosaves through the latest save callback on the original schedule', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      const container = document.createElement('div')
+      const root = createRoot(container)
+      roots.push(root)
+      const first = vi.fn()
+      const second = vi.fn()
+      const fetchStreamUrl = async () => '/synthetic.mp4'
+      await act(async () => root.render(<VideoPlayer title="Synthetic" fetchStreamUrl={fetchStreamUrl} onSaveProgress={first} />))
+      const video = container.querySelector('video')!
+      Object.defineProperty(video, 'duration', { configurable: true, value: 100 })
+      Object.defineProperty(video, 'currentTime', { configurable: true, value: 40 })
+      act(() => video.dispatchEvent(new Event('play')))
+      act(() => vi.advanceTimersByTime(5000))
+      await act(async () => root.render(<VideoPlayer title="Synthetic" fetchStreamUrl={fetchStreamUrl} onSaveProgress={second} />))
+      act(() => vi.advanceTimersByTime(5000))
+      expect(first).not.toHaveBeenCalled()
+      expect(second).toHaveBeenCalledOnce()
+      expect(second).toHaveBeenLastCalledWith({ last_position_seconds: 40, total_watched_seconds: 0, duration_seconds: 100 }, false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('switches streams at the current position and retains cumulative watched time', async () => {
     const container = document.createElement('div')
     const root = createRoot(container)
