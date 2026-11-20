@@ -384,6 +384,24 @@ describe('past-course review', () => {
   })
 })
 
+describe('hosted video completion', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('refreshes the lesson once when the video becomes complete, not on every later save', async () => {
+    const save = vi.spyOn(api, 'updateContentBlockVideoProgress').mockResolvedValue({ data: { video_progress: { content_block_id: 1, last_position: 10, total_watched: 10, duration: 20, status: 'completed', completed: true } } } as Awaited<ReturnType<typeof api.updateContentBlockVideoProgress>>)
+    const refresh = vi.fn()
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const block = checkpoint({ block_type: 'video', submission_type: null, s3_video_key: 'lesson.mp4' })
+    await act(async () => { root.render(<ContentBlockRenderer block={block} cohortId={2} onProgressUpdate={refresh} />) })
+    const progress = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Simulate video progress')!
+    for (let i = 0; i < 3; i += 1) await act(async () => { progress.click() })
+    expect(save).toHaveBeenCalledTimes(3)
+    expect(refresh).toHaveBeenCalledOnce()
+    act(() => root.unmount())
+  })
+})
+
 describe('manual completion feedback', () => {
   it.each(['R', 'A'])('shows grade %s and instructor feedback', (grade) => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submission_type: 'manual_complete', submissions: [submission({ grade, feedback: 'Explain your decision.' })] })} />)

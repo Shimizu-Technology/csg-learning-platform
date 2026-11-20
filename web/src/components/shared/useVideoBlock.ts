@@ -189,11 +189,13 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
     if (isStaff || readOnly) return
     api.updateContentBlockVideoProgress(block.id, data, cohortId).then(res => {
       if (res.data?.video_progress?.completed) {
+        // Refresh the lesson when the block becomes complete, not on every
+        // later save that reports it complete again.
+        if (!isCompleted) onProgressUpdate?.()
         setIsCompleted(true)
-        onProgressUpdate?.()
       }
     })
-  }, [block.id, cohortId, isStaff, readOnly, onProgressUpdate])
+  }, [block.id, cohortId, isStaff, readOnly, isCompleted, onProgressUpdate, setIsCompleted])
 
   const handleVideoSegmentSelect = useCallback((segment: VideoSegment) => {
     const seconds = segment.start_seconds

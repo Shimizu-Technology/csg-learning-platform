@@ -140,6 +140,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     if (progress) onSaveProgress(progress, ended)
   }, [onSaveProgress, trackProgress])
 
+  // Parents pass a new save callback on most renders. The autosave and the
+  // unmount save read the latest one through this ref, so a new callback
+  // never sends a save by itself: a save that completes the block reloads the
+  // lesson, and saving on that re-render looped many times a second.
+  const sendProgressRef = useRef(sendProgress)
+  useEffect(() => {
+    sendProgressRef.current = sendProgress
+  }, [sendProgress])
+
   useEffect(() => {
     const video = videoRef.current
     if (!video || !streamUrl) return
@@ -288,13 +297,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   // close mid-watch loses at most ~10s of unsaved progress.
   useEffect(() => {
     if (!playing) return
-    const interval = setInterval(() => sendProgress(false), 10000)
+    const interval = setInterval(() => sendProgressRef.current(false), 10000)
     return () => clearInterval(interval)
-  }, [playing, sendProgress])
+  }, [playing])
 
   useEffect(() => {
-    return () => { sendProgress(false) }
-  }, [sendProgress])
+    return () => { sendProgressRef.current(false) }
+  }, [])
 
   const togglePlay = () => {
     const video = videoRef.current
