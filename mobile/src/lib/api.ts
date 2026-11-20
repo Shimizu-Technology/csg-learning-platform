@@ -317,6 +317,9 @@ export class CsgApi {
   registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request<components['schemas']['MobilePushTokenResponse']>('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
   unregisterDevice = (token: string) => this.request<void>(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
   mobilePushConfig = () => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/config');
+  // Optional course reminders (W9.3). Access-ending reminders are essential and arrive either way.
+  nudgePreference = (signal?: AbortSignal) => this.request<components['schemas']['NudgePreferenceResponse']>('/api/v1/nudge_preferences', { signal });
+  updateNudgePreference = (enabled: boolean) => this.request<components['schemas']['NudgePreferenceResponse']>('/api/v1/nudge_preferences', { method: 'PATCH', body: JSON.stringify({ learner_nudges_enabled: enabled }) });
   updateMobilePushPreference = (enabled: boolean) => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
   searchEverything = (query: string) => this.request<components['schemas']['SearchResponse']>(`/api/v1/search?q=${encodeURIComponent(query)}`);
   search = (query: string) => this.request<components['schemas']['MessageSearchResponse']>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);

@@ -5,7 +5,7 @@ import ProfileScreen from '../../app/(app)/(tabs)/profile';
 import { attemptPushRegistration, getPushPermissionStatus, requestPushPermission } from '../../lib/push-notifications';
 
 const mockRouter = { push: jest.fn() };
-const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefined) };
+const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefined), setQueryData: jest.fn() };
 const mockUser = { id: 7, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', is_staff: false, github_username: null, community_policy: null };
 let mockApi: Record<string, jest.Mock>;
 let mockFocusEffectCallback: (() => void | (() => void)) | null = null;
@@ -31,14 +31,20 @@ jest.mock('expo-router', () => {
 });
 let mockDashboard: unknown;
 let mockDashboardError = false;
+let mockProfile: unknown;
+let mockReminder: { data?: { learner_nudges_enabled: boolean }; isError: boolean; refetch: jest.Mock } = { data: undefined, isError: false, refetch: jest.fn() };
+const mockReminderQueries: unknown[] = [];
 jest.mock('@tanstack/react-query', () => ({
-  useQuery: ({ queryKey }: { queryKey: unknown[] }) => queryKey[2] === 'dashboard'
-    ? { data: mockDashboard ? { dashboard: mockDashboard } : undefined, isError: mockDashboardError }
-    : { data: undefined, isError: false },
+  useQuery: ({ queryKey, enabled }: { queryKey: unknown[]; enabled?: boolean }) => {
+    if (queryKey[2] === 'dashboard') return { data: mockDashboard ? { dashboard: mockDashboard } : undefined, isError: mockDashboardError };
+    if (queryKey[2] === 'profile') return { data: mockProfile, isError: false };
+    if (queryKey[0] === 'nudge-preference') { mockReminderQueries.push(enabled); return enabled ? mockReminder : { data: undefined, isError: false, refetch: jest.fn() }; }
+    return { data: undefined, isError: false };
+  },
   useQueryClient: () => mockQueryClient,
-  useMutation: (options: { mutationFn: () => Promise<unknown>; onError?: (error: Error) => void }) => ({
+  useMutation: (options: { mutationFn: (value?: unknown) => Promise<unknown>; onSuccess?: (data: unknown) => void; onError?: (error: Error) => void }) => ({
     isPending: false,
-    mutate: () => { void Promise.resolve().then(options.mutationFn).catch((error: Error) => options.onError?.(error)); },
+    mutate: (value?: unknown) => { void Promise.resolve(value).then(options.mutationFn).then((data) => options.onSuccess?.(data)).catch((error: Error) => options.onError?.(error)); },
   }),
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
@@ -68,8 +74,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockFocusEffectCallback = null;
   mockFocusEffectCleanup = null;
+  mockProfile = undefined;
+  mockReminder = { data: undefined, isError: false, refetch: jest.fn() };
+  mockReminderQueries.length = 0;
   mockApi = {
     profile: jest.fn(),
+    updateNudgePreference: jest.fn().mockResolvedValue({ learner_nudges_enabled: false }),
     mobilePushConfig: jest.fn().mockResolvedValue({ notifications_enabled: false, active_device_count: 0 }),
     pushConfig: jest.fn().mockResolvedValue({ notifications_enabled: true }),
     updateMobilePushPreference: jest.fn().mockResolvedValue({ notifications_enabled: true }),
@@ -80,6 +90,43 @@ beforeEach(() => {
   jest.mocked(attemptPushRegistration).mockResolvedValue({ ok: true });
   jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
   jest.spyOn(Linking, 'openSettings').mockResolvedValue();
+});
+
+describe('ProfileScreen course reminders', () => {
+  const enrollment = { id: 1, cohort_id: 1, cohort_name: 'Python pilot', curriculum_name: 'Python', status: 'active', enrolled_at: null, can_open: true };
+
+  it('stays hidden, without a request, unless an active enrollment sends reminders', async () => {
+    mockProfile = { user: mockUser, enrollments: [enrollment, { ...enrollment, id: 2, status: 'dropped', learner_nudges_enabled: true }] };
+    const screen = render(<ProfileScreen />);
+    await screen.findByLabelText('Device notifications');
+    expect(screen.queryByLabelText('Course reminders')).toBeNull();
+    expect(mockReminderQueries.every((enabled) => enabled === false)).toBe(true);
+  });
+
+  it('turns optional reminders off and keeps the saved value', async () => {
+    mockProfile = { user: mockUser, enrollments: [{ ...enrollment, learner_nudges_enabled: true }] };
+    mockReminder = { data: { learner_nudges_enabled: true }, isError: false, refetch: jest.fn() };
+    const screen = render(<ProfileScreen />);
+    expect(screen.getByText('Before due dates, after a week away, and before your help period ends. Access-ending reminders always arrive.')).toBeTruthy();
+    fireEvent(await screen.findByLabelText('Course reminders'), 'valueChange', false);
+    await waitFor(() => expect(mockQueryClient.setQueryData).toHaveBeenCalledWith(['nudge-preference', 7], { learner_nudges_enabled: false }));
+    expect(mockApi.updateNudgePreference).toHaveBeenCalledWith(false);
+  });
+
+  it('offers a retry when the setting cannot load and explains a failed save', async () => {
+    mockProfile = { user: mockUser, enrollments: [{ ...enrollment, learner_nudges_enabled: true }] };
+    mockReminder = { data: undefined, isError: true, refetch: jest.fn() };
+    const screen = render(<ProfileScreen />);
+    fireEvent.press(await screen.findByLabelText('Retry course reminders'));
+    expect(mockReminder.refetch).toHaveBeenCalledTimes(1);
+    screen.unmount();
+
+    mockReminder = { data: { learner_nudges_enabled: true }, isError: false, refetch: jest.fn() };
+    mockApi.updateNudgePreference.mockRejectedValueOnce(new Error('Offline'));
+    const again = render(<ProfileScreen />);
+    fireEvent(await again.findByLabelText('Course reminders'), 'valueChange', false);
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not update course reminders', 'Offline', undefined, expect.anything()));
+  });
 });
 
 describe('ProfileScreen notification controls', () => {

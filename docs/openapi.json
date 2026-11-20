@@ -4707,6 +4707,81 @@
           }
         }
       }
+    },
+    "/api/v1/enrollments/{enrollment_id}/nudges": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Reminders sent to one learner (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Reminder history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerNudgesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/v1/nudge_preferences": {
+      "get": {
+        "summary": "The learner's reminder preference",
+        "responses": {
+          "200": {
+            "description": "Reminder preference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NudgePreferenceResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Turn optional reminders on or off",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NudgePreferenceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reminder preference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NudgePreferenceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "learner_nudges_enabled must be true or false"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9869,6 +9944,10 @@
           "github_app_enabled": {
             "type": "boolean",
             "description": "Included when this enrollment has GitHub App access enabled."
+          },
+          "learner_nudges_enabled": {
+            "type": "boolean",
+            "description": "Included (true) only when this enrollment's cohort sends learner reminders."
           }
         },
         "required": [
@@ -17137,6 +17216,10 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "learner_nudges_enabled": {
+                "type": "boolean",
+                "description": "Present only when this cohort sets learner reminders itself: true while it sends them, false after it turned them off (sent reminders stay listed)."
               }
             },
             "required": [
@@ -26501,6 +26584,141 @@
           "reason"
         ],
         "description": "Change an active grant. Reason is required; omitted cutoff and target fields retain their values. Grant targets are immutable. Removed grants return 404."
+      },
+      "LearnerNudge": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "due_soon",
+              "inactive",
+              "support_ending",
+              "access_ending"
+            ]
+          },
+          "threshold": {
+            "type": "string",
+            "description": "How far ahead of the event (24h, 48h, 1d, 3d, 7d, 14d) or, for inactivity, how long since the last activity (7d, 14d)."
+          },
+          "essential": {
+            "type": "boolean",
+            "description": "Access-ending notices are essential: they are sent even when the learner turned reminders off."
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The deadline, end of support or access, or last activity the reminder is about."
+          },
+          "sent_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email_status": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "sent",
+              "failed",
+              "not_configured",
+              "no_address"
+            ]
+          },
+          "push_status": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "pending",
+              "attempted",
+              "not_sent"
+            ],
+            "description": "attempted means every push provider was tried; delivery to a device is not confirmed. not_sent means the outbox gave up on a push that was too old to help."
+          },
+          "read_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the learner read the in-app notification."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "threshold",
+          "essential",
+          "title",
+          "body",
+          "event_at",
+          "sent_at",
+          "email_status",
+          "push_status",
+          "read_at"
+        ],
+        "additionalProperties": false
+      },
+      "LearnerNudgesResponse": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this cohort sends reminders now (school switch and cohort opt-in)."
+          },
+          "learner_opted_out": {
+            "type": "boolean",
+            "description": "The learner turned optional reminders off; essential notices still go."
+          },
+          "nudges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearnerNudge"
+            },
+            "description": "Newest first, at most 100."
+          }
+        },
+        "required": [
+          "enabled",
+          "learner_opted_out",
+          "nudges"
+        ],
+        "additionalProperties": false
+      },
+      "NudgePreferenceResponse": {
+        "type": "object",
+        "properties": {
+          "learner_nudges_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "learner_nudges_enabled"
+        ],
+        "additionalProperties": false
+      },
+      "NudgePreferenceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "learner_nudges_enabled": {
+            "type": "boolean",
+            "description": "False turns off optional reminders (due dates, inactivity, support ending). Access-ending notices are essential and still arrive."
+          }
+        },
+        "required": [
+          "learner_nudges_enabled"
+        ]
       }
     },
     "responses": {

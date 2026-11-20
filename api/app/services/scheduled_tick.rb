@@ -24,7 +24,10 @@ class ScheduledTick
     Task.new(name: "scheduled_updates", daily_hour: nil, call: ->(now, _last_date, metrics) { ScheduledAnnouncementPublisher.new.call(now: now, metrics: metrics) }),
     Task.new(name: "intervention_follow_ups", daily_hour: 8, call: ->(now, _last_date, metrics) { InterventionFollowUpJob.perform_now(now, metrics: metrics) }),
     Task.new(name: "daily_unlocks", daily_hour: daily_unlock_hour, call: ->(now, last_date, metrics) { DailyUnlockNotifications.new.call(now: now, last_date: last_date, metrics: metrics) }),
-    Task.new(name: "expo_push_receipts", daily_hour: nil, call: ->(_now, _last_date, metrics) { ExpoPushReceiptJob.new.drain_due(metrics: metrics) })
+    Task.new(name: "expo_push_receipts", daily_hour: nil, call: ->(_now, _last_date, metrics) { ExpoPushReceiptJob.new.drain_due(metrics: metrics) }),
+    # Hourly, so a 24h or 48h reminder lands within the hour it becomes due;
+    # it sends nothing 21:00-08:00 Guam time (W9.3).
+    Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) })
   ].freeze
 
   def initialize(now: Time.current, dry_run: self.class.dry_run, tasks: TASKS, logger: Rails.logger)
@@ -96,6 +99,7 @@ class ScheduledTick
     when "daily_unlocks" then DailyUnlockNotifications.new.preview(now: @now, last_date: state&.last_school_date)
     when "scheduled_updates" then ScheduledAnnouncementPublisher.preview(@now)
     when "expo_push_receipts" then { would_claim: ExpoPushReceipt.due.limit(ExpoPushReceiptJob::BATCH_SIZE).count }
+    when "learner_nudges" then LearnerNudges.preview(@now)
     else {}
     end
   end
