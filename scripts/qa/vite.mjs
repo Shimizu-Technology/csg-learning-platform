@@ -1,6 +1,7 @@
 import { createServer } from '../../web/node_modules/vite/dist/node/index.js'
 import { fileURLToPath } from 'node:url'
 import { existsSync, readFileSync } from 'node:fs'
+import { byteRange } from './media-range.mjs'
 const web = fileURLToPath(new URL('../../web/', import.meta.url))
 const target = `http://127.0.0.1:${process.env.QA_API_PORT}`
 // Real browsers and simulators can't use Playwright routes, so this serves
@@ -16,14 +17,18 @@ const syntheticVideo = { name: 'synthetic-video-stream', configureServer(server)
     if (url.pathname !== '/qa-media.mp4') return next()
     const named = fileURLToPath(new URL(`../../.qa-local/synthetic-${(url.searchParams.get('version') || '').replace(/[^\w-]/g, '')}.mp4`, import.meta.url))
     const media = readFileSync(existsSync(named) ? named : fileURLToPath(new URL('../../.qa-local/synthetic.mp4', import.meta.url)))
-    const range = request.headers.range?.match(/bytes=(\d+)-(\d*)/)
-    const start = range ? Number(range[1]) : 0
-    const end = range?.[2] ? Math.min(Number(range[2]), media.length - 1) : media.length - 1
-    response.statusCode = range ? 206 : 200
-    response.setHeader('Content-Type', 'video/mp4')
+    const range = byteRange(request.headers.range, media.length)
     response.setHeader('Accept-Ranges', 'bytes')
+    if (!range) {
+      response.statusCode = 416
+      response.setHeader('Content-Range', `bytes */${media.length}`)
+      return response.end()
+    }
+    const { start, end, partial } = range
+    response.statusCode = partial ? 206 : 200
+    response.setHeader('Content-Type', 'video/mp4')
     response.setHeader('Content-Length', String(end - start + 1))
-    if (range) response.setHeader('Content-Range', `bytes ${start}-${end}/${media.length}`)
+    if (partial) response.setHeader('Content-Range', `bytes ${start}-${end}/${media.length}`)
     response.end(media.subarray(start, end + 1))
   })
 } }
