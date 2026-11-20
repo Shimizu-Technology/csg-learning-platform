@@ -102,3 +102,71 @@ describe('VideoPlayer section seeking', () => {
     container.remove()
   })
 })
+
+describe('VideoPlayer full screen', () => {
+  const roots: ReturnType<typeof createRoot>[] = []
+
+  afterEach(() => {
+    roots.splice(0).forEach((root) => act(() => root.unmount()))
+    vi.restoreAllMocks()
+  })
+
+  async function renderPlayer() {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    roots.push(root)
+    await act(async () => root.render(<VideoPlayer title="Versions" fetchStreamUrl={async () => '/studio.mp4'} onSaveProgress={vi.fn()} />))
+    const video = container.querySelector('video')!
+    const frame = video.parentElement!
+    const button = container.querySelector('button[aria-label="Full screen"]') as HTMLButtonElement
+    return { video, frame, button }
+  }
+
+  it('uses the native video player where only the video can go full screen (iPhone Safari)', async () => {
+    const { video, frame, button } = await renderPlayer()
+    expect('requestFullscreen' in frame).toBe(false)
+    const enter = vi.fn()
+    Object.defineProperty(video, 'webkitEnterFullscreen', { configurable: true, value: enter })
+    act(() => button.click())
+    expect(enter).toHaveBeenCalledOnce()
+  })
+
+  it('puts the whole player in full screen where the element API exists, and exits from it', async () => {
+    const { video, frame, button } = await renderPlayer()
+    const request = vi.fn().mockResolvedValue(undefined)
+    const enter = vi.fn()
+    Object.defineProperty(frame, 'requestFullscreen', { configurable: true, value: request })
+    Object.defineProperty(video, 'webkitEnterFullscreen', { configurable: true, value: enter })
+    act(() => button.click())
+    expect(request).toHaveBeenCalledOnce()
+    expect(enter).not.toHaveBeenCalled()
+
+    const exit = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: frame })
+    Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exit })
+    try {
+      act(() => button.click())
+      expect(exit).toHaveBeenCalledOnce()
+      expect(request).toHaveBeenCalledOnce()
+    } finally {
+      Reflect.deleteProperty(document, 'fullscreenElement')
+      Reflect.deleteProperty(document, 'exitFullscreen')
+    }
+  })
+
+  it('falls back to the native video player when the element request is refused', async () => {
+    const { video, frame, button } = await renderPlayer()
+    Object.defineProperty(frame, 'requestFullscreen', { configurable: true, value: vi.fn().mockRejectedValue(new TypeError('not allowed')) })
+    const enter = vi.fn()
+    Object.defineProperty(video, 'webkitEnterFullscreen', { configurable: true, value: enter })
+    await act(async () => button.click())
+    expect(enter).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the mute button in step with the native player', async () => {
+    const { video } = await renderPlayer()
+    video.muted = true
+    act(() => video.dispatchEvent(new Event('volumechange')))
+    expect(video.parentElement!.querySelector('button[aria-label="Unmute"]')).not.toBeNull()
+  })
+})
