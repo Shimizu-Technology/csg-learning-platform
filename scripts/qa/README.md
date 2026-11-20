@@ -382,3 +382,11 @@ The spec covers 1280/390 Chromium, editor persistence and learner source/positio
 preference behavior. It intercepts only storage presign/upload/stream responses
 and synthetic media; authoring and progress still reach the local Rails API.
 No real storage provider or student data is used. Cleanup with `scripts/qa/run clean`.
+
+To play hosted videos in a real browser or the iOS Simulator (no Playwright routes),
+start with `QA_SYNTHETIC_VIDEO=1 scripts/qa/run start`. Vite then answers every
+`video_stream` request with `.qa-local/synthetic-<version id>.mp4`, falling back to
+`.qa-local/synthetic.mp4`, with byte-range support for Safari. Use a visible counter
+(`-f lavfi -i testsrc=s=640x360:r=10`) so the position is readable after a switch or
+full screen. iPhone Safari has no element full screen, so the player's expand button
+opens the native video player there; check that path on a simulator, not by resizing.

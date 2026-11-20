@@ -26,6 +26,11 @@ export interface VideoPlayerHandle {
 
 const URL_REFRESH_MS = 90 * 60 * 1000
 
+// WebKit-prefixed fullscreen APIs (older desktop Safari, and iPhone Safari's video-only fullscreen).
+type FullscreenDocument = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void }
+type FullscreenContainer = HTMLDivElement & { webkitRequestFullscreen?: () => void }
+type FullscreenVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void }
+
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -233,6 +238,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handlePlaying = () => hideBuffering()
     const handleSeeking = () => showBufferingSoon()
     const handleCanPlay = () => hideBuffering()
+    // The native fullscreen player has its own mute control; keep ours in step.
+    const handleVolumeChange = () => setMuted(video.muted)
 
     video.addEventListener('loadedmetadata', handleLoaded)
     video.addEventListener('timeupdate', handleTimeUpdate)
@@ -246,6 +253,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     video.addEventListener('seeking', handleSeeking)
     video.addEventListener('seeked', handleSeeked)
     video.addEventListener('canplay', handleCanPlay)
+    video.addEventListener('volumechange', handleVolumeChange)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoaded)
@@ -260,6 +268,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener('seeking', handleSeeking)
       video.removeEventListener('seeked', handleSeeked)
       video.removeEventListener('canplay', handleCanPlay)
+      video.removeEventListener('volumechange', handleVolumeChange)
     }
   }, [streamUrl, error, loading, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
 
@@ -302,10 +311,21 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   }
 
   const toggleFullscreen = () => {
-    const container = containerRef.current
-    if (!container) return
-    if (document.fullscreenElement) document.exitFullscreen()
-    else container.requestFullscreen()
+    const container = containerRef.current as FullscreenContainer | null
+    const video = videoRef.current as FullscreenVideo | null
+    if (!container || !video) return
+    const doc = document as FullscreenDocument
+    if (doc.fullscreenElement) { doc.exitFullscreen().catch(() => undefined); return }
+    if (doc.webkitFullscreenElement) { doc.webkitExitFullscreen?.(); return }
+    // iPhone Safari has no element fullscreen API: only the <video> itself can
+    // go full screen, in the native player. It's the same element, so the
+    // position and selected version are still there on exit.
+    const enterNativeFullscreen = () => {
+      try { video.webkitEnterFullscreen?.() } catch { /* metadata not loaded yet */ }
+    }
+    if (typeof container.requestFullscreen === 'function') container.requestFullscreen().catch(enterNativeFullscreen)
+    else if (typeof container.webkitRequestFullscreen === 'function') container.webkitRequestFullscreen()
+    else enterNativeFullscreen()
   }
 
   useImperativeHandle(ref, () => ({
