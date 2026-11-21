@@ -5,6 +5,10 @@ on:
   push:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
@@ -13,7 +17,40 @@ defaults:
     working-directory: ./api
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      run_full: ${{ steps.filter.outputs.run_full }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          # PR checkout is the merge commit; compare against its first parent.
+          fetch-depth: 2
+      - name: Verify docs-only classifier
+        run: python3 .github/scripts/test-ci-docs-only.py
+      - name: Classify changes (fail open)
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            python3 .github/scripts/ci-docs-only.py HEAD^1 HEAD >> "$GITHUB_OUTPUT"
+          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            python3 .github/scripts/ci-docs-only.py "$BEFORE" HEAD >> "$GITHUB_OUTPUT"
+          else
+            echo 'run_full=true' >> "$GITHUB_OUTPUT"
+          fi
+
   production_health_monitor:
+    needs: changes
+    if: needs.changes.outputs.run_full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     defaults:
@@ -35,6 +72,9 @@ jobs:
         run: node --test scripts/production-health-check.test.mjs
 
   scan_ruby:
+    timeout-minutes: 5
+    needs: changes
+    if: needs.changes.outputs.run_full == 'true'
     # Ruby 3.3.7 has a prebuilt toolchain on this pinned runner image.
     runs-on: ubuntu-24.04
 
@@ -57,10 +97,13 @@ jobs:
         run: bin/bundler-audit
 
   lint:
+    timeout-minutes: 5
+    needs: changes
+    if: needs.changes.outputs.run_full == 'true'
     # Ruby 3.3.7 has a prebuilt toolchain on this pinned runner image.
     runs-on: ubuntu-24.04
     env:
-      RUBOCOP_CACHE_ROOT: tmp/rubocop
+      RUBOCOP_CACHE_ROOT: ${{ github.workspace }}/api/tmp/rubocop
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -87,6 +130,9 @@ jobs:
         run: bin/rubocop -f github
 
   test:
+    timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.run_full == 'true'
     # Ruby 3.3.7 has a prebuilt toolchain on this pinned runner image.
     runs-on: ubuntu-24.04
 
@@ -130,6 +176,8 @@ jobs:
         run: bin/rails test
 
   test_pooler:
+    needs: changes
+    if: needs.changes.outputs.run_full == 'true'
     name: API / transaction pooler (${{ matrix.prepared }})
     strategy:
       fail-fast: false
@@ -225,6 +273,9 @@ jobs:
           fi
 
   frontend:
+    timeout-minutes: 15
+    needs: changes
+    if: needs.changes.outputs.run_full == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -255,6 +306,14 @@ jobs:
       - name: Lint, typecheck, test, and build frontend
         run: npm run check
 
+      - name: Cache Playwright Chromium
+        if: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY != '' }}
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
+
+      # Always install OS dependencies; the browser download is reused on cache hits.
       - name: Install Playwright Chromium
         if: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY != '' }}
         run: npx playwright install --with-deps chromium
@@ -270,6 +329,9 @@ jobs:
         run: echo "::notice::Set the VITE_CLERK_PUBLISHABLE_KEY repository variable to enable Playwright accessibility tests in CI."
 
   mobile:
+    timeout-minutes: 15
+    needs: changes
+    if: needs.changes.outputs.run_full == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
