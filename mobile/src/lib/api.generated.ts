@@ -7130,6 +7130,15 @@ export interface components {
                 source_bytes: number;
                 /** Format: date-time */
                 captured_at: string;
+                /** @description Captured workflow file integrity hashes when an exercise check policy specifies expected_workflow_path. */
+                workflow_files?: {
+                    [key: string]: {
+                        present: boolean;
+                        unreadable?: boolean;
+                        oid?: string;
+                        sha256?: string;
+                    };
+                };
             };
         };
         GithubChecks: {

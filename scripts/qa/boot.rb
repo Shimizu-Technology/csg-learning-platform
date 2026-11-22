@@ -61,6 +61,25 @@ if ENV["QA_GITHUB_APP"] == "1"
   GithubAppCredentials.define_singleton_method(:user_callback_url) { "http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/github-app/authorize" }
 end
 
+# Wave 3 X-6.10 synthetic Actualize prework demo harness: file-backed simulated
+# GitHub provider shared between local Puma and fixture CLI, with LocalHTTPOnly
+# and local csg_qa_* database guards strictly enforced.
+if ENV["QA_X6_DEMO"] == "1"
+  require_relative 'x6_demo_fake_github_client'
+  GithubAppClient.define_singleton_method(:new) { |**| X6DemoFakeGithubClient.new }
+  GithubAppCredentials.define_singleton_method(:app_id) { '12345' }
+  GithubAppCredentials.define_singleton_method(:slug) { 'synthetic-actualize-demo' }
+  GithubAppCredentials.define_singleton_method(:configured?) { true }
+  GithubAppCredentials.define_singleton_method(:webhook_secret) { 'qa-x6-demo-synthetic-webhook-secret' }
+  GithubAppCredentials.define_singleton_method(:webhook_configured?) { true }
+  require_relative '../../api/test/support/fake_github_user_authorization_client'
+  GithubUserAuthorizationClient.define_singleton_method(:new) { |**| FakeGithubUserAuthorizationClient.new }
+  GithubAppCredentials.define_singleton_method(:client_id) { 'synthetic-client' }
+  GithubAppCredentials.define_singleton_method(:oauth_configured?) { true }
+  web_port = ENV['QA_WEB_PORT'].presence || '5173'
+  GithubAppCredentials.define_singleton_method(:user_callback_url) { "http://127.0.0.1:#{web_port}/github-app/authorize" }
+end
+
 # Revision acceptance uses the same fake provider boundary, controlled by an
 # owned local fixture file. Preserve the loopback DB and HTTP guards above.
 if ENV["QA_GITHUB_REVISIONS"] == "1"
