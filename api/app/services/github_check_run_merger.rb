@@ -41,6 +41,8 @@ class GithubCheckRunMerger
       return binding.repository_id.present? && submission.github_repository_id.to_i == binding.repository_id.to_i
     end
 
+    return false unless binding.verified_at.present? && submission.updated_at.present? && submission.updated_at >= binding.verified_at
+
     full_name = submission_repository_full_name(submission, require_consistent: true)
     full_name.present? && full_name.casecmp?(binding.full_name)
   end
@@ -83,7 +85,7 @@ class GithubCheckRunMerger
   end
 
   # Must be called inside `submission.with_lock`.
-  def self.upsert_locked!(submission:, attributes:, fetched_at:, check_superseded_peers: false)
+  def self.upsert_locked!(submission:, attributes:, fetched_at:, check_superseded_peers: false, allow_rerun_reset: false)
     external_id = attributes.fetch(:external_id)
     head_sha = attributes.fetch(:head_sha)
     incoming_status = attributes.fetch(:status)
@@ -92,7 +94,10 @@ class GithubCheckRunMerger
     incoming_completed_at = parse_time(attributes[:completed_at])
 
     run = submission.github_check_runs.find_or_initialize_by(external_id: external_id)
-    if run.persisted?
+    rerun_reset = run.persisted? && allow_rerun_reset && run.status == "completed" &&
+      incoming_status != "completed" && incoming_completed_at.nil?
+
+    if run.persisted? && !rerun_reset
       if regresses_existing_run?(
         run,
         status: incoming_status,
@@ -102,7 +107,7 @@ class GithubCheckRunMerger
       )
         return run
       end
-    elsif check_superseded_peers && superseded_by_newer_same_name_run?(
+    elsif run.new_record? && check_superseded_peers && superseded_by_newer_same_name_run?(
       submission: submission,
       external_id: external_id,
       head_sha: head_sha,
@@ -122,8 +127,8 @@ class GithubCheckRunMerger
       status: incoming_status,
       conclusion: incoming_conclusion,
       details_url: attributes[:details_url].presence || run.details_url,
-      started_at: incoming_started_at || run.started_at,
-      completed_at: incoming_completed_at || run.completed_at,
+      started_at: rerun_reset ? incoming_started_at : (incoming_started_at || run.started_at),
+      completed_at: rerun_reset ? nil : (incoming_completed_at || run.completed_at),
       fetched_at: fetched_at
     )
     run
@@ -131,17 +136,30 @@ class GithubCheckRunMerger
 
   # Atomically merges a fetched GitHub check-run snapshot under `submission.with_lock`.
   # Protects runs created or updated since `pre_fetch_versions` (e.g. committed by a
-  # concurrent webhook during the HTTP fetch) from being pruned or regressed.
+  # concurrent webhook during the HTTP fetch) from being pruned or regressed, while
+  # allowing legitimate GitHub rerun resets on rows untouched since pre-fetch.
   def self.sync_snapshot!(submission:, runs:, fetched_at:, pre_fetch_versions:)
     submission.with_lock do
       expected_sha = submission.commit_sha
       snapshot_external_ids = runs.map { |attrs| attrs.fetch("id") }
+      existing_by_external_id = submission.github_check_runs
+        .where(external_id: snapshot_external_ids)
+        .index_by(&:external_id)
 
       runs.each do |attrs|
+        external_id = attrs.fetch("id")
+        existing = existing_by_external_id[external_id]
+        unchanged_since_prefetch = existing.present? && pre_fetch_versions[existing.id] == {
+          updated_at: existing.updated_at,
+          status: existing.status,
+          conclusion: existing.conclusion,
+          completed_at: existing.completed_at
+        }
+
         upsert_locked!(
           submission: submission,
           attributes: {
-            external_id: attrs.fetch("id"),
+            external_id: external_id,
             name: attrs.fetch("name"),
             workflow_name: attrs.dig("check_suite", "app", "name"),
             app_slug: attrs.dig("app", "slug"),
@@ -153,7 +171,8 @@ class GithubCheckRunMerger
             completed_at: attrs["completed_at"]
           },
           fetched_at: fetched_at,
-          check_superseded_peers: false
+          check_superseded_peers: false,
+          allow_rerun_reset: unchanged_since_prefetch
         )
       end
 
@@ -163,7 +182,7 @@ class GithubCheckRunMerger
         .filter_map do |existing|
           next if snapshot_external_ids.include?(existing.external_id)
           next unless pre_fetch_versions.key?(existing.id)
-          next if existing.updated_at != pre_fetch_versions[existing.id]
+          next if existing.updated_at != pre_fetch_versions[existing.id][:updated_at]
 
           existing.id
         end

@@ -419,6 +419,25 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_equal "staged", response.parsed_body.fetch("status")
     assert_equal "connected", @installation.reload.connection_state
     assert_equal "verified", @binding.reload.verification_state
+
+    # Suspend with tied timestamp (equal to latest connection freshness) stages rather than clobbering.
+    freshness = [ @installation.connected_at, @installation.checked_at, @installation.updated_at ].compact.max.change(usec: 0)
+    @installation.update_columns(connected_at: freshness, checked_at: freshness, updated_at: freshness)
+    tied_suspend = {
+      action: "suspend",
+      installation: {
+        id: 123,
+        app_id: 12345,
+        suspended_at: freshness.utc.iso8601,
+        updated_at: freshness.utc.iso8601,
+        account: { id: 24680, login: "app-learner", type: "User" }
+      }
+    }.to_json
+    post WEBHOOK_PATH, params: tied_suspend, headers: signed_headers(tied_suspend, event: "installation", delivery_id: "del-tied-suspend")
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_equal "connected", @installation.reload.connection_state
+    assert_equal "verified", @binding.reload.verification_state
   end
 
   test "installation_repositories removed revokes only removed repositories when timestamp proves ordering" do
@@ -476,6 +495,18 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
       repositories_added: []
     }.to_json
     post WEBHOOK_PATH, params: timeless_removed, headers: signed_headers(timeless_removed, event: "installation_repositories", delivery_id: "del-timeless-removed")
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_equal "verified", @binding.reload.verification_state
+
+    # Tied timestamp (installation.updated_at == verified_at) stages rather than clobbering.
+    tied_removed = {
+      action: "removed",
+      installation: { id: 123, repository_selection: "selected", updated_at: reverified_at.utc.iso8601 },
+      repositories_removed: [ { id: 98765, full_name: "app-learner/prework-exercises" } ],
+      repositories_added: []
+    }.to_json
+    post WEBHOOK_PATH, params: tied_removed, headers: signed_headers(tied_removed, event: "installation_repositories", delivery_id: "del-tied-removed")
     assert_response :ok
     assert_equal "staged", response.parsed_body.fetch("status")
     assert_equal "verified", @binding.reload.verification_state
@@ -735,6 +766,28 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal "staged", response.parsed_body.fetch("status")
     assert_not @submission.github_check_runs.exists?(external_id: 8202)
+
+    # (c) Replacement repository recreated at the SAME owner/repo path with a new numeric repository_id
+    # and re-verified after the old submission was synced must NOT attach and must stage cleanly.
+    synced_at = @submission.reload.updated_at
+    @binding.update!(
+      full_name: "app-learner/prework-exercises",
+      repository_id: 777_888,
+      verification_state: "verified",
+      verified_at: synced_at + 5.minutes,
+      checked_at: synced_at + 5.minutes
+    )
+    recreated_same_path_body = check_run_payload(
+      repository_id: 777_888,
+      repository_full_name: "app-learner/prework-exercises",
+      external_id: 8203
+    ).to_json
+    assert_no_difference "GithubCheckRun.count" do
+      post WEBHOOK_PATH, params: recreated_same_path_body, headers: signed_headers(recreated_same_path_body, event: "check_run", delivery_id: "del-prov-same-path-recreated")
+    end
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_not @submission.github_check_runs.exists?(external_id: 8203)
   end
 
   test "malformed nested scalar JSON shapes return 400 instead of 500" do

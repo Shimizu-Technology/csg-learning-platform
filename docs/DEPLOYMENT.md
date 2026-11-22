@@ -1325,15 +1325,19 @@ retry `503`/5xx webhook deliveries.
   resolved.
 - **Persisted `pending` or `failed` receipts** (written to
   `github_webhook_deliveries` before a local processing error): redelivering the
-  same `X-GitHub-Delivery` resumes local processing idempotently, and local
-  replay or hourly reconciliation can reprocess persisted `pending`, `failed`,
-  and `staged` rows without external fetches.
+  same `X-GitHub-Delivery` via GitHub manual redelivery resumes local processing
+  idempotently.
+- **Persisted `staged` receipts**: redelivering an already `staged` delivery
+  returns its stored `"staged"` status without re-running local attachment.
+  Automatic `staged` replay and hourly GitHub reconciliation arrive in the
+  follow-up reconciliation slice (X-6.6); until then, operators can use manual
+  **Refresh checks** in the grading workbench.
 
-**Bounded retention:** `ScheduledTick` runs `github_webhook_retention` in
-bounded batches (up to 1,000 rows per tick), pruning settled `processed` and
-`ignored` receipts after 30 days and unconsumed `staged`, `failed`, or abandoned
-`pending` receipts after 14 days (also callable manually via
-`GithubWebhookDelivery.prune_expired!`).
+**Bounded retention:** `ScheduledTick`'s `github_webhook_retention` task
+performs bounded pruning only (up to 1,000 rows per tick), removing settled
+`processed` and `ignored` receipts after 30 days and unconsumed `staged`,
+`failed`, or abandoned `pending` receipts after 14 days (also callable manually
+via `GithubWebhookDelivery.prune_expired!`).
 
 **Remaining deferred permissions:** add **Issues: write** for the feedback
 slice. **Actions: read** is deferred until workflow-run provenance requires it;

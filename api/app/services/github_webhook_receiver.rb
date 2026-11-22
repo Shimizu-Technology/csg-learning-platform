@@ -303,10 +303,10 @@ class GithubWebhookReceiver
     freshness = [ installation.connected_at, installation.checked_at, installation.updated_at ].compact.max
     if action == "suspend"
       # Suspend can race with a newer unsuspend/reconnect; require a provider
-      # timestamp at least as recent as the connection's latest verification.
+      # timestamp strictly newer than the connection's latest verification.
       return true if event_time.nil?
-      return true if freshness.present? && event_time < freshness
-    elsif event_time.present? && installation.connected_at.present? && event_time < installation.connected_at
+      return true if freshness.present? && event_time <= freshness
+    elsif event_time.present? && installation.connected_at.present? && event_time <= installation.connected_at
       return true
     end
 
@@ -317,10 +317,10 @@ class GithubWebhookReceiver
     return false unless binding.verification_state == "verified"
 
     # GitHub does not provide a per-repository removal timestamp; require an
-    # installation.updated_at at or after the binding's latest verification.
+    # installation.updated_at strictly newer than the binding's latest verification.
     freshness = [ binding.verified_at, binding.checked_at ].compact.max
     return true if event_time.nil? && freshness.present?
-    return true if event_time.present? && freshness.present? && event_time < freshness
+    return true if event_time.present? && freshness.present? && event_time <= freshness
 
     false
   end

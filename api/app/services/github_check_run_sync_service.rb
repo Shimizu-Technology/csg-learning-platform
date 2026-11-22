@@ -30,8 +30,15 @@ class GithubCheckRunSyncService
 
     pre_fetch_versions = submission.github_check_runs
       .where(head_sha: submission.commit_sha)
-      .pluck(:id, :updated_at)
-      .to_h
+      .pluck(:id, :updated_at, :status, :conclusion, :completed_at)
+      .each_with_object({}) do |(id, updated_at, status, conclusion, completed_at), versions|
+        versions[id] = {
+          updated_at: updated_at,
+          status: status,
+          conclusion: conclusion,
+          completed_at: completed_at
+        }
+      end
 
     result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
     return failure(result[:error]) if result[:error]

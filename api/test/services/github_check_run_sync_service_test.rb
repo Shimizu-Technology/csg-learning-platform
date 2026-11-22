@@ -186,4 +186,46 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
   ensure
     service.define_singleton_method(:github_get, original_get)
   end
+
+  test "manual refresh reflects a legitimate GitHub rerun reset when untouched since pre-fetch" do
+    @submission.github_check_runs.create!(
+      external_id: 801,
+      name: "prework/111.rb",
+      head_sha: "abc123",
+      status: "completed",
+      conclusion: "failure",
+      started_at: Time.iso8601("2026-08-15T00:00:00Z"),
+      completed_at: Time.iso8601("2026-08-15T00:01:00Z"),
+      fetched_at: 5.minutes.ago
+    )
+
+    service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token", now: Time.zone.parse("2026-08-15 10:05"))
+    original_get = service.method(:github_get)
+    service.define_singleton_method(:github_get) do |_url, page:|
+      FakeResponse.new(true, 200, {
+        "total_count" => 1,
+        "check_runs" => [ {
+          "id" => 801,
+          "name" => "prework/111.rb",
+          "head_sha" => "abc123",
+          "status" => "in_progress",
+          "conclusion" => nil,
+          "started_at" => "2026-08-15T10:04:00Z",
+          "completed_at" => nil,
+          "app" => { "slug" => "github-actions" }
+        } ]
+      })
+    end
+
+    result = service.call
+    assert_nil result[:error]
+
+    run = @submission.github_check_runs.find_by!(external_id: 801)
+    assert_equal "in_progress", run.status
+    assert_nil run.conclusion
+    assert_nil run.completed_at
+    assert_equal Time.iso8601("2026-08-15T10:04:00Z"), run.started_at
+  ensure
+    service.define_singleton_method(:github_get, original_get)
+  end
 end
