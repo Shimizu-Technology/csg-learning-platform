@@ -11,6 +11,7 @@ class FeatureSwitches
     "office_hours" => true,
     "recordings" => true,
     "class_channels" => true,
+    "self_paced_peer_space" => false,
     "knowledge_checks" => true,
     "help_requests" => true,
     "github_sync" => true,
@@ -21,14 +22,19 @@ class FeatureSwitches
     "student_experience_v2" => true
   }.freeze
   KEYS = DEFAULTS.keys.freeze
+  COHORT_OPT_IN = %w[github_app self_paced_peer_space].freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
   def self.for(cohort: nil, school: nil)
     defaults = school || self.school
     overrides = (cohort&.settings&.dig("features") || {}).slice(*KEYS).compact
     resolved = defaults.merge(overrides)
-    # App access requires both school activation and an explicit cohort opt-in.
-    resolved["github_app"] = defaults["github_app"] == true && overrides["github_app"] == true if cohort
+    if cohort
+      # Opt-in switches require both school activation and an explicit cohort opt-in.
+      COHORT_OPT_IN.each do |key|
+        resolved[key] = defaults[key] == true && overrides[key] == true
+      end
+    end
     resolved
   end
 

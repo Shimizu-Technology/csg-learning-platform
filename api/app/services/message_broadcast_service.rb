@@ -65,6 +65,7 @@ class MessageBroadcastService
 
     def channel_json(channel, user)
       read_state = user.channel_read_states.find_by(channel: channel)
+      can_post = channel.can_post?(user)
 
       {
         id: channel.id,
@@ -78,6 +79,8 @@ class MessageBroadcastService
         visibility: channel.visibility,
         status: channel.status,
         position: channel.position,
+        can_post: can_post,
+        post_disabled_reason: can_post ? nil : channel.post_disabled_reason(user),
         muted: muted?(user, channel),
         unread_count: channel_unread_count(channel, user, read_state),
         last_read_at: read_state&.last_read_at,

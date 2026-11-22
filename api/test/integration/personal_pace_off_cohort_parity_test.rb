@@ -5,8 +5,9 @@ require "test_helper"
 # program cohort (Cohort 3's shape, with the new student experience off and on),
 # a guided cohort with pace off, and the alumni library sees, byte for byte,
 # with a golden file recorded on origin/main (6c169d6d) before W9.1 existed:
-# X-6 adds only the intentional default-Off github_app feature key to this
-# baseline; all existing fields and behavior remain unchanged.
+# X-6 and W9.8/AS-9 add only the intentional default-Off github_app and
+# self_paced_peer_space feature keys to this baseline; all existing fields and
+# behavior remain unchanged.
 # Today and the dashboard, the course outline, the weekly plan, progress, each
 # module, whether each lesson opens, the staff progress view, and the daily
 # unlock digest candidates.

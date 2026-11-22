@@ -8027,6 +8027,19 @@
           "position": {
             "type": "number"
           },
+          "can_post": {
+            "type": "boolean"
+          },
+          "post_disabled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "muted": {
             "type": "boolean"
           },
@@ -10332,6 +10345,7 @@
         "properties": {
           "features": {
             "type": "object",
+            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app and self_paced_peer_space).",
             "additionalProperties": {
               "type": "boolean"
             }
