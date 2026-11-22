@@ -30,7 +30,7 @@ const person = (id: number, name: string) => ({ id, name })
 
 const recording: RecordingDetail = {
   type: 'recording', id: 21, title: 'Week 2 class', description: null, status: 'published', source: 'youtube', url: 'https://www.youtube.com/watch?v=x',
-  duration_seconds: 3600, recorded_date: '2026-11-10', published_at: '2026-11-10T20:00:00Z', created_at: '2026-11-10T19:00:00Z',
+  duration_seconds: 3600, duration_display: '1:00:00', recorded_date: '2026-11-10', published_at: '2026-11-10T20:00:00Z', created_at: '2026-11-10T19:00:00Z',
   uploaded_by: person(2, 'Ivy Instructor'), cohort: teal, week: 2, can_edit: true,
   lessons: [{ lesson: { id: 40, title: 'Make decisions', archived: false }, module: person(7, 'JavaScript basics'), week: 2, block: { id: 81, title: 'Class replay' },
     sections: [{ label: 'If statements', start_seconds: 60, end_seconds: 600, required: true }, { label: 'Ternaries', start_seconds: 700, end_seconds: 900, required: false }] }],

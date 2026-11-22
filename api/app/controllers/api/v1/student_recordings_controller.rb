@@ -110,8 +110,8 @@ module Api
 
       private
 
-      # A recording has no lesson foreign key. Link its dated course week,
-      # never guess a lesson from its title. Undated recordings link to Learn.
+      # Keep the library link at the dated course week. Explicit lesson
+      # attachments appear on the corresponding lesson pages.
       def learning_link(cohort, date)
         return {} unless FeatureSwitches.for(cohort: cohort)["student_experience_v2"] == true
 

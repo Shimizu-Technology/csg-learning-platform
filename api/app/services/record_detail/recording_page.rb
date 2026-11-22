@@ -1,6 +1,6 @@
 class RecordDetail
   # A class recording (L-5.2): its cohort and the week it was recorded in, the
-  # lessons whose Video or Recording blocks play it (with their sections), and
+  # attached lessons and any Video or Recording blocks that play it, and
   # who in the cohort has watched it. Staff only; learners keep Recordings.
   #
   # A lesson block plays the recording when its video is the same upload
@@ -42,6 +42,7 @@ class RecordDetail
         source: recording.source_kind,
         url: recording.uploaded? ? nil : recording.source_url,
         duration_seconds: recording.duration_seconds,
+        duration_display: recording.duration_display,
         recorded_date: recording.recorded_date&.to_date&.iso8601,
         published_at: iso(recording.published_at),
         created_at: iso(recording.created_at),
@@ -69,16 +70,14 @@ class RecordDetail
         )
       end
       matches << ContentBlock.where(video_url: recording.source_url) if recording.source_url.present?
-      return [] if matches.empty?
-
-      blocks = ContentBlock.where(block_type: %i[video recording])
+      blocks = matches.empty? ? ContentBlock.none : ContentBlock.where(block_type: %i[video recording])
         .merge(matches.reduce { |all, match| all.or(match) })
         .joins(lesson: :curriculum_module)
         .where(modules: { curriculum_id: cohort.curriculum_id })
         .includes(lesson: :curriculum_module)
         .order("modules.position", "lessons.release_day", "lessons.position", "content_blocks.position", "content_blocks.id")
         .to_a
-      blocks.map do |block|
+      block_rows = blocks.map do |block|
         lesson = block.lesson
         mod = lesson.curriculum_module
         day = mod.week_and_day_for(lesson.release_day)
@@ -95,6 +94,20 @@ class RecordDetail
           end
         }
       end
+      block_lesson_ids = block_rows.to_set { |row| row[:lesson][:id] }
+      attached = recording.lessons.includes(:curriculum_module).filter_map do |lesson|
+        next if block_lesson_ids.include?(lesson.id)
+
+        mod = lesson.curriculum_module
+        {
+          lesson: { id: lesson.id, title: lesson.title, archived: lesson.archived? },
+          module: { id: mod.id, name: mod.name },
+          week: cohort.self_paced? ? nil : CourseWeeks.number(mod, lesson),
+          block: nil,
+          sections: []
+        }
+      end
+      block_rows + attached
     end
   end
 end

@@ -1,4 +1,5 @@
 import { StudentExperienceProvider, StudentExperienceSwitch } from '../../lib/studentExperience'
+import { LessonRecordings } from '../../components/student/LessonRecordings'
 import { LessonExperience } from '../../components/student/LessonExperience'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { activityReturnPath, learnerPaths, recordPath } from '../../lib/routes'
@@ -306,6 +307,8 @@ export function LegacyLessonView() {
           </a>
         </div>
       )}
+
+      <LessonRecordings lesson={lesson} />
 
       {/* Content blocks */}
       <div className="space-y-4">

@@ -259,6 +259,7 @@ Rails.application.routes.draw do
 
         # S3-backed recordings
         resources :recordings, only: [ :index, :show, :create, :update, :destroy ] do
+          get :lesson_options, on: :collection
           member do
             get :stream_url
           end

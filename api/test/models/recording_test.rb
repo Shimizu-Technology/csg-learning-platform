@@ -25,6 +25,28 @@ class RecordingTest < ActiveSupport::TestCase
     assert recording.valid?
   end
 
+  test "stored durations must be nil or an integer from one second to one day" do
+    recording = @cohort.recordings.build(title: "Valid length", source_kind: "external", source_url: "https://example.invalid/replay")
+    [ nil, 1, 86_400 ].each do |seconds|
+      recording.duration_seconds = seconds
+      assert recording.valid?
+    end
+    [ 0, -1, 86_401, 10.5, "12 seconds" ].each do |seconds|
+      recording.duration_seconds = seconds
+      assert_not recording.valid?
+      assert recording.errors[:duration_seconds].any?
+    end
+  end
+
+  test "a stale recording object cannot overwrite duration after another player backfills it" do
+    recording = @cohort.recordings.create!(title: "Unknown length", source_kind: "external", source_url: "https://example.invalid/replay")
+    stale = Recording.find(recording.id)
+
+    assert_equal 90, recording.duration_for_playback(90)
+    assert_equal 90, stale.duration_for_playback(150)
+    assert_equal 90, recording.reload.duration_seconds
+  end
+
   test "uploaded recording still requires upload metadata" do
     recording = @cohort.recordings.new(title: "Missing upload", source_kind: "uploaded", position: 0)
 
