@@ -79,7 +79,7 @@ class ScheduledTickTest < ActiveSupport::TestCase
   end
 
   test "cron registry excludes unsafe cross-process message recovery and needs no queue" do
-    assert_equal %w[scheduled_updates intervention_follow_ups daily_unlocks expo_push_receipts learner_nudges], ScheduledTick::TASKS.map(&:name)
+    assert_equal %w[scheduled_updates intervention_follow_ups daily_unlocks expo_push_receipts learner_nudges github_issue_deliveries], ScheduledTick::TASKS.map(&:name)
     original = ExpoPushReceiptJob.method(:new)
     probe = Object.new
     probe.define_singleton_method(:drain_due) { |**| [] }

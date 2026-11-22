@@ -988,6 +988,7 @@ The staff student response keeps operational fields scoped to the selected enrol
 | `PATCH` | `/api/v1/submissions/:id` | Staff | Update submission |
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission |
 | `GET` | `/api/v1/submissions/:id/github_issue` | Staff | Get linked GitHub issue |
+| `POST` | `/api/v1/submissions/:id/retry_github_issue` | Staff | Retry a failed or pending durable GitHub issue delivery (`github_issue_delivery_v2` cohorts) |
 | `GET` | `/api/v1/submissions/:id/github_checks` | Staff or submission owner | Read persisted check-run metadata for the submission's current commit |
 | `POST` | `/api/v1/submissions/:id/github_checks` | Staff | Refresh current-commit check metadata from GitHub |
 

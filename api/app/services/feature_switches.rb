@@ -16,6 +16,8 @@ class FeatureSwitches
     "help_requests" => true,
     "github_sync" => true,
     "github_app" => false,
+    # X-6.8 reliable Redo GitHub issues: durable outbox scoped by enrollment and binding.
+    "github_issue_delivery_v2" => false,
     "announcements" => true,
     "interventions" => true,
     "learning_plans" => true,
@@ -25,7 +27,7 @@ class FeatureSwitches
   }.freeze
   # Switches a cohort only gets by opting in itself, with the school switch on:
   # a cohort that inherits gets Off even when the school default is On.
-  COHORT_OPT_IN = %w[github_app self_paced_peer_space learner_nudges].freeze
+  COHORT_OPT_IN = %w[github_app github_issue_delivery_v2 self_paced_peer_space learner_nudges].freeze
   KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.

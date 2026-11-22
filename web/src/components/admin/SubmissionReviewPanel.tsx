@@ -1,7 +1,7 @@
 import { NoAccess } from '../shared/NoAccess'
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import { BookmarkPlus, ChevronLeft, ChevronRight, CircleAlert, ExternalLink, MessageSquareText, RefreshCw } from 'lucide-react'
+import { BookmarkPlus, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock, ExternalLink, MessageSquareText, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { submissionPath } from '../../lib/routes'
@@ -161,9 +161,14 @@ export function SubmissionReviewPanel({
   } | null>(null)
   const [issueError, setIssueError] = useState<string | null>(null)
   const [loadingIssue, setLoadingIssue] = useState(false)
+  const [retryingDelivery, setRetryingDelivery] = useState(false)
+  const [retryDeliveryError, setRetryDeliveryError] = useState<string | null>(null)
   const [attempts, setAttempts] = useState<Submission[] | null>(null)
   const [attemptError, setAttemptError] = useState<string | null>(null)
   const [loadingAttempts, setLoadingAttempts] = useState(false)
+  useEffect(() => {
+    setRetryDeliveryError(null)
+  }, [submissionId])
   useEffect(() => {
     if (submission) onLoaded?.(submission)
   }, [submission, onLoaded])
@@ -209,6 +214,20 @@ export function SubmissionReviewPanel({
       if (alive.current) setIssueError('Could not load GitHub issue.')
     } finally {
       if (alive.current) setLoadingIssue(false)
+    }
+  }
+  async function retryGithubDelivery() {
+    setRetryingDelivery(true)
+    setRetryDeliveryError(null)
+    try {
+      const result = await api.retrySubmissionGithubIssue(submissionId)
+      if (!alive.current) return
+      if (result.data && !result.error) review.setSubmission(result.data.submission)
+      else setRetryDeliveryError(result.error || 'Could not retry GitHub feedback.')
+    } catch {
+      if (alive.current) setRetryDeliveryError('Could not retry GitHub feedback.')
+    } finally {
+      if (alive.current) setRetryingDelivery(false)
     }
   }
   async function loadAttempts() {
@@ -540,6 +559,14 @@ export function SubmissionReviewPanel({
           <FeedbackBody feedback={submission.feedback} />
         </div>
       )}
+      {submission.github_issue_delivery && (
+        <GithubIssueDeliveryStatus
+          delivery={submission.github_issue_delivery}
+          retrying={retryingDelivery}
+          retryError={retryDeliveryError}
+          onRetry={() => void retryGithubDelivery()}
+        />
+      )}
       <AttemptReview submission={submission} navigationContext={resolvedContext}>
         <fieldset
           disabled={grading || conflict || isPreviousAttempt(submission)}
@@ -737,6 +764,113 @@ export function SubmissionReviewPanel({
         </p>
       </div>
     </section>
+  )
+}
+
+function GithubIssueDeliveryStatus({
+  delivery,
+  retrying,
+  retryError,
+  onRetry,
+}: {
+  delivery: NonNullable<Submission['github_issue_delivery']>
+  retrying: boolean
+  retryError: string | null
+  onRetry: () => void
+}) {
+  const safeIssueUrl = delivery.issue_url ? sanitizeUrl(delivery.issue_url) : null
+  const isFailed = delivery.status === 'failed'
+  const isDelivered = delivery.status === 'delivered'
+  const isPending = delivery.status === 'pending'
+
+  const surfaceClass = isFailed
+    ? 'border-danger-line bg-danger-soft text-danger-ink'
+    : isDelivered
+      ? 'border-success-line bg-success-soft text-success-ink'
+      : 'border-line bg-surface-sunken text-ink'
+
+  const heading = isFailed
+    ? 'Grade saved · GitHub feedback failed'
+    : isDelivered
+      ? 'GitHub feedback delivered'
+      : isPending
+        ? 'Grade saved · GitHub feedback pending'
+        : 'GitHub feedback superseded'
+
+  const detail = isFailed
+    ? delivery.last_error || 'Your grade and feedback are saved in Learn. Retry to deliver to GitHub.'
+    : isDelivered
+      ? [
+          delivery.action === 'close' ? 'Issue closed' : 'Posted to GitHub',
+          delivery.delivered_at ? formatShortDateTime(delivery.delivered_at) : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : isPending
+        ? delivery.last_error
+          ? `Saved in Learn. Retrying after previous error: ${delivery.last_error}`
+          : 'Feedback is saved in Learn and queued for the next GitHub sync.'
+        : 'Replaced by a newer grade or submission.'
+
+  return (
+    <div
+      data-github-issue-delivery={delivery.status}
+      role="status"
+      className={`rounded-2xl border p-3.5 text-sm ${surfaceClass}`}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2.5">
+          {isFailed ? (
+            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          ) : isDelivered ? (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          )}
+          <div className="min-w-0 space-y-0.5">
+            <p className="font-semibold break-words">{heading}</p>
+            <p className={`text-xs break-words ${isFailed || isDelivered ? '' : 'text-ink-secondary'}`}>
+              {detail}
+            </p>
+            {isFailed && (
+              <p className="text-xs">
+                Your grade and feedback remain saved in Learn.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {isDelivered && safeIssueUrl && (
+            <a
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-current/25 bg-surface-raised px-3 text-sm font-semibold text-ink hover:bg-surface-sunken"
+              href={safeIssueUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View GitHub issue
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          )}
+          {isFailed && (
+            <Button
+              variant="secondary"
+              size="md"
+              className="w-full sm:w-auto"
+              disabled={retrying}
+              onClick={onRetry}
+            >
+              <RefreshCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} aria-hidden="true" />
+              {retrying ? 'Retrying…' : 'Retry GitHub feedback'}
+            </Button>
+          )}
+        </div>
+      </div>
+      {retryError && (
+        <p role="alert" className="mt-2 text-xs font-semibold text-danger-ink">
+          {retryError}
+        </p>
+      )}
+    </div>
   )
 }
 

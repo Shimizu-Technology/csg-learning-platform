@@ -19,6 +19,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
 
     def get(url, **options) = request(:get, url, options)
     def post(url, **options) = request(:post, url, options)
+    def patch(url, **options) = request(:patch, url, options)
 
     def request(method, url, options)
       @calls << [ method, url, options ]
@@ -43,6 +44,28 @@ class GithubAppClientTest < ActiveSupport::TestCase
       end
       if url.end_with?("/check-runs")
         return Response.new(200, { "total_count" => 0, "check_runs" => [] })
+      end
+      if url.end_with?("/issues") && method == :get
+        return Response.new(200, [
+          { "number" => 5, "html_url" => "https://github.com/app-learner/prework-exercises/pull/5", "state" => "open", "body" => "<!-- csg-delivery:tok -->", "pull_request" => {} },
+          { "number" => 7, "html_url" => "https://github.com/app-learner/prework-exercises/issues/7", "state" => "open", "body" => "Feedback\n<!-- csg-delivery:tok -->" }
+        ])
+      end
+      if url.end_with?("/issues") && method == :post
+        return Response.new(201, { "number" => 7, "html_url" => "https://github.com/app-learner/prework-exercises/issues/7", "state" => "open" })
+      end
+      if url.end_with?("/issues/7/comments") && method == :get
+        return Response.new(200, [ { "id" => 91, "body" => "Follow up\n<!-- csg-delivery:comment-tok -->" } ])
+      end
+      if url.end_with?("/issues/7/comments") && method == :post
+        return Response.new(201, { "id" => 92, "html_url" => "https://github.com/app-learner/prework-exercises/issues/7#issuecomment-92" })
+      end
+      if url.end_with?("/issues/7") && method == :get
+        return Response.new(200, { "number" => 7, "html_url" => "https://github.com/app-learner/prework-exercises/issues/7", "state" => "closed", "title" => "Redo: Ex 1", "body" => "Original" })
+      end
+      if url.end_with?("/issues/7") && method == :patch
+        parsed = JSON.parse(options.fetch(:body))
+        return Response.new(200, { "number" => 7, "html_url" => "https://github.com/app-learner/prework-exercises/issues/7", "state" => parsed.fetch("state") })
       end
       Response.new(200, { "id" => 98765, "full_name" => "app-learner/prework-exercises", "fork" => false, "owner" => { "id" => 24680, "login" => "app-learner", "type" => "User" } })
     end
@@ -141,6 +164,33 @@ class GithubAppClientTest < ActiveSupport::TestCase
     @transport.define_singleton_method(:post) { |*args, **kwargs| Response.new(201, {}) }
     error = assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }
     assert_equal GithubAppClient::PROVIDER_ERROR, error.message
+  end
+
+  test "issue lifecycle methods scope installation tokens to numeric repository_id and ignore PRs in marker search" do
+    repo_args = { installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises" }
+
+    created = @client.create_issue(**repo_args, title: "Redo: Ex 1", body: "Fix it")
+    assert_equal({ "number" => 7, "html_url" => "https://github.com/app-learner/prework-exercises/issues/7", "state" => "open" }, created)
+
+    found = @client.find_issue_by_marker(**repo_args, marker: "<!-- csg-delivery:tok -->")
+    assert_equal 7, found.fetch("number")
+
+    found_comment = @client.find_issue_by_marker(**repo_args, marker: "<!-- csg-delivery:comment-tok -->", issue_number: 7)
+    assert_equal true, found_comment.fetch("matched_comment")
+
+    fetched = @client.get_issue(**repo_args, issue_number: 7)
+    assert_equal "closed", fetched.fetch("state")
+
+    reopened = @client.reopen_issue(**repo_args, issue_number: 7)
+    assert_equal "open", reopened.fetch("state")
+
+    comment = @client.add_issue_comment(**repo_args, issue_number: 7, body: "Please revise")
+    assert_equal 92, comment.fetch("id")
+
+    closed = @client.close_issue(**repo_args, issue_number: 7, comment: "Graded **B**")
+    assert_equal "closed", closed.fetch("state")
+
+    assert_equal [ [ 98765 ] ], token_calls.map { |call| JSON.parse(call[2].fetch(:body)).fetch("repository_ids") }
   end
 
   private

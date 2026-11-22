@@ -956,6 +956,10 @@ export const api = {
   getSubmissionGithubIssue: (id: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
+  retrySubmissionGithubIssue: (id: number) =>
+    fetchApi<components['schemas']['RetryGithubIssueResponse']>(`/api/v1/submissions/${id}/retry_github_issue`, {
+      method: 'POST',
+    }),
 
   // Student progress (admin)
   getActivityEvents: (params?: { feed?: 'cohort' | 'school'; actor_id?: number; since?: string; until?: string; user_id?: number; cohort_id?: number; category?: string; before_id?: number; limit?: number }) =>

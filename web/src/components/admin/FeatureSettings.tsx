@@ -4,8 +4,8 @@ import { api, type FeatureSettingsData } from '../../lib/api'
 import { Button } from '../ui/Button'
 
 // A cohort gets these only by turning them on itself (FeatureSwitches::COHORT_OPT_IN).
-const cohortOptIn = new Set(['github_app', 'self_paced_peer_space', 'learner_nudges'])
-const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', self_paced_peer_space: 'Course community (self-paced)', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', github_app: 'GitHub App access', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans', student_experience_v2: 'New student experience', learner_nudges: 'Learner reminders' }
+const cohortOptIn = new Set(['github_app', 'github_issue_delivery_v2', 'self_paced_peer_space', 'learner_nudges'])
+const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', self_paced_peer_space: 'Course community (self-paced)', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', github_app: 'GitHub App access', github_issue_delivery_v2: 'Reliable GitHub Redo issues', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans', student_experience_v2: 'New student experience', learner_nudges: 'Learner reminders' }
 const descriptions: Partial<Record<string, string>> = {
   self_paced_peer_space: 'Lets self-paced learners talk in class chat. Recommended when 5 or more learners are enrolled.',
 }
@@ -44,7 +44,7 @@ export function FeatureSettings({ cohortId, onDraftChange, showReviewResponse = 
   }
   return <section className="app-surface space-y-4 p-5" aria-label={cohortId ? 'Cohort features' : 'School features'}>
     <h2 className="text-lg font-bold text-ink">Features</h2>
-    <p className="text-sm text-ink-secondary">{cohortId ? 'Inherit school defaults or choose a different setting for this cohort.' : 'School defaults apply unless a cohort overrides them.'} Turning a feature off preserves its saved data.</p><p className="text-sm text-ink-secondary">GitHub App access, Course community (self-paced), and Learner reminders require the school switch and an explicit On setting for this cohort. Inherit keeps them off.</p>
+    <p className="text-sm text-ink-secondary">{cohortId ? 'Inherit school defaults or choose a different setting for this cohort.' : 'School defaults apply unless a cohort overrides them.'} Turning a feature off preserves its saved data.</p><p className="text-sm text-ink-secondary">GitHub App access, Reliable GitHub Redo issues, Course community (self-paced), and Learner reminders require the school switch and an explicit On setting for this cohort. Inherit keeps them off.</p>
     {data && <><div className="grid gap-4 sm:grid-cols-2">{Object.entries(labels).map(([key, label]) => {
       const description = descriptions[key]
       const descriptionId = description ? `feature-help-${key}` : undefined

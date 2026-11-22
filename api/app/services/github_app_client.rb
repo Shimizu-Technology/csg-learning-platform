@@ -86,7 +86,107 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
+  def find_issue_by_marker(installation:, repository_id:, full_name:, marker:, issue_number: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    raise Error, PROVIDER_ERROR unless marker.is_a?(String) && marker.present?
+
+    if issue_number
+      num = validate_issue_number!(issue_number)
+      comments = installation_request(installation, :get, "/repos/#{full_name}/issues/#{num}/comments", repository_id: repository_id, query: { per_page: 100 }, expect: Array)
+      matched = comments.find { |item| item.is_a?(Hash) && item["body"].to_s.include?(marker) }
+      if matched
+        issue = get_issue(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num)
+        return issue.merge("matched_comment" => true)
+      end
+      issue = get_issue(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num)
+      return issue if issue["body"].to_s.include?(marker)
+
+      return nil
+    end
+
+    issues = installation_request(installation, :get, "/repos/#{full_name}/issues", repository_id: repository_id, query: { state: "all", sort: "updated", direction: "desc", per_page: 100 }, expect: Array)
+    matched = issues.find { |item| item.is_a?(Hash) && !item.key?("pull_request") && item["body"].to_s.include?(marker) }
+    return nil unless matched
+
+    normalize_issue!(matched)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def create_issue(installation:, repository_id:, full_name:, title:, body:)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    result = installation_request(installation, :post, "/repos/#{full_name}/issues", repository_id: repository_id, body: { title: title.to_s, body: body.to_s })
+    normalize_issue!(result)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def get_issue(installation:, repository_id:, full_name:, issue_number:)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    result = installation_request(installation, :get, "/repos/#{full_name}/issues/#{num}", repository_id: repository_id)
+    normalize_issue!(result).merge("title" => result["title"].to_s, "body" => result["body"].to_s)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def reopen_issue(installation:, repository_id:, full_name:, issue_number:)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    result = installation_request(installation, :patch, "/repos/#{full_name}/issues/#{num}", repository_id: repository_id, body: { state: "open" })
+    normalize_issue!(result)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def add_issue_comment(installation:, repository_id:, full_name:, issue_number:, body:)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    result = installation_request(installation, :post, "/repos/#{full_name}/issues/#{num}/comments", repository_id: repository_id, body: { body: body.to_s })
+    id = Integer(result.fetch("id"))
+    url = result.fetch("html_url")
+    raise Error, PROVIDER_ERROR unless positive_id?(id) && url.is_a?(String) && url.present?
+
+    { "id" => id, "html_url" => url }
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def close_issue(installation:, repository_id:, full_name:, issue_number:, comment: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    if comment.present?
+      add_issue_comment(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num, body: comment)
+    end
+    result = installation_request(installation, :patch, "/repos/#{full_name}/issues/#{num}", repository_id: repository_id, body: { state: "closed", state_reason: "completed" })
+    normalize_issue!(result)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
   private
+
+  FULL_NAME_FORMAT = %r{\A[a-zA-Z0-9][a-zA-Z0-9-]{0,38}/[a-zA-Z0-9_.-]{1,100}\z}
+
+  def validate_repo_target!(repository_id:, full_name:)
+    raise Error, PROVIDER_ERROR unless positive_id?(repository_id) && full_name.is_a?(String) && FULL_NAME_FORMAT.match?(full_name)
+  end
+
+  def validate_issue_number!(issue_number)
+    num = Integer(issue_number)
+    raise Error, PROVIDER_ERROR unless positive_id?(num)
+
+    num
+  end
+
+  def normalize_issue!(payload)
+    number = Integer(payload.fetch("number"))
+    url = payload.fetch("html_url")
+    state = payload.fetch("state")
+    raise Error, PROVIDER_ERROR unless positive_id?(number) && url.is_a?(String) && url.present? && %w[open closed].include?(state)
+
+    { "number" => number, "html_url" => url, "state" => state }
+  end
 
   def positive_id?(value)
     value.to_s.match?(/\A[1-9]\d{0,18}\z/) && value.to_i <= 9_223_372_036_854_775_807
@@ -134,7 +234,7 @@ class GithubAppClient
     end
   end
 
-  def request(method, path, token:, body: nil, query: nil)
+  def request(method, path, token:, body: nil, query: nil, expect: Hash)
     options = { headers: { "Authorization" => "Bearer #{token}", "Accept" => "application/vnd.github+json", "X-GitHub-Api-Version" => "2022-11-28", "Content-Type" => "application/json" }, timeout: 10 }
     options[:body] = body.to_json if body
     options[:query] = query if query
@@ -149,7 +249,7 @@ class GithubAppClient
       raise Error.new(message, status: response.code.to_i)
     end
     value = response.parsed_response
-    raise Error, PROVIDER_ERROR unless value.is_a?(Hash)
+    raise Error, PROVIDER_ERROR unless value.is_a?(expect)
 
     value
   rescue Error

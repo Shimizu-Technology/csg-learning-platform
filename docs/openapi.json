@@ -509,6 +509,32 @@
         ]
       }
     },
+    "/api/v1/submissions/{id}/retry_github_issue": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryGithubIssueResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/content_blocks/{id}/video_progress": {
       "patch": {
         "responses": {
@@ -6605,6 +6631,77 @@
         ],
         "additionalProperties": false
       },
+      "GithubIssueDelivery": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "delivered",
+              "failed",
+              "obsolete"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "open_or_comment",
+              "close"
+            ]
+          },
+          "issue_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delivered_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "action",
+          "issue_url",
+          "attempts",
+          "last_error",
+          "delivered_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "RetryGithubIssueResponse": {
+        "type": "object",
+        "properties": {
+          "submission": {
+            "$ref": "#/components/schemas/Submission"
+          },
+          "github_issue_delivery": {
+            "$ref": "#/components/schemas/GithubIssueDelivery"
+          }
+        },
+        "required": [
+          "submission",
+          "github_issue_delivery"
+        ],
+        "additionalProperties": false
+      },
       "Submission": {
         "type": "object",
         "properties": {
@@ -6805,6 +6902,10 @@
           "github_checks": {
             "$ref": "#/components/schemas/GithubChecks",
             "description": "Present in detail, create, update and grade responses; omitted in lists."
+          },
+          "github_issue_delivery": {
+            "$ref": "#/components/schemas/GithubIssueDelivery",
+            "description": "Present for staff when a durable GitHub issue delivery exists for this submission."
           },
           "cohort_name": {
             "type": [

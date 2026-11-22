@@ -27,7 +27,9 @@ class ScheduledTick
     Task.new(name: "expo_push_receipts", daily_hour: nil, call: ->(_now, _last_date, metrics) { ExpoPushReceiptJob.new.drain_due(metrics: metrics) }),
     # Hourly, so a 24h or 48h reminder lands within the hour it becomes due;
     # it sends nothing 21:00-08:00 Guam time (W9.3).
-    Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) })
+    Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) }),
+    # Hourly: drain durable Redo/close GitHub issue intents for opted-in cohorts (X-6.8).
+    Task.new(name: "github_issue_deliveries", daily_hour: nil, call: ->(now, _last_date, metrics) { GithubIssueDeliveryDrain.new.call(now: now, metrics: metrics) })
   ].freeze
 
   def initialize(now: Time.current, dry_run: self.class.dry_run, tasks: TASKS, logger: Rails.logger)
@@ -100,6 +102,7 @@ class ScheduledTick
     when "scheduled_updates" then ScheduledAnnouncementPublisher.preview(@now)
     when "expo_push_receipts" then { would_claim: ExpoPushReceipt.due.limit(ExpoPushReceiptJob::BATCH_SIZE).count }
     when "learner_nudges" then LearnerNudges.preview(@now)
+    when "github_issue_deliveries" then GithubIssueDeliveryDrain.preview(@now)
     else {}
     end
   end

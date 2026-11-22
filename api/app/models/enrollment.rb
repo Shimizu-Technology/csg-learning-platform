@@ -2,6 +2,7 @@ class Enrollment < ApplicationRecord
   has_many :learner_extensions, dependent: :destroy
   has_many :learner_nudges, dependent: :destroy
   has_many :github_repository_bindings, dependent: :destroy
+  has_many :github_issue_deliveries, dependent: :destroy
   class StaleLearningWrite < StandardError
     attr_reader :code
 
