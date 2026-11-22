@@ -64,8 +64,8 @@ class GithubSyncService
       return { synced: 0, errors: [ "Verify a repository binding before syncing this module" ] } unless binding
 
       client = @app_client ||= GithubAppClient.new
-      repository = GithubRepositoryAccess.new(binding, client: client).repository!
-      repo_owner, repo_name = repository.fetch("full_name").split("/")
+      access = GithubRepositoryAccess.new(binding, client: client)
+      repository = access.repository!
       repo_data = client.files(installation: binding.github_app_installation, repository: repository, filenames: target_filenames)
     else
       repo_data = fetch_exercise_files(user.github_username, repo_name, target_filenames)
@@ -73,6 +73,12 @@ class GithubSyncService
 
     if repo_data[:error]
       return { synced: 0, errors: [ repo_data[:error] ] }
+    end
+
+    if app_enabled
+      return GithubSubmittedRevisionSync.new(access: access, binding: binding, repository: repository).call(
+        user: user, enrollment: enrollment, curriculum_module_id: curriculum_module.id, exercise_blocks: exercise_blocks,
+        repo_data: repo_data, errors: errors, request_started_at: request_started_at)
     end
 
     files = repo_data[:files]

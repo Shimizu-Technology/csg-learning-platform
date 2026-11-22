@@ -463,6 +463,9 @@ module Api
 
         json[:rubric] = rubric_json(submission)
         json[:github_checks] = GithubCheckRunSerializer.collection_json(submission) if include_github_checks
+        # Read the captured column, without feature/configuration or binding
+        # lookups. Off responses and legacy records keep their existing shape.
+        json[:github_revision] = submission.github_revision if current_user.staff? && submission.github_revision.present?
 
         if current_user.staff?
           delivery = latest_github_issue_delivery(submission)
