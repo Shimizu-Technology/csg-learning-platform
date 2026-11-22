@@ -19,9 +19,33 @@ describe('composer Markdown mode on phones', () => {
     expect(caretInMarkdownFence('```js\nx\n```\nafter', 16)).toBe(false);
   });
 
-  it('keeps Markdown source free from autocorrect, spellcheck and capitalization', () => {
-    expect(composerInputBehavior('Hello there', { start: 5, end: 5 })).toEqual({ autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false });
-    const code = '```ruby\ndef full_name';
-    expect(composerInputBehavior(code, { start: code.length, end: code.length })).toEqual({ autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false });
+  const value = 'Before\n```ruby\ndef full_name\n```\nAfter';
+  const code = value.indexOf('full_name');
+  const closingFence = value.lastIndexOf('```');
+
+  it.each([
+    ['in prose', 3],
+    ['on the closing fence', closingFence],
+    ['after the closing fence', value.length],
+  ])('enables keyboard corrections with the caret %s', (_context, caret) => {
+    expect(composerInputBehavior(value, { start: caret, end: caret })).toEqual({
+      autoCorrect: true, spellCheck: true, autoCapitalize: 'sentences', smartInsertDelete: false,
+    });
+  });
+
+  it.each([
+    ['caret in code', code, code],
+    ['selection end in code', 3, code],
+    ['selection start in code', code, value.length],
+  ])('disables keyboard corrections with the %s', (_context, start, end) => {
+    expect(composerInputBehavior(value, { start, end })).toEqual({
+      autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false,
+    });
+  });
+
+  it('clamps a stale selection beyond the end of an open fence', () => {
+    const unclosed = '```ruby\ndef full_name';
+    const staleCaret = unclosed.length + 10;
+    expect(composerInputBehavior(unclosed, { start: staleCaret, end: staleCaret }).autoCorrect).toBe(false);
   });
 });

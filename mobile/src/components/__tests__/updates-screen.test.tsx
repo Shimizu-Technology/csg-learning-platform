@@ -141,6 +141,24 @@ it('labels the management cohort filter as exact', async () => {
   view.unmount();
 });
 
+it('switches keyboard corrections as staff move the caret through an update message', async () => {
+  mockUser.is_staff = true;
+  const view = screen();
+  fireEvent.press(await view.findByLabelText('Post update'));
+  const input = () => view.getByLabelText('Update message');
+  const body = 'Before\n```js\nlet count = 1;\n```\nAfter';
+  const proseBehavior = { autoCorrect: true, spellCheck: true, autoCapitalize: 'sentences', smartInsertDelete: false };
+  fireEvent.changeText(input(), body);
+  expect(input().props).toMatchObject(proseBehavior);
+
+  const codeCaret = body.indexOf('count');
+  fireEvent(input(), 'selectionChange', { nativeEvent: { selection: { start: codeCaret, end: codeCaret } } });
+  expect(input().props).toMatchObject({ autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false });
+
+  fireEvent(input(), 'selectionChange', { nativeEvent: { selection: { start: body.length, end: body.length } } });
+  expect(input().props).toMatchObject(proseBehavior);
+});
+
 it('shows readers Edited with the time on the card and in the detail', async () => {
   const edited = { ...notices[1], edited_at: '2026-10-23T15:30:00Z', edited_by: { id: 3, full_name: 'QA Editor' } };
   mockApi.announcements.mockResolvedValue({ announcements: [edited], unread_count: 1, meta: { ...meta(1), total_count: 1, total_pages: 1, has_next_page: false } });
