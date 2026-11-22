@@ -24,11 +24,28 @@ it('previews the exact source with the learner renderer without emitting an edit
   expect(onChange).toHaveBeenCalledWith(edited);
 });
 
-it('labels a legacy HTML body as HTML source instead of Markdown', () => {
+it('switches Markdown keyboard corrections as the selection moves between prose and code', () => {
+  const source = 'Before\n```js\nlet count = 1;\n```\nAfter';
+  const screen = render(<StaffMarkdownEditor value={source} onChange={jest.fn()} />);
+  const input = () => screen.getByLabelText('Exercise instructions');
+  const proseBehavior = { autoCorrect: true, spellCheck: true, autoCapitalize: 'sentences', smartInsertDelete: false };
+  expect(input().props).toMatchObject(proseBehavior);
+
+  fireEvent(input(), 'selectionChange', { nativeEvent: { selection: { start: 0, end: source.indexOf('count') } } });
+  expect(input().props).toMatchObject({ autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false });
+
+  fireEvent(input(), 'selectionChange', { nativeEvent: { selection: { start: source.length, end: source.length } } });
+  expect(input().props).toMatchObject(proseBehavior);
+});
+
+it('labels legacy HTML source and keeps keyboard corrections off', () => {
   const html = '<div><strong>Bold</strong> and <a href="https://example.invalid">a link</a></div>';
   const screen = render(<StaffMarkdownEditor value={html} onChange={jest.fn()} />);
   expect(screen.getByText('HTML source')).toBeTruthy();
   expect(screen.queryByText('Markdown')).toBeNull();
+  expect(screen.getByLabelText('Exercise instructions').props).toMatchObject({
+    autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false,
+  });
   fireEvent.press(screen.getByLabelText('Preview Exercise instructions'));
   expect(screen.getByText('Edit source')).toBeTruthy();
 });

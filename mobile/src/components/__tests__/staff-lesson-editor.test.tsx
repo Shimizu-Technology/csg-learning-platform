@@ -272,7 +272,7 @@ it('keeps Markdown unchanged through preview and title-only save, then edits one
   const screen = render(<StaffLessonEditor {...uploadProps} lesson={source} userId={7} onBack={jest.fn()} onSave={onSave} onReload={async () => source} />);
   await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());
   expect(screen.getByLabelText('Exercise instructions')).toHaveProp('value', body);
-  expect(screen.getByLabelText('Exercise instructions')).toHaveProp('autoCorrect', false);
+  expect(screen.getByLabelText('Exercise instructions')).toHaveProp('autoCorrect', true);
   fireEvent.press(screen.getByText('Preview draft'));
   fireEvent.press(screen.getByText('Edit'));
   expect(screen.getByLabelText('Save lesson')).toBeDisabled();

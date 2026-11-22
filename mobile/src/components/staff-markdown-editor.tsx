@@ -5,6 +5,7 @@ import type { StarterLinkContext } from '@/components/authored-content';
 import { LessonMarkdown } from '@/components/lesson-markdown';
 import { fonts, monoFont } from '@/constants/csg-theme';
 import { isHtmlSource } from '@/lib/authored-content';
+import { composerInputBehavior } from '@/lib/composer-input';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 
 /** Source is never parsed or serialized on the editing path. */
@@ -17,8 +18,12 @@ export function StaffMarkdownEditor({ value, onChange, accessibilityLabel = 'Exe
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const [preview, setPreview] = useState(false);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
   // Older rich-text bodies are HTML; saving keeps them byte-for-byte, so name them honestly.
   const html = isHtmlSource(value);
+  const inputBehavior = html
+    ? { autoCorrect: false, spellCheck: false, autoCapitalize: 'none' as const, smartInsertDelete: false }
+    : composerInputBehavior(value, selection);
   return <View style={styles.container}>
     <View style={styles.header}>
       <Text style={styles.helper}>{html ? 'HTML source' : 'Markdown'}</Text>
@@ -27,12 +32,12 @@ export function StaffMarkdownEditor({ value, onChange, accessibilityLabel = 'Exe
     {preview ? <View style={styles.preview}><LessonMarkdown body={value} starterLinks={starterLinks} /></View> : <TextInput
       keyboardAppearance={scheme}
       accessibilityLabel={accessibilityLabel}
-      autoCapitalize="none"
-      autoCorrect={false}
-      spellCheck={false}
+      {...inputBehavior}
       multiline
       textAlignVertical="top"
       value={value}
+      selection={selection}
+      onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
       onChangeText={onChange}
       placeholder="Write lesson instructions in Markdown…"
       placeholderTextColor={c.text.body}
