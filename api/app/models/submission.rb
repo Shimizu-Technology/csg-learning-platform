@@ -87,4 +87,5 @@ class Submission < ApplicationRecord
 
   validates :content_block_id, presence: true
   validates :user_id, presence: true
+  validates :github_repository_id, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
 end

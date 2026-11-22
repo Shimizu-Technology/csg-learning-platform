@@ -28,8 +28,9 @@ class GithubCheckRunSyncService
       @repository_access.repository!
     end
 
+    fetched_sha = submission.commit_sha
     pre_fetch_versions = submission.github_check_runs
-      .where(head_sha: submission.commit_sha)
+      .where(head_sha: fetched_sha)
       .pluck(:id, :updated_at, :status, :conclusion, :completed_at)
       .each_with_object({}) do |(id, updated_at, status, conclusion, completed_at), versions|
         versions[id] = {
@@ -40,17 +41,17 @@ class GithubCheckRunSyncService
         }
       end
 
-    result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
+    result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{fetched_sha}/check-runs", sha: fetched_sha)
     return failure(result[:error]) if result[:error]
 
     runs = result[:runs]
-    imported = GithubCheckRunMerger.sync_snapshot!(
+    GithubCheckRunMerger.sync_snapshot!(
       submission: submission,
       runs: runs,
       fetched_at: now,
-      pre_fetch_versions: pre_fetch_versions
+      pre_fetch_versions: pre_fetch_versions,
+      fetched_sha: fetched_sha
     )
-    { check_runs: imported, error: nil }
   rescue GithubRepositoryAccess::BindingChanged => error
     failure(error.message)
   rescue GithubAppClient::Error => error
@@ -72,12 +73,12 @@ class GithubCheckRunSyncService
     full_name&.split("/", 2)
   end
 
-  def fetch_runs(url)
+  def fetch_runs(url, sha:)
     runs = []
     page = 1
     loop do
       if @app_binding
-        data = @app_client.checks(installation: @app_binding.github_app_installation, repository_id: @app_binding.repository_id, full_name: @app_binding.full_name, sha: submission.commit_sha, page: page)
+        data = @app_client.checks(installation: @app_binding.github_app_installation, repository_id: @app_binding.repository_id, full_name: @app_binding.full_name, sha: sha, page: page)
       else
         response = github_get(url, page: page)
         return { runs: [], error: "GitHub checks could not be loaded (HTTP #{response.code})" } unless response.success?

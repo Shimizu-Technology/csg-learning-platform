@@ -1294,8 +1294,10 @@ invitations retain their existing paths in this slice.
 Leave `github_webhooks` Off until the App webhook secret and a disposable
 repository have been verified. Webhook processing requires **both** `github_app`
 and `github_webhooks` On at the school level AND explicitly On for the cohort.
-Inherit leaves the cohort Off, and Off cohorts (including Cohort 3) are ignored
-with zero writes.
+Inherit leaves the cohort Off; signed deliveries for Off cohorts (including
+Cohort 3) still record a bounded `github_webhook_deliveries` receipt marked
+`ignored` (pruned by retention), while the cohort's check runs, installations,
+and repository bindings remain untouched.
 
 Configure the webhook signing secret in the API secret store (never enter it
 into Learn):
@@ -1305,8 +1307,10 @@ into Learn):
 | `GITHUB_WEBHOOK_SECRET` | `GITHUB_APP_WEBHOOK_SECRET` or `github_app.webhook_secret` |
 
 Point the GitHub App webhook URL to `https://<api-host>/api/v1/webhooks/github`
-with content type `application/json` and subscribe to `check_run`, `push`,
-`installation`, and `installation_repositories` events. The endpoint is mounted
+with content type `application/json`. Subscribe manually to the `check_run` and
+`push` events in the GitHub App settings; `installation` and
+`installation_repositories` events are delivered automatically by GitHub Apps.
+The endpoint is mounted
 as a pre-controller Rack boundary that enforces the public rate limit, caps raw
 reads at 1 MiB (`413`), and authenticates strictly via raw-body HMAC-SHA256
 (`X-Hub-Signature-256`) with no Clerk JWT before any JSON parsing or Rails
@@ -1317,21 +1321,27 @@ Deliveries are persisted in `github_webhook_deliveries` by unique
 events are stored as `staged` for reconciliation.
 
 **Redelivery and failed-delivery recovery:** GitHub does **not** automatically
-retry `503`/5xx webhook deliveries.
+retry `503`/5xx webhook deliveries, and GitHub only supports manual webhook
+redelivery for **3 days** (local 14-day retention of `failed` receipts does not
+extend GitHub's 3-day redelivery window; no GitHub event replay exists past 3
+days).
 - **Failures before durable persistence** (for example, a database outage or an
-  unconfigured secret returning `503`): redeliver the failed event manually from
-  the GitHub App settings (**Advanced → Recent Deliveries**) or via GitHub's
-  `POST /app/hook/deliveries/{delivery_id}/attempts` REST API once the issue is
-  resolved.
+  unconfigured secret returning `503`): within GitHub's 3-day window, redeliver
+  the failed event manually from the GitHub App settings (**Advanced → Recent
+  Deliveries**) or via GitHub's `POST /app/hook/deliveries/{delivery_id}/attempts`
+  REST API once the issue is resolved.
 - **Persisted `pending` or `failed` receipts** (written to
-  `github_webhook_deliveries` before a local processing error): redelivering the
-  same `X-GitHub-Delivery` via GitHub manual redelivery resumes local processing
-  idempotently.
-- **Persisted `staged` receipts**: redelivering an already `staged` delivery
-  returns its stored `"staged"` status without re-running local attachment.
-  Automatic `staged` replay and hourly GitHub reconciliation arrive in the
-  follow-up reconciliation slice (X-6.6); until then, operators can use manual
-  **Refresh checks** in the grading workbench.
+  `github_webhook_deliveries` before a local processing error): within GitHub's
+  3-day window, redelivering the same `X-GitHub-Delivery` via GitHub manual
+  redelivery resumes local processing idempotently.
+- **Persisted `staged` receipts (and recovery past GitHub's 3-day window)**:
+  redelivering an already `staged` delivery returns its stored `"staged"` status
+  without re-running local attachment. Automatic `staged` replay and hourly
+  GitHub reconciliation arrive in the follow-up reconciliation slice (X-6.6);
+  until then (and for any check data missed past GitHub's 3-day redelivery
+  window), operators can use manual **Refresh checks** in the grading workbench
+  to fetch current check runs directly from GitHub (separate from webhook event
+  replay).
 
 **Bounded retention:** `ScheduledTick`'s `github_webhook_retention` task
 performs bounded pruning only (up to 1,000 rows per tick), removing settled

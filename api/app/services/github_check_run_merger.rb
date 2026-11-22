@@ -32,25 +32,31 @@ class GithubCheckRunMerger
   end
 
   def self.submission_matches_binding?(submission, binding:, payload_repo_full_name: nil)
-    return false if binding.blank? || binding.full_name.blank?
+    return false if binding.blank? || binding.full_name.blank? || binding.repository_id.blank?
     if payload_repo_full_name.present? && !binding.full_name.casecmp?(payload_repo_full_name)
       return false
     end
 
-    if submission.respond_to?(:github_repository_id) && submission.github_repository_id.present?
-      return binding.repository_id.present? && submission.github_repository_id.to_i == binding.repository_id.to_i
-    end
-
-    return false unless binding.verified_at.present? && submission.updated_at.present? && submission.updated_at >= binding.verified_at
+    # Require stored numeric repository provenance so legacy rows and replacement
+    # repositories at the same owner/repo path stage safely rather than guessing.
+    return false unless submission.github_repository_id.present? &&
+      submission.github_repository_id.to_i == binding.repository_id.to_i
 
     full_name = submission_repository_full_name(submission, require_consistent: true)
-    full_name.present? && full_name.casecmp?(binding.full_name)
+    full_name.nil? || full_name.casecmp?(binding.full_name)
   end
 
   def self.regresses_existing_run?(run, status:, conclusion:, started_at:, completed_at:)
     existing_rank = STATUS_RANK.fetch(run.status, 0)
     incoming_rank = STATUS_RANK.fetch(status, 0)
     return true if incoming_rank < existing_rank
+
+    # Reject a stale completion from an older attempt when a newer rerun is active.
+    if incoming_rank > existing_rank
+      return true if run.started_at.present? && started_at.present? && started_at < run.started_at
+
+      return false
+    end
 
     if run.status == "completed" && status == "completed"
       if run.completed_at.present?
@@ -60,7 +66,7 @@ class GithubCheckRunMerger
           return true if run.conclusion.present? && conclusion.nil?
         end
       end
-    elsif incoming_rank == existing_rank
+    else
       return true if run.started_at.present? && started_at.present? && started_at < run.started_at
     end
 
@@ -138,9 +144,13 @@ class GithubCheckRunMerger
   # Protects runs created or updated since `pre_fetch_versions` (e.g. committed by a
   # concurrent webhook during the HTTP fetch) from being pruned or regressed, while
   # allowing legitimate GitHub rerun resets on rows untouched since pre-fetch.
-  def self.sync_snapshot!(submission:, runs:, fetched_at:, pre_fetch_versions:)
+  def self.sync_snapshot!(submission:, runs:, fetched_at:, pre_fetch_versions:, fetched_sha: nil)
     submission.with_lock do
       expected_sha = submission.commit_sha
+      if fetched_sha.present? && expected_sha != fetched_sha
+        return { check_runs: [], error: "Submission commit changed during refresh; retry to fetch latest checks" }
+      end
+
       snapshot_external_ids = runs.map { |attrs| attrs.fetch("id") }
       existing_by_external_id = submission.github_check_runs
         .where(external_id: snapshot_external_ids)
@@ -189,11 +199,12 @@ class GithubCheckRunMerger
 
       submission.github_check_runs.where(id: obsolete_ids).delete_all if obsolete_ids.any?
 
-      submission.github_check_runs
+      imported = submission.github_check_runs
         .where(head_sha: expected_sha)
         .to_a
         .sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }
         .reverse
+      { check_runs: imported, error: nil }
     end
   end
 

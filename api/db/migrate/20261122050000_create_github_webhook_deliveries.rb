@@ -41,12 +41,17 @@ class CreateGithubWebhookDeliveries < ActiveRecord::Migration[8.1]
           "attempts >= 0",
           name: "github_webhook_deliveries_attempts_nonnegative"
       end
+
+      unless column_exists?(:submissions, :github_repository_id)
+        add_column :submissions, :github_repository_id, :bigint
+      end
     end
   end
 
   def down
     transaction do
       execute "SET LOCAL lock_timeout = '5s'"
+      remove_column :submissions, :github_repository_id if column_exists?(:submissions, :github_repository_id)
       drop_table :github_webhook_deliveries, if_exists: true
     end
   end

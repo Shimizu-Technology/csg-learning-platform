@@ -59,12 +59,14 @@ class GithubSyncService
 
     target_filenames = exercise_blocks.filter_map { |b| b.filename&.strip }.uniq
     repo_owner = user.github_username
+    synced_repository_id = nil
     if app_enabled
       binding = GithubRepositoryAccess.binding_for(enrollment: enrollment, curriculum_module_id: curriculum_module.id)
       return { synced: 0, errors: [ "Verify a repository binding before syncing this module" ] } unless binding
 
       client = @app_client ||= GithubAppClient.new
       repository = GithubRepositoryAccess.new(binding, client: client).repository!
+      synced_repository_id = binding.repository_id || repository["id"]&.to_i
       repo_owner, repo_name = repository.fetch("full_name").split("/")
       repo_data = client.files(installation: binding.github_app_installation, repository: repository, filenames: target_filenames)
     else
@@ -125,6 +127,7 @@ class GithubSyncService
               commit_sha: commit_hash,
               num_submissions: existing.num_submissions + 1
             }
+            attrs[:github_repository_id] = synced_repository_id if synced_repository_id.present?
 
             passing = %w[A B C].include?(existing.grade)
             unless passing
@@ -139,11 +142,14 @@ class GithubSyncService
             progress.user = user
             progress.update!(status: :completed)
             synced_count += 1
-          elsif existing.commit_sha != commit_hash || existing.github_code_url != github_code_url
-            existing.update!(commit_sha: commit_hash, github_code_url: github_code_url)
+          elsif existing.commit_sha != commit_hash || existing.github_code_url != github_code_url ||
+              (synced_repository_id.present? && existing.github_repository_id != synced_repository_id)
+            attrs = { commit_sha: commit_hash, github_code_url: github_code_url }
+            attrs[:github_repository_id] = synced_repository_id if synced_repository_id.present?
+            existing.update!(attrs)
           end
         else
-          Submission.create!(
+          create_attrs = {
             user: user,
             enrollment: enrollment,
             content_block_id: block.id,
@@ -152,7 +158,9 @@ class GithubSyncService
             github_code_url: github_code_url,
             commit_sha: commit_hash,
             num_submissions: 1
-          )
+          }
+          create_attrs[:github_repository_id] = synced_repository_id if synced_repository_id.present?
+          Submission.create!(create_attrs)
           progress = Progress.find_or_initialize_by(enrollment: enrollment, content_block_id: block.id)
           progress.user = user
           progress.update!(status: :completed)

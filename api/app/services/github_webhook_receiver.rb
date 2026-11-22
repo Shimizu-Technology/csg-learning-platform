@@ -146,11 +146,9 @@ class GithubWebhookReceiver
   end
 
   def record_processing_failure(delivery, error)
+    message = "#{error.class.name}: #{error.message.to_s.truncate(500)}"
     GithubWebhookDelivery.where(id: delivery.id, processing_state: %w[pending failed]).update_all(
-      processing_state: "failed",
-      attempts: delivery.attempts + 1,
-      last_error: "#{error.class.name}: #{error.message.to_s.truncate(500)}",
-      updated_at: now
+      [ "processing_state = ?, attempts = attempts + 1, last_error = ?, updated_at = ?", "failed", message, now ]
     )
   rescue ActiveRecord::ActiveRecordError
     # Database unavailable; original error propagates so caller does not return 200.
@@ -393,42 +391,53 @@ class GithubWebhookReceiver
   end
 
   def attach_check_run_if_proven!(submission:, binding:, delivery:, data:, external_id:, head_sha:, payload_repo_full_name:, school:)
-    submission.with_lock do
-      return false unless submission.commit_sha == head_sha
+    enrollment = binding.enrollment
+    # Lock enrollment before submission to match binding/sync write lock order and
+    # prevent races with concurrent module-specific binding overrides.
+    enrollment.with_lock do
+      submission.with_lock do
+        return false unless submission.commit_sha == head_sha
 
-      current_binding = GithubRepositoryBinding
-        .includes(:github_app_installation, enrollment: [ :cohort, :user ])
-        .find_by(id: binding.id)
-      return false unless current_binding && binding_eligible?(
-        current_binding,
-        installation_id: delivery.installation_id,
-        repository_id: delivery.repository_id,
-        school: school
-      )
-      return false unless GithubCheckRunMerger.submission_matches_binding?(
-        submission,
-        binding: current_binding,
-        payload_repo_full_name: payload_repo_full_name
-      )
+        current_binding = GithubRepositoryBinding
+          .includes(:github_app_installation, enrollment: [ :cohort, :user ])
+          .find_by(id: binding.id)
+        return false unless current_binding && binding_eligible?(
+          current_binding,
+          installation_id: delivery.installation_id,
+          repository_id: delivery.repository_id,
+          school: school
+        )
+        if current_binding.curriculum_module_id.nil?
+          submission_module_id = submission.content_block.lesson.module_id
+          if GithubRepositoryBinding.exists?(enrollment_id: enrollment.id, curriculum_module_id: submission_module_id)
+            return false
+          end
+        end
+        return false unless GithubCheckRunMerger.submission_matches_binding?(
+          submission,
+          binding: current_binding,
+          payload_repo_full_name: payload_repo_full_name
+        )
 
-      GithubCheckRunMerger.upsert_locked!(
-        submission: submission,
-        attributes: {
-          external_id: external_id,
-          name: data["name"],
-          workflow_name: data["workflow_name"],
-          app_slug: data["app_slug"],
-          head_sha: head_sha,
-          status: data["status"],
-          conclusion: data["conclusion"],
-          details_url: data["details_url"],
-          started_at: data["started_at"],
-          completed_at: data["completed_at"]
-        },
-        fetched_at: now,
-        check_superseded_peers: true
-      )
-      true
+        GithubCheckRunMerger.upsert_locked!(
+          submission: submission,
+          attributes: {
+            external_id: external_id,
+            name: data["name"],
+            workflow_name: data["workflow_name"],
+            app_slug: data["app_slug"],
+            head_sha: head_sha,
+            status: data["status"],
+            conclusion: data["conclusion"],
+            details_url: data["details_url"],
+            started_at: data["started_at"],
+            completed_at: data["completed_at"]
+          },
+          fetched_at: now,
+          check_superseded_peers: true
+        )
+        true
+      end
     end
   end
 

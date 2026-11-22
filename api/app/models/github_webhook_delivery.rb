@@ -43,7 +43,7 @@ class GithubWebhookDelivery < ApplicationRecord
       ids = scope.order(:received_at, :id).limit(batch_size).pluck(:id)
       break if ids.empty?
 
-      deleted += where(id: ids).delete_all
+      deleted += scope.where(id: ids).delete_all
       batches += 1
       break if ids.size < batch_size
     end

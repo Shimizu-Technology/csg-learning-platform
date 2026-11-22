@@ -1435,6 +1435,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_050000) do
     t.text "text"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.bigint "github_repository_id"
     t.index "to_tsvector('simple'::regconfig, ((COALESCE(text, ''::text) || ' '::text) || COALESCE(notes, ''::text)))", name: "index_submissions_search_document", using: :gin
     t.index ["content_block_id", "user_id"], name: "index_submissions_on_content_block_id_and_user_id"
     t.index ["content_block_id"], name: "index_submissions_on_content_block_id"

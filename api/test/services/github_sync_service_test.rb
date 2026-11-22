@@ -122,4 +122,32 @@ class GithubSyncServiceTest < ActiveSupport::TestCase
   ensure
     service.define_singleton_method(:fetch_exercise_files, original_fetch)
   end
+
+  test "sync_student via verified GitHub App binding stores numeric github_repository_id" do
+    require_relative "../support/fake_github_app_client"
+
+    SchoolSetting.current.update!(features: { "github_app" => true })
+    @cohort.update!(settings: { "features" => { "github_app" => true } })
+    @student.update!(github_username: "app-learner")
+    @student.record_verified_github_identity!(id: "24680", login: "app-learner")
+    @block.update!(filename: "111.rb", submission_type: :prework_github_sync)
+    installation = @cohort.github_app_installations.create!(
+      app_id: 12345, installation_id: 123, account_id: 24680, account_login: "app-learner",
+      account_type: "User", repository_selection: "selected", connected_at: Time.current, checked_at: Time.current
+    )
+    binding = @enrollment.github_repository_bindings.create!(
+      github_app_installation: installation,
+      full_name: "app-learner/prework-exercises"
+    )
+    fake = FakeGithubAppClient.new
+    GithubRepositoryAccess.new(binding, client: fake).verify!
+
+    service = GithubSyncService.new(github_token: nil, app_client: fake)
+    result = service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)
+
+    assert_equal 1, result[:synced]
+    assert_empty result[:errors]
+    submission = Submission.find_by!(user: @student, enrollment: @enrollment, content_block: @block)
+    assert_equal 98765, submission.github_repository_id
+  end
 end

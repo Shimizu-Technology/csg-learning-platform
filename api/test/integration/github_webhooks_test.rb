@@ -36,6 +36,7 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
       text: "puts 'hello'",
       commit_sha: SHA,
       repo_url: "https://github.com/app-learner/prework-exercises",
+      github_repository_id: 98765,
       num_submissions: 1
     )
   end
@@ -577,7 +578,8 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     block2 = lesson2.content_blocks.create!(block_type: :exercise, submission_type: :prework_github_sync, filename: "222.rb", position: 0)
     mod2_submission = Submission.create!(
       user: @student, enrollment: @enrollment, content_block: block2,
-      submission_type: :prework_github_sync, text: "puts 2", commit_sha: SHA, num_submissions: 1
+      submission_type: :prework_github_sync, text: "puts 2", commit_sha: SHA,
+      github_repository_id: 88888, num_submissions: 1
     )
     @enrollment.github_repository_bindings.create!(
       github_app_installation: @installation,
@@ -726,6 +728,7 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
       text: "puts 'other'",
       commit_sha: SHA,
       github_code_url: "https://github.com/app-learner/other-repo/blob/#{SHA}/222.rb#L1-L1",
+      github_repository_id: 55555,
       num_submissions: 1
     )
     @enrollment.github_repository_bindings.create!(
@@ -767,16 +770,18 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_equal "staged", response.parsed_body.fetch("status")
     assert_not @submission.github_check_runs.exists?(external_id: 8202)
 
-    # (c) Replacement repository recreated at the SAME owner/repo path with a new numeric repository_id
-    # and re-verified after the old submission was synced must NOT attach and must stage cleanly.
-    synced_at = @submission.reload.updated_at
+    # (c) Replacement repository recreated at the SAME owner/repo path with a new numeric repository_id:
+    # even if grading later advances submission.updated_at past binding.verified_at, numeric provenance
+    # mismatch (98765 != 777888) MUST still stage and NOT attach.
+    verified_time = Time.current
     @binding.update!(
       full_name: "app-learner/prework-exercises",
       repository_id: 777_888,
       verification_state: "verified",
-      verified_at: synced_at + 5.minutes,
-      checked_at: synced_at + 5.minutes
+      verified_at: verified_time,
+      checked_at: verified_time
     )
+    @submission.update!(grade: :B, feedback: "Good work", graded_at: verified_time + 5.minutes, updated_at: verified_time + 5.minutes)
     recreated_same_path_body = check_run_payload(
       repository_id: 777_888,
       repository_full_name: "app-learner/prework-exercises",
@@ -788,6 +793,55 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal "staged", response.parsed_body.fetch("status")
     assert_not @submission.github_check_runs.exists?(external_id: 8203)
+
+    # (d) Legacy submission without stored github_repository_id stages cleanly rather than guessing from URL.
+    @binding.update!(repository_id: 98765, full_name: "app-learner/prework-exercises", verification_state: "verified", verified_at: Time.current)
+    @submission.update!(github_repository_id: nil)
+    legacy_body = check_run_payload(repository_id: 98765, external_id: 8204).to_json
+    assert_no_difference "GithubCheckRun.count" do
+      post WEBHOOK_PATH, params: legacy_body, headers: signed_headers(legacy_body, event: "check_run", delivery_id: "del-prov-legacy-nil")
+    end
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_not @submission.github_check_runs.exists?(external_id: 8204)
+  end
+
+  test "concurrent module-specific binding override added before lock prevents default binding attachment" do
+    enrollment = @enrollment
+    installation = @installation
+    mod = @mod
+    override_created = false
+
+    # Simulate a module-specific binding being inserted after initial candidate lookup
+    # but before attach_check_run_if_proven! acquires the enrollment/submission locks.
+    original = GithubCheckRunMerger.method(:submission_matches_binding?)
+    GithubCheckRunMerger.define_singleton_method(:submission_matches_binding?) do |*args, **kwargs|
+      if !override_created
+        override_created = true
+        enrollment.github_repository_bindings.create!(
+          github_app_installation: installation,
+          curriculum_module: mod,
+          full_name: "app-learner/override-repo",
+          repository_id: 444_444,
+          github_user_id: "24680",
+          github_username: "app-learner",
+          verification_state: "verified",
+          verified_at: Time.current,
+          checked_at: Time.current
+        )
+      end
+      original.call(*args, **kwargs)
+    end
+
+    body = check_run_payload(repository_id: 98765, external_id: 8250).to_json
+    assert_no_difference "GithubCheckRun.count" do
+      post WEBHOOK_PATH, params: body, headers: signed_headers(body, event: "check_run", delivery_id: "del-concurrent-mod-override")
+    end
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_not @submission.github_check_runs.exists?(external_id: 8250)
+  ensure
+    GithubCheckRunMerger.define_singleton_method(:submission_matches_binding?, original) if original
   end
 
   test "malformed nested scalar JSON shapes return 400 instead of 500" do
