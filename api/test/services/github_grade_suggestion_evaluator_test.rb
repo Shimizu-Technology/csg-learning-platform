@@ -228,6 +228,22 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     create_check_run(absent_wf_sub, name: "prework/111.rb", status: "completed", conclusion: "success")
     assert_equal "workflow_tampered", GithubGradeSuggestionEvaluator.evaluate_submission!(absent_wf_sub, now: @now).reason_code
 
+    # Unreadable (binary/truncated) workflow blob -> fails closed!
+    unreadable_wf_sub = create_verified_submission(revision_overrides: {
+      "workflow_files" => { WORKFLOW_PATH => { "present" => true, "unreadable" => true, "oid" => WORKFLOW_OID, "sha256" => nil } }
+    })
+    create_check_run(unreadable_wf_sub, name: "prework/111.rb", status: "completed", conclusion: "success")
+    assert_equal "workflow_tampered", GithubGradeSuggestionEvaluator.evaluate_submission!(unreadable_wf_sub, now: @now).reason_code
+
+    # Passing check run from a DIFFERENT workflow_path or missing workflow_path -> fails closed when expected_workflow_path is pinned!
+    wrong_wf_run_sub = create_verified_submission
+    create_check_run(wrong_wf_run_sub, name: "prework/111.rb", status: "completed", conclusion: "success", workflow_path: ".github/workflows/other.yml")
+    assert_equal "workflow_tampered", GithubGradeSuggestionEvaluator.evaluate_submission!(wrong_wf_run_sub, now: @now).reason_code
+
+    missing_wf_run_sub = create_verified_submission
+    create_check_run(missing_wf_run_sub, name: "prework/111.rb", status: "completed", conclusion: "success", workflow_path: nil)
+    assert_equal "workflow_tampered", GithubGradeSuggestionEvaluator.evaluate_submission!(missing_wf_run_sub, now: @now).reason_code
+
     # Pinned to 40-char Git blob OID
     ExerciseCheckPolicy.create_version!(
       content_block: @block,
@@ -609,6 +625,7 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
           "status" => "completed",
           "conclusion" => "success",
           "app" => { "slug" => "github-actions" },
+          "workflow_path" => WORKFLOW_PATH,
           "check_suite" => { "id" => 77_001, "app" => { "name" => "GitHub Actions" } },
           "started_at" => "2026-11-22T09:58:00Z",
           "completed_at" => "2026-11-22T09:59:00Z"
@@ -684,13 +701,14 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
   end
 
   def create_check_run(submission, external_id: nil, name:, head_sha: submission.commit_sha, status: "completed", conclusion: "success",
-    app_slug: "github-actions", workflow_name: "GitHub Actions", check_suite_id: nil, started_at: @now - 2.minutes, completed_at: @now - 1.minute, fetched_at: @now)
+    app_slug: "github-actions", workflow_name: "GitHub Actions", workflow_path: WORKFLOW_PATH, check_suite_id: nil, started_at: @now - 2.minutes, completed_at: @now - 1.minute, fetched_at: @now)
     @next_external_id ||= 10_000
     submission.github_check_runs.create!(
       external_id: external_id || (@next_external_id += 1),
       name: name,
       app_slug: app_slug,
       workflow_name: workflow_name,
+      workflow_path: workflow_path,
       check_suite_id: check_suite_id,
       head_sha: head_sha,
       status: status,

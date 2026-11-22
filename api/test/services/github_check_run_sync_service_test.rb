@@ -94,4 +94,79 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
   ensure
     service.define_singleton_method(:github_get, original_get)
   end
+
+  test "overlapping older in_progress refresh cannot regress or prune newer committed completed runs" do
+    @submission.github_check_runs.create!(
+      external_id: 101,
+      name: "prework/111.rb",
+      head_sha: "abc123",
+      status: "queued",
+      conclusion: nil,
+      started_at: Time.zone.parse("2026-08-15 09:59:00 UTC"),
+      fetched_at: Time.zone.parse("2026-08-15 09:59:05 UTC")
+    )
+
+    service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token", now: Time.zone.parse("2026-08-15 10:00:00 UTC"))
+    submission = @submission
+    service.define_singleton_method(:github_get) do |_url, page:|
+      # Simulate a newer refresh committing completed/success + a brand-new check run 102
+      # while this older request's HTTP call was in flight.
+      submission.github_check_runs.find_by!(external_id: 101).update!(
+        status: "completed",
+        conclusion: "success",
+        completed_at: Time.zone.parse("2026-08-15 10:00:30 UTC"),
+        fetched_at: Time.zone.parse("2026-08-15 10:00:35 UTC")
+      )
+      submission.github_check_runs.create!(
+        external_id: 102,
+        name: "prework/111-edge.rb",
+        head_sha: "abc123",
+        status: "completed",
+        conclusion: "success",
+        completed_at: Time.zone.parse("2026-08-15 10:00:32 UTC"),
+        fetched_at: Time.zone.parse("2026-08-15 10:00:35 UTC")
+      )
+      FakeResponse.new(true, 200, {
+        "total_count" => 1,
+        "check_runs" => [ {
+          "id" => 101,
+          "name" => "prework/111.rb",
+          "head_sha" => "abc123",
+          "status" => "in_progress",
+          "conclusion" => nil,
+          "started_at" => "2026-08-15T09:59:10Z"
+        } ]
+      })
+    end
+
+    result = service.call
+    assert_nil result[:error]
+
+    run_101 = @submission.github_check_runs.find_by!(external_id: 101)
+    assert_equal "completed", run_101.status
+    assert_equal "success", run_101.conclusion
+    assert @submission.github_check_runs.exists?(external_id: 102), "newer concurrently created check run must not be pruned"
+  end
+
+  test "aborts check-run write if submission commit_sha changed while provider HTTP was in flight" do
+    service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token")
+    submission = @submission
+    service.define_singleton_method(:github_get) do |_url, page:|
+      submission.update!(commit_sha: "def456")
+      FakeResponse.new(true, 200, {
+        "total_count" => 1,
+        "check_runs" => [ {
+          "id" => 201,
+          "name" => "prework/111.rb",
+          "head_sha" => "abc123",
+          "status" => "completed",
+          "conclusion" => "success"
+        } ]
+      })
+    end
+
+    result = service.call
+    assert_match "commit changed", result[:error]
+    assert_empty @submission.github_check_runs
+  end
 end

@@ -167,6 +167,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
     )
     query = captured_queries.last
     assert_includes query, "#{'c' * 40}:.github/workflows/prework-checks.yml"
+    assert_includes query, "#{'c' * 40}:.github/workflows/missing.yml"
     assert_equal(
       {
         ".github/workflows/prework-checks.yml" => {
@@ -175,6 +176,40 @@ class GithubAppClientTest < ActiveSupport::TestCase
           "sha256" => Digest::SHA256.hexdigest(workflow_text)
         },
         ".github/workflows/missing.yml" => { "present" => false }
+      },
+      result[:workflow_files]
+    )
+  end
+
+  test "binary or truncated workflow blobs do not block importing valid exercise source files" do
+    repository = { "id" => 98765, "full_name" => "app-learner/prework-exercises" }
+    binary_oid = "e" * 40
+    truncated_oid = "f" * 40
+    original_request = @transport.method(:request)
+    @transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/graphql")
+        return Response.new(200, { "data" => { "repository" => {
+          "fullDatabaseId" => "98765",
+          "defaultBranchRef" => { "name" => "main", "target" => { "oid" => "c" * 40 } },
+          "file_0" => { "text" => "puts 'valid exercise'", "byteSize" => "puts 'valid exercise'".bytesize, "isTruncated" => false },
+          "workflow_0" => { "oid" => binary_oid, "text" => nil, "byteSize" => 512, "isTruncated" => false },
+          "workflow_1" => { "oid" => truncated_oid, "text" => "name: huge", "byteSize" => 999_999, "isTruncated" => true }
+        } } })
+      end
+      original_request.call(method, url, options)
+    end
+
+    result = @client.files(
+      installation: @installation,
+      repository: repository,
+      filenames: [ "111.rb" ],
+      workflow_paths: [ ".github/workflows/binary.yml", ".github/workflows/huge.yml" ]
+    )
+    assert_equal [ { "name" => "111.rb", "text" => "puts 'valid exercise'" } ], result[:files]
+    assert_equal(
+      {
+        ".github/workflows/binary.yml" => { "present" => true, "unreadable" => true, "oid" => binary_oid, "sha256" => nil },
+        ".github/workflows/huge.yml" => { "present" => true, "unreadable" => true, "oid" => truncated_oid, "sha256" => nil }
       },
       result[:workflow_files]
     )

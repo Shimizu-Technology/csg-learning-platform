@@ -589,6 +589,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.datetime "updated_at", null: false
     t.string "workflow_name"
     t.bigint "check_suite_id"
+    t.string "workflow_path"
     t.index ["submission_id", "external_id"], name: "index_github_check_runs_on_submission_id_and_external_id", unique: true
     t.index ["submission_id", "head_sha"], name: "index_github_check_runs_on_submission_id_and_head_sha"
     t.index ["submission_id"], name: "index_github_check_runs_on_submission_id"

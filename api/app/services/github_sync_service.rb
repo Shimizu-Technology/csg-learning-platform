@@ -66,12 +66,16 @@ class GithubSyncService
       client = @app_client ||= GithubAppClient.new
       access = GithubRepositoryAccess.new(binding, client: client)
       repository = access.repository!
-      workflow_paths = ExerciseCheckPolicy.active
-        .where(content_block_id: exercise_blocks.map(&:id))
-        .where.not(expected_workflow_path: [ nil, "" ])
-        .distinct
-        .pluck(:expected_workflow_path)
-        .sort
+      workflow_paths = if features["github_grade_suggestions"] == true
+        ExerciseCheckPolicy.active
+          .where(content_block_id: exercise_blocks.map(&:id))
+          .where.not(expected_workflow_path: [ nil, "" ])
+          .distinct
+          .pluck(:expected_workflow_path)
+          .sort
+      else
+        []
+      end
       repo_data = if workflow_paths.any?
         client.files(installation: binding.github_app_installation, repository: repository, filenames: target_filenames, workflow_paths: workflow_paths)
       else

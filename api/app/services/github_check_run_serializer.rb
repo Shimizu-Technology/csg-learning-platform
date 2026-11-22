@@ -1,4 +1,9 @@
 class GithubCheckRunSerializer
+  # Note: `workflow_path` is persisted internally on `github_check_runs` for
+  # X-6.4 / AS-11 run-to-workflow policy provenance (pinning `expected_workflow_path`
+  # requires each credited check run to prove its matching `workflow_path`) and is
+  # surfaced inside `submission_grade_suggestions.evidence`, keeping this public
+  # check-run payload backward-compatible with existing web and mobile clients.
   def self.collection_json(submission)
     runs = if submission.commit_sha.present?
       submission.github_check_runs.current_for(submission).recent_first.to_a

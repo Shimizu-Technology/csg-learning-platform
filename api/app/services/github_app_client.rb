@@ -106,19 +106,28 @@ class GithubAppClient
         next
       end
 
-      raise Error, "GitHub returned truncated workflow file; no revisions imported" if blob.fetch("isTruncated") == true
-      oid = blob.fetch("oid").to_s
-      text = blob.fetch("text")
-      size = blob.fetch("byteSize")
-      unless oid.match?(/\A[0-9a-f]{40,64}\z/i) && blob.fetch("isTruncated") == false && size.is_a?(Integer) && text.is_a?(String) && size == text.bytesize
-        raise Error, "GitHub did not return complete UTF-8 workflow source; no revisions imported"
-      end
+      oid = blob["oid"].to_s
+      valid_oid = oid.match?(/\A[0-9a-f]{40,64}\z/i) ? oid.downcase : nil
+      text = blob["text"]
+      size = blob["byteSize"]
+      complete_text = blob["isTruncated"] == false && text.is_a?(String) && size.is_a?(Integer) && size == text.bytesize
 
-      captured[workflow_path] = {
-        "present" => true,
-        "oid" => oid.downcase,
-        "sha256" => Digest::SHA256.hexdigest(text)
-      }
+      if valid_oid && complete_text
+        captured[workflow_path] = {
+          "present" => true,
+          "oid" => valid_oid,
+          "sha256" => Digest::SHA256.hexdigest(text)
+        }
+      else
+        # Binary (text: nil) or truncated workflow blobs never abort importing valid
+        # student exercise files; grade-suggestion evaluation fails closed on unreadable.
+        captured[workflow_path] = {
+          "present" => true,
+          "unreadable" => true,
+          "oid" => valid_oid,
+          "sha256" => nil
+        }
+      end
     end
     { files: files, workflow_files: workflow_files, commit_hash: sha, branch: branch.fetch("name"), error: nil }
   rescue KeyError, TypeError, ArgumentError, NoMethodError

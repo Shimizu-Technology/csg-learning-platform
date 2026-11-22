@@ -3,10 +3,13 @@
 # Security & policy properties demonstrated:
 # - Isolated GitHub-hosted runner (ubuntu-latest), never self-hosted.
 # - Zero school secrets and minimal token permissions (contents: read only).
-# - Third-party actions pinned by full commit SHA (replace placeholder SHAs with verified commits).
+# - Third-party actions pinned by verified full commit SHAs matching `.github/workflows/ci.yml`.
 # - Per-job timeout-minutes so runaway learner loops terminate cleanly.
 # - Exercise-specific check run names (`prework/111.rb`, `prework/112.rb`) so a single
 #   repository-wide `ci` check can never satisfy unrelated exercises.
+# - Run-to-workflow provenance: when a policy pins `expected_workflow_path`, CSG Learn
+#   verifies both the workflow blob at the submitted commit SHA and that each credited
+#   check run proves execution from that matching `workflow_path`.
 # - Advisory only: passing checks produce a `suggest_b` grade suggestion in CSG Learn;
 #   an instructor still reviews code and saves the authoritative grade.
 
@@ -31,14 +34,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout submitted revision
-        # Pin actions/checkout to a verified full commit SHA (example: v4.2.2)
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Set up Ruby
-        # Pin ruby/setup-ruby to a verified full commit SHA
-        uses: ruby/setup-ruby@44511735964ccb71245e7e55f725395be9016eb7
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "3.3"
 
@@ -54,12 +55,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout submitted revision
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@44511735964ccb71245e7e55f725395be9016eb7
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "3.3"
 

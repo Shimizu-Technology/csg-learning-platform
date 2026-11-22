@@ -318,6 +318,7 @@ class GithubGradeSuggestionEvaluator
 
     entry = captured_workflow_entry(@policy)
     return true unless entry && entry["present"] == true
+    return true if entry["unreadable"] == true
     return false if @policy.expected_workflow_sha.blank?
 
     expected = @policy.expected_workflow_sha.to_s.downcase
@@ -391,6 +392,22 @@ class GithubGradeSuggestionEvaluator
         policy_for_record: @policy,
         evidence: evidence
       )
+    end
+
+    if @policy.expected_workflow_path.present?
+      mismatched_workflow_runs = authoritative_runs.reject do |run|
+        run.respond_to?(:workflow_path) && run.workflow_path.present? && run.workflow_path == @policy.expected_workflow_path
+      end
+      if mismatched_workflow_runs.any?
+        names = mismatched_workflow_runs.map(&:name).join(", ")
+        return build_result(
+          outcome: "no_suggestion",
+          reason_code: "workflow_tampered",
+          reason_summary: "Required check(s) did not prove execution from expected workflow #{@policy.expected_workflow_path}: #{names}.",
+          policy_for_record: @policy,
+          evidence: evidence
+        )
+      end
     end
 
     pending_runs = authoritative_runs.select { |run| pending_run?(run) }
@@ -507,6 +524,7 @@ class GithubGradeSuggestionEvaluator
       "id" => run.id,
       "external_id" => run.external_id,
       "check_suite_id" => run.respond_to?(:check_suite_id) ? run.check_suite_id : nil,
+      "workflow_path" => run.respond_to?(:workflow_path) ? run.workflow_path : nil,
       "name" => run.name,
       "app_slug" => run.app_slug,
       "head_sha" => run.head_sha,

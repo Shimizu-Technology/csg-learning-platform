@@ -122,6 +122,7 @@ class ExerciseCheckPoliciesAndGradeSuggestionsTest < ActionDispatch::Integration
       external_id: 901,
       name: "prework/111.rb",
       app_slug: "github-actions",
+      workflow_path: WORKFLOW_PATH,
       head_sha: SHA_ONE,
       status: "completed",
       conclusion: "success",
@@ -176,6 +177,12 @@ class ExerciseCheckPoliciesAndGradeSuggestionsTest < ActionDispatch::Integration
       { required_checks: [ "prework/111.rb\n" ] },
       { required_checks: [ "prework/111.rb\u0000" ] },
       { required_checks: [ "prework/111.rb" ], allowed_branch: "main\r\n" },
+      { required_checks: [ "prework/111.rb" ], allowed_branch: "\n" },
+      { required_checks: [ "prework/111.rb" ], allowed_branch: "\r" },
+      { required_checks: [ "prework/111.rb" ], expected_workflow_path: "\n" },
+      { required_checks: [ "prework/111.rb" ], expected_workflow_path: "\r" },
+      { required_checks: [ "prework/111.rb" ], expected_workflow_path: WORKFLOW_PATH, expected_workflow_sha: "\n" },
+      { required_checks: [ "prework/111.rb" ], expected_workflow_path: WORKFLOW_PATH, expected_workflow_sha: "\r" },
       { required_checks: [ "prework/111.rb" ], expected_workflow_path: ".github//workflows/prework.yml" },
       { required_checks: [ "prework/111.rb" ], expected_workflow_path: ".github\\workflows\\prework.yml" },
       { required_checks: [ "prework/111.rb" ], expected_workflow_path: "./.github/workflows/prework.yml" },
@@ -255,12 +262,52 @@ class ExerciseCheckPoliciesAndGradeSuggestionsTest < ActionDispatch::Integration
       external_id: 9201,
       name: "prework/111.rb",
       app_slug: "github-actions",
+      workflow_path: WORKFLOW_PATH,
       head_sha: SHA_ONE,
       status: "completed",
       conclusion: "success",
       fetched_at: Time.current
     )
     assert_equal "suggest_b", GithubGradeSuggestionEvaluator.evaluate_submission!(matching_sub).outcome
+
+    # Off cohort (github_app: true, github_grade_suggestions: false) sharing the curriculum
+    # does NOT query exercise_check_policies or request workflow_paths during sync.
+    off_app_cohort = Cohort.create!(
+      curriculum: @curriculum,
+      name: "App On Suggestions Off",
+      start_date: Date.current,
+      status: :active,
+      settings: { "features" => { "github_app" => true, "github_grade_suggestions" => false } }
+    )
+    off_app_student = User.create!(clerk_id: "pol_off_app", email: "pol-off-app@example.invalid", first_name: "Off", last_name: "App", role: :student, github_username: "pol-off-app")
+    off_app_student.record_verified_github_identity!(id: 88_009, login: "pol-off-app")
+    off_app_enrollment = Enrollment.create!(user: off_app_student, cohort: off_app_cohort, status: :active)
+    off_app_installation = GithubAppInstallation.create!(
+      cohort: off_app_cohort, app_id: 12_345, installation_id: 51_009, account_login: "pol-off-app",
+      account_id: 88_009, account_type: "User", repository_selection: "selected",
+      connection_state: "connected", connected_at: @now, checked_at: @now
+    )
+    off_app_enrollment.github_repository_bindings.create!(
+      github_app_installation: off_app_installation, curriculum_module: @mod, repository_id: 77_779,
+      full_name: "pol-off-app/prework", github_username: "pol-off-app", github_user_id: "88009",
+      verification_state: "verified", verified_at: @now
+    )
+    off_fake = FakeGithubAppClient.new
+    off_fake.repository_owner = "pol-off-app"
+    off_fake.repository_owner_id = 88_009
+    off_fake.commit_sha = SHA_ONE
+    off_fake.source_text = "puts 'no workflow fetch'"
+    off_queries = []
+    cb = ->(*, payload) { off_queries << payload[:sql] unless %w[SCHEMA TRANSACTION].include?(payload[:name]) }
+    ActiveSupport::Notifications.subscribed(cb, "sql.active_record") do
+      assert_equal({ synced: 1, errors: [] }, GithubSyncService.new(github_token: nil, app_client: off_fake).sync_student(
+        user: off_app_student, cohort: off_app_cohort, curriculum_module: @mod
+      ))
+    end
+    refute off_queries.any? { |sql| sql.include?("exercise_check_policies") }
+    files_call = off_fake.calls.find { |call| call.first == :files }
+    assert_equal 4, files_call.size, "Off cohort must use source-only files call without workflow_paths"
+    assert_nil off_app_enrollment.submissions.sole.github_revision["workflow_files"]
 
     # Modified workflow on next revision fails closed as workflow_tampered.
     fake.source_text = "puts 'tampered workflow'"
@@ -323,6 +370,7 @@ class ExerciseCheckPoliciesAndGradeSuggestionsTest < ActionDispatch::Integration
       external_id: 951,
       name: "prework/111.rb",
       app_slug: "github-actions",
+      workflow_path: WORKFLOW_PATH,
       head_sha: SHA_ONE,
       status: "completed",
       conclusion: "success",
@@ -334,6 +382,7 @@ class ExerciseCheckPoliciesAndGradeSuggestionsTest < ActionDispatch::Integration
       external_id: 952,
       name: "prework/111.rb",
       app_slug: "github-actions",
+      workflow_path: WORKFLOW_PATH,
       head_sha: SHA_ONE,
       status: "completed",
       conclusion: "success",
@@ -430,12 +479,12 @@ class ExerciseCheckPoliciesAndGradeSuggestionsTest < ActionDispatch::Integration
     )
 
     copied_sub = create_verified_submission(@enrollment, @binding)
-    copied_sub.github_check_runs.create!(external_id: 961, name: "prework/111.rb", app_slug: "github-actions", head_sha: SHA_ONE, status: "completed", conclusion: "success", fetched_at: Time.current)
+    copied_sub.github_check_runs.create!(external_id: 961, name: "prework/111.rb", app_slug: "github-actions", workflow_path: WORKFLOW_PATH, head_sha: SHA_ONE, status: "completed", conclusion: "success", fetched_at: Time.current)
     copied_suggestion = GithubGradeSuggestionEvaluator.evaluate_submission!(copied_sub)
     assert_equal "suggest_b", copied_suggestion.outcome
 
     untouched_sub = create_verified_submission(other_enrollment, other_binding)
-    untouched_sub.github_check_runs.create!(external_id: 962, name: "prework/111.rb", app_slug: "github-actions", head_sha: SHA_ONE, status: "completed", conclusion: "success", fetched_at: Time.current)
+    untouched_sub.github_check_runs.create!(external_id: 962, name: "prework/111.rb", app_slug: "github-actions", workflow_path: WORKFLOW_PATH, head_sha: SHA_ONE, status: "completed", conclusion: "success", fetched_at: Time.current)
     untouched_suggestion = GithubGradeSuggestionEvaluator.evaluate_submission!(untouched_sub)
     assert_equal "suggest_b", untouched_suggestion.outcome
 

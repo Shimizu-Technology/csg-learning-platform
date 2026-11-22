@@ -84,21 +84,36 @@ class ExerciseCheckPolicy < ApplicationRecord
   private
 
   # Trim only spaces and horizontal tabs so control characters (\r, \n, \x00)
-  # survive normalization and are strictly rejected by validation.
+  # survive normalization and are strictly rejected by validation (even for
+  # control-only strings like "\n" or "\r" that ActiveSupport `.presence` would coerce to nil).
   def trim_horizontal_whitespace(value)
     value.gsub(/\A[ \t]+|[ \t]+\z/, "")
   end
 
+  def normalize_optional_field(value, downcase: false)
+    return value unless value.is_a?(String)
+    return value if CONTROL_CHAR_PATTERN.match?(value)
+
+    trimmed = trim_horizontal_whitespace(value)
+    return nil if trimmed.empty?
+
+    downcase ? trimmed.downcase : trimmed
+  end
+
   def normalize_fields
     if required_checks.is_a?(Array)
-      self.required_checks = required_checks.map { |name| name.is_a?(String) ? trim_horizontal_whitespace(name) : name }.reject { |name| name.is_a?(String) && name.empty? }.uniq
+      self.required_checks = required_checks.map { |name| name.is_a?(String) ? trim_horizontal_whitespace(name) : name }
+        .reject { |name| name.is_a?(String) && name.empty? }
+        .uniq
     end
     if allowed_app_slugs.is_a?(Array)
-      self.allowed_app_slugs = allowed_app_slugs.map { |slug| slug.is_a?(String) ? trim_horizontal_whitespace(slug).downcase : slug }.reject { |slug| slug.is_a?(String) && slug.empty? }.uniq
+      self.allowed_app_slugs = allowed_app_slugs.map { |slug| slug.is_a?(String) ? trim_horizontal_whitespace(slug).downcase : slug }
+        .reject { |slug| slug.is_a?(String) && slug.empty? }
+        .uniq
     end
-    self.allowed_branch = trim_horizontal_whitespace(allowed_branch).presence if allowed_branch.is_a?(String)
-    self.expected_workflow_path = trim_horizontal_whitespace(expected_workflow_path).presence if expected_workflow_path.is_a?(String)
-    self.expected_workflow_sha = trim_horizontal_whitespace(expected_workflow_sha).downcase.presence if expected_workflow_sha.is_a?(String)
+    self.allowed_branch = normalize_optional_field(allowed_branch)
+    self.expected_workflow_path = normalize_optional_field(expected_workflow_path)
+    self.expected_workflow_sha = normalize_optional_field(expected_workflow_sha, downcase: true)
   end
 
   def content_block_must_be_exercise_like
@@ -134,7 +149,7 @@ class ExerciseCheckPolicy < ApplicationRecord
   end
 
   def allowed_branch_must_not_contain_control_characters
-    return if allowed_branch.blank?
+    return if allowed_branch.nil?
 
     if CONTROL_CHAR_PATTERN.match?(allowed_branch)
       errors.add(:allowed_branch, "must not contain control characters")
@@ -142,7 +157,7 @@ class ExerciseCheckPolicy < ApplicationRecord
   end
 
   def expected_workflow_path_must_be_safe_relative_path
-    return if expected_workflow_path.blank?
+    return if expected_workflow_path.nil?
 
     segments = expected_workflow_path.split("/", -1)
     unsafe = expected_workflow_path.start_with?("/") ||
@@ -156,7 +171,7 @@ class ExerciseCheckPolicy < ApplicationRecord
   end
 
   def expected_workflow_path_required_when_sha_set
-    return if expected_workflow_sha.blank? || expected_workflow_path.present?
+    return if expected_workflow_sha.nil? || expected_workflow_path.present?
 
     errors.add(:expected_workflow_path, "is required when expected_workflow_sha is set")
   end

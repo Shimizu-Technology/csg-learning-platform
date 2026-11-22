@@ -12,6 +12,7 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
     connection = ActiveRecord::Base.connection
     refute connection.table_exists?(:submission_grade_suggestions)
     refute connection.table_exists?(:exercise_check_policies)
+    refute connection.column_exists?(:github_check_runs, :workflow_path)
     unless connection.table_exists?(:github_webhook_deliveries)
       refute connection.column_exists?(:github_check_runs, :check_suite_id)
     end
@@ -21,6 +22,7 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
     migration.migrate(:up)
 
     assert connection.column_exists?(:github_check_runs, :check_suite_id)
+    assert connection.column_exists?(:github_check_runs, :workflow_path)
     assert connection.table_exists?(:exercise_check_policies)
     assert connection.table_exists?(:submission_grade_suggestions)
 

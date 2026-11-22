@@ -25,6 +25,9 @@ class CreateExerciseCheckPoliciesAndGradeSuggestions < ActiveRecord::Migration[8
       unless column_exists?(:github_check_runs, :check_suite_id)
         add_column :github_check_runs, :check_suite_id, :bigint
       end
+      unless column_exists?(:github_check_runs, :workflow_path)
+        add_column :github_check_runs, :workflow_path, :string
+      end
 
       unless table_exists?(:exercise_check_policies)
         create_table :exercise_check_policies do |t|
@@ -132,6 +135,9 @@ class CreateExerciseCheckPoliciesAndGradeSuggestions < ActiveRecord::Migration[8
       execute "SET LOCAL lock_timeout = '5s'"
       drop_table :submission_grade_suggestions if table_exists?(:submission_grade_suggestions)
       drop_table :exercise_check_policies if table_exists?(:exercise_check_policies)
+      if column_exists?(:github_check_runs, :workflow_path)
+        remove_column :github_check_runs, :workflow_path
+      end
       # Preserve github_check_runs.check_suite_id if PR #332 (github_webhook_deliveries) also relies on it.
       if column_exists?(:github_check_runs, :check_suite_id) && !table_exists?(:github_webhook_deliveries)
         remove_column :github_check_runs, :check_suite_id

@@ -26,11 +26,10 @@ module Api
           return
         end
 
-        created = nil
         ApplicationRecord.transaction do
           recheck_lesson_edit_access!(curriculum)
           @content_block.lesson.with_authoring_lock do
-            created = ExerciseCheckPolicy.create_version!(
+            ExerciseCheckPolicy.create_version!(
               content_block: @content_block,
               required_checks: attrs[:required_checks],
               allowed_app_slugs: attrs.key?(:allowed_app_slugs) ? attrs[:allowed_app_slugs] : nil,
@@ -43,7 +42,7 @@ module Api
         end
         return if performed?
 
-        render json: policy_payload(active: created)
+        render json: policy_payload
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -58,7 +57,7 @@ module Api
         end
         return if performed?
 
-        render json: policy_payload(active: nil)
+        render json: policy_payload
       end
 
       private
@@ -106,12 +105,11 @@ module Api
         value.is_a?(Array) && value.all?(String)
       end
 
-      def policy_payload(active: :load)
+      def policy_payload
         versions = @content_block.exercise_check_policies.includes(:created_by).newest_first.to_a
-        resolved_active = active == :load ? versions.find(&:active?) : active
         {
           content_block_id: @content_block.id,
-          active_policy: resolved_active&.to_staff_json,
+          active_policy: versions.find(&:active?)&.to_staff_json,
           versions: versions.map(&:to_staff_json)
         }
       end
