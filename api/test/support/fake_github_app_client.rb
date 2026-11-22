@@ -36,9 +36,16 @@ class FakeGithubAppClient
     { "id" => id.to_i, "app_id" => 12345, "account" => { "id" => 24680, "login" => "app-learner", "type" => "User" }, "repository_selection" => "selected", "permissions" => { "contents" => "read", "checks" => "read", "metadata" => "read", "issues" => "write" } }
   end
 
-  def repository(installation:, full_name:, repository_id: nil, timeout: nil)
+  def repository(installation:, full_name:, repository_id: nil, timeout: nil, deadline: nil, monotonic: nil)
+    if deadline
+      clock = monotonic || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+      raise GithubAppClient::BudgetExceeded, "GitHub request budget exhausted" if deadline - clock.call <= 0
+    end
     @mutex.synchronize { @calls << [ :repository, installation.id, full_name, repository_id, timeout ] }
-    @on_repository&.call(installation: installation, full_name: full_name, repository_id: repository_id, timeout: timeout)
+    if @on_repository
+      result = @on_repository.call(installation: installation, full_name: full_name, repository_id: repository_id, timeout: timeout)
+      return result if result.is_a?(Hash)
+    end
     raise failure if failure
     if full_name.end_with?("/unselected")
       raise GithubAppClient::Error.new("GitHub installation cannot access this repository; check selected repositories and reconnect", status: 422)
@@ -48,7 +55,11 @@ class FakeGithubAppClient
     { "id" => repository_id || (name == "prework-exercises" ? 98765 : 98766), "full_name" => "#{owner}/#{name}", "fork" => (fork || name == "forked-repo"), "owner" => { "id" => (owner == "wrong-owner" || full_name.start_with?("victim-gh/") ? 86420 : repository_owner_id), "login" => owner, "type" => owner_type } }
   end
 
-  def default_branch_head(installation:, repository:, timeout: nil)
+  def default_branch_head(installation:, repository:, timeout: nil, deadline: nil, monotonic: nil)
+    if deadline
+      clock = monotonic || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+      raise GithubAppClient::BudgetExceeded, "GitHub request budget exhausted" if deadline - clock.call <= 0
+    end
     @mutex.synchronize { @calls << [ :default_branch_head, installation.id, repository.fetch("id"), timeout ] }
     if @on_default_branch_head
       result = @on_default_branch_head.call(installation: installation, repository: repository, timeout: timeout)
@@ -59,7 +70,11 @@ class FakeGithubAppClient
     { commit_hash: commit_sha, branch: commit_branch, committed_at: committed_at }
   end
 
-  def files_at_commit(installation:, repository:, sha:, branch:, filenames:, workflow_paths: [], timeout: nil)
+  def files_at_commit(installation:, repository:, sha:, branch:, filenames:, workflow_paths: [], timeout: nil, deadline: nil, monotonic: nil)
+    if deadline
+      clock = monotonic || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+      raise GithubAppClient::BudgetExceeded, "GitHub request budget exhausted" if deadline - clock.call <= 0
+    end
     @mutex.synchronize do
       entry = [ :files_at_commit, installation.id, repository.fetch("id"), sha, filenames ]
       entry << workflow_paths if workflow_paths.any?
@@ -119,7 +134,11 @@ class FakeGithubAppClient
     { files: filenames.map { |name| { "name" => name, "text" => source_text } }, workflow_files: captured_workflows, commit_hash: commit_sha, branch: commit_branch, error: nil }
   end
 
-  def checks(installation:, repository_id:, full_name:, sha:, page:, timeout: nil)
+  def checks(installation:, repository_id:, full_name:, sha:, page:, timeout: nil, deadline: nil, monotonic: nil)
+    if deadline
+      clock = monotonic || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+      raise GithubAppClient::BudgetExceeded, "GitHub request budget exhausted" if deadline - clock.call <= 0
+    end
     @mutex.synchronize { @calls << [ :checks, installation.id, repository_id, full_name, sha, page ] }
     if @on_checks
       result = @on_checks.call(installation: installation, repository_id: repository_id, full_name: full_name, sha: sha, page: page, timeout: timeout)

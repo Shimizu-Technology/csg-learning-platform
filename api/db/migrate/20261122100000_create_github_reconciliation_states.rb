@@ -36,6 +36,11 @@ class CreateGithubReconciliationStates < ActiveRecord::Migration[8.1]
           "last_status IN (#{STATUSES.map { |status| "'#{status}'" }.join(', ')})",
           name: "github_reconciliation_states_last_status_valid"
       end
+      unless existing_checks.include?("github_reconciliation_states_claim_lease_consistent")
+        add_check_constraint :github_reconciliation_states,
+          "(claim_token IS NULL) = (claimed_until IS NULL)",
+          name: "github_reconciliation_states_claim_lease_consistent"
+      end
     end
   end
 

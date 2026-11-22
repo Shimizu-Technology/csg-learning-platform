@@ -645,6 +645,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.datetime "updated_at", null: false
     t.index ["github_repository_binding_id"], name: "idx_on_github_repository_binding_id_4e6fbb4072", unique: true
     t.index ["next_reconcile_at"], name: "index_github_reconciliation_states_on_next_reconcile_at"
+    t.check_constraint "(claim_token IS NULL) = (claimed_until IS NULL)", name: "github_reconciliation_states_claim_lease_consistent"
     t.check_constraint "consecutive_failures >= 0", name: "github_reconciliation_states_consecutive_failures_nonnegative"
     t.check_constraint "last_status::text = ANY (ARRAY['idle'::character varying, 'ok'::character varying, 'backoff'::character varying, 'failed'::character varying]::text[])", name: "github_reconciliation_states_last_status_valid"
   end

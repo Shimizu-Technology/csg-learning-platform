@@ -28,6 +28,7 @@ class CreateGithubReconciliationStatesTest < ActiveSupport::TestCase
     checks = connection.check_constraints(:github_reconciliation_states).map(&:name)
     assert_includes checks, "github_reconciliation_states_consecutive_failures_nonnegative"
     assert_includes checks, "github_reconciliation_states_last_status_valid"
+    assert_includes checks, "github_reconciliation_states_claim_lease_consistent"
 
     curriculum = Curriculum.create!(name: "Migration reconciliation curriculum")
     cohort = Cohort.create!(name: "Migration reconciliation cohort", curriculum: curriculum, start_date: Date.current, status: :active)
@@ -67,6 +68,34 @@ class CreateGithubReconciliationStatesTest < ActiveSupport::TestCase
       } ])
     end
     assert_match(/github_reconciliation_states_last_status_valid/, bad_status.message)
+
+    bad_token_only = assert_raises(ActiveRecord::StatementInvalid) do
+      GithubReconciliationState.insert_all!([ {
+        github_repository_binding_id: binding.id,
+        activated_at: now,
+        consecutive_failures: 0,
+        last_status: "idle",
+        claim_token: "orphan-token",
+        claimed_until: nil,
+        created_at: now,
+        updated_at: now
+      } ])
+    end
+    assert_match(/github_reconciliation_states_claim_lease_consistent/, bad_token_only.message)
+
+    bad_until_only = assert_raises(ActiveRecord::StatementInvalid) do
+      GithubReconciliationState.insert_all!([ {
+        github_repository_binding_id: binding.id,
+        activated_at: now,
+        consecutive_failures: 0,
+        last_status: "idle",
+        claim_token: nil,
+        claimed_until: now + 5.minutes,
+        created_at: now,
+        updated_at: now
+      } ])
+    end
+    assert_match(/github_reconciliation_states_claim_lease_consistent/, bad_until_only.message)
 
     # Unique 1-to-1 binding FK and ON DELETE CASCADE.
     state = GithubReconciliationState.create!(

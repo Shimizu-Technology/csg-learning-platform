@@ -408,6 +408,56 @@ class GithubAppClientTest < ActiveSupport::TestCase
     assert_equal [ 1 ], page_calls
   end
 
+  test "multi-hop repository verification clamps timeout on every HTTP hop and raises BudgetExceeded mid-flow" do
+    observed_timeouts = []
+    hop_transport = Transport.new
+    original_request = hop_transport.method(:request)
+    hop_transport.define_singleton_method(:request) do |method, url, options|
+      observed_timeouts << [ method, url.split("/").last, options[:timeout] ]
+      original_request.call(method, url, options)
+    end
+    client = GithubAppClient.new(
+      transport: hop_transport,
+      credentials: Credentials.new("12345", "synthetic-app", @key.to_pem),
+      cache: ActiveSupport::Cache::MemoryStore.new
+    )
+
+    # First call: 3 hops (unscoped token POST -> repo GET -> repo-scoped token POST), each clamped to remaining deadline.
+    ticks = [ 10.0, 12.0, 15.0 ]
+    repo = client.repository(
+      installation: @installation,
+      full_name: "app-learner/prework-exercises",
+      deadline: 20.0,
+      monotonic: -> { ticks.shift || 15.0 }
+    )
+    assert_equal 98765, repo["id"]
+    assert_equal [ [ :post, "access_tokens", 10.0 ], [ :get, "prework-exercises", 8.0 ], [ :post, "access_tokens", 5.0 ] ], observed_timeouts
+
+    # Second call (fresh cache): deadline expires after first token POST, before repo GET.
+    fresh_transport = Transport.new
+    fresh_calls = []
+    fresh_original = fresh_transport.method(:request)
+    fresh_transport.define_singleton_method(:request) do |method, url, options|
+      fresh_calls << [ method, url.split("/").last ]
+      fresh_original.call(method, url, options)
+    end
+    fresh_client = GithubAppClient.new(
+      transport: fresh_transport,
+      credentials: Credentials.new("12345", "synthetic-app", @key.to_pem),
+      cache: ActiveSupport::Cache::MemoryStore.new
+    )
+    exhausting_ticks = [ 18.0, 21.0 ]
+    assert_raises(GithubAppClient::BudgetExceeded) do
+      fresh_client.repository(
+        installation: @installation,
+        full_name: "app-learner/prework-exercises",
+        deadline: 20.0,
+        monotonic: -> { exhausting_ticks.shift || 21.0 }
+      )
+    end
+    assert_equal [ [ :post, "access_tokens" ] ], fresh_calls
+  end
+
   private
 
   def token_calls = @transport.calls.select { |call| call[1].end_with?("/access_tokens") }

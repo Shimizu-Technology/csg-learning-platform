@@ -54,24 +54,31 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
-  def repository(installation:, full_name:, repository_id: nil, timeout: nil)
+  def repository(installation:, full_name:, repository_id: nil, timeout: nil, deadline: nil, monotonic: nil)
     # Restrict a second token to this numeric repo. GitHub rejects repository_ids
     # outside this installation, including readable public but unselected repos.
     path = repository_id ? "/repositories/#{Integer(repository_id)}" : "/repos/#{full_name}"
-    repo = installation_request(installation, :get, path, repository_id: repository_id, timeout: timeout)
+    repo = installation_request(
+      installation, :get, path,
+      repository_id: repository_id, timeout: timeout, deadline: deadline, monotonic: monotonic
+    )
     id = Integer(repo.fetch("id"))
     unless positive_id?(id) && repo.fetch("full_name").is_a?(String) && repo.fetch("owner").is_a?(Hash) && positive_id?(repo.fetch("owner").fetch("id")) &&
         repo.fetch("owner").fetch("login").is_a?(String) && %w[User Organization].include?(repo.fetch("owner").fetch("type")) && [ true, false ].include?(repo.fetch("fork"))
       raise Error, PROVIDER_ERROR
     end
-    installation_token(installation, repository_id: id, timeout: timeout)
+    installation_token(installation, repository_id: id, timeout: timeout, deadline: deadline, monotonic: monotonic)
     repo
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end
 
-  def default_branch_head(installation:, repository:, timeout: nil)
-    repo = source_query(installation, repository, "defaultBranchRef { name target { ... on Commit { oid committedDate } } }", timeout: timeout)
+  def default_branch_head(installation:, repository:, timeout: nil, deadline: nil, monotonic: nil)
+    repo = source_query(
+      installation, repository,
+      "defaultBranchRef { name target { ... on Commit { oid committedDate } } }",
+      timeout: timeout, deadline: deadline, monotonic: monotonic
+    )
     branch = repo.fetch("defaultBranchRef")
     target = branch&.fetch("target")
     sha = target&.fetch("oid")
@@ -83,7 +90,7 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
-  def files_at_commit(installation:, repository:, sha:, branch:, filenames:, workflow_paths: [], timeout: nil)
+  def files_at_commit(installation:, repository:, sha:, branch:, filenames:, workflow_paths: [], timeout: nil, deadline: nil, monotonic: nil)
     raise Error, "GitHub repository has no submitted commit" unless sha.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
 
     normalized_workflows = Array(workflow_paths).filter_map { |path| path.to_s.strip.presence }.uniq
@@ -95,7 +102,7 @@ class GithubAppClient
     normalized_workflows.each_with_index do |workflow_path, index|
       fragments << "workflow_#{index}: object(expression: #{"#{sha}:#{workflow_path}".to_json}) { ... on Blob { oid text byteSize isTruncated } }"
     end
-    repo = source_query(installation, repository, fragments.join("\n"), timeout: timeout)
+    repo = source_query(installation, repository, fragments.join("\n"), timeout: timeout, deadline: deadline, monotonic: monotonic)
     files = filenames.each_with_index.filter_map do |filename, index|
       blob = repo.fetch("file_#{index}")
       next unless blob
@@ -159,10 +166,14 @@ class GithubAppClient
     )
   end
 
-  def checks(installation:, repository_id:, full_name:, sha:, page:, timeout: nil)
+  def checks(installation:, repository_id:, full_name:, sha:, page:, timeout: nil, deadline: nil, monotonic: nil)
     raise Error, "Invalid submission commit SHA" unless sha.to_s.match?(/\A[a-fA-F0-9]{6,64}\z/)
 
-    result = installation_request(installation, :get, "/repos/#{full_name}/commits/#{sha}/check-runs", repository_id: repository_id, query: { filter: "latest", per_page: 100, page: page }, timeout: timeout)
+    result = installation_request(
+      installation, :get, "/repos/#{full_name}/commits/#{sha}/check-runs",
+      repository_id: repository_id, query: { filter: "latest", per_page: 100, page: page },
+      timeout: timeout, deadline: deadline, monotonic: monotonic
+    )
     unless result.fetch("check_runs").is_a?(Array) && result.fetch("total_count").is_a?(Integer) && result["total_count"] >= 0
       raise Error, PROVIDER_ERROR
     end
@@ -324,10 +335,14 @@ class GithubAppClient
 
   private
 
-  def source_query(installation, repository, fields, timeout: nil)
+  def source_query(installation, repository, fields, timeout: nil, deadline: nil, monotonic: nil)
     owner, name = repository.fetch("full_name").split("/")
     query = "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name, followRenames: false) { fullDatabaseId #{fields} } }"
-    result = installation_request(installation, :post, "/graphql", repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } }, timeout: timeout)
+    result = installation_request(
+      installation, :post, "/graphql",
+      repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } },
+      timeout: timeout, deadline: deadline, monotonic: monotonic
+    )
     repo = result.fetch("data").fetch("repository")
     raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo.fetch("fullDatabaseId").to_i == repository.fetch("id").to_i && result["errors"].blank?
 
@@ -373,14 +388,15 @@ class GithubAppClient
       Digest::SHA256.hexdigest(@credentials.private_key) ].join(":")
   end
 
-  def installation_token(installation, repository_id: nil, refresh: false, timeout: nil)
+  def installation_token(installation, repository_id: nil, refresh: false, timeout: nil, deadline: nil, monotonic: nil)
     key = token_key(installation, repository_id)
     @cache.delete(key) if refresh
     cached = @cache.read(key)
     return cached if cached
 
+    call_timeout = resolve_request_timeout(timeout: timeout, deadline: deadline, monotonic: monotonic)
     payload = repository_id ? { repository_ids: [ Integer(repository_id) ] } : {}
-    result = request(:post, "/app/installations/#{installation.installation_id}/access_tokens", token: app_jwt, body: payload, timeout: timeout)
+    result = request(:post, "/app/installations/#{installation.installation_id}/access_tokens", token: app_jwt, body: payload, timeout: call_timeout)
     ttl = [ Time.iso8601(result.fetch("expires_at")) - @now.call - 60, 5.minutes.to_i ].min
     raise Error, "GitHub returned an expired installation token" unless ttl.positive? && result.fetch("token").is_a?(String) && result["token"].present?
 
@@ -388,11 +404,15 @@ class GithubAppClient
     result.fetch("token")
   end
 
-  def installation_request(installation, method, path, repository_id: nil, timeout: nil, **options)
+  def installation_request(installation, method, path, repository_id: nil, timeout: nil, deadline: nil, monotonic: nil, **options)
     attempts = 0
     begin
-      token = installation_token(installation, repository_id: repository_id, refresh: attempts.positive?, timeout: timeout)
-      request(method, path, token: token, timeout: timeout, **options)
+      token = installation_token(
+        installation, repository_id: repository_id, refresh: attempts.positive?,
+        timeout: timeout, deadline: deadline, monotonic: monotonic
+      )
+      call_timeout = resolve_request_timeout(timeout: timeout, deadline: deadline, monotonic: monotonic)
+      request(method, path, token: token, timeout: call_timeout, **options)
     rescue Error => error
       if error.status == 401 && attempts.zero?
         attempts += 1

@@ -8,17 +8,25 @@
 # Workflow per claimed binding:
 # 1. Verify repository & resolve branch head to an exact commit SHA FIRST.
 # 2. Import exact-SHA exercise files via GithubSubmittedRevisionSync (skipping
-#    unchanged head SHA when no new exercises need sync, and respecting
-#    activated_at so historical cohorts never back-crawl pre-activation work).
-# 3. Replay & attach eligible `staged` GithubWebhookDelivery rows (check_run,
-#    push, and ambiguous installation revocations re-verified live).
+#    unchanged head SHA when no new exercises need sync, respecting module
+#    assignments & submission_type_for, and honoring activated_at so historical
+#    cohorts never back-crawl pre-activation work).
+# 3. Replay & attach eligible `staged` GithubWebhookDelivery rows (check_run
+#    prioritized by attachable SHAs, push, and ambiguous installation revocations
+#    re-verified live, never prematurely settling deliveries still needed by
+#    sibling eligible bindings).
 # 4. Refresh due/pending check runs per unique commit SHA via GithubCheckRunMerger.
 # 5. Evaluate pure grade suggestions via GithubGradeSuggestionEvaluator (NEVER
-#    writing Submission.grade).
+#    writing Submission.grade), including catch-up for live webhooks, mid-binding
+#    aborts, and active policy version bumps.
 # 6. Finalize GithubReconciliationState guarded by claim_token with fair
 #    round-robin scheduling and bounded exponential backoff.
 class GithubReconciliationService
   class IncompleteCheckListError < GithubAppClient::Error
+    def transient? = true
+  end
+
+  class RetryableSyncError < GithubAppClient::Error
     def transient? = true
   end
 
@@ -32,12 +40,21 @@ class GithubReconciliationService
   MAX_CHECK_REFRESH_SUBMISSIONS_PER_BINDING = 25
   MAX_CHECK_RUN_PAGES = 10
   REVOCATION_STATUSES = [ 401, 403, 404, 422 ].freeze
+  SIZE_LIMIT_WARNING = "One or more exercise files exceeded the 256 KiB capture limit and were not imported".freeze
 
   def self.enabled_for?(cohort, school: nil)
     return false unless cohort.present?
 
     features = FeatureSwitches.for(cohort: cohort, school: school)
     features["github_app"] == true && features["github_reconciliation"] == true
+  end
+
+  def self.cohort_active_on?(cohort, now)
+    return false unless cohort.present?
+    return true if cohort.status == "active"
+
+    school_today = now.in_time_zone(Rails.application.config.x.school.time_zone).to_date
+    cohort.upcoming? && cohort.start_date.present? && cohort.start_date <= school_today
   end
 
   # Strictly read-only preview for `scheduled:tick` dry-run: zero DB writes and
@@ -77,16 +94,25 @@ class GithubReconciliationService
       .map(&:id)
   end
 
+  # Push user/identity/cohort/curriculum eligibility checks into SQL so
+  # ineligible rows cannot crowd out healthy bindings behind pre-filter limits.
   def self.due_bindings_relation(cohort_ids:, now:)
     GithubRepositoryBinding
-      .joins(:github_app_installation, :enrollment)
-      .left_outer_joins(:github_reconciliation_state)
+      .joins(:github_app_installation, enrollment: [ :user, :cohort ])
+      .left_outer_joins(:curriculum_module, :github_reconciliation_state)
       .where(
         verification_state: "verified",
         github_app_installations: { connection_state: "connected" },
-        enrollments: { cohort_id: cohort_ids, status: Enrollment.statuses.fetch("active") }
+        enrollments: { cohort_id: cohort_ids, status: Enrollment.statuses.fetch("active") },
+        users: { archived_at: nil }
       )
       .where.not(repository_id: nil)
+      .where("LEFT(users.clerk_id, 8) <> ?", "pending_")
+      .where("users.github_user_id IS NOT NULL AND users.github_verified_login IS NOT NULL AND users.github_verified_at IS NOT NULL")
+      .where("github_repository_bindings.github_user_id = users.github_user_id")
+      .where("LOWER(github_repository_bindings.github_username) = LOWER(users.github_verified_login)")
+      .where("github_app_installations.cohort_id = enrollments.cohort_id")
+      .where("github_repository_bindings.curriculum_module_id IS NULL OR modules.curriculum_id = cohorts.curriculum_id")
       .where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", now)
       .where("github_reconciliation_states.claimed_until IS NULL OR github_reconciliation_states.claimed_until <= ?", now)
       .where("github_reconciliation_states.next_reconcile_at IS NULL OR github_reconciliation_states.next_reconcile_at <= ?", now)
@@ -103,7 +129,7 @@ class GithubReconciliationService
     return false unless enrollment && enrollment.status == "active" && (enrollment.access_expires_at.nil? || enrollment.access_expires_at > now)
     return false unless user.present? && !user.archived? && !user.invite_pending?
     return false unless binding.identity_current?
-    return false unless cohort&.active? && enabled_for?(cohort, school: school)
+    return false unless cohort_active_on?(cohort, now) && enabled_for?(cohort, school: school)
     return false if binding.curriculum_module && binding.curriculum_module.curriculum_id != cohort.curriculum_id
 
     true
@@ -202,6 +228,12 @@ class GithubReconciliationService
     reference_now && reference_now > current ? reference_now : current
   end
 
+  def check_budget!(deadline)
+    return unless deadline
+
+    raise GithubAppClient::BudgetExceeded, "GitHub reconciliation budget exhausted" if @monotonic.call >= deadline
+  end
+
   def clamped_request_timeout(deadline)
     return nil unless deadline
 
@@ -245,6 +277,8 @@ class GithubReconciliationService
         last_reconciled_at: state.last_reconciled_at
       }
     end
+  rescue ActiveRecord::RecordNotFound
+    :stale_claim
   end
 
   def find_or_initialize_state!(binding, claim_time:)
@@ -283,34 +317,53 @@ class GithubReconciliationService
     claim_token = claim.fetch(:claim_token)
     enrollment = binding.enrollment
     cohort = enrollment.cohort
-    user = enrollment.user
     features = FeatureSwitches.for(cohort: cohort, school: school)
     client = @client || GithubAppClient.new
     access = GithubRepositoryAccess.new(binding, client: client)
     request_started_at = effective_now(now)
+    step1_verified = false
 
     # Step 1: Verify repository & resolve branch head to an exact commit SHA FIRST
     # (NO DB locks held across GitHub HTTP!).
-    repository = access.repository!(timeout: clamped_request_timeout(deadline))
-    head = resolve_head_commit(client: client, installation: binding.github_app_installation, repository: repository, deadline: deadline)
+    repository = access.repository!(
+      timeout: clamped_request_timeout(deadline),
+      deadline: deadline,
+      monotonic: @monotonic
+    )
+    step1_verified = true
+
+    head = resolve_head_commit(
+      client: client,
+      installation: binding.github_app_installation,
+      repository: repository,
+      deadline: deadline
+    )
     head_sha = head&.dig(:commit_hash)
     head_branch = head&.dig(:branch)
     head_committed_at = head&.dig(:committed_at)
 
-    # Activation boundary: if this is the first reconciliation and the current
-    # branch head commit predates activated_at, record it as the baseline without
-    # back-crawling historical pre-activation files.
-    pre_activation_head = claim[:last_head_sha].nil? &&
+    # Activation boundary: remains active across Tick 2+ while the branch stays
+    # on a pre-activation baseline SHA with no post-activation submission at it.
+    pre_activation_head = head_sha.present? &&
       head_committed_at.present? &&
-      head_committed_at < claim[:activated_at]
+      head_committed_at < claim[:activated_at] &&
+      (claim[:last_head_sha].nil? ||
+        (claim[:last_head_sha].casecmp?(head_sha) &&
+          !Submission.where(enrollment_id: enrollment.id, commit_sha: head_sha)
+            .where("created_at >= ?", claim[:activated_at]).exists?))
 
     submissions_to_evaluate = Set.new
+    covered_scope = covered_modules_for(binding)
+    covered_modules = covered_scope[:modules]
+    lesson_restrictions = covered_scope[:lesson_restrictions]
 
     # Step 2: Import exact-SHA exercise files (skipping unchanged SHA when no new
-    # exercises need sync, and rechecking enrollment/windows under lock).
-    covered_modules = covered_modules_for(binding)
+    # exercises need sync, respecting module assignments & submission_type_for).
+    sync_warning = nil
+    step2_succeeded = false
     if head_sha.present? && !pre_activation_head && features["github_sync"] == true && covered_modules.any?
-      synced_ids = sync_exact_sha_files!(
+      check_budget!(deadline)
+      sync_result = sync_exact_sha_files!(
         access: access,
         binding: binding,
         repository: repository,
@@ -318,37 +371,49 @@ class GithubReconciliationService
         head_sha: head_sha,
         head_branch: head_branch,
         covered_modules: covered_modules,
+        lesson_restrictions: lesson_restrictions,
         features: features,
+        school: school,
         claim: claim,
         now: now,
         request_started_at: request_started_at,
         deadline: deadline
       )
-      metrics[:revisions_synced] = (metrics[:revisions_synced] || 0) + synced_ids.size
-      submissions_to_evaluate.merge(synced_ids)
+      step2_succeeded = true
+      sync_warning = sync_result[:warning_error]
+      metrics[:revisions_synced] = (metrics[:revisions_synced] || 0) + sync_result[:synced_ids].size
+      submissions_to_evaluate.merge(sync_result[:synced_ids])
+    else
+      step2_succeeded = head_sha.present?
     end
 
     # Step 3: Replay & attach eligible `staged` GithubWebhookDelivery rows.
+    check_budget!(deadline)
     replayed = replay_staged_webhooks!(
       binding: binding,
+      covered_modules: covered_modules,
       head_sha: head_sha,
       head_branch: head_branch,
+      step2_succeeded: step2_succeeded && !pre_activation_head,
       activated_at: claim[:activated_at],
       now: now,
-      school: school
+      school: school,
+      deadline: deadline
     )
     metrics[:webhooks_replayed] = (metrics[:webhooks_replayed] || 0) + replayed[:replayed_count]
     submissions_to_evaluate.merge(replayed[:attached_submission_ids])
 
     # Step 4: Refresh due/pending check runs for post-activation current-attempt
     # submissions (deduplicated per unique commit SHA, respecting budget).
+    active_head_sha = pre_activation_head ? nil : head_sha
     if features["github_sync"] == true
+      check_budget!(deadline)
       refreshed_ids = refresh_due_check_runs!(
         binding: binding,
         repository: repository,
         client: client,
         covered_modules: covered_modules,
-        head_sha: pre_activation_head ? nil : head_sha,
+        head_sha: active_head_sha,
         activated_at: claim[:activated_at],
         now: now,
         deadline: deadline
@@ -358,16 +423,37 @@ class GithubReconciliationService
     end
 
     # Step 5: Evaluate pure grade suggestions (NEVER writes Submission.grade!).
-    if features["github_grade_suggestions"] == true && submissions_to_evaluate.any?
-      evaluated_count = evaluate_grade_suggestions!(
-        submission_ids: submissions_to_evaluate.to_a,
-        now: now
+    # Also catches up submissions whose checks completed via live webhooks,
+    # whose prior tick aborted mid-binding, or whose active policy version bumped.
+    if features["github_grade_suggestions"] == true
+      check_budget!(deadline)
+      catch_up_ids = submissions_needing_grade_suggestion(
+        binding: binding,
+        covered_modules: covered_modules,
+        head_sha: active_head_sha,
+        activated_at: claim[:activated_at]
       )
-      metrics[:suggestions_evaluated] = (metrics[:suggestions_evaluated] || 0) + evaluated_count
+      submissions_to_evaluate.merge(catch_up_ids)
+
+      if submissions_to_evaluate.any?
+        evaluated_count = evaluate_grade_suggestions!(
+          submission_ids: submissions_to_evaluate.to_a,
+          now: now,
+          deadline: deadline
+        )
+        metrics[:suggestions_evaluated] = (metrics[:suggestions_evaluated] || 0) + evaluated_count
+      end
     end
 
     # Step 6: Finalize state guarded by claim_token.
-    finalize_success!(state: state, claim_token: claim_token, head_sha: head_sha, now: now)
+    finalize_success!(
+      state: state,
+      claim_token: claim_token,
+      head_sha: head_sha,
+      request_started_at: request_started_at,
+      warning_error: sync_warning,
+      now: now
+    )
   rescue GithubAppClient::BudgetExceeded
     release_claim_on_budget!(state: state, claim_token: claim_token)
   rescue GithubRepositoryAccess::BindingChanged => error
@@ -375,19 +461,20 @@ class GithubReconciliationService
       state: state,
       claim_token: claim_token,
       error: error,
-      binding: binding,
       now: now,
       permanent: true
     )
   rescue GithubAppClient::Error => error
-    access&.fail_current_verification!(error)
-    permanent = !error.transient? && REVOCATION_STATUSES.include?(error.status)
+    if step1_verified && !error.transient? && REVOCATION_STATUSES.include?(error.status)
+      access&.fail_current_verification!(error)
+    end
+    binding_failed = GithubRepositoryBinding.where(id: binding.id, verification_state: "failed").exists?
+    permanent = (!error.transient? && REVOCATION_STATUSES.include?(error.status)) || binding_failed
     settle_revoked_staged_webhooks!(binding: binding, now: now) if permanent
     record_failure!(
       state: state,
       claim_token: claim_token,
       error: error,
-      binding: binding,
       now: now,
       permanent: permanent
     )
@@ -396,7 +483,6 @@ class GithubReconciliationService
       state: state,
       claim_token: claim_token,
       error: error,
-      binding: binding,
       now: now,
       permanent: false
     )
@@ -406,7 +492,6 @@ class GithubReconciliationService
       state: state,
       claim_token: claim_token,
       error: error,
-      binding: binding,
       now: now,
       permanent: false
     )
@@ -416,7 +501,9 @@ class GithubReconciliationService
     client.default_branch_head(
       installation: installation,
       repository: repository,
-      timeout: clamped_request_timeout(deadline)
+      timeout: clamped_request_timeout(deadline),
+      deadline: deadline,
+      monotonic: @monotonic
     )
   rescue GithubAppClient::Error => error
     return nil if error.message == "GitHub repository has no submitted commit"
@@ -425,17 +512,45 @@ class GithubReconciliationService
   end
 
   def covered_modules_for(binding)
-    return [ binding.curriculum_module ] if binding.curriculum_module_id.present?
+    enrollment = binding.enrollment
+    cohort = enrollment.cohort
+    candidates = if binding.curriculum_module_id.present?
+      [ binding.curriculum_module ]
+    else
+      overridden_ids = GithubRepositoryBinding
+        .where(enrollment_id: binding.enrollment_id)
+        .where.not(curriculum_module_id: nil)
+        .pluck(:curriculum_module_id)
+      scope = cohort.curriculum.modules.order(:position, :id)
+      overridden_ids.any? ? scope.where.not(id: overridden_ids).to_a : scope.to_a
+    end
 
-    overridden_ids = GithubRepositoryBinding
-      .where(enrollment_id: binding.enrollment_id)
-      .where.not(curriculum_module_id: nil)
-      .pluck(:curriculum_module_id)
-    scope = binding.enrollment.cohort.curriculum.modules.order(:position, :id)
-    overridden_ids.any? ? scope.where.not(id: overridden_ids).to_a : scope.to_a
+    content_defaults = cohort.content_defaults.is_a?(Hash) ? cohort.content_defaults : {}
+    assigned_module_ids = enrollment.module_assignments.pluck(:module_id).to_set
+    lesson_ids_by_module = enrollment.lesson_assignments
+      .joins(:lesson)
+      .pluck("lessons.module_id", :lesson_id)
+      .group_by(&:first)
+      .transform_values { |pairs| pairs.map(&:last).to_set }
+
+    modules = []
+    lesson_restrictions = {}
+    candidates.each do |mod|
+      default_entry = content_defaults[mod.id.to_s]
+      default_disabled = default_entry.is_a?(Hash) && default_entry["assigned"] == false
+      if default_disabled && !assigned_module_ids.include?(mod.id)
+        assigned_lessons = lesson_ids_by_module[mod.id]
+        next if assigned_lessons.blank?
+
+        lesson_restrictions[mod.id] = assigned_lessons
+      end
+      modules << mod
+    end
+
+    { modules: modules, lesson_restrictions: lesson_restrictions }
   end
 
-  def sync_exact_sha_files!(access:, binding:, repository:, client:, head_sha:, head_branch:, covered_modules:, features:, claim:, now:, request_started_at:, deadline:)
+  def sync_exact_sha_files!(access:, binding:, repository:, client:, head_sha:, head_branch:, covered_modules:, lesson_restrictions:, features:, school:, claim:, now:, request_started_at:, deadline:)
     enrollment = binding.enrollment
     cohort = enrollment.cohort
     user = enrollment.user
@@ -448,19 +563,24 @@ class GithubReconciliationService
       .where.not(filename: [ nil, "" ])
       .includes(lesson: :curriculum_module)
       .to_a
-      .select { |block| block.github_sync_submission?(requires_github: true) }
+      .select do |block|
+        restricted_lessons = lesson_restrictions[block.lesson.module_id]
+        next false if restricted_lessons && !restricted_lessons.include?(block.lesson_id)
+
+        block.submission_type_for(enrollment, school: school) == "prework_github_sync"
+      end
 
     open_blocks = all_blocks.reject do |block|
       SubmissionWindowStatus.closed_for_lesson?(cohort: cohort, lesson: block.lesson, enrollment: enrollment, at: now)
     end
-    return [] if open_blocks.empty?
+    return { synced_ids: [], warning_error: nil } if open_blocks.empty?
 
     sha_unchanged = claim[:last_head_sha].present? && claim[:last_head_sha].casecmp?(head_sha)
     if sha_unchanged
       last_reconciled = claim[:last_reconciled_at]
       has_new_exercises = last_reconciled.nil? ||
         open_blocks.any? { |block| block.created_at > last_reconciled || block.updated_at > last_reconciled }
-      return [] unless has_new_exercises
+      return { synced_ids: [], warning_error: nil } unless has_new_exercises
     end
 
     filenames = open_blocks.filter_map { |b| b.filename&.strip }.uniq
@@ -482,13 +602,17 @@ class GithubReconciliationService
       branch: head_branch,
       filenames: filenames,
       workflow_paths: workflow_paths,
-      timeout: clamped_request_timeout(deadline)
+      timeout: clamped_request_timeout(deadline),
+      deadline: deadline,
+      monotonic: @monotonic
     )
-    return [] if repo_data[:error].present?
+    return { synced_ids: [], warning_error: nil } if repo_data[:error].present?
 
     synced_ids = []
+    size_limit_exceeded = false
     blocks_by_module = open_blocks.group_by { |block| block.lesson.module_id }
     covered_modules.each do |mod|
+      check_budget!(deadline)
       mod_blocks = blocks_by_module[mod.id]
       next if mod_blocks.blank?
 
@@ -503,21 +627,47 @@ class GithubReconciliationService
         request_started_at: request_started_at,
         synced_submission_ids: synced_ids
       )
+      if errors.any? { |msg| msg.include?("exercise configuration changed during sync") }
+        raise RetryableSyncError, "Exercise configuration changed during reconciliation; retrying on next run"
+      end
+      if errors.any? { |msg| msg.include?("exceeds the 256 KiB capture limit") }
+        size_limit_exceeded = true
+      end
     end
-    synced_ids
+
+    { synced_ids: synced_ids, warning_error: size_limit_exceeded ? SIZE_LIMIT_WARNING : nil }
   end
 
-  def replay_staged_webhooks!(binding:, head_sha:, head_branch:, activated_at:, now:, school:)
+  def replay_staged_webhooks!(binding:, covered_modules:, head_sha:, head_branch:, step2_succeeded:, activated_at:, now:, school:, deadline:)
     installation = binding.github_app_installation
     repo_id = binding.repository_id
     inst_id = installation.installation_id
     handled_at = effective_now(now)
 
-    repo_deliveries = GithubWebhookDelivery.staged
-      .where(event: %w[check_run push], repository_id: repo_id, installation_id: inst_id)
-      .order(:received_at, :id)
-      .limit(MAX_STAGED_DELIVERIES_PER_BINDING)
-      .to_a
+    # Prioritize attachable check_run deliveries (matching head_sha or any latest
+    # submission commit_sha for this binding) so >50 intermediate non-head
+    # deliveries cannot head-of-line block attachable work.
+    attachable_shas = attachable_shas_for_binding(binding: binding, covered_modules: covered_modules, head_sha: head_sha)
+    repo_deliveries = []
+    if attachable_shas.any?
+      repo_deliveries.concat(
+        GithubWebhookDelivery.staged
+          .where(event: "check_run", repository_id: repo_id, installation_id: inst_id)
+          .where("LOWER(head_sha) IN (?)", attachable_shas)
+          .order(:received_at, :id)
+          .limit(MAX_STAGED_DELIVERIES_PER_BINDING)
+          .to_a
+      )
+    end
+    remaining_slots = MAX_STAGED_DELIVERIES_PER_BINDING - repo_deliveries.size
+    if remaining_slots.positive?
+      remainder = GithubWebhookDelivery.staged
+        .where(event: %w[check_run push], repository_id: repo_id, installation_id: inst_id)
+        .order(:received_at, :id)
+        .limit(remaining_slots)
+      remainder = remainder.where.not(id: repo_deliveries.map(&:id)) if repo_deliveries.any?
+      repo_deliveries.concat(remainder.to_a)
+    end
 
     inst_deliveries = GithubWebhookDelivery.staged
       .where(event: %w[installation installation_repositories], installation_id: inst_id)
@@ -529,11 +679,13 @@ class GithubReconciliationService
     attached_submission_ids = Set.new
 
     repo_deliveries.each do |delivery|
+      check_budget!(deadline)
       result = replay_one_repo_delivery!(
         delivery: delivery,
         binding: binding,
         head_sha: head_sha,
         head_branch: head_branch,
+        step2_succeeded: step2_succeeded,
         activated_at: activated_at,
         handled_at: handled_at,
         school: school
@@ -543,6 +695,7 @@ class GithubReconciliationService
     end
 
     inst_deliveries.each do |delivery|
+      check_budget!(deadline)
       settled = replay_one_revocation_delivery!(
         delivery: delivery,
         binding: binding,
@@ -554,8 +707,26 @@ class GithubReconciliationService
     { replayed_count: replayed_count, attached_submission_ids: attached_submission_ids }
   end
 
+  def attachable_shas_for_binding(binding:, covered_modules:, head_sha:)
+    shas = []
+    shas << head_sha.downcase if head_sha.present?
+    module_ids = covered_modules.map(&:id)
+    if module_ids.any?
+      shas.concat(
+        Submission.latest_attempts
+          .joins(content_block: :lesson)
+          .where(enrollment_id: binding.enrollment_id, lessons: { module_id: module_ids })
+          .where.not(commit_sha: [ nil, "" ])
+          .distinct
+          .pluck(:commit_sha)
+          .map(&:downcase)
+      )
+    end
+    shas.uniq
+  end
+
   # Lock order matches GithubWebhookReceiver: delivery -> enrollment -> submission.
-  def replay_one_repo_delivery!(delivery:, binding:, head_sha:, head_branch:, activated_at:, handled_at:, school:)
+  def replay_one_repo_delivery!(delivery:, binding:, head_sha:, head_branch:, step2_succeeded:, activated_at:, handled_at:, school:)
     attached_ids = []
     settled = false
 
@@ -567,6 +738,8 @@ class GithubReconciliationService
         outcome, attached_ids = replay_check_run_delivery_locked!(
           delivery: delivery,
           binding: binding,
+          head_sha: head_sha,
+          step2_succeeded: step2_succeeded,
           activated_at: activated_at,
           handled_at: handled_at,
           school: school
@@ -581,7 +754,15 @@ class GithubReconciliationService
           settled = true
         end
       when "push"
-        outcome = classify_staged_push(delivery: delivery, head_sha: head_sha, head_branch: head_branch, activated_at: activated_at)
+        outcome = classify_staged_push(
+          delivery: delivery,
+          binding: binding,
+          head_sha: head_sha,
+          head_branch: head_branch,
+          activated_at: activated_at,
+          handled_at: handled_at,
+          school: school
+        )
         if outcome != "staged"
           delivery.update!(
             processing_state: outcome,
@@ -597,7 +778,7 @@ class GithubReconciliationService
     { settled: settled, attached_submission_ids: attached_ids }
   end
 
-  def replay_check_run_delivery_locked!(delivery:, binding:, activated_at:, handled_at:, school:)
+  def replay_check_run_delivery_locked!(delivery:, binding:, head_sha:, step2_succeeded:, activated_at:, handled_at:, school:)
     data = delivery.payload["check_run"]
     return [ "ignored", [] ] unless data.is_a?(Hash)
 
@@ -615,7 +796,31 @@ class GithubReconciliationService
     enrollment = binding.enrollment
     candidates = matching_submissions_for_binding(binding: binding, head_sha: sha, payload_repo_full_name: payload_repo_full_name)
     if candidates.empty?
-      return [ "ignored", [] ] if delivery.received_at < activated_at
+      return [ "staged", [] ] if other_eligible_bindings_pending_delivery?(delivery: delivery, binding: binding, school: school, now: handled_at)
+
+      sibling_attached = GithubCheckRun
+        .joins(:submission)
+        .where(
+          external_id: external_id,
+          head_sha: sha,
+          submissions: { github_repository_id: delivery.repository_id }
+        )
+        .exists?
+      return [ "processed", [] ] if sibling_attached
+
+      if delivery.received_at < activated_at
+        return [ "ignored", [] ] unless sibling_binding_post_activation?(delivery: delivery, binding: binding, school: school, now: handled_at)
+
+        return [ "staged", [] ]
+      end
+
+      # Settle superseded non-head check_run deliveries once Step 2 succeeded
+      # and no eligible binding on (inst_id, repo_id) matches that old SHA.
+      if step2_succeeded && head_sha.present? && !sha.casecmp?(head_sha)
+        unless any_sibling_matches_sha?(delivery: delivery, binding: binding, head_sha: sha, payload_repo_full_name: payload_repo_full_name, school: school, now: handled_at)
+          return [ "ignored", [] ]
+        end
+      end
 
       return [ "staged", [] ]
     end
@@ -671,17 +876,27 @@ class GithubReconciliationService
       attached_ids << submission.id if attached
     end
 
+    # Do not globally settle a shared delivery while another eligible binding on
+    # the same repo has not yet reconciled past delivery.received_at.
+    if other_eligible_bindings_pending_delivery?(delivery: delivery, binding: binding, school: school, now: handled_at)
+      return [ "staged", attached_ids ]
+    end
+
     if attached_ids.any?
       [ "processed", attached_ids ]
-    elsif delivery.received_at < activated_at
+    elsif delivery.received_at < activated_at && !sibling_binding_post_activation?(delivery: delivery, binding: binding, school: school, now: handled_at)
       [ "ignored", [] ]
     else
       [ "staged", [] ]
     end
   end
 
-  def classify_staged_push(delivery:, head_sha:, head_branch:, activated_at:)
-    return "ignored" if delivery.received_at < activated_at
+  def classify_staged_push(delivery:, binding:, head_sha:, head_branch:, activated_at:, handled_at:, school:)
+    return "staged" if other_eligible_bindings_pending_delivery?(delivery: delivery, binding: binding, school: school, now: handled_at)
+
+    if delivery.received_at < activated_at
+      return sibling_binding_post_activation?(delivery: delivery, binding: binding, school: school, now: handled_at) ? "staged" : "ignored"
+    end
     return "processed" if head_sha.present? && delivery.head_sha.present? && delivery.head_sha.casecmp?(head_sha)
 
     push_ref = delivery.payload["ref"].to_s
@@ -692,9 +907,50 @@ class GithubReconciliationService
     "staged"
   end
 
+  def eligible_sibling_bindings(delivery:, binding:, school:, now:)
+    GithubRepositoryBinding
+      .joins(:github_app_installation)
+      .includes(:github_app_installation, :curriculum_module, :github_reconciliation_state, enrollment: [ :cohort, :user ])
+      .where(
+        repository_id: delivery.repository_id,
+        verification_state: "verified",
+        github_app_installations: { installation_id: delivery.installation_id, connection_state: "connected" }
+      )
+      .where.not(id: binding.id)
+      .select { |sibling| self.class.binding_eligible?(sibling, school: school, now: now) }
+  end
+
+  def other_eligible_bindings_pending_delivery?(delivery:, binding:, school:, now:)
+    eligible_sibling_bindings(delivery: delivery, binding: binding, school: school, now: now).any? do |sibling|
+      sibling_state = sibling.github_reconciliation_state
+      sibling_activated_at = sibling_state&.activated_at || initial_activated_at(sibling, claim_time: now)
+      sibling_activated_at <= delivery.received_at &&
+        (sibling_state&.last_reconciled_at.nil? || sibling_state.last_reconciled_at < delivery.received_at)
+    end
+  end
+
+  def sibling_binding_post_activation?(delivery:, binding:, school:, now:)
+    eligible_sibling_bindings(delivery: delivery, binding: binding, school: school, now: now).any? do |sibling|
+      sibling_state = sibling.github_reconciliation_state
+      sibling_activated_at = sibling_state&.activated_at || initial_activated_at(sibling, claim_time: now)
+      sibling_activated_at <= delivery.received_at
+    end
+  end
+
+  def any_sibling_matches_sha?(delivery:, binding:, head_sha:, payload_repo_full_name:, school:, now:)
+    eligible_sibling_bindings(delivery: delivery, binding: binding, school: school, now: now).any? do |sibling|
+      matching_submissions_for_binding(
+        binding: sibling,
+        head_sha: head_sha,
+        payload_repo_full_name: payload_repo_full_name
+      ).any?
+    end
+  end
+
   # When Step 1 (`access.repository!`) just succeeded live against GitHub AFTER
   # an ambiguous staged revocation webhook was received, live provider proof
-  # supersedes the ambiguous revocation so it does not linger in `staged`.
+  # supersedes the ambiguous revocation once every verified binding in scope
+  # has been verified after delivery.received_at.
   def replay_one_revocation_delivery!(delivery:, binding:, handled_at:)
     settled = false
     verified_live_at = [ binding.checked_at, handled_at ].compact.max
@@ -704,13 +960,25 @@ class GithubReconciliationService
 
       case delivery.event
       when "installation"
-        delivery.update!(
-          processing_state: "ignored",
-          attempts: delivery.attempts + 1,
-          last_error: nil,
-          processed_at: handled_at
-        )
-        settled = true
+        still_unverified_others = GithubRepositoryBinding
+          .joins(:github_app_installation)
+          .where(
+            verification_state: "verified",
+            github_app_installations: { installation_id: delivery.installation_id }
+          )
+          .where.not(id: binding.id)
+          .where("github_repository_bindings.checked_at IS NULL OR github_repository_bindings.checked_at < ?", delivery.received_at)
+          .exists?
+
+        unless still_unverified_others
+          delivery.update!(
+            processing_state: "ignored",
+            attempts: delivery.attempts + 1,
+            last_error: nil,
+            processed_at: handled_at
+          )
+          settled = true
+        end
       when "installation_repositories"
         removed_ids = Array(delivery.payload["repositories_removed_ids"]).filter_map { |id| GithubCheckRunMerger.positive_integer(id) }
         if removed_ids.include?(binding.repository_id)
@@ -754,9 +1022,20 @@ class GithubReconciliationService
         delivery.with_lock do
           next unless delivery.processing_state == "staged"
 
-          if delivery.event == "installation_repositories"
+          case delivery.event
+          when "installation"
+            next if GithubAppInstallation.where(installation_id: inst_id, connection_state: "connected").exists?
+          when "installation_repositories"
             removed_ids = Array(delivery.payload["repositories_removed_ids"]).filter_map { |id| GithubCheckRunMerger.positive_integer(id) }
             next unless removed_ids.include?(binding.repository_id)
+            next if GithubRepositoryBinding
+              .joins(:github_app_installation)
+              .where(
+                repository_id: removed_ids,
+                verification_state: "verified",
+                github_app_installations: { installation_id: inst_id }
+              )
+              .exists?
           end
 
           delivery.update!(
@@ -791,22 +1070,37 @@ class GithubReconciliationService
     end
   end
 
+  def post_activation_latest_submissions_scope(binding:, module_ids:, head_sha:, activated_at:)
+    scope = Submission.latest_attempts
+      .joins(content_block: :lesson)
+      .where(enrollment_id: binding.enrollment_id, lessons: { module_id: module_ids })
+      .where.not(commit_sha: [ nil, "" ])
+      .where(
+        "submissions.github_repository_id = :repo_id OR submissions.github_revision->>'repository_id' = :repo_id_str",
+        repo_id: binding.repository_id,
+        repo_id_str: binding.repository_id.to_s
+      )
+    if head_sha.present?
+      scope.where("submissions.created_at >= ? OR LOWER(submissions.commit_sha) = ?", activated_at, head_sha.downcase)
+    else
+      scope.where("submissions.created_at >= ?", activated_at)
+    end
+  end
+
   def refresh_due_check_runs!(binding:, repository:, client:, covered_modules:, head_sha:, activated_at:, now:, deadline:)
     module_ids = covered_modules.map(&:id)
     return [] if module_ids.empty?
 
-    latest_submissions = Submission.latest_attempts
-      .joins(content_block: :lesson)
+    latest_submissions = post_activation_latest_submissions_scope(
+      binding: binding,
+      module_ids: module_ids,
+      head_sha: head_sha,
+      activated_at: activated_at
+    )
       .includes(:github_check_runs)
-      .where(enrollment_id: binding.enrollment_id, lessons: { module_id: module_ids })
-      .where.not(commit_sha: [ nil, "" ])
-      .order(id: :desc)
-      .limit(MAX_CHECK_REFRESH_SUBMISSIONS_PER_BINDING * 2)
+      .order(id: :asc)
       .to_a
-      .select do |submission|
-        GithubCheckRunMerger.submission_matches_binding?(submission, binding: binding) &&
-          (submission.created_at >= activated_at || (head_sha.present? && submission.commit_sha.casecmp?(head_sha)))
-      end
+      .select { |submission| GithubCheckRunMerger.submission_matches_binding?(submission, binding: binding) }
 
     return [] if latest_submissions.empty?
 
@@ -826,6 +1120,7 @@ class GithubReconciliationService
     refreshed_ids = []
 
     due_submissions.group_by(&:commit_sha).each do |sha, sha_submissions|
+      check_budget!(deadline)
       pre_fetch_by_submission = sha_submissions.each_with_object({}) do |sub, map|
         map[sub.id] = sub.github_check_runs
           .where(head_sha: sha)
@@ -865,6 +1160,46 @@ class GithubReconciliationService
     refreshed_ids
   end
 
+  def submissions_needing_grade_suggestion(binding:, covered_modules:, head_sha:, activated_at:)
+    module_ids = covered_modules.map(&:id)
+    return [] if module_ids.empty?
+
+    latest_submissions = post_activation_latest_submissions_scope(
+      binding: binding,
+      module_ids: module_ids,
+      head_sha: head_sha,
+      activated_at: activated_at
+    )
+      .includes(:submission_grade_suggestion)
+      .order(:id)
+      .to_a
+      .select { |submission| GithubCheckRunMerger.submission_matches_binding?(submission, binding: binding) }
+
+    return [] if latest_submissions.empty?
+
+    policies_by_block = ExerciseCheckPolicy.active
+      .where(content_block_id: latest_submissions.map(&:content_block_id).uniq)
+      .index_by(&:content_block_id)
+
+    max_run_updated_by_submission = GithubCheckRun
+      .where(submission_id: latest_submissions.map(&:id))
+      .group(:submission_id)
+      .maximum(:updated_at)
+
+    latest_submissions.filter_map do |submission|
+      suggestion = submission.submission_grade_suggestion
+      active_policy = policies_by_block[submission.content_block_id]
+      latest_run_updated_at = max_run_updated_by_submission[submission.id]
+
+      needs_eval = suggestion.nil? ||
+        suggestion.commit_sha != submission.commit_sha ||
+        suggestion.exercise_check_policy_id != active_policy&.id ||
+        (latest_run_updated_at.present? && suggestion.evaluated_at.present? && latest_run_updated_at > suggestion.evaluated_at)
+
+      submission.id if needs_eval
+    end
+  end
+
   def submission_needs_check_refresh?(submission, policy:)
     sha_runs = submission.github_check_runs.select { |run| run.head_sha.to_s.casecmp?(submission.commit_sha.to_s) }
     return true if sha_runs.empty?
@@ -888,7 +1223,9 @@ class GithubReconciliationService
         full_name: full_name,
         sha: sha,
         page: page,
-        timeout: clamped_request_timeout(deadline)
+        timeout: clamped_request_timeout(deadline),
+        deadline: deadline,
+        monotonic: @monotonic
       )
       page_runs = Array(data["check_runs"])
       runs.concat(page_runs)
@@ -907,28 +1244,39 @@ class GithubReconciliationService
     runs
   end
 
-  def evaluate_grade_suggestions!(submission_ids:, now:)
+  def evaluate_grade_suggestions!(submission_ids:, now:, deadline:)
     evaluated = 0
     Submission.where(id: submission_ids).order(:id).each do |submission|
+      check_budget!(deadline)
       result = GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: effective_now(now))
       evaluated += 1 if result
+    rescue GithubAppClient::BudgetExceeded
+      raise
     rescue StandardError => error
       Rails.logger.warn("GitHub grade suggestion evaluation failed for submission #{submission.id}: #{error.class.name}")
     end
     evaluated
   end
 
-  def finalize_success!(state:, claim_token:, head_sha:, now:)
+  def with_claimed_state(state, claim_token)
     state.with_lock do
       return :stale_claim unless state.claim_token == claim_token
 
+      yield state
+    end
+  rescue ActiveRecord::RecordNotFound
+    :stale_claim
+  end
+
+  def finalize_success!(state:, claim_token:, head_sha:, request_started_at:, warning_error:, now:)
+    with_claimed_state(state, claim_token) do |locked|
       handled_at = effective_now(now)
-      state.update!(
-        last_head_sha: head_sha || state.last_head_sha,
-        last_reconciled_at: handled_at,
+      locked.update!(
+        last_head_sha: head_sha || locked.last_head_sha,
+        last_reconciled_at: request_started_at,
         next_reconcile_at: handled_at + RECONCILE_INTERVAL,
         consecutive_failures: 0,
-        last_error: nil,
+        last_error: warning_error,
         last_status: "ok",
         claim_token: nil,
         claimed_until: nil
@@ -938,10 +1286,8 @@ class GithubReconciliationService
   end
 
   def release_claim_on_budget!(state:, claim_token:)
-    state.with_lock do
-      return :stale_claim unless state.claim_token == claim_token
-
-      state.update!(
+    with_claimed_state(state, claim_token) do |locked|
+      locked.update!(
         claim_token: nil,
         claimed_until: nil
       )
@@ -949,17 +1295,15 @@ class GithubReconciliationService
     end
   end
 
-  def record_failure!(state:, claim_token:, error:, binding:, now:, permanent:)
+  def record_failure!(state:, claim_token:, error:, now:, permanent:)
     handled_at = effective_now(now)
     message = safe_error_message(error)
     status = permanent ? "failed" : "backoff"
 
-    state.with_lock do
-      return :stale_claim unless state.claim_token == claim_token
-
-      failures = state.consecutive_failures + 1
+    with_claimed_state(state, claim_token) do |locked|
+      failures = locked.consecutive_failures + 1
       delay = retry_delay(failures: failures, error: error)
-      state.update!(
+      locked.update!(
         consecutive_failures: failures,
         last_error: message,
         last_status: status,
