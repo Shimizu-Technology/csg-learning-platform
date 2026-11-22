@@ -1147,6 +1147,15 @@ class GithubReconciliationService
         sha: sha,
         deadline: deadline
       )
+      runs = enrich_workflow_paths_for_runs(
+        runs: runs,
+        client: client,
+        installation: installation,
+        repo_id: repo_id,
+        full_name: full_name,
+        sha: sha,
+        deadline: deadline
+      )
       fetched_at = effective_now(now)
 
       sha_submissions.each do |submission|
@@ -1245,6 +1254,39 @@ class GithubReconciliationService
 
       page += 1
     end
+    runs
+  end
+
+  def enrich_workflow_paths_for_runs(runs:, client:, installation:, repo_id:, full_name:, sha:, deadline:)
+    return runs unless client.respond_to?(:workflow_paths_by_check_suite)
+
+    needs_lookup = runs.any? do |attrs|
+      explicit = attrs["workflow_path"].presence || attrs.dig("check_suite", "workflow_path").presence
+      explicit.nil? && GithubCheckRunMerger.positive_integer(attrs.dig("check_suite", "id")).present?
+    end
+    return runs unless needs_lookup
+
+    suite_paths = client.workflow_paths_by_check_suite(
+      installation: installation,
+      repository_id: repo_id,
+      full_name: full_name,
+      head_sha: sha,
+      timeout: clamped_request_timeout(deadline),
+      deadline: deadline,
+      monotonic: @monotonic
+    )
+    return runs if suite_paths.blank?
+
+    runs.map do |attrs|
+      explicit = attrs["workflow_path"].presence || attrs.dig("check_suite", "workflow_path").presence
+      next attrs if explicit.present?
+
+      suite_id = GithubCheckRunMerger.positive_integer(attrs.dig("check_suite", "id"))
+      resolved = suite_id ? suite_paths[suite_id] : nil
+      resolved.present? ? attrs.merge("workflow_path" => resolved) : attrs
+    end
+  rescue GithubAppClient::Error => error
+    Rails.logger.warn("GitHub Actions workflow_path lookup failed during reconciliation for repo #{repo_id}: #{error.class.name} (status=#{error.status})")
     runs
   end
 

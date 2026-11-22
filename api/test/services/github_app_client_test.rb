@@ -235,7 +235,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
 
   test "unexpected provider bodies become generic errors at every public boundary" do
     [ {}, [], { "token" => "SECRET" } ].each do |body|
-      [ :installation, :repository, :files, :checks ].each do |operation|
+      [ :installation, :repository, :files, :checks, :workflow_paths_by_check_suite ].each do |operation|
         transport = Transport.new
         original = transport.method(:request)
         transport.define_singleton_method(:request) do |method, url, options|
@@ -248,6 +248,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
           when :repository then client.repository(installation: @installation, full_name: "app-learner/prework-exercises")
           when :files then client.files(installation: @installation, repository: { "id" => 98765, "full_name" => "app-learner/prework-exercises" }, filenames: [ "111.rb" ])
           when :checks then client.checks(installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises", sha: "a" * 40, page: 1)
+          when :workflow_paths_by_check_suite then client.workflow_paths_by_check_suite(installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises", head_sha: "a" * 40)
           end
         end
         assert_equal GithubAppClient::PROVIDER_ERROR, error.message
@@ -256,6 +257,94 @@ class GithubAppClientTest < ActiveSupport::TestCase
     @transport.define_singleton_method(:post) { |*args, **kwargs| Response.new(201, {}) }
     error = assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }
     assert_equal GithubAppClient::PROVIDER_ERROR, error.message
+  end
+
+  test "workflow_paths_by_check_suite resolves check_suite_id to path across pages and degrades on 403/404 without actions:read" do
+    sha = "a" * 40
+    pages_seen = []
+    actions_transport = Transport.new
+    original_request = actions_transport.method(:request)
+    actions_transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/actions/runs") && method == :get
+        page = options.dig(:query, :page).to_i
+        pages_seen << [ page, options.dig(:query, :head_sha) ]
+        if page == 1
+          return Response.new(
+            200,
+            {
+              "total_count" => 2,
+              "workflow_runs" => [
+                { "id" => 1, "check_suite_id" => 77_001, "head_sha" => sha.upcase, "path" => ".github/workflows/prework.yml" },
+                { "id" => 2, "check_suite_id" => 77_002, "head_sha" => "b" * 40, "path" => ".github/workflows/other-sha.yml" },
+                { "id" => 3, "check_suite_id" => 77_003, "head_sha" => sha, "path" => "   " }
+              ]
+            },
+            { "Link" => '<https://api.github.com/repos/app-learner/prework-exercises/actions/runs?page=2>; rel="next"' }
+          )
+        elsif page == 2
+          return Response.new(
+            200,
+            {
+              "total_count" => 2,
+              "workflow_runs" => [
+                { "id" => 4, "check_suite_id" => 77_004, "head_sha" => sha, "path" => ".github/workflows/lint.yml" }
+              ]
+            },
+            {}
+          )
+        end
+      end
+      original_request.call(method, url, options)
+    end
+    client = GithubAppClient.new(transport: actions_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+
+    resolved = client.workflow_paths_by_check_suite(
+      installation: @installation,
+      repository_id: 98765,
+      full_name: "app-learner/prework-exercises",
+      head_sha: sha
+    )
+    assert_equal({ 77_001 => ".github/workflows/prework.yml", 77_004 => ".github/workflows/lint.yml" }, resolved)
+    assert_equal [ [ 1, sha ], [ 2, sha ] ], pages_seen
+
+    # 403/404 from missing actions:read degrades gracefully to {} without raising.
+    [ 403, 404 ].each do |status|
+      denied_transport = Transport.new
+      denied_orig = denied_transport.method(:request)
+      denied_transport.define_singleton_method(:request) do |method, url, options|
+        return Response.new(status, { "message" => "Resource not accessible by integration" }, {}) if url.end_with?("/actions/runs")
+
+        denied_orig.call(method, url, options)
+      end
+      denied_client = GithubAppClient.new(transport: denied_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+      assert_equal({}, denied_client.workflow_paths_by_check_suite(
+        installation: @installation,
+        repository_id: 98765,
+        full_name: "app-learner/prework-exercises",
+        head_sha: sha
+      ))
+    end
+
+    # Rate-limited 403 still raises transient rate_limited GithubAppClient::Error.
+    rate_transport = Transport.new
+    rate_orig = rate_transport.method(:request)
+    rate_transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/actions/runs")
+        return Response.new(403, { "message" => "API rate limit exceeded" }, { "X-RateLimit-Remaining" => "0" })
+      end
+
+      rate_orig.call(method, url, options)
+    end
+    rate_client = GithubAppClient.new(transport: rate_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+    err = assert_raises(GithubAppClient::Error) do
+      rate_client.workflow_paths_by_check_suite(
+        installation: @installation,
+        repository_id: 98765,
+        full_name: "app-learner/prework-exercises",
+        head_sha: sha
+      )
+    end
+    assert err.rate_limited?
   end
 
   test "issue lifecycle methods scope installation tokens to numeric repository_id and ignore PRs in marker search" do

@@ -5,7 +5,7 @@ class FakeGithubAppClient
   attr_reader :calls, :issues
   attr_accessor :failure, :issue_failure, :repository_owner, :repository_owner_id, :fork, :owner_type,
     :source_text, :commit_sha, :commit_branch, :committed_at, :files_by_name, :workflow_files,
-    :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
+    :workflow_paths_by_check_suite_map, :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
     :on_default_branch_head, :on_files_at_commit, :on_checks,
     :on_find_issue_by_marker, :on_get_issue, :inconclusive_marker_search
 
@@ -25,6 +25,7 @@ class FakeGithubAppClient
     @committed_at = nil
     @files_by_name = nil
     @workflow_files = {}
+    @workflow_paths_by_check_suite_map = {}
     @timeout_after_create = false
     @inconclusive_marker_search = false
   end
@@ -147,6 +148,17 @@ class FakeGithubAppClient
     raise failure if failure
 
     { "total_count" => 1, "check_runs" => [ { "id" => 13579, "name" => "synthetic-test", "head_sha" => sha, "status" => "completed", "conclusion" => "success" } ] }
+  end
+
+  def workflow_paths_by_check_suite(installation:, repository_id:, full_name:, head_sha:, max_pages: GithubAppClient::WORKFLOW_RUNS_MAX_PAGES, timeout: nil, deadline: nil, monotonic: nil)
+    if deadline
+      clock = monotonic || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+      raise GithubAppClient::BudgetExceeded, "GitHub request budget exhausted" if deadline - clock.call <= 0
+    end
+    @mutex.synchronize { @calls << [ :workflow_paths_by_check_suite, installation.id, repository_id, full_name, head_sha, max_pages ] }
+    raise failure if failure
+
+    (@workflow_paths_by_check_suite_map || {}).dup
   end
 
   def find_issue_by_marker(installation:, repository_id:, full_name:, marker:, issue_number: nil, max_pages: GithubAppClient::MARKER_SEARCH_MAX_PAGES, timeout: nil, deadline: nil, monotonic: nil)

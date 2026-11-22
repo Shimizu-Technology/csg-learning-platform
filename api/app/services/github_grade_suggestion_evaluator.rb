@@ -471,38 +471,47 @@ class GithubGradeSuggestionEvaluator
   # Selects the authoritative run for one required check name on target_sha:
   # 1. If ANY trusted pending run exists on target_sha, fail closed as pending
   #    so a faster parallel job never bypasses a still-running job.
-  # 2. A completed run supersedes an earlier completed run only when it is a
-  #    sequential rerun (started_at >= earlier.completed_at, or higher external_id
-  #    when neither has timestamps). Overlapping conflicting same-named jobs fail
-  #    closed (failure beats inconclusive beats success).
+  # 2. A completed run supersedes an earlier completed run ONLY when it shares a
+  #    verified provider check_suite_id and is a strictly ordered sequential rerun
+  #    (later.started_at >= earlier.completed_at with asymmetric tie-breaking).
+  #    Separate or unknown suites and overlapping conflicting jobs fail closed
+  #    (failure beats inconclusive beats success).
   def select_authoritative_run(runs)
     pending_runs, completed_runs = runs.partition { |run| pending_run?(run) }
     return newest_pending(pending_runs) if pending_runs.any?
 
-    active_completed = completed_runs.reject do |earlier|
+    surviving = completed_runs.reject do |earlier|
       completed_runs.any? { |later| sequential_rerun_supersedes?(later: later, earlier: earlier) }
     end
+    return newest_by_recency(completed_runs) if surviving.empty?
 
-    failed = active_completed.select { |run| run.conclusion == "failure" }
+    failed = surviving.select { |run| run.conclusion == "failure" }
     return newest_by_recency(failed) if failed.any?
 
-    inconclusive = active_completed.select { |run| run.conclusion != "success" }
+    inconclusive = surviving.select { |run| run.conclusion != "success" }
     return newest_by_recency(inconclusive) if inconclusive.any?
 
-    newest_by_recency(active_completed)
+    newest_by_recency(surviving)
   end
 
   def sequential_rerun_supersedes?(later:, earlier:)
     return false if later.equal?(earlier)
+    return false unless earlier.check_suite_id.present? && later.check_suite_id == earlier.check_suite_id
+    return false unless earlier.completed_at.present? && later.started_at.present?
+    return false if later.started_at < earlier.completed_at
 
-    if later.started_at.present? && earlier.completed_at.present?
-      later.started_at >= earlier.completed_at &&
-        (later.started_at > earlier.completed_at || later.external_id.to_i > earlier.external_id.to_i)
-    elsif later.started_at.nil? && earlier.completed_at.nil?
-      later.external_id.to_i > earlier.external_id.to_i
-    else
-      false
+    if later.started_at > earlier.completed_at
+      return false if later.completed_at.present? && earlier.started_at.present? && earlier.started_at >= later.completed_at
+
+      return true
     end
+
+    # Tied boundary (later.started_at == earlier.completed_at): break ties strictly asymmetrically.
+    return false unless later.completed_at.present?
+
+    later.completed_at > earlier.completed_at ||
+      (later.completed_at == earlier.completed_at &&
+        [ later.external_id.to_i, later.id.to_i ] > [ earlier.external_id.to_i, earlier.id.to_i ])
   end
 
   def newest_pending(runs)

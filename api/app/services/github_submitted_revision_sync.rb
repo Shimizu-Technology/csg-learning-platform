@@ -67,7 +67,11 @@ class GithubSubmittedRevisionSync
 
           previous = latest[block.id]
           # Also leave legacy rows untouched: identical text cannot establish
-          # provenance for a past grade. Their limits remain explicit in UI.
+          # provenance for a past grade. Existing revisions remain immutable —
+          # pre-enablement submissions without captured `workflow_files` (or
+          # workflow-only repo edits) are intentionally not mutated retroactively
+          # and stay ineligible for `expected_workflow_path` suggestions until a
+          # new exercise revision is submitted. Their limits remain explicit in UI.
           next if previous && previous.text == file.fetch("text")
 
           text = file.fetch("text")

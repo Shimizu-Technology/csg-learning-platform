@@ -195,6 +195,34 @@ class X6DemoFakeGithubClient
     end
   end
 
+  def workflow_paths_by_check_suite(installation:, repository_id:, full_name:, head_sha:, max_pages: GithubAppClient::WORKFLOW_RUNS_MAX_PAGES, timeout: nil, deadline: nil, monotonic: nil)
+    check_deadline!(deadline, monotonic)
+    self.class.with_state(write: true) do |state|
+      record_call(
+        state,
+        "workflow_paths_by_check_suite",
+        installation_id: installation.id,
+        repository_id: repository_id.to_i,
+        head_sha: head_sha,
+        max_pages: max_pages
+      )
+      maybe_raise_outage!(state, scope: :general)
+      repo = find_repository(state, repository_id: repository_id, full_name: full_name)
+      commit = repo&.dig("commits", head_sha) || {}
+      explicit_map = commit["workflow_paths_by_check_suite"]
+      result = {}
+      if explicit_map.is_a?(Hash)
+        explicit_map.each { |suite_id, wf_path| result[suite_id.to_i] = wf_path if wf_path.present? }
+      end
+      Array(commit["checks"]).each do |run|
+        suite_id = run.dig("check_suite", "id")
+        wf_path = run["workflow_path"].presence || run.dig("check_suite", "workflow_path").presence
+        result[suite_id.to_i] ||= wf_path if suite_id.present? && wf_path.present?
+      end
+      result
+    end
+  end
+
   def find_issue_by_marker(installation:, repository_id:, full_name:, marker:, issue_number: nil, max_pages: GithubAppClient::MARKER_SEARCH_MAX_PAGES, timeout: nil, deadline: nil, monotonic: nil)
     found = find_issue_by_markers(
       installation: installation,
