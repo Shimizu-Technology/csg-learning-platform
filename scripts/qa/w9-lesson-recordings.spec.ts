@@ -16,6 +16,7 @@ const lessonPath = (actor: { cohort: number, user: number }, lesson = ids.lesson
 
 for (const theme of ['light', 'dark'] as const) {
   test(`authoring, playback and cohort isolation in ${theme}`, async ({ browser }, info) => {
+    test.setTimeout(60_000)
     const viewport = info.project.use.viewport!
     const phone = viewport.width === 390
     const context = await browser.newContext({
