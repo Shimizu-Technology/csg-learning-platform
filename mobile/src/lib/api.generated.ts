@@ -4536,6 +4536,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/release_communications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cohort release communication preview and delivery status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortReleaseCommunicationsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/enrollments/{enrollment_id}/learning_plan": {
         parameters: {
             query?: never;
@@ -11132,6 +11169,113 @@ export interface components {
             certificate: components["schemas"]["CertificateVerification"] | null;
             can_issue: boolean;
             course_completed: boolean;
+        };
+        ReleaseCommunicationsConfiguration: {
+            school_time_zone: string;
+            school_time_zone_label: string;
+            daily_unlock_hour: number;
+            catch_up_days: number;
+            /** @constant */
+            channel: "email";
+            email_configured: boolean;
+            sender_identity: string | null;
+            sender_display_name: string | null;
+            sender_address: string | null;
+            frontend_origin: string | null;
+            /** @enum {string} */
+            course_delivery: "program" | "guided" | "self_paced";
+            /** @enum {string} */
+            lesson_release_mode: "scheduled_daily_unlock" | "self_paced_open" | "personal_pace_open";
+            /** @enum {string} */
+            cohort_status: "upcoming" | "active" | "completed" | "archived";
+            daily_unlocks_apply: boolean;
+            eligibility_reason: string;
+            grade_publication_separation_note: string;
+        };
+        ReleaseCommunicationsExcludedCounts: {
+            paused: number;
+            dropped: number;
+            completed: number;
+            expired: number;
+            invite_pending: number;
+            archived_user: number;
+            missing_email: number;
+            opted_out: number;
+            cohort_ineligible: number;
+        };
+        ReleaseCommunicationsRecipients: {
+            total_enrollments: number;
+            eligible_active_count: number;
+            excluded: components["schemas"]["ReleaseCommunicationsExcludedCounts"];
+        };
+        ReleaseCommunicationsLesson: {
+            id: number;
+            title: string;
+            module_id: number;
+            module_name: string;
+            lesson_type: string;
+            release_day: number;
+            deep_link: string | null;
+        };
+        ReleaseCommunicationsUpcomingRelease: {
+            release_date: string;
+            scheduled_send_at: string;
+            is_today: boolean;
+            eligible_recipient_count: number;
+            already_claimed_count: number;
+            lessons: components["schemas"]["ReleaseCommunicationsLesson"][];
+        };
+        ReleaseCommunicationsSampleLesson: {
+            id: number;
+            title: string;
+            deep_link: string | null;
+        };
+        ReleaseCommunicationsSamplePreview: {
+            release_date: string;
+            subject: string;
+            from: string | null;
+            headline: string;
+            intro: string;
+            lessons: components["schemas"]["ReleaseCommunicationsSampleLesson"][];
+            cta_label: string;
+            cta_url: string | null;
+            footer: string;
+        };
+        ReleaseCommunicationsDelivery: {
+            date: string;
+            key: string;
+            /** @enum {string} */
+            status: "attempted" | "skipped" | "pending";
+            recipient_count: number;
+            lesson_claim_count: number;
+            attempted_at: string | null;
+            note: string | null;
+        };
+        ReleaseCommunicationsSchedulerHealth: {
+            /** @constant */
+            scope: "school_wide";
+            task_name: string;
+            /** @enum {string} */
+            status: "healthy" | "error" | "skipped" | "never_run";
+            last_run_at: string | null;
+            last_succeeded_at: string | null;
+            last_school_date: string | null;
+            error_class: string | null;
+            note: string;
+        };
+        ReleaseCommunications: {
+            generated_at: string;
+            cohort_id: number;
+            cohort_name: string;
+            configuration: components["schemas"]["ReleaseCommunicationsConfiguration"];
+            recipients: components["schemas"]["ReleaseCommunicationsRecipients"];
+            upcoming_releases: components["schemas"]["ReleaseCommunicationsUpcomingRelease"][];
+            sample_preview: components["schemas"]["ReleaseCommunicationsSamplePreview"] | null;
+            recent_deliveries: components["schemas"]["ReleaseCommunicationsDelivery"][];
+            scheduler_health: components["schemas"]["ReleaseCommunicationsSchedulerHealth"];
+        };
+        CohortReleaseCommunicationsResponse: {
+            release_communications: components["schemas"]["ReleaseCommunications"];
         };
     };
     responses: {

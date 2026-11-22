@@ -6,6 +6,10 @@ import { expect, it, vi } from 'vitest'
 import type { CohortDetail, CohortHome } from '../../../types/api'
 import { Communication } from './Communication'
 
+vi.mock('../../../components/admin/ReleaseCommunicationsPanel', () => ({
+  ReleaseCommunicationsPanel: () => null,
+}))
+
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 it.each(['loading', 'unavailable', 'empty'] as const)(
   'distinguishes %s updates and offers retry on failure',
