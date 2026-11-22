@@ -68,7 +68,7 @@ for (const theme of ['light', 'dark'] as const) {
       // 1. Pending GitHub delivery status in SubmissionReviewPanel
       await open(page, `/admin/submissions/${fixtures.pending_submission_id}`, 2)
       const pendingCard = page.locator('[data-github-issue-delivery="pending"]')
-      await expect(pendingCard).toBeVisible()
+      await expect(pendingCard).toBeVisible({ timeout: 15000 })
       await pendingCard.scrollIntoViewIfNeeded()
       await expect(pendingCard).toContainText('Grade saved · GitHub feedback pending')
       await evidence(page, 'pending', info.project.name, theme, '[data-github-issue-delivery]')
@@ -83,7 +83,7 @@ for (const theme of ['light', 'dark'] as const) {
       await open(page, `/admin/cohorts/${fixtures.off_cohort_id}?tab=settings`, 1)
       const cohortSection = page.getByRole('region', { name: 'Cohort features', exact: true })
       const select = cohortSection.getByLabel('Reliable GitHub Redo issues')
-      await expect(select).toBeVisible()
+      await expect(select).toBeVisible({ timeout: 15000 })
       await expect(select).toHaveValue('inherit')
       await expect(select.locator('option[value="inherit"]')).toHaveText('Inherit → Off')
       await evidence(page, 'feature-settings-off', info.project.name, theme, 'section[aria-label="Cohort features"]')

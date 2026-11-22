@@ -420,6 +420,14 @@ export function SubmissionReviewPanel({
           ))}
         </div>
       )}
+      {submission.github_issue_delivery && (
+        <GithubIssueDeliveryStatus
+          delivery={submission.github_issue_delivery}
+          retrying={retryingDelivery}
+          retryError={retryDeliveryError}
+          onRetry={() => void retryGithubDelivery()}
+        />
+      )}
       {(submission.branch || submission.commit_sha || submission.notes) && (
         <div className="space-y-2 break-words rounded-xl bg-surface-sunken p-3 text-sm text-ink-secondary">
           {submission.branch && <p>Branch: {submission.branch}</p>}
@@ -558,14 +566,6 @@ export function SubmissionReviewPanel({
           </h3>
           <FeedbackBody feedback={submission.feedback} />
         </div>
-      )}
-      {submission.github_issue_delivery && (
-        <GithubIssueDeliveryStatus
-          delivery={submission.github_issue_delivery}
-          retrying={retryingDelivery}
-          retryError={retryDeliveryError}
-          onRetry={() => void retryGithubDelivery()}
-        />
       )}
       <AttemptReview submission={submission} navigationContext={resolvedContext}>
         <fieldset
