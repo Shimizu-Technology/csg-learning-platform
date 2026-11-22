@@ -201,24 +201,54 @@ class ApplySubmissionAudit20261118Test < ActiveSupport::TestCase
   end
 
   [ 356, 57 ].each do |id|
-    test "decision #{id} refuses an unapproved implicit-type sibling in dry run and apply" do
+    test "decision #{id} with an implicit-type sibling preserves the legacy flag across dry run, apply, and rerun" do
       source = @blocks.fetch(id)
-      sibling = source.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Unapproved sibling")
+      sibling = source.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Implicit sibling")
+      before_dry = snapshot
+
+      dry = run_task(apply: false)
+      dry_row = dry[:blocks].find { |item| item[:id] == id }
+      assert_equal "dry_run", dry_row[:status]
+      assert_equal({ before: false, after: false }, dry_row[:lesson_impact][:requires_submission])
+      assert_empty dry_row[:lesson_impact][:sibling_changes]
+      assert_equal before_dry, snapshot
+
+      applied = run_task(apply: true)
+      applied_row = applied[:blocks].find { |item| item[:id] == id }
+      assert_equal "applied", applied_row[:status]
+      assert_equal({ before: false, after: false }, applied_row[:lesson_impact][:requires_submission])
+      assert_empty applied_row[:lesson_impact][:sibling_changes]
+      assert_equal false, source.lesson.reload.requires_submission
+      assert_equal "manual_complete", sibling.reload.effective_submission_type
+
+      after_apply = snapshot
+      rerun = run_task(apply: true)
+      rerun_row = rerun[:blocks].find { |item| item[:id] == id }
+      assert_equal "already_applied", rerun_row[:status]
+      assert_equal after_apply, snapshot
+    end
+  end
+
+  test "refuses a lesson if derived requires_submission would ever flip an unapproved implicit sibling" do
+    source = @blocks.fetch(57)
+    sibling = source.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Unapproved sibling")
+    original = LessonBlockEditor.method(:derived_requires_submission)
+    LessonBlockEditor.define_singleton_method(:derived_requires_submission) { |lesson| lesson.id == source.lesson_id ? true : original.call(lesson) }
+    begin
       before = snapshot
       [ false, true ].each do |apply|
-        result = run_task(apply: apply)
-        row = result[:blocks].find { |item| item[:id] == id }
+        row = run_task(apply: apply)[:blocks].find { |item| item[:id] == 57 }
         assert_equal "refused", row[:status]
         assert_includes row[:reason], "unapproved sibling"
         assert_equal({ before: false, after: true }, row[:lesson_impact][:requires_submission])
         impact = row[:lesson_impact][:sibling_changes].find { |change| change[:id] == sibling.id }
         assert_equal "manual_complete", impact[:before][:effective_types][:default]
         assert_equal "text_submission", impact[:after][:effective_types][:default]
-        refute_equal impact[:before][:content_digest], impact[:after][:content_digest]
       end
-      # Other lessons may apply, but this lesson and its blocks stay unchanged.
       assert_equal before[0].select { |block| block["lesson_id"] == source.lesson_id }, snapshot[0].select { |block| block["lesson_id"] == source.lesson_id }
       assert_equal false, source.lesson.reload.requires_submission
+    ensure
+      LessonBlockEditor.define_singleton_method(:derived_requires_submission, original)
     end
   end
 
@@ -442,17 +472,55 @@ class ApplySubmissionAudit20261118Test < ActiveSupport::TestCase
       assert_empty row[:lesson_impact][:sibling_changes]
     end
 
-    test "current type decision #{id} refuses an implicit sibling when its flag would change" do
+    test "current type decision #{id} preserves an implicit sibling across dry run, apply, and rerun" do
       block = @blocks[id]
       sibling = block.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Implicit work")
-      [ false, true ].each do |apply|
-        row = run_task(apply: apply, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == id }
-        assert_equal "refused", row[:status]
-        assert_includes row[:reason], "unapproved sibling"
-      end
+      before_dry = snapshot
+
+      dry = run_task(apply: false, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == id }
+      assert_equal "dry_run", dry[:status]
+      assert_equal({ before: false, after: false }, dry[:lesson_impact][:requires_submission])
+      assert_empty dry[:lesson_impact][:sibling_changes]
+      assert_equal before_dry, snapshot
+
+      applied = run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == id }
+      assert_equal "applied", applied[:status]
+      assert_equal({ before: false, after: false }, applied[:lesson_impact][:requires_submission])
+      assert_empty applied[:lesson_impact][:sibling_changes]
+      assert_equal false, block.lesson.reload.requires_submission
       assert_equal "manual_complete", sibling.reload.effective_submission_type
-      assert_equal "manual_complete", block.reload.submission_type
+      assert_equal "repo_url_submission", block.reload.submission_type
+
+      after_apply = snapshot
+      rerun = run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == id }
+      assert_equal "already_applied", rerun[:status]
+      assert_equal after_apply, snapshot
     end
+  end
+
+  test "practice review on manual_complete exercise with true legacy flag and implicit sibling reruns cleanly" do
+    block = @blocks[1079]
+    block.update!(block_type: :exercise)
+    block.lesson.update!(requires_submission: true)
+    sibling = block.lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Legacy submission", submission_type: nil)
+    row = @baseline["blocks"].find { |item| item["id"] == block.id }
+    row["content_digest"] = SubmissionAudit.digest(block)
+    row["block_updated_at"] = block.updated_at.iso8601(6)
+    row["lesson_updated_at"] = block.lesson.updated_at.iso8601(6)
+
+    dry = run_task(apply: false, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == block.id }
+    assert_equal "dry_run", dry[:status]
+    assert_equal({ before: true, after: true }, dry[:lesson_impact][:requires_submission])
+
+    applied = run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == block.id }
+    assert_equal "applied", applied[:status]
+    assert block.lesson.reload.requires_submission
+    assert_equal "text_submission", sibling.reload.effective_submission_type
+
+    after_apply = snapshot
+    rerun = run_task(apply: true, runner_class: Ops::ApplySubmissionAudit20261118)[:blocks].find { |item| item[:id] == block.id }
+    assert_equal "already_applied", rerun[:status]
+    assert_equal after_apply, snapshot
   end
 
   test "content projection preserves existing explicit submission enums with a true legacy flag" do

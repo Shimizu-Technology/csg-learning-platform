@@ -554,6 +554,89 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     assert_equal "text_submission", implicit_sibling.reload.effective_submission_type
   end
 
+  test "adding a new manual_complete exercise via /editor protects an existing implicit primary" do
+    @lesson.update!(requires_submission: true)
+    @exercise.update!(submission_type: nil)
+    assert_equal "text_submission", @exercise.effective_submission_type
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: @lesson.reload.updated_at.iso8601(6),
+          title: @lesson.title,
+          requires_submission: false,
+          exercise: {
+            title: "Optional warmup",
+            body: "Try this locally before starting the graded exercise.",
+            submission_type: "manual_complete"
+          }
+        }
+      }, headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert @lesson.reload.requires_submission, "adding a new manual_complete exercise must not strip legacy requires_submission"
+    assert_equal "text_submission", @exercise.reload.effective_submission_type
+    added = @lesson.content_blocks.order(:id).last
+    assert_not_equal @exercise.id, added.id
+    assert_equal "manual_complete", added.submission_type
+    assert_equal "manual_complete", added.effective_submission_type
+  end
+
+  test "flag-only requires_submission update via /editor returns 422 when an implicit sibling exists, while versioned lesson PATCH succeeds" do
+    @lesson.update!(requires_submission: true)
+    @exercise.update!(submission_type: :manual_complete)
+    implicit_sibling = @lesson.content_blocks.create!(block_type: :exercise, position: 4, title: "Legacy submission", submission_type: nil)
+    objective = LearningObjective.create!(curriculum: @curriculum, code: "JS.10", title: "Guard flag", success_criteria: "I can guard the legacy flag.")
+    @lesson.objective_alignments.create!(learning_objective: objective, position: 0)
+    version_before = @lesson.reload.updated_at
+
+    # Bare flag-only request must not silently discard the requested change.
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: version_before.iso8601(6),
+          requires_submission: false
+        }
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_match(/PATCH \/api\/v1\/lessons\/:id/, response.parsed_body.fetch("errors").join(" "))
+    assert_match(/submission_type/, response.parsed_body.fetch("errors").join(" "))
+    assert @lesson.reload.requires_submission
+    assert_equal version_before, @lesson.updated_at
+    assert_equal [ objective.id ], @lesson.objective_alignments.pluck(:learning_objective_id)
+    assert_equal "text_submission", implicit_sibling.reload.effective_submission_type
+
+    # Unchanged lesson/exercise/alignment fields with only requires_submission changed also returns 422.
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: version_before.iso8601(6),
+          title: @lesson.title,
+          required: @lesson.required,
+          requires_submission: false,
+          exercise: { id: @exercise.id, body: @exercise.body, submission_type: "manual_complete" },
+          alignments: [ { learning_objective_id: objective.id, content_block_id: nil } ]
+        }
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert @lesson.reload.requires_submission
+    assert_equal version_before, @lesson.updated_at
+
+    # Explicit versioned lesson PATCH /api/v1/lessons/:id succeeds.
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}", params: {
+        base_updated_at: @lesson.reload.updated_at.iso8601(6),
+        requires_submission: false
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_not @lesson.reload.requires_submission
+    assert_equal "manual_complete", implicit_sibling.reload.effective_submission_type
+  end
+
   private
 
   def user(role, slug)
