@@ -64,11 +64,12 @@ Every lesson starts with YAML frontmatter containing `key`, `title`, `lesson_typ
 
 ### Private staff solutions
 
-Staff answers always land in `solution` and never appear in learner `body`. Supply a block's solution in exactly one of:
+Staff answers always land in `solution` and never appear in learner `body`. Supply a block's solution using **at most one** of the following sources (combining multiple sources for the same block is rejected):
 
 1. An inline `<!-- solution -->` section at the end of the block (optionally closed with `<!-- endsolution -->`).
-2. A private file at `solutions/<lesson-key>/<block-key>.md` (or `solutions/<lesson-key>.md` for single-block lessons).
-3. An explicit relative `solution_file:` path on the block or lesson frontmatter (must stay inside the repository root).
+2. A `solution:` metadata attribute on the block (or on single-block lesson frontmatter).
+3. A private file under `solutions/`: module-scoped `solutions/<module-key>/<lesson-key>/<block-key>.md` (or `solutions/<module-key>/<lesson-key>.md` for single-block lessons), or unscoped `solutions/<lesson-key>/<block-key>.md` / `solutions/<lesson-key>.md` when `lesson-key` is unique across the course.
+4. An explicit relative `solution_file:` path on the block or lesson frontmatter (must stay inside the repository root and cannot point to a discovered lesson file).
 
 ### End-to-end example
 
@@ -138,4 +139,4 @@ scripts/course-package-convert path/to/my-course --dry-run --verify
 cd api && bin/rails 'course_packages:convert_markdown[../path/to/my-course,../python-fundamentals.json]'
 ```
 
-The converter enforces the exact schema-v1 limits (2 MB JSON, 20 modules, 250 lessons, 20 blocks/lesson, 100,000 chars per body/solution, 1–12 rubric criteria, valid `release_day` for `schedule_days`, no media URLs or S3 keys) and emits stable, byte-identical JSON for idempotent re-imports. Treat both the Markdown repo's `solutions/` files and the generated JSON as private staff material.
+The converter enforces the exact schema-v1 limits (2 MB JSON, 20 modules, 250 lessons, 20 blocks/lesson, 100,000 chars per body/solution, 1–12 rubric criteria, valid `release_day` for `schedule_days`, no media URLs or S3 keys) and emits stable, byte-identical JSON for idempotent re-imports. Keep all answer-bearing source files private — including lesson Markdown containing inline `<!-- solution -->` markers or a `solution` metadata/frontmatter field, `solutions/` files, and the generated JSON — and treat them as private staff material.

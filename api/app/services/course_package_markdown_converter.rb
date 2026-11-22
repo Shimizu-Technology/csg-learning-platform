@@ -84,11 +84,15 @@ class CoursePackageMarkdownConverter
   MEDIA_BODY_S3_KEY_PATTERN = /(?:\A|[\s"'`(>=])\/?(?:content_videos|recordings|message_attachments|course_resource_uploads|uploads|videos)\/\S+/i
 
   FRONTMATTER_DELIMITER = /\A---[ \t]*\z/
-  BLOCK_MULTILINE_OPEN = /\A[ \t]*<!--\s*block\s*\z/
-  BLOCK_MULTILINE_CLOSE = /\A[ \t]*-->[ \t]*\z/
-  BLOCK_SINGLE_LINE = /\A[ \t]*<!--\s*block(?::[ \t]*|[ \t]+)(.+?)\s*-->[ \t]*\z/
-  SOLUTION_MARKER = /\A[ \t]*<!--\s*solution\s*-->[ \t]*\z/
-  END_SOLUTION_MARKER = /\A[ \t]*<!--\s*endsolution\s*-->[ \t]*\z/
+  BLOCK_MULTILINE_OPEN = /\A {0,3}<!--\s*block\s*\z/
+  BLOCK_MULTILINE_CLOSE = /\A {0,3}-->[ \t]*\z/
+  BLOCK_SINGLE_LINE = /\A {0,3}<!--\s*block(?::[ \t]*|[ \t]+)(.+?)\s*-->[ \t]*\z/
+  SOLUTION_MARKER = /\A {0,3}<!--\s*solution\s*-->[ \t]*\z/
+  END_SOLUTION_MARKER = /\A {0,3}<!--\s*endsolution\s*-->[ \t]*\z/
+  KV_ATTR_PREFIX = /\A[a-zA-Z_][a-zA-Z0-9_-]*=/
+  YAML_ATTR_PREFIX = /\A(?:[a-zA-Z_][a-zA-Z0-9_-]*|"[^"]+"|'[^']+')\s*:/
+  THEMATIC_BREAK = /\A(?:-[ \t]*){3,}\z|\A(?:\*[ \t]*){3,}\z|\A(?:_[ \t]*){3,}\z/
+  LIST_ITEM_MARKER = /\A([-+*]|\d{1,9}[.)])(?:([ \t]+)(.*)|\z)/
 
   def self.convert(source_dir, output_path: nil, compact: false)
     converter = new(source_dir)
@@ -193,6 +197,8 @@ class CoursePackageMarkdownConverter
       fail_at!("Expected between 1 and #{MAX_MODULES} modules, found #{module_dirs.size}", path: course_rel)
     end
 
+    index_course_lessons!(module_dirs)
+
     modules = []
     seen_module_keys = {}
     total_lessons = 0
@@ -279,6 +285,40 @@ class CoursePackageMarkdownConverter
       .each { |path| ensure_within_root!(path, context_path: relative_path(path)) }
   end
 
+  def index_course_lessons!(module_dirs)
+    @discovered_lesson_realpaths = {}
+    @lesson_key_modules = Hash.new { |h, k| h[k] = [] }
+
+    module_dirs.each do |mod_dir|
+      lesson_files = discover_lesson_files(mod_dir)
+      lesson_files.each do |lesson_path|
+        real = File.realpath(lesson_path)
+        @discovered_lesson_realpaths[real] = relative_path(lesson_path)
+      end
+
+      next if lesson_files.size > MAX_LESSONS
+
+      seen_in_module = {}
+      lesson_files.each do |lesson_path|
+        lesson_key = peek_lesson_key(lesson_path)
+        next unless lesson_key && !seen_in_module.key?(lesson_key)
+
+        seen_in_module[lesson_key] = true
+        @lesson_key_modules[lesson_key] << mod_dir
+      end
+    end
+  end
+
+  def peek_lesson_key(lesson_path)
+    rel = relative_path(lesson_path)
+    content = safe_read_utf8(lesson_path, context_path: rel)
+    frontmatter, = split_frontmatter(content, path: rel)
+    key = frontmatter["key"]
+    key.is_a?(String) && IDENTIFIER.match?(key) ? key : nil
+  rescue Error
+    nil
+  end
+
   def convert_module(mod_dir, default_module_type:)
     manifest_path = find_yaml_manifest(mod_dir, "module")
     mod_data = load_yaml_hash(manifest_path)
@@ -305,7 +345,7 @@ class CoursePackageMarkdownConverter
     lessons = []
     seen_lesson_keys = {}
     lesson_files.each do |lesson_path|
-      lesson = convert_lesson(lesson_path, total_days: total_days, schedule_days: schedule_days)
+      lesson = convert_lesson(lesson_path, module_key: key, total_days: total_days, schedule_days: schedule_days)
       lesson_rel = relative_path(lesson_path)
       if seen_lesson_keys.key?(lesson.fetch("key"))
         fail_at!("Duplicate lesson key '#{lesson.fetch("key")}' (already defined in #{seen_lesson_keys[lesson.fetch("key")]})", path: lesson_rel, line: 1)
@@ -326,7 +366,7 @@ class CoursePackageMarkdownConverter
     result
   end
 
-  def convert_lesson(lesson_path, total_days:, schedule_days:)
+  def convert_lesson(lesson_path, module_key:, total_days:, schedule_days:)
     rel = relative_path(lesson_path)
     content = safe_read_utf8(lesson_path, context_path: rel)
     frontmatter, body_lines, body_start_line = split_frontmatter(content, path: rel)
@@ -342,6 +382,7 @@ class CoursePackageMarkdownConverter
 
     blocks = parse_lesson_blocks(
       frontmatter: frontmatter,
+      module_key: module_key,
       lesson_key: key,
       lesson_type: lesson_type,
       body_lines: body_lines,
@@ -372,7 +413,7 @@ class CoursePackageMarkdownConverter
     }
   end
 
-  def parse_lesson_blocks(frontmatter:, lesson_key:, lesson_type:, body_lines:, body_start_line:, path:)
+  def parse_lesson_blocks(frontmatter:, module_key:, lesson_key:, lesson_type:, body_lines:, body_start_line:, path:)
     sections = parse_body_sections(body_lines, start_line: body_start_line, path: path)
     fm_blocks = frontmatter["blocks"]
     has_markers = sections[:mode] == :multi
@@ -389,12 +430,14 @@ class CoursePackageMarkdownConverter
       build_multi_blocks(
         fm_blocks: fm_blocks,
         sections: sections,
+        module_key: module_key,
         lesson_key: lesson_key,
         path: path
       )
     else
       build_single_block(
         frontmatter: frontmatter,
+        module_key: module_key,
         lesson_key: lesson_key,
         lesson_type: lesson_type,
         section: sections[:single],
@@ -403,7 +446,7 @@ class CoursePackageMarkdownConverter
     end
   end
 
-  def build_single_block(frontmatter:, lesson_key:, lesson_type:, section:, path:)
+  def build_single_block(frontmatter:, module_key:, lesson_key:, lesson_type:, section:, path:)
     attrs = {
       "key" => frontmatter.fetch("block_key", "main"),
       "block_type" => frontmatter.fetch("block_type", DEFAULT_BLOCK_TYPE_FOR_LESSON.fetch(lesson_type))
@@ -420,6 +463,7 @@ class CoursePackageMarkdownConverter
         attrs: attrs,
         inline_body: section[:body],
         inline_solution: section[:solution],
+        module_key: module_key,
         lesson_key: lesson_key,
         single_block_lesson: true,
         path: path,
@@ -428,7 +472,7 @@ class CoursePackageMarkdownConverter
     ]
   end
 
-  def build_multi_blocks(fm_blocks:, sections:, lesson_key:, path:)
+  def build_multi_blocks(fm_blocks:, sections:, module_key:, lesson_key:, path:)
     if sections[:mode] == :single
       # Metadata-only multi-block lesson using frontmatter `blocks:` Array
       unless fm_blocks.is_a?(Array)
@@ -447,6 +491,7 @@ class CoursePackageMarkdownConverter
           attrs: raw_block,
           inline_body: nil,
           inline_solution: nil,
+          module_key: module_key,
           lesson_key: lesson_key,
           single_block_lesson: single_block_lesson,
           path: path,
@@ -472,6 +517,7 @@ class CoursePackageMarkdownConverter
           attrs: merged,
           inline_body: section[:body],
           inline_solution: section[:solution],
+          module_key: module_key,
           lesson_key: lesson_key,
           single_block_lesson: single_block_lesson,
           path: path,
@@ -546,7 +592,7 @@ class CoursePackageMarkdownConverter
     normalized
   end
 
-  def finalize_block(attrs:, inline_body:, inline_solution:, lesson_key:, single_block_lesson:, path:, line:)
+  def finalize_block(attrs:, inline_body:, inline_solution:, module_key:, lesson_key:, single_block_lesson:, path:, line:)
     attrs = normalize_block_type_alias(attrs, path: path, line: line)
     block_type_raw = attrs["block_type"]
     if %w[video recording].include?(block_type_raw) && attrs.key?("url")
@@ -581,6 +627,7 @@ class CoursePackageMarkdownConverter
     solution = resolve_solution(
       attrs: attrs,
       inline_solution: inline_solution,
+      module_key: module_key,
       lesson_key: lesson_key,
       block_key: key,
       single_block_lesson: single_block_lesson,
@@ -603,7 +650,7 @@ class CoursePackageMarkdownConverter
     result
   end
 
-  def resolve_solution(attrs:, inline_solution:, lesson_key:, block_key:, single_block_lesson:, path:, line:)
+  def resolve_solution(attrs:, inline_solution:, module_key:, lesson_key:, block_key:, single_block_lesson:, path:, line:)
     sources = []
 
     unless inline_solution.nil?
@@ -617,20 +664,24 @@ class CoursePackageMarkdownConverter
       sources << [ :attribute, trim_blank_lines(attrs["solution"]) ]
     end
 
+    explicit_real = nil
     if attrs.key?("solution_file") && !attrs["solution_file"].nil?
       sol_path = resolve_explicit_solution_path(attrs["solution_file"], path: path, line: line)
+      explicit_real = File.realpath(sol_path)
       sources << [ :solution_file, trim_blank_lines(safe_read_utf8(sol_path, context_path: path, line: line)) ]
-    else
-      convention_path = find_convention_solution_file(
-        lesson_key: lesson_key,
-        block_key: block_key,
-        single_block_lesson: single_block_lesson,
-        path: path,
-        line: line
-      )
-      if convention_path
-        sources << [ :solutions_dir, trim_blank_lines(safe_read_utf8(convention_path, context_path: path, line: line)) ]
-      end
+    end
+
+    convention_path = find_convention_solution_file(
+      module_key: module_key,
+      lesson_key: lesson_key,
+      block_key: block_key,
+      single_block_lesson: single_block_lesson,
+      path: path,
+      line: line,
+      explicit_real: explicit_real
+    )
+    if convention_path && File.realpath(convention_path) != explicit_real
+      sources << [ :solutions_dir, trim_blank_lines(safe_read_utf8(convention_path, context_path: path, line: line)) ]
     end
 
     if sources.size > 1
@@ -673,15 +724,36 @@ class CoursePackageMarkdownConverter
       fail_at!("Referenced solution_file is not a regular file: #{rel_value}", path: path, line: line)
     end
 
-    ensure_within_root!(candidate, context_path: path, line: line)
+    real = ensure_within_root!(candidate, context_path: path, line: line)
+    reject_discovered_lesson_solution!(real, path: path, line: line)
     candidate
   end
 
-  def find_convention_solution_file(lesson_key:, block_key:, single_block_lesson:, path:, line:)
+  def find_convention_solution_file(module_key:, lesson_key:, block_key:, single_block_lesson:, path:, line:, explicit_real: nil)
     solutions_root = File.join(@root_path, "solutions")
     return nil unless File.directory?(solutions_root)
 
     ensure_within_root!(solutions_root, context_path: "solutions")
+
+    scoped_nested = File.join(solutions_root, module_key, lesson_key, "#{block_key}.md")
+    scoped_flat = File.join(solutions_root, module_key, "#{lesson_key}.md")
+    scoped_nested_exists = File.file?(scoped_nested)
+    scoped_flat_exists = single_block_lesson && File.file?(scoped_flat)
+
+    if scoped_nested_exists && scoped_flat_exists
+      fail_at!(
+        "Ambiguous solution files for '#{module_key}/#{lesson_key}/#{block_key}': both solutions/#{module_key}/#{lesson_key}.md and solutions/#{module_key}/#{lesson_key}/#{block_key}.md exist",
+        path: path,
+        line: line
+      )
+    end
+
+    if scoped_nested_exists || scoped_flat_exists
+      chosen = scoped_nested_exists ? scoped_nested : scoped_flat
+      chosen_real = ensure_within_root!(chosen, context_path: path, line: line)
+      reject_discovered_lesson_solution!(chosen_real, path: path, line: line)
+      return chosen
+    end
 
     nested = File.join(solutions_root, lesson_key, "#{block_key}.md")
     flat = File.join(solutions_root, "#{lesson_key}.md")
@@ -698,8 +770,35 @@ class CoursePackageMarkdownConverter
     end
 
     chosen = nested_exists ? nested : (flat_exists ? flat : nil)
-    ensure_within_root!(chosen, context_path: path, line: line) if chosen
+    return nil unless chosen
+
+    chosen_real = ensure_within_root!(chosen, context_path: path, line: line)
+    reject_discovered_lesson_solution!(chosen_real, path: path, line: line)
+    if ambiguous_lesson_key?(lesson_key) && chosen_real != explicit_real
+      scoped_hint = single_block_lesson ? "solutions/#{module_key}/#{lesson_key}.md or solutions/#{module_key}/#{lesson_key}/#{block_key}.md" : "solutions/#{module_key}/#{lesson_key}/#{block_key}.md"
+      fail_at!(
+        "Ambiguous convention solution '#{relative_path(chosen)}' for lesson '#{lesson_key}' (defined in multiple modules); use #{scoped_hint} or an explicit solution_file",
+        path: path,
+        line: line
+      )
+    end
+
     chosen
+  end
+
+  def ambiguous_lesson_key?(lesson_key)
+    (@lesson_key_modules&.fetch(lesson_key, nil)&.size || 0) > 1
+  end
+
+  def reject_discovered_lesson_solution!(real_path, path:, line:)
+    lesson_rel = @discovered_lesson_realpaths&.[](real_path)
+    return unless lesson_rel
+
+    fail_at!(
+      "solution_file cannot reference a discovered lesson file (#{lesson_rel})",
+      path: path,
+      line: line
+    )
   end
 
   def parse_body_sections(lines, start_line:, path:)
@@ -712,6 +811,8 @@ class CoursePackageMarkdownConverter
     fence_char = nil
     fence_len = 0
     fence_line = nil
+    fence_base_indent = 0
+    list_indents = []
 
     idx = 0
     while idx < lines.length
@@ -719,18 +820,19 @@ class CoursePackageMarkdownConverter
       line_no = start_line + idx
 
       if fence_char
-        if closing_fence?(line, fence_char, fence_len)
+        if closing_fence?(line, fence_char, fence_len, fence_base_indent)
           fence_char = nil
           fence_len = 0
           fence_line = nil
+          fence_base_indent = 0
         end
         append_content_line!(line, current_block: current_block, preamble_lines: preamble_lines, single_solution_lines: single_solution_lines, single_state: single_state, path: path, line_no: line_no)
         idx += 1
         next
       end
 
-      if (fence = opening_fence(line))
-        fence_char, fence_len = fence
+      if (fence = update_list_containers_and_detect_fence(line, list_indents))
+        fence_char, fence_len, fence_base_indent = fence
         fence_line = line_no
         append_content_line!(line, current_block: current_block, preamble_lines: preamble_lines, single_solution_lines: single_solution_lines, single_state: single_state, path: path, line_no: line_no)
         idx += 1
@@ -738,6 +840,7 @@ class CoursePackageMarkdownConverter
       end
 
       if BLOCK_MULTILINE_OPEN.match?(line)
+        list_indents.clear
         ensure_empty_preamble!(preamble_lines, single_solution_lines, path: path, line: line_no) if blocks.empty?
         yaml_lines = []
         open_line = line_no
@@ -761,6 +864,7 @@ class CoursePackageMarkdownConverter
       end
 
       if (match = BLOCK_SINGLE_LINE.match(line))
+        list_indents.clear
         ensure_empty_preamble!(preamble_lines, single_solution_lines, path: path, line: line_no) if blocks.empty?
         attrs = parse_inline_block_attrs(match[1], path: path, line: line_no)
         current_block = { attrs: attrs, body_lines: [], solution_lines: nil, state: :body, line: line_no }
@@ -770,6 +874,7 @@ class CoursePackageMarkdownConverter
       end
 
       if SOLUTION_MARKER.match?(line)
+        list_indents.clear
         if current_block
           fail_at!("Duplicate <!-- solution --> marker in the same block", path: path, line: line_no) unless current_block[:state] == :body
           current_block[:state] = :solution
@@ -784,6 +889,7 @@ class CoursePackageMarkdownConverter
       end
 
       if END_SOLUTION_MARKER.match?(line)
+        list_indents.clear
         if current_block
           fail_at!("Unexpected <!-- endsolution --> without a matching <!-- solution -->", path: path, line: line_no) unless current_block[:state] == :solution
           current_block[:state] = :after_solution
@@ -860,8 +966,65 @@ class CoursePackageMarkdownConverter
     fail_at!("Content before the first <!-- block ... --> marker is not allowed in a multi-block lesson", path: path, line: line)
   end
 
-  def opening_fence(line)
-    match = /\A {0,3}(`{3,}|~{3,})(.*)\z/.match(line)
+  def update_list_containers_and_detect_fence(line, list_indents)
+    return nil if line.match?(/\A[ \t]*\z/)
+
+    cols, rest = split_leading_whitespace(line)
+    list_indents.pop while list_indents.any? && cols < list_indents.last
+
+    loop do
+      base_indent = list_indents.last || 0
+      rel_indent = cols - base_indent
+      return nil unless rel_indent >= 0 && rel_indent <= 3
+
+      if (fence = opening_fence_at_content(rest))
+        return [ fence[0], fence[1], base_indent ]
+      end
+
+      break if THEMATIC_BREAK.match?(rest)
+
+      list_match = LIST_ITEM_MARKER.match(rest)
+      break unless list_match
+
+      marker = list_match[1]
+      sep = list_match[2]
+      after = list_match[3] || ""
+      after_marker_col = cols + marker.length
+
+      if sep.nil? || after.empty?
+        list_indents << (after_marker_col + 1)
+        return nil
+      end
+
+      sep_end_col = advance_columns(after_marker_col, sep)
+      if (sep_end_col - after_marker_col) > 4
+        list_indents << (after_marker_col + 1)
+        return nil
+      end
+
+      list_indents << sep_end_col
+      cols = sep_end_col
+      rest = after
+    end
+
+    nil
+  end
+
+  def split_leading_whitespace(line)
+    match = /\A([ \t]*)(.*)\z/.match(line)
+    [ advance_columns(0, match[1]), match[2] ]
+  end
+
+  def advance_columns(start_col, whitespace)
+    col = start_col
+    whitespace.each_byte do |byte|
+      col = (byte == 9) ? (col + 4 - (col % 4)) : (col + 1)
+    end
+    col
+  end
+
+  def opening_fence_at_content(rest)
+    match = /\A(`{3,}|~{3,})(.*)\z/.match(rest)
     return nil unless match
 
     marker = match[1]
@@ -872,8 +1035,12 @@ class CoursePackageMarkdownConverter
     [ char, marker.length ]
   end
 
-  def closing_fence?(line, fence_char, fence_len)
-    /\A {0,3}#{Regexp.escape(fence_char)}{#{fence_len},}[ \t]*\z/.match?(line)
+  def closing_fence?(line, fence_char, fence_len, fence_base_indent = 0)
+    cols, rest = split_leading_whitespace(line)
+    rel_indent = cols - fence_base_indent
+    return false unless rel_indent >= 0 && rel_indent <= 3
+
+    /\A#{Regexp.escape(fence_char)}{#{fence_len},}[ \t]*\z/.match?(rest)
   end
 
   def parse_inline_block_attrs(payload, path:, line:)
@@ -882,9 +1049,9 @@ class CoursePackageMarkdownConverter
       return { "key" => trimmed }
     end
 
-    if trimmed.include?("=")
+    if KV_ATTR_PREFIX.match?(trimmed)
       parse_kv_attrs(trimmed, path: path, line: line)
-    elsif trimmed.include?(":")
+    elsif YAML_ATTR_PREFIX.match?(trimmed)
       parse_yaml_mapping("{#{trimmed}}", path: path, line: line)
     else
       fail_at!("Invalid <!-- block ... --> syntax: #{trimmed.inspect} (expected key=value pairs, YAML, or a block key)", path: path, line: line)

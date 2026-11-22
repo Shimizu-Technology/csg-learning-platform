@@ -8,7 +8,7 @@ class CoursePackageImporter
   IDENTIFIER = /\A[a-z0-9][a-z0-9-]{0,79}\z/
   TEXT_LIMIT = 100_000
   MEDIA_BLOCK_TYPES = %w[video recording].freeze
-  MEDIA_BODY_S3_URI_PATTERN = /\bs3:\/\//i
+  MEDIA_BODY_URI_PATTERN = /\b(?:https?|s3):\/\//i
   MEDIA_BODY_S3_KEY_PATTERN = /(?:\A|[\s"'`(>=])\/?(?:content_videos|recordings|message_attachments|course_resource_uploads|uploads|videos)\/\S+/i
 
   def initialize(package)
@@ -207,7 +207,7 @@ class CoursePackageImporter
           text!(block["filename"], 160)
           validate_rubric!(block["rubric"]) if block.key?("rubric")
           fail_with("Media must be attached through the normal upload flow") if block.keys.any? { |key| key.match?(/video|s3|media_url/i) }
-          if MEDIA_BLOCK_TYPES.include?(block["block_type"]) && media_s3_reference_in_body?(block["body"])
+          if MEDIA_BLOCK_TYPES.include?(block["block_type"]) && media_reference_in_body?(block["body"])
             fail_with("Media must be attached through the normal upload flow")
           end
         end
@@ -232,10 +232,10 @@ class CoursePackageImporter
     package.merge("modules" => canonical_modules)
   end
 
-  def media_s3_reference_in_body?(body)
+  def media_reference_in_body?(body)
     return false unless body.is_a?(String) && !body.empty?
 
-    MEDIA_BODY_S3_URI_PATTERN.match?(body) || MEDIA_BODY_S3_KEY_PATTERN.match?(body)
+    MEDIA_BODY_URI_PATTERN.match?(body) || MEDIA_BODY_S3_KEY_PATTERN.match?(body)
   end
 
   def validate_rubric!(rubric)

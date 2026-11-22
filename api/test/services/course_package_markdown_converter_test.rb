@@ -1,5 +1,6 @@
 require "test_helper"
 require "open3"
+require "rbconfig"
 require "tmpdir"
 
 class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
@@ -7,6 +8,7 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
     assert_equal CoursePackageImporter::MAX_BYTES, CoursePackageMarkdownConverter::MAX_BYTES
     assert_equal CoursePackageImporter::IDENTIFIER, CoursePackageMarkdownConverter::IDENTIFIER
     assert_equal CoursePackageImporter::TEXT_LIMIT, CoursePackageMarkdownConverter::TEXT_LIMIT
+    assert_equal CoursePackageImporter::MEDIA_BODY_URI_PATTERN, CoursePackageMarkdownConverter::MEDIA_BODY_URI_PATTERN
     assert_equal CoursePackageImporter::MEDIA_BODY_S3_KEY_PATTERN, CoursePackageMarkdownConverter::MEDIA_BODY_S3_KEY_PATTERN
     assert_equal CurriculumModule::SCHEDULE_PATTERNS, CoursePackageMarkdownConverter::SCHEDULE_PATTERNS
     assert_equal CurriculumModule.module_types.keys.sort, CoursePackageMarkdownConverter::MODULE_TYPES.sort
@@ -479,7 +481,7 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
       Dir.mktmpdir do |out_dir|
         output_file = File.join(out_dir, "package.json")
 
-        stdout, stderr, status = Open3.capture3(cli, dir, "-o", output_file)
+        stdout, stderr, status = Open3.capture3(RbConfig.ruby, cli, dir, "-o", output_file)
         assert status.success?, "CLI failed: #{stderr}\n#{stdout}"
         assert File.file?(output_file)
         assert_includes stderr, "Wrote #{output_file}"
@@ -488,15 +490,34 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
         assert_equal "python-fundamentals", parsed["key"]
         assert_equal CoursePackageMarkdownConverter.new(dir).to_json, File.read(output_file)
 
-        dry_stdout, dry_stderr, dry_status = Open3.capture3(cli, dir, "--dry-run")
+        dry_stdout, dry_stderr, dry_status = Open3.capture3(RbConfig.ruby, cli, dir, "--dry-run")
         assert dry_status.success?, "Dry-run failed: #{dry_stderr}"
         assert_includes dry_stdout, "Valid course package: python-fundamentals"
         assert_includes dry_stdout, "Modules: 2, Lessons: 4, Blocks: 7"
+        assert_includes dry_stdout, "Verified with CoursePackageImporter: no (pass --verify to run)"
+
+        unused_output = File.join(out_dir, "dry-run-unused.json")
+        verify_stdout, verify_stderr, verify_status = Open3.capture3(
+          RbConfig.ruby, cli, dir, "--dry-run", "--verify", "-o", unused_output
+        )
+        assert verify_status.success?, "Dry-run --verify failed: #{verify_stderr}\n#{verify_stdout}"
+        assert_includes verify_stdout, "Valid course package: python-fundamentals"
+        assert_includes verify_stdout, "Verified with CoursePackageImporter: yes"
+        refute File.exist?(unused_output), "Dry-run --verify must not create the -o output file"
+
+        existing_output = File.join(out_dir, "existing.json")
+        File.write(existing_output, "ORIGINAL_SENTINEL\n")
+        existing_stdout, existing_stderr, existing_status = Open3.capture3(
+          RbConfig.ruby, cli, dir, "--dry-run", "--verify", "-o", existing_output
+        )
+        assert existing_status.success?, "Dry-run --verify with existing output failed: #{existing_stderr}\n#{existing_stdout}"
+        assert_includes existing_stdout, "Verified with CoursePackageImporter: yes"
+        assert_equal "ORIGINAL_SENTINEL\n", File.read(existing_output), "Dry-run --verify must not modify an existing -o output file"
       end
     end
 
     Dir.mktmpdir do |empty_dir|
-      _stdout, stderr, status = Open3.capture3(cli, empty_dir, "--dry-run")
+      _stdout, stderr, status = Open3.capture3(RbConfig.ruby, cli, empty_dir, "--dry-run")
       refute status.success?
       assert_includes stderr, "Missing course.yml"
     end
@@ -749,13 +770,362 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
 
     cli = Rails.root.join("..", "scripts", "course-package-convert").to_s
     [ [ "--dry-run=yes", "." ], [ "--compact=true", "." ], [ "--unknown-flag", "." ] ].each do |args|
-      _stdout, stderr, status = Open3.capture3(cli, *args)
+      _stdout, stderr, status = Open3.capture3(RbConfig.ruby, cli, *args)
       refute status.success?
       assert_equal 2, status.exitstatus
       assert_includes stderr, "Error:"
       assert_includes stderr, "Usage: scripts/course-package-convert"
       refute_includes stderr, "OptionParser::"
       refute_includes stderr, ".rb:"
+    end
+  end
+
+  test "disambiguates convention-based solutions across modules with module-scoped paths and rejects ambiguous unscoped fallback" do
+    # 1. Module-scoped convention paths resolve cleanly for both multi-block and single-block lessons sharing a lesson_key
+    Dir.mktmpdir do |dir|
+      write_repo_file(dir, "course.yml", <<~YAML)
+        key: multi-mod-course
+        revision: "2026-10-04"
+        title: Multi Module Course
+        total_weeks: 2
+      YAML
+
+      write_repo_file(dir, "modules/01-alpha/module.yml", <<~YAML)
+        key: alpha
+        title: Alpha
+        total_days: 7
+        schedule_days: daily
+      YAML
+      write_repo_file(dir, "modules/01-alpha/01-intro.md", minimal_lesson(key: "intro"))
+      write_repo_file(dir, "modules/01-alpha/02-lab.md", <<~MD)
+        ---
+        key: lab
+        title: Alpha Lab
+        lesson_type: exercise
+        release_day: 1
+        required: true
+        ---
+
+        <!-- block key=part-a type=exercise -->
+        Alpha part A
+      MD
+
+      write_repo_file(dir, "modules/02-beta/module.yml", <<~YAML)
+        key: beta
+        title: Beta
+        total_days: 7
+        schedule_days: daily
+      YAML
+      write_repo_file(dir, "modules/02-beta/01-intro.md", minimal_lesson(key: "intro"))
+      write_repo_file(dir, "modules/02-beta/02-lab.md", <<~MD)
+        ---
+        key: lab
+        title: Beta Lab
+        lesson_type: exercise
+        release_day: 1
+        required: true
+        ---
+
+        <!-- block key=part-a type=exercise -->
+        Beta part A
+      MD
+
+      write_repo_file(dir, "solutions/alpha/intro.md", "Alpha intro answer\n")
+      write_repo_file(dir, "solutions/beta/intro.md", "Beta intro answer\n")
+      write_repo_file(dir, "solutions/alpha/lab/part-a.md", "Alpha lab answer\n")
+      write_repo_file(dir, "solutions/beta/lab/part-a.md", "Beta lab answer\n")
+
+      package = CoursePackageMarkdownConverter.new(dir).call
+      assert_equal "Alpha intro answer", package.dig("modules", 0, "lessons", 0, "blocks", 0, "solution")
+      assert_equal "Alpha lab answer", package.dig("modules", 0, "lessons", 1, "blocks", 0, "solution")
+      assert_equal "Beta intro answer", package.dig("modules", 1, "lessons", 0, "blocks", 0, "solution")
+      assert_equal "Beta lab answer", package.dig("modules", 1, "lessons", 1, "blocks", 0, "solution")
+    end
+
+    # 2. Unscoped convention file when multiple modules define the same lesson_key is rejected
+    Dir.mktmpdir do |dir|
+      write_repo_file(dir, "course.yml", <<~YAML)
+        key: ambiguous-sol-course
+        revision: "2026-10-04"
+        title: Ambiguous Solution Course
+        total_weeks: 2
+      YAML
+
+      write_repo_file(dir, "modules/01-alpha/module.yml", <<~YAML)
+        key: alpha
+        title: Alpha
+        total_days: 7
+        schedule_days: daily
+      YAML
+      write_repo_file(dir, "modules/01-alpha/01-intro.md", minimal_lesson(key: "intro"))
+
+      write_repo_file(dir, "modules/02-beta/module.yml", <<~YAML)
+        key: beta
+        title: Beta
+        total_days: 7
+        schedule_days: daily
+      YAML
+      write_repo_file(dir, "modules/02-beta/01-intro.md", minimal_lesson(key: "intro"))
+
+      write_repo_file(dir, "solutions/intro/main.md", "Shared answer that could collide\n")
+
+      error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes error.message, "Ambiguous convention solution"
+      assert_includes error.message, "solutions/alpha/intro"
+      assert_includes error.message, "solution_file"
+    end
+  end
+
+  test "keeps markers inside fences indented under ordered and bullet list items literal" do
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      write_repo_file(dir, "modules/01-core/01-ordered-list-fence.md", <<~MD)
+        ---
+        key: ordered-fence
+        title: Ordered List Fence
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        ---
+
+        10. Show how inline solution markers look in Markdown:
+
+            ```markdown
+            <!-- block key=fake type=text -->
+            <!-- solution -->
+            Example answer inside list-item fence
+            <!-- endsolution -->
+            ```
+
+            Keep this learner text after the fence in the learner body.
+
+        <!-- solution -->
+        Real staff solution for ordered-fence.
+      MD
+
+      write_repo_file(dir, "modules/01-core/02-list-fence-no-real-sol.md", <<~MD)
+        ---
+        key: ordered-fence-no-sol
+        title: Ordered List Fence Without Solution
+        lesson_type: reading
+        release_day: 0
+        required: true
+        ---
+
+        10. Example without a real solution below:
+
+            ```markdown
+            <!-- solution -->
+            Not a real solution
+            ```
+
+        Learner closing paragraph must stay in body.
+
+        - Bullet item with fence:
+
+          ~~~markdown
+          <!-- solution -->
+          ~~~
+
+        Top-level indented code block with literal backticks does not open a fence:
+
+            ```not-a-fence
+            still indented code
+      MD
+
+      package = CoursePackageMarkdownConverter.new(dir).call
+      lessons = package.dig("modules", 0, "lessons")
+
+      first_block = lessons[0].dig("blocks", 0)
+      assert_includes first_block["body"], "<!-- solution -->"
+      assert_includes first_block["body"], "<!-- block key=fake type=text -->"
+      assert_includes first_block["body"], "Keep this learner text after the fence in the learner body."
+      assert_equal "Real staff solution for ordered-fence.", first_block["solution"]
+      refute_includes first_block["body"], "Real staff solution for ordered-fence."
+
+      second_block = lessons[1].dig("blocks", 0)
+      assert_includes second_block["body"], "<!-- solution -->"
+      assert_includes second_block["body"], "Learner closing paragraph must stay in body."
+      assert_nil second_block["solution"]
+    end
+
+    # Unclosed fence inside a 10. ordered-list item is still rejected as unterminated
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      write_repo_file(dir, "modules/01-core/01-unclosed-list-fence.md", <<~MD)
+        ---
+        key: unclosed-list-fence
+        title: Unclosed List Fence
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        ---
+
+        10. Forgot to close fence:
+
+            ```markdown
+            <!-- solution -->
+            Secret that must not leak
+      MD
+
+      error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes error.message, "Unterminated fenced code block"
+    end
+  end
+
+  test "rejects explicit solution_file that points to a discovered lesson file" do
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      write_repo_file(dir, "modules/01-core/01-exercise.md", <<~MD)
+        ---
+        key: ex-one
+        title: Exercise One
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        solution_file: modules/01-core/02-answer-lesson.md
+        ---
+        Solve this.
+      MD
+      write_repo_file(dir, "modules/01-core/02-answer-lesson.md", minimal_lesson(key: "answer-lesson"))
+
+      error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes error.message, "solution_file cannot reference a discovered lesson file"
+      assert_includes error.message, "modules/01-core/02-answer-lesson.md"
+
+      # Symlink pointing to a discovered lesson file is also caught via canonical path
+      FileUtils.mkdir_p(File.join(dir, "solutions"))
+      File.symlink(
+        File.join(dir, "modules/01-core/02-answer-lesson.md"),
+        File.join(dir, "solutions/alias-to-lesson.md")
+      )
+      write_repo_file(dir, "modules/01-core/01-exercise.md", <<~MD)
+        ---
+        key: ex-one
+        title: Exercise One
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        solution_file: solutions/alias-to-lesson.md
+        ---
+        Solve this.
+      MD
+
+      sym_error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes sym_error.message, "solution_file cannot reference a discovered lesson file"
+
+      # Explicit solution_file outside lesson discovery remains valid
+      write_repo_file(dir, "private/ex-one-answer.md", "Private external solution\n")
+      write_repo_file(dir, "modules/01-core/01-exercise.md", <<~MD)
+        ---
+        key: ex-one
+        title: Exercise One
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        solution_file: private/ex-one-answer.md
+        ---
+        Solve this.
+      MD
+
+      package = CoursePackageMarkdownConverter.new(dir).call
+      assert_equal "Private external solution", package.dig("modules", 0, "lessons", 0, "blocks", 0, "solution")
+    end
+  end
+
+  test "rejects distinct explicit solution_file and convention-based solution file while allowing either alone" do
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      write_repo_file(dir, "modules/01-core/01-ex.md", <<~MD)
+        ---
+        key: dual-sol
+        title: Dual Solution
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        solution_file: solutions/custom-answer.md
+        ---
+        Prompt
+      MD
+      write_repo_file(dir, "solutions/custom-answer.md", "Explicit answer\n")
+      write_repo_file(dir, "solutions/dual-sol.md", "Convention answer\n")
+
+      error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes error.message, "Conflicting solution sources (solution_file and solutions_dir)"
+
+      # Explicit solution_file pointing to the exact same file as convention path is allowed
+      write_repo_file(dir, "modules/01-core/01-ex.md", <<~MD)
+        ---
+        key: dual-sol
+        title: Dual Solution
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        solution_file: solutions/dual-sol.md
+        ---
+        Prompt
+      MD
+      same_pkg = CoursePackageMarkdownConverter.new(dir).call
+      assert_equal "Convention answer", same_pkg.dig("modules", 0, "lessons", 0, "blocks", 0, "solution")
+
+      # Explicit-only works when convention file does not exist
+      File.unlink(File.join(dir, "solutions/dual-sol.md"))
+      write_repo_file(dir, "modules/01-core/01-ex.md", <<~MD)
+        ---
+        key: dual-sol
+        title: Dual Solution
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        solution_file: solutions/custom-answer.md
+        ---
+        Prompt
+      MD
+      explicit_pkg = CoursePackageMarkdownConverter.new(dir).call
+      assert_equal "Explicit answer", explicit_pkg.dig("modules", 0, "lessons", 0, "blocks", 0, "solution")
+    end
+  end
+
+  test "dispatches inline YAML vs key=value block attributes by first separator even when quoted values contain = or :" do
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      write_repo_file(dir, "modules/01-core/01-inline-attrs.md", <<~MD)
+        ---
+        key: inline-attrs
+        title: Inline Attrs
+        lesson_type: reading
+        release_day: 0
+        required: true
+        ---
+
+        <!-- block key: intro, type: text, title: "a=b" -->
+        YAML inline block with equals in title.
+
+        <!-- block key=summary type=text title="part: 2" -->
+        KV inline block with colon in title.
+      MD
+
+      package = CoursePackageMarkdownConverter.new(dir).call
+      blocks = package.dig("modules", 0, "lessons", 0, "blocks")
+      assert_equal 2, blocks.size
+
+      assert_equal "intro", blocks[0]["key"]
+      assert_equal "text", blocks[0]["block_type"]
+      assert_equal "a=b", blocks[0]["title"]
+
+      assert_equal "summary", blocks[1]["key"]
+      assert_equal "text", blocks[1]["block_type"]
+      assert_equal "part: 2", blocks[1]["title"]
     end
   end
 

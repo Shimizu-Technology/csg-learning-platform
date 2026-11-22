@@ -221,14 +221,17 @@ class CoursePackageImporterTest < ActiveSupport::TestCase
     assert rec_curriculum.modules.first.reload.prework?
   end
 
-  test "rejects app-managed S3 keys and s3 URIs in video and recording block bodies" do
+  test "rejects app-managed S3 keys, s3 URIs, and HTTP(S) URLs in video and recording block bodies" do
     managed_values = [
       "content_videos/550e8400-e29b-41d4-a716-446655440000/lesson.mp4",
       "content_videos/block_12/20261004120000_clip.mp4",
       "recordings/cohort_4/20261004120000_deadbeef_session.mp4",
       "message_attachments/dm_9/550e8400-e29b-41d4-a716-446655440000/file.png",
       "course_resource_uploads/curriculum_2/token/archive.zip",
-      "s3://csg-bucket/content_videos/clip.mp4"
+      "s3://csg-bucket/content_videos/clip.mp4",
+      "https://vimeo.com/123456",
+      "http://cdn.example.com/lesson.mp4",
+      "Watch at https://example.com/watch?v=1"
     ]
 
     %w[video recording].each do |block_type|
@@ -238,12 +241,20 @@ class CoursePackageImporterTest < ActiveSupport::TestCase
         bad["modules"][0]["lessons"][0]["blocks"][0]["body"] = value
         assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(bad).call }
       end
+
+      # Empty placeholders remain valid
+      placeholder = package
+      placeholder["key"] = "#{block_type}-placeholder"
+      placeholder["modules"][0]["lessons"][0]["blocks"][0]["block_type"] = block_type
+      placeholder["modules"][0]["lessons"][0]["blocks"][0]["body"] = ""
+      assert_equal 2, CoursePackageImporter.new(placeholder).preview[:lessons]
     end
 
-    # Teaching text blocks referencing example paths remain allowed
+    # Teaching text, exercise, and checkpoint blocks referencing paths or HTTP(S) URLs remain allowed
     text_pkg = package
-    text_pkg["key"] = "text-block-paths"
-    text_pkg["modules"][0]["lessons"][0]["blocks"][1]["body"] = "API endpoint: GET /recordings/123"
-    assert CoursePackageImporter.new(text_pkg).preview[:lessons] == 2
+    text_pkg["key"] = "text-block-paths-and-urls"
+    text_pkg["modules"][0]["lessons"][0]["blocks"][1]["body"] = "API endpoint: GET /recordings/123 and docs at https://docs.python.org/3/"
+    text_pkg["modules"][0]["lessons"][1]["blocks"][0]["body"] = "Submit your repo at https://github.com/example/starter"
+    assert_equal 2, CoursePackageImporter.new(text_pkg).preview[:lessons]
   end
 end
