@@ -6,7 +6,7 @@ import type { GradingQueueResponse } from '../types/api'
 export const GRADING_QUEUE_PAGE_SIZE = 50
 
 export type GradingQueueRequest = Required<Pick<GradingQueueParams, 'filter' | 'sort'>> &
-  Pick<GradingQueueParams, 'cohort_id' | 'module_id' | 'student_id' | 'lesson_id'> & { page: number }
+  Pick<GradingQueueParams, 'cohort_id' | 'module_id' | 'student_id' | 'lesson_id' | 'suggestion_outcome'> & { page: number }
 
 /**
  * One page of the Grading workbench's queue (GET /grading_queue). The page, the counts and

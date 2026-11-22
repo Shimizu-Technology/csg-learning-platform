@@ -23,6 +23,7 @@ module Api
           module_id: cohort ? moved_content_id("CurriculumModule", params[:module_id], cohort_id: cohort.id) : params[:module_id],
           student_id: params[:student_id],
           lesson_id: cohort ? moved_content_id("Lesson", params[:lesson_id], cohort_id: cohort.id) : params[:lesson_id],
+          suggestion_outcome: params[:suggestion_outcome],
           sort: params[:sort],
           page: params[:page],
           per_page: params[:per_page],

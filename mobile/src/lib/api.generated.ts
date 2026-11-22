@@ -717,7 +717,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SubmissionGradeInput"];
+                };
+            };
             responses: {
                 /** @description Successful response */
                 200: {
@@ -730,6 +734,64 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/submissions/{submission_id}/github_checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    submission_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubChecksResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    submission_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubChecksResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/submissions/{id}/retry_github_issue": {
@@ -4488,6 +4550,8 @@ export interface paths {
                     module_id?: number;
                     student_id?: number;
                     lesson_id?: number;
+                    /** @description Filter to latest submissions with a matching automated grade suggestion in opted-in cohorts. */
+                    suggestion_outcome?: "suggest_b" | "review_for_redo" | "no_suggestion" | "stale_evidence";
                     /** @description oldest (default) or newest first; ids break ties. */
                     sort?: "oldest" | "newest";
                     /** @description 1-based; past the end serves the last page. */
@@ -6948,6 +7012,8 @@ export interface components {
             };
             evaluated_at: string;
             stale_for_current_policy: boolean;
+            /** @description True when check evidence is stale because of outcome, policy change, superseded attempt, or commit SHA mismatch. */
+            stale?: boolean;
             /** @enum {string|null} */
             decision: "accepted" | "overridden" | "dismissed" | null;
             override_reason: string | null;
@@ -6957,6 +7023,31 @@ export interface components {
         };
         EvaluateGradeSuggestionResponse: {
             grade_suggestion: components["schemas"]["SubmissionGradeSuggestion"];
+        };
+        SubmissionGradeInput: {
+            /** @enum {string} */
+            grade: "A" | "B" | "C" | "R";
+            /** @description ISO 8601 submission updated_at timestamp for optimistic concurrency. */
+            base_submission_updated_at: string;
+            feedback?: string | null;
+            criterion_results?: {
+                rubric_criterion_id: number;
+                /** @enum {string} */
+                rating: "exceeds" | "meets" | "developing" | "redo";
+                feedback?: string | null;
+            }[];
+            /**
+             * @description Optional explicit decision on an active grade suggestion; must be dismissed or match the computed decision for the saved grade.
+             * @enum {string|null}
+             */
+            suggestion_decision?: "accepted" | "overridden" | "dismissed" | null;
+            /** @description Optional single-line note explaining why the saved grade differs from the automated check suggestion. */
+            suggestion_override_reason?: string | null;
+        };
+        GithubChecksResponse: {
+            github_checks: components["schemas"]["GithubChecks"];
+            /** @description Present on staff check refreshes when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists. */
+            grade_suggestion?: components["schemas"]["SubmissionGradeSuggestion"];
         };
         GithubIssueDelivery: {
             /** @enum {string} */
@@ -7021,6 +7112,8 @@ export interface components {
             github_checks?: components["schemas"]["GithubChecks"];
             /** @description Present for staff when a durable GitHub issue delivery exists for this submission. */
             github_issue_delivery?: components["schemas"]["GithubIssueDelivery"];
+            /** @description Present only for staff when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists. */
+            grade_suggestion?: components["schemas"]["SubmissionGradeSuggestion"];
             cohort_name: string | null;
             /** @enum {string|null} */
             course_delivery: "program" | "guided" | "self_paced" | null;
@@ -9198,6 +9291,8 @@ export interface components {
                 expected_by: string;
                 overdue: boolean;
             };
+            /** @description Present only when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists. */
+            grade_suggestion?: components["schemas"]["SubmissionGradeSuggestion"];
         };
         /** @description Status chip counts inside the module, student and lesson filters. */
         GradingQueueCounts: {

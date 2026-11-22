@@ -634,6 +634,8 @@ export type SubmissionBrief = components['schemas']['SubmissionBrief'];
 
 export type GithubIssueDelivery = components['schemas']['GithubIssueDelivery'];
 
+export type SubmissionGradeSuggestion = components['schemas']['SubmissionGradeSuggestion'];
+
 export type Submission = components['schemas']['Submission'];
 
 export type GithubCheckRun = components['schemas']['GithubCheckRun'];
@@ -986,7 +988,7 @@ export interface LearningInsights {
 }
 
 export interface LearningInsightsResponse { learning_insights: LearningInsights }
-export interface GithubChecksResponse { github_checks: GithubChecks }
+export type GithubChecksResponse = components['schemas']['GithubChecksResponse'];
 
 // ─── API Response wrappers ───────────────────────────────────────────────────
 

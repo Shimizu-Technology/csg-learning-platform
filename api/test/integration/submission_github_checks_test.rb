@@ -39,6 +39,79 @@ class SubmissionGithubChecksTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "POST /github_checks returns refreshed grade_suggestion for staff on opted-in cohorts and omits it on Off cohorts" do
+    sha = "a" * 40
+    @student.update!(github_username: "check-owner")
+    @student.record_verified_github_identity!(id: 55_001, login: "check-owner")
+    SchoolSetting.current.update!(features: { "github_app" => true, "github_grade_suggestions" => true })
+    opted_cohort = Cohort.create!(
+      curriculum: @cohort.curriculum,
+      name: "Opted Checks Cohort",
+      start_date: Date.current,
+      status: :active,
+      settings: { "features" => { "github_app" => true, "github_grade_suggestions" => true } }
+    )
+    opted_cohort.cohort_instructor_assignments.create!(user: @staff)
+    enrollment = Enrollment.create!(user: @student, cohort: opted_cohort, status: :active)
+    installation = GithubAppInstallation.create!(
+      cohort: opted_cohort, app_id: 12_345, installation_id: 91_001, account_login: "check-owner",
+      account_id: 55_001, account_type: "User", repository_selection: "selected",
+      connection_state: "connected", connected_at: Time.current, checked_at: Time.current
+    )
+    binding = enrollment.github_repository_bindings.create!(
+      github_app_installation: installation, curriculum_module: @submission.content_block.lesson.curriculum_module,
+      repository_id: 66_001, full_name: "check-owner/project", github_username: "check-owner",
+      github_user_id: "55001", verification_state: "verified", verified_at: Time.current
+    )
+    ExerciseCheckPolicy.create_version!(
+      content_block: @submission.content_block, required_checks: [ "prework/test" ], allowed_app_slugs: [ "github-actions" ], created_by: @staff
+    )
+    opted_sub = Submission.create!(
+      user: @student, enrollment: enrollment, content_block: @submission.content_block,
+      submission_type: :prework_github_sync, text: "puts 1", commit_sha: sha, branch: "main",
+      github_revision: {
+        "version" => 1, "binding_id" => binding.id, "repository_id" => binding.repository_id,
+        "repository_full_name" => binding.full_name, "paths" => [ "test.rb" ],
+        "content_digest" => Digest::SHA256.hexdigest("puts 1"), "source_bytes" => 6,
+        "captured_at" => Time.current.iso8601(6)
+      }
+    )
+
+    fake_sync = Struct.new(:sub, :sha) do
+      def call
+        sub.github_check_runs.create!(
+          external_id: 999, name: "prework/test", app_slug: "github-actions",
+          head_sha: sha, status: "completed", conclusion: "success", fetched_at: Time.current
+        )
+        GithubGradeSuggestionEvaluator.evaluate_submission!(sub)
+        { synced: 1 }
+      end
+    end
+
+    original_new = GithubCheckRunSyncService.method(:new)
+    begin
+      GithubCheckRunSyncService.define_singleton_method(:new) { |submission:, token:| fake_sync.new(submission, submission.commit_sha) }
+
+      as_user(@staff) { post "/api/v1/submissions/#{opted_sub.id}/github_checks", headers: auth_headers }
+      assert_response :success
+      assert_equal "suggest_b", response.parsed_body.dig("grade_suggestion", "outcome")
+      assert_equal false, response.parsed_body.dig("grade_suggestion", "stale")
+
+      # Off cohort omits grade_suggestion completely
+      original_token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+      ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = "fake-token"
+      begin
+        as_user(@staff) { post "/api/v1/submissions/#{@submission.id}/github_checks", headers: auth_headers }
+      ensure
+        ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = original_token
+      end
+      assert_response :success
+      assert_not response.parsed_body.key?("grade_suggestion")
+    ensure
+      GithubCheckRunSyncService.define_singleton_method(:new, original_new)
+    end
+  end
+
   private
 
   def auth_headers = { "Authorization" => "Bearer test_token" }

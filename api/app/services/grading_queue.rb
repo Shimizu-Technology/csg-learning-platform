@@ -26,13 +26,14 @@ class GradingQueue
   STATUSES = %w[ungraded redo all].freeze
 
   def initialize(viewer:, cohort: nil, status: "ungraded", module_id: nil, student_id: nil, lesson_id: nil,
-    sort: "oldest", page: 1, per_page: PER_PAGE, focus_id: nil, now: Time.current)
+    suggestion_outcome: nil, sort: "oldest", page: 1, per_page: PER_PAGE, focus_id: nil, now: Time.current)
     @viewer = viewer
     @cohort = cohort
     @status = STATUSES.include?(status.to_s) ? status.to_s : "ungraded"
     @module_id = positive_id(module_id)
     @student_id = positive_id(student_id)
     @lesson_id = positive_id(lesson_id)
+    @suggestion_outcome = SubmissionGradeSuggestion::OUTCOMES.include?(suggestion_outcome.to_s) ? suggestion_outcome.to_s : nil
     @newest = sort.to_s == "newest"
     @per_page = positive_id(per_page)&.clamp(1, MAX_PER_PAGE) || PER_PAGE
     @page = positive_id(page) || 1
@@ -102,24 +103,35 @@ class GradingQueue
     scope
   end
 
-  def status_scope(scope, status = @status)
-    case status
+  def status_scope(scope, status = @status, apply_suggestion: true)
+    result = case status
     when "ungraded" then scope.latest_attempts.where(grade: nil)
     when "redo" then scope.latest_attempts.where(grade: "R")
     else scope
     end
+    apply_suggestion ? apply_suggestion_outcome(result, status: status) : result
   end
 
   def ordered(scope)
     direction = @newest ? "DESC" : "ASC"
-    scope.includes(:user, { enrollment: [ { learner_extensions: :granted_by }, :learning_plan, { cohort: :cohort_module_submission_windows } ] }, { content_block: { lesson: :curriculum_module } })
+    includes = [
+      :user,
+      { enrollment: [ { learner_extensions: :granted_by }, :learning_plan, { cohort: :cohort_module_submission_windows } ] }
+    ]
+    if school_suggestions_enabled?
+      includes << :submission_grade_suggestion
+      includes << { content_block: [ :active_exercise_check_policy, { lesson: :curriculum_module } ] }
+    else
+      includes << { content_block: { lesson: :curriculum_module } }
+    end
+    scope.includes(*includes)
       .order(Arel.sql("submissions.created_at #{direction}, submissions.id #{direction}"))
   end
 
   def status_counts
     scope = filtered_scope
     ungraded = status_scope(scope, "ungraded")
-    { ungraded: ungraded.count, redo: status_scope(scope, "redo").count, all: scope.count }.tap do |counts|
+    { ungraded: ungraded.count, redo: status_scope(scope, "redo").count, all: status_scope(scope, "all").count }.tap do |counts|
       counts[:overdue] = overdue_count(ungraded) if review_targets.any?
     end
   end
@@ -200,7 +212,7 @@ class GradingQueue
   def module_grids
     group = [ "cohorts.id", "cohorts.name", "modules.id", "modules.name", "modules.position" ]
     grouped = ->(scope) { scope.joins(enrollment: :cohort).joins(content_block: { lesson: :curriculum_module }).group(*group) }
-    waiting = grouped.call(status_scope(base_scope, "ungraded")).count
+    waiting = grouped.call(status_scope(base_scope, "ungraded", apply_suggestion: false)).count
     grouped.call(base_scope).count.keys
       .sort_by { |cohort_id, cohort_name, module_id, module_name, position| [ cohort_name.to_s, position.to_i, module_name.to_s, cohort_id, module_id ] }
       .map do |key|
@@ -251,7 +263,81 @@ class GradingQueue
       course_delivery: cohort&.course_delivery,
       **extension_fields(submission.enrollment, lesson),
       **review_fields(submission, cohort, latest_ids),
+      **grade_suggestion_fields(submission, cohort, block, latest_ids),
       week_number: cohort.nil? || cohort.self_paced? ? nil : SubmissionWindowStatus.week_number_for_release_day(lesson.release_day)
+    }
+  end
+
+  def school_features
+    @school_features ||= FeatureSwitches.school(read_only: true)
+  end
+
+  def school_suggestions_enabled?
+    school_features["github_app"] == true && school_features["github_grade_suggestions"] == true
+  end
+
+  def suggestion_enabled_cohort_ids
+    @suggestion_enabled_cohort_ids ||= begin
+      return [] unless school_suggestions_enabled?
+
+      cohorts = @cohort ? [ @cohort ] : @viewer.accessible_cohorts.select(:id, :settings).to_a
+      cohorts.select { |cohort| GithubGradeSuggestionEvaluator.enabled_for?(cohort, school: school_features) }.map(&:id)
+    end
+  end
+
+  FRESH_SUGGESTION_SQL = Arel.sql(
+    "submission_grade_suggestions.outcome <> 'stale_evidence' AND " \
+    "((submission_grade_suggestions.exercise_check_policy_id IS NULL AND active_policies.id IS NULL) " \
+    "OR (submission_grade_suggestions.exercise_check_policy_id IS NOT NULL " \
+    "AND active_policies.id IS NOT NULL " \
+    "AND active_policies.id = submission_grade_suggestions.exercise_check_policy_id " \
+    "AND submission_grade_suggestions.policy_version IS NOT NULL " \
+    "AND active_policies.version = submission_grade_suggestions.policy_version)) AND " \
+    "(submission_grade_suggestions.commit_sha IS NULL OR submissions.commit_sha IS NULL " \
+    "OR LOWER(submission_grade_suggestions.commit_sha) = LOWER(submissions.commit_sha))"
+  ).freeze
+
+  def apply_suggestion_outcome(scope, status:)
+    return scope unless @suggestion_outcome
+    return scope.none if suggestion_enabled_cohort_ids.empty?
+
+    enabled_enrollments = Enrollment.where(cohort_id: suggestion_enabled_cohort_ids).select(:id)
+    suggestions = SubmissionGradeSuggestion
+      .joins(:submission)
+      .joins(
+        "LEFT JOIN exercise_check_policies active_policies " \
+        "ON active_policies.content_block_id = submission_grade_suggestions.content_block_id " \
+        "AND active_policies.active = TRUE"
+      )
+      .where(enrollment_id: enabled_enrollments)
+
+    matching = if @suggestion_outcome == "stale_evidence"
+      stale = suggestions.where.not(FRESH_SUGGESTION_SQL)
+      if status == "all"
+        stale.or(suggestions.where.not(submission_id: base_scope.latest_attempts.select(:id)))
+      else
+        stale
+      end
+    else
+      fresh = suggestions.where(outcome: @suggestion_outcome).where(FRESH_SUGGESTION_SQL)
+      status == "all" ? fresh.where(submission_id: base_scope.latest_attempts.select(:id)) : fresh
+    end
+
+    scope.where(id: matching.select(:submission_id))
+  end
+
+  def grade_suggestion_fields(submission, cohort, block, latest_ids)
+    return {} unless cohort && GithubGradeSuggestionEvaluator.enabled_for?(cohort, school: school_features)
+
+    suggestion = submission.submission_grade_suggestion
+    return {} unless suggestion
+
+    {
+      grade_suggestion: suggestion.to_staff_json(
+        active_policy: block.active_exercise_check_policy,
+        latest_submission_id: latest_ids[submission.attempt_key],
+        submission_commit_sha: submission.commit_sha
+      )
     }
   end
 
