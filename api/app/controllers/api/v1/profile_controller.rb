@@ -9,6 +9,7 @@ module Api
         enrollments = current_user.enrollments.includes(cohort: { curriculum: { cohort_copy: :cohort } })
         purchases = current_user.course_purchases.where(status: "paid").index_by(&:cohort_id)
         readable_ids = current_user.enrollments.with_read_access.pluck(:id).to_set
+        school = FeatureSwitches.school
 
         render json: {
           user: {
@@ -32,9 +33,11 @@ module Api
               status: e.status,
               enrolled_at: e.enrolled_at,
               **(GithubRepositoryAccess.enabled?(e.cohort) ? { github_app_enabled: true } : {}),
+              # Only where reminders are on (W9.3), so other learners' payloads are unchanged.
+              **(LearnerNudges.enabled_for?(e.cohort, school: school) ? { learner_nudges_enabled: true } : {}),
               # Withdrawn or expired enrollments no longer open the cohort, so they show as text.
               can_open: readable_ids.include?(e.id),
-              **(FeatureSwitches.for(cohort: e.cohort)["student_experience_v2"] == true ? { purchase_id: purchases[e.cohort_id]&.id, access_expires_at: e.access_expires_at } : {})
+              **(FeatureSwitches.for(cohort: e.cohort, school: school)["student_experience_v2"] == true ? { purchase_id: purchases[e.cohort_id]&.id, access_expires_at: e.access_expires_at } : {})
             }
           }
         }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -234,13 +234,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
     t.text "public_preview"
     t.string "review_response_time"
     t.integer "learner_pace_weeks", array: true
+    t.integer "guided_access_months"
+    t.integer "guided_support_weeks"
+    t.integer "review_sla_business_days"
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
     t.index ["status"], name: "index_cohorts_on_status"
     t.index ["support_instructor_id"], name: "index_cohorts_on_support_instructor_id"
     t.check_constraint "course_delivery::text = ANY (ARRAY['program'::character varying::text, 'guided'::character varying::text, 'self_paced'::character varying::text])", name: "cohort_course_delivery_valid"
+    t.check_constraint "guided_access_months IS NULL OR guided_access_months > 0", name: "cohorts_guided_access_months_positive"
+    t.check_constraint "guided_support_weeks IS NULL OR guided_support_weeks > 0", name: "cohorts_guided_support_weeks_positive"
     t.check_constraint "public_price_cents IS NULL OR public_price_cents > 0", name: "cohort_public_price_positive"
+    t.check_constraint "review_sla_business_days IS NULL OR review_sla_business_days > 0", name: "cohorts_review_sla_business_days_positive"
     t.check_constraint "self_paced_access_months > 0 AND self_paced_support_weeks > 0", name: "cohort_self_paced_terms_positive"
   end
 
@@ -701,6 +707,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
     t.index ["lesson_id"], name: "index_learner_extensions_on_lesson_id"
     t.check_constraint "length(TRIM(BOTH FROM reason)) > 0", name: "learner_extensions_reason_required"
     t.check_constraint "scope::text = 'final'::text AND lesson_id IS NULL AND module_id IS NULL AND week_number IS NULL OR scope::text = 'lesson'::text AND module_id IS NULL AND week_number IS NULL OR scope::text = 'module'::text AND lesson_id IS NULL AND module_id IS NOT NULL AND week_number IS NOT NULL AND week_number > 0", name: "learner_extensions_scope_valid"
+  end
+
+  create_table "learner_nudges", force: :cascade do |t|
+    t.bigint "enrollment_id", null: false
+    t.string "kind", null: false
+    t.string "threshold", null: false
+    t.string "key", null: false
+    t.boolean "essential", default: false, null: false
+    t.datetime "event_at", null: false
+    t.date "school_date", null: false
+    t.string "title", null: false
+    t.text "body"
+    t.string "path", null: false
+    t.string "email_status", default: "not_requested", null: false
+    t.datetime "push_requested_at"
+    t.datetime "push_settled_at"
+    t.jsonb "web_push_attempted_notification_ids", default: [], null: false
+    t.jsonb "expo_push_attempted_notification_ids", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enrollment_id", "school_date"], name: "index_learner_nudges_on_enrollment_id_and_school_date"
+    t.index ["key"], name: "index_learner_nudges_on_key", unique: true
+    t.index ["push_requested_at"], name: "index_learner_nudges_on_email_pending", where: "((email_status)::text = 'pending'::text)"
+    t.index ["push_requested_at"], name: "index_learner_nudges_on_push_pending", where: "((push_requested_at IS NOT NULL) AND (push_settled_at IS NULL))"
+    t.check_constraint "email_status::text = ANY (ARRAY['not_requested'::character varying, 'pending'::character varying, 'sent'::character varying, 'failed'::character varying, 'not_configured'::character varying, 'no_address'::character varying]::text[])", name: "learner_nudges_email_status_valid"
+    t.check_constraint "kind::text = ANY (ARRAY['due_soon'::character varying, 'inactive'::character varying, 'support_ending'::character varying, 'access_ending'::character varying]::text[])", name: "learner_nudges_kind_valid"
   end
 
   create_table "learning_objectives", force: :cascade do |t|
@@ -1185,6 +1217,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "review_response_time", default: "usually reviewed within 2 days", null: false
+    t.date "review_sla_holidays", default: [], null: false, array: true
     t.check_constraint "id = 1", name: "school_settings_singleton"
   end
 
@@ -1402,6 +1435,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
     t.datetime "github_verified_at"
     t.string "github_authorization_nonce_digest"
     t.string "github_authorization_generation"
+    t.boolean "learner_nudges_enabled", default: true, null: false
     t.index "lower((github_user_id)::text)", name: "index_users_on_verified_github_user_id", unique: true, where: "(github_user_id IS NOT NULL)"
     t.index "to_tsvector('simple'::regconfig, (((((COALESCE(first_name, ''::character varying))::text || ' '::text) || (COALESCE(last_name, ''::character varying))::text) || ' '::text) || (COALESCE(handle, ''::character varying))::text))", name: "index_users_search_document", using: :gin
     t.index ["archived_at"], name: "index_users_on_archived_at"
@@ -1544,6 +1578,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
   add_foreign_key "learner_extensions", "lessons", on_delete: :nullify
   add_foreign_key "learner_extensions", "modules"
   add_foreign_key "learner_extensions", "users", column: "granted_by_id"
+  add_foreign_key "learner_nudges", "enrollments", on_delete: :cascade
   add_foreign_key "learning_objectives", "curricula", column: "curriculum_id"
   add_foreign_key "learning_plan_revisions", "learning_plans"
   add_foreign_key "learning_plan_revisions", "users", column: "author_id"

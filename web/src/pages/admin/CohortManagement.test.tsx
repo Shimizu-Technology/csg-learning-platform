@@ -34,7 +34,7 @@ it('lets an admin create a self-paced cohort with checkout explicitly off', asyn
   await input('Cohort name', 'New Python offering')
   await input('Curriculum', '1')
   await input('Start date', '2026-12-01')
-  await input('Delivery', 'self_paced')
+  await act(async () => container.querySelector<HTMLInputElement>('input[type=radio][value=self_paced]')!.click())
   expect(container.textContent).toContain('Checkout stays off')
   await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
   expect(state.createCohort).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Python offering', course_delivery: 'self_paced', public_checkout_enabled: false }))

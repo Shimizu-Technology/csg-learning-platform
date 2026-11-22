@@ -19,22 +19,22 @@ class FeatureSwitches
     "announcements" => true,
     "interventions" => true,
     "learning_plans" => true,
-    "student_experience_v2" => true
+    "student_experience_v2" => true,
+    # W9.3 learner reminders: the school switch and an explicit cohort opt-in.
+    "learner_nudges" => false
   }.freeze
+  # Switches a cohort only gets by opting in itself, with the school switch on:
+  # a cohort that inherits gets Off even when the school default is On.
+  COHORT_OPT_IN = %w[github_app self_paced_peer_space learner_nudges].freeze
   KEYS = DEFAULTS.keys.freeze
-  COHORT_OPT_IN = %w[github_app self_paced_peer_space].freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
   def self.for(cohort: nil, school: nil)
     defaults = school || self.school
     overrides = (cohort&.settings&.dig("features") || {}).slice(*KEYS).compact
     resolved = defaults.merge(overrides)
-    if cohort
-      # Opt-in switches require both school activation and an explicit cohort opt-in.
-      COHORT_OPT_IN.each do |key|
-        resolved[key] = defaults[key] == true && overrides[key] == true
-      end
-    end
+    # Opt-in switches require both school activation and an explicit cohort opt-in.
+    COHORT_OPT_IN.each { |key| resolved[key] = defaults[key] == true && overrides[key] == true } if cohort
     resolved
   end
 

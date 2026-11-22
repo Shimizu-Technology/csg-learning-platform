@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
+import type { CohortDelivery } from './DeliveryChoice'
 import type { SavedReviewResponse } from '../../../components/admin/ReviewResponseSettings'
 import { useAuthContext } from '../../../contexts/AuthContext'
 import { useCohortContext } from '../../../contexts/CohortContext'
@@ -13,6 +14,8 @@ import {
   COHORT_STATUS_OPTIONS,
   type CohortData,
   dateTimeInputToIso,
+  emptyGuidedTerms,
+  guidedTermParams,
   type SubmissionWindowForm,
   toDateInputValue,
   formatPaceWeeks,
@@ -42,9 +45,9 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   >({})
   const [submissionWindows, setSubmissionWindows] = useState<Record<number, SubmissionWindowForm[]>>({})
   const [classResources, setClassResources] = useState<ClassResource[]>([])
-  const [editCourseDelivery, setEditCourseDelivery] = useState<'program' | 'guided' | 'self_paced'>('program')
-  const [editAccessEnd, setEditAccessEnd] = useState('')
-  const [editSupportEnd, setEditSupportEnd] = useState('')
+  const [editCourseDelivery, setEditCourseDelivery] = useState<CohortDelivery>('program')
+  const [guidedTerms, setGuidedTerms] = useState(emptyGuidedTerms)
+  const [reviewTarget, setReviewTarget] = useState('')
   // Learner-chosen pace (W9.1): '' is off; otherwise the week choices, e.g. "3, 4, 6".
   const [editPaceWeeks, setEditPaceWeeks] = useState('')
   // On/off is its own state, so clearing the text doesn't turn pace off (or hide the field).
@@ -107,8 +110,13 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
       setCohort(nextCohort)
       setClassResources(nextCohort.class_resources || [])
       setEditCourseDelivery(nextCohort.course_delivery || 'program')
-      setEditAccessEnd(nextCohort.guided_access_ends_on || '')
-      setEditSupportEnd(nextCohort.guided_support_ends_on || '')
+      setGuidedTerms({
+        guided_access_ends_on: nextCohort.guided_access_ends_on || '',
+        guided_support_ends_on: nextCohort.guided_support_ends_on || '',
+        guided_access_months: nextCohort.guided_access_months?.toString() || '',
+        guided_support_weeks: nextCohort.guided_support_weeks?.toString() || '',
+      })
+      setReviewTarget(nextCohort.review_sla_business_days?.toString() || '')
       setEditPaceWeeks(formatPaceWeeks(nextCohort.learner_pace_weeks))
       setEditPaceEnabled(Boolean(nextCohort.learner_pace_weeks?.length))
       setEditStartDate(toDateInputValue(nextCohort.start_date))
@@ -158,9 +166,8 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         github_organization_name: editGithubOrganization.trim() || null,
         status: editStatus,
         course_delivery: editCourseDelivery,
-        // Guided dates only exist for guided delivery; leaving guided clears them.
-        guided_access_ends_on: editCourseDelivery === 'guided' ? editAccessEnd || null : null,
-        guided_support_ends_on: editCourseDelivery === 'guided' ? editSupportEnd || null : null,
+        ...guidedTermParams(editCourseDelivery === 'guided' ? guidedTerms : emptyGuidedTerms),
+        review_sla_business_days: reviewTarget ? Number(reviewTarget) : null,
       }
       const baseline = {
         start_date: toDateInputValue(cohort.start_date),
@@ -169,6 +176,9 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         course_delivery: cohort.course_delivery || 'program',
         guided_access_ends_on: cohort.guided_access_ends_on || null,
         guided_support_ends_on: cohort.guided_support_ends_on || null,
+        guided_access_months: cohort.guided_access_months ?? null,
+        guided_support_weeks: cohort.guided_support_weeks ?? null,
+        review_sla_business_days: cohort.review_sla_business_days ?? null,
       }
       // Pace is only for guided and self-paced delivery; a live program clears it.
       const paceWeeks = pacing ? parsePaceWeeks(editPaceWeeks) : null
@@ -341,10 +351,10 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     setClassResources,
     editCourseDelivery,
     setEditCourseDelivery,
-    editAccessEnd,
-    setEditAccessEnd,
-    editSupportEnd,
-    setEditSupportEnd,
+    guidedTerms,
+    setGuidedTerms,
+    reviewTarget,
+    setReviewTarget,
     editPaceWeeks,
     setEditPaceWeeks,
     editPaceEnabled,

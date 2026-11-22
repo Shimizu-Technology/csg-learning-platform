@@ -4402,7 +4402,32 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortSettingsInput"];
+                };
+            };
+            responses: {
+                /** @description Updated cohort settings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortWorkspaceResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/v1/cohorts/{cohort_id}/learning_insights": {
@@ -5726,6 +5751,161 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/enrollments/{enrollment_id}/nudges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Reminders sent to one learner (staff cohort scope) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reminder history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearnerNudgesResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nudge_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The learner's reminder preference */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reminder preference */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NudgePreferenceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Turn optional reminders on or off */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NudgePreferenceUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Reminder preference */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NudgePreferenceResponse"];
+                    };
+                };
+                /** @description learner_nudges_enabled must be true or false */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortSettingsInput"] & {
+                        review_response_time?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created cohort */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6782,6 +6962,8 @@ export interface components {
             access_expires_at?: string | null;
             /** @description Included when this enrollment has GitHub App access enabled. */
             github_app_enabled?: boolean;
+            /** @description Included (true) only when this enrollment's cohort sends learner reminders. */
+            learner_nudges_enabled?: boolean;
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -7325,6 +7507,8 @@ export interface components {
             timezone: string;
             recurrence: "once" | "weekly";
             event_kind: "office_hours" | "live_class";
+            /** @description Shown for office hours in a small class that has configured durations or a review target. */
+            optional_check_in?: boolean;
         };
         PersonalPlanLesson: {
             lesson_id: number;
@@ -8136,6 +8320,13 @@ export interface components {
                 native_path: string | null;
                 student_record: boolean;
                 urgent: boolean;
+                /** @description Present on reviews past the configured review target. */
+                overdue?: boolean;
+                /**
+                 * Format: date-time
+                 * @description End of the target business day in Guam.
+                 */
+                expected_review_by?: string;
             }[];
             counts: {
                 help?: number;
@@ -8286,12 +8477,30 @@ export interface components {
             /** @description Active grants applicable to this submission’s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant. */
             extensions?: components["schemas"]["LearnerExtension"][];
             submission_window?: components["schemas"]["SubmissionWindowStatus"];
+            /** @description The review target of the latest ungraded attempt, when the cohort has configured one. */
+            review_sla?: {
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                business_days: number;
+                /**
+                 * Format: date
+                 * @description The Guam calendar date for instructor feedback, when a review target is set.
+                 */
+                expected_on: string;
+                /**
+                 * Format: date-time
+                 * @description End of the target business day in Guam.
+                 */
+                expected_by: string;
+                overdue: boolean;
+            };
         };
         /** @description Status chip counts inside the module, student and lesson filters. */
         GradingQueueCounts: {
             ungraded: number;
             redo: number;
             all: number;
+            /** @description Ungraded latest attempts past their review target across all pages of the current cohort, module, lesson and student filters. Omitted when no cohort in scope has a review target. */
+            overdue?: number;
         };
         /** @description A module or student with work in the chosen status (inside the other filters). The chosen one stays listed with count 0. */
         GradingQueueOption: {
@@ -8380,6 +8589,8 @@ export interface components {
                     available: boolean;
                     next_unlock_date: string | null;
                 }[];
+                /** @description True when learner reminders are enabled. False when reminders are off and this enrollment has reminder history. Omitted when reminders are off and there is no history. */
+                learner_nudges_enabled?: boolean;
             };
             user: {
                 id: number;
@@ -8595,6 +8806,12 @@ export interface components {
                 public_preview: string | null;
                 /** @description Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1). */
                 learner_pace_weeks: number[] | null;
+                /** @description Months of lesson access from each learner’s start. A fixed access date takes precedence. */
+                guided_access_months?: number;
+                /** @description Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence. */
+                guided_support_weeks?: number;
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                review_sla_business_days?: number;
             };
         };
         StudentCommunicationMessage: {
@@ -9700,6 +9917,16 @@ export interface components {
             can_resubmit: boolean;
             /** @description Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action. */
             ask_to: components["schemas"]["PersonName"] | null;
+            /**
+             * Format: date
+             * @description The Guam calendar date for instructor feedback, when a review target is set.
+             */
+            expected_review_on?: string;
+            /**
+             * Format: date-time
+             * @description End of the target business day in Guam.
+             */
+            expected_review_by?: string;
         };
         /** @description A learner's submitted work in one cohort (MyWork): redos, work waiting for review, and graded work. */
         MyWork: {
@@ -10416,6 +10643,98 @@ export interface components {
              */
             submissions_close_at?: string;
             reason: string;
+        };
+        LearnerNudge: {
+            id: number;
+            /** @enum {string} */
+            kind: "due_soon" | "inactive" | "support_ending" | "access_ending";
+            /** @description How far ahead of the event (24h, 48h, 1d, 3d, 7d, 14d) or, for inactivity, how long since the last activity (7d, 14d). */
+            threshold: string;
+            /** @description Access-ending notices are essential: they are sent even when the learner turned reminders off. */
+            essential: boolean;
+            title: string;
+            body: string | null;
+            /**
+             * Format: date-time
+             * @description The deadline, end of support or access, or last activity the reminder is about.
+             */
+            event_at: string;
+            /** Format: date-time */
+            sent_at: string;
+            /** @enum {string} */
+            email_status: "not_requested" | "pending" | "sent" | "failed" | "not_configured" | "no_address";
+            /**
+             * @description For settled pushes, attempted means both providers claimed an attempt, partial means one provider did, and not_sent means neither did. Provider claims do not confirm delivery to a device.
+             * @enum {string}
+             */
+            push_status: "not_requested" | "pending" | "attempted" | "partial" | "not_sent";
+            /**
+             * Format: date-time
+             * @description When the learner read the in-app notification.
+             */
+            read_at: string | null;
+        };
+        LearnerNudgesResponse: {
+            /** @description Whether this cohort sends reminders now (school switch and cohort opt-in). */
+            enabled: boolean;
+            /** @description The learner turned optional reminders off; essential notices still go. */
+            learner_opted_out: boolean;
+            /** @description Newest first, at most 100. */
+            nudges: components["schemas"]["LearnerNudge"][];
+        };
+        NudgePreferenceResponse: {
+            learner_nudges_enabled: boolean;
+        };
+        NudgePreferenceUpdateRequest: {
+            /** @description False turns off optional reminders (due dates, inactivity, support ending). Access-ending notices are essential and still arrive. */
+            learner_nudges_enabled: boolean;
+        };
+        CohortCreatedResponse: {
+            cohort: {
+                id: number;
+                name: string;
+                course_delivery: string;
+                guided_access_ends_on: string | null;
+                guided_support_ends_on: string | null;
+                /** @description Months of lesson access from each learner’s start. A fixed access date takes precedence. */
+                guided_access_months?: number;
+                /** @description Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence. */
+                guided_support_weeks?: number;
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                review_sla_business_days?: number;
+            };
+        };
+        CohortSettingsInput: {
+            name?: string;
+            cohort_type?: string;
+            curriculum_id?: number;
+            start_date?: string | null;
+            end_date?: string | null;
+            course_delivery?: string;
+            status?: string;
+            public_checkout_enabled?: boolean;
+            public_outcomes?: string | null;
+            public_duration?: string | null;
+            public_prerequisites?: string | null;
+            public_preview?: string | null;
+            public_title?: string | null;
+            public_description?: string | null;
+            public_image_url?: string | null;
+            stripe_price_id?: string | null;
+            support_instructor_id?: number | null;
+            public_price_cents?: number | null;
+            self_paced_access_months?: number;
+            self_paced_support_weeks?: number;
+            guided_access_ends_on?: string | null;
+            guided_support_ends_on?: string | null;
+            /** @description Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1). */
+            learner_pace_weeks?: number[] | null;
+            github_organization_name?: string | null;
+            repository_name?: string | null;
+            requires_github?: boolean;
+            guided_access_months?: number | null;
+            guided_support_weeks?: number | null;
+            review_sla_business_days?: number | null;
         };
     };
     responses: {

@@ -5,8 +5,9 @@ require "test_helper"
 # program cohort (Cohort 3's shape, with the new student experience off and on),
 # a guided cohort with pace off, and the alumni library sees, byte for byte,
 # with a golden file recorded on origin/main (6c169d6d) before W9.1 existed:
-# X-6 and W9.8/AS-9 add only the intentional default-Off github_app and
-# self_paced_peer_space feature keys to this baseline; all existing fields and
+# X-6 adds only the intentional default-Off github_app feature key to this
+# baseline, W9.3 adds only the default-Off learner_nudges key, and W9.8/AS-9
+# adds only the default-Off self_paced_peer_space key; all existing fields and
 # behavior remain unchanged.
 # Today and the dashboard, the course outline, the weekly plan, progress, each
 # module, whether each lesson opens, the staff progress view, and the daily
@@ -85,6 +86,46 @@ class PersonalPaceOffCohortParityTest < ActionDispatch::IntegrationTest
     golden.each_key do |key|
       found = differences(golden[key], actual[key], key)
       assert_empty found, "#{key} changed for a cohort without personal pace:\n#{found.first(20).join("\n")}"
+    end
+  end
+
+  # W9.3: reminders need the school switch and the cohort's own opt-in. With
+  # the school switch on, every cohort that hasn't opted in (Cohort 3's shape
+  # among them) gets no reminder rows, notifications or emails from the
+  # hourly tick, its payloads carry no reminder flags, and the task's queries
+  # don't grow with those cohorts.
+  test "cohorts that haven't opted in get no reminders, rows, sends or payload changes" do
+    SchoolSetting.current.update!(features: { "learner_nudges" => true })
+    task = ScheduledTick::TASKS.find { |item| item.name == "learner_nudges" }
+    nudges = LearnerNudges.new
+    baseline = count_tick_queries(nudges)
+    cohorts = [
+      cohort(9_100_410, "Lance-shaped Off program", start: Date.new(2026, 10, 5), features: { "student_experience_v2" => false }),
+      cohort(9_100_411, "Program v2", start: Date.new(2026, 10, 5), features: { "student_experience_v2" => true }),
+      cohort(9_100_412, "Guided, pace off", start: Date.new(2026, 11, 2), delivery: "guided"),
+      cohort(9_100_413, "Alumni library", start: Date.new(2026, 1, 5), type: :alumni, features: { "learner_nudges" => true }),
+      cohort(9_100_414, "Explicitly off", start: Date.new(2026, 11, 2), delivery: "guided", features: { "learner_nudges" => false })
+    ]
+    paced = cohort(9_100_415, "Paced, not opted in", start: Date.new(2026, 11, 16), delivery: "guided")
+    paced.update!(learner_pace_weeks: [ 3 ])
+    cohorts << paced
+    snapshots = cohorts.each_with_index.map { |item, index| learner_snapshot(item, 9_100_030 + index) }
+    # Everything a reminder could be about is due: access and support end soon.
+    Enrollment.update_all(access_expires_at: NOW + 2.days, support_expires_at: NOW + 1.day)
+
+    assert_equal baseline, count_tick_queries(nudges)
+    (0..20).each do |day|
+      [ 8, 13, 20 ].each { |hour| ScheduledTick.new(now: ZONE.local(2026, 11, 18, hour) + day.days, tasks: [ task ]).call }
+    end
+    assert_equal 0, LearnerNudge.count
+    assert_equal 0, Notification.where(notifiable_type: "LearnerNudge").count
+    snapshots.each_with_index do |snapshot, index|
+      enrollment = snapshot.dig("staff_progress", "body", "enrollment")
+      assert_not enrollment.key?("learner_nudges_enabled"), cohorts[index].name
+    end
+    Enrollment.includes(:user).find_each do |enrollment|
+      get "/api/v1/profile", headers: headers(enrollment.user)
+      assert response.parsed_body.fetch("enrollments").none? { |item| item.key?("learner_nudges_enabled") }
     end
   end
 
@@ -173,6 +214,13 @@ class PersonalPaceOffCohortParityTest < ActionDispatch::IntegrationTest
     out["read_access"] = @lessons.to_h { |lesson| [ lesson.title, LessonReadAccess.check(student, lesson, cohort_id: cohort.id).error ] }
     out["staff_progress"] = get_json("/api/v1/progress/student/#{student.id}", @admin, cohort_id: cohort.id)
     out
+  end
+
+  def count_tick_queries(nudges)
+    queries = []
+    callback = ->(*, payload) { queries << payload[:sql] unless %w[SCHEMA TRANSACTION].include?(payload[:name]) }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { nudges.call(now: ZONE.local(2026, 11, 18, 9)) }
+    queries.size
   end
 
   def get_json(path, user, params)
