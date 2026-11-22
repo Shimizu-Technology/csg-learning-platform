@@ -53,7 +53,7 @@ class CoursePackagesTest < ActionDispatch::IntegrationTest
 
   test "encoded imports preserve unicode and literal teaching code with identical validation" do
     body = "Håfa adai — 海: curl -X DELETE http://localhost:3000/items/1; SELECT * FROM studies; <script>example</script>"
-    @package["modules"][0]["lessons"][0]["blocks"][0]["body"] = body
+    @package["modules"][0]["lessons"][0]["blocks"][1]["body"] = body
     encoded = Base64.strict_encode64(JSON.generate(@package))
     as_user(@admin) { post "/api/v1/course_packages/preview", params: { package_base64: encoded }, headers: auth_headers, as: :json }
     assert_response :success
@@ -62,7 +62,7 @@ class CoursePackagesTest < ActionDispatch::IntegrationTest
     assert_response :created
     curriculum = Curriculum.find(JSON.parse(response.body).dig("import", "curriculum_id"))
     assert curriculum.draft?
-    assert_equal body, curriculum.modules.first.lessons.first.content_blocks.first.body
+    assert_equal body, curriculum.modules.first.lessons.first.content_blocks.ordered.second.body
     assert_empty curriculum.cohorts
     as_user(@admin) { post "/api/v1/course_packages", params: { package: @package }, headers: auth_headers, as: :json }
     assert_response :created

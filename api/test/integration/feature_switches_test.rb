@@ -543,7 +543,6 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     assert_not on_payload.dig("enrollments", 0, "cohort", "features").key?("github_reconciliation")
     assert_equal off_payload, on_payload
   end
-
   private
 
   def as_user(user, &block)

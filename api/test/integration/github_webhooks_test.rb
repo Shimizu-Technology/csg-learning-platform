@@ -978,6 +978,30 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     refute_includes body_when_on, "github_webhooks"
   end
 
+  test "check_run webhook captures workflow_path and preserves it across subsequent updates" do
+    payload = check_run_payload(external_id: 5099, status: "in_progress", conclusion: nil)
+    payload[:workflow] = { path: ".github/workflows/prework.yml" }
+    body = payload.to_json
+
+    forbid_external_http do
+      post WEBHOOK_PATH, params: body, headers: signed_headers(body, event: "check_run", delivery_id: "del-wf-path-1")
+    end
+    assert_response :ok
+    run = @submission.github_check_runs.find_by!(external_id: 5099)
+    assert_equal ".github/workflows/prework.yml", run.workflow_path
+
+    # Follow-up completion without workflow_path preserves existing workflow_path.
+    done_body = check_run_payload(external_id: 5099, status: "completed", conclusion: "success").to_json
+    forbid_external_http do
+      post WEBHOOK_PATH, params: done_body, headers: signed_headers(done_body, event: "check_run", delivery_id: "del-wf-path-2")
+    end
+    assert_response :ok
+    run.reload
+    assert_equal "completed", run.status
+    assert_equal "success", run.conclusion
+    assert_equal ".github/workflows/prework.yml", run.workflow_path
+  end
+
   private
 
   def signature_for(raw_body, secret: SECRET)

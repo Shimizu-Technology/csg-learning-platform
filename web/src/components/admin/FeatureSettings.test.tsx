@@ -126,7 +126,6 @@ it('keeps GitHub grade suggestions Off by inheritance even when the school switc
   await act(async () => container.querySelector('button')!.click())
   expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { github_grade_suggestions: true } }, 12)
 })
-
 it('keeps Hourly GitHub reconciliation Off by inheritance even when the school switch is On', async () => {
   api.getFeatureSettings.mockResolvedValue({ data: { ...data, features: { github_reconciliation: false }, defaults: { github_reconciliation: true }, overrides: {} } })
   await act(async () => root.render(<FeatureSettings cohortId={12} />))
