@@ -6906,6 +6906,8 @@ export interface components {
             visibility: "cohort" | "staff_only";
             status: "active" | "archived";
             position: number;
+            can_post?: boolean;
+            post_disabled_reason?: string | null;
             muted: boolean;
             unread_count: number;
             last_read_at: string | null;
@@ -7333,6 +7335,7 @@ export interface components {
             };
         };
         FeatureSettingsData: {
+            /** @description Resolved boolean switches (including default-Off cohort opt-in switches github_app, self_paced_peer_space, learner_nudges, and certificates). */
             features: {
                 [key: string]: boolean;
             };

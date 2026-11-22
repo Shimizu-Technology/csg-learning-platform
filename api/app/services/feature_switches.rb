@@ -11,6 +11,7 @@ class FeatureSwitches
     "office_hours" => true,
     "recordings" => true,
     "class_channels" => true,
+    "self_paced_peer_space" => false,
     "knowledge_checks" => true,
     "help_requests" => true,
     "github_sync" => true,
@@ -25,7 +26,7 @@ class FeatureSwitches
   }.freeze
   # Switches a cohort only gets by opting in itself, with the school switch on:
   # a cohort that inherits gets Off even when the school default is On.
-  COHORT_OPT_IN = %w[github_app learner_nudges certificates].freeze
+  COHORT_OPT_IN = %w[github_app self_paced_peer_space learner_nudges certificates].freeze
   KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
@@ -33,6 +34,7 @@ class FeatureSwitches
     defaults = school || self.school
     overrides = (cohort&.settings&.dig("features") || {}).slice(*KEYS).compact
     resolved = defaults.merge(overrides)
+    # Opt-in switches require both school activation and an explicit cohort opt-in.
     COHORT_OPT_IN.each { |key| resolved[key] = defaults[key] == true && overrides[key] == true } if cohort
     resolved
   end

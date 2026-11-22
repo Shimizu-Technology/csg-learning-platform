@@ -366,6 +366,24 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "self_paced_peer_space defaults off and requires both school activation and explicit cohort opt-in" do
+    assert_equal false, FeatureSwitches.school(read_only: true).fetch("self_paced_peer_space")
+    assert_equal false, FeatureSwitches.for(cohort: @cohort).fetch("self_paced_peer_space")
+
+    [
+      [ nil, nil, false ],
+      [ false, true, false ],
+      [ true, nil, false ],
+      [ true, false, false ],
+      [ true, true, true ]
+    ].each do |school_val, cohort_val, expected|
+      SchoolSetting.current.update!(features: school_val.nil? ? {} : { "self_paced_peer_space" => school_val })
+      @cohort.update!(settings: { "features" => cohort_val.nil? ? {} : { "self_paced_peer_space" => cohort_val } })
+      assert_equal expected, FeatureSwitches.for(cohort: @cohort.reload).fetch("self_paced_peer_space"),
+        "expected #{expected} for school=#{school_val.inspect} cohort=#{cohort_val.inspect}"
+    end
+  end
+
   private
 
   def as_user(user, &block)

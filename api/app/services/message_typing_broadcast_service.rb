@@ -22,7 +22,14 @@ class MessageTypingBroadcastService
         }
       }
 
-      target.recipients.where.not(id: user.id).find_each do |recipient|
+      excluded_ids = UserBlock.where(blocker_id: user.id)
+        .or(UserBlock.where(blocked_user_id: user.id))
+        .pluck(:blocker_id, :blocked_user_id)
+        .flatten
+        .uniq
+      excluded_ids << user.id unless excluded_ids.include?(user.id)
+
+      target.recipients.where.not(id: excluded_ids).find_each do |recipient|
         UserMessagesChannel.broadcast_to(recipient, payload)
       end
       true

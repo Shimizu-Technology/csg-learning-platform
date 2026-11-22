@@ -10,8 +10,8 @@ import type { MessageView as ChannelMessage } from '../../types/api'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const features = vi.hoisted(() => ({ private_meetings: false }))
-const support = vi.hoisted(() => ({ delivery: 'program', mode: 'course_question', help: true }))
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: { id: 1, features, course_delivery: support.delivery, capabilities: { support_mode: support.mode, features: { ...features, help_requests: support.help } } } }) }))
+const support = vi.hoisted(() => ({ delivery: 'program', mode: 'course_question', help: true, instructorId: 7 as number | null }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: { id: 1, features, course_delivery: support.delivery, capabilities: { support_mode: support.mode, support_instructor_id: support.instructorId, features: { ...features, help_requests: support.help } } } }) }))
 const getUser = vi.hoisted(() => vi.fn())
 vi.mock('../../lib/api', () => ({ api: { getUser, getAvailableDirectUsersForCohort: vi.fn().mockResolvedValue({ data: { users: [{ id: 7 }] } }) } }))
 vi.mock('../admin/StudentContextDrawer', () => ({ StudentContextDrawer: ({ cohortId, studentId, onClose }: { cohortId: number; studentId: number; onClose: () => void }) => <div role="dialog">Student {studentId}, cohort {cohortId}<button onClick={onClose}>Close context</button></div> }))
@@ -87,4 +87,18 @@ it.each(['none', 'expired', 'help off'])('hides instructor contact in self-paced
     expect(document.body.textContent).not.toContain('Message Maya')
     expect(document.body.textContent).not.toContain('Book a meeting')
   } finally { support.delivery = 'program'; support.mode = 'course_question'; support.help = true; features.private_meetings = false }
+})
+
+it('shows Message for the support instructor but never for a peer in self-paced peer space', async () => {
+  support.delivery = 'self_paced'
+  support.mode = 'course_question'
+  support.help = true
+  support.instructorId = 7
+  try {
+    await act(async () => root.render(<MemoryRouter><StudentExperienceProvider v2><MessageAuthorContext author={{ ...author, id: 7, role: 'instructor' }} staff={false} cohortId={1} onClose={() => {}} /></StudentExperienceProvider></MemoryRouter>))
+    expect(document.body.textContent).toContain('Message Maya Santos')
+    await act(async () => root.render(<MemoryRouter><StudentExperienceProvider v2><MessageAuthorContext author={{ ...author, id: 88, full_name: 'Peer Student', role: 'student' }} staff={false} cohortId={1} onClose={() => {}} /></StudentExperienceProvider></MemoryRouter>))
+    expect(document.body.textContent).toContain('Peer Student')
+    expect(document.body.textContent).not.toContain('Message Peer Student')
+  } finally { support.delivery = 'program'; support.mode = 'course_question'; support.help = true; support.instructorId = 7 }
 })

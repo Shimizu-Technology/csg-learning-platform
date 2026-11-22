@@ -1,8 +1,8 @@
 class MessageJson
   class << self
     # `sources` is MessageSource.preload's result when rendering a list.
-    def render(message, current_user: nil, stream_url: false, read_receipts: nil, sources: nil)
-      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocked_relationship_with?(message.author)
+    def render(message, current_user: nil, stream_url: false, read_receipts: nil, sources: nil, blocked: nil, reply_count: nil)
+      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocked_relationship_with?(message.author) if blocked.nil?
       {
         id: message.id,
         channel_id: message.channel_id,
@@ -21,7 +21,7 @@ class MessageJson
         author: user_json(message.author),
         attachments: blocked ? [] : message.message_attachments.map { |attachment| attachment_json(attachment, stream_url: stream_url) },
         reactions: blocked ? [] : reaction_json(message, current_user),
-        reply_count: reply_count(message),
+        reply_count: reply_count.nil? ? reply_count(message) : reply_count,
         sent_via_label: message.sent_via_label,
         source: (blocked || message.deleted?) ? nil : MessageSource.json(message, viewer: current_user, preloaded: sources)
       }.tap do |json|
@@ -30,10 +30,10 @@ class MessageJson
       end
     end
 
-    def latest(message, current_user: nil)
+    def latest(message, current_user: nil, blocked: nil)
       return nil unless message
 
-      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocked_relationship_with?(message.author)
+      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocked_relationship_with?(message.author) if blocked.nil?
 
       {
         id: message.id,

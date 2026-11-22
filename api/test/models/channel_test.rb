@@ -33,4 +33,41 @@ class ChannelTest < ModelCoverageTestCase
     assert_not ChannelReadState.exists?(state.id)
     assert_not MessagePreference.exists?(preference.id)
   end
+
+  test "self paced peer space requires both switches active enrollment and active support to post" do
+    instructor = User.create!(clerk_id: "channel_sp_instructor", email: "channel-sp-instructor@example.com", role: :instructor)
+    course.cohort_instructor_assignments.create!(user: instructor)
+    course.update!(course_delivery: "self_paced", support_instructor: instructor)
+    enrollment.update!(first_opened_at: Time.current, support_expires_at: 2.weeks.from_now)
+
+    assert_not Channel.self_paced_peer_space_enabled?(course)
+    assert_not channel.visible_to?(student)
+    assert_not channel.can_post?(student)
+
+    SchoolSetting.current.update!(features: { "self_paced_peer_space" => true })
+    assert_not Channel.self_paced_peer_space_enabled?(course)
+    assert_not channel.visible_to?(student)
+
+    course.update!(settings: { "features" => { "self_paced_peer_space" => true } })
+    channel.reload
+    assert Channel.self_paced_peer_space_enabled?(course)
+    assert channel.visible_to?(student)
+    assert channel.can_post?(student)
+    assert_nil channel.post_disabled_reason(student)
+
+    enrollment.update!(support_expires_at: nil)
+    assert channel.visible_to?(student)
+    assert_not channel.can_post?(student)
+    assert_match(/Open Today or a lesson/, channel.post_disabled_reason(student))
+
+    enrollment.update!(support_expires_at: 1.minute.ago)
+    assert channel.visible_to?(student)
+    assert_not channel.can_post?(student)
+    assert_match(/support period has ended/i, channel.post_disabled_reason(student))
+
+    course.update!(settings: { "features" => { "self_paced_peer_space" => true, "class_channels" => false } })
+    channel.reload
+    assert_not Channel.self_paced_peer_space_enabled?(course)
+    assert_not channel.visible_to?(student)
+  end
 end
