@@ -134,4 +134,25 @@ class CoursePackageImporterTest < ActiveSupport::TestCase
     assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(revised).call }
     assert_equal 2, Curriculum.find(first[:curriculum_id]).modules.first.lessons.count
   end
+
+  test "module_type defaults to workshop and accepts valid overrides" do
+    default_import = CoursePackageImporter.new(package).call
+    assert Curriculum.find(default_import[:curriculum_id]).modules.first.workshop?
+
+    custom = package
+    custom["key"] = "recording-course"
+    custom["modules"][0]["module_type"] = "recording"
+    custom_import = CoursePackageImporter.new(custom).call
+    assert Curriculum.find(custom_import[:curriculum_id]).modules.first.recording?
+
+    invalid = package
+    invalid["key"] = "bad-module-type"
+    invalid["modules"][0]["module_type"] = "unknown_type"
+    assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(invalid).call }
+
+    nil_type = package
+    nil_type["key"] = "nil-module-type"
+    nil_type["modules"][0]["module_type"] = nil
+    assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(nil_type).call }
+  end
 end

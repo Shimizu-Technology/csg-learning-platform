@@ -47,7 +47,7 @@ class CoursePackageImporter
       raise InvalidPackage, "Package cannot remove existing modules" if missing_modules.any?
       @package.fetch("modules").each_with_index do |data, position|
         mod = existing_modules[data.fetch("key")] || curriculum.modules.build
-        mod.update!(name: data.fetch("title"), description: data["description"], course_package_key: data.fetch("key"), module_type: :workshop, position: position, total_days: data.fetch("total_days"), day_offset: 0, schedule_days: data.fetch("schedule_days"))
+        mod.update!(name: data.fetch("title"), description: data["description"], course_package_key: data.fetch("key"), module_type: data.fetch("module_type", "workshop"), position: position, total_days: data.fetch("total_days"), day_offset: 0, schedule_days: data.fetch("schedule_days"))
         import_lessons(mod, data.fetch("lessons"))
       end
       curriculum.update!(course_package_content_snapshot: curriculum_fingerprint(curriculum))
@@ -178,6 +178,7 @@ class CoursePackageImporter
       text!(mod["description"], TEXT_LIMIT)
       integer!(mod["total_days"], 1..365)
       fail_with("Invalid module schedule") unless CurriculumModule::SCHEDULE_PATTERNS.key?(mod["schedule_days"])
+      fail_with("Invalid module type") unless CurriculumModule.module_types.key?(mod.fetch("module_type", "workshop"))
       list!(mod["lessons"], 1..250)
       unique_keys!(mod["lessons"])
       lesson_count += mod["lessons"].size
