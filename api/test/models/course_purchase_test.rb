@@ -30,12 +30,15 @@ class CoursePurchaseTest < ModelCoverageTestCase
     assert_not duplicate.valid?
     other = CoursePurchase.create!(user: person, cohort: course, stripe_price_id: "price_synthetic")
     {
-      user_id: "index_course_purchases_on_user_id_and_cohort_id",
+      user_id: "index_course_purchases_one_open_attempt_per_user_cohort",
       stripe_session_id: "index_course_purchases_on_stripe_session_id",
       stripe_payment_intent_id: "index_course_purchases_on_stripe_payment_intent_id"
     }.each do |attribute, index|
       assert_database_rejects other, { attribute => purchase.public_send(attribute) }, ActiveRecord::RecordNotUnique, constraint: index
     end
+    purchase.update!(status: "paid")
+    repurchase = CoursePurchase.create!(user: student, cohort: course, stripe_price_id: "price_synthetic", status: "pending")
+    assert repurchase.persisted?
     assert_not student.destroy
     assert User.exists?(student.id)
   end

@@ -11,25 +11,22 @@ import { isInsideMarkdownFence } from '@/lib/code-paste';
  * Enter-to-send setting applies to hardware keyboards on the web only.
  */
 
-/**
- * Caret inside an open ``` fence, counting its own line, as the web composer reads it (§9.7).
- * The caret's whole line is read: "```not-a-close" with the caret before "not" doesn't close the fence.
- */
+/** Count the caret's whole line. A valid closing delimiter ends the fence on that line (§9.7). */
 export function caretInMarkdownFence(value: string, caret: number) {
-  const newline = value.indexOf('\n', caret);
+  const offset = Math.max(0, Math.min(caret, value.length));
+  const newline = value.indexOf('\n', offset);
   const lineEnd = newline === -1 ? value.length : newline;
   return isInsideMarkdownFence(`${value.slice(0, lineEnd)}\n`, lineEnd + 1);
 }
 
-/** Markdown mode turns off keyboard corrections for all source, including prose (§9.9). */
+/** Enable keyboard corrections for Markdown prose unless either selection endpoint is in a fence (§9.9). */
 export function composerInputBehavior(value: string, selection: { start: number; end: number }) {
-  // Markdown source is never rewritten by keyboard corrections (§9.9).
-  void value;
-  void selection;
+  const { start, end } = selection;
+  const inFence = caretInMarkdownFence(value, start) || (end !== start && caretInMarkdownFence(value, end));
   return {
-    autoCorrect: false,
-    spellCheck: false,
-    autoCapitalize: 'none' as const,
+    autoCorrect: !inFence,
+    spellCheck: !inFence,
+    autoCapitalize: inFence ? 'none' as const : 'sentences' as const,
     smartInsertDelete: false,
   };
 }

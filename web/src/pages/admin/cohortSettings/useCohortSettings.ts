@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
+import type { CohortDelivery } from './DeliveryChoice'
 import type { SavedReviewResponse } from '../../../components/admin/ReviewResponseSettings'
 import { useAuthContext } from '../../../contexts/AuthContext'
 import { useCohortContext } from '../../../contexts/CohortContext'
@@ -13,11 +14,14 @@ import {
   COHORT_STATUS_OPTIONS,
   type CohortData,
   dateTimeInputToIso,
+  emptyGuidedTerms,
+  guidedTermParams,
   type SubmissionWindowForm,
   toDateInputValue,
   formatPaceWeeks,
   parsePaceWeeks,
   paceWeeksProblem,
+  nextStepFields,
 } from './settingsForm'
 
 export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> } = {}) {
@@ -33,6 +37,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   const [reviewResponseDraft, setReviewResponseDraft] = useState<string | null | undefined>(undefined)
   const [savedReviewResponse, setSavedReviewResponse] = useState<SavedReviewResponse>()
   const [featureDraft, setFeatureDraft] = useState<Record<string, boolean | null> | null>(null)
+  const [editNextStep, setEditNextStep] = useState(nextStepFields)
   const [savedRevision, setSavedRevision] = useState(0)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -42,9 +47,9 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   >({})
   const [submissionWindows, setSubmissionWindows] = useState<Record<number, SubmissionWindowForm[]>>({})
   const [classResources, setClassResources] = useState<ClassResource[]>([])
-  const [editCourseDelivery, setEditCourseDelivery] = useState<'program' | 'guided' | 'self_paced'>('program')
-  const [editAccessEnd, setEditAccessEnd] = useState('')
-  const [editSupportEnd, setEditSupportEnd] = useState('')
+  const [editCourseDelivery, setEditCourseDelivery] = useState<CohortDelivery>('program')
+  const [guidedTerms, setGuidedTerms] = useState(emptyGuidedTerms)
+  const [reviewTarget, setReviewTarget] = useState('')
   // Learner-chosen pace (W9.1): '' is off; otherwise the week choices, e.g. "3, 4, 6".
   const [editPaceWeeks, setEditPaceWeeks] = useState('')
   // On/off is its own state, so clearing the text doesn't turn pace off (or hide the field).
@@ -106,9 +111,15 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     (nextCohort: CohortData) => {
       setCohort(nextCohort)
       setClassResources(nextCohort.class_resources || [])
+      setEditNextStep(nextStepFields(nextCohort.settings?.next_step))
       setEditCourseDelivery(nextCohort.course_delivery || 'program')
-      setEditAccessEnd(nextCohort.guided_access_ends_on || '')
-      setEditSupportEnd(nextCohort.guided_support_ends_on || '')
+      setGuidedTerms({
+        guided_access_ends_on: nextCohort.guided_access_ends_on || '',
+        guided_support_ends_on: nextCohort.guided_support_ends_on || '',
+        guided_access_months: nextCohort.guided_access_months?.toString() || '',
+        guided_support_weeks: nextCohort.guided_support_weeks?.toString() || '',
+      })
+      setReviewTarget(nextCohort.review_sla_business_days?.toString() || '')
       setEditPaceWeeks(formatPaceWeeks(nextCohort.learner_pace_weeks))
       setEditPaceEnabled(Boolean(nextCohort.learner_pace_weeks?.length))
       setEditStartDate(toDateInputValue(nextCohort.start_date))
@@ -144,12 +155,20 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   }, [reloadCohort])
 
   const [loadError, setLoadError] = useState('')
+  const nextStepChanged = JSON.stringify(editNextStep) !== JSON.stringify(nextStepFields(cohort?.settings?.next_step))
   const saveSettings = async () => {
     if (!id || !cohort) return
     const pacing = editPaceEnabled && editCourseDelivery !== 'program'
     if (pacing && paceWeeksProblem(editPaceWeeks)) {
       notifyError(paceWeeksProblem(editPaceWeeks)!)
       return
+    }
+    if (editCourseDelivery !== 'program' && 'seat_limit' in offeringDraft) {
+      const limit = offeringDraft.seat_limit
+      if (limit !== null && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1)) {
+        notifyError('Seat limit must be a whole number of at least 1, or blank for unlimited.')
+        return
+      }
     }
     setSaving(true)
     try {
@@ -158,9 +177,8 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         github_organization_name: editGithubOrganization.trim() || null,
         status: editStatus,
         course_delivery: editCourseDelivery,
-        // Guided dates only exist for guided delivery; leaving guided clears them.
-        guided_access_ends_on: editCourseDelivery === 'guided' ? editAccessEnd || null : null,
-        guided_support_ends_on: editCourseDelivery === 'guided' ? editSupportEnd || null : null,
+        ...guidedTermParams(editCourseDelivery === 'guided' ? guidedTerms : emptyGuidedTerms),
+        review_sla_business_days: reviewTarget ? Number(reviewTarget) : null,
       }
       const baseline = {
         start_date: toDateInputValue(cohort.start_date),
@@ -169,18 +187,29 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         course_delivery: cohort.course_delivery || 'program',
         guided_access_ends_on: cohort.guided_access_ends_on || null,
         guided_support_ends_on: cohort.guided_support_ends_on || null,
+        guided_access_months: cohort.guided_access_months ?? null,
+        guided_support_weeks: cohort.guided_support_weeks ?? null,
+        review_sla_business_days: cohort.review_sla_business_days ?? null,
       }
       // Pace is only for guided and self-paced delivery; a live program clears it.
       const paceWeeks = pacing ? parsePaceWeeks(editPaceWeeks) : null
       const paceChange = JSON.stringify(paceWeeks) !== JSON.stringify(cohort.learner_pace_weeks?.length ? cohort.learner_pace_weeks : null)
         ? { learner_pace_weeks: paceWeeks }
         : {}
+      const programClearing = editCourseDelivery === 'program'
+        ? {
+            ...(cohort.seat_limit != null ? { seat_limit: null } : {}),
+            ...(cohort.unlisted ? { unlisted: false } : {}),
+            ...(cohort.public_checkout_enabled ? { public_checkout_enabled: false } : {}),
+          }
+        : offeringDraft
       const patch = {
         ...Object.fromEntries(
           Object.entries(candidates).filter(([key, value]) => value !== baseline[key as keyof typeof baseline]),
         ),
         ...paceChange,
-        ...offeringDraft,
+        ...(nextStepChanged ? { settings: { next_step: Object.values(editNextStep).some((value) => value.trim()) ? editNextStep : null } } : {}),
+        ...programClearing,
       }
       const res = Object.keys(patch).length
         ? await api.updateCohort(Number(id), patch)
@@ -331,6 +360,9 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     savedReviewResponse,
     featureDraft,
     setFeatureDraft,
+    editNextStep,
+    setEditNextStep,
+    nextStepChanged,
     savedRevision,
     loading,
     message,
@@ -341,10 +373,10 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     setClassResources,
     editCourseDelivery,
     setEditCourseDelivery,
-    editAccessEnd,
-    setEditAccessEnd,
-    editSupportEnd,
-    setEditSupportEnd,
+    guidedTerms,
+    setGuidedTerms,
+    reviewTarget,
+    setReviewTarget,
     editPaceWeeks,
     setEditPaceWeeks,
     editPaceEnabled,

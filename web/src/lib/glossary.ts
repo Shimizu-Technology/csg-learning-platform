@@ -42,6 +42,9 @@ export const TERMS = {
   /** A messaging space that isn't a cohort. */
   community: 'Community',
   liveProgram: 'Live program',
+  smallClass: 'Small class',
+  smallClassDelivery: 'Small class (online lessons + optional check-ins)',
+  optionalCheckIn: 'Optional check-in',
   selfPaced: 'Self-paced',
   liveClass: 'Live class',
   officeHours: 'Office hours',

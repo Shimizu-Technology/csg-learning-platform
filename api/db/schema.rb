@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -117,6 +117,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.index ["expires_at"], name: "index_cable_token_nonces_on_expires_at"
     t.index ["nonce"], name: "index_cable_token_nonces_on_nonce", unique: true
     t.index ["user_id"], name: "index_cable_token_nonces_on_user_id"
+  end
+
+  create_table "certificates", force: :cascade do |t|
+    t.bigint "enrollment_id", null: false
+    t.string "code", null: false
+    t.string "holder_name", null: false
+    t.string "course_title", null: false
+    t.string "issuer_name", null: false
+    t.integer "wording_version", default: 1, null: false
+    t.datetime "issued_at", null: false
+    t.bigint "issued_by_id"
+    t.text "issuance_reason"
+    t.datetime "revoked_at"
+    t.bigint "revoked_by_id"
+    t.text "revocation_reason"
+    t.index ["code"], name: "index_certificates_on_code", unique: true
+    t.index ["enrollment_id"], name: "index_certificates_on_active_enrollment_id", unique: true, where: "(revoked_at IS NULL)"
+    t.index ["enrollment_id"], name: "index_certificates_on_enrollment_id"
   end
 
   create_table "channel_read_states", force: :cascade do |t|
@@ -234,13 +252,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.text "public_preview"
     t.string "review_response_time"
     t.integer "learner_pace_weeks", array: true
+    t.integer "guided_access_months"
+    t.integer "guided_support_weeks"
+    t.integer "review_sla_business_days"
+    t.integer "seat_limit"
+    t.boolean "unlisted", default: false, null: false
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
     t.index ["status"], name: "index_cohorts_on_status"
     t.index ["support_instructor_id"], name: "index_cohorts_on_support_instructor_id"
     t.check_constraint "course_delivery::text = ANY (ARRAY['program'::character varying::text, 'guided'::character varying::text, 'self_paced'::character varying::text])", name: "cohort_course_delivery_valid"
+    t.check_constraint "guided_access_months IS NULL OR guided_access_months > 0", name: "cohorts_guided_access_months_positive"
+    t.check_constraint "guided_support_weeks IS NULL OR guided_support_weeks > 0", name: "cohorts_guided_support_weeks_positive"
     t.check_constraint "public_price_cents IS NULL OR public_price_cents > 0", name: "cohort_public_price_positive"
+    t.check_constraint "review_sla_business_days IS NULL OR review_sla_business_days > 0", name: "cohorts_review_sla_business_days_positive"
+    t.check_constraint "seat_limit IS NULL OR seat_limit > 0", name: "cohorts_seat_limit_positive"
     t.check_constraint "self_paced_access_months > 0 AND self_paced_support_weeks > 0", name: "cohort_self_paced_terms_positive"
   end
 
@@ -321,10 +348,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.integer "support_weeks"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.boolean "over_capacity", default: false, null: false
+    t.jsonb "terms_snapshot", default: {}
     t.index ["cohort_id"], name: "index_course_purchases_on_cohort_id"
     t.index ["stripe_payment_intent_id"], name: "index_course_purchases_on_stripe_payment_intent_id", unique: true
     t.index ["stripe_session_id"], name: "index_course_purchases_on_stripe_session_id", unique: true
-    t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id", unique: true
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id_lookup"
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_one_open_attempt_per_user_cohort", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('failed'::character varying)::text, ('expired'::character varying)::text]))"
     t.index ["user_id"], name: "index_course_purchases_on_user_id"
     t.check_constraint "price_cents IS NULL OR price_cents > 0", name: "course_purchase_price_positive"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text, 'expired'::character varying::text, 'failed'::character varying::text, 'refunded'::character varying::text, 'disputed'::character varying::text])", name: "course_purchase_status_valid"
@@ -542,6 +572,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.index ["submission_id"], name: "index_github_check_runs_on_submission_id"
   end
 
+  create_table "github_issue_deliveries", force: :cascade do |t|
+    t.bigint "submission_id", null: false
+    t.bigint "enrollment_id", null: false
+    t.bigint "content_block_id", null: false
+    t.bigint "github_repository_binding_id"
+    t.bigint "repository_id"
+    t.string "repository_full_name"
+    t.string "action", null: false
+    t.string "grade", null: false
+    t.text "feedback_body"
+    t.string "dedupe_token", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "issue_number"
+    t.string "issue_url"
+    t.integer "attempts", default: 0, null: false
+    t.text "last_error"
+    t.datetime "next_retry_at"
+    t.string "claim_token"
+    t.datetime "claimed_until"
+    t.datetime "delivered_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_block_id"], name: "index_github_issue_deliveries_on_content_block_id"
+    t.index ["dedupe_token"], name: "index_github_issue_deliveries_on_dedupe_token", unique: true
+    t.index ["enrollment_id", "content_block_id", "claimed_until"], name: "index_github_issue_deliveries_on_scope_and_claim"
+    t.index ["enrollment_id", "content_block_id", "repository_id"], name: "index_github_issue_deliveries_on_scope"
+    t.index ["github_repository_binding_id"], name: "index_github_issue_deliveries_on_github_repository_binding_id"
+    t.index ["status", "next_retry_at"], name: "index_github_issue_deliveries_on_status_and_retry"
+    t.index ["submission_id"], name: "index_github_issue_deliveries_on_submission_id"
+    t.check_constraint "action::text = ANY (ARRAY['open_or_comment'::character varying::text, 'close'::character varying::text])", name: "github_issue_deliveries_action_valid"
+    t.check_constraint "attempts >= 0", name: "github_issue_deliveries_attempts_nonnegative"
+    t.check_constraint "grade::text = ANY (ARRAY['A'::character varying::text, 'B'::character varying::text, 'C'::character varying::text, 'R'::character varying::text])", name: "github_issue_deliveries_grade_valid"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'obsolete'::character varying::text])", name: "github_issue_deliveries_status_valid"
+  end
+
   create_table "github_repository_bindings", force: :cascade do |t|
     t.bigint "enrollment_id", null: false
     t.bigint "curriculum_module_id"
@@ -703,6 +768,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.check_constraint "scope::text = 'final'::text AND lesson_id IS NULL AND module_id IS NULL AND week_number IS NULL OR scope::text = 'lesson'::text AND module_id IS NULL AND week_number IS NULL OR scope::text = 'module'::text AND lesson_id IS NULL AND module_id IS NOT NULL AND week_number IS NOT NULL AND week_number > 0", name: "learner_extensions_scope_valid"
   end
 
+  create_table "learner_nudges", force: :cascade do |t|
+    t.bigint "enrollment_id", null: false
+    t.string "kind", null: false
+    t.string "threshold", null: false
+    t.string "key", null: false
+    t.boolean "essential", default: false, null: false
+    t.datetime "event_at", null: false
+    t.date "school_date", null: false
+    t.string "title", null: false
+    t.text "body"
+    t.string "path", null: false
+    t.string "email_status", default: "not_requested", null: false
+    t.datetime "push_requested_at"
+    t.datetime "push_settled_at"
+    t.jsonb "web_push_attempted_notification_ids", default: [], null: false
+    t.jsonb "expo_push_attempted_notification_ids", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enrollment_id", "school_date"], name: "index_learner_nudges_on_enrollment_id_and_school_date"
+    t.index ["key"], name: "index_learner_nudges_on_key", unique: true
+    t.index ["push_requested_at"], name: "index_learner_nudges_on_email_pending", where: "((email_status)::text = 'pending'::text)"
+    t.index ["push_requested_at"], name: "index_learner_nudges_on_push_pending", where: "((push_requested_at IS NOT NULL) AND (push_settled_at IS NULL))"
+    t.check_constraint "email_status::text = ANY (ARRAY['not_requested'::character varying::text, 'pending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text, 'not_configured'::character varying::text, 'no_address'::character varying::text])", name: "learner_nudges_email_status_valid"
+    t.check_constraint "kind::text = ANY (ARRAY['due_soon'::character varying::text, 'inactive'::character varying::text, 'support_ending'::character varying::text, 'access_ending'::character varying::text])", name: "learner_nudges_kind_valid"
+  end
+
   create_table "learning_objectives", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "code", null: false
@@ -759,6 +850,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.index ["enrollment_id", "lesson_id"], name: "index_lesson_assignments_on_enrollment_id_and_lesson_id", unique: true
     t.index ["enrollment_id"], name: "index_lesson_assignments_on_enrollment_id"
     t.index ["lesson_id"], name: "index_lesson_assignments_on_lesson_id"
+  end
+
+  create_table "lesson_recordings", force: :cascade do |t|
+    t.bigint "recording_id", null: false
+    t.bigint "lesson_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["lesson_id", "position"], name: "index_lesson_recordings_on_lesson_id_and_position"
+    t.index ["recording_id", "lesson_id"], name: "index_lesson_recordings_on_recording_id_and_lesson_id", unique: true
   end
 
   create_table "lessons", force: :cascade do |t|
@@ -1185,6 +1286,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "review_response_time", default: "usually reviewed within 2 days", null: false
+    t.date "review_sla_holidays", default: [], null: false, array: true
     t.check_constraint "id = 1", name: "school_settings_singleton"
   end
 
@@ -1403,6 +1505,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
     t.datetime "github_verified_at"
     t.string "github_authorization_nonce_digest"
     t.string "github_authorization_generation"
+    t.boolean "learner_nudges_enabled", default: true, null: false
     t.index "lower((github_user_id)::text)", name: "index_users_on_verified_github_user_id", unique: true, where: "(github_user_id IS NOT NULL)"
     t.index "to_tsvector('simple'::regconfig, (((((COALESCE(first_name, ''::character varying))::text || ' '::text) || (COALESCE(last_name, ''::character varying))::text) || ' '::text) || (COALESCE(handle, ''::character varying))::text))", name: "index_users_search_document", using: :gin
     t.index ["archived_at"], name: "index_users_on_archived_at"
@@ -1469,6 +1572,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
   add_foreign_key "auth_sessions", "users"
   add_foreign_key "authoring_clones", "users"
   add_foreign_key "cable_token_nonces", "users"
+  add_foreign_key "certificates", "enrollments", on_delete: :cascade
+  add_foreign_key "certificates", "users", column: "issued_by_id", on_delete: :nullify
+  add_foreign_key "certificates", "users", column: "revoked_by_id", on_delete: :nullify
   add_foreign_key "channel_read_states", "channels"
   add_foreign_key "channel_read_states", "messages", column: "last_read_message_id"
   add_foreign_key "channel_read_states", "users"
@@ -1521,6 +1627,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
   add_foreign_key "feedback_snippets", "users", column: "created_by_id"
   add_foreign_key "github_app_installations", "cohorts"
   add_foreign_key "github_check_runs", "submissions"
+  add_foreign_key "github_issue_deliveries", "content_blocks", on_delete: :cascade
+  add_foreign_key "github_issue_deliveries", "enrollments", on_delete: :cascade
+  add_foreign_key "github_issue_deliveries", "github_repository_bindings", on_delete: :nullify
+  add_foreign_key "github_issue_deliveries", "submissions", on_delete: :cascade
   add_foreign_key "github_repository_bindings", "enrollments"
   add_foreign_key "github_repository_bindings", "github_app_installations"
   add_foreign_key "github_repository_bindings", "modules", column: "curriculum_module_id"
@@ -1545,12 +1655,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080100) do
   add_foreign_key "learner_extensions", "lessons", on_delete: :nullify
   add_foreign_key "learner_extensions", "modules"
   add_foreign_key "learner_extensions", "users", column: "granted_by_id"
+  add_foreign_key "learner_nudges", "enrollments", on_delete: :cascade
   add_foreign_key "learning_objectives", "curricula", column: "curriculum_id"
   add_foreign_key "learning_plan_revisions", "learning_plans"
   add_foreign_key "learning_plan_revisions", "users", column: "author_id"
   add_foreign_key "learning_plans", "enrollments"
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"
+  add_foreign_key "lesson_recordings", "lessons", on_delete: :cascade
+  add_foreign_key "lesson_recordings", "recordings", on_delete: :cascade
   add_foreign_key "lessons", "modules"
   add_foreign_key "message_attachments", "messages"
   add_foreign_key "message_attachments", "users", column: "uploaded_by_id"

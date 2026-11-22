@@ -8,6 +8,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { VideoPlayer } from '../shared/VideoPlayer'
 import { isSupportedVideoFile, videoCompatibilityWarning, VIDEO_FILE_ACCEPT } from '../../lib/videoUploadValidation'
+import { RecordingLessonPicker } from './RecordingLessonPicker'
 import { VideoUploadWarning } from './VideoUploadWarning'
 import { Button, IconButton } from '../ui/Button'
 import { Badge } from '../ui/Badge'
@@ -16,6 +17,7 @@ import { cohortPath } from '../../lib/routes'
 import { listLinkState } from '../../lib/navigationContext'
 import { RecordLink } from '../shared/RecordLink'
 
+import type { components } from '../../types/api.generated'
 import type { S3Recording } from '../../types/api'
 
 interface RecordingDraft {
@@ -24,6 +26,7 @@ interface RecordingDraft {
   title: string
   description: string
   recordedDate: string
+  lessonIds: number[]
   error?: string
   warning?: string
 }
@@ -56,15 +59,37 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
   const [editDescription, setEditDescription] = useState('')
   const [editDate, setEditDate] = useState('')
   const [editUrl, setEditUrl] = useState('')
+  const [editLessonIds, setEditLessonIds] = useState<number[]>([])
+  const [editLessonsChanged, setEditLessonsChanged] = useState(false)
   const [linkTitle, setLinkTitle] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [linkDescription, setLinkDescription] = useState('')
   const [linkDate, setLinkDate] = useState('')
+  const [linkLessonIds, setLinkLessonIds] = useState<number[]>([])
   const [linkPublishImmediately, setLinkPublishImmediately] = useState(false)
   const [savingLink, setSavingLink] = useState(false)
   const [previewRecording, setPreviewRecording] = useState<S3Recording | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const mountedRef = useRef(false)
+  const requestingLessons = useRef(false)
+  const [lessonOptions, setLessonOptions] = useState<components['schemas']['RecordingLessonOption'][] | null>(null)
+  const [lessonOptionsError, setLessonOptionsError] = useState<string | null>(null)
+
+  const loadLessonOptions = async () => {
+    if (lessonOptions || requestingLessons.current) return
+    requestingLessons.current = true
+    setLessonOptionsError(null)
+    try {
+      const result = await api.getRecordingLessonOptions(cohortId)
+      if (!mountedRef.current) return
+      if (result.data) setLessonOptions(result.data.lessons)
+      else setLessonOptionsError("Couldn't load lessons.")
+    } finally {
+      requestingLessons.current = false
+    }
+  }
+
+  const lessonPickerOptions = { options: lessonOptions, error: lessonOptionsError, loadOptions: () => void loadLessonOptions() }
 
   const fetchRecordings = useCallback(async () => {
     const res = await api.getCohortRecordings(cohortId)
@@ -118,6 +143,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
         title: file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '),
         description: '',
         recordedDate: '',
+        lessonIds: [],
         warning: videoCompatibilityWarning(file) || undefined,
       })
     })
@@ -171,6 +197,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
         title: trimmedTitle,
         description: draft.description.trim() || undefined,
         recordedDate: draft.recordedDate || undefined,
+        lessonIds: draft.lessonIds,
         publishImmediately,
       },
       linkTo: cohortPath(cohortId),
@@ -244,6 +271,8 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
     setEditDescription(rec.description || '')
     setEditDate(rec.recorded_date ? rec.recorded_date.split('T')[0] : '')
     setEditUrl(rec.url || '')
+    setEditLessonIds(rec.lessons?.map((lesson) => lesson.id) ?? [])
+    setEditLessonsChanged(false)
   }
 
   // Open the requested recording's edit form once, after the list loads.
@@ -266,6 +295,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
         title: editTitle.trim(),
         description: editDescription.trim(),
         recorded_date: editDate || null,
+        lesson_ids: editLessonsChanged ? editLessonIds : undefined,
         ...(recordings.find((recording) => recording.id === editingId)?.source !== 'uploaded' ? { source_url: editUrl.trim() } : {}),
       })
       if (res.error) {
@@ -292,6 +322,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
         description: linkDescription.trim() || undefined,
         recorded_date: linkDate || undefined,
         publish_immediately: linkPublishImmediately,
+        lesson_ids: linkLessonIds.length ? linkLessonIds : undefined,
       })
       if (res.error) {
         setError(res.error)
@@ -303,6 +334,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
       setLinkUrl('')
       setLinkDescription('')
       setLinkDate('')
+      setLinkLessonIds([])
       setLinkPublishImmediately(false)
       toast.success(linkPublishImmediately ? 'Recording link published' : 'Recording link saved as a draft')
       void fetchRecordings()
@@ -374,7 +406,8 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
       description: recording.description,
       source: sourceLabel(recording.source),
       date: recording.recorded_date,
-      meta: [recording.duration_display, recording.file_size_display].filter(Boolean).join(' · '),
+      duration: recording.duration_display,
+      meta: recording.file_size_display,
       recording: recording.source === 'uploaded' ? recording : null,
       url: recording.url || null,
     }))
@@ -429,6 +462,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
           <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-ink-secondary">Title *<input value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} placeholder="Week 1 class replay" className="app-control mt-1 w-full" /></label><label className="text-xs font-semibold text-ink-secondary">Date recorded<input type="date" value={linkDate} onChange={(event) => setLinkDate(event.target.value)} className="app-control mt-1 w-full" /></label></div>
           <label className="block text-xs font-semibold text-ink-secondary">Secure video link *<input type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="app-control mt-1 w-full" /></label>
           <label className="block text-xs font-semibold text-ink-secondary">Description<input value={linkDescription} onChange={(event) => setLinkDescription(event.target.value)} placeholder="Topics covered in this class" className="app-control mt-1 w-full" /></label>
+          <RecordingLessonPicker {...lessonPickerOptions} recordedDate={linkDate} value={linkLessonIds} onChange={setLinkLessonIds} />
           <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-line-strong text-primary-ink" /><span><span className="block text-sm font-semibold text-ink">Publish immediately</span><span className="block text-xs text-ink-muted">Leave off to review the link privately first.</span></span></label>
           <div className="flex justify-end"><Button onClick={() => void saveLink()} disabled={savingLink || !linkTitle.trim() || !linkUrl.trim()}>{savingLink && <Loader2 className="h-4 w-4 animate-spin" />}{savingLink ? 'Saving…' : linkPublishImmediately ? 'Add and publish' : 'Save as draft'}</Button></div>
         </div>
@@ -528,6 +562,8 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
                       />
                     </div>
                   </div>
+
+                  <RecordingLessonPicker {...lessonPickerOptions} recordedDate={draft.recordedDate} value={draft.lessonIds} onChange={(lessonIds) => updateDraft(draft.id, { lessonIds })} />
 
                   {draft.error && <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger-ink">{draft.error}</p>}
                   <VideoUploadWarning message={draft.warning} />
@@ -629,6 +665,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
                       <Badge tone="neutral" icon={item.source === 'Uploaded' ? <Upload className="h-3 w-3" /> : item.source === 'YouTube' ? <Film className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}>
                         {item.source}
                       </Badge>
+                      {item.duration && <Badge icon={<Clock className="size-3" aria-hidden="true" />}>{item.duration}</Badge>}
                       {item.date && <span className="text-xs text-ink-muted tabular-nums">{formatDateLabel(item.date)}</span>}
                     </div>
                     <p className="mt-2 truncate text-sm font-semibold text-ink" title={item.title}>{item.title}</p>
@@ -713,6 +750,13 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
                       className="app-control w-full"
                     />
                   </div>
+                  <RecordingLessonPicker
+                    {...lessonPickerOptions}
+                    recordedDate={editDate}
+                    value={editLessonIds}
+                    savedLessons={rec.lessons}
+                    onChange={(ids) => { setEditLessonIds(ids); setEditLessonsChanged(true) }}
+                  />
                   <div className="flex justify-end gap-2">
                     <Button variant="quiet" size="sm" onClick={() => setEditingId(null)} disabled={savingEdit}>
                       Cancel
@@ -739,12 +783,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
                           {formatDateLabel(rec.recorded_date)}
                         </span>
                       )}
-                      {rec.duration_display && (
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {rec.duration_display}
-                        </span>
-                      )}
+                      {rec.duration_display && <Badge icon={<Clock className="size-3" aria-hidden="true" />}>{rec.duration_display}</Badge>}
                       {rec.file_size_display && <span>{rec.file_size_display}</span>}
                       <span>{sourceLabel(rec.source)} · added {formatUploadedAt(rec.created_at)}</span>
                       {rec.uploaded_by && <span>Added by {rec.uploaded_by}</span>}<Link className="app-link inline-flex min-h-11 items-center" to={`/admin/cohorts/${cohortId}/watch-progress?recording_id=${rec.id}`} state={listLinkState(location, 'Recordings')}>Watch progress</Link>

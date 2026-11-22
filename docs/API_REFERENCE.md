@@ -658,6 +658,18 @@ Snippet text is always inserted into an editable feedback draft; it never grades
 | `PATCH` | `/api/v1/notifications/:id/read` | Owner | Mark one notification read |
 | `PATCH` | `/api/v1/notifications/mark_all_read` | Any signed-in user | Mark all current-user notifications read |
 
+### Learner reminders (W9.3)
+
+Reminders arrive as ordinary `system` notifications whose `notifiable.type` is `LearnerNudge`, with email and push where allowed. They run only when the school `learner_nudges` switch and the cohort's own opt-in are both on. Rules: `api/app/services/learner_nudges.rb`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/nudge_preferences` | Any signed-in user | `{ "learner_nudges_enabled": true }` |
+| `PATCH` | `/api/v1/nudge_preferences` | Any signed-in user | Body `{ "learner_nudges_enabled": false }` turns optional reminders (due soon, inactivity, help period ending) off; access-ending reminders are essential and still arrive. `422` unless the value is a JSON boolean |
+| `GET` | `/api/v1/enrollments/:enrollment_id/nudges` | Staff who can see the cohort | `{ enabled, learner_opted_out, nudges: [...] }`, newest first, at most 100; each with `kind`, `threshold`, `essential`, `title`, `body`, `event_at`, `sent_at`, `email_status`, `push_status`, `read_at`. Others get `404` |
+
+`GET /api/v1/profile` adds `learner_nudges_enabled: true` to an enrollment, and the staff `GET /api/v1/progress/student/:id` adds it to `enrollment`, only when that cohort sends reminders; otherwise the key is absent.
+
 ### Push Subscriptions
 
 | Method | Path | Auth | Description |
@@ -976,6 +988,7 @@ The staff student response keeps operational fields scoped to the selected enrol
 | `PATCH` | `/api/v1/submissions/:id` | Staff | Update submission |
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission |
 | `GET` | `/api/v1/submissions/:id/github_issue` | Staff | Get linked GitHub issue |
+| `POST` | `/api/v1/submissions/:id/retry_github_issue` | Staff | Retry a failed or pending durable GitHub issue delivery (`github_issue_delivery_v2` cohorts); returns `409` if already in progress |
 | `GET` | `/api/v1/submissions/:id/github_checks` | Staff or submission owner | Read persisted check-run metadata for the submission's current commit |
 | `POST` | `/api/v1/submissions/:id/github_checks` | Staff | Refresh current-commit check metadata from GitHub |
 

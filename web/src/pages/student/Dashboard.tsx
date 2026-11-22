@@ -1,3 +1,5 @@
+import { TERMS } from '../../lib/glossary'
+import { CourseCompletionStatus } from '../../components/student/CourseCompletionCards'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { StartHere } from '../../components/student/StartHere'
 import { brand } from '../../lib/brand'
@@ -234,6 +236,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   return (
     <div className="app-page max-w-5xl">
       {previewBanner}
+      {!previewData && !showingSavedData && <CourseCompletionStatus completion={data.course_completion} />}
       {data.start_here && !previewData && <StartHere key={data.cohort?.id} data={data} onDismiss={() => setData(current => current && current.cohort?.id === data.cohort?.id ? { ...current, start_here: false } : current)} />}
       {!paused && data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
@@ -388,7 +391,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             Live schedule
           </h3>
           <div className="rounded-xl border border-line bg-surface-sunken p-4">
-            <p className="text-xs font-semibold text-ink-muted">Next session</p>
+            <p className="text-xs font-semibold text-ink-muted">{data.office_hours[0].optional_check_in ? TERMS.optionalCheckIn : 'Next session'}</p>
             <p className="mt-1 text-base font-semibold text-ink">{data.office_hours[0].title}</p>
             <p className="mt-0.5 text-sm tabular-nums text-ink-secondary">{formatShortDateTime(data.office_hours[0].starts_at, 'TBD', data.office_hours[0].timezone)}</p>
             {data.office_hours[0].description && <p className="mt-2 text-sm text-ink-secondary">{data.office_hours[0].description}</p>}

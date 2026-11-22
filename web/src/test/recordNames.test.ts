@@ -46,6 +46,7 @@ const EXCEPTIONS: Record<string, RecordNameException> = {
   // Inside the learning-plan editor: context for picking lessons; a link would leave an unsaved draft.
   'src/components/admin/StudentLearningPlan.tsx lessonsById.get(id).module_name': 'Context line under a lesson in the plan draft',
   'src/components/admin/learningPlan/LessonPicker.tsx mod.name': 'Group heading in the lesson picker dialog',
+  'src/components/admin/RecordingLessonPicker.tsx lessons[0].module_name': 'Group label for a recording attachment picker with unsaved selections',
   // Staff preview of the learner view: links here would leave the preview.
   'src/pages/admin/CohortStudentView.tsx data.cohort.name': { count: 3, reason: 'Preview shell' },
   'src/pages/admin/CohortStudentView.tsx selectedStudent.full_name': 'Preview shell',

@@ -54,6 +54,7 @@ import {
   SubmissionReviewPanel,
   type SubmissionReviewHandle,
 } from '../../components/admin/SubmissionReviewPanel'
+import { PastReviewTargetBadge } from '../../components/admin/PastReviewTargetBadge'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { GradingQueueItem, Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
@@ -286,7 +287,7 @@ export function Grading() {
       <div className={selectedId ? 'hidden lg:block' : undefined}>
         <PageHeader
           title="Grading"
-          description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortName ? <> in {cohortName}</> : ' across cohorts'} · {counts.redo} redo requested</>}
+          description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortName ? <> in {cohortName}</> : ' across cohorts'} · {counts.redo} redo requested{counts.overdue ? <> · {counts.overdue} past review target</> : null}</>}
           scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null })} />}
           menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
         />
@@ -443,7 +444,7 @@ export function Grading() {
                         <span className="truncate text-sm font-bold text-ink" title={sub.user_name}>{sub.user_name}</span>
                         {sub.submission_window?.submissions_close_at && <span className="col-span-2 text-xs text-ink-muted">Deadline · {new Date(sub.submission_window.submissions_close_at).toLocaleString("en-US", { timeZone: "Pacific/Guam" })} (Guam)</span>}
                         {sub.extensions?.map((extension) => <span key={extension.id} className="col-span-2 text-xs text-warning-ink [overflow-wrap:anywhere]">Extension · {extension.reason}</span>)}
-                        <span className={`text-right text-xs font-bold tabular-nums ${waiting && waitingTooLong(sub.created_at) ? 'text-danger-ink' : 'text-ink-muted'}`}>
+                        <span className={`text-right text-xs font-bold tabular-nums ${waiting && (sub.review_sla?.overdue ?? waitingTooLong(sub.created_at)) ? 'text-danger-ink' : 'text-ink-muted'}`}>
                           {waiting ? (
                             <><span className="sr-only">Waiting </span>{waitingLabel(sub.created_at)}</>
                           ) : !latest ? 'Previous' : gradeLabel(sub.grade)}
@@ -452,6 +453,7 @@ export function Grading() {
                           {where}{sub.num_submissions > 1 ? ` · attempt ${sub.num_submissions}` : ''}
                         </span>
                         {context && <span className="col-span-2 truncate text-xs text-ink-muted">{context}</span>}
+                        {sub.review_sla?.overdue === true && <span className="col-span-2 mt-1"><PastReviewTargetBadge /></span>}
                       </RowButton>
                     </li>
                   )
@@ -509,7 +511,9 @@ export function Grading() {
                 type={<span className="tabular-nums">Submission #{current.id} · attempt {current.num_submissions}</span>}
                 title={current.lesson_title}
                 status={current.grade === null && currentIsLatest
-                  ? <Badge tone={waitingTooLong(current.created_at) ? 'danger' : 'warning'}><Clock className="h-3.5 w-3.5" aria-hidden="true" />{waitingSentence(current.created_at)}</Badge>
+                  ? queueItem?.review_sla?.overdue === true
+                    ? <PastReviewTargetBadge />
+                    : <Badge tone={!queueItem?.review_sla && waitingTooLong(current.created_at) ? 'danger' : 'warning'}><Clock className="h-3.5 w-3.5" aria-hidden="true" />{waitingSentence(current.created_at)}</Badge>
                   : <SubmissionStatus grade={current.grade} />}
                 context={<>
                   {/* Phones hide the breadcrumb, so the cohort leads the context line there. */}

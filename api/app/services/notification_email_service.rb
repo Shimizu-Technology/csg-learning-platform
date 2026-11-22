@@ -23,15 +23,33 @@ class NotificationEmailService
     def send_daily_unlock_for_enrollment(enrollment:, lessons:, on: LearningCalendar.today)
       modules = enrollment.module_assignments.index_by(&:module_id)
       assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
-      lessons = lessons.select { |lesson| LessonReadAccess.readable?(enrollment, lesson, modules[lesson.module_id], assignments[lesson.id], on: on) }
+      lessons = lessons.uniq(&:id).select { |lesson| LessonReadAccess.readable?(enrollment, lesson, modules[lesson.module_id], assignments[lesson.id], on: on) }
       return nil if lessons.empty?
 
       deliver_daily_unlock(user: enrollment.user, cohort: enrollment.cohort, lessons: lessons, raise_rejection: true)
     end
 
+    def daily_unlock_subject
+      "New content unlocked - #{SchoolBrand.current.name}"
+    end
+
+    def daily_unlock_lesson_url(lesson, cohort)
+      return nil unless frontend_url.present?
+
+      path = RecordDestination.to_web_path(RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort.id }))
+      frontend_path(path)
+    end
+
+    def daily_unlock_cta_url(cohort)
+      return nil unless frontend_url.present?
+
+      frontend_path("/materials?cohort_id=#{cohort.id}")
+    end
+
     def deliver_daily_unlock(user:, cohort:, lessons:, raise_rejection: false)
       return false unless configured?
 
+      lessons = lessons.uniq(&:id)
       lesson_list = lessons.map { |lesson| daily_unlock_lesson_item(lesson, cohort) }.join
 
       response = Resend::Emails.send(
@@ -39,7 +57,7 @@ class NotificationEmailService
           from: from_email,
           tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
-          subject: "New content unlocked - #{SchoolBrand.current.name}",
+          subject: daily_unlock_subject,
           html: daily_unlock_html(
             user: user, cohort: cohort, lesson_list: lesson_list, count: lessons.size
           )
@@ -61,6 +79,28 @@ class NotificationEmailService
       Rails.logger.error(
         "[DailyUnlock] delivery_failed recipient_user_id=#{user.id} error_class=#{e.class.name}"
       )
+      false
+    end
+
+    # A learner reminder (W9.3). True when the provider accepted it, false on
+    # any failure; it never raises, because the reminder is already recorded
+    # and is attempted at most once.
+    def send_learner_nudge(user:, cohort:, title:, body:, path:, essential:)
+      return false unless configured?
+
+      Resend::Emails.send(
+        {
+          from: from_email,
+          tags: [ { name: "application", value: "csg_learn" } ],
+          to: user.email,
+          subject: "#{title} - #{SchoolBrand.current.name}",
+          html: learner_nudge_html(user: user, cohort: cohort, title: title, body: body, path: path, essential: essential)
+        }
+      )
+      Rails.logger.info("[LearnerNudgeEmail] delivered recipient_user_id=#{user.id}")
+      true
+    rescue StandardError => e
+      Rails.logger.error("[LearnerNudgeEmail] delivery_failed recipient_user_id=#{user.id} error_class=#{e.class.name}")
       false
     end
 
@@ -170,6 +210,10 @@ class NotificationEmailService
         Rails.logger.warn("[NotificationEmail] from email not configured; skipping")
         return false
       end
+      if frontend_url.blank?
+        Rails.logger.warn("[NotificationEmail] public frontend URL not configured; skipping")
+        return false
+      end
       true
     end
 
@@ -178,6 +222,7 @@ class NotificationEmailService
     def ensure_configured!
       raise ConfigurationError, "RESEND_API_KEY is not configured" if ENV["RESEND_API_KEY"].blank?
       raise ConfigurationError, "sender email is not configured" if from_email.blank?
+      raise ConfigurationError, "public frontend URL is not configured" if frontend_url.blank?
     end
 
     def readable_lessons(user, cohort, lessons)
@@ -203,7 +248,7 @@ class NotificationEmailService
     end
 
     def frontend_path(path)
-      "#{frontend_url.to_s.sub(%r{/\z}, "")}#{path}"
+      FrontendUrlResolver.safe_deep_link(path)
     end
 
     def h(value)
@@ -212,8 +257,7 @@ class NotificationEmailService
 
     # Each lesson opens in this cohort (L-3.7). Absolute, so it works from any mail client.
     def daily_unlock_lesson_item(lesson, cohort)
-      path = RecordDestination.to_web_path(RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort.id }))
-      %(<li style="margin-bottom: 8px;"><a href="#{h(frontend_path(path))}" target="_blank" style="color: #9c292b; font-weight: 600; text-decoration: underline;">#{h(lesson.title)}</a></li>)
+      %(<li style="margin-bottom: 8px;"><a href="#{h(daily_unlock_lesson_url(lesson, cohort))}" target="_blank" style="color: #9c292b; font-weight: 600; text-decoration: underline;">#{h(lesson.title)}</a></li>)
     end
 
     def daily_unlock_html(user:, cohort:, lesson_list:, count:)
@@ -263,6 +307,51 @@ class NotificationEmailService
                     <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">
                       #{h(SchoolBrand.current.product_name)} &middot; #{h(SchoolBrand.current.name)} &mdash; #{h(cohort.name)}
                     </p>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </body>
+        </html>
+      HTML
+    end
+
+    def learner_nudge_html(user:, cohort:, title:, body:, path:, essential:)
+      name = h(user.first_name.presence || user.email.split("@").first)
+      footer = if essential
+        "This message about your course access is sent even when reminders are turned off."
+      else
+        "You can turn reminders off in your #{h(SchoolBrand.current.product_name)} profile."
+      end
+      <<~HTML
+        <!doctype html>
+        <html>
+          <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+          <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9;">
+              <tr><td align="center" style="padding: 40px 16px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                  <tr><td style="height: 4px; background-color: #9c292b; font-size: 0;">&nbsp;</td></tr>
+                  <tr><td style="padding: 32px 32px 0;">
+                    <p style="margin: 0 0 8px; color: #842225; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">#{h(cohort.name)}</p>
+                    <h1 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 700;">#{h(title)}</h1>
+                  </td></tr>
+                  <tr><td style="padding: 16px 32px 0;">
+                    <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.7; color: #334155;">Hi #{name},</p>
+                    <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #334155;">#{h(body)}</p>
+                  </td></tr>
+                  <tr><td style="padding: 24px 32px 0;">
+                    <table role="presentation" cellspacing="0" cellpadding="0">
+                      <tr><td style="border-radius: 6px; background-color: #9c292b;">
+                        <a href="#{h(frontend_path(path))}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">Open Learn</a>
+                      </td></tr>
+                    </table>
+                  </td></tr>
+                  <tr><td style="padding: 28px 32px 32px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
+                    </table>
+                    <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8;">#{footer}</p>
                   </td></tr>
                 </table>
               </td></tr>

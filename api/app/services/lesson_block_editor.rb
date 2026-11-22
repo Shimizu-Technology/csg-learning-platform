@@ -47,6 +47,19 @@ class LessonBlockEditor
   VIDEO_TYPES = %w[video recording].freeze
   TEXT_FIELDS = %w[title body solution filename video_url].freeze
 
+  # Returns the lesson.requires_submission value LessonBlockEditor persists for
+  # a lesson's blocks. An exercise or code challenge with submission_type: nil
+  # inherits its effective submission type from lesson.requires_submission
+  # (ContentBlock#legacy_submission_type), so keep the legacy lesson flag
+  # unchanged while any such block exists.
+  def self.derived_requires_submission(lesson)
+    primary = lesson.primary_assignment_block
+    return lesson.requires_submission unless primary&.submission_type.present?
+    return lesson.requires_submission if lesson.content_blocks.any? { |block| block.exercise_like? && block.submission_type.nil? }
+
+    ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(primary.submission_type)
+  end
+
   # before_lock runs inside the transaction after the storage checks and
   # before the lesson row is locked (the controller re-checks editing access
   # there; see LessonEditAccess).
@@ -288,9 +301,10 @@ class LessonBlockEditor
     end
     block.submission_config = payload[:submission_config].to_h if payload.key?(:submission_config)
     block.rubric_id = payload[:rubric_id].presence if payload.key?(:rubric_id)
-    block.metadata = payload[:metadata].to_h if block.new_record? && payload[:metadata].is_a?(Hash)
-    if payload[:metadata].is_a?(Hash) && (payload[:metadata].key?(:video_versions) || payload[:metadata].key?(:video_versions_duration_seconds))
-      block.metadata = (block.metadata || {}).merge(payload[:metadata].slice(:video_versions, :video_versions_duration_seconds).stringify_keys)
+    if payload[:metadata].is_a?(Hash)
+      block.metadata = payload[:metadata] if block.new_record?
+      editable = payload[:metadata].slice(:video_versions, :video_versions_duration_seconds, :final_project)
+      block.metadata = block.metadata.to_h.merge(editable.stringify_keys) if editable.present?
     end
     if payload.key?(:video_segments)
       block.metadata = (block.metadata || {}).merge(
@@ -380,10 +394,7 @@ class LessonBlockEditor
     attributes = @params.slice(:title, :required, :release_day)
     attributes[:required] = ActiveModel::Type::Boolean.new.cast(attributes[:required]) if attributes.key?(:required)
     @lesson.content_blocks.reload
-    primary = @lesson.primary_assignment_block
-    if primary&.submission_type.present?
-      attributes[:requires_submission] = ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(primary.submission_type)
-    end
+    attributes[:requires_submission] = self.class.derived_requires_submission(@lesson)
     @lesson.assign_attributes(attributes)
     require_learner_access_kept! if @lesson.will_save_change_to_release_day?
     @lesson.save!

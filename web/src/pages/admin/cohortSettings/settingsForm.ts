@@ -1,7 +1,26 @@
 import { toDateTimeInputValueInTimeZone } from '../../../lib/dateTime'
 import { formatShortDate } from '../../../lib/format'
 import { schoolTimeZone, schoolWallTimeToIso } from '../../../lib/schoolTime'
-import type { CourseOfferingTerms, InviteState, OfficeHour, OfficeHourOccurrence } from '../../../types/api'
+import type { CourseCompletionNextStep } from '../../../lib/certificates'
+import type { CourseOfferingTerms, InviteState, OfficeHour, OfficeHourOccurrence, ReviewAndGuidedTerms } from '../../../types/api'
+
+export const emptyGuidedTerms = {
+  guided_access_months: '',
+  guided_support_weeks: '',
+  guided_access_ends_on: '',
+  guided_support_ends_on: '',
+}
+
+export type GuidedTermsDraft = typeof emptyGuidedTerms
+
+export function guidedTermParams(terms: GuidedTermsDraft) {
+  return {
+    guided_access_months: terms.guided_access_months ? Number(terms.guided_access_months) : null,
+    guided_support_weeks: terms.guided_support_weeks ? Number(terms.guided_support_weeks) : null,
+    guided_access_ends_on: terms.guided_access_ends_on || null,
+    guided_support_ends_on: terms.guided_support_ends_on || null,
+  }
+}
 
 export interface ClassResource {
   title: string
@@ -22,7 +41,7 @@ export interface SubmissionWindowForm {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type CohortData = Record<string, any> &
-  CourseOfferingTerms & {
+  CourseOfferingTerms & ReviewAndGuidedTerms & {
     id: number
     name: string
     curriculum_id: number
@@ -39,6 +58,7 @@ export type CohortData = Record<string, any> &
     guided_access_ends_on?: string | null
     guided_support_ends_on?: string | null
     learner_pace_weeks?: number[] | null
+    settings?: { next_step?: CourseCompletionNextStep } | null
     class_resources?: ClassResource[]
     office_hours?: OfficeHour[]
     office_hour_occurrences?: OfficeHourOccurrence[]
@@ -84,6 +104,15 @@ export type CohortData = Record<string, any> &
       }>
     }>
   }
+
+export function nextStepFields(step?: CourseCompletionNextStep) {
+  return {
+    title: step?.title ?? '',
+    description: step?.description ?? '',
+    url: step?.url ?? '',
+    offering_slug: step?.offering_slug ?? '',
+  }
+}
 
 /** W9.1: the paces learners choose from when learner-chosen pace is first turned on. */
 export const DEFAULT_PACE_WEEKS = '3, 4, 6'

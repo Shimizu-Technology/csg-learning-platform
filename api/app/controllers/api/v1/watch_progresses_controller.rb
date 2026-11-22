@@ -289,19 +289,7 @@ module Api
           current_user.watch_progresses.find_or_initialize_by(recording: recording)
         end
 
-        server_duration = recording.duration_seconds
-        client_duration = params[:duration_seconds].to_i
-        # Preserve "unknown duration" as nil until we have either a server-side
-        # value or a positive client hint. Writing 0 here silently disables the
-        # `positive?` checks below and can strand a recording in a never-complete
-        # state until some later request/backfill supplies a real duration.
-        progress.duration_seconds = if server_duration.present?
-          server_duration
-        elsif client_duration.positive?
-          client_duration
-        else
-          nil
-        end
+        progress.duration_seconds = recording.duration_for_playback(params[:duration_seconds])
         new_position = params[:last_position_seconds].to_i
         if progress.duration_seconds&.positive?
           new_position = [ new_position, progress.duration_seconds ].min

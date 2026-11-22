@@ -11,7 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { ArrowDownToLine, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, Link2, MessageSquareReply, MoreHorizontal, UserRound, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownToLine, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, Link2, Lock, MessageSquareReply, MoreHorizontal, UserRound, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -190,13 +190,16 @@ export default function ConversationScreen() {
     draftValueRef.current = value;
     setDraft(value);
   }, []);
+  const channelSummary = kind === 'channel' && summary && 'name' in summary ? summary : null;
+  const canPost = kind !== 'channel' || channelSummary?.can_post !== false;
+  const postDisabledReason = channelSummary?.post_disabled_reason || 'Posting is disabled in this conversation.';
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
     surface: 'message',
     draft,
     selection,
-    disabled: sending || Boolean(editingMessage),
+    disabled: sending || Boolean(editingMessage) || !canPost,
     maxDraftLength: MESSAGE_BODY_LIMIT,
     onDraftChange: updateDraft,
     onSelectionChange: setSelection,
@@ -417,6 +420,12 @@ export default function ConversationScreen() {
         setShowScrollToLatest(true);
         if (!payload.message.mine) { setNewMessagesBelow((current) => current + 1); setArrivalUnreadBoundaryId((current) => current ?? payload.message.id); }
       }
+      if (kind === 'channel' && payload.channel) {
+        const nextChannel = payload.channel;
+        setSummary((current) => current && 'name' in current
+          ? { ...current, can_post: nextChannel.can_post, post_disabled_reason: nextChannel.post_disabled_reason }
+          : current);
+      }
       setMessages((current) => mergeMessageEvent(current, payload));
       setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
       if (follow) scrollToLatest(false);
@@ -457,7 +466,7 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     const subscription = realtimeSubscriptionRef.current;
-    const active = Boolean(draft.trim()) && !editingMessage;
+    const active = canPost && Boolean(draft.trim()) && !editingMessage;
     const previous = outboundTypingRef.current;
     const send = (nextActive: boolean) => subscription?.perform('typing', { target_type: kind, target_id: id, thread_root_id: null, active: nextActive }) ?? false;
 
@@ -478,7 +487,7 @@ export default function ConversationScreen() {
       outboundTypingRef.current = null;
       typingStopTimerRef.current = null;
     }, 4_000);
-  }, [draft, editingMessage, id, kind, realtimeSubscriptionVersion]);
+  }, [canPost, draft, editingMessage, id, kind, realtimeSubscriptionVersion]);
 
   useEffect(() => {
     typingExpiryTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -578,6 +587,7 @@ export default function ConversationScreen() {
   };
 
   const send = async (retryMessage?: Message) => {
+    if (!canPost) return;
     const body = retryMessage ? retryMessage.body : messageBodyForSend(draft);
     const mentionIds = retryMessage?.mention_user_ids ?? resolveMentionUserIds(body, mentionUsers, selectedMentionIds.current);
     const pendingUploads = retryMessage?.client_pending_attachments ?? attachments;
@@ -854,28 +864,35 @@ export default function ConversationScreen() {
           />
           {showScrollToLatest && <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest message" onPress={() => void jumpToLatest()} style={styles.latestButton}><ChevronDown color={c.text.strong} size={17} strokeWidth={2.5} /><Text style={styles.latestText}>{newMessagesBelow ? `${newMessagesBelow} new` : 'Jump to latest'}</Text></Pressable>}
         </View>}
-        {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${composerValue.slice(0, mentionTrigger.start)}@everyone ${composerValue.slice(mentionTrigger.end)}`; const next = messageInsertionWithinLimit(value, mentionTrigger.start + 10); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={c.text.body} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this conversation</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const inserted = insertMention(composerValue, mentionTrigger, member); const next = messageInsertionWithinLimit(inserted.value, inserted.cursor); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } selectedMentionIds.current = [...new Set([...selectedMentionIds.current, member.id])]; updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{mentionDetail(member)}</Text></View></Pressable>)}</View>}
-        {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={c.text.body} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={c.text.body} size={14} /></Pressable></View>)}</ScrollView>}
-        {!editingMessage && <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />}
-        {editingMessage && <View style={styles.editBanner}><Edit3 color={c.text.body} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 }); }} style={styles.editClose}><X color={c.text.body} size={16} /></Pressable></View>}
-        <TypingIndicator users={typingUsers} />
-        <ComposerLimitNotice value={preparedComposerBody} />
-        <MessageFormattingToolbar value={composerValue} selection={composerSelection} mentionUsers={mentionUsers} visible={formattingExpanded} disabled={sending} onChange={updateComposerValue} onSelectionChange={updateComposerSelection} onComposerFocus={focusComposer} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
-        <View style={styles.composer}>
+        {canPost ? <>
+          {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${composerValue.slice(0, mentionTrigger.start)}@everyone ${composerValue.slice(mentionTrigger.end)}`; const next = messageInsertionWithinLimit(value, mentionTrigger.start + 10); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={c.text.body} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this conversation</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const inserted = insertMention(composerValue, mentionTrigger, member); const next = messageInsertionWithinLimit(inserted.value, inserted.cursor); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } selectedMentionIds.current = [...new Set([...selectedMentionIds.current, member.id])]; updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{mentionDetail(member)}</Text></View></Pressable>)}</View>}
+          {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={c.text.body} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={c.text.body} size={14} /></Pressable></View>)}</ScrollView>}
+          {!editingMessage && <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />}
+          {editingMessage && <View style={styles.editBanner}><Edit3 color={c.text.body} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 }); }} style={styles.editClose}><X color={c.text.body} size={16} /></Pressable></View>}
+          <TypingIndicator users={typingUsers} />
+          <ComposerLimitNotice value={preparedComposerBody} />
+          <MessageFormattingToolbar value={composerValue} selection={composerSelection} mentionUsers={mentionUsers} visible={formattingExpanded} disabled={sending} onChange={updateComposerValue} onSelectionChange={updateComposerSelection} onComposerFocus={focusComposer} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
+          <View style={styles.composer}>
 
-          {composerToolsExpanded && <View style={styles.composerActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={c.text.body} size={19} /></Pressable>
-            <FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} />
-            <VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} />
-            </View>}
-          <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><TextInput keyboardAppearance={scheme} ref={composerInputRef} accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={c.text.body} multiline {...composerInputBehavior(composerValue, composerSelection)} style={styles.input} />
-            <Button variant="primary" accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || !composerWithinLimit || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || !composerWithinLimit || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={c.text.onAction} size={19} /></Button>
+            {composerToolsExpanded && <View style={styles.composerActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={c.text.body} size={19} /></Pressable>
+              <FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} />
+              <VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} />
+              </View>}
+            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><TextInput keyboardAppearance={scheme} ref={composerInputRef} accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={c.text.body} multiline {...composerInputBehavior(composerValue, composerSelection)} style={styles.input} />
+              <Button variant="primary" accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || !composerWithinLimit || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || !composerWithinLimit || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={c.text.onAction} size={19} /></Button>
+            </View>
           </View>
-        </View>
+        </> : (
+          <View accessible accessibilityRole="text" accessibilityLiveRegion="polite" testID="channel-readonly-notice" style={styles.readOnlyNotice}>
+            <Lock color={c.text.body} size={16} />
+            <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.readOnlyNoticeText}>{postDisabledReason}</Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close message actions" style={StyleSheet.absoluteFill} onPress={() => setSelectedMessage(null)} /><View style={[styles.actionSheet, { maxHeight: '85%' }]}><ScrollView><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Message actions</Text>{selectedMessage && <>
-        {!selectedMessage.deleted_at && !selectedMessage.blocked && <View style={styles.reactionPicker}>{REACTION_OPTIONS.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={label} onPress={() => { void toggleReaction(selectedMessage, value); setSelectedMessage(null); }} style={styles.reactionButton}><Icon color={c.text.strong} size={20} /><Text style={styles.reactionLabel}>{label}</Text></Pressable>)}</View>}
+        {canPost && !selectedMessage.deleted_at && !selectedMessage.blocked && <View style={styles.reactionPicker}>{REACTION_OPTIONS.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={label} onPress={() => { void toggleReaction(selectedMessage, value); setSelectedMessage(null); }} style={styles.reactionButton}><Icon color={c.text.strong} size={20} /><Text style={styles.reactionLabel}>{label}</Text></Pressable>)}</View>}
         {user?.is_staff && selectedMessage.author.role === 'student' && <Action icon={UserRound} label="View student" onPress={() => { setAuthorContext(selectedMessage.author); setSelectedMessage(null); }} />}
         {!selectedMessage.blocked && <Action icon={MessageSquareReply} label="Reply in thread" onPress={() => { openThread(selectedMessage); setSelectedMessage(null); }} />}
         {!!selectedMessage.body && !selectedMessage.blocked && <Action icon={ArrowDownToLine} label="Copy message" onPress={() => { void Clipboard.setStringAsync(selectedMessage.body); setSelectedMessage(null); }} />}
@@ -884,7 +901,7 @@ export default function ConversationScreen() {
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && !selectedMessage.blocked && <Action icon={UserX} label={`Block ${selectedMessage.author.full_name}`} destructive onPress={() => { blockUser(selectedMessage); setSelectedMessage(null); }} />}
-        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={startEditingSelectedMessage} />}
+        {canPost && selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={startEditingSelectedMessage} />}
         {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}<Button variant="secondary" onPress={() => setSelectedMessage(null)}>Cancel</Button></ScrollView></View></View></Modal>
 
@@ -922,7 +939,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   everyoneIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
   attachmentTray: { paddingHorizontal: 14, paddingVertical: 8, gap: 8, backgroundColor: c.surface.raised }, pendingAttachment: { width: 204, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, paddingLeft: 11, flexDirection: 'row', alignItems: 'center', gap: 8 }, pendingCopy: { flex: 1 }, pendingName: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 12 }, pendingStatus: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }, removeAttachment: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   editBanner: { minHeight: 44, paddingLeft: 16, backgroundColor: c.surface.sunken, borderTopWidth: 1, borderTopColor: c.border.strong, flexDirection: 'row', alignItems: 'center', gap: 8 }, editText: { flex: 1, color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, editClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  composer: { gap: 4, paddingHorizontal: 12, paddingTop: 9, paddingBottom: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, backgroundColor: c.surface.raised }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, attachButton: { width: 44, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: c.surface.page, borderWidth: 1, borderColor: c.border.subtle, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' }, sendDisabled: { opacity: 0.38 }, pressed: { transform: [{ scale: 0.96 }] },
+  composer: { gap: 4, paddingHorizontal: 12, paddingTop: 9, paddingBottom: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, backgroundColor: c.surface.raised }, readOnlyNotice: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, backgroundColor: c.surface.sunken }, readOnlyNoticeText: { flex: 1, color: c.text.body, fontFamily: fonts.medium, fontSize: 13, lineHeight: 19 }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, attachButton: { width: 44, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: c.surface.page, borderWidth: 1, borderColor: c.border.subtle, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' }, sendDisabled: { opacity: 0.38 }, pressed: { transform: [{ scale: 0.96 }] },
   modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.overlay }, actionSheet: { backgroundColor: c.surface.raised, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 16, paddingBottom: 30 }, pinsSheet: { maxHeight: '76%', backgroundColor: c.surface.raised, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 16, paddingBottom: 30 }, sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: c.border.subtle, alignSelf: 'center', marginTop: 10 }, sheetTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 20, marginTop: 16, marginBottom: 12 },
   reactionPicker: { flexDirection: 'row', gap: 7, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, reactionButton: { flex: 1, minHeight: 58, borderRadius: 15, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center', gap: 5 }, reactionLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 }, action: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 6 }, actionText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 14 }, actionDanger: { color: c.status.danger.fg },
   pinsList: { gap: 8, paddingBottom: 12 }, pinCard: { minHeight: 68, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, padding: 13, flexDirection: 'row', gap: 10 }, pinCardCopy: { flex: 1 }, pinBody: { color: c.text.strong, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }, pinAuthor: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, marginTop: 6 }, noPins: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 30, textAlign: 'center' },

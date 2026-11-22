@@ -250,7 +250,8 @@ export function draftPayload(
     const payload: LessonBlockInput = {
       ...(block.id ? { id: block.id } : { client_id: block.key, metadata: block.metadata }),
       ...(JSON.stringify(block.metadata.video_versions) !== JSON.stringify(saved?.metadata.video_versions) ||
-        block.metadata.video_versions_duration_seconds !== saved?.metadata.video_versions_duration_seconds
+        block.metadata.video_versions_duration_seconds !== saved?.metadata.video_versions_duration_seconds ||
+        block.metadata.final_project !== saved?.metadata.final_project
         ? { metadata: { ...block.metadata } } : {}),
       block_type: block.block_type,
       title: nullable(block.title),

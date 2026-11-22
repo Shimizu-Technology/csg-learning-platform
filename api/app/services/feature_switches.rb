@@ -11,15 +11,24 @@ class FeatureSwitches
     "office_hours" => true,
     "recordings" => true,
     "class_channels" => true,
+    "self_paced_peer_space" => false,
     "knowledge_checks" => true,
     "help_requests" => true,
     "github_sync" => true,
     "github_app" => false,
+    # X-6.8 reliable Redo GitHub issues: durable outbox scoped by enrollment and binding.
+    "github_issue_delivery_v2" => false,
     "announcements" => true,
     "interventions" => true,
     "learning_plans" => true,
-    "student_experience_v2" => true
+    "student_experience_v2" => true,
+    # W9.3 learner reminders: the school switch and an explicit cohort opt-in.
+    "learner_nudges" => false,
+    "certificates" => false
   }.freeze
+  # Switches a cohort only gets by opting in itself, with the school switch on:
+  # a cohort that inherits gets Off even when the school default is On.
+  COHORT_OPT_IN = %w[github_app github_issue_delivery_v2 self_paced_peer_space learner_nudges certificates].freeze
   KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
@@ -27,9 +36,23 @@ class FeatureSwitches
     defaults = school || self.school
     overrides = (cohort&.settings&.dig("features") || {}).slice(*KEYS).compact
     resolved = defaults.merge(overrides)
-    # App access requires both school activation and an explicit cohort opt-in.
-    resolved["github_app"] = defaults["github_app"] == true && overrides["github_app"] == true if cohort
+    # Opt-in switches require both school activation and an explicit cohort opt-in.
+    COHORT_OPT_IN.each { |key| resolved[key] = defaults[key] == true && overrides[key] == true } if cohort
     resolved
+  end
+
+  # Server-only switches never appear in learner/client payloads (session, dashboard,
+  # cohorts), even when enabled at the school or cohort level. Admin feature_settings
+  # endpoints read FeatureSwitches.for directly and still expose them for management.
+  SERVER_ONLY = %w[github_issue_delivery_v2].freeze
+
+  # Disabled opt-in switches added after the baseline stay implicit in existing
+  # client payloads. The management endpoint still includes explicit defaults and overrides.
+  IMPLICIT_OFF_FOR_CLIENT = %w[certificates].freeze
+
+  def self.for_client(features)
+    hidden = SERVER_ONLY + IMPLICIT_OFF_FOR_CLIENT.reject { |key| features[key] == true }
+    hidden.empty? ? features : features.except(*hidden)
   end
 
   # Preview/audit callers must not lazily create a settings row.

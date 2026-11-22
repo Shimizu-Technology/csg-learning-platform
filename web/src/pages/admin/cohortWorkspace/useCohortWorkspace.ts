@@ -13,6 +13,7 @@ import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAuthContext } from '../../../contexts/AuthContext'
 import { useCohortContext } from '../../../contexts/CohortContext'
 import { api } from '../../../lib/api'
+import { TERMS } from '../../../lib/glossary'
 import { unavailableResponse } from '../../../lib/loadFailure'
 import { useBackLink } from '../../../lib/recordOrigin'
 import { useRecordRelated } from '../../../lib/recordRelated'
@@ -20,9 +21,9 @@ import { type CohortWorkspaceTab } from '../../../lib/routes'
 import type { CohortDetail, CohortHome, LearningInsights } from '../../../types/api'
 
 export const DELIVERY_LABELS: Record<string, string> = {
-  program: 'Live program',
-  guided: 'Focused course with meetings',
-  self_paced: 'Self-paced',
+  program: TERMS.liveProgram,
+  guided: TERMS.smallClass,
+  self_paced: TERMS.selfPaced,
 }
 
 export type CohortTab = CohortWorkspaceTab

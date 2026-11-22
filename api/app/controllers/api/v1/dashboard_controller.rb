@@ -50,9 +50,10 @@ module Api
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary,
-            catalog_enabled: Cohort.active.where(course_delivery: "self_paced", public_checkout_enabled: true).exists?,
+            catalog_enabled: Cohort.active.where(course_delivery: Cohort::CHECKOUT_DELIVERIES, public_checkout_enabled: true, unlisted: false).where.not(cohort_type: :alumni).exists?,
             pending_purchases: current_user.course_purchases.where(status: "pending").includes(:cohort).map { |purchase|
-              { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.public_title.presence || "Self-paced course" }
+              default_name = purchase.cohort.guided? ? "Small-class course" : "Self-paced course"
+              { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.public_title.presence || default_name }
             } } }
           return
         end
@@ -180,7 +181,7 @@ module Api
           capabilities: EnrollmentCapabilities.for(enrollment),
           user: user_summary,
           cohort: {
-            features: FeatureSwitches.for(cohort: cohort),
+            features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: cohort)),
             id: cohort.id,
             name: cohort.name,
             cohort_type: cohort.cohort_type,
@@ -204,12 +205,16 @@ module Api
           recently_graded: recently_graded,
           resources: dashboard_resources_json(cohort, enrollment),
           private_meetings_enabled: FeatureSwitches.for(cohort: cohort)["private_meetings"] && (cohort.private_meeting_config&.enabled? || false),
-          office_hours: FeatureSwitches.for(cohort: cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3) : []
+          office_hours: FeatureSwitches.for(cohort: cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3, optional_check_ins: cohort.optional_guided_check_ins?) : []
         }
         # The redesigned Today (W8 PR 8.2) only for a cohort with the new student
         # experience explicitly on; every other cohort's payload is unchanged.
         features = FeatureSwitches.for(cohort: cohort)
-        dashboard[:student_today] = StudentToday.new(enrollment, progress: progress, features: features).call if features["student_experience_v2"] == true
+        if features["student_experience_v2"] == true
+          dashboard[:student_today] = StudentToday.new(enrollment, progress: progress, features: features).call
+        else
+          dashboard.merge!(CourseCompletion.learner_summary(enrollment, progress: progress, features: features))
+        end
         render json: { dashboard: dashboard }
       end
 
@@ -286,7 +291,7 @@ module Api
 
         {
           cohort: {
-            features: FeatureSwitches.for(cohort: cohort, school: @school_features),
+            features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: cohort, school: @school_features)),
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,

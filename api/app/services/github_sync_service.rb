@@ -165,6 +165,7 @@ class GithubSyncService
           synced_count += 1
         end
       end
+      CourseCompletion.evaluate!(enrollment) if synced_count.positive?
     end
 
     { synced: synced_count, errors: errors }

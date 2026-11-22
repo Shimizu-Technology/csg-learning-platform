@@ -46,6 +46,7 @@ module Api
           progress.status = params[:status]
 
           if progress.save
+            CourseCompletion.evaluate!(@learning_write_enrollment) if progress.completed?
             if previous_status != progress.status && (progress.completed? || previous_status == "completed")
               video = %w[video recording].include?(content_block.block_type)
               ActivityEvent.record!(
@@ -247,6 +248,7 @@ module Api
         next_lesson = learner_progress.next_lesson
 
         render json: {
+          **CourseCompletion.staff_summary(enrollment),
           personal_plan: LearningPlanProjection.new(enrollment, progress: learner_progress).call,
           continue_lesson: next_lesson && { id: next_lesson.id, title: next_lesson.title },
           status: attention && {
@@ -273,6 +275,7 @@ module Api
             access_expires_at: enrollment.access_expires_at,
             support_expires_at: enrollment.support_expires_at,
             first_opened_at: enrollment.first_opened_at,
+            **learner_nudge_history_flag(enrollment),
             module_assignments: enrollment.module_assignments.sort_by { |item| [ modules_by_id[item.module_id]&.position || 0, item.id ] }.map do |assignment|
               # The curriculum's modules are loaded with their lessons, which
               # availability and unlock dates read; reuse them per assignment.
@@ -321,6 +324,14 @@ module Api
       end
 
       private
+
+      def learner_nudge_history_flag(enrollment)
+        cohort = enrollment.cohort
+        enabled = cohort.settings.dig("features", "learner_nudges") == true && LearnerNudges.enabled_for?(cohort)
+        return {} unless enabled || enrollment.learner_nudges.exists?
+
+        { learner_nudges_enabled: enabled }
+      end
 
       def staff_cohort_scope
         @staff_cohort_scope ||= StaffCohortScope.new(current_user)

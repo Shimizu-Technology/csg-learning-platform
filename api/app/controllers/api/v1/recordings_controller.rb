@@ -3,7 +3,7 @@ module Api
     class RecordingsController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
-      before_action :require_staff!, only: [ :create, :update, :destroy, :presign, :reorder ]
+      before_action :require_staff!, only: [ :create, :update, :destroy, :presign, :reorder, :lesson_options ]
       before_action :set_cohort
       before_action -> { require_feature!("recordings", @cohort) }
       before_action :authorize_cohort_access!
@@ -14,7 +14,7 @@ module Api
         recordings = @cohort.recordings.ordered.includes(:uploaded_by)
 
         if current_user.staff?
-          render json: { recordings: recordings.map { |r| recording_json(r, staff: true) } }
+          render json: { recordings: with_attached_lessons(recordings).map { |r| recording_json(r, staff: true) } }
         else
           enrollment = current_user.enrollments.with_read_access.find_by(cohort: @cohort)
           unless enrollment
@@ -32,6 +32,21 @@ module Api
             recordings: recordings.map { |r| recording_json(r, progress: progress_map[r.id]) }
           }
         end
+      end
+
+      # GET /api/v1/cohorts/:cohort_id/recordings/lesson_options
+      def lesson_options
+        @cohort.cohort_module_schedules.load
+        lessons = attachable_lessons(@cohort).joins(:curriculum_module).includes(:curriculum_module)
+          .order("modules.position", "modules.id", :release_day, :position, :id)
+
+        render json: { lessons: lessons.map { |lesson|
+          mod = lesson.curriculum_module
+          week_starts_on = unless @cohort.self_paced? || @cohort.start_date.nil?
+            mod.start_date_for(@cohort) - mod.first_scheduled_day_index + lesson.release_day.div(7) * 7
+          end
+          attached_lesson_json(lesson, @cohort).merge(week_starts_on: week_starts_on)
+        } }
       end
 
       # GET /api/v1/cohorts/:cohort_id/recordings/:id
@@ -98,36 +113,12 @@ module Api
           return
         end
 
-        # Serialize concurrent creates so two simultaneous uploads can't compute
-        # the same `next_position` and produce duplicate slots. Locking the cohort
-        # row inside a transaction is enough — every position write for this
-        # cohort goes through here (and `reorder` already replaces them wholesale).
-        recording = nil
-        Cohort.transaction do
-          locked_cohort = Cohort.lock.find(@cohort.id)
-          next_position = locked_cohort.recordings.maximum(:position).to_i + 1
-
-          recording = locked_cohort.recordings.new(
-            title: params[:title],
-            description: params[:description],
-            s3_key: params[:s3_key],
-            content_type: content_type,
-            file_size: params[:file_size],
-            duration_seconds: params[:duration_seconds],
-            recorded_date: params[:recorded_date],
-            uploaded_by: current_user,
-            source_kind: "uploaded",
-            status: publish_immediately? ? :published : :draft,
-            position: next_position
-          )
-          recording.save
-        end
-
-        if recording.persisted?
-          render json: { recording: recording_json(recording, staff: true) }, status: :created
-        else
-          render json: { errors: recording.errors.full_messages }, status: :unprocessable_entity
-        end
+        create_recording(
+          s3_key: params[:s3_key],
+          content_type: content_type,
+          file_size: params[:file_size],
+          source_kind: "uploaded"
+        )
       end
 
       # PATCH /api/v1/cohorts/:cohort_id/recordings/:id
@@ -145,11 +136,16 @@ module Api
           permitted[:source_kind] = Recording.source_kind_for(permitted[:source_url])
         end
 
-        if @recording.update(permitted)
-          render json: { recording: recording_json(@recording, staff: true) }
-        else
-          render json: { errors: @recording.errors.full_messages }, status: :unprocessable_entity
+        # Use the same lock as curriculum copy, which remaps these attachments
+        # while holding the cohort. Reload after locking so edits use its current curriculum.
+        @recording = Cohort.transaction do
+          cohort = Cohort.lock("FOR NO KEY UPDATE").find(@cohort.id)
+          recording = cohort.recordings.lock("FOR NO KEY UPDATE").find(@recording.id)
+          save_recording!(recording, permitted)
         end
+        render json: { recording: recording_json(@recording, staff: true) }
+      rescue ActiveRecord::RecordInvalid => error
+        render_recording_errors(error.record)
       end
 
       # DELETE /api/v1/cohorts/:cohort_id/recordings/:id
@@ -199,7 +195,7 @@ module Api
           # Lock the cohort row to serialise concurrent reorders/creates so a
           # caller-supplied "full list" doesn't race a brand-new recording
           # being inserted at maximum(position)+1 and re-introduce duplicates.
-          locked_cohort = Cohort.lock.find(@cohort.id)
+          locked_cohort = Cohort.lock("FOR NO KEY UPDATE").find(@cohort.id)
           existing_ids = locked_cohort.recordings.pluck(:id).to_set
 
           # Require the payload to cover the entire current set. A partial
@@ -230,7 +226,7 @@ module Api
         return if performed?
 
         render json: {
-          recordings: @cohort.recordings.reload.ordered.map { |r| recording_json(r, staff: true) }
+          recordings: with_attached_lessons(@cohort.recordings.ordered.includes(:uploaded_by)).map { |r| recording_json(r, staff: true) }
         }
       end
 
@@ -283,6 +279,7 @@ module Api
         if staff
           json[:s3_key] = recording.s3_key
           json[:uploaded_by] = recording.uploaded_by&.full_name
+          json[:lessons] = recording.lesson_recordings.map { |row| attached_lesson_json(row.lesson, @cohort) }
         end
 
         if progress
@@ -320,27 +317,72 @@ module Api
       end
 
       def create_external_recording
-        recording = nil
-        Cohort.transaction do
-          locked_cohort = Cohort.lock.find(@cohort.id)
-          recording = locked_cohort.recordings.new(
+        create_recording(source_kind: Recording.source_kind_for(params[:source_url]), source_url: params[:source_url])
+      end
+
+      def create_recording(source_attributes)
+        recording = Cohort.transaction do
+          cohort = Cohort.lock("FOR NO KEY UPDATE").find(@cohort.id)
+          recording = cohort.recordings.build(
             title: params[:title],
             description: params[:description],
-            source_kind: Recording.source_kind_for(params[:source_url]),
-            source_url: params[:source_url],
+            duration_seconds: params[:duration_seconds],
             recorded_date: params[:recorded_date],
             uploaded_by: current_user,
             status: publish_immediately? ? :published : :draft,
-            position: locked_cohort.recordings.maximum(:position).to_i + 1
+            position: cohort.recordings.maximum(:position).to_i + 1,
+            **source_attributes
           )
-          recording.save
+          save_recording!(recording)
         end
 
-        if recording.persisted?
-          render json: { recording: recording_json(recording, staff: true) }, status: :created
-        else
-          render json: { errors: recording.errors.full_messages }, status: :unprocessable_entity
+        render json: { recording: recording_json(recording, staff: true) }, status: :created
+      rescue ActiveRecord::RecordInvalid => error
+        render_recording_errors(error.record)
+      end
+
+      def save_recording!(recording, attributes = {})
+        lessons = requested_lessons(recording) if params.key?(:lesson_ids)
+        recording.update!(attributes)
+        if lessons
+          recording.lesson_recordings.delete_all
+          lessons.each_with_index do |lesson, position|
+            recording.lesson_recordings.create!(lesson: lesson, position: position)
+          end
         end
+        recording
+      end
+
+      def requested_lessons(recording)
+        value = params[:lesson_ids]
+        if value.is_a?(Array) && value.all? { |id| id.to_s.match?(/\A[0-9]+\z/) }
+          ids = value.map(&:to_i).uniq
+          # Prevent an archive/delete between validation and attachment. The
+          # cohort lock already protects against moving to a curriculum copy.
+          lessons = attachable_lessons(recording.cohort).where(id: ids).order(:id).lock("FOR SHARE").index_by(&:id)
+          return lessons.values_at(*ids) if lessons.size == ids.size
+        end
+
+        recording.errors.add(:lesson_ids, "must identify active lessons in this cohort's curriculum")
+        raise ActiveRecord::RecordInvalid.new(recording)
+      end
+
+      def attachable_lessons(cohort)
+        Lesson.active.where(module_id: CurriculumModule.where(curriculum_id: cohort.curriculum_id).select(:id))
+      end
+
+      def with_attached_lessons(recordings)
+        recordings.includes(lesson_recordings: { lesson: :curriculum_module })
+      end
+
+      def attached_lesson_json(lesson, cohort)
+        mod = lesson.curriculum_module
+        { id: lesson.id, title: lesson.title, module_id: mod.id, module_name: mod.name,
+          week: cohort.self_paced? ? nil : CourseWeeks.number(mod, lesson) }
+      end
+
+      def render_recording_errors(record)
+        render json: { errors: record.errors.full_messages }, status: :unprocessable_entity
       end
     end
   end

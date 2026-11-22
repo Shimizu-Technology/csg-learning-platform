@@ -1,4 +1,5 @@
 import { GithubAppSettings } from '../../components/admin/GithubAppSettings'
+import { ReleaseCommunicationsPanel } from '../../components/admin/ReleaseCommunicationsPanel'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { Button } from '../../components/ui/Button'
@@ -25,8 +26,8 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     submissionWindows,
     classResources,
     editCourseDelivery,
-    editAccessEnd,
-    editSupportEnd,
+    guidedTerms,
+    reviewTarget,
     editPaceWeeks,
     editPaceEnabled,
     editStartDate,
@@ -72,14 +73,18 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
           dirty={
             reviewResponseDraft !== undefined ||
             featureDraft !== null ||
+            settings.nextStepChanged ||
             Object.keys(assignedChanges).length > 0 ||
             Object.keys(offeringDraft).length > 0 ||
             editStartDate !== toDateInputValue(cohort.start_date) ||
             editGithubOrganization !== (cohort.github_organization_name || '') ||
             editStatus !== cohort.status ||
             editCourseDelivery !== (cohort.course_delivery || 'program') ||
-            editAccessEnd !== (cohort.guided_access_ends_on || '') ||
-            editSupportEnd !== (cohort.guided_support_ends_on || '') ||
+            guidedTerms.guided_access_ends_on !== (cohort.guided_access_ends_on || '') ||
+            guidedTerms.guided_support_ends_on !== (cohort.guided_support_ends_on || '') ||
+            guidedTerms.guided_access_months !== (cohort.guided_access_months?.toString() || '') ||
+            guidedTerms.guided_support_weeks !== (cohort.guided_support_weeks?.toString() || '') ||
+            reviewTarget !== (cohort.review_sla_business_days?.toString() || '') ||
             editPaceEnabled !== Boolean(cohort.learner_pace_weeks?.length) ||
             (editPaceEnabled && editPaceWeeks !== formatPaceWeeks(cohort.learner_pace_weeks)) ||
             JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || []) ||
@@ -111,6 +116,9 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         <ResourceSettingsDialog settings={ready} />
       </fieldset>
     </form>
+    <div className="mt-6">
+      <ReleaseCommunicationsPanel cohortId={cohort.id} />
+    </div>
     </>
   )
 }

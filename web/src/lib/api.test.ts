@@ -37,6 +37,31 @@ describe('course-scoped response cache', () => {
 
     expect(stored.size).toBe(0)
   })
+
+  it('fetches cohort release communications with cache no-store and never writes to localStorage', async () => {
+    const stored = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    })
+    setApiCacheScope('staff-cache-test')
+    setAuthTokenGetter(async () => 'test-token')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ release_communications: { cohort_id: 4 } }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await api.getCohortReleaseCommunications(4)
+    expect(result.error).toBeNull()
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/cohorts\/4\/release_communications$/),
+      expect.objectContaining({ cache: 'no-store' }),
+    )
+    expect(stored.size).toBe(0)
+  })
 })
 
 describe('GitHub organization access timeout', () => {

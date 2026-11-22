@@ -14,6 +14,7 @@ import { clearRecordQueueCache as resetQueues } from '../../lib/recordQueueCache
 vi.mock('../../lib/api', () => ({ api: {
   getLearningPlan: vi.fn(), getPersonalPace: vi.fn().mockResolvedValue({ data: { personal_pace: null } }), saveLearnerExtension: vi.fn(),
   getLearnerExtensions: vi.fn().mockResolvedValue({ data: { extensions: [] } }),
+  getLearnerNudges: vi.fn().mockResolvedValue({ data: { enabled: true, learner_opted_out: false, nudges: [] }, error: null }),
   getStudentCommunication: vi.fn(), createIntervention: vi.fn(), createDirectConversation: vi.fn(), getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
   getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(), createRecoveryPlanCheckIn: vi.fn(), updateRecoveryPlan: vi.fn(),
@@ -510,4 +511,28 @@ it('shows the updated saved plan after granting a final extension with no editor
   expect(api.saveLearnerExtension).toHaveBeenCalledWith(11, expect.objectContaining({ scope: 'final', reason: 'Medical leave' }), undefined)
   expect(container.textContent).toContain('Target finish: Feb 1, 2030')
   expect(container.textContent).not.toContain('Target finish: Jan 1, 2030')
+})
+
+it('shows sent reminders on Learning only for cohorts that send them', async () => {
+  vi.mocked(api.getLearningPlan).mockResolvedValue({ data: null, error: 'No plan' })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/learning'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.querySelector('[aria-label="Reminders sent"]')).toBeNull()
+  expect(container.textContent).not.toContain('No reminders sent yet.')
+  expect(api.getLearnerNudges).not.toHaveBeenCalled()
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { ...progress, enrollment: { ...progress.enrollment, id: 11, learner_nudges_enabled: true } }, error: null })
+  const enabled = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/learning'] })
+  await act(async () => root.render(<RouterProvider router={enabled} />))
+  expect(api.getLearnerNudges).toHaveBeenCalledWith(11)
+  expect(container.textContent).toContain('No reminders sent yet.')
+  // A cohort that turned reminders off itself still shows what was sent.
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  vi.mocked(api.getLearnerNudges).mockResolvedValue({ data: { enabled: false, learner_opted_out: false, nudges: [] }, error: null })
+  vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { ...progress, enrollment: { ...progress.enrollment, id: 11, learner_nudges_enabled: false } }, error: null })
+  const off = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/learning'] })
+  await act(async () => root.render(<RouterProvider router={off} />))
+  expect(container.textContent).toContain('Reminders are off for this cohort.')
 })

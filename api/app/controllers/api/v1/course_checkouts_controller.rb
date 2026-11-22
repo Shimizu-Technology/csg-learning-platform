@@ -30,9 +30,10 @@ module Api
         when "setup_failed", "starting" then purchase.checkout_state
         else "pending"
         end
+        default_name = purchase.cohort.guided? ? "Small-class course" : "Self-paced course"
         render json: { status: state, can_resume: purchase.checkout_resumable?,
           can_continue: purchase.status == "expired" || (purchase.status == "pending" && purchase.stripe_session_id.present?), purchase_id: purchase.id,
-          cohort: { id: purchase.cohort_id, name: purchase.cohort.public_title.presence || "Self-paced course" },
+          cohort: { id: purchase.cohort_id, name: purchase.cohort.public_title.presence || default_name, slug: purchase.cohort.public_slug, unlisted: purchase.cohort.unlisted? },
           enrollment_id: state == "fulfilled" ? enrollment.id : nil }
       end
 
@@ -57,6 +58,10 @@ module Api
         render json: { url: CourseCheckout.start!(user: current_user, cohort: cohort) }
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Course not found" }, status: :not_found
+      rescue CourseCheckout::CohortFull => error
+        render json: { error: error.message, code: "cohort_full" }, status: :conflict
+      rescue CourseCheckout::PriceChanged => error
+        render json: { error: error.message, code: "price_changed" }, status: :conflict
       rescue CourseCheckout::Unavailable => error
         render json: { error: error.message }, status: :unprocessable_entity
       rescue Stripe::StripeError => error

@@ -18,7 +18,7 @@ class RecordDetail
     private
 
     def authorized?
-      admin? && Cohort.where(id: @id, course_delivery: "self_paced").exists?
+      admin? && Cohort.where(id: @id, course_delivery: Cohort::CHECKOUT_DELIVERIES).where.not(cohort_type: :alumni).exists?
     end
 
     def build
@@ -32,6 +32,8 @@ class RecordDetail
       enrollments = Enrollment.where(cohort_id: cohort.id, user_id: rows.map(&:user_id)).pluck(:user_id, :id, :status)
         .to_h { |user_id, id, status| [ user_id, { id: id, status: status } ] }
       counts = purchases.group(:status).count
+      access_months = cohort.guided? ? (cohort.guided_access_ends_on.present? ? nil : cohort.guided_access_months) : cohort.self_paced_access_months
+      support_weeks = cohort.guided? ? (cohort.guided_support_ends_on.present? ? nil : cohort.guided_support_weeks) : cohort.self_paced_support_weeks
 
       {
         type: "offering",
@@ -39,9 +41,11 @@ class RecordDetail
         title: cohort.public_title.presence || cohort.name,
         public_slug: cohort.public_slug,
         checkout_enabled: cohort.public_checkout_enabled,
+        unlisted: cohort.unlisted?,
+        **cohort.seat_capacity,
         price_cents: cohort.public_price_cents,
-        access_months: cohort.self_paced_access_months,
-        support_weeks: cohort.self_paced_support_weeks,
+        access_months: access_months,
+        support_weeks: support_weeks,
         support_instructor: person(cohort.support_instructor),
         curriculum: cohort.curriculum && names.ref(cohort.curriculum),
         cohort: cohort_json(cohort),
@@ -55,6 +59,7 @@ class RecordDetail
             id: purchase.id,
             status: purchase.status,
             checkout_state: purchase.checkout_state,
+            over_capacity: purchase.over_capacity?,
             price_cents: purchase.price_cents,
             access_months: purchase.access_months,
             support_weeks: purchase.support_weeks,

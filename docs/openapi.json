@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API \u2014 migrated transport contracts",
+    "title": "CSG Learning API — migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -232,7 +232,17 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecordingInput"
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/lessons/{id}": {
@@ -499,6 +509,35 @@
         ]
       }
     },
+    "/api/v1/submissions/{id}/retry_github_issue": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryGithubIssueResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "GitHub feedback delivery is already in progress for this submission; try again in a moment."
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/content_blocks/{id}/video_progress": {
       "patch": {
         "responses": {
@@ -596,8 +635,35 @@
         }
       }
     },
+    "/api/v1/cohorts/{cohort_id}/recordings/lesson_options": {
+      "get": {
+        "description": "Active lessons from the cohort curriculum. Teaching staff only.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingLessonOptionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/cohorts/{cohort_id}/recordings/{id}": {
-      "patch": {
+      "get": {
         "responses": {
           "200": {
             "description": "Successful response",
@@ -628,6 +694,48 @@
             }
           }
         ]
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecordingInput"
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/workspaces": {
@@ -3376,6 +3484,43 @@
             }
           }
         }
+      },
+      "patch": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortSettingsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated cohort settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        }
       }
     },
     "/api/v1/cohorts/{cohort_id}/learning_insights": {
@@ -3397,6 +3542,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LearningInsightContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/release_communications": {
+      "get": {
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cohort release communication preview and delivery status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortReleaseCommunicationsResponse"
                 }
               }
             }
@@ -3491,7 +3662,7 @@
     "/api/v1/help_requests/{help_request_id}/replies": {
       "post": {
         "summary": "Reply to a help request (staff)",
-        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8\u201364 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
+        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
         "responses": {
           "201": {
             "description": "Reply saved",
@@ -3773,7 +3944,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The signed-in student\u2019s hosted payment receipt",
+            "description": "The signed-in student’s hosted payment receipt",
             "content": {
               "application/json": {
                 "schema": {
@@ -4707,6 +4878,401 @@
           }
         }
       }
+    },
+    "/api/v1/enrollments/{enrollment_id}/nudges": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Reminders sent to one learner (staff cohort scope)",
+        "responses": {
+          "200": {
+            "description": "Reminder history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerNudgesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/v1/nudge_preferences": {
+      "get": {
+        "summary": "The learner's reminder preference",
+        "responses": {
+          "200": {
+            "description": "Reminder preference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NudgePreferenceResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Turn optional reminders on or off",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NudgePreferenceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reminder preference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NudgePreferenceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "learner_nudges_enabled must be true or false"
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CohortSettingsInput"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "review_response_time": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "curriculum_id",
+                      "start_date"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created cohort",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/certificates/{code}": {
+      "parameters": [
+        {
+          "name": "code",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{12}$"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Verify a certificate without signing in",
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "429": {
+            "$ref": "#/components/responses/429"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/certificate": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read the signed-in learner’s certificate and completion status",
+        "responses": {
+          "200": {
+            "description": "CourseCompletionResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCompletionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Change the printed name on the signed-in learner’s active certificate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificateNameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/certificate/reissue": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Reissue a certificate as staff assigned to the cohort",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificateReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/certificate/revoke": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Revoke a certificate as staff assigned to the cohort",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificateReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        }
+      }
+    },
+    "/api/v1/course_checkouts": {
+      "post": {
+        "operationId": "createCourseCheckout",
+        "summary": "Start or resume a Stripe Checkout session for an eligible course offering",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "cohort_id"
+                ],
+                "properties": {
+                  "cohort_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stripe Checkout URL for the learner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCheckoutCreateResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cohort seat cap reached or price changed while checkout started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCheckoutConflictError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/course_checkouts/{id}/status": {
+      "get": {
+        "operationId": "getCourseCheckoutStatus",
+        "summary": "Read local checkout confirmation status for a signed-in student purchase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Local checkout and fulfillment status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCheckoutStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5595,6 +6161,13 @@
           "show_personal_deadline": {
             "type": "boolean",
             "description": "Included only for personal-pace cohorts or learners with an active extension; permits the personal deadline UI without changing Off-cohort lesson views."
+          },
+          "attached_recordings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachedRecording"
+            },
+            "description": "Present when the learner can read one or more attachments from their cohort."
           }
         },
         "required": [
@@ -6366,6 +6939,77 @@
         ],
         "additionalProperties": false
       },
+      "GithubIssueDelivery": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "delivered",
+              "failed",
+              "obsolete"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "open_or_comment",
+              "close"
+            ]
+          },
+          "issue_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delivered_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "action",
+          "issue_url",
+          "attempts",
+          "last_error",
+          "delivered_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "RetryGithubIssueResponse": {
+        "type": "object",
+        "properties": {
+          "submission": {
+            "$ref": "#/components/schemas/Submission"
+          },
+          "github_issue_delivery": {
+            "$ref": "#/components/schemas/GithubIssueDelivery"
+          }
+        },
+        "required": [
+          "submission",
+          "github_issue_delivery"
+        ],
+        "additionalProperties": false
+      },
       "Submission": {
         "type": "object",
         "properties": {
@@ -6566,6 +7210,10 @@
           "github_checks": {
             "$ref": "#/components/schemas/GithubChecks",
             "description": "Present in detail, create, update and grade responses; omitted in lists."
+          },
+          "github_issue_delivery": {
+            "$ref": "#/components/schemas/GithubIssueDelivery",
+            "description": "Present for staff when a durable GitHub issue delivery exists for this submission."
           },
           "cohort_name": {
             "type": [
@@ -7274,6 +7922,13 @@
           },
           "learning_label": {
             "type": "string"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordingLesson"
+            },
+            "description": "Present for staff. Explicit lesson attachments in selection order."
           }
         },
         "required": [
@@ -8073,6 +8728,19 @@
           },
           "position": {
             "type": "number"
+          },
+          "can_post": {
+            "type": "boolean"
+          },
+          "post_disabled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "muted": {
             "type": "boolean"
@@ -9916,6 +10584,14 @@
           "github_app_enabled": {
             "type": "boolean",
             "description": "Included when this enrollment has GitHub App access enabled."
+          },
+          "learner_nudges_enabled": {
+            "type": "boolean",
+            "description": "Included (true) only when this enrollment's cohort sends learner reminders."
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Present when the course has certificates enabled or the enrollment has an active certificate."
           }
         },
         "required": [
@@ -10379,6 +11055,7 @@
         "properties": {
           "features": {
             "type": "object",
+            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app, self_paced_peer_space, learner_nudges, and certificates).",
             "additionalProperties": {
               "type": "boolean"
             }
@@ -11003,7 +11680,7 @@
           },
           "used_in": {
             "type": "array",
-            "description": "Cohorts on this lesson\u2019s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
+            "description": "Cohorts on this lesson’s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
             "items": {
               "type": "object",
               "properties": {
@@ -11042,7 +11719,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "submissions_count": {
             "type": "integer",
@@ -12079,7 +12756,7 @@
           },
           "status_label": {
             "type": "string",
-            "description": "The learner\u2019s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
+            "description": "The learner’s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
           },
           "released_blocks": {
             "type": "number"
@@ -12384,6 +13061,10 @@
                 "const": "live_class"
               }
             ]
+          },
+          "optional_check_in": {
+            "type": "boolean",
+            "description": "Shown for office hours in a small class that has configured durations or a review target."
           }
         },
         "required": [
@@ -13199,6 +13880,10 @@
           "student_today": {
             "$ref": "#/components/schemas/StudentToday",
             "description": "Present for enrolled student dashboards only when the cohort's student_experience_v2 switch is explicitly on."
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Legacy dashboard completion summary for courses using certificates."
           }
         },
         "required": [
@@ -14922,7 +15607,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_cohorts": {
             "type": "array",
@@ -16096,6 +16781,15 @@
                 },
                 "urgent": {
                   "type": "boolean"
+                },
+                "overdue": {
+                  "type": "boolean",
+                  "description": "Present on reviews past the configured review target."
+                },
+                "expected_review_by": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "End of the target business day in Guam."
                 }
               }
             }
@@ -16173,7 +16867,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null for an instructor who doesn\u2019t teach that cohort."
+            "description": "Null for an instructor who doesn’t teach that cohort."
           },
           "source_curriculum": {
             "anyOf": [
@@ -16283,7 +16977,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "already_copied": {
             "type": "boolean"
@@ -16690,10 +17384,42 @@
             "items": {
               "$ref": "#/components/schemas/LearnerExtension"
             },
-            "description": "Active grants applicable to this submission\u2019s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
+            "description": "Active grants applicable to this submission’s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
           },
           "submission_window": {
             "$ref": "#/components/schemas/SubmissionWindowStatus"
+          },
+          "review_sla": {
+            "type": "object",
+            "properties": {
+              "business_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              "expected_on": {
+                "type": "string",
+                "format": "date",
+                "description": "The Guam calendar date for instructor feedback, when a review target is set."
+              },
+              "expected_by": {
+                "type": "string",
+                "format": "date-time",
+                "description": "End of the target business day in Guam."
+              },
+              "overdue": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "business_days",
+              "expected_on",
+              "expected_by",
+              "overdue"
+            ],
+            "additionalProperties": false,
+            "description": "The review target of the latest ungraded attempt, when the cohort has configured one."
           }
         },
         "additionalProperties": false,
@@ -16734,6 +17460,11 @@
           },
           "all": {
             "type": "number"
+          },
+          "overdue": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Ungraded latest attempts past their review target across all pages of the current cohort, module, lesson and student filters. Omitted when no cohort in scope has a review target."
           }
         },
         "required": [
@@ -17184,6 +17915,10 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "learner_nudges_enabled": {
+                "type": "boolean",
+                "description": "True when learner reminders are enabled. False when reminders are off and this enrollment has reminder history. Omitted when reminders are off and there is no history."
               }
             },
             "required": [
@@ -17692,6 +18427,9 @@
           },
           "can_message": {
             "type": "boolean"
+          },
+          "course_certificate": {
+            "$ref": "#/components/schemas/StaffCourseCertificate"
           }
         },
         "required": [
@@ -18022,7 +18760,12 @@
                   {
                     "type": "object",
                     "additionalProperties": true,
-                    "description": "Stored cohort settings; intentionally arbitrary metadata."
+                    "description": "Stored cohort settings; intentionally arbitrary metadata.",
+                    "properties": {
+                      "next_step": {
+                        "$ref": "#/components/schemas/CourseCompletionNextStep"
+                      }
+                    }
                   },
                   {
                     "type": "null"
@@ -18410,6 +19153,56 @@
                   }
                 ],
                 "description": "Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1)."
+              },
+              "guided_access_months": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120,
+                "description": "Months of lesson access from each learner’s start. A fixed access date takes precedence."
+              },
+              "guided_support_weeks": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 104,
+                "description": "Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence."
+              },
+              "review_sla_business_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              "unlisted": {
+                "type": "boolean"
+              },
+              "seat_limit": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seats_taken": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "seats_remaining": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sold_out": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -18456,7 +19249,12 @@
               "public_duration",
               "public_prerequisites",
               "public_preview",
-              "learner_pace_weeks"
+              "learner_pace_weeks",
+              "unlisted",
+              "seat_limit",
+              "seats_taken",
+              "seats_remaining",
+              "sold_out"
             ],
             "additionalProperties": false
           }
@@ -19938,13 +20736,19 @@
             "type": "string"
           },
           "access_months": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "includes_private_meetings": {
             "type": "boolean"
           },
           "instructor_message_weeks": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "instructor_response_target": {
             "type": "string"
@@ -20003,6 +20807,49 @@
               ],
               "additionalProperties": false
             }
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "self_paced",
+              "guided"
+            ]
+          },
+          "unlisted": {
+            "type": "boolean"
+          },
+          "guided_access_ends_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guided_support_ends_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seat_limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seats_taken": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seats_remaining": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sold_out": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -20025,7 +20872,15 @@
           "preview",
           "slug",
           "lesson_count",
-          "syllabus"
+          "syllabus",
+          "course_delivery",
+          "unlisted",
+          "guided_access_ends_on",
+          "guided_support_ends_on",
+          "seat_limit",
+          "seats_taken",
+          "seats_remaining",
+          "sold_out"
         ],
         "additionalProperties": false
       },
@@ -20176,7 +21031,7 @@
           },
           "assigned": {
             "type": "boolean",
-            "description": "False when the cohort\u2019s content defaults leave this module out."
+            "description": "False when the cohort’s content defaults leave this module out."
           },
           "starts_on": {
             "type": [
@@ -20195,7 +21050,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading\u2019s All filter counts them."
+            "description": "Every attempt, as Grading’s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -20227,7 +21082,7 @@
           "open_help"
         ],
         "additionalProperties": false,
-        "description": "A cohort\u2019s schedule for the module; dates are null for self-paced cohorts."
+        "description": "A cohort’s schedule for the module; dates are null for self-paced cohorts."
       },
       "LessonUsageCohort": {
         "type": "object",
@@ -20287,7 +21142,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading\u2019s All filter counts them."
+            "description": "Every attempt, as Grading’s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -20438,7 +21293,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_of": {
             "anyOf": [
@@ -20467,7 +21322,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Null when the viewer doesn\u2019t teach the cohort."
+                    "description": "Null when the viewer doesn’t teach the cohort."
                   },
                   "source_curriculum": {
                     "anyOf": [
@@ -20531,7 +21386,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set when this curriculum is one cohort\u2019s own copy."
+            "description": "Set when this curriculum is one cohort’s own copy."
           },
           "copies": {
             "type": "array",
@@ -20857,7 +21712,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "totals": {
             "type": "object",
@@ -21033,7 +21888,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "help_requests": {
             "type": "array",
@@ -21394,23 +22249,30 @@
                   "minimum": 1
                 },
                 "block": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "integer"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
                     },
-                    "title": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                    {
+                      "type": "null"
                     }
-                  },
-                  "required": [
-                    "id",
-                    "title"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "sections": {
                   "type": "array",
@@ -21450,7 +22312,7 @@
                 "sections"
               ],
               "additionalProperties": false,
-              "description": "A lesson block on the cohort's curriculum that plays this recording (same upload or same link)."
+              "description": "A lesson on the cohort's curriculum that is attached to or has a block that plays this recording."
             }
           },
           "students_count": {
@@ -21509,6 +22371,12 @@
               "additionalProperties": false
             },
             "description": "Up to 25 watchers, in the order they started watching (a fixed order, so paging never skips or repeats anyone)."
+          },
+          "duration_display": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -21520,6 +22388,7 @@
           "source",
           "url",
           "duration_seconds",
+          "duration_display",
           "recorded_date",
           "published_at",
           "created_at",
@@ -22841,7 +23710,7 @@
                 "type": "null"
               }
             ],
-            "description": "\"Week 3\" in programs, \"Part 2 \u00b7 lessons 21\u201340\" in a split self-paced section, null for a single group."
+            "description": "\"Week 3\" in programs, \"Part 2 · lessons 21–40\" in a split self-paced section, null for a single group."
           },
           "week": {
             "anyOf": [
@@ -23241,6 +24110,10 @@
           },
           "next_redo": {
             "type": "boolean"
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Present when the course has certificates enabled or the enrollment has an active certificate."
           }
         },
         "required": [
@@ -23398,6 +24271,16 @@
               }
             ],
             "description": "Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action."
+          },
+          "expected_review_on": {
+            "type": "string",
+            "format": "date",
+            "description": "The Guam calendar date for instructor feedback, when a review target is set."
+          },
+          "expected_review_by": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the target business day in Guam."
           }
         },
         "required": [
@@ -24286,6 +25169,10 @@
           "personal_pace": {
             "$ref": "#/components/schemas/PersonalPace",
             "description": "Included only when the cohort has learner-chosen pace on (W9.1); other cohorts' Today is unchanged."
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Present when the course has certificates enabled or the enrollment has an active certificate."
           }
         },
         "required": [
@@ -25076,10 +25963,16 @@
             ]
           },
           "access_months": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "support_weeks": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "support_instructor": {
             "anyOf": [
@@ -25273,6 +26166,9 @@
                       "type": "null"
                     }
                   ]
+                },
+                "over_capacity": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -25285,10 +26181,33 @@
                 "created_at",
                 "updated_at",
                 "buyer",
-                "enrollment"
+                "enrollment",
+                "over_capacity"
               ],
               "additionalProperties": false
             }
+          },
+          "unlisted": {
+            "type": "boolean"
+          },
+          "seat_limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seats_taken": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "seats_remaining": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sold_out": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -25308,7 +26227,12 @@
           "paid_cents",
           "enrolled_count",
           "purchases_next_before",
-          "purchases"
+          "purchases",
+          "unlisted",
+          "seat_limit",
+          "seats_taken",
+          "seats_remaining",
+          "sold_out"
         ],
         "additionalProperties": false,
         "description": "A self-paced course offering and its purchases, for admins."
@@ -26548,6 +27472,1545 @@
           "reason"
         ],
         "description": "Change an active grant. Reason is required; omitted cutoff and target fields retain their values. Grant targets are immutable. Removed grants return 404."
+      },
+      "LearnerNudge": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "due_soon",
+              "inactive",
+              "support_ending",
+              "access_ending"
+            ]
+          },
+          "threshold": {
+            "type": "string",
+            "description": "How far ahead of the event (24h, 48h, 1d, 3d, 7d, 14d) or, for inactivity, how long since the last activity (7d, 14d)."
+          },
+          "essential": {
+            "type": "boolean",
+            "description": "Access-ending notices are essential: they are sent even when the learner turned reminders off."
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The deadline, end of support or access, or last activity the reminder is about."
+          },
+          "sent_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email_status": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "pending",
+              "sent",
+              "failed",
+              "not_configured",
+              "no_address"
+            ]
+          },
+          "push_status": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "pending",
+              "attempted",
+              "partial",
+              "not_sent"
+            ],
+            "description": "For settled pushes, attempted means both providers claimed an attempt, partial means one provider did, and not_sent means neither did. Provider claims do not confirm delivery to a device."
+          },
+          "read_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the learner read the in-app notification."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "threshold",
+          "essential",
+          "title",
+          "body",
+          "event_at",
+          "sent_at",
+          "email_status",
+          "push_status",
+          "read_at"
+        ],
+        "additionalProperties": false
+      },
+      "LearnerNudgesResponse": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this cohort sends reminders now (school switch and cohort opt-in)."
+          },
+          "learner_opted_out": {
+            "type": "boolean",
+            "description": "The learner turned optional reminders off; essential notices still go."
+          },
+          "nudges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LearnerNudge"
+            },
+            "description": "Newest first, at most 100."
+          }
+        },
+        "required": [
+          "enabled",
+          "learner_opted_out",
+          "nudges"
+        ],
+        "additionalProperties": false
+      },
+      "NudgePreferenceResponse": {
+        "type": "object",
+        "properties": {
+          "learner_nudges_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "learner_nudges_enabled"
+        ],
+        "additionalProperties": false
+      },
+      "NudgePreferenceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "learner_nudges_enabled": {
+            "type": "boolean",
+            "description": "False turns off optional reminders (due dates, inactivity, support ending). Access-ending notices are essential and still arrive."
+          }
+        },
+        "required": [
+          "learner_nudges_enabled"
+        ]
+      },
+      "CreateRecordingInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "recorded_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 86400,
+            "description": "Stored duration in seconds. Null leaves duration unknown."
+          },
+          "lesson_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them."
+          },
+          "s3_key": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "publish_immediately": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateRecordingInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "recorded_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 86400,
+            "description": "Stored duration in seconds. Null leaves duration unknown."
+          },
+          "lesson_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "RecordingLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "week": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "module_name",
+          "week"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingLessonOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "week": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "week_starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "module_name",
+          "week",
+          "week_starts_on"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingLessonOptionsResponse": {
+        "type": "object",
+        "properties": {
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordingLessonOption"
+            }
+          }
+        },
+        "required": [
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "AttachedRecording": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "youtube",
+              "vimeo",
+              "loom",
+              "direct",
+              "external",
+              "uploaded"
+            ]
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duration_display": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recorded_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "source_kind",
+          "duration_seconds",
+          "duration_display",
+          "recorded_date",
+          "progress_percentage",
+          "completed",
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "CohortCreatedResponse": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "type": "string"
+              },
+              "guided_access_ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "guided_support_ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "guided_access_months": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120,
+                "description": "Months of lesson access from each learner’s start. A fixed access date takes precedence."
+              },
+              "guided_support_weeks": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 104,
+                "description": "Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence."
+              },
+              "review_sla_business_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              "unlisted": {
+                "type": "boolean"
+              },
+              "seat_limit": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seats_taken": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "seats_remaining": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sold_out": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "course_delivery",
+              "guided_access_ends_on",
+              "guided_support_ends_on"
+            ]
+          }
+        },
+        "required": [
+          "cohort"
+        ],
+        "additionalProperties": false
+      },
+      "CohortSettingsInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "cohort_type": {
+            "type": "string"
+          },
+          "curriculum_id": {
+            "type": "integer"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "course_delivery": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "public_checkout_enabled": {
+            "type": "boolean"
+          },
+          "public_outcomes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_duration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_prerequisites": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_preview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stripe_price_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "support_instructor_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_price_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "self_paced_access_months": {
+            "type": "integer"
+          },
+          "self_paced_support_weeks": {
+            "type": "integer"
+          },
+          "guided_access_ends_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "guided_support_ends_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "learner_pace_weeks": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1)."
+          },
+          "github_organization_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repository_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requires_github": {
+            "type": "boolean"
+          },
+          "guided_access_months": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120,
+                "description": "Months of lesson access from each learner’s start. A fixed access date takes precedence."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "guided_support_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 104,
+                "description": "Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_sla_business_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settings": {
+            "type": "object",
+            "properties": {
+              "next_step": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CourseCompletionNextStep"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "next_step"
+            ],
+            "additionalProperties": false
+          },
+          "unlisted": {
+            "type": "boolean"
+          },
+          "seat_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "CertificateVerification": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{12}$"
+          },
+          "holder_name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "course_title": {
+            "type": "string"
+          },
+          "issuer_name": {
+            "type": "string"
+          },
+          "wording_version": {
+            "type": "integer"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "holder_name",
+          "course_title",
+          "issuer_name",
+          "wording_version",
+          "issued_at",
+          "revoked",
+          "revoked_at"
+        ],
+        "additionalProperties": false
+      },
+      "CertificateVerificationResponse": {
+        "type": "object",
+        "properties": {
+          "certificate": {
+            "$ref": "#/components/schemas/CertificateVerification"
+          }
+        },
+        "required": [
+          "certificate"
+        ],
+        "additionalProperties": false
+      },
+      "CertificateNameRequest": {
+        "type": "object",
+        "properties": {
+          "holder_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "holder_name"
+        ],
+        "additionalProperties": false
+      },
+      "CertificateReasonRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "CourseCompletionNextStep": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          },
+          "offering_slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,119}$"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "CourseCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "all_work_handed_in": {
+            "type": "boolean"
+          },
+          "course_completed": {
+            "type": "boolean"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CertificateVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseCompletionNextStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "enrollment_id",
+          "all_work_handed_in",
+          "course_completed",
+          "certificate",
+          "next_step"
+        ],
+        "additionalProperties": false
+      },
+      "StaffCourseCertificate": {
+        "type": "object",
+        "properties": {
+          "certificate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CertificateVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_issue": {
+            "type": "boolean"
+          },
+          "course_completed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "certificate",
+          "can_issue",
+          "course_completed"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsConfiguration": {
+        "type": "object",
+        "properties": {
+          "school_time_zone": {
+            "type": "string"
+          },
+          "school_time_zone_label": {
+            "type": "string"
+          },
+          "daily_unlock_hour": {
+            "type": "integer"
+          },
+          "catch_up_days": {
+            "type": "integer"
+          },
+          "channel": {
+            "const": "email"
+          },
+          "email_configured": {
+            "type": "boolean"
+          },
+          "sender_identity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sender_display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sender_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "frontend_origin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "program",
+              "guided",
+              "self_paced"
+            ]
+          },
+          "lesson_release_mode": {
+            "type": "string",
+            "enum": [
+              "scheduled_daily_unlock",
+              "self_paced_open",
+              "personal_pace_open"
+            ]
+          },
+          "cohort_status": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "active",
+              "completed",
+              "archived"
+            ]
+          },
+          "daily_unlocks_apply": {
+            "type": "boolean"
+          },
+          "eligibility_reason": {
+            "type": "string"
+          },
+          "grade_publication_separation_note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "school_time_zone",
+          "school_time_zone_label",
+          "daily_unlock_hour",
+          "catch_up_days",
+          "channel",
+          "email_configured",
+          "sender_identity",
+          "sender_display_name",
+          "sender_address",
+          "frontend_origin",
+          "course_delivery",
+          "lesson_release_mode",
+          "cohort_status",
+          "daily_unlocks_apply",
+          "eligibility_reason",
+          "grade_publication_separation_note"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsExcludedCounts": {
+        "type": "object",
+        "properties": {
+          "paused": {
+            "type": "integer"
+          },
+          "dropped": {
+            "type": "integer"
+          },
+          "completed": {
+            "type": "integer"
+          },
+          "expired": {
+            "type": "integer"
+          },
+          "invite_pending": {
+            "type": "integer"
+          },
+          "archived_user": {
+            "type": "integer"
+          },
+          "missing_email": {
+            "type": "integer"
+          },
+          "opted_out": {
+            "type": "integer"
+          },
+          "cohort_ineligible": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "paused",
+          "dropped",
+          "completed",
+          "expired",
+          "invite_pending",
+          "archived_user",
+          "missing_email",
+          "opted_out",
+          "cohort_ineligible"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsRecipients": {
+        "type": "object",
+        "properties": {
+          "total_enrollments": {
+            "type": "integer"
+          },
+          "eligible_active_count": {
+            "type": "integer"
+          },
+          "excluded": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsExcludedCounts"
+          }
+        },
+        "required": [
+          "total_enrollments",
+          "eligible_active_count",
+          "excluded"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "release_day": {
+            "type": "integer"
+          },
+          "deep_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "module_name",
+          "lesson_type",
+          "release_day",
+          "deep_link"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsUpcomingRelease": {
+        "type": "object",
+        "properties": {
+          "release_date": {
+            "type": "string"
+          },
+          "scheduled_send_at": {
+            "type": "string"
+          },
+          "is_today": {
+            "type": "boolean"
+          },
+          "eligible_recipient_count": {
+            "type": "integer"
+          },
+          "already_claimed_count": {
+            "type": "integer"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsLesson"
+            }
+          }
+        },
+        "required": [
+          "release_date",
+          "scheduled_send_at",
+          "is_today",
+          "eligible_recipient_count",
+          "already_claimed_count",
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsSampleLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "deep_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "deep_link"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsSamplePreview": {
+        "type": "object",
+        "properties": {
+          "release_date": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "headline": {
+            "type": "string"
+          },
+          "intro": {
+            "type": "string"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsSampleLesson"
+            }
+          },
+          "cta_label": {
+            "type": "string"
+          },
+          "cta_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "footer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "release_date",
+          "subject",
+          "from",
+          "headline",
+          "intro",
+          "lessons",
+          "cta_label",
+          "cta_url",
+          "footer"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsDelivery": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "attempted",
+              "skipped",
+              "pending"
+            ]
+          },
+          "recipient_count": {
+            "type": "integer"
+          },
+          "lesson_claim_count": {
+            "type": "integer"
+          },
+          "attempted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "key",
+          "status",
+          "recipient_count",
+          "lesson_claim_count",
+          "attempted_at",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsSchedulerHealth": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "const": "school_wide"
+          },
+          "task_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "error",
+              "skipped",
+              "never_run"
+            ]
+          },
+          "last_run_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_succeeded_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_school_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "task_name",
+          "status",
+          "last_run_at",
+          "last_succeeded_at",
+          "last_school_date",
+          "error_class",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunications": {
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "cohort_name": {
+            "type": "string"
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsConfiguration"
+          },
+          "recipients": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsRecipients"
+          },
+          "upcoming_releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsUpcomingRelease"
+            }
+          },
+          "sample_preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReleaseCommunicationsSamplePreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recent_deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsDelivery"
+            }
+          },
+          "scheduler_health": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsSchedulerHealth"
+          }
+        },
+        "required": [
+          "generated_at",
+          "cohort_id",
+          "cohort_name",
+          "configuration",
+          "recipients",
+          "upcoming_releases",
+          "sample_preview",
+          "recent_deliveries",
+          "scheduler_health"
+        ],
+        "additionalProperties": false
+      },
+      "CohortReleaseCommunicationsResponse": {
+        "type": "object",
+        "properties": {
+          "release_communications": {
+            "$ref": "#/components/schemas/ReleaseCommunications"
+          }
+        },
+        "required": [
+          "release_communications"
+        ],
+        "additionalProperties": false
+      },
+      "CourseCheckoutCreateResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "CourseCheckoutConflictError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "cohort_full",
+              "price_changed"
+            ]
+          }
+        }
+      },
+      "CourseCheckoutStatusCohort": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "unlisted"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unlisted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CourseCheckoutStatusResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "can_resume",
+          "can_continue",
+          "purchase_id",
+          "cohort",
+          "enrollment_id"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "starting",
+              "setup_failed",
+              "fulfilled",
+              "failed",
+              "refunded"
+            ]
+          },
+          "can_resume": {
+            "type": "boolean"
+          },
+          "can_continue": {
+            "type": "boolean"
+          },
+          "purchase_id": {
+            "type": "integer"
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/CourseCheckoutStatusCohort"
+          },
+          "enrollment_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
       }
     },
     "responses": {

@@ -86,12 +86,19 @@ class GithubSubmittedRevisionSync
               "content_digest" => Digest::SHA256.hexdigest(text), "source_bytes" => text.bytesize,
               "captured_at" => captured_at.iso8601(6) })
           latest[block.id] = submission
+          if features["github_issue_delivery_v2"] == true
+            GithubIssueDeliveryPlanner.obsolete_pending!(
+              enrollment_id: enrollment.id,
+              content_block_id: block.id
+            )
+          end
           progress = Progress.find_or_initialize_by(enrollment: enrollment, content_block_id: block.id)
           progress.user = user
           progress.update!(status: :completed)
           synced += 1
         end
       end
+      CourseCompletion.evaluate!(enrollment) if synced.positive? && features["certificates"] == true
     end
     { synced: synced, errors: errors }
   end

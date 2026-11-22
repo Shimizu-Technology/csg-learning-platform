@@ -124,15 +124,75 @@ class GithubSubmittedRevisionsTest < ActionDispatch::IntegrationTest
     assert_nil legacy.github_revision
     assert_equal 2, legacy.num_submissions
     assert_empty @fake.calls
-    # Measured against origin/main 7b576d2a with the same existing progress row:
-    # 20 logical queries before and after this slice, including cache hits.
-    assert_equal 20, queries.size
+    # Measured against origin/main 98ad065f with the same existing progress row:
+    # 21 logical queries before and after this slice, including cache hits
+    # (+1 school_settings read from CourseCompletion.evaluate! on main).
+    assert_equal 21, queries.size
     refute queries.any? { |sql| sql.match?(/github_repository_bindings|github_app_installations|github_revision/) }
     as_app_user(@instructor) do
       get "/api/v1/submissions/#{legacy.id}", headers: app_headers
       assert_response :success
       refute response.parsed_body.fetch("submission").key?("github_revision")
     end
+  end
+
+  test "immutable revision attempts interoperate with github_issue_delivery_v2 without losing prior grades or issues" do
+    SchoolSetting.current.update!(features: { github_app: true, github_issue_delivery_v2: true })
+    @cohort.update!(settings: { features: { github_app: true, github_issue_delivery_v2: true } })
+
+    # 1. Sync attempt 1 -> grade R -> pending delivery -> new revision obsoletes pending delivery while keeping attempt 1 intact
+    assert_equal 1, sync[:synced]
+    attempt1 = @enrollment.submissions.sole
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{attempt1.id}/grade", headers: app_headers, as: :json,
+        params: { grade: "R", feedback: "Fix loop bounds.", base_submission_updated_at: attempt1.updated_at.iso8601(6) }
+      assert_response :success
+    end
+    pending_delivery = GithubIssueDelivery.sole
+    assert_equal "pending", pending_delivery.status
+
+    @fake.source_text = "puts 'attempt 2'"
+    @fake.commit_sha = "b" * 40
+    assert_equal 1, sync[:synced]
+    attempt2 = attempt1.latest_attempt
+    refute_equal attempt1.id, attempt2.id
+    assert_equal "obsolete", pending_delivery.reload.status
+    assert_equal "R", attempt1.reload.grade
+    assert_equal "Fix loop bounds.", attempt1.feedback
+
+    @fake.calls.clear
+    GithubIssueDeliveryDrain.new(client: @fake).call(now: Time.current)
+    assert_empty @fake.calls
+
+    # 2. Grade attempt 2 R -> deliver issue #1 -> sync attempt 3 -> grade attempt 3 B -> closes issue #1 while preserving attempt 2
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{attempt2.id}/grade", headers: app_headers, as: :json,
+        params: { grade: "R", feedback: "Handle empty array.", base_submission_updated_at: attempt2.updated_at.iso8601(6) }
+      assert_response :success
+    end
+    GithubIssueDeliveryDrain.new(client: @fake).call(now: Time.current)
+    assert_equal 1, @fake.issues[98765].size
+    assert_equal "open", @fake.issues[98765][1][:state]
+    assert_equal "https://github.com/app-learner/prework-exercises/issues/1", attempt2.reload.github_issue_url
+
+    @fake.source_text = "puts 'attempt 3'"
+    @fake.commit_sha = "c" * 40
+    assert_equal 1, sync[:synced]
+    attempt3 = attempt2.latest_attempt
+    refute_equal attempt2.id, attempt3.id
+    assert_equal "R", attempt2.reload.grade
+    assert_equal "Handle empty array.", attempt2.feedback
+    assert_equal "https://github.com/app-learner/prework-exercises/issues/1", attempt2.github_issue_url
+
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{attempt3.id}/grade", headers: app_headers, as: :json,
+        params: { grade: "B", feedback: "Looks great now!", base_submission_updated_at: attempt3.updated_at.iso8601(6) }
+      assert_response :success
+    end
+    GithubIssueDeliveryDrain.new(client: @fake).call(now: Time.current)
+    assert_equal "closed", @fake.issues[98765][1][:state]
+    assert_equal "B", attempt3.reload.grade
+    assert_equal "R", attempt2.reload.grade
   end
 
   private

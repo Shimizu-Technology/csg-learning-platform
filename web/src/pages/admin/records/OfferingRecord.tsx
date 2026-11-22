@@ -87,7 +87,7 @@ function OfferingPage({ detail }: { detail: OfferingDetail }) {
     <RecordHeader
       back={back}
       breadcrumb={[{ label: cohort.name, to: cohortPath(cohort.id) }, { label: 'Settings', to: cohortPath(cohort.id, 'settings') }, { label: 'Purchases' }]}
-      type={<span>Self-paced course · Purchases</span>}
+      type={<span>{cohort.course_delivery === 'guided' ? 'Small-class course' : 'Self-paced course'} · Purchases</span>}
       title={detail.title}
       titleText={detail.title}
       status={detail.checkout_enabled ? <Badge tone="success">Checkout on</Badge> : <Badge>Checkout off</Badge>}
@@ -106,7 +106,8 @@ function OfferingPage({ detail }: { detail: OfferingDetail }) {
         <Facts items={[
           { label: 'Price', value: <span className="tabular-nums">{money(detail.price_cents)}</span> },
           { label: 'Paid so far', value: <span className="tabular-nums">{money(detail.paid_cents)} from {plural(counts.paid, 'purchase')}</span> },
-          { label: 'Access', value: `${plural(detail.access_months, 'month')} of lessons, ${plural(detail.support_weeks, 'week')} of support` },
+          { label: 'Access', value: [detail.access_months != null ? `${plural(detail.access_months, 'month')} of lessons` : null, detail.support_weeks != null ? `${plural(detail.support_weeks, 'week')} of support` : null].filter(Boolean).join(', ') || 'Cohort schedule / fixed dates' },
+          ...(detail.seat_limit != null ? [{ label: 'Seats', value: <span className="tabular-nums">{detail.seats_taken} of {detail.seat_limit}{detail.sold_out ? ' · Full' : ''}</span> }] : []),
           { label: 'Support instructor', value: detail.support_instructor ? <RecordLink record={{ type: 'staff', id: detail.support_instructor.id }} variant="plain">{detail.support_instructor.name}</RecordLink> : 'None' },
           { label: 'Checkouts', value: <span className="tabular-nums">{Object.entries(counts).filter(([, count]) => count > 0).map(([status, count]) => `${count} ${COUNT_WORDS[status] || humanize(status).toLowerCase()}`).join(' · ') || 'None yet'}</span> },
         ]} />
@@ -125,6 +126,7 @@ function OfferingPage({ detail }: { detail: OfferingDetail }) {
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Badge tone={status.tone}>{status.label}</Badge>
+                {purchase.over_capacity && <Badge tone="danger">Over capacity</Badge>}
                 <span className="text-sm tabular-nums text-ink">{money(purchase.price_cents)}</span>
                 <span className="text-xs text-ink-muted">{purchase.enrollment ? `Enrolled · ${humanize(purchase.enrollment.status)}` : 'No enrollment'}</span>
                 <time dateTime={purchase.created_at} className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(purchase.created_at)}</time>

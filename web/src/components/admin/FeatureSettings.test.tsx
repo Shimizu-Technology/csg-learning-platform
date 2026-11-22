@@ -60,3 +60,43 @@ it('keeps App inheritance Off even when the school switch is On and requires an 
   await act(async () => container.querySelector('button')!.click())
   expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { github_app: true } }, 12)
 })
+
+it('keeps Course community (self-paced) inheritance Off even when school default is On and shows recommendation copy', async () => {
+  api.getFeatureSettings.mockResolvedValue({ data: { ...data, features: { self_paced_peer_space: false }, defaults: { self_paced_peer_space: true }, overrides: {} } })
+  await act(async () => root.render(<FeatureSettings cohortId={12} />))
+  const label = [...container.querySelectorAll('label')].find(item => item.textContent?.startsWith('Course community (self-paced)'))!
+  expect(label.textContent).toContain('Lets self-paced learners talk in class chat. Recommended when 5 or more learners are enrolled.')
+  const select = label.querySelector('select')!
+  expect(select.value).toBe('inherit')
+  expect(select.selectedOptions[0].textContent).toBe('Inherit → Off')
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: {} }, 12)
+  await act(async () => { select.value = 'on'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { self_paced_peer_space: true } }, 12)
+})
+
+it('keeps learner reminders Off by inheritance even when the school switch is On', async () => {
+  api.getFeatureSettings.mockResolvedValue({ data: { ...data, features: { learner_nudges: false }, defaults: { learner_nudges: true }, overrides: {} } })
+  await act(async () => root.render(<FeatureSettings cohortId={12} />))
+  const label = [...container.querySelectorAll('label')].find(item => item.textContent?.startsWith('Learner reminders'))!
+  const select = label.querySelector('select')!
+  expect(select.selectedOptions[0].textContent).toBe('Inherit → Off')
+  await act(async () => { select.value = 'on'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { learner_nudges: true } }, 12)
+})
+
+it('keeps Reliable GitHub Redo issues Off by inheritance even when the school switch is On', async () => {
+  api.getFeatureSettings.mockResolvedValue({ data: { ...data, features: { github_issue_delivery_v2: false }, defaults: { github_issue_delivery_v2: true }, overrides: {} } })
+  await act(async () => root.render(<FeatureSettings cohortId={12} />))
+  const label = [...container.querySelectorAll('label')].find(item => item.textContent?.startsWith('Reliable GitHub Redo issues'))!
+  const select = label.querySelector('select')!
+  expect(select.value).toBe('inherit')
+  expect(select.selectedOptions[0].textContent).toBe('Inherit → Off')
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: {} }, 12)
+  await act(async () => { select.value = 'on'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { github_issue_delivery_v2: true } }, 12)
+})

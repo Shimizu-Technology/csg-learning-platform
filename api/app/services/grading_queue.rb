@@ -26,7 +26,7 @@ class GradingQueue
   STATUSES = %w[ungraded redo all].freeze
 
   def initialize(viewer:, cohort: nil, status: "ungraded", module_id: nil, student_id: nil, lesson_id: nil,
-    sort: "oldest", page: 1, per_page: PER_PAGE, focus_id: nil)
+    sort: "oldest", page: 1, per_page: PER_PAGE, focus_id: nil, now: Time.current)
     @viewer = viewer
     @cohort = cohort
     @status = STATUSES.include?(status.to_s) ? status.to_s : "ungraded"
@@ -37,6 +37,7 @@ class GradingQueue
     @per_page = positive_id(per_page)&.clamp(1, MAX_PER_PAGE) || PER_PAGE
     @page = positive_id(page) || 1
     @focus_id = positive_id(focus_id)
+    @now = now
   end
 
   def as_json(*)
@@ -117,7 +118,33 @@ class GradingQueue
 
   def status_counts
     scope = filtered_scope
-    { ungraded: status_scope(scope, "ungraded").count, redo: status_scope(scope, "redo").count, all: scope.count }
+    ungraded = status_scope(scope, "ungraded")
+    { ungraded: ungraded.count, redo: status_scope(scope, "redo").count, all: scope.count }.tap do |counts|
+      counts[:overdue] = overdue_count(ungraded) if review_targets.any?
+    end
+  end
+
+  def review_targets
+    @review_targets ||= if @cohort
+      { @cohort.id => @cohort.review_sla_business_days }.compact
+    else
+      Cohort.where(id: scope_cohort_ids).where.not(review_sla_business_days: nil).pluck(:id, :review_sla_business_days).to_h
+    end
+  end
+
+  def review_sla
+    @review_sla ||= ReviewSla.new(holidays: SchoolSetting.current.review_sla_holidays)
+  end
+
+  def overdue_count(ungraded)
+    groups = review_targets.group_by { |_, days| days }
+    overdue = groups.map do |days, cohorts|
+      cutoff = review_sla.overdue_submitted_before(business_days: days, now: @now)
+      Enrollment.where(cohort_id: cohorts.map(&:first)).select(:id).then do |enrollment_ids|
+        Submission.where(enrollment_id: enrollment_ids).where(created_at: ...cutoff)
+      end
+    end.reduce(&:or)
+    ungraded.and(overdue).count
   end
 
   # The page that holds focus_id in this list, or nil when it isn't in it.
@@ -223,7 +250,16 @@ class GradingQueue
       cohort_name: cohort&.name,
       course_delivery: cohort&.course_delivery,
       **extension_fields(submission.enrollment, lesson),
+      **review_fields(submission, cohort, latest_ids),
       week_number: cohort.nil? || cohort.self_paced? ? nil : SubmissionWindowStatus.week_number_for_release_day(lesson.release_day)
     }
+  end
+
+  def review_fields(submission, cohort, latest_ids)
+    business_days = cohort&.review_sla_business_days
+    return {} unless business_days && submission.grade.nil? && latest_ids[submission.attempt_key] == submission.id
+
+    target = review_sla.call(submitted_at: submission.created_at, business_days: business_days, now: @now)
+    { review_sla: target.except(:overdue_days) }
   end
 end

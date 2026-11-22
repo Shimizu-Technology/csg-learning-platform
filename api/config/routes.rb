@@ -101,6 +101,8 @@ Rails.application.routes.draw do
       post "transcriptions", to: "transcriptions#create"
       patch "message_preferences", to: "message_preferences#update"
       patch "editor_preferences", to: "editor_preferences#update"
+      get "nudge_preferences", to: "nudge_preferences#show"
+      patch "nudge_preferences", to: "nudge_preferences#update"
       get "messages/search", to: "messages_search#index"
       # Peek cards (L-0.5)
       get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
@@ -237,6 +239,7 @@ Rails.application.routes.draw do
           patch :lesson_editing, on: :member
         end
         resource :learning_insights, only: :show, controller: "cohort_learning_insights"
+        resource :release_communications, only: :show, controller: "cohort_release_communications"
         # "Make a copy for this cohort": GET previews, POST copies.
         resource :curriculum_copy, only: [ :show, :create ], controller: "curriculum_copies"
         member do
@@ -257,6 +260,7 @@ Rails.application.routes.draw do
 
         # S3-backed recordings
         resources :recordings, only: [ :index, :show, :create, :update, :destroy ] do
+          get :lesson_options, on: :collection
           member do
             get :stream_url
           end
@@ -268,12 +272,18 @@ Rails.application.routes.draw do
       end
 
       # Enrollments with access overrides
+      get "certificates/:code", to: "certificates#show"
       resources :enrollments, only: [ :show, :update, :destroy ] do
+        resource :certificate, only: [ :show, :update ], controller: "enrollment_certificates" do
+          post :revoke
+          post :reissue
+        end
         resources :github_repository_bindings, only: [ :index, :create ] do
           post :verify, on: :member
         end
         resource :learning_plan, only: [ :show, :update ]
         resources :extensions, only: [ :index, :create, :update, :destroy ], controller: "learner_extensions"
+        resources :nudges, only: :index, controller: "learner_nudges"
         resource :pace, only: [ :show, :update ], controller: "personal_paces"
         resources :module_assignments, only: [ :index, :create ]
         resources :lesson_assignments, only: [ :index, :create ]
@@ -297,6 +307,7 @@ Rails.application.routes.draw do
         member do
           patch :grade
           get :github_issue
+          post :retry_github_issue
         end
       end
     end

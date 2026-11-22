@@ -22,7 +22,11 @@ function AuthorContext({ author, staff, cohortId, workspaceReturnContext, source
   const { selectedCohort } = useCohortContext()
   const learner = staff && author.role === 'student'
   const selfPacedLearner = !staff && selectedCohort?.id === cohortId && selectedCohort?.course_delivery === 'self_paced'
-  const contactAvailable = !selfPacedLearner || (selectedCohort?.capabilities?.support_mode === 'course_question' && (selectedCohort.capabilities.features || selectedCohort.features)?.help_requests === true)
+  const contactAvailable = !selfPacedLearner || (
+    author.id === selectedCohort?.capabilities?.support_instructor_id &&
+    selectedCohort?.capabilities?.support_mode === 'course_question' &&
+    (selectedCohort.capabilities.features || selectedCohort.features)?.help_requests === true
+  )
   const context = useSection(learner ? String(author.id) : null, useCallback(async () => requireSection(await api.getUser(author.id)), [author.id]))
   const [chosenCohort, setChosenCohort] = useState<number | null>(null)
   const enrollments = context.data?.enrollments || []

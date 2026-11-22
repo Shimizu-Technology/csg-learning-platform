@@ -34,7 +34,7 @@ class CatalogCoursePagesTest < ActionDispatch::IntegrationTest
     assert_equal [ "offering" ], response.parsed_body.keys
     detail = response.parsed_body.fetch("offering")
     assert_equal list, detail
-    assert_equal %w[access_months checkout_available curriculum_name currency description duration id image_url includes_individual_project_review includes_private_meetings instructor_message_weeks instructor_response_target lesson_count name outcomes prerequisites preview price_cents slug syllabus].sort, detail.keys.sort
+    assert_equal %w[access_months checkout_available course_delivery curriculum_name currency description duration guided_access_ends_on guided_support_ends_on id image_url includes_individual_project_review includes_private_meetings instructor_message_weeks instructor_response_target lesson_count name outcomes prerequisites preview price_cents seat_limit seats_remaining seats_taken slug sold_out syllabus unlisted].sort, detail.keys.sort
     assert_equal [ { "title" => "Section", "lessons" => [ "Build a counter" ] } ], detail["syllabus"]
     assert_equal 1, detail["lesson_count"]
     assert_equal "Build a small project", detail["outcomes"]

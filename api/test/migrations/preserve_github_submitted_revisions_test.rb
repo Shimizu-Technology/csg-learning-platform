@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261119080100_preserve_github_submitted_revisions").to_s
+require Rails.root.join("db/migrate/20261122080000_preserve_github_submitted_revisions").to_s
 require_relative "../support/github_app_fixtures"
 require_relative "../support/non_transactional_test_cleanup"
 

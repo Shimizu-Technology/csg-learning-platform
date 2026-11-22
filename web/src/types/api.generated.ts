@@ -337,7 +337,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateRecordingInput"];
+                };
+            };
             responses: {
                 /** @description Successful response */
                 201: {
@@ -728,6 +732,50 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/submissions/{id}/retry_github_issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RetryGithubIssueResponse"];
+                    };
+                };
+                /** @description GitHub feedback delivery is already in progress for this submission; try again in a moment. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/content_blocks/{id}/video_progress": {
         parameters: {
             query?: never;
@@ -848,6 +896,44 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/recordings/lesson_options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Active lessons from the cohort curriculum. Teaching staff only. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecordingLessonOptionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cohorts/{cohort_id}/recordings/{id}": {
         parameters: {
             query?: never;
@@ -855,7 +941,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecordingResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -871,7 +979,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateRecordingInput"];
+                };
+            };
             responses: {
                 /** @description Successful response */
                 200: {
@@ -4402,7 +4514,33 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortSettingsInput"];
+                };
+            };
+            responses: {
+                /** @description Updated cohort settings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortWorkspaceResponse"];
+                    };
+                };
+                422: components["responses"]["422"];
+            };
+        };
         trace?: never;
     };
     "/api/v1/cohorts/{cohort_id}/learning_insights": {
@@ -4430,6 +4568,43 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["LearningInsightContextResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/release_communications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cohort release communication preview and delivery status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortReleaseCommunicationsResponse"];
                     };
                 };
             };
@@ -5726,6 +5901,404 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/enrollments/{enrollment_id}/nudges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Reminders sent to one learner (staff cohort scope) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reminder history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearnerNudgesResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nudge_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The learner's reminder preference */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reminder preference */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NudgePreferenceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Turn optional reminders on or off */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NudgePreferenceUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Reminder preference */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NudgePreferenceResponse"];
+                    };
+                };
+                /** @description learner_nudges_enabled must be true or false */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortSettingsInput"] & {
+                        review_response_time?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created cohort */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/certificates/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        /** Verify a certificate without signing in */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                404: components["responses"]["404"];
+                429: components["responses"]["429"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Read the signed-in learner’s certificate and completion status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CourseCompletionResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CourseCompletionResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                404: components["responses"]["404"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the printed name on the signed-in learner’s active certificate */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CertificateNameRequest"];
+                };
+            };
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                404: components["responses"]["404"];
+                422: components["responses"]["422"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/certificate/reissue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reissue a certificate as staff assigned to the cohort */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CertificateReasonRequest"];
+                };
+            };
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                403: components["responses"]["403"];
+                404: components["responses"]["404"];
+                422: components["responses"]["422"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/certificate/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a certificate as staff assigned to the cohort */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CertificateReasonRequest"];
+                };
+            };
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                403: components["responses"]["403"];
+                404: components["responses"]["404"];
+                422: components["responses"]["422"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course_checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start or resume a Stripe Checkout session for an eligible course offering */
+        post: operations["createCourseCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course_checkouts/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read local checkout confirmation status for a signed-in student purchase */
+        get: operations["getCourseCheckoutStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5943,6 +6516,8 @@ export interface components {
             } | null;
             /** @description Included only for personal-pace cohorts or learners with an active extension; permits the personal deadline UI without changing Off-cohort lesson views. */
             show_personal_deadline?: boolean;
+            /** @description Present when the learner can read one or more attachments from their cohort. */
+            attached_recordings?: components["schemas"]["AttachedRecording"][];
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -6109,6 +6684,21 @@ export interface components {
         LessonResponse: {
             lesson: components["schemas"]["LessonDetail"];
         };
+        GithubIssueDelivery: {
+            /** @enum {string} */
+            status: "pending" | "delivered" | "failed" | "obsolete";
+            /** @enum {string} */
+            action: "open_or_comment" | "close";
+            issue_url: string | null;
+            attempts: number;
+            last_error: string | null;
+            delivered_at: string | null;
+            updated_at: string;
+        };
+        RetryGithubIssueResponse: {
+            submission: components["schemas"]["Submission"];
+            github_issue_delivery: components["schemas"]["GithubIssueDelivery"];
+        };
         Submission: {
             cohort_id: null | number;
             enrollment_id: null | number;
@@ -6155,6 +6745,8 @@ export interface components {
             rubric: null | components["schemas"]["Rubric"];
             /** @description Present in detail, create, update and grade responses; omitted in lists. */
             github_checks?: components["schemas"]["GithubChecks"];
+            /** @description Present for staff when a durable GitHub issue delivery exists for this submission. */
+            github_issue_delivery?: components["schemas"]["GithubIssueDelivery"];
             cohort_name: string | null;
             /** @enum {string|null} */
             course_delivery: "program" | "guided" | "self_paced" | null;
@@ -6305,6 +6897,8 @@ export interface components {
             watch_progress?: null | components["schemas"]["S3RecordingWatchProgress"];
             learning_path?: string;
             learning_label?: string;
+            /** @description Present for staff. Explicit lesson attachments in selection order. */
+            lessons?: components["schemas"]["RecordingLesson"][];
         };
         CohortRecordingsResponse: {
             recordings: components["schemas"]["S3Recording"][];
@@ -6457,6 +7051,8 @@ export interface components {
             visibility: "cohort" | "staff_only";
             status: "active" | "archived";
             position: number;
+            can_post?: boolean;
+            post_disabled_reason?: string | null;
             muted: boolean;
             unread_count: number;
             last_read_at: string | null;
@@ -6793,6 +7389,10 @@ export interface components {
             access_expires_at?: string | null;
             /** @description Included when this enrollment has GitHub App access enabled. */
             github_app_enabled?: boolean;
+            /** @description Included (true) only when this enrollment's cohort sends learner reminders. */
+            learner_nudges_enabled?: boolean;
+            /** @description Present when the course has certificates enabled or the enrollment has an active certificate. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -6880,6 +7480,7 @@ export interface components {
             };
         };
         FeatureSettingsData: {
+            /** @description Resolved boolean switches (including default-Off cohort opt-in switches github_app, self_paced_peer_space, learner_nudges, and certificates). */
             features: {
                 [key: string]: boolean;
             };
@@ -7335,6 +7936,8 @@ export interface components {
             timezone: string;
             recurrence: "once" | "weekly";
             event_kind: "office_hours" | "live_class";
+            /** @description Shown for office hours in a small class that has configured durations or a review target. */
+            optional_check_in?: boolean;
         };
         PersonalPlanLesson: {
             lesson_id: number;
@@ -7542,6 +8145,8 @@ export interface components {
             review_response_time?: string;
             /** @description Present for enrolled student dashboards only when the cohort's student_experience_v2 switch is explicitly on. */
             student_today?: components["schemas"]["StudentToday"];
+            /** @description Legacy dashboard completion summary for courses using certificates. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -8146,6 +8751,13 @@ export interface components {
                 native_path: string | null;
                 student_record: boolean;
                 urgent: boolean;
+                /** @description Present on reviews past the configured review target. */
+                overdue?: boolean;
+                /**
+                 * Format: date-time
+                 * @description End of the target business day in Guam.
+                 */
+                expected_review_by?: string;
             }[];
             counts: {
                 help?: number;
@@ -8296,12 +8908,30 @@ export interface components {
             /** @description Active grants applicable to this submission’s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant. */
             extensions?: components["schemas"]["LearnerExtension"][];
             submission_window?: components["schemas"]["SubmissionWindowStatus"];
+            /** @description The review target of the latest ungraded attempt, when the cohort has configured one. */
+            review_sla?: {
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                business_days: number;
+                /**
+                 * Format: date
+                 * @description The Guam calendar date for instructor feedback, when a review target is set.
+                 */
+                expected_on: string;
+                /**
+                 * Format: date-time
+                 * @description End of the target business day in Guam.
+                 */
+                expected_by: string;
+                overdue: boolean;
+            };
         };
         /** @description Status chip counts inside the module, student and lesson filters. */
         GradingQueueCounts: {
             ungraded: number;
             redo: number;
             all: number;
+            /** @description Ungraded latest attempts past their review target across all pages of the current cohort, module, lesson and student filters. Omitted when no cohort in scope has a review target. */
+            overdue?: number;
         };
         /** @description A module or student with work in the chosen status (inside the other filters). The chosen one stays listed with count 0. */
         GradingQueueOption: {
@@ -8390,6 +9020,8 @@ export interface components {
                     available: boolean;
                     next_unlock_date: string | null;
                 }[];
+                /** @description True when learner reminders are enabled. False when reminders are off and this enrollment has reminder history. Omitted when reminders are off and there is no history. */
+                learner_nudges_enabled?: boolean;
             };
             user: {
                 id: number;
@@ -8480,6 +9112,7 @@ export interface components {
                 completed_at: string | null;
             }[];
             can_message: boolean;
+            course_certificate?: components["schemas"]["StaffCourseCertificate"];
         };
         CohortModuleLearning: {
             id: number;
@@ -8540,9 +9173,11 @@ export interface components {
                 repository_name: string | null;
                 requires_github: boolean;
                 status: string;
-                settings: {
+                settings: ({
+                    next_step?: components["schemas"]["CourseCompletionNextStep"];
+                } & {
                     [key: string]: unknown;
-                } | null;
+                }) | null;
                 enrolled_count: number;
                 active_count: number;
                 announcements: unknown[];
@@ -8605,6 +9240,17 @@ export interface components {
                 public_preview: string | null;
                 /** @description Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1). */
                 learner_pace_weeks: number[] | null;
+                /** @description Months of lesson access from each learner’s start. A fixed access date takes precedence. */
+                guided_access_months?: number;
+                /** @description Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence. */
+                guided_support_weeks?: number;
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                review_sla_business_days?: number;
+                unlisted: boolean;
+                seat_limit: number | null;
+                seats_taken: number;
+                seats_remaining: number | null;
+                sold_out: boolean;
             };
         };
         StudentCommunicationMessage: {
@@ -8934,9 +9580,9 @@ export interface components {
             checkout_available: boolean;
             price_cents: number | null;
             currency: string;
-            access_months: number;
+            access_months: number | null;
             includes_private_meetings: boolean;
-            instructor_message_weeks: number;
+            instructor_message_weeks: number | null;
             instructor_response_target: string;
             includes_individual_project_review: boolean;
             outcomes: string | null;
@@ -8949,6 +9595,15 @@ export interface components {
                 title: string;
                 lessons: string[];
             }[];
+            /** @enum {string} */
+            course_delivery: "self_paced" | "guided";
+            unlisted: boolean;
+            guided_access_ends_on: string | null;
+            guided_support_ends_on: string | null;
+            seat_limit: number | null;
+            seats_taken: number | null;
+            seats_remaining: number | null;
+            sold_out: boolean;
         };
         PublicCourseResponse: {
             offering: components["schemas"]["PublicCourse"];
@@ -9275,7 +9930,7 @@ export interface components {
                 block: {
                     id: number;
                     title: string | null;
-                };
+                } | null;
                 sections: {
                     label: string;
                     start_seconds: number;
@@ -9299,6 +9954,7 @@ export interface components {
                 /** Format: date-time */
                 last_watched_at: string | null;
             }[];
+            duration_display: string | null;
         };
         OfficeHourDetail: {
             /** @constant */
@@ -9678,6 +10334,8 @@ export interface components {
             };
             manual_block_ids: number[];
             next_redo: boolean;
+            /** @description Present when the course has certificates enabled or the enrollment has an active certificate. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         /** @description A person named on a learner page: only an id and a name. */
         PersonName: {
@@ -9710,6 +10368,16 @@ export interface components {
             can_resubmit: boolean;
             /** @description Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action. */
             ask_to: components["schemas"]["PersonName"] | null;
+            /**
+             * Format: date
+             * @description The Guam calendar date for instructor feedback, when a review target is set.
+             */
+            expected_review_on?: string;
+            /**
+             * Format: date-time
+             * @description End of the target business day in Guam.
+             */
+            expected_review_by?: string;
         };
         /** @description A learner's submitted work in one cohort (MyWork): redos, work waiting for review, and graded work. */
         MyWork: {
@@ -9889,6 +10557,8 @@ export interface components {
             } | null;
             /** @description Included only when the cohort has learner-chosen pace on (W9.1); other cohorts' Today is unchanged. */
             personal_pace?: components["schemas"]["PersonalPace"];
+            /** @description Present when the course has certificates enabled or the enrollment has an active certificate. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         CourseReceiptResponse: {
             /** Format: uri */
@@ -10081,8 +10751,8 @@ export interface components {
             public_slug: string | null;
             checkout_enabled: boolean;
             price_cents: number | null;
-            access_months: number;
-            support_weeks: number;
+            access_months: number | null;
+            support_weeks: number | null;
             support_instructor: components["schemas"]["RecordDetailPerson"] | null;
             curriculum: {
                 id: number;
@@ -10125,7 +10795,13 @@ export interface components {
                     id: number;
                     status: string;
                 } | null;
+                over_capacity: boolean;
             }[];
+            unlisted: boolean;
+            seat_limit: number | null;
+            seats_taken: number;
+            seats_remaining: number | null;
+            sold_out: boolean;
         };
         /** @description The curriculum a course package was already imported as. */
         CoursePackageCurriculum: {
@@ -10426,6 +11102,339 @@ export interface components {
              */
             submissions_close_at?: string;
             reason: string;
+        };
+        LearnerNudge: {
+            id: number;
+            /** @enum {string} */
+            kind: "due_soon" | "inactive" | "support_ending" | "access_ending";
+            /** @description How far ahead of the event (24h, 48h, 1d, 3d, 7d, 14d) or, for inactivity, how long since the last activity (7d, 14d). */
+            threshold: string;
+            /** @description Access-ending notices are essential: they are sent even when the learner turned reminders off. */
+            essential: boolean;
+            title: string;
+            body: string | null;
+            /**
+             * Format: date-time
+             * @description The deadline, end of support or access, or last activity the reminder is about.
+             */
+            event_at: string;
+            /** Format: date-time */
+            sent_at: string;
+            /** @enum {string} */
+            email_status: "not_requested" | "pending" | "sent" | "failed" | "not_configured" | "no_address";
+            /**
+             * @description For settled pushes, attempted means both providers claimed an attempt, partial means one provider did, and not_sent means neither did. Provider claims do not confirm delivery to a device.
+             * @enum {string}
+             */
+            push_status: "not_requested" | "pending" | "attempted" | "partial" | "not_sent";
+            /**
+             * Format: date-time
+             * @description When the learner read the in-app notification.
+             */
+            read_at: string | null;
+        };
+        LearnerNudgesResponse: {
+            /** @description Whether this cohort sends reminders now (school switch and cohort opt-in). */
+            enabled: boolean;
+            /** @description The learner turned optional reminders off; essential notices still go. */
+            learner_opted_out: boolean;
+            /** @description Newest first, at most 100. */
+            nudges: components["schemas"]["LearnerNudge"][];
+        };
+        NudgePreferenceResponse: {
+            learner_nudges_enabled: boolean;
+        };
+        NudgePreferenceUpdateRequest: {
+            /** @description False turns off optional reminders (due dates, inactivity, support ending). Access-ending notices are essential and still arrive. */
+            learner_nudges_enabled: boolean;
+        };
+        CreateRecordingInput: {
+            title: string;
+            description?: string | null;
+            source_url?: string;
+            /** Format: date */
+            recorded_date?: string | null;
+            /** @description Stored duration in seconds. Null leaves duration unknown. */
+            duration_seconds?: number | null;
+            /** @description Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them. */
+            lesson_ids?: number[];
+            s3_key?: string;
+            content_type?: string;
+            file_size?: number;
+            publish_immediately?: boolean;
+        };
+        UpdateRecordingInput: {
+            title?: string;
+            description?: string | null;
+            source_url?: string;
+            /** Format: date */
+            recorded_date?: string | null;
+            /** @description Stored duration in seconds. Null leaves duration unknown. */
+            duration_seconds?: number | null;
+            /** @description Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them. */
+            lesson_ids?: number[];
+            /** @enum {string} */
+            status?: "draft" | "published";
+        };
+        RecordingLesson: {
+            id: number;
+            title: string;
+            module_id: number;
+            module_name: string;
+            week: number | null;
+        };
+        RecordingLessonOption: {
+            id: number;
+            title: string;
+            module_id: number;
+            module_name: string;
+            week: number | null;
+            /** Format: date */
+            week_starts_on: string | null;
+        };
+        RecordingLessonOptionsResponse: {
+            lessons: components["schemas"]["RecordingLessonOption"][];
+        };
+        AttachedRecording: {
+            id: number;
+            title: string;
+            description: string | null;
+            /** @enum {string} */
+            source_kind: "youtube" | "vimeo" | "loom" | "direct" | "external" | "uploaded";
+            duration_seconds: number | null;
+            duration_display: string | null;
+            /** Format: date */
+            recorded_date: string | null;
+            progress_percentage: number;
+            completed: boolean;
+            path: string;
+        };
+        CohortCreatedResponse: {
+            cohort: {
+                id: number;
+                name: string;
+                course_delivery: string;
+                guided_access_ends_on: string | null;
+                guided_support_ends_on: string | null;
+                /** @description Months of lesson access from each learner’s start. A fixed access date takes precedence. */
+                guided_access_months?: number;
+                /** @description Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence. */
+                guided_support_weeks?: number;
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                review_sla_business_days?: number;
+                unlisted?: boolean;
+                seat_limit?: number | null;
+                seats_taken?: number;
+                seats_remaining?: number | null;
+                sold_out?: boolean;
+            };
+        };
+        CohortSettingsInput: {
+            name?: string;
+            cohort_type?: string;
+            curriculum_id?: number;
+            start_date?: string | null;
+            end_date?: string | null;
+            course_delivery?: string;
+            status?: string;
+            public_checkout_enabled?: boolean;
+            public_outcomes?: string | null;
+            public_duration?: string | null;
+            public_prerequisites?: string | null;
+            public_preview?: string | null;
+            public_title?: string | null;
+            public_description?: string | null;
+            public_image_url?: string | null;
+            stripe_price_id?: string | null;
+            support_instructor_id?: number | null;
+            public_price_cents?: number | null;
+            self_paced_access_months?: number;
+            self_paced_support_weeks?: number;
+            guided_access_ends_on?: string | null;
+            guided_support_ends_on?: string | null;
+            /** @description Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1). */
+            learner_pace_weeks?: number[] | null;
+            github_organization_name?: string | null;
+            repository_name?: string | null;
+            requires_github?: boolean;
+            guided_access_months?: number | null;
+            guided_support_weeks?: number | null;
+            review_sla_business_days?: number | null;
+            settings?: {
+                next_step: components["schemas"]["CourseCompletionNextStep"] | null;
+            };
+            unlisted?: boolean;
+            seat_limit?: number | null;
+        };
+        CertificateVerification: {
+            code: string;
+            holder_name: string;
+            course_title: string;
+            issuer_name: string;
+            wording_version: number;
+            /** Format: date-time */
+            issued_at: string;
+            revoked: boolean;
+            revoked_at: string | null;
+        };
+        CertificateVerificationResponse: {
+            certificate: components["schemas"]["CertificateVerification"];
+        };
+        CertificateNameRequest: {
+            holder_name: string;
+        };
+        CertificateReasonRequest: {
+            reason: string;
+        };
+        CourseCompletionNextStep: {
+            title: string;
+            description?: string;
+            /** Format: uri */
+            url?: string;
+            offering_slug?: string;
+        };
+        CourseCompletionResponse: {
+            enrollment_id: number;
+            all_work_handed_in: boolean;
+            course_completed: boolean;
+            certificate: components["schemas"]["CertificateVerification"] | null;
+            next_step: components["schemas"]["CourseCompletionNextStep"] | null;
+        };
+        StaffCourseCertificate: {
+            certificate: components["schemas"]["CertificateVerification"] | null;
+            can_issue: boolean;
+            course_completed: boolean;
+        };
+        ReleaseCommunicationsConfiguration: {
+            school_time_zone: string;
+            school_time_zone_label: string;
+            daily_unlock_hour: number;
+            catch_up_days: number;
+            /** @constant */
+            channel: "email";
+            email_configured: boolean;
+            sender_identity: string | null;
+            sender_display_name: string | null;
+            sender_address: string | null;
+            frontend_origin: string | null;
+            /** @enum {string} */
+            course_delivery: "program" | "guided" | "self_paced";
+            /** @enum {string} */
+            lesson_release_mode: "scheduled_daily_unlock" | "self_paced_open" | "personal_pace_open";
+            /** @enum {string} */
+            cohort_status: "upcoming" | "active" | "completed" | "archived";
+            daily_unlocks_apply: boolean;
+            eligibility_reason: string;
+            grade_publication_separation_note: string;
+        };
+        ReleaseCommunicationsExcludedCounts: {
+            paused: number;
+            dropped: number;
+            completed: number;
+            expired: number;
+            invite_pending: number;
+            archived_user: number;
+            missing_email: number;
+            opted_out: number;
+            cohort_ineligible: number;
+        };
+        ReleaseCommunicationsRecipients: {
+            total_enrollments: number;
+            eligible_active_count: number;
+            excluded: components["schemas"]["ReleaseCommunicationsExcludedCounts"];
+        };
+        ReleaseCommunicationsLesson: {
+            id: number;
+            title: string;
+            module_id: number;
+            module_name: string;
+            lesson_type: string;
+            release_day: number;
+            deep_link: string | null;
+        };
+        ReleaseCommunicationsUpcomingRelease: {
+            release_date: string;
+            scheduled_send_at: string;
+            is_today: boolean;
+            eligible_recipient_count: number;
+            already_claimed_count: number;
+            lessons: components["schemas"]["ReleaseCommunicationsLesson"][];
+        };
+        ReleaseCommunicationsSampleLesson: {
+            id: number;
+            title: string;
+            deep_link: string | null;
+        };
+        ReleaseCommunicationsSamplePreview: {
+            release_date: string;
+            subject: string;
+            from: string | null;
+            headline: string;
+            intro: string;
+            lessons: components["schemas"]["ReleaseCommunicationsSampleLesson"][];
+            cta_label: string;
+            cta_url: string | null;
+            footer: string;
+        };
+        ReleaseCommunicationsDelivery: {
+            date: string;
+            key: string;
+            /** @enum {string} */
+            status: "attempted" | "skipped" | "pending";
+            recipient_count: number;
+            lesson_claim_count: number;
+            attempted_at: string | null;
+            note: string | null;
+        };
+        ReleaseCommunicationsSchedulerHealth: {
+            /** @constant */
+            scope: "school_wide";
+            task_name: string;
+            /** @enum {string} */
+            status: "healthy" | "error" | "skipped" | "never_run";
+            last_run_at: string | null;
+            last_succeeded_at: string | null;
+            last_school_date: string | null;
+            error_class: string | null;
+            note: string;
+        };
+        ReleaseCommunications: {
+            generated_at: string;
+            cohort_id: number;
+            cohort_name: string;
+            configuration: components["schemas"]["ReleaseCommunicationsConfiguration"];
+            recipients: components["schemas"]["ReleaseCommunicationsRecipients"];
+            upcoming_releases: components["schemas"]["ReleaseCommunicationsUpcomingRelease"][];
+            sample_preview: components["schemas"]["ReleaseCommunicationsSamplePreview"] | null;
+            recent_deliveries: components["schemas"]["ReleaseCommunicationsDelivery"][];
+            scheduler_health: components["schemas"]["ReleaseCommunicationsSchedulerHealth"];
+        };
+        CohortReleaseCommunicationsResponse: {
+            release_communications: components["schemas"]["ReleaseCommunications"];
+        };
+        CourseCheckoutCreateResponse: {
+            /** Format: uri */
+            url: string;
+        };
+        CourseCheckoutConflictError: {
+            error: string;
+            /** @enum {string} */
+            code: "cohort_full" | "price_changed";
+        };
+        CourseCheckoutStatusCohort: {
+            id: number;
+            name: string;
+            slug: string | null;
+            unlisted: boolean;
+        };
+        CourseCheckoutStatusResponse: {
+            /** @enum {string} */
+            status: "pending" | "starting" | "setup_failed" | "fulfilled" | "failed" | "refunded";
+            can_resume: boolean;
+            can_continue: boolean;
+            purchase_id: number;
+            cohort: components["schemas"]["CourseCheckoutStatusCohort"];
+            enrollment_id: number | null;
         };
     };
     responses: {
@@ -10747,6 +11756,63 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    createCourseCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cohort_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Stripe Checkout URL for the learner */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutCreateResponse"];
+                };
+            };
+            /** @description Cohort seat cap reached or price changed while checkout started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutConflictError"];
+                };
+            };
+        };
+    };
+    getCourseCheckoutStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Local checkout and fulfillment status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutStatusResponse"];
+                };
             };
         };
     };

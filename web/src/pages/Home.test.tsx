@@ -70,6 +70,8 @@ describe('automatic public catalog availability', () => {
   const getOfferings = vi.mocked(api.getCourseOfferings)
   type Result = Awaited<ReturnType<typeof api.getCourseOfferings>>
   const result = (...purchasable: boolean[]): Result => ({ error: null, data: { offerings: purchasable.map((checkout_available, id) => ({
+    course_delivery: 'self_paced' as const, unlisted: false, guided_access_ends_on: null, guided_support_ends_on: null,
+    seat_limit: null, seats_taken: null, seats_remaining: null, sold_out: false,
     description: 'Public copy', image_url: null, outcomes: null, duration: null, prerequisites: null, preview: null, slug: `course-${id}`, syllabus: [], lesson_count: 0, id, name: 'Sample course', curriculum_name: 'Foundations', checkout_available,
     price_cents: 14900, currency: 'USD', access_months: 12, instructor_message_weeks: 6,
     instructor_response_target: '2 Guam business days', includes_private_meetings: false,

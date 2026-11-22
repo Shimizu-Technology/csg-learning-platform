@@ -126,6 +126,47 @@ it('does not offer completion to read-only learners', async () => {
   }
 })
 
+it('shows all work handed in for an opted-in course while review is pending', async () => {
+  const value = {
+    ...lesson,
+    learning_navigation: {
+      ...lesson.learning_navigation!, course_complete: true, next: null, manual_block_ids: [],
+      course_completion: { enrollment_id: 7, all_work_handed_in: true, course_completed: false, certificate: null, next_step: null },
+    },
+  }
+  const page = await render(value, '/lessons/2?cohort_id=1&complete=1')
+  try {
+    expect(page.host.querySelector('h1')?.textContent).toBe('All work handed in')
+    expect(page.host.textContent).toContain('Your instructor will confirm completion after reviewing your work.')
+    expect(page.host.querySelector('a[href^="/certificates/"]')).toBeNull()
+    expect(page.host.textContent).not.toContain('Next step')
+  } finally { await page.close() }
+})
+
+it('shows the certificate and configured next step when reviewed completion is recorded', async () => {
+  const value = {
+    ...lesson,
+    learning_navigation: {
+      ...lesson.learning_navigation!, course_complete: true, next: null, manual_block_ids: [],
+      course_completion: {
+        enrollment_id: 7, all_work_handed_in: true, course_completed: true,
+        certificate: {
+          code: '0123456789AB', holder_name: 'Sam Example', course_title: 'Python Foundations',
+          issuer_name: 'Example School', wording_version: 1, issued_at: '2026-11-22T00:00:00Z', revoked: false, revoked_at: null,
+        },
+        next_step: { title: 'Build a project', offering_slug: 'python-projects' },
+      },
+    },
+  }
+  const page = await render(value, '/lessons/2?cohort_id=1&complete=1')
+  try {
+    expect(page.host.querySelector('h1')?.textContent).toBe('Course completed')
+    expect(page.host.querySelector('a[href="/certificates/0123456789AB"]')?.textContent).toContain('View & print certificate')
+    expect(page.host.textContent).toContain('Edit printed name')
+    expect(page.host.querySelector('a[href="/courses/python-projects"]')).not.toBeNull()
+  } finally { await page.close() }
+})
+
 it('labels a redo separately from a forward module transition', async () => {
   const page = await render({ ...lesson, learning_navigation: { ...lesson.learning_navigation!, next_module: false, next_redo: true, next: { id: 1, module_id: 1, title: 'First' } } })
   try {

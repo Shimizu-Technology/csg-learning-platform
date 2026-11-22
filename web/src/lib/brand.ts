@@ -45,7 +45,7 @@ export const SURFACE_THEME_COLORS = THEME_COLORS
 
 export type Surface = keyof typeof SURFACE_THEME_COLORS
 
-const PUBLIC_PATHS = [/^\/$/, /^\/sign-in(\/|$)/, /^\/sign-up(\/|$)/, /^\/courses(\/|$)/, /^\/privacy(\/|$)/, /^\/terms(\/|$)/, /^\/account-deletion(\/|$)/]
+const PUBLIC_PATHS = [/^\/$/, /^\/sign-in(\/|$)/, /^\/sign-up(\/|$)/, /^\/courses(\/|$)/, /^\/certificates(\/|$)/, /^\/privacy(\/|$)/, /^\/terms(\/|$)/, /^\/account-deletion(\/|$)/]
 
 export function surfaceForPath(pathname: string): Surface {
   return PUBLIC_PATHS.some((pattern) => pattern.test(pathname)) ? 'public' : 'app'

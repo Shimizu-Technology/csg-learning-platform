@@ -71,7 +71,8 @@ class StudentToday
       can_ask_for_plan: program_active? && !paced? && @features["learning_plans"] == true && @work.contact.present?,
       review_response_time: @cohort.effective_review_response_time,
       support: support_json,
-      recently_added: library? ? recently_added : []
+      recently_added: library? ? recently_added : [],
+      **CourseCompletion.learner_summary(@enrollment, progress: @progress, features: @features)
     }.tap do |json|
       # Only cohorts with personal pace on get the key, so every other
       # cohort's Today is unchanged (W9.1).
@@ -273,7 +274,7 @@ class StudentToday
   def next_session
     return nil if @read_only || @features["office_hours"] != true
 
-    OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(@cohort), limit: 1).first
+    OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(@cohort), limit: 1, optional_check_ins: @cohort.optional_guided_check_ins?).first
   end
 
   # One support message for the course (U-5.5), from the same rules lessons use.
@@ -283,7 +284,7 @@ class StudentToday
       mode: capabilities[:support_mode],
       live_support: capabilities[:live_support],
       ends_on: capabilities[:support_expires_at]&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date,
-      ended: @cohort.self_paced? && capabilities[:support_expires_at].present? && capabilities[:support_expires_at] <= @now
+      ended: (@cohort.self_paced? || @cohort.guided?) && capabilities[:support_expires_at].present? && capabilities[:support_expires_at] <= @now
     }
   end
 

@@ -1,5 +1,7 @@
+import { CourseCompletionStatus } from '../../components/student/CourseCompletionCards'
 import { GithubRepositorySettings } from '../../components/shared/GithubRepositorySettings'
 import { PurchaseReceipt } from '../../components/student/PurchaseReceipt'
+import { ReminderPreference } from '../../components/student/ReminderPreference'
 import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -179,6 +181,7 @@ export function Profile() {
 
   const githubEnrollments = sessionUser?.role === 'student' ? data.enrollments.filter(enrollment => enrollment.github_app_enabled && enrollment.status === 'active') : []
   const canReconnectGithub = githubEnrollments.some(enrollment => githubReconnectAvailable[enrollment.id])
+  const remindersAvailable = sessionUser?.role === 'student' && data.enrollments.some(enrollment => enrollment.learner_nudges_enabled && enrollment.status === 'active')
   return (
     <div className="app-page max-w-2xl">
       {v2 ? <PageHeader eyebrow="Account & preferences" title="Profile" description="Keep your class identity and connected accounts up to date." /> : <header>
@@ -314,6 +317,7 @@ export function Profile() {
             </button>
           )}
         </div>
+        {remindersAvailable && <ReminderPreference v2={v2} />}
       </section>
 
       <section className="app-surface overflow-hidden" aria-labelledby="appearance-title">
@@ -388,6 +392,9 @@ export function Profile() {
           </ul>
         )}
       </section>
+      {data.enrollments.map((enrollment) => (
+        <CourseCompletionStatus key={enrollment.id} completion={enrollment.course_completion} />
+      ))}
     </div>
   )
 }

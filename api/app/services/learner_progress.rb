@@ -247,6 +247,28 @@ class LearnerProgress
     end
   end
 
+  def all_required_work_handed_in?
+    counts = self.class.lesson_counts(required_lessons.map { |lesson| lesson_progress(lesson) })
+    counts[:total_lessons].positive? && counts[:completed_lessons] == counts[:total_lessons]
+  end
+
+  def course_completed?
+    return false unless all_required_work_handed_in?
+    return false if @latest_submissions.values.any? { |submission| submission.grade == "R" }
+
+    final_projects = required_lessons.flat_map(&:content_blocks).select { |block| block.metadata.to_h["final_project"] == true }
+    reviewed = final_projects.presence || required_lessons.flat_map(&:completion_blocks).select do |block|
+      block.gradable_work_block? && (@latest_submissions.key?(block.id) ||
+        ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(block.submission_type_for(enrollment)))
+    end
+    reviewed.all? { |block| %w[A B C].include?(@latest_submissions[block.id]&.grade) }
+  end
+
+  def required_lessons
+    @required_lessons ||= @lessons.select { |lesson| required?(lesson) }
+  end
+  private :required_lessons
+
   # Steps in counted lessons that are open to the learner now (released), and
   # how many of those are not handed in yet. Staff "released unfinished" and the
   # inactivity reason read these, so they agree with the learner's counts.
@@ -309,7 +331,8 @@ class LearnerProgress
       manual_block_ids: manual_completion_blocks(lesson).reject { |block|
         (current.submission_window[:submissions_closed] && block.student_work_block?) ||
           block_state(block) == BlockState::COMPLETE || (block.gradable_work_block? && @latest_submissions.key?(block.id))
-      }.map(&:id)
+      }.map(&:id),
+      **CourseCompletion.learner_summary(enrollment, progress: self)
     }
   end
 

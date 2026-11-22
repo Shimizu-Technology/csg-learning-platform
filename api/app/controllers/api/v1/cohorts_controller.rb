@@ -40,7 +40,7 @@ module Api
             name: cohort.name,
             status: cohort.effective_status,
             cohort_type: cohort.cohort_type,
-            features: features,
+            features: FeatureSwitches.for_client(features),
             curriculum_name: CurriculumName.in_cohort(cohort),
             curriculum_id: cohort.curriculum_id,
             course_delivery: cohort.course_delivery,
@@ -103,7 +103,8 @@ module Api
 
       # POST /api/v1/cohorts
       def create
-        cohort = Cohort.new(cohort_params)
+        cohort = Cohort.new(cohort_params.merge(params.permit(:review_response_time)))
+        assign_next_step(cohort)
         if ActiveModel::Type::Boolean.new.cast(cohort_params[:public_checkout_enabled]) && !cohort.setup_readiness.values.all?
           return render json: { errors: cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
         end
@@ -112,6 +113,8 @@ module Api
         else
           render json: { errors: cohort.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue ArgumentError => error
+        render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/cohorts/:id
@@ -119,6 +122,7 @@ module Api
         Cohort.transaction do
           lock_cohort_for_update!
           @cohort.assign_attributes(cohort_params)
+          assign_next_step(@cohort)
           @cohort.edited_by = current_user
           # null (or an empty list) turns learner-chosen pace off.
           @cohort.learner_pace_weeks = nil if params.key?(:learner_pace_weeks) && params[:learner_pace_weeks].blank?
@@ -131,6 +135,8 @@ module Api
             render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
           end
         end
+      rescue ArgumentError => error
+        render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/cohorts/:id/module_access
@@ -295,8 +301,23 @@ module Api
 
       def reject_legacy_settings_write!
         return unless params.key?(:settings)
+        settings = params[:settings]
+        return if settings.is_a?(ActionController::Parameters) && settings.keys == [ "next_step" ]
 
         render json: { error: "Raw cohort settings are read-only. Use the recording library or cohort links editor." }, status: :unprocessable_entity
+      end
+
+      def assign_next_step(cohort)
+        return unless params[:settings]&.key?(:next_step)
+
+        input = params[:settings][:next_step]
+        unless input.nil? || input.is_a?(ActionController::Parameters)
+          raise ArgumentError, "Next step must be an object"
+        end
+        next_step = CohortNextStep.normalize(input&.permit(*CohortNextStep::KEYS)&.to_h)
+        settings = cohort.settings.to_h.except("next_step")
+        settings["next_step"] = next_step if next_step
+        cohort.settings = settings
       end
 
       # Lock order (Curriculum.lock_for_content!, CurriculumCopyForCohort):
@@ -326,8 +347,9 @@ module Api
       def cohort_params
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status,
-                       :public_outcomes, :public_duration, :public_prerequisites, :public_preview, :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
-                       :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on, learner_pace_weeks: [])
+                       :public_outcomes, :public_duration, :public_prerequisites, :public_preview, :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :unlisted, :seat_limit, :stripe_price_id, :support_instructor_id, :public_price_cents,
+                       :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on,
+                       :guided_access_months, :guided_support_weeks, :review_sla_business_days, learner_pace_weeks: [])
       end
 
       def module_access_params
@@ -420,7 +442,7 @@ module Api
             status: cohort.effective_status,
             start_date: cohort.start_date,
             end_date: cohort.end_date,
-            features: FeatureSwitches.for(cohort: cohort),
+            features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: cohort)),
             curriculum_name: CurriculumName.in_cohort(cohort),
             active_count: active_enrollments.size
           },
@@ -688,11 +710,13 @@ module Api
         office_hours_payload = OfficeHourSerializer.collection_json(active_office_hours)
         json = {
           id: cohort.id,
-          features: FeatureSwitches.for(cohort: cohort),
+          features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: cohort)),
           name: cohort.name,
           cohort_type: cohort.cohort_type,
           course_delivery: cohort.course_delivery,
           public_checkout_enabled: cohort.public_checkout_enabled?,
+          unlisted: cohort.unlisted?,
+          **cohort.seat_capacity,
           offering_readiness: cohort.offering_readiness,
           instructor_assigned: cohort.instructors.not_archived.exists?,
           public_slug: cohort.public_slug,
@@ -728,6 +752,11 @@ module Api
           office_hours: office_hours_payload[:office_hours],
           office_hour_occurrences: office_hours_payload[:upcoming]
         }
+
+        %i[guided_access_months guided_support_weeks review_sla_business_days].each do |attribute|
+          value = cohort.public_send(attribute)
+          json[attribute] = value if value.present?
+        end
 
         if include_students
           json[:recording_library_count] = cohort.recordings.count

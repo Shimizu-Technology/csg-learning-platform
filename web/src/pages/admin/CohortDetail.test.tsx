@@ -20,7 +20,13 @@ let container: HTMLDivElement
 let root: Root
 const button = (text: string) => [...container.querySelectorAll('button')].find((el) => el.textContent === text)!
 
-vi.mock('../../components/admin/FeatureSettings', () => ({ FeatureSettings: ({ onReviewResponseDraftChange }: { onReviewResponseDraftChange: (value: string) => void }) => <label>Typical response time<input id="review-response-time-test" onChange={e => onReviewResponseDraftChange(e.target.value)} /></label> }))
+vi.mock('../../components/admin/FeatureSettings', () => ({ FeatureSettings: () => null }))
+vi.mock('../../components/admin/ReleaseCommunicationsPanel', () => ({ ReleaseCommunicationsPanel: () => null }))
+vi.mock('../../components/admin/ReviewResponseSettings', () => ({
+  ReviewResponseSettings: ({ onDraftChange }: { onDraftChange: (value: string) => void }) => (
+    <label>Typical response time<input id="review-response-time-test" onChange={e => onDraftChange(e.target.value)} /></label>
+  ),
+}))
 const cohort = { id: 1, name: 'Pilot', curriculum_id: 7, curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', modules: [], students: [], active_count: 0 }
 const render = async () => { await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1?tab=settings']}><Routes><Route path="/admin/cohorts/:id" element={<CohortDetail />} /></Routes></MemoryRouter>)) }
 const input = async (selector: string, value: string) => { await act(async () => { const el = container.querySelector(selector)!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })) }) }
@@ -83,13 +89,12 @@ it('sends only a changed GitHub field, preserving concurrent status and delivery
   await act(async () => button('Save settings').click())
   expect(state.updateCohort).toHaveBeenCalledWith(1, { github_organization_name: 'changed-org' })
 })
-it('clears guided dates when switching a guided cohort to a live program', async () => {
-  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, course_delivery: 'guided', guided_access_ends_on: '2027-03-01', guided_support_ends_on: '2027-02-01' } } })
+it('clears guided terms when switching a guided cohort to a live program', async () => {
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, course_delivery: 'guided', guided_access_ends_on: '2027-03-01', guided_support_ends_on: '2027-02-01', guided_access_months: 12, guided_support_weeks: 8 } } })
   await render()
-  const select = [...container.querySelectorAll('select')].find((el) => [...el.options].some((option) => option.value === 'guided'))!
-  await act(async () => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, 'program'); select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => container.querySelector<HTMLInputElement>('input[type=radio][value=program]')!.click())
   await act(async () => button('Save settings').click())
-  expect(state.updateCohort).toHaveBeenCalledWith(1, { course_delivery: 'program', guided_access_ends_on: null, guided_support_ends_on: null })
+  expect(state.updateCohort).toHaveBeenCalledWith(1, { course_delivery: 'program', guided_access_ends_on: null, guided_support_ends_on: null, guided_access_months: null, guided_support_weeks: null })
 })
 it('assigns a module mid-cohort without pinning its legacy start date', async () => {
   const mod = { id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: false, module_start_date: '2026-01-01', unlocked_count: 0 }

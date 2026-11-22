@@ -366,6 +366,68 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "self_paced_peer_space defaults off and requires both school activation and explicit cohort opt-in" do
+    assert_equal false, FeatureSwitches.school(read_only: true).fetch("self_paced_peer_space")
+    assert_equal false, FeatureSwitches.for(cohort: @cohort).fetch("self_paced_peer_space")
+
+    [
+      [ nil, nil, false ],
+      [ false, true, false ],
+      [ true, nil, false ],
+      [ true, false, false ],
+      [ true, true, true ]
+    ].each do |school_val, cohort_val, expected|
+      SchoolSetting.current.update!(features: school_val.nil? ? {} : { "self_paced_peer_space" => school_val })
+      @cohort.update!(settings: { "features" => cohort_val.nil? ? {} : { "self_paced_peer_space" => cohort_val } })
+      assert_equal expected, FeatureSwitches.for(cohort: @cohort.reload).fetch("self_paced_peer_space"),
+        "expected #{expected} for school=#{school_val.inspect} cohort=#{cohort_val.inspect}"
+    end
+  end
+
+  test "github_issue_delivery_v2 defaults off and requires both school activation and explicit cohort opt-in" do
+    assert_equal false, FeatureSwitches.school(read_only: true).fetch("github_issue_delivery_v2")
+    assert_equal false, FeatureSwitches.for(cohort: @cohort).fetch("github_issue_delivery_v2")
+
+    [
+      [ nil, nil, false ],
+      [ false, true, false ],
+      [ true, nil, false ],
+      [ true, false, false ],
+      [ true, true, true ]
+    ].each do |school_val, cohort_val, expected|
+      SchoolSetting.current.update!(features: school_val.nil? ? {} : { "github_issue_delivery_v2" => school_val })
+      @cohort.update!(settings: { "features" => cohort_val.nil? ? {} : { "github_issue_delivery_v2" => cohort_val } })
+      assert_equal expected, FeatureSwitches.for(cohort: @cohort.reload).fetch("github_issue_delivery_v2"),
+        "expected #{expected} for school=#{school_val.inspect} cohort=#{cohort_val.inspect}"
+    end
+  end
+
+  test "github_issue_delivery_v2 stays absent from full Off-cohort POST /api/v1/sessions payload even when school switch is On" do
+    @cohort.update!(settings: { features: { student_experience_v2: false } })
+    SchoolSetting.current.update!(features: { github_issue_delivery_v2: false })
+
+    off_payload = nil
+    as_user(@student) do
+      post "/api/v1/sessions", headers: @headers
+      assert_response :success
+      off_payload = response.parsed_body
+    end
+    assert_not off_payload.dig("school", "features").key?("github_issue_delivery_v2")
+    assert_not off_payload.dig("enrollments", 0, "cohort", "features").key?("github_issue_delivery_v2")
+
+    SchoolSetting.current.update!(features: { github_issue_delivery_v2: true })
+    on_payload = nil
+    as_user(@student) do
+      post "/api/v1/sessions", headers: @headers
+      assert_response :success
+      on_payload = response.parsed_body
+    end
+
+    assert_not on_payload.dig("school", "features").key?("github_issue_delivery_v2")
+    assert_not on_payload.dig("enrollments", 0, "cohort", "features").key?("github_issue_delivery_v2")
+    assert_equal off_payload, on_payload
+  end
+
   private
 
   def as_user(user, &block)

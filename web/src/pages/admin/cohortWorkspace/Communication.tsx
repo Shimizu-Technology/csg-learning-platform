@@ -1,5 +1,6 @@
 import { ArrowRight, MessageSquareText } from 'lucide-react'
 import { CohortChannels } from '../../../components/admin/CohortChannels'
+import { ReleaseCommunicationsPanel } from '../../../components/admin/ReleaseCommunicationsPanel'
 import { RecordLink } from '../../../components/shared/RecordLink'
 import { Button, LinkButton } from '../../../components/ui/Button'
 import { PreviewLink as Link } from '../../../contexts/PreviewNavigationContext'
@@ -83,6 +84,9 @@ export function Communication({
           </Link>
         </section>
       )}
+      <div className="min-w-0 lg:col-span-2">
+        <ReleaseCommunicationsPanel cohortId={cohort.id} />
+      </div>
     </div>
   )
 }

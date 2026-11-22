@@ -64,6 +64,21 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert_equal 1, planned.fetch(:counts).fetch("learner_extensions")
   end
 
+  test "copy moves only this cohort's recording attachments to the copied lessons" do
+    lesson = @f.curriculum.modules.first.lessons.first
+    moving, staying = [ @f.cohort, @f.other_cohort ].map do |cohort|
+      recording = cohort.recordings.create!(title: "Class recording", source_kind: "external", source_url: "https://example.invalid/replay")
+      recording.lesson_recordings.create!(lesson: lesson, position: 3)
+    end
+    result = copy!(@f.instructor)
+
+    assert_equal result.lesson_ids.fetch(lesson.id.to_s), moving.reload.lesson_id
+    assert_equal 3, moving.position
+    assert moving.valid?
+    assert_equal lesson.id, staying.reload.lesson_id
+    assert_equal 1, result.counts.fetch("lesson_recordings")
+  end
+
   test "copy preserves and remaps the paused library" do
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     enrollment.update!(status: :paused)
@@ -74,10 +89,35 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert enrollment.paused?
   end
 
+  test "write guard truncates sub-microsecond request clocks to PostgreSQL precision" do
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    boundary = Time.utc(2026, 11, 18, 12, 0, 0, Rational(123_456_000, 1000))
+    same_microsecond = Time.utc(2026, 11, 18, 12, 0, 0, Rational(123_456_789, 1000))
+    next_microsecond = Time.utc(2026, 11, 18, 12, 0, 0, Rational(123_457_001, 1000))
+
+    enrollment.update_columns(content_moved_at: same_microsecond)
+    assert_equal boundary, enrollment.reload.content_moved_at
+    error = assert_raises(Enrollment::StaleLearningWrite) do
+      enrollment.with_learning_write_guard(request_started_at: same_microsecond) { flunk "same-microsecond write must be refused" }
+    end
+    assert_equal "content_moved", error.code
+    assert_equal :saved, enrollment.with_learning_write_guard(request_started_at: next_microsecond) { :saved }
+
+    enrollment.update_columns(content_moved_at: nil, learning_state_reset_at: same_microsecond)
+    assert_raises(Enrollment::StaleLearningWrite) do
+      enrollment.with_learning_write_guard(request_started_at: same_microsecond) { flunk "same-microsecond reset write must be refused" }
+    end
+    assert_equal :saved, enrollment.with_learning_write_guard(request_started_at: next_microsecond) { :saved }
+  end
+
   test "a pause request crossing a copy is refused and a fresh pause captures copied ids" do
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     stale = Enrollment.find(enrollment.id)
+    base_time = Time.current.change(usec: 0)
+
+    travel_to(base_time)
     started_at = Time.current
+    travel_to(base_time + 1.second)
     result = copy!(@f.instructor)
     error = assert_raises(Enrollment::StaleLearningWrite) do
       stale.with_learning_write_guard(request_started_at: started_at) do
@@ -94,32 +134,39 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert stale.paused_lesson_ids.any?
     assert_empty stale.paused_lesson_ids & result.lesson_ids.keys.map(&:to_i)
     assert (stale.paused_lesson_ids - result.lesson_ids.values).empty?
+  ensure
+    travel_back
   end
 
   test "HTTP pause crossing a copy returns content_moved and retry captures copied lessons" do
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     original_verify = ClerkAuth.method(:verify)
     test_case = self
+    base_time = Time.current.change(usec: 0)
     copied = false
     result = nil
     payload = { "sub" => @f.admin.clerk_id, "email" => @f.admin.email }
     ClerkAuth.define_singleton_method(:verify) do |_token|
       unless copied
         copied = true
+        test_case.travel_to(base_time + 1.second)
         result = test_case.send(:copy!, test_case.instance_variable_get(:@f).instructor)
       end
       payload
     end
     client = ActionDispatch::Integration::Session.new(Rails.application)
+    travel_to(base_time)
     client.patch "/api/v1/enrollments/#{enrollment.id}", params: { status: "paused" }, headers: { "Authorization" => "Bearer test" }, as: :json
     assert_equal 409, client.response.status
     assert_equal "content_moved", client.response.parsed_body["code"]
     assert enrollment.reload.active?
+    travel_to(enrollment.content_moved_at + 1.second)
     client.patch "/api/v1/enrollments/#{enrollment.id}", params: { status: "paused" }, headers: { "Authorization" => "Bearer test" }, as: :json
     assert_equal 200, client.response.status
     assert enrollment.reload.paused_lesson_ids.any?
     assert_empty enrollment.paused_lesson_ids & result.lesson_ids.keys.map(&:to_i)
   ensure
+    travel_back
     ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
   end
 

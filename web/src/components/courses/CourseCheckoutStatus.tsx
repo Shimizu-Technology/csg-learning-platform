@@ -2,11 +2,12 @@ import { brand } from '../../lib/brand'
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { validOfferingSlug } from '../../lib/courseIntent'
 import { Button, LinkButton } from '../ui/Button'
 
 type Status = NonNullable<Awaited<ReturnType<typeof api.getCourseCheckoutStatus>>['data']>
 
-export function CourseCheckoutStatus({ purchaseId, canceled = false }: { purchaseId: string; canceled?: boolean }) {
+export function CourseCheckoutStatus({ purchaseId, canceled = false, slug }: { purchaseId: string; canceled?: boolean; slug?: string }) {
   const { isSignedIn, syncSession } = useAuthContext()
   const [result, setResult] = useState<Status | null>(null)
   const [stopped, setStopped] = useState(false)
@@ -60,13 +61,17 @@ export function CourseCheckoutStatus({ purchaseId, canceled = false }: { purchas
   const starting = result?.status === 'starting'
   const fulfilled = result?.status === 'fulfilled'
   const problem = result?.status === 'failed' || result?.status === 'refunded'
+  const validatedSlug = validOfferingSlug(slug)
+  const signInParams = new URLSearchParams({ checkout: 'return', purchase_id: purchaseId })
+  if (validatedSlug) signInParams.set('offering_slug', validatedSlug)
+  const retrySlug = validOfferingSlug(result?.cohort.slug)
   return <section className="mt-8 rounded-2xl border border-line bg-surface-raised p-6" aria-live="polite">
     <h2 className="text-xl font-bold">{canContinue && canceled ? 'Checkout not completed — Continue checkout' : setupFailed ? "We couldn't start checkout — try again" : starting ? 'Checkout needs a status check' : fulfilled ? "You’re in" : problem ? result.status === 'refunded' ? 'Your purchase was refunded' : 'We could not confirm course access' : stopped || !purchaseId ? 'Still confirming — this can take a minute' : 'Confirming your enrollment…'}</h2>
     {fulfilled ? <LinkButton className="mt-4" to={`/dashboard?cohort_id=${result.cohort.id}`}>Open {result.cohort.name || 'Self-paced course'}</LinkButton>
       : <>
         <p className="mt-2 text-sm text-ink-secondary">{canContinue ? 'Continue securely. We will reopen your checkout or start a new attempt only if the previous session has expired.' : setupFailed ? 'No checkout session was started. Return to your course to try again.' : starting ? result.can_resume ? 'The checkout request has no confirmed session yet. Resume the same attempt or contact support before making another payment.' : `Contact ${brand.schoolAbbreviation} to check this checkout before making another payment.` : problem ? `Contact ${brand.schoolAbbreviation} to check your purchase and course access.` : 'Please wait for confirmation before making another payment.'}</p>
-        {!isSignedIn && <LinkButton className="mt-4" to={`/sign-in?checkout=return&purchase_id=${encodeURIComponent(purchaseId)}`}>Sign in to check enrollment</LinkButton>}
-        {setupFailed && <LinkButton className="mt-4" to={`/courses?offering_id=${result.cohort.id}`}>Try checkout again</LinkButton>}
+        {!isSignedIn && <LinkButton className="mt-4" to={`/sign-in?${signInParams}`}>Sign in to check enrollment</LinkButton>}
+        {setupFailed && <LinkButton className="mt-4" to={result.cohort.unlisted && retrySlug ? `/courses/${retrySlug}` : `/courses?offering_id=${result.cohort.id}`}>Try checkout again</LinkButton>}
         {canContinue && <Button className="mt-4" disabled={resuming} onClick={() => void resumeCheckout()}>{resuming ? 'Opening checkout…' : 'Continue checkout'}</Button>}
         {starting && result.can_resume && <Button className="mt-4" disabled={resuming} onClick={() => void resumeCheckout()}>{resuming ? 'Resuming…' : 'Resume checkout'}</Button>}
         {resumeError && <p role="alert" className="mt-2 text-sm text-danger-ink">{resumeError}</p>}

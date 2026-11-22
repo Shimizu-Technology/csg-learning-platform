@@ -414,7 +414,7 @@ The locked block is saved byte for byte and can be deleted as a whole. Readers s
 
 - At phone width the toolbar folds into an **Aa** button. It opens a format menu with the formatting buttons (44px targets) and the **Rich | Markdown** toggle under an "Editor" label. The menu opens above or below the editor, wherever there's room, and closes on Escape or a tap outside. Preview stays in the toolbar in Markdown mode.
 - In the composer the footer keeps Attach, Aa, formatting help and Send; the composer stays pinned above the keyboard.
-- Text is 16px in both modes so iOS doesn't zoom. The Markdown text box turns off autocorrect and smart punctuation so syntax isn't rewritten; Rich mode leaves them on.
+- Text is 16px in both modes so iOS doesn't zoom. Markdown enables autocorrect, spellcheck, and sentence capitalization for prose. It turns them off when the caret or either end of a selection is inside a fenced code block. Smart insert/delete stays off in Markdown. Rich mode leaves keyboard assistance on.
 
 ### 9.10 Building it
 

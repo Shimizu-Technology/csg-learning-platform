@@ -476,6 +476,16 @@ export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
 export type BulkEnrollmentResult = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
 export type BulkEnrollmentState = { enrolled: number; invited: number; results: BulkEnrollmentResult[] }
 export const api = {
+  verifyCertificate: (code: string) =>
+    fetchApi<components['schemas']['CertificateVerificationResponse']>(`/api/v1/certificates/${encodeURIComponent(code)}`, { cache: 'no-store' }, false),
+  updateCertificateName: (enrollmentId: number, holderName: string) =>
+    fetchApi<components['schemas']['CertificateVerificationResponse']>(`/api/v1/enrollments/${enrollmentId}/certificate`, {
+      method: 'PATCH', body: JSON.stringify({ holder_name: holderName }),
+    }),
+  manageCertificate: (enrollmentId: number, action: 'revoke' | 'reissue', reason: string) =>
+    fetchApi<components['schemas']['CertificateVerificationResponse']>(`/api/v1/enrollments/${enrollmentId}/certificate/${action}`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    }),
   getSubmissionAudit: () => fetchApi<components['schemas']['SubmissionAuditResponse']>('/api/v1/submission_audits', { cache: 'no-store' }),
   reviewSubmissionAudit: (id: number, content_digest: string) => fetchApi<components['schemas']['SubmissionAuditReviewResponse']>(`/api/v1/submission_audits/${id}`, { method: 'PATCH', body: JSON.stringify({ content_digest }) }),
   getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
@@ -513,7 +523,7 @@ export const api = {
   dismissStartHere: (cohortId: number) => fetchApi<{ dismissed: boolean }>('/api/v1/dashboard/start_here', { method: 'PATCH', body: JSON.stringify({ cohort_id: cohortId }) }),
   getCourseReceipt: (id: number) => fetchApi<{ url: string }>(`/api/v1/course_checkouts/${id}/receipt`, { cache: 'no-store' }),
   getCourseCheckoutStatus: (id: string | number) =>
-    fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
+    fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string; slug?: string | null; unlisted?: boolean }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
   getPendingCoursePurchases: () =>
     fetchApi<{ purchases: Array<{ id: number; cohort_id: number }> }>('/api/v1/course_checkouts', { cache: 'no-store' }),
   startCourseCheckout: (cohortId: number) =>
@@ -868,6 +878,12 @@ export const api = {
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions`, { cache: 'no-store' }),
   saveLearnerExtension: (enrollmentId: number, data: import('../types/api').LearnerExtensionInput, id?: number) =>
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions${id ? `/${id}` : ''}`, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(data) }),
+  getLearnerNudges: (enrollmentId: number) =>
+    fetchApi<components['schemas']['LearnerNudgesResponse']>(`/api/v1/enrollments/${enrollmentId}/nudges`, { cache: 'no-store' }),
+  getNudgePreference: () =>
+    fetchApi<components['schemas']['NudgePreferenceResponse']>('/api/v1/nudge_preferences', { cache: 'no-store' }),
+  updateNudgePreference: (enabled: boolean) =>
+    fetchApi<components['schemas']['NudgePreferenceResponse']>('/api/v1/nudge_preferences', { method: 'PATCH', body: JSON.stringify({ learner_nudges_enabled: enabled }) }),
   removeLearnerExtension: (enrollmentId: number, id: number, reason: string) =>
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
   getPersonalPace: (enrollmentId: number) =>
@@ -950,6 +966,10 @@ export const api = {
   getSubmissionGithubIssue: (id: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
+  retrySubmissionGithubIssue: (id: number) =>
+    fetchApi<components['schemas']['RetryGithubIssueResponse']>(`/api/v1/submissions/${id}/retry_github_issue`, {
+      method: 'POST',
+    }),
 
   // Student progress (admin)
   getActivityEvents: (params?: { feed?: 'cohort' | 'school'; actor_id?: number; since?: string; until?: string; user_id?: number; cohort_id?: number; category?: string; before_id?: number; limit?: number }) =>
@@ -960,6 +980,11 @@ export const api = {
     fetchApi<{ communication: import('../types/api').StudentCommunication }>(`/api/v1/progress/student/${userId}/communication${queryString({ cohort_id: cohortId })}`),
   getLearningInsights: (cohortId: number, userId?: number) =>
     fetchApi<LearningInsightsResponse>(`/api/v1/cohorts/${cohortId}/learning_insights${queryString({ user_id: userId })}`),
+  getCohortReleaseCommunications: (cohortId: number) =>
+    fetchApi<import('../types/api').CohortReleaseCommunicationsResponse>(
+      `/api/v1/cohorts/${cohortId}/release_communications`,
+      { cache: 'no-store' },
+    ),
   restartEnrollment: (enrollmentId: number, confirmation: string, reason: string, restartVersion: string | null | undefined) =>
     fetchApi<{
       message: string;
@@ -1047,12 +1072,24 @@ export const api = {
     fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`, {}, true, 30_000),
   getCohortStudentView: (id: number) =>
     fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
-  createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string; course_delivery?: 'program' | 'self_paced'; public_checkout_enabled?: boolean }) =>
+  createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string;
+    course_delivery?: 'program' | 'guided' | 'self_paced'
+    public_checkout_enabled?: boolean
+    unlisted?: boolean
+    seat_limit?: number | null
+    guided_access_ends_on?: string | null
+    guided_support_ends_on?: string | null
+    guided_access_months?: number | null
+    guided_support_weeks?: number | null
+    review_sla_business_days?: number | null
+    review_response_time?: string
+  }) =>
     fetchApi<CohortResponse>('/api/v1/cohorts', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   updateCohort: (id: number, data: { curriculum_id?: number; public_outcomes?: string; public_duration?: string; public_prerequisites?: string; public_preview?: string; public_title?: string; public_description?: string; public_image_url?: string;
+    settings?: { next_step: components['schemas']['CourseCompletionNextStep'] | null }
     name?: string
     start_date?: string
     end_date?: string
@@ -1060,6 +1097,8 @@ export const api = {
     github_organization_name?: string | null
     course_delivery?: 'program' | 'guided' | 'self_paced'
     public_checkout_enabled?: boolean
+    unlisted?: boolean
+    seat_limit?: number | null
     public_price_cents?: number | null
     stripe_price_id?: string | null
     support_instructor_id?: number | null
@@ -1067,6 +1106,9 @@ export const api = {
     self_paced_support_weeks?: number
     guided_access_ends_on?: string | null
     guided_support_ends_on?: string | null
+    guided_access_months?: number | null
+    guided_support_weeks?: number | null
+    review_sla_business_days?: number | null
     learner_pace_weeks?: number[] | null
   }) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`, {
@@ -1304,16 +1346,18 @@ export const api = {
   // S3 Recordings
   getCohortRecordings: (cohortId: number) =>
     fetchApi<CohortRecordingsResponse>(`/api/v1/cohorts/${cohortId}/recordings`),
+  getRecordingLessonOptions: (cohortId: number) =>
+    fetchApi<components['schemas']['RecordingLessonOptionsResponse']>(`/api/v1/cohorts/${cohortId}/recordings/lesson_options`),
   presignRecordingUpload: (cohortId: number, filename: string, contentType: string) =>
     fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
       `/api/v1/cohorts/${cohortId}/recordings_presign`,
       { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
     ),
-  createRecording: (cohortId: number, data: { title: string; description?: string; source_url?: string; s3_key?: string; content_type?: string; file_size?: number; duration_seconds?: number; recorded_date?: string; publish_immediately?: boolean }) =>
+  createRecording: (cohortId: number, data: components['schemas']['CreateRecordingInput']) =>
     fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {
       method: 'POST', body: JSON.stringify(data),
     }),
-  updateRecording: (cohortId: number, id: number, data: { title?: string; description?: string; source_url?: string; duration_seconds?: number; recorded_date?: string | null; status?: 'draft' | 'published' }) =>
+  updateRecording: (cohortId: number, id: number, data: components['schemas']['UpdateRecordingInput']) =>
     fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings/${id}`, {
       method: 'PATCH', body: JSON.stringify(data),
     }),

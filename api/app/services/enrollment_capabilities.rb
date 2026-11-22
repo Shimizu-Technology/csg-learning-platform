@@ -11,7 +11,7 @@ class EnrollmentCapabilities
 
     {
       live_support: !enrollment.cohort.self_paced?,
-      features: features,
+      features: FeatureSwitches.for_client(features),
       can_submit: can_submit,
       read_only: !can_submit,
       support_mode: features["help_requests"] ? support_mode : "none",

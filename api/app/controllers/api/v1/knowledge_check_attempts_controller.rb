@@ -34,6 +34,7 @@ module Api
                 enrollment: @learning_write_enrollment, content_block: knowledge_check.content_block
               )
               progress.update!(status: :completed)
+              CourseCompletion.evaluate!(@learning_write_enrollment)
             end
           end
         end

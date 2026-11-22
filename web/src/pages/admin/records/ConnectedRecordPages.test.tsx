@@ -45,12 +45,12 @@ const report: ContentReportDetail = {
   blocks_between: [{ blocker_id: 9, blocked_user_id: 10, created_at: '2026-11-17T09:30:00Z' }],
 }
 const purchase = (id: number, enrolled: boolean) => ({
-  id, status: enrolled ? 'paid' as const : 'pending' as const, checkout_state: enrolled ? 'paid' as const : 'pending' as const, price_cents: 14_900, access_months: 12, support_weeks: 6,
+  id, status: enrolled ? 'paid' as const : 'pending' as const, checkout_state: enrolled ? 'paid' as const : 'pending' as const, over_capacity: false, price_cents: 14_900, access_months: 12, support_weeks: 6,
   created_at: '2026-11-17T09:00:00Z', updated_at: '2026-11-17T09:00:00Z', buyer: { id: 100 + id, name: `Buyer ${id}`, email: `buyer${id}@example.invalid` },
   enrollment: enrolled ? { id: 500 + id, status: 'active' } : null,
 })
 const offering: OfferingDetail = {
-  type: 'offering', id: 8, title: 'Self-paced JavaScript', public_slug: 'self-paced-js', checkout_enabled: true, price_cents: 14_900, access_months: 12, support_weeks: 6,
+  type: 'offering', id: 8, title: 'Self-paced JavaScript', public_slug: 'self-paced-js', checkout_enabled: true, unlisted: false, seat_limit: null, seats_taken: 26, seats_remaining: null, sold_out: false, price_cents: 14_900, access_months: 12, support_weeks: 6,
   support_instructor: person(2, 'Ivy Instructor'), curriculum: person(1, 'JS curriculum'), cohort: { id: 8, name: 'JS Self-paced', course_delivery: 'self_paced', status: 'active' },
   purchases_count: 27, status_counts: { paid: 26, pending: 1, refunded: 0, disputed: 0, failed: 0, expired: 0 }, paid_cents: 26 * 14_900, enrolled_count: 26,
   purchases_next_before: 3, purchases: [purchase(27, false), ...Array.from({ length: 24 }, (_, index) => purchase(26 - index, true))],

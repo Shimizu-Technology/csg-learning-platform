@@ -9,9 +9,13 @@ module Api
       def index
         workspaces = Workspace.visible_for(current_user).includes(:cohort).ordered.to_a
         member_counts = member_counts_for(workspaces)
+        school = FeatureSwitches.school
+        active_cohort_ids = current_user.staff? ? nil : current_user.enrollments.active.pluck(:cohort_id).to_set
 
         render json: {
-          workspaces: workspaces.map { |workspace| workspace_json(workspace, member_counts: member_counts) }
+          workspaces: workspaces.map do |workspace|
+            workspace_json(workspace, member_counts: member_counts, school: school, active_cohort_ids: active_cohort_ids)
+          end
         }
       end
 
@@ -135,7 +139,8 @@ module Api
         counts
       end
 
-      def workspace_json(workspace, include_members: false, member_counts: nil)
+      def workspace_json(workspace, include_members: false, member_counts: nil, school: nil, active_cohort_ids: nil)
+        hide_members = members_hidden_for_user?(workspace, school: school, active_cohort_ids: active_cohort_ids)
         payload = {
           id: workspace.id,
           name: workspace.name,
@@ -145,7 +150,7 @@ module Api
           cohort_id: workspace.cohort_id,
           cohort_name: workspace.cohort&.name,
           description: workspace.description,
-          member_count: workspace.paused_for?(current_user) ? 0 : workspace_member_count(workspace, member_counts),
+          member_count: hide_members ? 0 : workspace_member_count(workspace, member_counts),
           can_manage: current_user.admin? && workspace.community?,
           created_at: workspace.created_at,
           updated_at: workspace.updated_at
@@ -153,7 +158,7 @@ module Api
 
         if include_members
           memberships = workspace.workspace_memberships.includes(:user).index_by(&:user_id)
-          listed_members = workspace.paused_for?(current_user) ? [] : workspace.listed_members
+          listed_members = hide_members ? [] : workspace.listed_members
           payload[:members] = listed_members.map do |user|
             membership = memberships[user.id]
 
@@ -169,6 +174,19 @@ module Api
         end
 
         payload
+      end
+
+      def members_hidden_for_user?(workspace, school: nil, active_cohort_ids: nil)
+        return true if workspace.paused_for?(current_user)
+        return false if current_user.staff?
+        return false unless workspace.cohort&.self_paced?
+        return true unless Channel.self_paced_peer_space_enabled?(workspace.cohort, school: school)
+
+        if active_cohort_ids
+          !active_cohort_ids.include?(workspace.cohort_id)
+        else
+          !current_user.enrollments.active.exists?(cohort_id: workspace.cohort_id)
+        end
       end
 
       def workspace_member_count(workspace, member_counts)

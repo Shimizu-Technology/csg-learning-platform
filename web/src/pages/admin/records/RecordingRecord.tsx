@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { BookOpen, CheckCircle2, ExternalLink, Eye, Layers3, PencilLine, PlayCircle, Users } from 'lucide-react'
+import { BookOpen, CheckCircle2, Clock, ExternalLink, Eye, Layers3, PencilLine, PlayCircle, Users } from 'lucide-react'
 import { ReturnOrigin } from '../../../contexts/PreviewNavigationContext'
 import { RecordHeader } from '../../../components/shared/RecordHeader'
 import { RelatedPanel, scrollToSection } from '../../../components/shared/RelatedPanel'
@@ -83,7 +83,7 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
       context={<>
         <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" touchTarget>{cohort.name}</RecordLink>
         {detail.recorded_date && <><span aria-hidden="true">·</span><span className="tabular-nums">Recorded {formatShortDate(detail.recorded_date, '', { weekday: true })}</span></>}
-        {typeof detail.duration_seconds === 'number' && <><span aria-hidden="true">·</span><span className="tabular-nums">{clock(detail.duration_seconds)}</span></>}
+        {detail.duration_display && <Badge icon={<Clock className="size-3" aria-hidden="true" />}>{detail.duration_display}</Badge>}
       </>}
       actions={<>
         {detail.url && <AnchorButton href={sanitizeUrl(detail.url)} target="_blank" rel="noopener noreferrer" size="sm"><ExternalLink className="h-4 w-4" aria-hidden="true" />Open video</AnchorButton>}
@@ -102,16 +102,16 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
         ]} />
       </Section>
 
-      <Section id="lessons" title="Lessons that play it" count={plural(detail.lessons.length, 'lesson')}>
+      <Section id="lessons" title="Lessons using this recording" count={plural(detail.lessons.length, 'lesson')}>
         {detail.lessons.length ? <ul className="divide-y divide-line">
           {detail.lessons.map((row) => (
-            <li key={row.block.id} className="space-y-2 px-4 py-3 sm:px-5">
+            <li key={row.block ? `block-${row.block.id}` : `lesson-${row.lesson.id}`} className="space-y-2 px-4 py-3 sm:px-5">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <RecordLink record={{ type: 'lesson', id: row.lesson.id, cohortId: cohort.id }} variant="plain" touchTarget className="font-semibold">{row.lesson.title}</RecordLink>
                 {row.lesson.archived && <Badge>Archived</Badge>}
                 <span className="text-xs text-ink-muted">
                   <RecordLink record={{ type: 'module', id: row.module.id, cohortId: cohort.id }} variant="plain" className="font-normal text-ink-muted">{row.module.name}</RecordLink>
-                  {row.block.title ? ` · ${row.block.title}` : ''}
+                  {row.block?.title ? ` · ${row.block.title}` : ''}
                 </span>
               </div>
               {row.sections.length ? <ol className="grid gap-1 sm:grid-cols-2" aria-label={`Sections in ${row.lesson.title}`}>
@@ -122,10 +122,10 @@ function RecordingPage({ detail }: { detail: RecordingDetail }) {
                     {!section.required && <Badge>Optional</Badge>}
                   </li>
                 ))}
-              </ol> : <p className="text-xs text-ink-muted">Plays the whole recording; no sections yet.</p>}
+              </ol> : row.block ? <p className="text-xs text-ink-muted">Plays the whole recording; no sections yet.</p> : <Badge>Attached recording</Badge>}
             </li>
           ))}
-        </ul> : <EmptyRow>No lesson plays this recording yet. A lesson's Video block uses it when it has the same video or link.</EmptyRow>}
+        </ul> : <EmptyRow>This recording has no lesson attachments or matching video blocks.</EmptyRow>}
       </Section>
 
       <Section id="watchers" title="Who watched" count={`${detail.watchers_count} of ${plural(detail.students_count, 'learner')}`}>

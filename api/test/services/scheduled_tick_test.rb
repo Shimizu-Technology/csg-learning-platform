@@ -79,12 +79,12 @@ class ScheduledTickTest < ActiveSupport::TestCase
   end
 
   test "cron registry excludes unsafe cross-process message recovery and needs no queue" do
-    assert_equal %w[scheduled_updates intervention_follow_ups daily_unlocks expo_push_receipts], ScheduledTick::TASKS.map(&:name)
+    assert_equal %w[scheduled_updates intervention_follow_ups daily_unlocks expo_push_receipts learner_nudges github_issue_deliveries], ScheduledTick::TASKS.map(&:name)
     original = ExpoPushReceiptJob.method(:new)
     probe = Object.new
     probe.define_singleton_method(:drain_due) { |**| [] }
     ExpoPushReceiptJob.define_singleton_method(:new) { probe }
-    assert_no_enqueued_jobs { assert tick(Time.utc(2026, 11, 17), [ ScheduledTick::TASKS.last ]) }
+    assert_no_enqueued_jobs { assert tick(Time.utc(2026, 11, 17), [ ScheduledTick::TASKS.find { |task| task.name == "expo_push_receipts" } ]) }
   ensure
     ExpoPushReceiptJob.define_singleton_method(:new, original) if original
   end
@@ -135,6 +135,53 @@ class ScheduledTickOverlapTest < ActiveSupport::TestCase
   ensure
     finish_test_threads(thread) if defined?(thread)
     ScheduledTaskRun.where(name: "overlap_probe").delete_all
+  end
+
+  test "github_issue_deliveries runs outside the global advisory lock transaction and dry run performs zero writes" do
+    github_task = ScheduledTick::TASKS.find { |t| t.name == "github_issue_deliveries" }
+    assert_equal false, github_task.hold_lock
+
+    entered = Queue.new
+    release = Queue.new
+    locked_task = ScheduledTick::Task.new(name: "locked_probe", daily_hour: nil, hold_lock: true, call: ->(*) { })
+    unlocked_task = ScheduledTick::Task.new(name: "unlocked_probe", daily_hour: nil, hold_lock: false, call: ->(*) {
+      entered << true
+      release.pop
+    })
+
+    log = StringIO.new
+    logger = ActiveSupport::Logger.new(log)
+    now = Time.utc(2026, 11, 17, 5)
+    worker = Thread.new do
+      Rails.application.executor.wrap do
+        ScheduledTick.new(now: now, tasks: [ locked_task, unlocked_task ], logger: logger).call
+      end
+    end
+
+    assert entered.pop, "unlocked task should start after locked task completes"
+
+    # While unlocked_task is running, another connection MUST be able to acquire LOCK_KEY immediately!
+    other_got_lock = ScheduledTaskLockRecord.connection_pool.with_connection do |connection|
+      connection.transaction do
+        connection.uncached { connection.select_value("SELECT pg_try_advisory_xact_lock(#{ScheduledTick::LOCK_KEY})") }
+      end
+    end
+    assert other_got_lock, "global advisory lock must be released before unlocked tasks run"
+
+    release << true
+    assert worker.join(10)
+    assert worker.value
+    assert_includes log.string, '"name":"unlocked_probe","status":"run"'
+
+    # Dry run on github_issue_deliveries performs zero writes and zero HTTP
+    assert_no_difference("ScheduledTaskRun.count") do
+      assert ScheduledTick.new(now: now + 2.hours, dry_run: true, tasks: [ github_task ], logger: logger).call
+    end
+    assert_includes log.string, '"name":"github_issue_deliveries","status":"would_run"'
+  ensure
+    release << true if defined?(release) && release
+    finish_test_threads(worker) if defined?(worker)
+    ScheduledTaskRun.where(name: %w[locked_probe unlocked_probe github_issue_deliveries]).delete_all
   end
 end
 

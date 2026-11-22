@@ -125,6 +125,7 @@ export interface CohortRecordingUploadTarget {
   title: string
   description?: string
   recordedDate?: string
+  lessonIds?: number[]
   publishImmediately?: boolean
 }
 
@@ -134,6 +135,7 @@ export function createCohortRecordingForUpload(
   s3Key: string,
   contentType: string,
   fileSize: number,
+  durationSeconds?: number,
 ) {
   return recordingApi.createRecording(target.cohortId, {
     title: target.title,
@@ -141,9 +143,42 @@ export function createCohortRecordingForUpload(
     s3_key: s3Key,
     content_type: contentType,
     file_size: fileSize,
+    duration_seconds: durationSeconds,
+    lesson_ids: target.lessonIds?.length ? target.lessonIds : undefined,
     recorded_date: target.recordedDate,
     publish_immediately: target.publishImmediately,
   })
+}
+
+// Read local metadata alongside the upload. Persist whatever is available
+// when storage finishes and release the object URL on every exit.
+function probeRecordingDuration(file: File) {
+  if (typeof URL.createObjectURL !== 'function') return
+  let url: string
+  try {
+    url = URL.createObjectURL(file)
+  } catch {
+    return
+  }
+  const video = document.createElement('video')
+  let seconds: number | undefined
+  const dispose = () => {
+    video.onloadedmetadata = null
+    video.onerror = null
+    if (!video.hasAttribute('src')) return
+    video.removeAttribute('src')
+    video.load()
+    URL.revokeObjectURL(url)
+  }
+  video.preload = 'metadata'
+  video.onloadedmetadata = () => {
+    const rounded = Math.round(video.duration)
+    if (rounded >= 1 && rounded <= 86_400) seconds = rounded
+    dispose()
+  }
+  video.onerror = dispose
+  video.src = url
+  return { value: () => seconds, dispose }
 }
 
 interface UploadAttachmentPatch {
@@ -233,7 +268,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     fallbackOpts: UploadStartOpts,
     s3Key: string,
     contentType: string,
-    fileSize: number
+    fileSize: number,
+    durationSeconds?: number
   ) => {
     const liveTarget = uploadTargetsRef.current.get(uploadId)
     const contentBlockId = liveTarget?.contentBlockId ?? fallbackOpts.contentBlockId
@@ -255,7 +291,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
     if (cohortRecording) {
       updateUpload(uploadId, { status: 'saving' })
-      const res = await createCohortRecordingForUpload(api, cohortRecording, s3Key, contentType, fileSize)
+      const res = await createCohortRecordingForUpload(api, cohortRecording, s3Key, contentType, fileSize, durationSeconds)
       if (res.error) throw new Error(res.error)
       return true
     }
@@ -288,9 +324,11 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       // clean up an orphaned object if the subsequent DB write fails.
       let uploadedS3Key: string | null = null
       let releaseUploadSlot: (() => void) | null = null
+      let durationProbe: ReturnType<typeof probeRecordingDuration> | undefined
       try {
         releaseUploadSlot = await uploadQueueRef.current.acquire(abortController.signal)
         updateUpload(id, { status: 'presigning' })
+        if (opts?.cohortRecording) durationProbe = probeRecordingDuration(file)
         let s3Key: string
 
         if (file.size >= MULTIPART_UPLOAD_THRESHOLD) {
@@ -366,7 +404,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         uploadedS3Key = s3Key
         releaseUploadSlot()
         releaseUploadSlot = null
-        const persisted = await persistUploadTarget(id, opts || {}, s3Key, contentType, file.size)
+        const persisted = await persistUploadTarget(id, opts || {}, s3Key, contentType, file.size, durationProbe?.value())
 
         if (persisted) {
           completeUpload(id)
@@ -392,6 +430,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         updateUpload(id, { status: 'error', error: msg })
         return null
       } finally {
+        durationProbe?.dispose()
         releaseUploadSlot?.()
       }
     })()

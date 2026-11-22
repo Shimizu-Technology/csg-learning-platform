@@ -127,6 +127,66 @@ class AdminSafetyTeamTest < ActionDispatch::IntegrationTest
     assert_equal [ older.id ], response.parsed_body.fetch("user_blocks").map { |block| block.fetch("id") }
   end
 
+  test "Safety paginated lists keep a stable order across pages when timestamps tie" do
+    tied_at = Time.utc(2026, 11, 18, 10, 0, 0)
+
+    open_reports = 5.times.map do
+      record = report(@student, @classmate, status: :pending, message: true)
+      record.update_columns(created_at: tied_at, updated_at: tied_at)
+      record
+    end
+    open_pages = (1..3).map do |page|
+      as_user(@admin) { get "/api/v1/content_reports", params: { view: "open", per_page: 2, page: page }, headers: auth_headers }
+      assert_response :success
+      ids
+    end
+    assert_equal open_reports.map(&:id).sort, open_pages.flatten
+    assert_equal open_reports.size, open_pages.flatten.uniq.size
+
+    resolved_nil = report(@student, @classmate, status: :dismissed, reviewer: @admin, resolved_at: nil, message: true)
+    resolved_nil.update_columns(created_at: tied_at, updated_at: tied_at)
+    resolved_reports = 4.times.map do
+      record = report(@student, @classmate, status: :actioned, reviewer: @admin, resolved_at: tied_at, message: true)
+      record.update_columns(created_at: tied_at, updated_at: tied_at)
+      record
+    end
+    resolved_pages = (1..3).map do |page|
+      as_user(@admin) { get "/api/v1/content_reports", params: { view: "resolved", per_page: 2, page: page }, headers: auth_headers }
+      assert_response :success
+      ids
+    end
+    assert_equal resolved_reports.map(&:id).sort.reverse + [ resolved_nil.id ], resolved_pages.flatten
+    assert_equal 5, resolved_pages.flatten.uniq.size
+
+    as_user(@admin) { get "/api/v1/content_reports", headers: auth_headers }
+    assert_response :success
+    all_report_ids = (open_reports + [ resolved_nil ] + resolved_reports).map(&:id).sort.reverse
+    assert_equal all_report_ids, ids
+
+    users = 5.times.map { |index| person("tied_block_#{index}", :student, "Tied", "User #{index}") }
+    blocks = users.map do |target|
+      block = UserBlock.create!(blocker: @student, blocked_user: target)
+      block.update_columns(created_at: tied_at, updated_at: tied_at)
+      block
+    end
+    block_pages = (1..3).map do |page|
+      as_user(@admin) { get "/api/v1/safety/user_blocks", params: { per_page: 2, page: page }, headers: auth_headers }
+      assert_response :success
+      response.parsed_body.fetch("user_blocks").map { |entry| entry.fetch("id") }
+    end
+    assert_equal blocks.map(&:id).sort.reverse, block_pages.flatten
+    assert_equal blocks.size, block_pages.flatten.uniq.size
+
+    deletions = users.first(3).map do |target|
+      record = DataDeletionRequest.create!(user: target)
+      record.update_columns(created_at: tied_at, updated_at: tied_at)
+      record
+    end
+    as_user(@admin) { get "/api/v1/data_deletion_requests", headers: auth_headers }
+    assert_response :success
+    assert_equal deletions.map(&:id).sort.reverse, response.parsed_body.fetch("data_deletion_requests").map { |entry| entry.fetch("id") }
+  end
+
   test "instructors and students get 403 on every admin-only Safety and Team endpoint" do
     report = report(@student, @classmate, status: :pending)
     deletion = DataDeletionRequest.create!(user: @classmate)

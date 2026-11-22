@@ -182,7 +182,7 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
       actual = response.parsed_body.fetch(root).fetch("capabilities")
       @enrollment.reload
       assert_equal({
-        "features" => FeatureSwitches.for(cohort: @cohort), "live_support" => !@cohort.self_paced?,
+        "features" => FeatureSwitches.for_client(FeatureSwitches.for(cohort: @cohort)), "live_support" => !@cohort.self_paced?,
         "can_submit" => can_submit, "read_only" => !can_submit, "support_mode" => support_mode,
         "support_expires_at" => @enrollment.support_expires_at&.iso8601(3),
         "access_expires_at" => @enrollment.access_expires_at&.iso8601(3),

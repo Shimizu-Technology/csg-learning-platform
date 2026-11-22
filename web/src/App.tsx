@@ -4,7 +4,7 @@ import { NotFoundRoute } from './components/shared/NotFound'
 import { NoAccess } from './components/shared/NoAccess'
 import { RouteErrorBoundary } from './components/shared/AppErrorBoundary'
 import { CohortSettingsEntry } from './pages/admin/CohortSettingsEntry'
-import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { createBrowserRouter, RouterProvider, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { applySurface, invitationDestination } from './lib/brand'
 import { documentTitleForPath } from './lib/pageTitles'
@@ -70,6 +70,7 @@ import {
 import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
 import { CohortHomeRoute, LearnRoute, ModuleRoute, MyWorkRoute, TodayRoute } from './pages/student/StudentExperienceRoutes'
 import { CourseCatalog } from './pages/CourseCatalog'
+const CertificateVerificationPage = lazy(() => import('./pages/CertificateVerificationPage').then((module) => ({ default: module.CertificateVerificationPage })))
 
 export function RouteLoadingFallback() {
   const location = useLocation()
@@ -123,6 +124,7 @@ function AppRoutes() {
         <Route path="/" element={<HomeRoute />} />
         <Route path="/courses" element={<CourseCatalog />} />
         <Route path="/courses/:slug" element={<CourseCatalog />} />
+        <Route path="/certificates/:code" element={<SuspendedRoute><CertificateVerificationPage /></SuspendedRoute>} />
         <Route path="/sign-in" element={<SuspendedRoute><SignInPage /></SuspendedRoute>} />
         <Route path="/sign-up" element={<SuspendedRoute><SignUpPage /></SuspendedRoute>} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />

@@ -1,9 +1,12 @@
 class Recording < ApplicationRecord
+  DURATION_RANGE = (1..86_400)
   SOURCE_KINDS = %w[uploaded youtube vimeo loom direct external].freeze
 
   belongs_to :cohort
   belongs_to :uploaded_by, class_name: "User", optional: true
   has_many :watch_progresses, dependent: :destroy
+  has_many :lesson_recordings, -> { order(:position, :id) }, dependent: :destroy
+  has_many :lessons, through: :lesson_recordings
 
   enum :status, { draft: 0, published: 1 }, default: :draft, validate: true
 
@@ -14,10 +17,14 @@ class Recording < ApplicationRecord
   validates :file_size, presence: true, numericality: { greater_than: 0 }, if: :uploaded?
   validates :source_url, presence: true, unless: :uploaded?
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :duration_seconds, numericality: { only_integer: true, in: DURATION_RANGE }, allow_nil: true
   validate :source_url_is_secure, unless: :uploaded?
   validate :stored_video_object_is_attachable, if: -> { uploaded? && will_save_change_to_s3_key? }
 
   before_save :record_publication_date
+  # Attachment saves lock the recording before touching join rows. Deletion
+  # must take the same lock before dependent deletes to avoid a deadlock.
+  before_destroy -> { self.class.where(id: id).lock("FOR NO KEY UPDATE").pluck(:id) }, prepend: true
 
   def record_publication_date
     self.published_at = Time.current if published? && (will_save_change_to_status? || published_at.nil?)
@@ -57,6 +64,23 @@ class Recording < ApplicationRecord
       "#{(file_size / 1.megabyte.to_f).round(1)} MB"
     else
       "#{(file_size / 1.kilobyte.to_f).round(1)} KB"
+    end
+  end
+
+  # A playback report can fill a missing value once, even across users'
+  # concurrent first plays. Use the winning value for watch credit.
+  def duration_for_playback(report)
+    return duration_seconds if duration_seconds
+
+    return unless report.to_s.match?(/\A[0-9]{1,5}\z/)
+
+    seconds = report.to_i
+    return unless DURATION_RANGE.cover?(seconds)
+
+    if self.class.where(id: id, duration_seconds: nil).update_all(duration_seconds: seconds) == 1
+      seconds
+    else
+      self.class.where(id: id).pick(:duration_seconds)
     end
   end
 
