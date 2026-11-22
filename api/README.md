@@ -6,7 +6,7 @@ Rails 8.1 API-only backend powering the CSG Learning Platform.
 
 ```bash
 cd ..
-rbenv local 3.3.7          # or let your Ruby manager pick up .ruby-version
+rbenv local 3.3.14         # or let your Ruby manager pick up .ruby-version
 cd api
 cp .env.example .env       # Configure Clerk, DB, and optional services
 bundle install
@@ -27,7 +27,7 @@ rails server -p 3000
 bundle exec rails test
 ```
 
-If `bundle` resolves to system Ruby, confirm the repo is running on Ruby `3.3.7` first:
+If `bundle` resolves to system Ruby, confirm the repo is running on Ruby `3.3.14` first:
 
 ```bash
 ruby -v
