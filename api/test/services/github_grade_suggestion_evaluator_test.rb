@@ -376,11 +376,12 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
   end
 
   test "sequential passing rerun replaces earlier failure, while newer pending reruns and overlapping dummy jobs fail closed" do
-    # 1. Sequential passing rerun (started_at >= failed.completed_at) supersedes earlier failure -> suggest_b
+    # 1. Sequential passing rerun in the SAME check_suite_id (started_at >= failed.completed_at) supersedes earlier failure -> suggest_b
     sequential_sub = create_verified_submission
     create_check_run(
       sequential_sub,
       external_id: 8001,
+      check_suite_id: 9001,
       name: "prework/111.rb",
       status: "completed",
       conclusion: "failure",
@@ -390,6 +391,7 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     fresh = create_check_run(
       sequential_sub,
       external_id: 8002,
+      check_suite_id: 9001,
       name: "prework/111.rb",
       status: "completed",
       conclusion: "success",
@@ -404,6 +406,7 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     create_check_run(
       sequential_sub,
       external_id: 8003,
+      check_suite_id: 9001,
       name: "prework/111.rb",
       status: "in_progress",
       conclusion: nil,
@@ -413,6 +416,115 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     res_in_progress = GithubGradeSuggestionEvaluator.evaluate_submission!(sequential_sub, now: @now)
     assert_equal "no_suggestion", res_in_progress.outcome
     assert_equal "check_pending", res_in_progress.reason_code
+
+    # 1b. Later passing run in a DIFFERENT check_suite_id (or nil check_suite_id) NEVER supersedes an earlier failure!
+    [ [ 9001, 9002 ], [ nil, nil ], [ 9001, nil ] ].each_with_index do |(suite_a, suite_b), idx|
+      separate_suite_sub = create_verified_submission
+      create_check_run(
+        separate_suite_sub,
+        external_id: 8060 + (idx * 2),
+        check_suite_id: suite_a,
+        name: "prework/111.rb",
+        status: "completed",
+        conclusion: "failure",
+        started_at: @now - 10.minutes,
+        completed_at: @now - 9.minutes
+      )
+      create_check_run(
+        separate_suite_sub,
+        external_id: 8061 + (idx * 2),
+        check_suite_id: suite_b,
+        name: "prework/111.rb",
+        status: "completed",
+        conclusion: "success",
+        started_at: @now - 3.minutes,
+        completed_at: @now - 2.minutes
+      )
+      res_separate = GithubGradeSuggestionEvaluator.evaluate_submission!(separate_suite_sub, now: @now)
+      assert_equal "review_for_redo", res_separate.outcome, "suites #{suite_a.inspect} vs #{suite_b.inspect} must not supersede failure"
+      assert_nil res_separate.suggested_grade
+      assert_equal "required_check_failed", res_separate.reason_code
+    end
+
+    # 1c. Mixed missing started_at / completed_at timestamps (and tied timestamps) are strictly asymmetric and never crash.
+    missing_ts_sub = create_verified_submission
+    create_check_run(
+      missing_ts_sub,
+      external_id: 8080,
+      check_suite_id: 9010,
+      name: "prework/111.rb",
+      status: "completed",
+      conclusion: "failure",
+      started_at: nil,
+      completed_at: @now - 5.minutes
+    )
+    create_check_run(
+      missing_ts_sub,
+      external_id: 8081,
+      check_suite_id: 9010,
+      name: "prework/111.rb",
+      status: "completed",
+      conclusion: "success",
+      started_at: @now - 4.minutes,
+      completed_at: nil
+    )
+    res_missing_ts = GithubGradeSuggestionEvaluator.evaluate_submission!(missing_ts_sub, now: @now)
+    assert_equal "suggest_b", res_missing_ts.outcome
+
+    # Both runs missing timestamps or inverted timestamps must not eliminate each other or crash.
+    inverted_sub = create_verified_submission
+    create_check_run(
+      inverted_sub,
+      external_id: 8090,
+      check_suite_id: 9020,
+      name: "prework/111.rb",
+      status: "completed",
+      conclusion: "failure",
+      started_at: @now - 2.minutes,
+      completed_at: @now - 10.minutes
+    )
+    create_check_run(
+      inverted_sub,
+      external_id: 8091,
+      check_suite_id: 9020,
+      name: "prework/111.rb",
+      status: "completed",
+      conclusion: "success",
+      started_at: @now - 1.minute,
+      completed_at: @now - 11.minutes
+    )
+    res_inverted = GithubGradeSuggestionEvaluator.evaluate_submission!(inverted_sub, now: @now)
+    assert_equal "review_for_redo", res_inverted.outcome
+    assert_equal "required_check_failed", res_inverted.reason_code
+
+    # Untrusted runs with mixed nil/inverted timestamps never crash on latest_untrusted.app_slug.
+    untrusted_ts_sub = create_verified_submission
+    create_check_run(
+      untrusted_ts_sub,
+      external_id: 8095,
+      check_suite_id: 9030,
+      name: "prework/111.rb",
+      app_slug: "spoof-app",
+      status: "completed",
+      conclusion: "success",
+      started_at: nil,
+      completed_at: nil
+    )
+    create_check_run(
+      untrusted_ts_sub,
+      external_id: 8096,
+      check_suite_id: 9030,
+      name: "prework/111.rb",
+      app_slug: "spoof-app",
+      status: "completed",
+      conclusion: "success",
+      started_at: @now - 1.minute,
+      completed_at: @now - 5.minutes
+    )
+    res_untrusted_ts = GithubGradeSuggestionEvaluator.evaluate_submission!(untrusted_ts_sub, now: @now)
+    assert_equal "no_suggestion", res_untrusted_ts.outcome
+    assert_equal "untrusted_producer", res_untrusted_ts.reason_code
+    assert_equal "spoof-app", res_untrusted_ts.evidence.fetch("untrusted_checks").first.fetch("app_slug")
 
     # 2b. Newer queued rerun under clock skew (started_at: nil, fetched_at older than completed_at, higher external_id) -> check_pending
     skew_sub = create_verified_submission

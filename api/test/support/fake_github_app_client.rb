@@ -4,7 +4,8 @@ require "digest"
 class FakeGithubAppClient
   attr_reader :calls, :issues
   attr_accessor :failure, :issue_failure, :repository_owner, :repository_owner_id, :fork, :owner_type,
-    :source_text, :commit_sha, :workflow_files, :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
+    :source_text, :commit_sha, :workflow_files, :workflow_paths_by_check_suite_map, :timeout_after_create,
+    :on_create_issue, :on_close_issue, :on_repository,
     :on_find_issue_by_marker, :on_get_issue, :inconclusive_marker_search
 
   def initialize
@@ -20,6 +21,7 @@ class FakeGithubAppClient
     @source_text = "puts 'synthetic source'"
     @commit_sha = "a" * 40
     @workflow_files = {}
+    @workflow_paths_by_check_suite_map = {}
     @timeout_after_create = false
     @inconclusive_marker_search = false
   end
@@ -72,6 +74,13 @@ class FakeGithubAppClient
     raise failure if failure
 
     { "total_count" => 1, "check_runs" => [ { "id" => 13579, "name" => "synthetic-test", "head_sha" => sha, "status" => "completed", "conclusion" => "success" } ] }
+  end
+
+  def workflow_paths_by_check_suite(installation:, repository_id:, full_name:, head_sha:, max_pages: GithubAppClient::WORKFLOW_RUNS_MAX_PAGES)
+    @mutex.synchronize { @calls << [ :workflow_paths_by_check_suite, installation.id, repository_id, full_name, head_sha, max_pages ] }
+    raise failure if failure
+
+    (@workflow_paths_by_check_suite_map || {}).dup
   end
 
   def find_issue_by_marker(installation:, repository_id:, full_name:, marker:, issue_number: nil, max_pages: GithubAppClient::MARKER_SEARCH_MAX_PAGES, timeout: nil, deadline: nil, monotonic: nil)

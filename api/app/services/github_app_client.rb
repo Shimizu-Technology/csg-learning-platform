@@ -32,6 +32,8 @@ class GithubAppClient
   DEFAULT_TIMEOUT = 10
   MARKER_SEARCH_MAX_PAGES = 5
   MARKER_SEARCH_PER_PAGE = 100
+  WORKFLOW_RUNS_MAX_PAGES = 5
+  WORKFLOW_RUNS_PER_PAGE = 100
   BASE = "https://api.github.com".freeze
   TOKEN_CACHE = ActiveSupport::Cache::MemoryStore.new(size: 1.megabyte)
 
@@ -142,6 +144,56 @@ class GithubAppClient
       raise Error, PROVIDER_ERROR
     end
     result
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  # GitHub's REST check-runs endpoint does not include workflow_path; resolve
+  # check_suite_id -> workflow file path via Actions workflow_runs for head_sha.
+  # Degrades gracefully to {} when the installation lacks `actions: read` (403/404)
+  # so check-run sync still succeeds while expected_workflow_path policies fail closed.
+  def workflow_paths_by_check_suite(installation:, repository_id:, full_name:, head_sha:, max_pages: WORKFLOW_RUNS_MAX_PAGES)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    raise Error, "Invalid submission commit SHA" unless head_sha.to_s.match?(/\A[a-fA-F0-9]{6,64}\z/)
+
+    pages_limit = Integer(max_pages)
+    raise Error, PROVIDER_ERROR unless pages_limit.positive?
+
+    paths = {}
+    expected_sha = head_sha.to_s.downcase
+    1.upto(pages_limit) do |page|
+      result, headers = installation_request(
+        installation,
+        :get,
+        "/repos/#{full_name}/actions/runs",
+        repository_id: repository_id,
+        query: { head_sha: head_sha, per_page: WORKFLOW_RUNS_PER_PAGE, page: page },
+        include_headers: true
+      )
+      runs = result["workflow_runs"]
+      raise Error, PROVIDER_ERROR unless runs.is_a?(Array)
+
+      runs.each do |run|
+        next unless run.is_a?(Hash)
+        next unless run["head_sha"].to_s.downcase == expected_sha
+
+        suite_id = run["check_suite_id"]
+        path = run["path"].is_a?(String) ? run["path"].strip : nil
+        next unless positive_id?(suite_id) && path.present?
+
+        paths[suite_id.to_i] ||= path
+      end
+
+      total_count = result["total_count"]
+      fetched_enough = total_count.is_a?(Integer) && (page * WORKFLOW_RUNS_PER_PAGE) >= total_count
+      more_pages = has_next_page?(headers) || (!fetched_enough && runs.size >= WORKFLOW_RUNS_PER_PAGE)
+      break unless more_pages
+    end
+    paths
+  rescue Error => error
+    return {} if [ 403, 404 ].include?(error.status) && !error.rate_limited?
+
+    raise
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end
