@@ -8,7 +8,7 @@ import { makeStyles, useTheme } from '@/providers/theme-provider';
 import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Activity, Bell, CalendarCheck, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
+import { Activity, Bell, CalendarCheck, CalendarClock, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,16 @@ export default function ProfileScreen() {
   // If the dashboard cannot load, keep the card so a learner who needs GitHub is never blocked.
   const showGithub = !auth.demo && (Boolean(user?.is_staff) || Boolean(savedGithub) || Boolean(studentDashboard?.cohort?.requires_github) || dashboardQuery.isError);
 
+  // Course reminders (W9.3): only for learners in a cohort that sends them.
+  const remindersAvailable = !auth.demo && !user?.is_staff && Boolean(profileQuery.data?.enrollments.some((enrollment) => enrollment.learner_nudges_enabled && enrollment.status === 'active'));
+  const reminderKey = ['nudge-preference', user?.id || 0] as const;
+  const queryClient = useQueryClient();
+  const reminderQuery = useQuery({ queryKey: reminderKey, queryFn: ({ signal }) => api.nudgePreference(signal), enabled: remindersAvailable });
+  const reminderMutation = useMutation({
+    mutationFn: (enabled: boolean) => api.updateNudgePreference(enabled),
+    onSuccess: (data) => queryClient.setQueryData(reminderKey, data),
+    onError: (error) => Alert.alert('Could not update course reminders', (error as Error).message),
+  });
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(auth.demo);
   const [devicePermission, setDevicePermission] = useState<PushPermissionStatus>(auth.demo ? 'granted' : 'undetermined');
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean | undefined>(true);
@@ -250,6 +260,7 @@ export default function ProfileScreen() {
         <View style={styles.setting}><View style={styles.settingIcon}><Bell color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{registrationError ? 'On for your account, but this device needs to reconnect.' : devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : devicePermission === 'provisional' ? 'Delivered quietly until you choose prominent alerts in iOS.' : devicePermission === 'ephemeral' ? 'Temporarily allowed by iOS for this app session.' : 'Messages, updates, grades, submissions, and help requests.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference || registrationPending ? <ActivityIndicator color={c.text.body} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission)} onValueChange={toggleDeviceNotifications} {...switchColors(c, deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission))} style={styles.switch} />}</View></View>
         {registrationError && <View style={styles.registrationWarning}><RefreshCw color={c.status.warning.fg} size={18} /><View style={styles.flex}><Text style={styles.registrationWarningTitle}>Reconnect this device</Text><Text style={styles.registrationWarningCopy}>{registrationError}</Text></View><Button accessibilityRole="button" accessibilityLabel="Retry device notification registration" disabled={registrationPending} onPress={() => void retryDeviceRegistration()} style={styles.retryPreference} variant="secondary" label="Retry" textStyle={styles.retryPreferenceText} /></View>}
         <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><Mail color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message emails</Text><Text style={styles.settingCopy}>Email alerts for direct messages and mentions. Conversation mutes still apply.</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingEmailPreference ? <ActivityIndicator color={c.text.body} size="small" /> : <Switch accessibilityLabel="Message emails" value={emailNotificationsEnabled} onValueChange={(value) => void toggleEmailNotifications(value)} {...switchColors(c, emailNotificationsEnabled)}  style={styles.switch} />}</View></View>
+        {remindersAvailable && <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><CalendarClock color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Course reminders</Text><Text style={styles.settingCopy}>{reminderQuery.isError ? 'Could not load this setting.' : 'Before due dates, after a week away, and before your help period ends. Access-ending reminders always arrive.'}</Text></View><View style={styles.switchSlot}>{reminderQuery.isError ? <Button accessibilityRole="button" accessibilityLabel="Retry course reminders" onPress={() => void reminderQuery.refetch()} style={styles.retryPreference} variant="secondary" label="Retry" textStyle={styles.retryPreferenceText} /> : !reminderQuery.data || reminderMutation.isPending ? <ActivityIndicator color={c.text.body} size="small" /> : <Switch accessibilityLabel="Course reminders" value={reminderQuery.data.learner_nudges_enabled} onValueChange={(value) => reminderMutation.mutate(value)} {...switchColors(c, reminderQuery.data.learner_nudges_enabled)} style={styles.switch} />}</View></View>}
         </>}
       </View>
       {user?.is_staff && <Pressable accessibilityRole="button" accessibilityLabel="Manage cohorts and communities" onPress={() => router.push('/manage-communications' as Href)} style={styles.manage}><View style={styles.settingIcon}><Settings2 color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Communication settings</Text><Text style={styles.settingCopy}>Manage communities, members, and conversations.</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>}

@@ -3,6 +3,8 @@ class PushNotificationJob < ApplicationJob
 
   discard_on ActiveJob::DeserializationError
 
+  attr_writer :clock
+
   def perform(notifiable_type, notifiable_id, notification_ids)
     notifiable = notifiable_type.safe_constantize&.find_by(id: notifiable_id)
     return unless notifiable
@@ -43,6 +45,19 @@ class PushNotificationJob < ApplicationJob
       # released notifications are claimed and sent.
       raise not_started.first if not_started.one?
       raise PushDeliveryNotStarted.new(provider: "web_push+expo", notification_ids: not_started.flat_map(&:notification_ids)) if not_started.any?
+    when LearnerNudge
+      # Reminders (W9.3) use the same per-provider claim as announcements, on
+      # the nudge's own outbox columns: a re-request after a crash, a retry or
+      # two jobs at once push the learner at most once per provider.
+      return if notifiable.push_settled_at || !notifiable.push_requested_at
+
+      notifications = notifications.where(notifiable_type: "LearnerNudge", notifiable_id: notifiable.id)
+      evaluator = LearnerNudges.new
+      not_started = [
+        deliver_nudge_push(WebPushNotificationService, :web_push_attempted_notification_ids, notifiable, notifications, evaluator),
+        deliver_nudge_push(ExpoPushNotificationService, :expo_push_attempted_notification_ids, notifiable, notifications, evaluator)
+      ].compact
+      settle_nudge_push(notifiable) if not_started.empty?
     when PrivateMeetingBookingEvent, Enrollment
       deliver(WebPushNotificationService, :system_notice, notifiable, notifications, notification_ids)
       deliver(ExpoPushNotificationService, :system_notice, notifiable, notifications, notification_ids)
@@ -72,6 +87,23 @@ class PushNotificationJob < ApplicationJob
     deliver_claimed_push(service, :message_created, attempted_attribute, message, notifications)
   end
 
+  def deliver_nudge_push(service, attempted_attribute, nudge, notifications, evaluator)
+    deliver_claimed_push(service, :system_notice, attempted_attribute, nudge, notifications) do
+      now = nudge_now
+      next false if nudge.push_settled_at || LearnerNudges.quiet_hours?(now)
+
+      candidate = evaluator.current_candidate(nudge, now: now) if nudge.push_requested_at >= now - LearnerNudges::PUSH_MAX_AGE
+      if candidate
+        candidate unless LearnerNudges.quiet_hours?(nudge_now)
+      else
+        nudge.update_columns(push_settled_at: now)
+        false
+      end
+    end
+  end
+
+  def nudge_now = @clock ? @clock.call : Time.current
+
   # Marks an update's push done once every notification it has is claimed by
   # both providers. Other recipients' claims may still be in flight in another
   # job; that job settles it when it finishes.
@@ -87,8 +119,22 @@ class PushNotificationJob < ApplicationJob
     end
   end
 
+  # Settled once both providers have claimed the reminder's notification.
+  def settle_nudge_push(nudge)
+    nudge.with_lock do
+      next if nudge.push_settled_at
+
+      ids = Notification.where(notifiable_type: "LearnerNudge", notifiable_id: nudge.id).pluck(:id)
+      claimed = %i[web_push_attempted_notification_ids expo_push_attempted_notification_ids].all? do |attribute|
+        (ids - Array(nudge.public_send(attribute)).map(&:to_i)).empty?
+      end
+      nudge.update_columns(push_settled_at: nudge_now) if claimed
+    end
+  end
+
   def deliver_claimed_push(service, method, attempted_attribute, record, notifications)
     requested_ids = notifications.pluck(:id)
+    candidate = nil
     # This is an at-most-once provider-attempt boundary. Providers can raise
     # after partial external delivery and expose no transactional idempotency
     # key, so releasing the claim here could notify the same recipient twice.
@@ -100,13 +146,32 @@ class PushNotificationJob < ApplicationJob
 
       attempted_ids = Array(record.public_send(attempted_attribute)).map(&:to_i)
       next_ids = requested_ids - attempted_ids
-      record.update_columns(attempted_attribute => (attempted_ids + next_ids).uniq) if next_ids.any?
+      next [] if next_ids.empty?
+      if block_given?
+        candidate = yield
+        next [] unless candidate
+      end
+
+      record.update_columns(attempted_attribute => (attempted_ids + next_ids).uniq)
       next_ids
     end
     return if claimed_ids.empty?
 
     begin
-      service.public_send(method, record, Notification.where(id: claimed_ids))
+      delivery = Notification.where(id: claimed_ids)
+      if candidate
+        # Refresh relative dates and lesson details in the outbound copy. The
+        # in-app history keeps the text that was recorded when it was sent.
+        delivery = delivery.to_a
+        delivery.each do |notice|
+          notice.assign_attributes(title: candidate.title, body: candidate.body, path: candidate.path)
+        end
+        if LearnerNudges.quiet_hours?(nudge_now)
+          raise PushDeliveryNotStarted.new(provider: service.name, notification_ids: claimed_ids)
+        end
+      end
+
+      service.public_send(method, record, delivery)
     rescue PushDeliveryNotStarted => not_started
       # The provider's deadline passed before any request for these
       # notifications started, so nothing reached their devices. Releasing
@@ -130,7 +195,7 @@ class PushNotificationJob < ApplicationJob
       # Another job may have settled the update's push while this one was
       # sending (every recipient was claimed then). Unsettle it under the same
       # lock, so the tick re-requests the released recipients (#299 re-check).
-      changes[:push_settled_at] = nil if record.is_a?(Announcement)
+      changes[:push_settled_at] = nil if record.is_a?(Announcement) || record.is_a?(LearnerNudge)
       record.update_columns(changes)
     end
     Rails.logger.warn(

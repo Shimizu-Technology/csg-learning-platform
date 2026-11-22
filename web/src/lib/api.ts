@@ -868,6 +868,12 @@ export const api = {
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions`, { cache: 'no-store' }),
   saveLearnerExtension: (enrollmentId: number, data: import('../types/api').LearnerExtensionInput, id?: number) =>
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions${id ? `/${id}` : ''}`, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(data) }),
+  getLearnerNudges: (enrollmentId: number) =>
+    fetchApi<components['schemas']['LearnerNudgesResponse']>(`/api/v1/enrollments/${enrollmentId}/nudges`, { cache: 'no-store' }),
+  getNudgePreference: () =>
+    fetchApi<components['schemas']['NudgePreferenceResponse']>('/api/v1/nudge_preferences', { cache: 'no-store' }),
+  updateNudgePreference: (enabled: boolean) =>
+    fetchApi<components['schemas']['NudgePreferenceResponse']>('/api/v1/nudge_preferences', { method: 'PATCH', body: JSON.stringify({ learner_nudges_enabled: enabled }) }),
   removeLearnerExtension: (enrollmentId: number, id: number, reason: string) =>
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
   getPersonalPace: (enrollmentId: number) =>
