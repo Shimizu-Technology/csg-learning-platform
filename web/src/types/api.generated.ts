@@ -732,6 +732,50 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/submissions/{id}/retry_github_issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RetryGithubIssueResponse"];
+                    };
+                };
+                /** @description GitHub feedback delivery is already in progress for this submission; try again in a moment. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/content_blocks/{id}/video_progress": {
         parameters: {
             query?: never;
@@ -6640,6 +6684,21 @@ export interface components {
         LessonResponse: {
             lesson: components["schemas"]["LessonDetail"];
         };
+        GithubIssueDelivery: {
+            /** @enum {string} */
+            status: "pending" | "delivered" | "failed" | "obsolete";
+            /** @enum {string} */
+            action: "open_or_comment" | "close";
+            issue_url: string | null;
+            attempts: number;
+            last_error: string | null;
+            delivered_at: string | null;
+            updated_at: string;
+        };
+        RetryGithubIssueResponse: {
+            submission: components["schemas"]["Submission"];
+            github_issue_delivery: components["schemas"]["GithubIssueDelivery"];
+        };
         Submission: {
             cohort_id: null | number;
             enrollment_id: null | number;
@@ -6686,6 +6745,8 @@ export interface components {
             rubric: null | components["schemas"]["Rubric"];
             /** @description Present in detail, create, update and grade responses; omitted in lists. */
             github_checks?: components["schemas"]["GithubChecks"];
+            /** @description Present for staff when a durable GitHub issue delivery exists for this submission. */
+            github_issue_delivery?: components["schemas"]["GithubIssueDelivery"];
             cohort_name: string | null;
             /** @enum {string|null} */
             course_delivery: "program" | "guided" | "self_paced" | null;

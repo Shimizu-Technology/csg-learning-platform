@@ -354,7 +354,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
     t.index ["stripe_payment_intent_id"], name: "index_course_purchases_on_stripe_payment_intent_id", unique: true
     t.index ["stripe_session_id"], name: "index_course_purchases_on_stripe_session_id", unique: true
     t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id_lookup"
-    t.index ["user_id", "cohort_id"], name: "index_course_purchases_one_open_attempt_per_user_cohort", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'failed'::character varying, 'expired'::character varying])::text[]))"
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_one_open_attempt_per_user_cohort", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('failed'::character varying)::text, ('expired'::character varying)::text]))"
     t.index ["user_id"], name: "index_course_purchases_on_user_id"
     t.check_constraint "price_cents IS NULL OR price_cents > 0", name: "course_purchase_price_positive"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text, 'expired'::character varying::text, 'failed'::character varying::text, 'refunded'::character varying::text, 'disputed'::character varying::text])", name: "course_purchase_status_valid"
@@ -570,6 +570,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
     t.index ["submission_id", "external_id"], name: "index_github_check_runs_on_submission_id_and_external_id", unique: true
     t.index ["submission_id", "head_sha"], name: "index_github_check_runs_on_submission_id_and_head_sha"
     t.index ["submission_id"], name: "index_github_check_runs_on_submission_id"
+  end
+
+  create_table "github_issue_deliveries", force: :cascade do |t|
+    t.bigint "submission_id", null: false
+    t.bigint "enrollment_id", null: false
+    t.bigint "content_block_id", null: false
+    t.bigint "github_repository_binding_id"
+    t.bigint "repository_id"
+    t.string "repository_full_name"
+    t.string "action", null: false
+    t.string "grade", null: false
+    t.text "feedback_body"
+    t.string "dedupe_token", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "issue_number"
+    t.string "issue_url"
+    t.integer "attempts", default: 0, null: false
+    t.text "last_error"
+    t.datetime "next_retry_at"
+    t.string "claim_token"
+    t.datetime "claimed_until"
+    t.datetime "delivered_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_block_id"], name: "index_github_issue_deliveries_on_content_block_id"
+    t.index ["dedupe_token"], name: "index_github_issue_deliveries_on_dedupe_token", unique: true
+    t.index ["enrollment_id", "content_block_id", "claimed_until"], name: "index_github_issue_deliveries_on_scope_and_claim"
+    t.index ["enrollment_id", "content_block_id", "repository_id"], name: "index_github_issue_deliveries_on_scope"
+    t.index ["github_repository_binding_id"], name: "index_github_issue_deliveries_on_github_repository_binding_id"
+    t.index ["status", "next_retry_at"], name: "index_github_issue_deliveries_on_status_and_retry"
+    t.index ["submission_id"], name: "index_github_issue_deliveries_on_submission_id"
+    t.check_constraint "action::text = ANY (ARRAY['open_or_comment'::character varying::text, 'close'::character varying::text])", name: "github_issue_deliveries_action_valid"
+    t.check_constraint "attempts >= 0", name: "github_issue_deliveries_attempts_nonnegative"
+    t.check_constraint "grade::text = ANY (ARRAY['A'::character varying::text, 'B'::character varying::text, 'C'::character varying::text, 'R'::character varying::text])", name: "github_issue_deliveries_grade_valid"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'obsolete'::character varying::text])", name: "github_issue_deliveries_status_valid"
   end
 
   create_table "github_repository_bindings", force: :cascade do |t|
@@ -1591,6 +1626,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
   add_foreign_key "feedback_snippets", "users", column: "created_by_id"
   add_foreign_key "github_app_installations", "cohorts"
   add_foreign_key "github_check_runs", "submissions"
+  add_foreign_key "github_issue_deliveries", "content_blocks", on_delete: :cascade
+  add_foreign_key "github_issue_deliveries", "enrollments", on_delete: :cascade
+  add_foreign_key "github_issue_deliveries", "github_repository_bindings", on_delete: :nullify
+  add_foreign_key "github_issue_deliveries", "submissions", on_delete: :cascade
   add_foreign_key "github_repository_bindings", "enrollments"
   add_foreign_key "github_repository_bindings", "github_app_installations"
   add_foreign_key "github_repository_bindings", "modules", column: "curriculum_module_id"

@@ -97,4 +97,32 @@ class GithubOperationVersionsTest < ActiveSupport::TestCase
     assert_equal "new-unverified-login", @student.reload.github_username
     assert_nil @student.github_user_id
   end
+
+  test "transient repository read errors preserve verified binding state while true auth failures still fail it" do
+    GithubRepositoryAccess.new(@binding, client: @fake).verify!
+    assert_equal "verified", @binding.reload.verification_state
+
+    [
+      GithubAppClient::Error.new(GithubAppClient::PROVIDER_ERROR),
+      GithubAppClient::Error.new(GithubAppClient::PROVIDER_ERROR, status: 503),
+      GithubAppClient::Error.new("GitHub rate limit reached; try again later", status: 429, retry_after: 60, rate_limited: true),
+      GithubAppClient::Error.new("GitHub rate limit reached; try again later", status: 403, retry_after: 90, rate_limited: true)
+    ].each do |transient_error|
+      @fake.failure = transient_error
+      assert_raises(GithubAppClient::Error) { GithubRepositoryAccess.new(@binding.reload, client: @fake).repository! }
+      assert_equal "verified", @binding.reload.verification_state
+      assert_nil @binding.failure_reason
+    end
+
+    # Recovery works immediately without re-verification
+    @fake.failure = nil
+    repo = GithubRepositoryAccess.new(@binding.reload, client: @fake).repository!
+    assert_equal 98765, repo.fetch("id")
+    assert_equal "verified", @binding.reload.verification_state
+
+    # Non-rate-limit 403 still marks the binding failed
+    @fake.failure = GithubAppClient::Error.new("GitHub installation cannot access this repository; check selected repositories and reconnect", status: 403)
+    assert_raises(GithubAppClient::Error) { GithubRepositoryAccess.new(@binding.reload, client: @fake).repository! }
+    assert_equal "failed", @binding.reload.verification_state
+  end
 end

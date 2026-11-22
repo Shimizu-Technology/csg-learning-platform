@@ -1,6 +1,10 @@
 class ScheduledTick
   LOCK_KEY = 4_853_480_000_000_001
-  Task = Data.define(:name, :daily_hour, :call)
+  Task = Data.define(:name, :daily_hour, :call, :hold_lock) do
+    def initialize(name:, daily_hour:, call:, hold_lock: true)
+      super(name: name, daily_hour: daily_hour, call: call, hold_lock: hold_lock)
+    end
+  end
 
   def self.daily_unlock_hour
     hour = Integer(ENV.fetch("SCHEDULED_DAILY_UNLOCK_HOUR", "7"), 10)
@@ -27,7 +31,16 @@ class ScheduledTick
     Task.new(name: "expo_push_receipts", daily_hour: nil, call: ->(_now, _last_date, metrics) { ExpoPushReceiptJob.new.drain_due(metrics: metrics) }),
     # Hourly, so a 24h or 48h reminder lands within the hour it becomes due;
     # it sends nothing 21:00-08:00 Guam time (W9.3).
-    Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) })
+    Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) }),
+    # Hourly: drain durable Redo/close GitHub issue intents for opted-in cohorts (X-6.8).
+    # Runs outside the global advisory-lock transaction with its own durable row/scope leases
+    # and wall-clock budget so GitHub HTTP never pins a PgBouncer transaction.
+    Task.new(
+      name: "github_issue_deliveries",
+      daily_hour: nil,
+      hold_lock: false,
+      call: ->(now, _last_date, metrics) { GithubIssueDeliveryDrain.new(max_duration: GithubIssueDeliveryDrain::DEFAULT_MAX_DURATION).call(now: now, metrics: metrics) }
+    )
   ].freeze
 
   def initialize(now: Time.current, dry_run: self.class.dry_run, tasks: TASKS, logger: Rails.logger)
@@ -38,21 +51,38 @@ class ScheduledTick
     started = monotonic
     results = []
     success = true
-    ScheduledTaskLockRecord.connection_pool.with_connection do |connection|
-      connection.transaction do
-        connection.execute("SET LOCAL idle_in_transaction_session_timeout = 0")
-        locked = connection.uncached { connection.select_value("SELECT pg_try_advisory_xact_lock(#{LOCK_KEY})") }
-        if locked
-          @tasks.each do |task|
-            result = run(task)
-            results << result
-            success = false if result[:status] == "error"
+    locked_tasks, unlocked_tasks = @tasks.partition(&:hold_lock)
+    ran_locked = false
+
+    if locked_tasks.any?
+      ScheduledTaskLockRecord.connection_pool.with_connection do |connection|
+        connection.transaction do
+          connection.execute("SET LOCAL idle_in_transaction_session_timeout = 0")
+          locked = connection.uncached { connection.select_value("SELECT pg_try_advisory_xact_lock(#{LOCK_KEY})") }
+          if locked
+            ran_locked = true
+            locked_tasks.each do |task|
+              result = run(task)
+              results << result
+              success = false if result[:status] == "error"
+            end
+          else
+            results << { name: "tick", status: "overlap", claimed: 0, sent: 0, failed: 0 }
           end
-        else
-          results << { name: "tick", status: "overlap", claimed: 0, sent: 0, failed: 0 }
         end
       end
+    else
+      ran_locked = true
     end
+
+    if ran_locked
+      unlocked_tasks.each do |task|
+        result = run(task)
+        results << result
+        success = false if result[:status] == "error"
+      end
+    end
+
     success
   rescue StandardError, NotImplementedError => error
     results << { name: "tick", status: "error", error: error.class.name }
@@ -100,6 +130,7 @@ class ScheduledTick
     when "scheduled_updates" then ScheduledAnnouncementPublisher.preview(@now)
     when "expo_push_receipts" then { would_claim: ExpoPushReceipt.due.limit(ExpoPushReceiptJob::BATCH_SIZE).count }
     when "learner_nudges" then LearnerNudges.preview(@now)
+    when "github_issue_deliveries" then GithubIssueDeliveryDrain.preview(@now)
     else {}
     end
   end

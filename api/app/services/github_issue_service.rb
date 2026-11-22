@@ -98,7 +98,7 @@ class GithubIssueService
       user = submission.user
       return nil if user.github_username.blank?
 
-      cohort = user.cohorts.active.first
+      cohort = submission.enrollment&.cohort || user.cohorts.active.first
       return nil unless cohort
 
       content_block = submission.content_block
@@ -146,13 +146,19 @@ class GithubIssueService
     end
 
     # When a student resubmits, the new Submission has no github_issue_url.
-    # Look up the most recent prior submission for the same user + content_block
-    # that has a github_issue_url, so we can close it on a passing grade.
+    # Look up the most recent prior submission for the same enrollment + content_block
+    # (falling back to user + content_block only for legacy rows without an enrollment)
+    # that has a github_issue_url, so we can close or comment on it safely.
     def find_prior_issue_url(submission)
-      Submission
-        .where(user: submission.user, content_block: submission.content_block)
+      scope = if submission.enrollment_id.present?
+        Submission.where(enrollment_id: submission.enrollment_id, content_block_id: submission.content_block_id)
+      else
+        Submission.where(user: submission.user, content_block: submission.content_block)
+      end
+
+      scope
         .where.not(github_issue_url: [ nil, "" ])
-        .order(created_at: :desc)
+        .order(created_at: :desc, id: :desc)
         .pick(:github_issue_url)
     end
 

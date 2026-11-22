@@ -794,3 +794,89 @@ describe('focused grading Back link', () => {
     expect(back().textContent).toBe('Back to Grading · Redo')
   })
 })
+
+describe('GitHub Redo issue delivery status in SubmissionReviewPanel', () => {
+  it('omits delivery status when absent (Off cohort unchanged)', async () => {
+    await render('/admin/submissions/42')
+    expect(container.querySelector('[data-github-issue-delivery]')).toBeNull()
+  })
+
+  it('shows pending delivery status cleanly', async () => {
+    vi.mocked(api.getSubmission).mockResolvedValueOnce({
+      data: {
+        submission: {
+          ...first,
+          grade: 'R',
+          feedback: 'Handle empty array.',
+          github_issue_delivery: {
+            status: 'pending',
+            action: 'open_or_comment',
+            issue_url: null,
+            attempts: 0,
+            last_error: null,
+            delivered_at: null,
+            updated_at: '2026-11-22T00:00:00Z',
+          },
+        },
+      },
+      error: null,
+    })
+    await render('/admin/submissions/42')
+    const status = container.querySelector('[data-github-issue-delivery="pending"]')
+    expect(status?.textContent).toContain('Grade saved · GitHub feedback pending')
+    expect(status?.textContent).not.toContain('Retry GitHub feedback')
+  })
+
+  it('shows failed status with error detail and retries to delivered with issue link', async () => {
+    const failedSubmission: Submission = {
+      ...first,
+      grade: 'R',
+      feedback: 'Fix edge cases.',
+      github_issue_url: null,
+      github_issue_delivery: {
+        status: 'failed',
+        action: 'open_or_comment',
+        issue_url: null,
+        attempts: 1,
+        last_error: 'GitHub installation cannot access this repository; check selected repositories and reconnect',
+        delivered_at: null,
+        updated_at: '2026-11-22T00:00:00Z',
+      },
+    }
+    const deliveredSubmission: Submission = {
+      ...failedSubmission,
+      github_issue_url: 'https://github.com/app-learner/prework-exercises/issues/14',
+      github_issue_delivery: {
+        status: 'delivered',
+        action: 'open_or_comment',
+        issue_url: 'https://github.com/app-learner/prework-exercises/issues/14',
+        attempts: 2,
+        last_error: null,
+        delivered_at: '2026-11-22T00:05:00Z',
+        updated_at: '2026-11-22T00:05:00Z',
+      },
+    }
+    vi.mocked(api.getSubmission).mockResolvedValueOnce({ data: { submission: failedSubmission }, error: null })
+    const retrySpy = vi.spyOn(api, 'retrySubmissionGithubIssue').mockResolvedValueOnce({
+      data: {
+        submission: deliveredSubmission,
+        github_issue_delivery: deliveredSubmission.github_issue_delivery!,
+      },
+      error: null,
+    })
+
+    await render('/admin/submissions/42')
+    const failed = container.querySelector('[data-github-issue-delivery="failed"]')
+    expect(failed?.textContent).toContain('Grade saved · GitHub feedback failed')
+    expect(failed?.textContent).toContain('GitHub installation cannot access this repository')
+    expect(failed?.textContent).toContain('Your grade and feedback remain saved in Learn.')
+
+    await click('Retry GitHub feedback')
+    expect(retrySpy).toHaveBeenCalledExactlyOnceWith(42)
+
+    const delivered = container.querySelector('[data-github-issue-delivery="delivered"]')
+    expect(delivered?.textContent).toContain('GitHub feedback delivered')
+    const link = delivered?.querySelector<HTMLAnchorElement>('a[href="https://github.com/app-learner/prework-exercises/issues/14"]')
+    expect(link?.textContent).toContain('View GitHub issue')
+  })
+})

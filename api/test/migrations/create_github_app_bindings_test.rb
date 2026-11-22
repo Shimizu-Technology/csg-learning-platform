@@ -4,11 +4,16 @@ require Rails.root.join("db/migrate/20261118170000_create_github_app_bindings").
 require Rails.root.join("db/migrate/20261119030000_prove_github_user_identities").to_s
 
 require Rails.root.join("db/migrate/20261119050000_guard_github_app_operations").to_s
+require Rails.root.join("db/migrate/20261122060000_create_github_issue_deliveries").to_s
 
 class CreateGithubAppBindingsTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   test "additive migration rolls back and reapplies with unique binding scopes and no secrets" do
+    deliveries_migration = CreateGithubIssueDeliveries.new
+    had_deliveries_table = ActiveRecord::Base.connection.table_exists?(:github_issue_deliveries)
+    deliveries_migration.migrate(:down) if had_deliveries_table
+
     migration = CreateGithubAppBindings.new
     before = Cohort.pluck(:id, :settings)
     migration.migrate(:down)
@@ -31,8 +36,9 @@ class CreateGithubAppBindingsTest < ActiveSupport::TestCase
     ensure
       ProveGithubUserIdentities.new.migrate(:up)
       GuardGithubAppOperations.new.migrate(:up)
+      deliveries_migration&.migrate(:up) if had_deliveries_table && !ActiveRecord::Base.connection.table_exists?(:github_issue_deliveries)
       ActiveRecord::Base.connection_handler.connection_pool_list.each { |pool| pool.connections.each(&:clear_cache!) }
-      [ GithubAppInstallation, GithubRepositoryBinding ].each(&:reset_column_information)
+      [ GithubAppInstallation, GithubRepositoryBinding, GithubIssueDelivery ].each(&:reset_column_information)
     end
   end
 end

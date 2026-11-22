@@ -632,6 +632,8 @@ export interface LessonAssignment {
 
 export type SubmissionBrief = components['schemas']['SubmissionBrief'];
 
+export type GithubIssueDelivery = components['schemas']['GithubIssueDelivery'];
+
 export type Submission = components['schemas']['Submission'];
 
 export type GithubCheckRun = components['schemas']['GithubCheckRun'];
