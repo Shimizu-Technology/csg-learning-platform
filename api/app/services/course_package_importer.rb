@@ -7,22 +7,27 @@ class CoursePackageImporter
   MAX_BYTES = 2.megabytes
   IDENTIFIER = /\A[a-z0-9][a-z0-9-]{0,79}\z/
   TEXT_LIMIT = 100_000
+  MEDIA_BLOCK_TYPES = %w[video recording].freeze
+  MEDIA_BODY_S3_URI_PATTERN = /\bs3:\/\//i
+  MEDIA_BODY_S3_KEY_PATTERN = /(?:\A|[\s"'`(>=])\/?(?:content_videos|recordings|message_attachments|course_resource_uploads|uploads|videos)\/\S+/i
 
   def initialize(package)
     @package = package
     validate!
-    @digest = Digest::SHA256.hexdigest(JSON.generate(@package))
+    @raw_digest = Digest::SHA256.hexdigest(JSON.generate(@package))
+    @digest = Digest::SHA256.hexdigest(JSON.generate(canonical_package(@package)))
   end
 
   def preview
     existing = Curriculum.find_by(course_package_key: @package.fetch("key"))
-    validate_revision!(existing) if existing && existing.course_package_digest != @digest
+    unchanged = matching_digest?(existing)
+    validate_revision!(existing) if existing && !unchanged
     {
       key: @package.fetch("key"), revision: @package.fetch("revision"), title: @package.fetch("title"),
       modules: @package.fetch("modules").size,
       lessons: @package.fetch("modules").sum { |mod| mod.fetch("lessons").size },
       blocks: @package.fetch("modules").sum { |mod| mod.fetch("lessons").sum { |lesson| lesson.fetch("blocks").size } },
-      existing_curriculum_id: existing&.id, unchanged: existing&.course_package_digest == @digest,
+      existing_curriculum_id: existing&.id, unchanged: unchanged,
       status: existing&.status || "draft", assigned: existing&.cohorts&.exists? || false,
       **where_used(existing)
     }
@@ -32,7 +37,7 @@ class CoursePackageImporter
     Curriculum.transaction do
       curriculum = Curriculum.lock.find_by(course_package_key: @package.fetch("key"))
       if curriculum
-        return { curriculum_id: curriculum.id, unchanged: true } if curriculum.course_package_digest == @digest
+        return { curriculum_id: curriculum.id, unchanged: true } if matching_digest?(curriculum)
         validate_revision!(curriculum)
       else
         curriculum = Curriculum.create!(name: @package.fetch("title"), status: :draft, course_package_key: @package.fetch("key"))
@@ -201,11 +206,36 @@ class CoursePackageImporter
           text!(block["title"], 160)
           text!(block["filename"], 160)
           validate_rubric!(block["rubric"]) if block.key?("rubric")
-          fail_with("Media must be attached through the normal upload flow") if block.keys.any? { |key| key.match?(/video|s3/i) }
+          fail_with("Media must be attached through the normal upload flow") if block.keys.any? { |key| key.match?(/video|s3|media_url/i) }
+          if MEDIA_BLOCK_TYPES.include?(block["block_type"]) && media_s3_reference_in_body?(block["body"])
+            fail_with("Media must be attached through the normal upload flow")
+          end
         end
       end
     end
     fail_with("Too many lessons") if lesson_count > 250
+  end
+
+  def matching_digest?(curriculum)
+    digest = curriculum&.course_package_digest
+    digest.present? && (digest == @digest || digest == @raw_digest)
+  end
+
+  def canonical_package(package)
+    canonical_modules = package.fetch("modules").map do |mod|
+      if mod["module_type"] == "workshop"
+        mod.reject { |key, _| key == "module_type" }
+      else
+        mod
+      end
+    end
+    package.merge("modules" => canonical_modules)
+  end
+
+  def media_s3_reference_in_body?(body)
+    return false unless body.is_a?(String) && !body.empty?
+
+    MEDIA_BODY_S3_URI_PATTERN.match?(body) || MEDIA_BODY_S3_KEY_PATTERN.match?(body)
   end
 
   def validate_rubric!(rubric)

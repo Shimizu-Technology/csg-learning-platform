@@ -2,6 +2,7 @@ require "date"
 require "fileutils"
 require "json"
 require "pathname"
+require "securerandom"
 require "strscan"
 require "yaml"
 
@@ -80,7 +81,7 @@ class CoursePackageMarkdownConverter
 
   MEDIA_KEY_PATTERN = /video|s3|media_url/i
   MEDIA_BODY_URI_PATTERN = /\b(?:https?|s3):\/\//i
-  MEDIA_BODY_S3_KEY_PATTERN = /\A(?:uploads|recordings|videos)\/\S+\z/i
+  MEDIA_BODY_S3_KEY_PATTERN = /(?:\A|[\s"'`(>=])\/?(?:content_videos|recordings|message_attachments|course_resource_uploads|uploads|videos)\/\S+/i
 
   FRONTMATTER_DELIMITER = /\A---[ \t]*\z/
   BLOCK_MULTILINE_OPEN = /\A[ \t]*<!--\s*block\s*\z/
@@ -122,12 +123,43 @@ class CoursePackageMarkdownConverter
 
   def self.write_atomically(output_path, content)
     target = Pathname.new(output_path.to_s)
-    FileUtils.mkdir_p(target.dirname)
-    tmp = "#{target}.tmp.#{Process.pid}.#{Thread.current.object_id}"
-    File.binwrite(tmp, content.encode(Encoding::UTF_8))
+    dir = target.dirname
+    FileUtils.mkdir_p(dir)
+    encoded = content.encode(Encoding::UTF_8)
+
+    tmp = nil
+    file = nil
+    10.times do
+      candidate = File.join(dir.to_s, ".#{target.basename}.tmp.#{Process.pid}.#{SecureRandom.hex(12)}")
+      begin
+        file = File.open(candidate, File::WRONLY | File::CREAT | File::EXCL | File::BINARY, 0o600)
+        tmp = candidate
+        break
+      rescue Errno::EEXIST
+        next
+      end
+    end
+    raise Error, "Failed to create temporary output file in #{dir}" unless file
+
+    begin
+      file.chmod(0o600)
+      file.write(encoded)
+      file.flush
+      file.fsync
+    ensure
+      file.close unless file.closed?
+    end
+
     File.rename(tmp, target.to_s)
+    tmp = nil
   ensure
-    File.delete(tmp) if tmp && File.exist?(tmp)
+    if tmp
+      begin
+        File.unlink(tmp)
+      rescue Errno::ENOENT
+        nil
+      end
+    end
   end
 
   def initialize(source_dir)
@@ -536,8 +568,11 @@ class CoursePackageMarkdownConverter
       fail_at!("Block '#{key}' cannot specify both frontmatter 'body' and Markdown body content", path: path, line: line)
     end
     body_raw = attrs.key?("body") ? attrs["body"] : (inline_body || "")
-    body = validate_text!(body_raw, TEXT_LIMIT, "block body", required: false, path: path, line: line) || ""
-    body = body.strip
+    if !body_raw.nil? && !body_raw.is_a?(String)
+      fail_at!("Invalid block body: expected a string", path: path, line: line)
+    end
+    body = trim_blank_lines(body_raw)
+    validate_text!(body, TEXT_LIMIT, "block body", required: false, path: path, line: line)
 
     if %w[video recording].include?(block_type) && media_reference_in_body?(body)
       fail_at!("Media must be attached through the normal upload flow (leave video/recording blocks without media URLs or S3 keys)", path: path, line: line)
@@ -572,17 +607,19 @@ class CoursePackageMarkdownConverter
     sources = []
 
     unless inline_solution.nil?
-      sources << [ :inline, inline_solution.strip ]
+      sources << [ :inline, trim_blank_lines(inline_solution) ]
     end
 
     if attrs.key?("solution") && !attrs["solution"].nil?
-      text = validate_text!(attrs["solution"], TEXT_LIMIT, "solution", required: false, path: path, line: line)
-      sources << [ :attribute, text.strip ]
+      unless attrs["solution"].is_a?(String)
+        fail_at!("Invalid solution: expected a string", path: path, line: line)
+      end
+      sources << [ :attribute, trim_blank_lines(attrs["solution"]) ]
     end
 
     if attrs.key?("solution_file") && !attrs["solution_file"].nil?
       sol_path = resolve_explicit_solution_path(attrs["solution_file"], path: path, line: line)
-      sources << [ :solution_file, safe_read_utf8(sol_path, context_path: path, line: line).strip ]
+      sources << [ :solution_file, trim_blank_lines(safe_read_utf8(sol_path, context_path: path, line: line)) ]
     else
       convention_path = find_convention_solution_file(
         lesson_key: lesson_key,
@@ -592,7 +629,7 @@ class CoursePackageMarkdownConverter
         line: line
       )
       if convention_path
-        sources << [ :solutions_dir, safe_read_utf8(convention_path, context_path: path, line: line).strip ]
+        sources << [ :solutions_dir, trim_blank_lines(safe_read_utf8(convention_path, context_path: path, line: line)) ]
       end
     end
 
@@ -606,6 +643,15 @@ class CoursePackageMarkdownConverter
     value = sources.first.last
     validate_text!(value, TEXT_LIMIT, "solution", required: false, path: path, line: line)
     value.empty? ? nil : value
+  end
+
+  def trim_blank_lines(text)
+    return "" if text.nil?
+    return "" if text.match?(/\A[ \t\n]*\z/)
+
+    text
+      .sub(/\A(?:[ \t]*\n)+/, "")
+      .sub(/(?:\n[ \t]*)+\z/, "")
   end
 
   def resolve_explicit_solution_path(rel_value, path:, line:)
@@ -665,6 +711,7 @@ class CoursePackageMarkdownConverter
     current_block = nil
     fence_char = nil
     fence_len = 0
+    fence_line = nil
 
     idx = 0
     while idx < lines.length
@@ -675,6 +722,7 @@ class CoursePackageMarkdownConverter
         if closing_fence?(line, fence_char, fence_len)
           fence_char = nil
           fence_len = 0
+          fence_line = nil
         end
         append_content_line!(line, current_block: current_block, preamble_lines: preamble_lines, single_solution_lines: single_solution_lines, single_state: single_state, path: path, line_no: line_no)
         idx += 1
@@ -683,6 +731,7 @@ class CoursePackageMarkdownConverter
 
       if (fence = opening_fence(line))
         fence_char, fence_len = fence
+        fence_line = line_no
         append_content_line!(line, current_block: current_block, preamble_lines: preamble_lines, single_solution_lines: single_solution_lines, single_state: single_state, path: path, line_no: line_no)
         idx += 1
         next
@@ -748,6 +797,10 @@ class CoursePackageMarkdownConverter
 
       append_content_line!(line, current_block: current_block, preamble_lines: preamble_lines, single_solution_lines: single_solution_lines, single_state: single_state, path: path, line_no: line_no)
       idx += 1
+    end
+
+    if fence_char
+      fail_at!("Unterminated fenced code block (#{fence_char * fence_len})", path: path, line: fence_line)
     end
 
     if blocks.any?
@@ -946,6 +999,10 @@ class CoursePackageMarkdownConverter
   rescue Psych::SyntaxError => error
     err_line = error.line ? (line - 1 + error.line) : line
     fail_at!("Invalid YAML: #{error.problem || error.message}", path: path, line: err_line)
+  rescue Psych::AliasesNotEnabled
+    fail_at!("YAML aliases are not allowed", path: path, line: line)
+  rescue Psych::BadAlias => error
+    fail_at!("Invalid YAML alias: #{error.message}", path: path, line: line)
   rescue Psych::DisallowedClass => error
     fail_at!("Unsupported YAML value: #{error.message}", path: path, line: line)
   end

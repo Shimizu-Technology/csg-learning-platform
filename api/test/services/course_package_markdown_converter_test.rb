@@ -7,6 +7,7 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
     assert_equal CoursePackageImporter::MAX_BYTES, CoursePackageMarkdownConverter::MAX_BYTES
     assert_equal CoursePackageImporter::IDENTIFIER, CoursePackageMarkdownConverter::IDENTIFIER
     assert_equal CoursePackageImporter::TEXT_LIMIT, CoursePackageMarkdownConverter::TEXT_LIMIT
+    assert_equal CoursePackageImporter::MEDIA_BODY_S3_KEY_PATTERN, CoursePackageMarkdownConverter::MEDIA_BODY_S3_KEY_PATTERN
     assert_equal CurriculumModule::SCHEDULE_PATTERNS, CoursePackageMarkdownConverter::SCHEDULE_PATTERNS
     assert_equal CurriculumModule.module_types.keys.sort, CoursePackageMarkdownConverter::MODULE_TYPES.sort
     assert_equal Lesson.lesson_types.keys.sort, CoursePackageMarkdownConverter::LESSON_TYPES.sort
@@ -498,6 +499,263 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
       _stdout, stderr, status = Open3.capture3(cli, empty_dir, "--dry-run")
       refute status.success?
       assert_includes stderr, "Missing course.yml"
+    end
+  end
+
+  test "rejects unclosed backtick, unclosed tilde, and mismatched code fences before solution markers" do
+    cases = [
+      [
+        "01-unclosed-backtick.md",
+        9,
+        <<~MD
+          ---
+          key: unclosed-backtick
+          title: Unclosed Backtick
+          lesson_type: exercise
+          release_day: 0
+          required: true
+          ---
+
+          ```python
+          print("oops")
+
+          <!-- solution -->
+          Secret staff answer that must not leak
+        MD
+      ],
+      [
+        "02-unclosed-tilde.md",
+        9,
+        <<~MD
+          ---
+          key: unclosed-tilde
+          title: Unclosed Tilde
+          lesson_type: exercise
+          release_day: 0
+          required: true
+          ---
+
+          ~~~ruby
+          puts "oops"
+
+          <!-- solution -->
+          Secret staff answer that must not leak
+        MD
+      ],
+      [
+        "03-mismatched-tilde.md",
+        9,
+        <<~MD
+          ---
+          key: mismatched-tilde
+          title: Mismatched Tilde
+          lesson_type: exercise
+          release_day: 0
+          required: true
+          ---
+
+          ~~~~markdown
+          Example
+          ~~~
+
+          <!-- solution -->
+          Secret staff answer that must not leak
+        MD
+      ]
+    ]
+
+    cases.each do |filename, expected_line, markdown|
+      Dir.mktmpdir do |dir|
+        write_minimal_course(dir)
+        write_repo_file(dir, "modules/01-core/#{filename}", markdown)
+
+        error = assert_raises(CoursePackageMarkdownConverter::Error) do
+          CoursePackageMarkdownConverter.new(dir).call
+        end
+        assert_includes error.message, "modules/01-core/#{filename}:#{expected_line}"
+        assert_includes error.message, "Unterminated fenced code block"
+      end
+    end
+  end
+
+  test "rejects app-managed S3 key patterns in video and recording block bodies" do
+    managed_bodies = [
+      "content_videos/550e8400-e29b-41d4-a716-446655440000/lesson.mp4",
+      "content_videos/block_42/20261004120000_clip.mp4",
+      "recordings/cohort_7/20261004120000_deadbeef_session.mp4",
+      "message_attachments/channel_3/550e8400-e29b-41d4-a716-446655440000/file.png",
+      "course_resource_uploads/curriculum_5/token/pack.zip",
+      "Watch `content_videos/block_1/20261004120000_clip.mp4` here",
+      "See /recordings/cohort_1/20261004120000_abcd1234_demo.mp4"
+    ]
+
+    %w[video recording].each do |block_type|
+      managed_bodies.each do |managed_body|
+        Dir.mktmpdir do |dir|
+          write_minimal_course(dir)
+          write_repo_file(dir, "modules/01-core/01-managed.md", <<~MD)
+            ---
+            key: managed-media
+            title: Managed Media
+            lesson_type: video
+            release_day: 0
+            required: true
+            ---
+
+            <!-- block key=clip type=#{block_type} -->
+            #{managed_body}
+          MD
+
+          error = assert_raises(CoursePackageMarkdownConverter::Error) do
+            CoursePackageMarkdownConverter.new(dir).call
+          end
+          assert_includes error.message, "Media must be attached through the normal upload flow"
+        end
+      end
+    end
+  end
+
+  test "writes output atomically with 0600 permissions and without following symlinks" do
+    Dir.mktmpdir do |dir|
+      output_path = File.join(dir, "private-package.json")
+      CoursePackageMarkdownConverter.write_atomically(output_path, "{\"secret\":true}\n")
+
+      assert File.file?(output_path)
+      assert_equal 0o600, File.stat(output_path).mode & 0o777
+      assert_equal "{\"secret\":true}\n", File.read(output_path)
+      assert_equal [ "private-package.json" ], Dir.children(dir)
+
+      # Pre-existing symlink at target path must not be followed
+      victim = File.join(dir, "victim.txt")
+      File.write(victim, "ORIGINAL_VICTIM")
+      symlink_target = File.join(dir, "linked-output.json")
+      File.symlink(victim, symlink_target)
+
+      CoursePackageMarkdownConverter.write_atomically(symlink_target, "{\"replaced\":true}\n")
+      assert_equal "ORIGINAL_VICTIM", File.read(victim)
+      refute File.symlink?(symlink_target)
+      assert_equal 0o600, File.stat(symlink_target).mode & 0o777
+      assert_equal "{\"replaced\":true}\n", File.read(symlink_target)
+    end
+  end
+
+  test "preserves leading indentation in bodies and solutions and checks length after trimming blank lines" do
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      write_repo_file(dir, "modules/01-core/01-indented.md", <<~MD)
+        ---
+        key: indented-lesson
+        title: Indented Code
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        ---
+
+
+            def starter():
+                return 1
+
+
+        <!-- solution -->
+
+
+            def starter():
+                return 42
+
+
+      MD
+
+      write_repo_file(dir, "modules/01-core/02-file-sol.md", <<~MD)
+        ---
+        key: indented-file-sol
+        title: Indented File Solution
+        lesson_type: exercise
+        release_day: 0
+        required: true
+        ---
+
+            x = 10
+            print(x)
+      MD
+      write_repo_file(dir, "solutions/indented-file-sol.md", "\n\n    x = 20\n        # indented comment\n\n")
+
+      package = CoursePackageMarkdownConverter.new(dir).call
+      lessons = package.dig("modules", 0, "lessons")
+
+      first_block = lessons[0].dig("blocks", 0)
+      assert_equal "    def starter():\n        return 1", first_block["body"]
+      assert_equal "    def starter():\n        return 42", first_block["solution"]
+
+      second_block = lessons[1].dig("blocks", 0)
+      assert_equal "    x = 10\n    print(x)", second_block["body"]
+      assert_equal "    x = 20\n        # indented comment", second_block["solution"]
+    end
+
+    # Exact 100,000-char body surrounded by blank lines passes; 100,001 emitted chars fails
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      exact_body = "    " + ("a" * (CoursePackageMarkdownConverter::TEXT_LIMIT - 4))
+      write_repo_file(dir, "modules/01-core/01-exact.md", "---\nkey: exact\ntitle: Exact\nlesson_type: reading\nrelease_day: 0\nrequired: true\n---\n\n\n#{exact_body}\n\n\n")
+
+      package = CoursePackageMarkdownConverter.new(dir).call
+      assert_equal exact_body, package.dig("modules", 0, "lessons", 0, "blocks", 0, "body")
+      assert_equal CoursePackageMarkdownConverter::TEXT_LIMIT, package.dig("modules", 0, "lessons", 0, "blocks", 0, "body").length
+
+      over_body = "    " + ("a" * (CoursePackageMarkdownConverter::TEXT_LIMIT - 3))
+      write_repo_file(dir, "modules/01-core/01-exact.md", "---\nkey: exact\ntitle: Exact\nlesson_type: reading\nrelease_day: 0\nrequired: true\n---\n\n#{over_body}\n")
+
+      error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes error.message, "exceeds maximum length"
+    end
+  end
+
+  test "reports clean path:line diagnostics for YAML aliases and clean CLI stderr for malformed flags" do
+    Dir.mktmpdir do |dir|
+      write_repo_file(dir, "course.yml", <<~YAML)
+        key: &course_key alias-course
+        revision: "2026-10-04"
+        title: *course_key
+        total_weeks: 1
+      YAML
+
+      error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes error.message, "course.yml:1"
+      assert_includes error.message, "YAML aliases are not allowed"
+    end
+
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir)
+      write_repo_file(dir, "modules/01-core/01-alias.md", <<~MD)
+        ---
+        key: &k alias-lesson
+        title: *k
+        lesson_type: reading
+        release_day: 0
+        required: true
+        ---
+        Body
+      MD
+
+      error = assert_raises(CoursePackageMarkdownConverter::Error) do
+        CoursePackageMarkdownConverter.new(dir).call
+      end
+      assert_includes error.message, "modules/01-core/01-alias.md:2"
+      assert_includes error.message, "YAML aliases are not allowed"
+    end
+
+    cli = Rails.root.join("..", "scripts", "course-package-convert").to_s
+    [ [ "--dry-run=yes", "." ], [ "--compact=true", "." ], [ "--unknown-flag", "." ] ].each do |args|
+      _stdout, stderr, status = Open3.capture3(cli, *args)
+      refute status.success?
+      assert_equal 2, status.exitstatus
+      assert_includes stderr, "Error:"
+      assert_includes stderr, "Usage: scripts/course-package-convert"
+      refute_includes stderr, "OptionParser::"
+      refute_includes stderr, ".rb:"
     end
   end
 

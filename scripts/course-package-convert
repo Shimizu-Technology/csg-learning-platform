@@ -42,7 +42,7 @@ end
 
 begin
   parser.parse!(ARGV)
-rescue OptionParser::InvalidOption, OptionParser::MissingArgument => error
+rescue OptionParser::ParseError => error
   warn "Error: #{error.message}"
   warn parser
   exit 2
