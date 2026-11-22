@@ -134,4 +134,127 @@ class CoursePackageImporterTest < ActiveSupport::TestCase
     assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(revised).call }
     assert_equal 2, Curriculum.find(first[:curriculum_id]).modules.first.lessons.count
   end
+
+  test "module_type defaults to workshop and accepts valid overrides" do
+    default_import = CoursePackageImporter.new(package).call
+    assert Curriculum.find(default_import[:curriculum_id]).modules.first.workshop?
+
+    custom = package
+    custom["key"] = "recording-course"
+    custom["modules"][0]["module_type"] = "recording"
+    custom_import = CoursePackageImporter.new(custom).call
+    assert Curriculum.find(custom_import[:curriculum_id]).modules.first.recording?
+
+    invalid = package
+    invalid["key"] = "bad-module-type"
+    invalid["modules"][0]["module_type"] = "unknown_type"
+    assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(invalid).call }
+
+    nil_type = package
+    nil_type["key"] = "nil-module-type"
+    nil_type["modules"][0]["module_type"] = nil
+    assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(nil_type).call }
+  end
+
+  test "omitted module_type and explicit workshop produce identical digests while transitions respect revisions and manual edits" do
+    # 1. Omitted -> explicit "workshop" (at end and in converter key order) at same revision is a no-op
+    first = CoursePackageImporter.new(package).call
+    curriculum = Curriculum.find(first[:curriculum_id])
+
+    explicit_end = package
+    explicit_end["modules"][0]["module_type"] = "workshop"
+    assert_equal true, CoursePackageImporter.new(explicit_end).preview[:unchanged]
+    assert_equal({ curriculum_id: curriculum.id, unchanged: true }, CoursePackageImporter.new(explicit_end).call)
+
+    explicit_mid = package
+    mod = explicit_mid["modules"][0]
+    explicit_mid["modules"][0] = {
+      "key" => mod["key"],
+      "title" => mod["title"],
+      "description" => mod["description"],
+      "module_type" => "workshop",
+      "total_days" => mod["total_days"],
+      "schedule_days" => mod["schedule_days"],
+      "lessons" => mod["lessons"]
+    }
+    assert_equal true, CoursePackageImporter.new(explicit_mid).preview[:unchanged]
+    assert_equal({ curriculum_id: curriculum.id, unchanged: true }, CoursePackageImporter.new(explicit_mid).call)
+
+    # 2. Explicit "workshop" -> omitted at same revision is a no-op
+    ws_pkg = package
+    ws_pkg["key"] = "explicit-workshop-first"
+    ws_pkg["modules"][0]["module_type"] = "workshop"
+    ws_first = CoursePackageImporter.new(ws_pkg).call
+    ws_omitted = package
+    ws_omitted["key"] = "explicit-workshop-first"
+    assert_equal true, CoursePackageImporter.new(ws_omitted).preview[:unchanged]
+    assert_equal({ curriculum_id: ws_first[:curriculum_id], unchanged: true }, CoursePackageImporter.new(ws_omitted).call)
+
+    # 3. "recording" -> identical retry is a no-op; same revision omitted fails; newer revision omitted updates to workshop
+    rec_pkg = package
+    rec_pkg["key"] = "recording-to-default"
+    rec_pkg["modules"][0]["module_type"] = "recording"
+    rec_first = CoursePackageImporter.new(rec_pkg).call
+    rec_curriculum = Curriculum.find(rec_first[:curriculum_id])
+    assert rec_curriculum.modules.first.recording?
+
+    assert_equal({ curriculum_id: rec_curriculum.id, unchanged: true }, CoursePackageImporter.new(rec_pkg).call)
+
+    same_rev_omitted = package
+    same_rev_omitted["key"] = "recording-to-default"
+    assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(same_rev_omitted).call }
+
+    newer_omitted = package
+    newer_omitted["key"] = "recording-to-default"
+    newer_omitted["revision"] = "2026-10-05"
+    updated = CoursePackageImporter.new(newer_omitted).call
+    assert_equal({ curriculum_id: rec_curriculum.id, unchanged: false }, updated)
+    assert rec_curriculum.modules.first.reload.workshop?
+
+    # 4. Manual edit conflict preservation when revising module_type
+    rec_curriculum.modules.first.update!(module_type: :prework)
+    conflict_rev = package
+    conflict_rev["key"] = "recording-to-default"
+    conflict_rev["revision"] = "2026-10-06"
+    conflict_rev["modules"][0]["module_type"] = "recording"
+    assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(conflict_rev).call }
+    assert rec_curriculum.modules.first.reload.prework?
+  end
+
+  test "rejects app-managed S3 keys, s3 URIs, and HTTP(S) URLs in video and recording block bodies" do
+    managed_values = [
+      "content_videos/550e8400-e29b-41d4-a716-446655440000/lesson.mp4",
+      "content_videos/block_12/20261004120000_clip.mp4",
+      "recordings/cohort_4/20261004120000_deadbeef_session.mp4",
+      "message_attachments/dm_9/550e8400-e29b-41d4-a716-446655440000/file.png",
+      "course_resource_uploads/curriculum_2/token/archive.zip",
+      "s3://csg-bucket/content_videos/clip.mp4",
+      "https://vimeo.com/123456",
+      "http://cdn.example.com/lesson.mp4",
+      "Watch at https://example.com/watch?v=1"
+    ]
+
+    %w[video recording].each do |block_type|
+      managed_values.each do |value|
+        bad = package
+        bad["modules"][0]["lessons"][0]["blocks"][0]["block_type"] = block_type
+        bad["modules"][0]["lessons"][0]["blocks"][0]["body"] = value
+        assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(bad).call }
+      end
+
+      # Empty placeholders remain valid
+      placeholder = package
+      placeholder["key"] = "#{block_type}-placeholder"
+      placeholder["modules"][0]["lessons"][0]["blocks"][0]["block_type"] = block_type
+      placeholder["modules"][0]["lessons"][0]["blocks"][0]["body"] = ""
+      assert_equal 2, CoursePackageImporter.new(placeholder).preview[:lessons]
+    end
+
+    # Teaching text, exercise, and checkpoint blocks referencing paths or HTTP(S) URLs remain allowed
+    text_pkg = package
+    text_pkg["key"] = "text-block-paths-and-urls"
+    text_pkg["modules"][0]["lessons"][0]["blocks"][1]["body"] = "API endpoint: GET /recordings/123 and docs at https://docs.python.org/3/"
+    text_pkg["modules"][0]["lessons"][1]["blocks"][0]["body"] = "Submit your repo at https://github.com/example/starter"
+    assert_equal 2, CoursePackageImporter.new(text_pkg).preview[:lessons]
+  end
 end

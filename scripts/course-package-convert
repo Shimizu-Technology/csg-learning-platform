@@ -1,0 +1,98 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "open3"
+require "optparse"
+require_relative "../api/app/services/course_package_markdown_converter"
+
+options = {
+  output: nil,
+  dry_run: false,
+  verify: false,
+  compact: false
+}
+
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: scripts/course-package-convert SOURCE_DIR [options]"
+  opts.separator ""
+  opts.separator "Convert a Markdown course repository into a schema-v1 course package JSON."
+  opts.separator ""
+
+  opts.on("-o", "--output PATH", "Write JSON output to PATH (defaults to stdout)") do |path|
+    options[:output] = path
+  end
+
+  opts.on("--dry-run", "Validate and print summary without writing JSON output") do
+    options[:dry_run] = true
+  end
+
+  opts.on("--verify", "Also validate the generated JSON directly against CoursePackageImporter") do
+    options[:verify] = true
+  end
+
+  opts.on("--compact", "Emit compact JSON instead of pretty-printed JSON") do
+    options[:compact] = true
+  end
+
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit 0
+  end
+end
+
+begin
+  parser.parse!(ARGV)
+rescue OptionParser::ParseError => error
+  warn "Error: #{error.message}"
+  warn parser
+  exit 2
+end
+
+source_dir = ARGV.shift
+if source_dir.nil? || ARGV.any?
+  warn "Error: expected exactly one SOURCE_DIR argument"
+  warn parser
+  exit 2
+end
+
+def verify_with_importer!(json)
+  api_dir = File.expand_path("../api", __dir__)
+  rails_bin = File.join(api_dir, "bin", "rails")
+  code = "CoursePackageImporter.new(JSON.parse($stdin.read))"
+  stdout, stderr, status = Open3.capture3(
+    rails_bin,
+    "runner",
+    code,
+    chdir: api_dir,
+    stdin_data: json
+  )
+  return if status.success?
+
+  details = [ stderr.strip, stdout.strip ].reject(&:empty?).join("\n")
+  raise CoursePackageMarkdownConverter::Error, "CoursePackageImporter verification failed: #{details}"
+end
+
+begin
+  converter = CoursePackageMarkdownConverter.new(source_dir)
+  package = converter.call
+  json = converter.serialize(package, compact: options[:compact])
+  summary = CoursePackageMarkdownConverter.summarize(package, json)
+
+  verify_with_importer!(json) if options[:verify]
+
+  if options[:dry_run]
+    puts "Valid course package: #{summary[:key]} (revision #{summary[:revision]})"
+    puts "  Title: #{summary[:title]}"
+    puts "  Modules: #{summary[:modules]}, Lessons: #{summary[:lessons]}, Blocks: #{summary[:blocks]}"
+    puts "  Size: #{summary[:bytes]} / #{CoursePackageMarkdownConverter::MAX_BYTES} bytes"
+    puts "  Verified with CoursePackageImporter: #{options[:verify] ? "yes" : "no (pass --verify to run)"}"
+  elsif options[:output]
+    CoursePackageMarkdownConverter.write_atomically(options[:output], json)
+    warn "Wrote #{options[:output]} (#{summary[:modules]} modules, #{summary[:lessons]} lessons, #{summary[:blocks]} blocks, #{summary[:bytes]} bytes)"
+  else
+    $stdout.write(json)
+  end
+rescue CoursePackageMarkdownConverter::Error => error
+  warn "Error: #{error.message}"
+  exit 1
+end

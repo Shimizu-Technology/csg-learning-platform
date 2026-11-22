@@ -79,7 +79,7 @@ class ScheduledTickTest < ActiveSupport::TestCase
   end
 
   test "cron registry excludes unsafe cross-process message recovery and needs no queue" do
-    assert_equal %w[scheduled_updates intervention_follow_ups daily_unlocks expo_push_receipts learner_nudges github_issue_deliveries], ScheduledTick::TASKS.map(&:name)
+    assert_equal %w[scheduled_updates intervention_follow_ups daily_unlocks expo_push_receipts learner_nudges github_webhook_retention github_issue_deliveries], ScheduledTick::TASKS.map(&:name)
     original = ExpoPushReceiptJob.method(:new)
     probe = Object.new
     probe.define_singleton_method(:drain_due) { |**| [] }
@@ -220,6 +220,32 @@ class ScheduledTickTest
     row = JSON.parse(output).find { |entry| entry["name"] == task.name }
     assert_equal state.last_result, row["last_result"]
     assert_includes @log.string, '"catch_up_days":3'
+  end
+
+  test "github_webhook_retention prunes expired deliveries in bounded batches and supports dry run" do
+    now = Time.utc(2026, 11, 22, 12, 0, 0)
+    task = ScheduledTick::TASKS.find { |entry| entry.name == "github_webhook_retention" }
+
+    old_settled = GithubWebhookDelivery.create!(delivery_id: "tick-old-settled", event: "check_run", processing_state: "processed", received_at: now - 35.days, processed_at: now - 31.days)
+    old_staged = GithubWebhookDelivery.create!(delivery_id: "tick-old-staged", event: "push", processing_state: "staged", received_at: now - 16.days)
+    old_failed = GithubWebhookDelivery.create!(delivery_id: "tick-old-failed", event: "check_run", processing_state: "failed", received_at: now - 15.days, last_error: "err")
+    fresh_staged = GithubWebhookDelivery.create!(delivery_id: "tick-fresh-staged", event: "push", processing_state: "staged", received_at: now - 2.days)
+
+    assert_no_difference "GithubWebhookDelivery.count" do
+      assert tick(now, [ task ], dry_run: true)
+    end
+    assert_includes @log.string, '"would_claim":3'
+
+    assert tick(now, [ task ])
+    assert_not GithubWebhookDelivery.exists?(old_settled.id)
+    assert_not GithubWebhookDelivery.exists?(old_staged.id)
+    assert_not GithubWebhookDelivery.exists?(old_failed.id)
+    assert GithubWebhookDelivery.exists?(fresh_staged.id)
+    assert_equal 3, ScheduledTaskRun.find_by!(name: "github_webhook_retention").last_result["claimed"]
+
+    # Empty next slot is a safe zero-claim no-op.
+    assert tick(now + 2.hours, [ task ])
+    assert_equal 0, ScheduledTaskRun.find_by!(name: "github_webhook_retention").last_result["claimed"]
   end
 
   test "Solid Queue recurring path invokes the same registry including daily unlocks" do

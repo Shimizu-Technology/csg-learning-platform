@@ -575,6 +575,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
 
   create_table "github_check_runs", force: :cascade do |t|
     t.string "app_slug"
+    t.bigint "check_suite_id"
     t.datetime "completed_at"
     t.string "conclusion"
     t.datetime "created_at", null: false
@@ -588,7 +589,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "submission_id", null: false
     t.datetime "updated_at", null: false
     t.string "workflow_name"
-    t.bigint "check_suite_id"
     t.string "workflow_path"
     t.index ["submission_id", "external_id"], name: "index_github_check_runs_on_submission_id_and_external_id", unique: true
     t.index ["submission_id", "head_sha"], name: "index_github_check_runs_on_submission_id_and_head_sha"
@@ -649,6 +649,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["enrollment_id"], name: "index_github_bindings_on_enrollment_default", unique: true, where: "(curriculum_module_id IS NULL)"
     t.index ["enrollment_id"], name: "index_github_repository_bindings_on_enrollment_id"
     t.index ["github_app_installation_id"], name: "index_github_repository_bindings_on_github_app_installation_id"
+  end
+
+  create_table "github_webhook_deliveries", force: :cascade do |t|
+    t.string "delivery_id", null: false
+    t.string "event", null: false
+    t.string "action"
+    t.bigint "installation_id"
+    t.bigint "repository_id"
+    t.string "head_sha"
+    t.jsonb "payload", default: {}, null: false
+    t.string "processing_state", default: "pending", null: false
+    t.integer "attempts", default: 0, null: false
+    t.text "last_error"
+    t.datetime "received_at", null: false
+    t.datetime "processed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["delivery_id"], name: "index_github_webhook_deliveries_on_delivery_id", unique: true
+    t.index ["processing_state", "received_at"], name: "index_github_webhook_deliveries_on_state_and_received_at"
+    t.index ["repository_id", "head_sha"], name: "index_github_webhook_deliveries_on_repo_and_head_sha"
+    t.check_constraint "attempts >= 0", name: "github_webhook_deliveries_attempts_nonnegative"
+    t.check_constraint "processing_state::text = ANY (ARRAY['pending'::character varying::text, 'processed'::character varying::text, 'staged'::character varying::text, 'ignored'::character varying::text, 'failed'::character varying::text])", name: "github_webhook_deliveries_processing_state_valid"
   end
 
   create_table "help_request_replies", force: :cascade do |t|
@@ -1482,12 +1504,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["exercise_check_policy_id"], name: "index_submission_grade_suggestions_on_exercise_check_policy_id"
     t.index ["outcome"], name: "index_submission_grade_suggestions_on_outcome"
     t.index ["submission_id"], name: "index_submission_grade_suggestions_on_submission_id", unique: true
-    t.check_constraint "decision IS NULL OR (decision::text = ANY (ARRAY['accepted'::character varying, 'overridden'::character varying, 'dismissed'::character varying]::text[]))", name: "submission_grade_suggestions_decision_valid"
+    t.check_constraint "decision IS NULL OR (decision::text = ANY (ARRAY['accepted'::character varying::text, 'overridden'::character varying::text, 'dismissed'::character varying::text]))", name: "submission_grade_suggestions_decision_valid"
     t.check_constraint "jsonb_typeof(evidence) = 'object'::text", name: "submission_grade_suggestions_evidence_object"
     t.check_constraint "outcome::text = 'suggest_b'::text AND suggested_grade IS NOT NULL AND suggested_grade::text = 'B'::text OR outcome::text <> 'suggest_b'::text AND suggested_grade IS NULL", name: "submission_grade_suggestions_suggested_grade_valid"
-    t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying, 'review_for_redo'::character varying, 'no_suggestion'::character varying, 'stale_evidence'::character varying]::text[])", name: "submission_grade_suggestions_outcome_valid"
+    t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying::text, 'review_for_redo'::character varying::text, 'no_suggestion'::character varying::text, 'stale_evidence'::character varying::text])", name: "submission_grade_suggestions_outcome_valid"
     t.check_constraint "policy_version IS NULL OR policy_version > 0", name: "submission_grade_suggestions_policy_version_positive"
-    t.check_constraint "reason_code::text = ANY (ARRAY['all_required_checks_passed'::character varying, 'required_check_failed'::character varying, 'missing_policy'::character varying, 'unverified_revision'::character varying, 'missing_required_check'::character varying, 'check_pending'::character varying, 'check_inconclusive'::character varying, 'untrusted_producer'::character varying, 'workflow_tampered'::character varying, 'branch_mismatch'::character varying, 'stale_sha'::character varying, 'stale_policy'::character varying, 'superseded_submission'::character varying]::text[])", name: "submission_grade_suggestions_reason_code_valid"
+    t.check_constraint "reason_code::text = ANY (ARRAY['all_required_checks_passed'::character varying::text, 'required_check_failed'::character varying::text, 'missing_policy'::character varying::text, 'unverified_revision'::character varying::text, 'missing_required_check'::character varying::text, 'check_pending'::character varying::text, 'check_inconclusive'::character varying::text, 'untrusted_producer'::character varying::text, 'workflow_tampered'::character varying::text, 'branch_mismatch'::character varying::text, 'stale_sha'::character varying::text, 'stale_policy'::character varying::text, 'superseded_submission'::character varying::text])", name: "submission_grade_suggestions_reason_code_valid"
   end
 
   create_table "submissions", force: :cascade do |t|
@@ -1511,6 +1533,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.text "text"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.bigint "github_repository_id"
     t.jsonb "github_revision"
     t.index "to_tsvector('simple'::regconfig, ((COALESCE(text, ''::text) || ' '::text) || COALESCE(notes, ''::text)))", name: "index_submissions_search_document", using: :gin
     t.index ["content_block_id", "user_id"], name: "index_submissions_on_content_block_id_and_user_id"

@@ -17,8 +17,16 @@ module ApiRateLimits
   PUBLIC = {
     bootstrap: { to: 600, within: 1.minute },
     catalog: { to: 300, within: 1.minute },
-    certificate: { to: 60, within: 1.minute }
+    certificate: { to: 60, within: 1.minute },
+    github_webhooks: { to: 600, within: 1.minute }
   }.freeze
+
+  def self.rate_limit_exceeded?(name, key:)
+    policy = PUBLIC.fetch(name)
+    cache_key = "rate-limit:public-api:#{name}:#{key}"
+    count = STORE.increment(cache_key, 1, expires_in: policy[:within])
+    count.to_i > policy[:to]
+  end
 
   def self.applies?(name, controller, action)
     case name
@@ -39,6 +47,7 @@ module ApiRateLimits
     when :bootstrap then controller == "api/v1/sessions"
     when :catalog then controller == "api/v1/course_offerings"
     when :certificate then controller == "api/v1/certificates" && action == "show"
+    when :github_webhooks then controller == "api/v1/github_webhooks" && action == "create"
     end
   end
 end
