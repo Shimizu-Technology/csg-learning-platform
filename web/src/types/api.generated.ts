@@ -7754,7 +7754,7 @@ export interface components {
             };
         };
         FeatureSettingsData: {
-            /** @description Resolved boolean switches (including default-Off cohort opt-in switches github_app, github_webhooks, github_issue_delivery_v2, self_paced_peer_space, learner_nudges, and certificates). */
+            /** @description Resolved boolean switches (including default-Off cohort opt-in switches github_app, github_webhooks, github_reconciliation, github_issue_delivery_v2, github_grade_suggestions, self_paced_peer_space, learner_nudges, and certificates). */
             features: {
                 [key: string]: boolean;
             };
@@ -11200,6 +11200,11 @@ export interface components {
             verified_at: string | null;
             checked_at: string | null;
             github_user_id: string | null;
+            last_reconciled_at?: string | null;
+            /** @enum {string|null} */
+            last_status?: "idle" | "ok" | "backoff" | "failed" | null;
+            last_error?: string | null;
+            next_reconcile_at?: string | null;
         };
         GithubRepositoryBindingResponse: {
             binding: components["schemas"]["GithubRepositoryBinding"];

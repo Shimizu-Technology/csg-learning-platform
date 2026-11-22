@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -628,6 +628,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.check_constraint "attempts >= 0", name: "github_issue_deliveries_attempts_nonnegative"
     t.check_constraint "grade::text = ANY (ARRAY['A'::character varying::text, 'B'::character varying::text, 'C'::character varying::text, 'R'::character varying::text])", name: "github_issue_deliveries_grade_valid"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'obsolete'::character varying::text])", name: "github_issue_deliveries_status_valid"
+  end
+
+  create_table "github_reconciliation_states", force: :cascade do |t|
+    t.bigint "github_repository_binding_id", null: false
+    t.datetime "activated_at", null: false
+    t.string "last_head_sha"
+    t.datetime "last_reconciled_at"
+    t.datetime "next_reconcile_at"
+    t.integer "consecutive_failures", default: 0, null: false
+    t.text "last_error"
+    t.string "claim_token"
+    t.datetime "claimed_until"
+    t.string "last_status", default: "idle", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["github_repository_binding_id"], name: "idx_on_github_repository_binding_id_4e6fbb4072", unique: true
+    t.index ["next_reconcile_at"], name: "index_github_reconciliation_states_on_next_reconcile_at"
+    t.check_constraint "(claim_token IS NULL) = (claimed_until IS NULL)", name: "github_reconciliation_states_claim_lease_consistent"
+    t.check_constraint "consecutive_failures >= 0", name: "github_reconciliation_states_consecutive_failures_nonnegative"
+    t.check_constraint "last_status::text = ANY (ARRAY['idle'::character varying, 'ok'::character varying, 'backoff'::character varying, 'failed'::character varying]::text[])", name: "github_reconciliation_states_last_status_valid"
   end
 
   create_table "github_repository_bindings", force: :cascade do |t|
@@ -1713,6 +1733,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "github_issue_deliveries", "enrollments", on_delete: :cascade
   add_foreign_key "github_issue_deliveries", "github_repository_bindings", on_delete: :nullify
   add_foreign_key "github_issue_deliveries", "submissions", on_delete: :cascade
+  add_foreign_key "github_reconciliation_states", "github_repository_bindings", on_delete: :cascade
   add_foreign_key "github_repository_bindings", "enrollments"
   add_foreign_key "github_repository_bindings", "github_app_installations"
   add_foreign_key "github_repository_bindings", "modules", column: "curriculum_module_id"

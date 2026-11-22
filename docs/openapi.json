@@ -11594,7 +11594,7 @@
         "properties": {
           "features": {
             "type": "object",
-            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app, github_webhooks, github_issue_delivery_v2, self_paced_peer_space, learner_nudges, and certificates).",
+            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app, github_webhooks, github_reconciliation, github_issue_delivery_v2, github_grade_suggestions, self_paced_peer_space, learner_nudges, and certificates).",
             "additionalProperties": {
               "type": "boolean"
             }
@@ -27263,6 +27263,37 @@
             ]
           },
           "github_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_reconciled_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "idle",
+              "ok",
+              "backoff",
+              "failed",
+              null
+            ]
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_reconcile_at": {
             "type": [
               "string",
               "null"

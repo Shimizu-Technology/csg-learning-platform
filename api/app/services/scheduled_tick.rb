@@ -34,6 +34,15 @@ class ScheduledTick
     Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) }),
     # Bounded batched pruning of expired webhook delivery receipts (X-6.5).
     Task.new(name: "github_webhook_retention", daily_hour: nil, call: ->(now, _last_date, metrics) { GithubWebhookDelivery.prune_for_tick!(now: now, metrics: metrics) }),
+    # Hourly: reconcile opted-in GitHub App bindings, replay staged webhooks, refresh
+    # pending check runs, and evaluate grade suggestions (X-6.6). Runs outside the
+    # global advisory-lock transaction with durable per-binding leases and a wall-clock budget.
+    Task.new(
+      name: "github_reconciliation",
+      daily_hour: nil,
+      hold_lock: false,
+      call: ->(now, _last_date, metrics) { GithubReconciliationService.new(max_duration: GithubReconciliationService::DEFAULT_MAX_DURATION).call(now: now, metrics: metrics) }
+    ),
     # Hourly: drain durable Redo/close GitHub issue intents for opted-in cohorts (X-6.8).
     # Runs outside the global advisory-lock transaction with its own durable row/scope leases
     # and wall-clock budget so GitHub HTTP never pins a PgBouncer transaction.
@@ -133,6 +142,7 @@ class ScheduledTick
     when "expo_push_receipts" then { would_claim: ExpoPushReceipt.due.limit(ExpoPushReceiptJob::BATCH_SIZE).count }
     when "learner_nudges" then LearnerNudges.preview(@now)
     when "github_webhook_retention" then GithubWebhookDelivery.prune_preview(now: @now)
+    when "github_reconciliation" then GithubReconciliationService.preview(@now)
     when "github_issue_deliveries" then GithubIssueDeliveryDrain.preview(@now)
     else {}
     end

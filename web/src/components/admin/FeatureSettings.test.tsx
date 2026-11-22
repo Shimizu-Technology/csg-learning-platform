@@ -126,3 +126,16 @@ it('keeps GitHub grade suggestions Off by inheritance even when the school switc
   await act(async () => container.querySelector('button')!.click())
   expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { github_grade_suggestions: true } }, 12)
 })
+it('keeps Hourly GitHub reconciliation Off by inheritance even when the school switch is On', async () => {
+  api.getFeatureSettings.mockResolvedValue({ data: { ...data, features: { github_reconciliation: false }, defaults: { github_reconciliation: true }, overrides: {} } })
+  await act(async () => root.render(<FeatureSettings cohortId={12} />))
+  const label = [...container.querySelectorAll('label')].find(item => item.textContent?.startsWith('Hourly GitHub reconciliation'))!
+  const select = label.querySelector('select')!
+  expect(select.value).toBe('inherit')
+  expect(select.selectedOptions[0].textContent).toBe('Inherit → Off')
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: {} }, 12)
+  await act(async () => { select.value = 'on'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ features: { github_reconciliation: true } }, 12)
+})
