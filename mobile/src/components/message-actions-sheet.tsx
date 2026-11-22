@@ -8,11 +8,12 @@ import { makeStyles, useTheme } from '@/providers/theme-provider';
 
 type Props = {
   message: Message | null; onClose: () => void; onReact: (message: Message, value: string) => void;
+  canReact?: boolean;
   error?: string | null; busy?: boolean;
   actions: { label: string; onPress: () => void; destructive?: boolean }[];
 };
 
-export function MessageActionsSheet({ message, onClose, onReact, actions, error, busy }: Props) {
+export function MessageActionsSheet({ message, onClose, onReact, canReact = true, actions, error, busy }: Props) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   return <Modal visible={Boolean(message)} transparent animationType="fade" onRequestClose={() => { if (!busy) onClose(); }}><View style={styles.overlay}>
@@ -21,7 +22,7 @@ export function MessageActionsSheet({ message, onClose, onReact, actions, error,
       <Text accessibilityRole="header" style={styles.title}>Message actions</Text>
       {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {busy && <Text style={styles.label}>Saving…</Text>}
-      {message && !message.blocked && !message.deleted_at && <View style={styles.reactions}>{REACTION_OPTIONS.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`React with ${label.toLowerCase()}`} disabled={busy} onPress={() => { onReact(message, value); onClose(); }} style={styles.reaction}><Icon color={c.text.strong} size={20} /><Text style={styles.label}>{label}</Text></Pressable>)}</View>}
+      {canReact && message && !message.blocked && !message.deleted_at && <View style={styles.reactions}>{REACTION_OPTIONS.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`React with ${label.toLowerCase()}`} disabled={busy} onPress={() => { onReact(message, value); onClose(); }} style={styles.reaction}><Icon color={c.text.strong} size={20} /><Text style={styles.label}>{label}</Text></Pressable>)}</View>}
       {actions.map((action) => <Button key={action.label} disabled={busy} variant={action.destructive ? 'danger' : 'secondary'} onPress={action.onPress}>{action.label}</Button>)}
       <Button variant="secondary" disabled={busy} onPress={onClose}>Cancel</Button>
     </ScrollView></View>

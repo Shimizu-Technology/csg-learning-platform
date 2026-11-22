@@ -1,4 +1,4 @@
-import { File, X } from 'lucide-react';
+import { File, Lock, X } from 'lucide-react';
 import { Button, IconButton } from '../../../components/ui/Button';
 import { formatFileSize } from '../../../lib/uploadToS3';
 import { forgetMessageArrival, messageShouldAnimateEntry, preview } from './helpers';
@@ -84,6 +84,19 @@ export function messagesPresentation({ conversation, directory, feed, realtime, 
 
   const renderComposer = (placement: 'main' | 'thread') => {
     const inThreadPanel = placement === 'thread'
+    if (selectedTarget?.type === 'channel' && directory.selectedChannel?.can_post === false) {
+      return (
+        <div
+          role="status"
+          className={`${inThreadPanel ? 'shrink-0 border-t border-line bg-surface-sunken px-3 py-3' : 'shrink-0 border-t border-line bg-surface-sunken px-4 pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem)] pt-3'}`}
+        >
+          <p className="flex items-center gap-2 text-sm text-ink-secondary">
+            <Lock className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+            <span>{directory.selectedChannel.post_disabled_reason || 'Posting is disabled in this conversation.'}</span>
+          </p>
+        </div>
+      )
+    }
 
     return (
       <div

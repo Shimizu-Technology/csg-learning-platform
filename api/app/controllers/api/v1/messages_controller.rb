@@ -65,7 +65,7 @@ module Api
 
       # PATCH /api/v1/messages/:id
       def update
-        unless message_channel_editable?
+        unless message_channel_writable?
           render_forbidden("Cannot edit messages in this channel")
           return
         end
@@ -171,7 +171,7 @@ module Api
 
       # POST /api/v1/messages/:id/reactions
       def react
-        unless message_channel_editable?
+        unless message_channel_writable?
           render_forbidden("Cannot react to this message")
           return
         end
@@ -254,6 +254,14 @@ module Api
       def message_channel_editable?
         destination = @message.destination
         destination.active? && destination.visible_to?(current_user)
+      end
+
+      def message_channel_writable?
+        destination = @message.destination
+        return false unless destination.active? && destination.visible_to?(current_user)
+        return destination.can_post?(current_user) if destination.is_a?(Channel) && destination.cohort&.self_paced?
+
+        true
       end
 
       def thread_root(message)

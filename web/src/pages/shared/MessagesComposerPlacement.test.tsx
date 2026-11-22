@@ -176,3 +176,23 @@ it.each(['rich', 'markdown'] as const)('one file dropped on the %s composer is a
   expect(drop.defaultPrevented).toBe(true)
   expect(container.querySelectorAll('button[aria-label="Remove notes.txt"]')).toHaveLength(1)
 }, 15000)
+
+it('renders a clear read-only status notice instead of the composer when channel posting is disabled', async () => {
+  const readonlyChannel = {
+    id: 2,
+    workspace_id: 1,
+    cohort_id: 1,
+    name: 'Class Chat',
+    unread_count: 0,
+    last_read_at: null,
+    muted: false,
+    can_post: false,
+    post_disabled_reason: 'Your support period has ended. Past messages remain readable.',
+  }
+  fixture.responses.getChannels = { channels: [readonlyChannel] }
+  fixture.responses.getChannel = { channel: readonlyChannel, messages: [message(1)], pinned_messages: [], meta: { oldest_message_id: 1, newest_message_id: 1, has_older: false, has_newer: false } }
+  await act(async () => root.render(<MemoryRouter initialEntries={['/messages/2']}><Routes><Route path="/messages/:channelId" element={<Messages />} /></Routes></MemoryRouter>))
+  await runFrames()
+  expect(container.querySelector('[role="status"]')?.textContent).toContain('Your support period has ended. Past messages remain readable.')
+  expect(container.querySelector('[aria-label*="Message #Class Chat"]')).toBeNull()
+})
