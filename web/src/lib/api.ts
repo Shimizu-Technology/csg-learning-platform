@@ -112,6 +112,7 @@ export interface GradingQueueParams {
   module_id?: number | null
   student_id?: number | null
   lesson_id?: number | null
+  suggestion_outcome?: 'suggest_b' | 'review_for_redo' | 'no_suggestion' | 'stale_evidence' | null
   sort?: 'oldest' | 'newest'
   page?: number | null
   per_page?: number | null
@@ -944,11 +945,26 @@ export const api = {
     }),
   updateSubmission: (id: number, data: { cohort_id?: number; text?: string; repo_url?: string; pr_url?: string; live_url?: string; branch?: string; commit_sha?: string; notes?: string }) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  gradeSubmission: (id: number, data: { grade: string; base_submission_updated_at: string; feedback?: string; criterion_results?: { rubric_criterion_id: number; rating: import('../types/api').RubricRating; feedback?: string }[] }) =>
+  gradeSubmission: (
+    id: number,
+    data: {
+      grade: string;
+      base_submission_updated_at: string;
+      feedback?: string;
+      criterion_results?: { rubric_criterion_id: number; rating: import('../types/api').RubricRating; feedback?: string }[];
+      suggestion_decision?: 'accepted' | 'overridden' | 'dismissed';
+      suggestion_override_reason?: string;
+    },
+  ) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}/grade`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  evaluateSubmissionGradeSuggestion: (id: number) =>
+    fetchApi<components['schemas']['EvaluateGradeSuggestionResponse']>(
+      `/api/v1/submissions/${id}/evaluate_grade_suggestion`,
+      { method: 'POST' },
+    ),
   getFeedbackSnippets: () =>
     fetchApi<{ feedback_snippets: import('../types/api').FeedbackSnippet[] }>('/api/v1/feedback_snippets'),
   createFeedbackSnippet: (body: string) =>

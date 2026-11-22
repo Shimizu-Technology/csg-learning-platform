@@ -1,7 +1,20 @@
 import { NoAccess } from '../shared/NoAccess'
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import { BookmarkPlus, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock, ExternalLink, MessageSquareText, RefreshCw } from 'lucide-react'
+import {
+  AlertTriangle,
+  BookmarkPlus,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  Clock,
+  ExternalLink,
+  Info,
+  MessageSquareText,
+  RefreshCw,
+  RotateCcw,
+} from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { submissionPath } from '../../lib/routes'
@@ -32,7 +45,17 @@ import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
 import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
-import { REDO_NEEDS_FEEDBACK, submissionWhereLabel } from '../../lib/submissionQueue'
+import { REDO_NEEDS_FEEDBACK, isBlankFeedback, submissionWhereLabel } from '../../lib/submissionQueue'
+import {
+  canSelectSuggestedB,
+  extractSuggestionChecks,
+  gradeDiffersFromSuggestion,
+  gradeSuggestionDecisionBadge,
+  gradeSuggestionHeadline,
+  gradeSuggestionSignalLabel,
+  isGradeSuggestionStale,
+  type GradeChoice,
+} from '../../lib/gradeSuggestion'
 import { leavesPath, leavesPathOrParam, useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { RecordLink } from '../shared/RecordLink'
 import { useFreshKeyGate } from '../../lib/heldKeys'
@@ -118,10 +141,11 @@ export function SubmissionReviewPanel({
   const review = useSubmissionReview(submissionId, onSaved, selectionParam ? leavesPathOrParam(selectionParam) : leavesPath)
   // Record links in the header leave the review, so a plain click asks about unsaved feedback first.
   const guardLeave = useGuardedLinkClick(() => review.confirmLeave())
-  const { submission, feedback, criteria, loading, grading, error, conflict } = review
+  const { submission, feedback, criteria, selectedGrade, overrideReason, loading, grading, error, conflict } = review
   // A held grade or step key opens the next review; its auto-repeats must not grade that one too.
   const freshKey = useFreshKeyGate(submissionId)
   const feedbackId = useId()
+  const overrideNoteId = useId()
   const panelElement = useRef<HTMLElement>(null)
   const gradeControls = useRef<HTMLDivElement>(null)
   const feedbackEditor = useRef<MarkdownEditorHandle>(null)
@@ -132,14 +156,33 @@ export function SubmissionReviewPanel({
   useEffect(() => {
     if (error) gradeControls.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [error])
-  async function gradeWith(value: 'A' | 'B' | 'C' | 'R') {
-    if ((await review.grade(value)) !== 'needs_feedback') return
+  async function gradeWith(value: GradeChoice) {
+    const overriding = gradeDiffersFromSuggestion(submission?.grade_suggestion, value)
+    const result = await review.grade(
+      value,
+      overriding && overrideReason.trim()
+        ? { suggestionOverrideReason: overrideReason }
+        : undefined,
+    )
+    if (result !== 'needs_feedback') return
     setFeedbackOpen(true)
     requestAnimationFrame(() => {
       feedbackEditor.current?.focus()
       // The bar grew; on a short phone screen bring all of it (message and grades) into view.
       gradeControls.current?.scrollIntoView?.({ block: 'nearest' })
     })
+  }
+  function selectGradeChoice(value: GradeChoice, revealGradeBar = false) {
+    review.setSelectedGrade(value)
+    review.setError((current) => (current === REDO_NEEDS_FEEDBACK && value !== 'R' ? null : current))
+    if (value === 'R' && isBlankFeedback(feedback)) {
+      setFeedbackOpen(true)
+    }
+    if (revealGradeBar) {
+      requestAnimationFrame(() => {
+        gradeControls.current?.scrollIntoView?.({ block: 'nearest' })
+      })
+    }
   }
   const focused = useRef(false)
   useEffect(() => {
@@ -163,11 +206,14 @@ export function SubmissionReviewPanel({
   const [loadingIssue, setLoadingIssue] = useState(false)
   const [retryingDelivery, setRetryingDelivery] = useState(false)
   const [retryDeliveryError, setRetryDeliveryError] = useState<string | null>(null)
+  const [reEvaluating, setReEvaluating] = useState(false)
+  const [reEvaluateError, setReEvaluateError] = useState<string | null>(null)
   const [attempts, setAttempts] = useState<Submission[] | null>(null)
   const [attemptError, setAttemptError] = useState<string | null>(null)
   const [loadingAttempts, setLoadingAttempts] = useState(false)
   useEffect(() => {
     setRetryDeliveryError(null)
+    setReEvaluateError(null)
   }, [submissionId])
   useEffect(() => {
     if (submission) onLoaded?.(submission)
@@ -230,6 +276,25 @@ export function SubmissionReviewPanel({
       if (alive.current) setRetryingDelivery(false)
     }
   }
+  async function reEvaluateSuggestion() {
+    setReEvaluating(true)
+    setReEvaluateError(null)
+    try {
+      const result = await api.evaluateSubmissionGradeSuggestion(submissionId)
+      if (!alive.current) return
+      if (result.data && !result.error) {
+        review.setSubmission((current) =>
+          current ? { ...current, grade_suggestion: result.data!.grade_suggestion } : current,
+        )
+      } else {
+        setReEvaluateError(result.error || 'Could not re-evaluate check suggestion.')
+      }
+    } catch {
+      if (alive.current) setReEvaluateError('Could not re-evaluate check suggestion.')
+    } finally {
+      if (alive.current) setReEvaluating(false)
+    }
+  }
   async function loadAttempts() {
     if (!submission) return
     setLoadingAttempts(true)
@@ -289,6 +354,9 @@ export function SubmissionReviewPanel({
     submission.submission_config,
     codeRunnerLanguageFromEditor(language) || 'ruby',
   )
+  const suggestion = submission.grade_suggestion
+  const hasSuggestion = Boolean(suggestion)
+  const isOverridingSuggestion = gradeDiffersFromSuggestion(suggestion, selectedGrade)
   const artifactLinks = [
     ['Repository', submission.repo_url],
     ['Pull request', submission.pr_url],
@@ -331,7 +399,8 @@ export function SubmissionReviewPanel({
           void go(id)
         } else if (key === 'A' || key === 'B' || key === 'C' || key === 'R') {
           event.preventDefault()
-          void gradeWith(key)
+          if (hasSuggestion) selectGradeChoice(key)
+          else void gradeWith(key)
         }
       }}
     >
@@ -433,6 +502,18 @@ export function SubmissionReviewPanel({
           retrying={retryingDelivery}
           retryError={retryDeliveryError}
           onRetry={() => void retryGithubDelivery()}
+        />
+      )}
+      {suggestion && (
+        <GradeSuggestionCard
+          suggestion={suggestion}
+          savedGrade={submission.grade}
+          selectedGrade={selectedGrade}
+          disabled={grading || conflict || isPreviousAttempt(submission)}
+          reEvaluating={reEvaluating}
+          reEvaluateError={reEvaluateError}
+          onSelectB={() => selectGradeChoice('B', true)}
+          onReEvaluate={() => void reEvaluateSuggestion()}
         />
       )}
       {(submission.branch || submission.commit_sha || submission.notes) && (
@@ -732,8 +813,25 @@ export function SubmissionReviewPanel({
         </div>
         <fieldset
           disabled={grading || conflict || isPreviousAttempt(submission)}
-          className="min-w-0 border-0 p-0"
+          className="min-w-0 space-y-2 border-0 p-0"
         >
+          {hasSuggestion && isOverridingSuggestion && (
+            <div className="space-y-1">
+              <label htmlFor={overrideNoteId} className="block text-xs font-semibold text-ink-secondary">
+                Override note (optional)
+              </label>
+              <input
+                id={overrideNoteId}
+                type="text"
+                maxLength={500}
+                value={overrideReason}
+                onChange={(event) => review.setOverrideReason(event.target.value)}
+                placeholder="Note why this grade differs from the check suggestion"
+                disabled={grading || conflict || isPreviousAttempt(submission)}
+                className="app-control min-h-11 w-full px-3 text-sm"
+              />
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="secondary"
@@ -747,31 +845,228 @@ export function SubmissionReviewPanel({
               <span className="hidden sm:inline">Feedback</span>
             </Button>
             <div role="group" aria-label="Grade" className="grid min-w-0 flex-1 grid-cols-4 gap-1.5 sm:flex-none sm:gap-2">
-              {(['A', 'B', 'C', 'R'] as const).map((value) => (
-                <Button
-                  key={value}
-                  variant={value === 'A' ? 'primary' : 'secondary'}
-                  // The key hint is drawn by CSS (data-key), so the button's name stays "A" / "Redo".
-                  className={`min-h-11 min-w-0 px-2 sm:min-w-14 sm:px-4 lg:after:ml-1 lg:after:rounded-md lg:after:border lg:after:border-current/30 lg:after:px-1 lg:after:text-xs lg:after:font-semibold lg:after:opacity-70 lg:after:content-[attr(data-key)] ${value === 'R' ? REDO_BUTTON_CLASSES : ''}`}
-                  data-key={value}
-                  aria-keyshortcuts={value}
-                  title={`${value === 'R' ? 'Request a redo' : `Grade ${value}`} and save (${value})`}
-                  onClick={() => void gradeWith(value)}
-                >
-                  {value === 'R' ? 'Redo' : value}
-                </Button>
-              ))}
+              {(['A', 'B', 'C', 'R'] as const).map((value) => {
+                const isSelected = hasSuggestion && selectedGrade === value
+                return (
+                  <Button
+                    key={value}
+                    variant={hasSuggestion ? (isSelected ? 'primary' : 'secondary') : value === 'A' ? 'primary' : 'secondary'}
+                    // The key hint is drawn by CSS (data-key), so the button's name stays "A" / "Redo".
+                    className={`min-h-11 min-w-0 px-2 sm:min-w-14 sm:px-4 lg:after:ml-1 lg:after:rounded-md lg:after:border lg:after:border-current/30 lg:after:px-1 lg:after:text-xs lg:after:font-semibold lg:after:opacity-70 lg:after:content-[attr(data-key)] ${value === 'R' && !isSelected ? REDO_BUTTON_CLASSES : ''}`}
+                    data-key={value}
+                    aria-keyshortcuts={value}
+                    aria-pressed={hasSuggestion ? isSelected : undefined}
+                    title={
+                      hasSuggestion
+                        ? `Select ${value === 'R' ? 'Redo' : value} (${value})`
+                        : `${value === 'R' ? 'Request a redo' : `Grade ${value}`} and save (${value})`
+                    }
+                    onClick={() => (hasSuggestion ? selectGradeChoice(value) : void gradeWith(value))}
+                  >
+                    {value === 'R' ? 'Redo' : value}
+                  </Button>
+                )
+              })}
             </div>
-            <p className="ml-auto hidden text-xs text-ink-muted xl:block">
-              {grading ? 'Saving…' : <>Grading saves{onSaved ? ' and opens the next item' : ''}. <kbd className="font-sans font-semibold">J</kbd> / <kbd className="font-sans font-semibold">K</kbd> next and previous.</>}
-            </p>
+            {hasSuggestion ? (
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full sm:w-auto"
+                disabled={!selectedGrade || grading || conflict || isPreviousAttempt(submission)}
+                onClick={() => selectedGrade && void gradeWith(selectedGrade)}
+              >
+                {grading ? 'Saving…' : onSaved ? 'Save and next' : 'Save grade'}
+              </Button>
+            ) : (
+              <p className="ml-auto hidden text-xs text-ink-muted xl:block">
+                {grading ? 'Saving…' : <>Grading saves{onSaved ? ' and opens the next item' : ''}. <kbd className="font-sans font-semibold">J</kbd> / <kbd className="font-sans font-semibold">K</kbd> next and previous.</>}
+              </p>
+            )}
           </div>
         </fieldset>
         <p className="sr-only">
-          With focus in this panel: A, B, C or R (Redo) grades; K and J move through the list. Shortcuts stay
-          off while typing.
+          {hasSuggestion
+            ? 'With focus in this panel: A, B, C or R (Redo) selects a grade without saving; use Save to confirm. K and J move through the list. Shortcuts stay off while typing.'
+            : 'With focus in this panel: A, B, C or R (Redo) grades; K and J move through the list. Shortcuts stay off while typing.'}
         </p>
       </div>
+    </section>
+  )
+}
+
+function GradeSuggestionCard({
+  suggestion,
+  savedGrade,
+  selectedGrade,
+  disabled,
+  reEvaluating,
+  reEvaluateError,
+  onSelectB,
+  onReEvaluate,
+}: {
+  suggestion: NonNullable<Submission['grade_suggestion']>
+  savedGrade: Submission['grade']
+  selectedGrade: GradeChoice | null
+  disabled: boolean
+  reEvaluating: boolean
+  reEvaluateError: string | null
+  onSelectB: () => void
+  onReEvaluate: () => void
+}) {
+  const stale = isGradeSuggestionStale(suggestion)
+  const allowSelectB = canSelectSuggestedB(suggestion) && !disabled
+  const headline = gradeSuggestionHeadline(suggestion)
+  const checks = extractSuggestionChecks(suggestion)
+  const decisionBadge = suggestion.decision ? gradeSuggestionDecisionBadge(suggestion.decision) : null
+
+  const borderTone = stale || suggestion.outcome === 'review_for_redo'
+    ? 'border-warning-line'
+    : suggestion.outcome === 'suggest_b'
+      ? 'border-info-line'
+      : 'border-line'
+
+  const icon = stale ? (
+    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
+  ) : suggestion.outcome === 'suggest_b' ? (
+    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-info-ink" aria-hidden="true" />
+  ) : suggestion.outcome === 'review_for_redo' ? (
+    <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
+  ) : (
+    <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+  )
+
+  return (
+    <section
+      aria-label="Automated check suggestion"
+      data-grade-suggestion={suggestion.outcome}
+      data-grade-suggestion-stale={stale ? 'true' : 'false'}
+      className={`scroll-mt-20 space-y-3 rounded-2xl border bg-surface-raised p-4 text-sm text-ink ${borderTone}`}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2.5">
+          {icon}
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-bold text-ink break-words">{headline}</h3>
+              {stale && <Badge tone="warning">Stale evidence</Badge>}
+              {suggestion.stale_for_current_policy && suggestion.outcome !== 'stale_evidence' && (
+                <Badge tone="warning">Policy updated</Badge>
+              )}
+            </div>
+            <p className="text-xs text-ink-secondary">
+              Automated checks inform review — instructors confirm every final grade.
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {allowSelectB && (
+            <Button
+              variant={selectedGrade === 'B' ? 'primary' : 'secondary'}
+              size="md"
+              className="w-full sm:w-auto"
+              aria-pressed={selectedGrade === 'B'}
+              onClick={onSelectB}
+            >
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Select B
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            size="md"
+            className="w-full sm:w-auto"
+            disabled={reEvaluating}
+            onClick={onReEvaluate}
+          >
+            <RefreshCw className={`h-4 w-4 ${reEvaluating ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {reEvaluating ? 'Re-evaluating…' : 'Re-evaluate'}
+          </Button>
+        </div>
+      </div>
+
+      {savedGrade && (
+        <div
+          data-suggestion-saved-comparison=""
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink"
+        >
+          <span className="font-semibold">
+            {gradeSuggestionSignalLabel(suggestion)} · Grade {savedGrade}
+          </span>
+          {decisionBadge && <Badge tone={decisionBadge.tone}>{decisionBadge.label}</Badge>}
+          {suggestion.override_reason && (
+            <span className="text-ink-secondary break-words">
+              Override note: {suggestion.override_reason}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted tabular-nums">
+        {suggestion.commit_sha && (
+          <span>
+            Commit{' '}
+            <code className="font-mono font-semibold text-ink">
+              {suggestion.commit_sha.slice(0, 8)}
+            </code>
+          </span>
+        )}
+        {suggestion.policy_version != null && <span>Policy v{suggestion.policy_version}</span>}
+        <span>
+          Evaluated{' '}
+          <time dateTime={suggestion.evaluated_at}>
+            {formatShortDateTime(suggestion.evaluated_at)}
+          </time>
+        </span>
+      </div>
+
+      <p className="text-sm text-ink-secondary break-words">{suggestion.reason_summary}</p>
+
+      {checks.length > 0 && (
+        <ul
+          aria-label="Required check evidence"
+          className="divide-y divide-line rounded-xl border border-line bg-surface-sunken"
+        >
+          {checks.map((check) => {
+            const safeDetailsUrl = check.detailsUrl ? sanitizeUrl(check.detailsUrl) : null
+            return (
+              <li
+                key={check.name}
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="block font-mono font-semibold text-ink break-all">
+                    {check.name}
+                  </span>
+                  {check.appSlug && (
+                    <span className="block text-ink-muted">{check.appSlug}</span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge tone={check.tone}>{check.label}</Badge>
+                  {safeDetailsUrl && (
+                    <a
+                      href={safeDetailsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="app-link inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl lg:min-h-9 lg:min-w-9"
+                      aria-label={`View ${check.name} check details`}
+                    >
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {reEvaluateError && (
+        <p role="alert" className="text-xs font-semibold text-danger-ink">
+          {reEvaluateError}
+        </p>
+      )}
     </section>
   )
 }

@@ -3449,6 +3449,21 @@
             }
           },
           {
+            "name": "suggestion_outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "suggest_b",
+                "review_for_redo",
+                "no_suggestion",
+                "stale_evidence"
+              ]
+            },
+            "description": "Filter to latest submissions with a matching automated grade suggestion in opted-in cohorts."
+          },
+          {
             "name": "sort",
             "in": "query",
             "required": false,
@@ -7288,6 +7303,10 @@
           "stale_for_current_policy": {
             "type": "boolean"
           },
+          "stale": {
+            "type": "boolean",
+            "description": "True when check evidence is stale because of outcome, policy change, superseded attempt, or commit SHA mismatch."
+          },
           "decision": {
             "type": [
               "string",
@@ -7632,6 +7651,10 @@
           "github_issue_delivery": {
             "$ref": "#/components/schemas/GithubIssueDelivery",
             "description": "Present for staff when a durable GitHub issue delivery exists for this submission."
+          },
+          "grade_suggestion": {
+            "$ref": "#/components/schemas/SubmissionGradeSuggestion",
+            "description": "Present only for staff when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists."
           },
           "cohort_name": {
             "type": [
@@ -17838,6 +17861,10 @@
             ],
             "additionalProperties": false,
             "description": "The review target of the latest ungraded attempt, when the cohort has configured one."
+          },
+          "grade_suggestion": {
+            "$ref": "#/components/schemas/SubmissionGradeSuggestion",
+            "description": "Present only when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists."
           }
         },
         "additionalProperties": false,

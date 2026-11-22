@@ -4488,6 +4488,8 @@ export interface paths {
                     module_id?: number;
                     student_id?: number;
                     lesson_id?: number;
+                    /** @description Filter to latest submissions with a matching automated grade suggestion in opted-in cohorts. */
+                    suggestion_outcome?: "suggest_b" | "review_for_redo" | "no_suggestion" | "stale_evidence";
                     /** @description oldest (default) or newest first; ids break ties. */
                     sort?: "oldest" | "newest";
                     /** @description 1-based; past the end serves the last page. */
@@ -6851,6 +6853,8 @@ export interface components {
             };
             evaluated_at: string;
             stale_for_current_policy: boolean;
+            /** @description True when check evidence is stale because of outcome, policy change, superseded attempt, or commit SHA mismatch. */
+            stale?: boolean;
             /** @enum {string|null} */
             decision: "accepted" | "overridden" | "dismissed" | null;
             override_reason: string | null;
@@ -6924,6 +6928,8 @@ export interface components {
             github_checks?: components["schemas"]["GithubChecks"];
             /** @description Present for staff when a durable GitHub issue delivery exists for this submission. */
             github_issue_delivery?: components["schemas"]["GithubIssueDelivery"];
+            /** @description Present only for staff when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists. */
+            grade_suggestion?: components["schemas"]["SubmissionGradeSuggestion"];
             cohort_name: string | null;
             /** @enum {string|null} */
             course_delivery: "program" | "guided" | "self_paced" | null;
@@ -9101,6 +9107,8 @@ export interface components {
                 expected_by: string;
                 overdue: boolean;
             };
+            /** @description Present only when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists. */
+            grade_suggestion?: components["schemas"]["SubmissionGradeSuggestion"];
         };
         /** @description Status chip counts inside the module, student and lesson filters. */
         GradingQueueCounts: {

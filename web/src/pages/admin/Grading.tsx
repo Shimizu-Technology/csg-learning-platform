@@ -43,6 +43,10 @@ import { SubmissionStatus } from '../../components/shared/SubmissionStatus'
 import { Badge } from '../../components/ui/Badge'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
+import {
+  gradeSuggestionQueueBadge,
+  type SuggestionOutcomeFilter,
+} from '../../lib/gradeSuggestion'
 import { formatShortDateTime } from '../../lib/format'
 import { gradeLabel } from '../../lib/glossary'
 import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
@@ -72,10 +76,19 @@ const GRADING_URL = {
   module_id: urlParsers.id(),
   student_id: urlParsers.id(),
   lesson_id: urlParsers.id(),
+  suggestion_outcome: urlParsers.oneOf(['all', 'suggest_b', 'review_for_redo', 'stale_evidence', 'no_suggestion'] as const, 'all'),
   sort: urlParsers.oneOf(['oldest', 'newest'] as const, 'oldest'),
   page: urlParsers.int(1, 99999, 1),
   submission: urlParsers.id(),
 }
+
+const SUGGESTION_FILTER_OPTIONS: ReadonlyArray<readonly [SuggestionOutcomeFilter, string]> = [
+  ['all', 'All checks'],
+  ['suggest_b', 'B suggested'],
+  ['review_for_redo', 'Review for Redo'],
+  ['stale_evidence', 'Stale'],
+  ['no_suggestion', 'No suggestion'],
+]
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 
@@ -115,6 +128,7 @@ export function Grading() {
       module_id: urlState.module_id,
       student_id: urlState.student_id,
       lesson_id: urlState.lesson_id,
+      suggestion_outcome: urlState.suggestion_outcome === 'all' ? null : urlState.suggestion_outcome,
       sort: urlState.sort,
       page: urlState.page,
     },
@@ -165,7 +179,8 @@ export function Grading() {
   const reviewCohortId = current?.cohort_id ?? cohortId
   const reviewCohortName = current?.cohort_name || (reviewCohortId ? cohorts.find((cohort) => cohort.id === reviewCohortId)?.name : null) || null
   const related = useRecordRelated('submission', selectedId)
-  const filtered = Boolean(filters.moduleId || filters.studentId || filters.lessonId)
+  const hasSuggestions = queue.some((item) => Boolean(item.grade_suggestion)) || urlState.suggestion_outcome !== 'all'
+  const filtered = Boolean(filters.moduleId || filters.studentId || filters.lessonId || urlState.suggestion_outcome !== 'all')
 
   // Save and next swaps instantly and starts the next review at its top (spec §6, U-4.1).
   const showReviewTop = useCallback(() => {
@@ -288,7 +303,7 @@ export function Grading() {
         <PageHeader
           title="Grading"
           description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortName ? <> in {cohortName}</> : ' across cohorts'} · {counts.redo} redo requested{counts.overdue ? <> · {counts.overdue} past review target</> : null}</>}
-          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null })} />}
+          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })} />}
           menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
         />
       </div>
@@ -363,11 +378,24 @@ export function Grading() {
                 </Button>
               )}
               {filtered && !lessonFilterTitle && (
-                <Button variant="quiet" size="sm" onClick={() => void chooseView({ module_id: null, student_id: null, lesson_id: null })}>
+                <Button variant="quiet" size="sm" onClick={() => void chooseView({ module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })}>
                   Clear filters
                 </Button>
               )}
             </div>
+            {hasSuggestions && (
+              <div role="group" aria-label="Automated check filter" className="flex flex-wrap gap-1.5">
+                {SUGGESTION_FILTER_OPTIONS.map(([value, label]) => (
+                  <FilterChip
+                    key={value}
+                    selected={urlState.suggestion_outcome === value}
+                    onClick={() => void chooseView({ suggestion_outcome: value })}
+                  >
+                    {label}
+                  </FilterChip>
+                ))}
+              </div>
+            )}
             {gridLinks.length > 0 && (
               <details className="group text-sm">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-semibold text-ink-secondary hover:text-ink lg:min-h-9 [&::-webkit-details-marker]:hidden">
@@ -432,6 +460,8 @@ export function Grading() {
                   const where = submissionWhereLabel(sub.lesson_title, sub.content_block_title)
                   const waiting = latest && sub.grade === null
                   const context = queueContextLabel(sub)
+                  const rowSuggestion = loaded?.id === sub.id ? (loaded.grade_suggestion ?? sub.grade_suggestion) : sub.grade_suggestion
+                  const suggestionBadge = rowSuggestion ? gradeSuggestionQueueBadge(rowSuggestion) : null
                   return (
                     <li key={sub.id} className="border-b border-line last:border-b-0">
                       <RowButton
@@ -453,6 +483,11 @@ export function Grading() {
                           {where}{sub.num_submissions > 1 ? ` · attempt ${sub.num_submissions}` : ''}
                         </span>
                         {context && <span className="col-span-2 truncate text-xs text-ink-muted">{context}</span>}
+                        {suggestionBadge && rowSuggestion && (
+                          <span className="col-span-2 mt-1 flex flex-wrap items-center gap-1.5" data-queue-suggestion={rowSuggestion.outcome}>
+                            <Badge tone={suggestionBadge.tone}>{suggestionBadge.label}</Badge>
+                          </span>
+                        )}
                         {sub.review_sla?.overdue === true && <span className="col-span-2 mt-1"><PastReviewTargetBadge /></span>}
                       </RowButton>
                     </li>

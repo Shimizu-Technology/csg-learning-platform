@@ -8,6 +8,7 @@ import { isPreviousAttempt } from '../shared/AttemptReview'
 import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
 import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 import type { RubricRating, Submission } from '../../types/api'
+import type { GradeChoice } from '../../lib/gradeSuggestion'
 import { gradeLabel } from '../../lib/glossary'
 
 type CriteriaDraft = Record<number, { rating: RubricRating | null; feedback: string }>
@@ -34,6 +35,8 @@ export function useSubmissionReview(
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [feedback, setFeedback] = useState('')
   const [criteria, setCriteria] = useState<CriteriaDraft>({})
+  const [selectedGrade, setSelectedGrade] = useState<GradeChoice | null>(null)
+  const [overrideReason, setOverrideReason] = useState('')
   const [loading, setLoading] = useState(true)
   const [grading, setGrading] = useState(false)
   const [noAccess, setNoAccess] = useState(false)
@@ -59,6 +62,8 @@ export function useSubmissionReview(
         if (!preserveDraft) {
           setFeedback(next.feedback || '')
           setCriteria(criteriaFor(next))
+          setSelectedGrade(null)
+          setOverrideReason('')
         } else {
           setCriteria((current) =>
             Object.fromEntries(
@@ -82,6 +87,8 @@ export function useSubmissionReview(
 
   useEffect(() => {
     setSubmission(null)
+    setSelectedGrade(null)
+    setOverrideReason('')
     saving.current = false
     void load()
     return () => {
@@ -91,7 +98,7 @@ export function useSubmissionReview(
 
   // Every way out (links, browser Back, a query change that swaps the review) asks first.
   const guard = useLeaveGuard({
-    dirty: feedbackDraftDiffers(submission, feedback, criteria),
+    dirty: feedbackDraftDiffers(submission, feedback, criteria) || Boolean(overrideReason.trim()),
     blocks: leaves,
     // A grade in flight is neither saved nor safe to abandon.
     confirm: async () => !saving.current && (await confirm(DISCARD_DRAFT_CONFIRMATION)),
@@ -104,7 +111,13 @@ export function useSubmissionReview(
   }, [feedback])
 
   /** Saves a grade. Resolves to 'needs_feedback' when a Redo was refused for having no written feedback. */
-  async function grade(value: string): Promise<'saved' | 'needs_feedback' | 'not_saved'> {
+  async function grade(
+    value: string,
+    options?: {
+      suggestionDecision?: 'accepted' | 'overridden' | 'dismissed'
+      suggestionOverrideReason?: string
+    },
+  ): Promise<'saved' | 'needs_feedback' | 'not_saved'> {
     if (!submission || loading || conflict || saving.current || isPreviousAttempt(submission))
       return 'not_saved'
     const rubricCriteria = submission.rubric?.criteria || []
@@ -130,6 +143,7 @@ export function useSubmissionReview(
         rating: criteria[criterion.id].rating!,
         feedback: criteria[criterion.id].feedback,
       }))
+    const trimmedOverrideReason = options?.suggestionOverrideReason?.trim()
     setError(null)
     saving.current = true
     setGrading(true)
@@ -141,6 +155,8 @@ export function useSubmissionReview(
         base_submission_updated_at: submission.updated_at,
         // No ratings on a redo: omit the field so the server keeps any earlier evidence.
         criterion_results: ratedCriteria.length || !redo ? ratedCriteria : undefined,
+        ...(options?.suggestionDecision ? { suggestion_decision: options.suggestionDecision } : {}),
+        ...(trimmedOverrideReason ? { suggestion_override_reason: trimmedOverrideReason } : {}),
       })
       if (request !== generation.current) return 'not_saved'
       if (!result.data || result.error) {
@@ -153,6 +169,8 @@ export function useSubmissionReview(
       setSubmission(result.data.submission)
       setFeedback(result.data.submission.feedback || '')
       setCriteria(criteriaFor(result.data.submission))
+      setSelectedGrade(null)
+      setOverrideReason('')
       toast.success(result.data.submission.user_name ? `Saved ${gradeLabel(value)} for ${result.data.submission.user_name}` : `Saved ${gradeLabel(value)}`)
       // Saved: Save and next may navigate before the clean draft renders.
       guard.release()
@@ -180,6 +198,10 @@ export function useSubmissionReview(
     setFeedback,
     criteria,
     setCriteria,
+    selectedGrade,
+    setSelectedGrade,
+    overrideReason,
+    setOverrideReason,
     loading,
     grading,
     error,

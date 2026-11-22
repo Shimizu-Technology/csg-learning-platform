@@ -634,6 +634,8 @@ export type SubmissionBrief = components['schemas']['SubmissionBrief'];
 
 export type GithubIssueDelivery = components['schemas']['GithubIssueDelivery'];
 
+export type SubmissionGradeSuggestion = components['schemas']['SubmissionGradeSuggestion'];
+
 export type Submission = components['schemas']['Submission'];
 
 export type GithubCheckRun = components['schemas']['GithubCheckRun'];

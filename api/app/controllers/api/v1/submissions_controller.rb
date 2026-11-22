@@ -15,9 +15,20 @@ module Api
 
       # GET /api/v1/submissions
       def index
+        block_includes = { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } }
         includes = [ { user: { enrollments: :cohort } }, { enrollment: :cohort }, :grader,
-          :submission_criterion_results, { content_block: { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } } } ]
-        includes << :github_issue_deliveries if current_user.staff?
+          :submission_criterion_results ]
+        if current_user.staff?
+          includes << :github_issue_deliveries
+          if school_grade_suggestions_enabled?
+            includes << :submission_grade_suggestion
+            includes << { content_block: [ :active_exercise_check_policy, block_includes ] }
+          else
+            includes << { content_block: block_includes }
+          end
+        else
+          includes << { content_block: block_includes }
+        end
         submissions = Submission.includes(*includes)
 
         # Staff can filter by any student; students can only see themselves.
@@ -198,8 +209,14 @@ module Api
           return
         end
 
+        requested_suggestion_decision = validated_suggestion_decision
+        return if performed?
+        suggestion_override_reason = validated_suggestion_override_reason
+        return if performed?
+
         enrollment = @submission.enrollment
         use_v2_issue_delivery = GithubIssueDeliveryPlanner.enabled_for?(enrollment&.cohort)
+        suggestions_enabled = GithubGradeSuggestionEvaluator.enabled_for?(enrollment&.cohort, school: school_features)
         with_learning_write_guard(enrollment) do
           Submission.transaction do
             @submission.lock!
@@ -232,6 +249,16 @@ module Api
               subject_user: @submission.user, cohort: enrollment&.cohort, record: @submission)
             CourseCompletion.evaluate!(enrollment, actor: current_user) unless redo_grade
 
+            if suggestions_enabled
+              record_grade_suggestion_decision!(
+                submission: @submission,
+                grade: grade,
+                requested_decision: requested_suggestion_decision,
+                override_reason: suggestion_override_reason,
+                decided_at: @submission.graded_at
+              )
+            end
+
             if use_v2_issue_delivery
               GithubIssueDeliveryPlanner.record!(
                 submission: @submission,
@@ -241,6 +268,8 @@ module Api
             end
           end
         end
+
+        @submission.association(:submission_grade_suggestion).reset if suggestions_enabled
 
         if @submission.grade == "R"
           NotificationEmailService.send_redo_notification(
@@ -381,10 +410,85 @@ module Api
         else
           ExerciseCheckPolicy.active.find_by(content_block_id: suggestion.content_block_id)
         end
-        render json: { grade_suggestion: suggestion.to_staff_json(active_policy: active_policy) }
+        render json: {
+          grade_suggestion: suggestion.to_staff_json(
+            active_policy: active_policy,
+            latest_submission_id: @submission.latest_attempt&.id,
+            submission_commit_sha: @submission.commit_sha
+          )
+        }
       end
 
       private
+
+      def school_features
+        @school_features ||= FeatureSwitches.school(read_only: true)
+      end
+
+      def school_grade_suggestions_enabled?
+        school_features["github_app"] == true && school_features["github_grade_suggestions"] == true
+      end
+
+      def validated_suggestion_decision
+        return nil unless params.key?(:suggestion_decision)
+
+        raw = params[:suggestion_decision]
+        return nil if raw.nil? || (raw.is_a?(String) && raw.empty?)
+
+        unless raw.is_a?(String) && SubmissionGradeSuggestion::DECISIONS.include?(raw)
+          render json: { errors: [ "Suggestion decision must be accepted, overridden, or dismissed." ] }, status: :unprocessable_entity
+          return nil
+        end
+
+        raw
+      end
+
+      def validated_suggestion_override_reason
+        return nil unless params.key?(:suggestion_override_reason)
+
+        raw = params[:suggestion_override_reason]
+        return nil if raw.nil?
+
+        unless raw.is_a?(String)
+          render json: { errors: [ "Override reason must be a string." ] }, status: :unprocessable_entity
+          return nil
+        end
+
+        if SubmissionGradeSuggestion::CONTROL_CHAR_PATTERN.match?(raw)
+          render json: { errors: [ "Override reason must not contain control characters." ] }, status: :unprocessable_entity
+          return nil
+        end
+
+        trimmed = raw.strip
+        if trimmed.length > SubmissionGradeSuggestion::MAX_OVERRIDE_REASON_LENGTH
+          render json: { errors: [ "Override reason must be #{SubmissionGradeSuggestion::MAX_OVERRIDE_REASON_LENGTH} characters or fewer." ] }, status: :unprocessable_entity
+          return nil
+        end
+
+        trimmed.presence
+      end
+
+      def record_grade_suggestion_decision!(submission:, grade:, requested_decision:, override_reason:, decided_at:)
+        suggestion = SubmissionGradeSuggestion.lock.find_by(submission_id: submission.id)
+        return unless suggestion
+
+        decision, reason = if requested_decision == "dismissed"
+          [ "dismissed", override_reason ]
+        elsif suggestion.outcome == "suggest_b"
+          grade == "B" ? [ "accepted", nil ] : [ "overridden", override_reason ]
+        elsif suggestion.outcome == "review_for_redo"
+          grade == "R" ? [ "accepted", nil ] : [ "overridden", override_reason ]
+        else
+          return
+        end
+
+        suggestion.update!(
+          decision: decision,
+          override_reason: reason,
+          decided_by_id: current_user.id,
+          decided_at: decided_at || Time.current
+        )
+      end
 
       def render_grade_suggestions_disabled
         render json: {
@@ -417,8 +521,18 @@ module Api
       end
 
       def set_submission
-        includes = [ { user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } } ]
-        includes << :github_issue_deliveries if current_user.staff?
+        includes = [ { user: { enrollments: :cohort } }, { enrollment: :cohort } ]
+        if current_user.staff?
+          includes << :github_issue_deliveries
+          if school_grade_suggestions_enabled?
+            includes << :submission_grade_suggestion
+            includes << { content_block: [ :active_exercise_check_policy, { lesson: :curriculum_module } ] }
+          else
+            includes << { content_block: { lesson: :curriculum_module } }
+          end
+        else
+          includes << { content_block: { lesson: :curriculum_module } }
+        end
         @submission = Submission.includes(*includes).find(params[:id])
       end
 
@@ -455,10 +569,11 @@ module Api
       def submission_json(submission, include_solution: false, include_github_checks: false, latest_attempt_ids: nil)
         submission_type = submission.effective_submission_type
         enrollment = submission.enrollment || learning_enrollment_for(submission.user, submission.content_block)
+        resolved_latest_id = latest_attempt_ids ? latest_attempt_ids[submission.attempt_key] : submission.latest_attempt&.id
         json = {
           id: submission.id,
           enrollment_id: submission.enrollment_id,
-          latest_submission_id: latest_attempt_ids ? latest_attempt_ids[submission.attempt_key] : submission.latest_attempt&.id,
+          latest_submission_id: resolved_latest_id,
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
           user_name: submission.user.full_name,
@@ -506,6 +621,17 @@ module Api
         if current_user.staff?
           delivery = latest_github_issue_delivery(submission)
           json[:github_issue_delivery] = delivery.to_staff_json if delivery
+
+          if enrollment&.cohort && GithubGradeSuggestionEvaluator.enabled_for?(enrollment.cohort, school: school_features)
+            suggestion = submission.submission_grade_suggestion
+            if suggestion
+              json[:grade_suggestion] = suggestion.to_staff_json(
+                active_policy: submission.content_block.active_exercise_check_policy,
+                latest_submission_id: resolved_latest_id,
+                submission_commit_sha: submission.commit_sha
+              )
+            end
+          end
         end
 
         if include_solution
