@@ -7135,8 +7135,8 @@ export interface components {
                     [key: string]: {
                         present: boolean;
                         unreadable?: boolean;
-                        oid?: string;
-                        sha256?: string;
+                        oid?: string | null;
+                        sha256?: string | null;
                     };
                 };
             };
