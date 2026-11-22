@@ -26,6 +26,7 @@ class Submission < ApplicationRecord
   has_many :submission_criterion_results, dependent: :destroy
   has_many :github_check_runs, dependent: :destroy
   has_many :github_issue_deliveries, dependent: :destroy
+  has_one :submission_grade_suggestion, dependent: :destroy
 
   normalizes :feedback, with: ->(feedback) { MarkdownText.normalize(feedback) }
 

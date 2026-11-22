@@ -81,7 +81,7 @@ class LessonDuplicate
         archived_at: Time.current
       )
       block_ids = {}
-      @lesson.content_blocks.includes(:knowledge_check).each do |block|
+      @lesson.content_blocks.includes(:knowledge_check, :exercise_check_policies).each do |block|
         new_block = copy.content_blocks.new(
           block.attributes.except("id", "lesson_id", "created_at", "updated_at", "s3_video_uploaded_by_id", "s3_video_uploaded_at")
         )
@@ -94,6 +94,11 @@ class LessonDuplicate
         new_block.save!
         if (check = block.knowledge_check)
           new_block.create_knowledge_check!(check.attributes.except("id", "content_block_id", "created_at", "updated_at"))
+        end
+        block.exercise_check_policies.sort_by(&:version).each do |policy|
+          new_block.exercise_check_policies.create!(
+            policy.attributes.except("id", "content_block_id", "created_at", "updated_at")
+          )
         end
         block_ids[block.id] = new_block.id
       end

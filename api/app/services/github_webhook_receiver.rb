@@ -77,6 +77,7 @@ class GithubWebhookReceiver
     when "check_run"
       cr = parsed["check_run"]
       return false unless hash_or_nil?(cr)
+      return false unless hash_or_nil?(parsed["workflow"])
 
       if cr.is_a?(Hash)
         return false unless hash_or_nil?(cr["app"])
@@ -426,6 +427,7 @@ class GithubWebhookReceiver
             external_id: external_id,
             name: data["name"],
             workflow_name: data["workflow_name"],
+            workflow_path: data["workflow_path"],
             app_slug: data["app_slug"],
             check_suite_id: positive_integer(data["check_suite_id"]),
             head_sha: head_sha,
@@ -486,6 +488,9 @@ class GithubWebhookReceiver
     case event
     when "check_run"
       cr = parsed["check_run"] || {}
+      workflow_path_raw = cr["workflow_path"] ||
+        (cr["check_suite"].is_a?(Hash) ? cr["check_suite"]["workflow_path"] : nil) ||
+        (parsed["workflow"].is_a?(Hash) ? parsed["workflow"]["path"] : nil)
       {
         "check_run" => {
           "external_id" => positive_integer(cr["id"]),
@@ -498,6 +503,7 @@ class GithubWebhookReceiver
           "completed_at" => iso_timestamp(cr["completed_at"]),
           "app_slug" => bounded_string(cr.dig("app", "slug"), 100),
           "workflow_name" => bounded_string(cr.dig("check_suite", "app", "name"), 255),
+          "workflow_path" => bounded_string(workflow_path_raw, 512),
           "check_suite_id" => positive_integer(cr.dig("check_suite", "id"))
         }.compact,
         "repository" => {

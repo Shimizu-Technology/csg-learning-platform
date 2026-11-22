@@ -15,6 +15,9 @@ class ContentBlock < ApplicationRecord
   belongs_to :s3_video_uploaded_by, class_name: "User", optional: true
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy
+  has_many :exercise_check_policies, dependent: :destroy
+  has_one :active_exercise_check_policy, -> { where(active: true) }, class_name: "ExerciseCheckPolicy"
+  has_many :submission_grade_suggestions, dependent: :destroy
   has_many :objective_alignments, dependent: :destroy
   has_many :learning_objectives, through: :objective_alignments
   has_one :knowledge_check, dependent: :destroy
@@ -33,6 +36,7 @@ class ContentBlock < ApplicationRecord
   validate :type_change_preserves_learner_work, on: :update, if: :will_save_change_to_block_type?
   validate :media_replacement_respects_watch_progress, on: :update, if: :playable_media_replaced?
   after_update :reset_watch_progress_for_replaced_media, if: :reset_watch_progress_on_save?
+  after_update :deactivate_check_policies_if_non_exercise, if: :saved_change_to_block_type?
 
   WATCH_RESET_REQUIRED_MESSAGE = "Students have watched this video. Replace it from the web lesson editor, which asks before resetting their watch time.".freeze
 
@@ -374,6 +378,12 @@ class ContentBlock < ApplicationRecord
   def reset_watch_progress_for_replaced_media
     @reset_watch_progress_on_save = false
     reset_video_progress!
+  end
+
+  def deactivate_check_policies_if_non_exercise
+    return if exercise_like?
+
+    exercise_check_policies.active.update_all(active: false, updated_at: Time.current)
   end
 
   def normalize_video_url

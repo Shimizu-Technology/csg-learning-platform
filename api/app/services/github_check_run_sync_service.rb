@@ -16,7 +16,8 @@ class GithubCheckRunSyncService
 
     owner, repository = repository_coordinates
     return failure("A GitHub repository URL is required before checks can be refreshed") unless owner && repository
-    return failure("A commit SHA is required before checks can be refreshed") if submission.commit_sha.blank?
+    target_sha = submission.commit_sha
+    return failure("A commit SHA is required before checks can be refreshed") if target_sha.blank?
 
     if cohort && features["github_app"] == true
       @app_binding = GithubRepositoryAccess.binding_for(enrollment: submission.enrollment, curriculum_module_id: submission.content_block.lesson.module_id)
@@ -31,7 +32,7 @@ class GithubCheckRunSyncService
       @repository_access.repository!
     end
 
-    fetched_sha = submission.commit_sha
+    fetched_sha = target_sha
     pre_fetch_versions = submission.github_check_runs
       .where(head_sha: fetched_sha)
       .pluck(:id, :updated_at, :status, :conclusion, :completed_at)
@@ -47,14 +48,25 @@ class GithubCheckRunSyncService
     result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{fetched_sha}/check-runs", sha: fetched_sha)
     return failure(result[:error]) if result[:error]
 
-    runs = result[:runs]
-    GithubCheckRunMerger.sync_snapshot!(
+    runs = enrich_workflow_paths(result[:runs], sha: fetched_sha)
+    merged = GithubCheckRunMerger.sync_snapshot!(
       submission: submission,
       runs: runs,
       fetched_at: now,
       pre_fetch_versions: pre_fetch_versions,
       fetched_sha: fetched_sha
     )
+    return merged if merged[:error]
+
+    suggestion = if cohort && features["github_app"] == true && features["github_grade_suggestions"] == true
+      begin
+        GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: Time.current)
+      rescue StandardError => error
+        Rails.logger.warn("GitHub grade suggestion evaluation failed for submission #{submission.id}: #{error.class.name}")
+        nil
+      end
+    end
+    merged.merge(grade_suggestion: suggestion)
   rescue GithubRepositoryAccess::BindingChanged => error
     failure(error.message)
   rescue GithubAppClient::Error => error
@@ -97,6 +109,36 @@ class GithubCheckRunSyncService
       page += 1
     end
     { runs: runs, error: nil }
+  end
+
+  def enrich_workflow_paths(runs, sha:)
+    return runs unless @app_binding && @app_client.respond_to?(:workflow_paths_by_check_suite)
+
+    needs_lookup = runs.any? do |attrs|
+      explicit = attrs["workflow_path"].presence || attrs.dig("check_suite", "workflow_path").presence
+      explicit.nil? && GithubCheckRunMerger.positive_integer(attrs.dig("check_suite", "id")).present?
+    end
+    return runs unless needs_lookup
+
+    suite_paths = @app_client.workflow_paths_by_check_suite(
+      installation: @app_binding.github_app_installation,
+      repository_id: @app_binding.repository_id,
+      full_name: @app_binding.full_name,
+      head_sha: sha
+    )
+    return runs if suite_paths.blank?
+
+    runs.map do |attrs|
+      explicit = attrs["workflow_path"].presence || attrs.dig("check_suite", "workflow_path").presence
+      next attrs if explicit.present?
+
+      suite_id = GithubCheckRunMerger.positive_integer(attrs.dig("check_suite", "id"))
+      resolved = suite_id ? suite_paths[suite_id] : nil
+      resolved.present? ? attrs.merge("workflow_path" => resolved) : attrs
+    end
+  rescue GithubAppClient::Error => error
+    Rails.logger.warn("GitHub Actions workflow_path lookup failed for submission #{submission.id}: #{error.class.name} (status=#{error.status})")
+    runs
   end
 
   def headers

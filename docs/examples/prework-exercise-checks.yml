@@ -1,0 +1,71 @@
+# Reference GitHub Actions template for CSG Learn exercise-specific checks (X-6.4 / AS-11).
+#
+# Security & policy properties demonstrated:
+# - Isolated GitHub-hosted runner (ubuntu-latest), never self-hosted.
+# - Zero school secrets and minimal token permissions (contents: read only).
+# - Third-party actions pinned by verified full commit SHAs matching `.github/workflows/ci.yml`.
+# - Per-job timeout-minutes so runaway learner loops terminate cleanly.
+# - Exercise-specific check run names (`prework/111.rb`, `prework/112.rb`) so a single
+#   repository-wide `ci` check can never satisfy unrelated exercises.
+# - Run-to-workflow provenance: when a policy pins `expected_workflow_path`, CSG Learn
+#   verifies both the workflow blob at the submitted commit SHA and that each credited
+#   check run proves execution from that matching `workflow_path`.
+# - Advisory only: passing checks produce a `suggest_b` grade suggestion in CSG Learn;
+#   an instructor still reviews code and saves the authoritative grade.
+
+name: Prework Exercise Checks
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prework-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prework_111:
+    name: prework/111.rb
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout submitted revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
+        with:
+          ruby-version: "3.3"
+
+      - name: Run 111.rb exercise checks
+        run: |
+          test -f 111.rb
+          ruby -c 111.rb
+          ruby -Ilib -Itest test/test_111.rb
+
+  prework_112:
+    name: prework/112.rb
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout submitted revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
+        with:
+          ruby-version: "3.3"
+
+      - name: Run 112.rb exercise checks
+        run: |
+          test -f 112.rb
+          ruby -c 112.rb
+          ruby -Ilib -Itest test/test_112.rb

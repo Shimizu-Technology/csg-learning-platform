@@ -9,7 +9,8 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :require_student!, only: [ :create ]
-      before_action :set_submission, only: [ :show, :update, :grade, :github_issue, :retry_github_issue ]
+      before_action :require_staff!, only: [ :evaluate_grade_suggestion ]
+      before_action :set_submission, only: [ :show, :update, :grade, :github_issue, :retry_github_issue, :evaluate_grade_suggestion ]
       before_action :authorize_submission_read!, only: [ :show ]
 
       # GET /api/v1/submissions
@@ -356,7 +357,38 @@ module Api
         }
       end
 
+      # POST /api/v1/submissions/:id/evaluate_grade_suggestion
+      def evaluate_grade_suggestion
+        enrollment = @submission.enrollment
+        unless enrollment && StaffCohortScope.new(current_user).visible?(enrollment.cohort_id)
+          render_forbidden("Cannot access this submission")
+          return
+        end
+
+        unless GithubGradeSuggestionEvaluator.enabled_for?(enrollment.cohort)
+          render_grade_suggestions_disabled
+          return
+        end
+
+        suggestion = GithubGradeSuggestionEvaluator.evaluate_submission!(@submission)
+        unless suggestion
+          render_grade_suggestions_disabled
+          return
+        end
+
+        active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: suggestion.content_block_id)
+        render json: { grade_suggestion: suggestion.to_staff_json(active_policy: active_policy) }
+      end
+
       private
+
+      def render_grade_suggestions_disabled
+        render json: {
+          error: "GitHub grade suggestions are disabled for this cohort",
+          code: "feature_disabled",
+          feature: "github_grade_suggestions"
+        }, status: :forbidden
+      end
 
       def learning_enrollment_for(user, content_block)
         curriculum_id = content_block.lesson.curriculum_module.curriculum_id

@@ -65,6 +65,9 @@ class AuthoringContentClone
       remap(r, "content_block_id", ContentBlock)
       remap(r, "learning_objective_id", LearningObjective)
     end
+    copy(ExerciseCheckPolicy, ExerciseCheckPolicy.where(content_block_id: block_ids)) do |r|
+      remap(r, "content_block_id", ContentBlock)
+    end
     copy(ObjectiveAlignment, ObjectiveAlignment.where(lesson_id: lesson_ids)) do |r|
       remap(r, "lesson_id", Lesson)
       remap(r, "content_block_id", ContentBlock)

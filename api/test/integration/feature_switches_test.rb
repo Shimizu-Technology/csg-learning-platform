@@ -450,6 +450,52 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     assert_equal off_payload, on_payload
   end
 
+  test "github_grade_suggestions defaults off and requires both school activation and explicit cohort opt-in" do
+    assert_equal false, FeatureSwitches.school(read_only: true).fetch("github_grade_suggestions")
+    assert_equal false, FeatureSwitches.for(cohort: @cohort).fetch("github_grade_suggestions")
+    assert_equal false, FeatureSwitches.enabled?(:github_grade_suggestions, cohort: @cohort)
+
+    [
+      [ nil, nil, false ],
+      [ false, true, false ],
+      [ true, nil, false ],
+      [ true, false, false ],
+      [ true, true, true ]
+    ].each do |school_val, cohort_val, expected|
+      SchoolSetting.current.update!(features: school_val.nil? ? {} : { "github_grade_suggestions" => school_val })
+      @cohort.update!(settings: { "features" => cohort_val.nil? ? {} : { "github_grade_suggestions" => cohort_val } })
+      assert_equal expected, FeatureSwitches.for(cohort: @cohort.reload).fetch("github_grade_suggestions"),
+        "expected #{expected} for school=#{school_val.inspect} cohort=#{cohort_val.inspect}"
+      assert_equal expected, FeatureSwitches.enabled?(:github_grade_suggestions, cohort: @cohort)
+    end
+  end
+
+  test "github_grade_suggestions stays absent from full Off-cohort POST /api/v1/sessions payload even when school switch is On" do
+    @cohort.update!(settings: { features: { student_experience_v2: false } })
+    SchoolSetting.current.update!(features: { github_grade_suggestions: false })
+
+    off_payload = nil
+    as_user(@student) do
+      post "/api/v1/sessions", headers: @headers
+      assert_response :success
+      off_payload = response.parsed_body
+    end
+    assert_not off_payload.dig("school", "features").key?("github_grade_suggestions")
+    assert_not off_payload.dig("enrollments", 0, "cohort", "features").key?("github_grade_suggestions")
+
+    SchoolSetting.current.update!(features: { github_grade_suggestions: true })
+    on_payload = nil
+    as_user(@student) do
+      post "/api/v1/sessions", headers: @headers
+      assert_response :success
+      on_payload = response.parsed_body
+    end
+
+    assert_not on_payload.dig("school", "features").key?("github_grade_suggestions")
+    assert_not on_payload.dig("enrollments", 0, "cohort", "features").key?("github_grade_suggestions")
+    assert_equal off_payload, on_payload
+  end
+
   private
 
   def as_user(user, &block)

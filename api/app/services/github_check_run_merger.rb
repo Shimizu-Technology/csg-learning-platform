@@ -146,6 +146,7 @@ class GithubCheckRunMerger
     run.update!(
       name: attributes.fetch(:name),
       workflow_name: attributes[:workflow_name].presence || run.workflow_name,
+      workflow_path: attributes[:workflow_path].presence || run.workflow_path,
       app_slug: attributes[:app_slug].presence || run.app_slug,
       check_suite_id: incoming_check_suite_id || run.check_suite_id,
       head_sha: head_sha,
@@ -191,6 +192,7 @@ class GithubCheckRunMerger
             external_id: external_id,
             name: attrs.fetch("name"),
             workflow_name: attrs.dig("check_suite", "app", "name"),
+            workflow_path: attrs["workflow_path"].presence || attrs.dig("check_suite", "workflow_path").presence,
             app_slug: attrs.dig("app", "slug"),
             check_suite_id: attrs.dig("check_suite", "id"),
             head_sha: attrs.fetch("head_sha"),

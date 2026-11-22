@@ -1,3 +1,4 @@
+require "digest"
 require "jwt"
 require "openssl"
 
@@ -31,6 +32,8 @@ class GithubAppClient
   DEFAULT_TIMEOUT = 10
   MARKER_SEARCH_MAX_PAGES = 5
   MARKER_SEARCH_PER_PAGE = 100
+  WORKFLOW_RUNS_MAX_PAGES = 5
+  WORKFLOW_RUNS_PER_PAGE = 100
   BASE = "https://api.github.com".freeze
   TOKEN_CACHE = ActiveSupport::Cache::MemoryStore.new(size: 1.megabyte)
 
@@ -69,7 +72,7 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
-  def files(installation:, repository:, filenames:)
+  def files(installation:, repository:, filenames:, workflow_paths: [])
     # Resolve once, then fetch every blob at that commit. HEAD:path and the
     # branch tip in the same GraphQL query can observe different revisions.
     repo = source_query(installation, repository, "defaultBranchRef { name target { ... on Commit { oid } } }")
@@ -77,10 +80,14 @@ class GithubAppClient
     sha = branch&.fetch("target")&.fetch("oid")
     raise Error, "GitHub repository has no submitted commit" unless sha.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
 
+    normalized_workflows = Array(workflow_paths).filter_map { |path| path.to_s.strip.presence }.uniq
     fragments = filenames.each_with_index.map do |filename, index|
       "file_#{index}: object(expression: #{"#{sha}:#{filename}".to_json}) { ... on Blob { text byteSize isTruncated } }"
-    end.join("\n")
-    repo = source_query(installation, repository, fragments)
+    end
+    normalized_workflows.each_with_index do |workflow_path, index|
+      fragments << "workflow_#{index}: object(expression: #{"#{sha}:#{workflow_path}".to_json}) { ... on Blob { oid text byteSize isTruncated } }"
+    end
+    repo = source_query(installation, repository, fragments.join("\n"))
     files = filenames.each_with_index.filter_map do |filename, index|
       blob = repo.fetch("file_#{index}")
       next unless blob
@@ -94,7 +101,37 @@ class GithubAppClient
 
       { "name" => filename, "text" => text }
     end
-    { files: files, commit_hash: sha, branch: branch.fetch("name"), error: nil }
+    workflow_files = normalized_workflows.each_with_index.each_with_object({}) do |(workflow_path, index), captured|
+      blob = repo.fetch("workflow_#{index}")
+      unless blob
+        captured[workflow_path] = { "present" => false }
+        next
+      end
+
+      oid = blob["oid"].to_s
+      valid_oid = oid.match?(/\A[0-9a-f]{40,64}\z/i) ? oid.downcase : nil
+      text = blob["text"]
+      size = blob["byteSize"]
+      complete_text = blob["isTruncated"] == false && text.is_a?(String) && size.is_a?(Integer) && size == text.bytesize
+
+      if valid_oid && complete_text
+        captured[workflow_path] = {
+          "present" => true,
+          "oid" => valid_oid,
+          "sha256" => Digest::SHA256.hexdigest(text)
+        }
+      else
+        # Binary (text: nil) or truncated workflow blobs never abort importing valid
+        # student exercise files; grade-suggestion evaluation fails closed on unreadable.
+        captured[workflow_path] = {
+          "present" => true,
+          "unreadable" => true,
+          "oid" => valid_oid,
+          "sha256" => nil
+        }
+      end
+    end
+    { files: files, workflow_files: workflow_files, commit_hash: sha, branch: branch.fetch("name"), error: nil }
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end
@@ -107,6 +144,56 @@ class GithubAppClient
       raise Error, PROVIDER_ERROR
     end
     result
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  # GitHub's REST check-runs endpoint does not include workflow_path; resolve
+  # check_suite_id -> workflow file path via Actions workflow_runs for head_sha.
+  # Degrades gracefully to {} when the installation lacks `actions: read` (403/404)
+  # so check-run sync still succeeds while expected_workflow_path policies fail closed.
+  def workflow_paths_by_check_suite(installation:, repository_id:, full_name:, head_sha:, max_pages: WORKFLOW_RUNS_MAX_PAGES)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    raise Error, "Invalid submission commit SHA" unless head_sha.to_s.match?(/\A[a-fA-F0-9]{6,64}\z/)
+
+    pages_limit = Integer(max_pages)
+    raise Error, PROVIDER_ERROR unless pages_limit.positive?
+
+    paths = {}
+    expected_sha = head_sha.to_s.downcase
+    1.upto(pages_limit) do |page|
+      result, headers = installation_request(
+        installation,
+        :get,
+        "/repos/#{full_name}/actions/runs",
+        repository_id: repository_id,
+        query: { head_sha: head_sha, per_page: WORKFLOW_RUNS_PER_PAGE, page: page },
+        include_headers: true
+      )
+      runs = result["workflow_runs"]
+      raise Error, PROVIDER_ERROR unless runs.is_a?(Array)
+
+      runs.each do |run|
+        next unless run.is_a?(Hash)
+        next unless run["head_sha"].to_s.downcase == expected_sha
+
+        suite_id = run["check_suite_id"]
+        path = run["path"].is_a?(String) ? run["path"].strip : nil
+        next unless positive_id?(suite_id) && path.present?
+
+        paths[suite_id.to_i] ||= path
+      end
+
+      total_count = result["total_count"]
+      fetched_enough = total_count.is_a?(Integer) && (page * WORKFLOW_RUNS_PER_PAGE) >= total_count
+      more_pages = has_next_page?(headers) || (!fetched_enough && runs.size >= WORKFLOW_RUNS_PER_PAGE)
+      break unless more_pages
+    end
+    paths
+  rescue Error => error
+    return {} if [ 403, 404 ].include?(error.status) && !error.rate_limited?
+
+    raise
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end

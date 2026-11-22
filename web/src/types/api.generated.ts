@@ -776,6 +776,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/submissions/{id}/evaluate_grade_suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvaluateGradeSuggestionResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/content_blocks/{id}/check_policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExerciseCheckPolicyResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ExerciseCheckPolicyInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExerciseCheckPolicyResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExerciseCheckPolicyResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/content_blocks/{id}/video_progress": {
         parameters: {
             query?: never;
@@ -6780,6 +6900,63 @@ export interface components {
         };
         LessonResponse: {
             lesson: components["schemas"]["LessonDetail"];
+        };
+        ExerciseCheckPolicyInput: {
+            required_checks: string[];
+            allowed_app_slugs?: string[];
+            allowed_branch?: string | null;
+            expected_workflow_path?: string | null;
+            expected_workflow_sha?: string | null;
+        };
+        ExerciseCheckPolicy: {
+            id: number;
+            content_block_id: number;
+            version: number;
+            active: boolean;
+            required_checks: string[];
+            allowed_app_slugs: string[];
+            allowed_branch: string | null;
+            expected_workflow_path: string | null;
+            expected_workflow_sha: string | null;
+            created_by_id: number | null;
+            created_by_name: string | null;
+            created_at: string | null;
+            updated_at: string | null;
+        };
+        ExerciseCheckPolicyResponse: {
+            content_block_id: number;
+            active_policy: components["schemas"]["ExerciseCheckPolicy"] | null;
+            versions: components["schemas"]["ExerciseCheckPolicy"][];
+        };
+        SubmissionGradeSuggestion: {
+            id: number;
+            submission_id: number;
+            enrollment_id: number;
+            content_block_id: number;
+            exercise_check_policy_id: number | null;
+            policy_version: number | null;
+            commit_sha: string | null;
+            /** @enum {string} */
+            outcome: "suggest_b" | "review_for_redo" | "no_suggestion" | "stale_evidence";
+            /** @enum {string|null} */
+            suggested_grade: "B" | null;
+            /** @enum {string} */
+            reason_code: "all_required_checks_passed" | "required_check_failed" | "missing_policy" | "unverified_revision" | "missing_required_check" | "check_pending" | "check_inconclusive" | "untrusted_producer" | "workflow_tampered" | "branch_mismatch" | "stale_sha" | "stale_policy" | "superseded_submission";
+            reason_summary: string;
+            evidence: {
+                [key: string]: unknown;
+            };
+            evaluated_at: string;
+            stale_for_current_policy: boolean;
+            /** @enum {string|null} */
+            decision: "accepted" | "overridden" | "dismissed" | null;
+            override_reason: string | null;
+            decided_by_id: number | null;
+            decided_at: string | null;
+            updated_at: string;
+        };
+        EvaluateGradeSuggestionResponse: {
+            grade_suggestion: components["schemas"]["SubmissionGradeSuggestion"];
         };
         GithubIssueDelivery: {
             /** @enum {string} */

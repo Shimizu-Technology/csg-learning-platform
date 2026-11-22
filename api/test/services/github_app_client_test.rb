@@ -139,6 +139,82 @@ class GithubAppClientTest < ActiveSupport::TestCase
     assert_raises(GithubAppClient::Error) { @client.files(installation: @installation, repository: repository, filenames: [ "nested/111.rb" ]) }
   end
 
+  test "source fetch captures workflow_paths blob OID and SHA-256 at the exact submitted SHA" do
+    repository = { "id" => 98765, "full_name" => "app-learner/prework-exercises" }
+    workflow_text = "name: Prework Checks\n"
+    workflow_oid = "d" * 40
+    captured_queries = []
+    original_request = @transport.method(:request)
+    @transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/graphql")
+        captured_queries << JSON.parse(options.fetch(:body)).fetch("query")
+        return Response.new(200, { "data" => { "repository" => {
+          "fullDatabaseId" => "98765",
+          "defaultBranchRef" => { "name" => "main", "target" => { "oid" => "c" * 40 } },
+          "file_0" => { "text" => "puts 'source'", "byteSize" => "puts 'source'".bytesize, "isTruncated" => false },
+          "workflow_0" => { "oid" => workflow_oid, "text" => workflow_text, "byteSize" => workflow_text.bytesize, "isTruncated" => false },
+          "workflow_1" => nil
+        } } })
+      end
+      original_request.call(method, url, options)
+    end
+
+    result = @client.files(
+      installation: @installation,
+      repository: repository,
+      filenames: [ "111.rb" ],
+      workflow_paths: [ ".github/workflows/prework-checks.yml", ".github/workflows/missing.yml" ]
+    )
+    query = captured_queries.last
+    assert_includes query, "#{'c' * 40}:.github/workflows/prework-checks.yml"
+    assert_includes query, "#{'c' * 40}:.github/workflows/missing.yml"
+    assert_equal(
+      {
+        ".github/workflows/prework-checks.yml" => {
+          "present" => true,
+          "oid" => workflow_oid,
+          "sha256" => Digest::SHA256.hexdigest(workflow_text)
+        },
+        ".github/workflows/missing.yml" => { "present" => false }
+      },
+      result[:workflow_files]
+    )
+  end
+
+  test "binary or truncated workflow blobs do not block importing valid exercise source files" do
+    repository = { "id" => 98765, "full_name" => "app-learner/prework-exercises" }
+    binary_oid = "e" * 40
+    truncated_oid = "f" * 40
+    original_request = @transport.method(:request)
+    @transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/graphql")
+        return Response.new(200, { "data" => { "repository" => {
+          "fullDatabaseId" => "98765",
+          "defaultBranchRef" => { "name" => "main", "target" => { "oid" => "c" * 40 } },
+          "file_0" => { "text" => "puts 'valid exercise'", "byteSize" => "puts 'valid exercise'".bytesize, "isTruncated" => false },
+          "workflow_0" => { "oid" => binary_oid, "text" => nil, "byteSize" => 512, "isTruncated" => false },
+          "workflow_1" => { "oid" => truncated_oid, "text" => "name: huge", "byteSize" => 999_999, "isTruncated" => true }
+        } } })
+      end
+      original_request.call(method, url, options)
+    end
+
+    result = @client.files(
+      installation: @installation,
+      repository: repository,
+      filenames: [ "111.rb" ],
+      workflow_paths: [ ".github/workflows/binary.yml", ".github/workflows/huge.yml" ]
+    )
+    assert_equal [ { "name" => "111.rb", "text" => "puts 'valid exercise'" } ], result[:files]
+    assert_equal(
+      {
+        ".github/workflows/binary.yml" => { "present" => true, "unreadable" => true, "oid" => binary_oid, "sha256" => nil },
+        ".github/workflows/huge.yml" => { "present" => true, "unreadable" => true, "oid" => truncated_oid, "sha256" => nil }
+      },
+      result[:workflow_files]
+    )
+  end
+
   test "nearly expired response token is not cached or used" do
     @transport.token_expiry = 20.seconds.from_now
     assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }
@@ -159,7 +235,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
 
   test "unexpected provider bodies become generic errors at every public boundary" do
     [ {}, [], { "token" => "SECRET" } ].each do |body|
-      [ :installation, :repository, :files, :checks ].each do |operation|
+      [ :installation, :repository, :files, :checks, :workflow_paths_by_check_suite ].each do |operation|
         transport = Transport.new
         original = transport.method(:request)
         transport.define_singleton_method(:request) do |method, url, options|
@@ -172,6 +248,7 @@ class GithubAppClientTest < ActiveSupport::TestCase
           when :repository then client.repository(installation: @installation, full_name: "app-learner/prework-exercises")
           when :files then client.files(installation: @installation, repository: { "id" => 98765, "full_name" => "app-learner/prework-exercises" }, filenames: [ "111.rb" ])
           when :checks then client.checks(installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises", sha: "a" * 40, page: 1)
+          when :workflow_paths_by_check_suite then client.workflow_paths_by_check_suite(installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises", head_sha: "a" * 40)
           end
         end
         assert_equal GithubAppClient::PROVIDER_ERROR, error.message
@@ -180,6 +257,94 @@ class GithubAppClientTest < ActiveSupport::TestCase
     @transport.define_singleton_method(:post) { |*args, **kwargs| Response.new(201, {}) }
     error = assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }
     assert_equal GithubAppClient::PROVIDER_ERROR, error.message
+  end
+
+  test "workflow_paths_by_check_suite resolves check_suite_id to path across pages and degrades on 403/404 without actions:read" do
+    sha = "a" * 40
+    pages_seen = []
+    actions_transport = Transport.new
+    original_request = actions_transport.method(:request)
+    actions_transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/actions/runs") && method == :get
+        page = options.dig(:query, :page).to_i
+        pages_seen << [ page, options.dig(:query, :head_sha) ]
+        if page == 1
+          return Response.new(
+            200,
+            {
+              "total_count" => 2,
+              "workflow_runs" => [
+                { "id" => 1, "check_suite_id" => 77_001, "head_sha" => sha.upcase, "path" => ".github/workflows/prework.yml" },
+                { "id" => 2, "check_suite_id" => 77_002, "head_sha" => "b" * 40, "path" => ".github/workflows/other-sha.yml" },
+                { "id" => 3, "check_suite_id" => 77_003, "head_sha" => sha, "path" => "   " }
+              ]
+            },
+            { "Link" => '<https://api.github.com/repos/app-learner/prework-exercises/actions/runs?page=2>; rel="next"' }
+          )
+        elsif page == 2
+          return Response.new(
+            200,
+            {
+              "total_count" => 2,
+              "workflow_runs" => [
+                { "id" => 4, "check_suite_id" => 77_004, "head_sha" => sha, "path" => ".github/workflows/lint.yml" }
+              ]
+            },
+            {}
+          )
+        end
+      end
+      original_request.call(method, url, options)
+    end
+    client = GithubAppClient.new(transport: actions_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+
+    resolved = client.workflow_paths_by_check_suite(
+      installation: @installation,
+      repository_id: 98765,
+      full_name: "app-learner/prework-exercises",
+      head_sha: sha
+    )
+    assert_equal({ 77_001 => ".github/workflows/prework.yml", 77_004 => ".github/workflows/lint.yml" }, resolved)
+    assert_equal [ [ 1, sha ], [ 2, sha ] ], pages_seen
+
+    # 403/404 from missing actions:read degrades gracefully to {} without raising.
+    [ 403, 404 ].each do |status|
+      denied_transport = Transport.new
+      denied_orig = denied_transport.method(:request)
+      denied_transport.define_singleton_method(:request) do |method, url, options|
+        return Response.new(status, { "message" => "Resource not accessible by integration" }, {}) if url.end_with?("/actions/runs")
+
+        denied_orig.call(method, url, options)
+      end
+      denied_client = GithubAppClient.new(transport: denied_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+      assert_equal({}, denied_client.workflow_paths_by_check_suite(
+        installation: @installation,
+        repository_id: 98765,
+        full_name: "app-learner/prework-exercises",
+        head_sha: sha
+      ))
+    end
+
+    # Rate-limited 403 still raises transient rate_limited GithubAppClient::Error.
+    rate_transport = Transport.new
+    rate_orig = rate_transport.method(:request)
+    rate_transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/actions/runs")
+        return Response.new(403, { "message" => "API rate limit exceeded" }, { "X-RateLimit-Remaining" => "0" })
+      end
+
+      rate_orig.call(method, url, options)
+    end
+    rate_client = GithubAppClient.new(transport: rate_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+    err = assert_raises(GithubAppClient::Error) do
+      rate_client.workflow_paths_by_check_suite(
+        installation: @installation,
+        repository_id: 98765,
+        full_name: "app-learner/prework-exercises",
+        head_sha: sha
+      )
+    end
+    assert err.rate_limited?
   end
 
   test "issue lifecycle methods scope installation tokens to numeric repository_id and ignore PRs in marker search" do
