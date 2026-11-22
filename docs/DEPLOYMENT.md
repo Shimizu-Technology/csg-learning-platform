@@ -1289,13 +1289,73 @@ with the numeric binding and do not follow renames. Manual source sync and check
 the App only for these opted-in cohorts; issue delivery and organization
 invitations retain their existing paths in this slice.
 
-**Deferred configuration:** no events or webhook URL are required by slice 2;
-leave webhooks inactive. Slice 5 will need `GITHUB_APP_WEBHOOK_SECRET` (or
-`github_app.webhook_secret`) and the `check_run`, `push`, `installation`, and
-`installation_repositories` events. Do not enter the webhook secret into Learn.
-Add **Issues: write** for the feedback slice. **Actions: read** is deferred until
-workflow-run provenance requires it; repository contents write and organization
-membership administration are unnecessary.
+### Signed GitHub webhooks (X-6 slice 5)
+
+Leave `github_webhooks` Off until the App webhook secret and a disposable
+repository have been verified. Webhook processing requires **both** `github_app`
+and `github_webhooks` On at the school level AND explicitly On for the cohort.
+Inherit leaves the cohort Off; signed deliveries for Off cohorts (including
+Cohort 3) still record a bounded `github_webhook_deliveries` receipt marked
+`ignored` (pruned by retention), while the cohort's check runs, installations,
+and repository bindings remain untouched.
+
+Configure the webhook signing secret in the API secret store (never enter it
+into Learn):
+
+| ENV name | Fallback / Rails credentials key |
+| --- | --- |
+| `GITHUB_WEBHOOK_SECRET` | `GITHUB_APP_WEBHOOK_SECRET` or `github_app.webhook_secret` |
+
+Point the GitHub App webhook URL to `https://<api-host>/api/v1/webhooks/github`
+with content type `application/json`. Subscribe manually to the `check_run` and
+`push` events in the GitHub App settings; `installation` and
+`installation_repositories` events are delivered automatically by GitHub Apps.
+The endpoint is mounted
+as a pre-controller Rack boundary that enforces the public rate limit, caps raw
+reads at 1 MiB (`413`), and authenticates strictly via raw-body HMAC-SHA256
+(`X-Hub-Signature-256`) with no Clerk JWT before any JSON parsing or Rails
+parameter logging occurs. Unsigned requests return `401` (or `503` if the secret
+is unconfigured), and receipt performs zero external GitHub HTTP calls.
+Supported events (`check_run`, `push`, `installation`, and
+`installation_repositories`) are persisted in `github_webhook_deliveries` by
+unique `X-GitHub-Delivery` before returning `200`; unmatched or
+provenance-ambiguous events are stored as `staged` for reconciliation. Valid
+signed `ping` (and other unsupported) events return `200` with
+`status: "ignored"` without inserting a `github_webhook_deliveries` row.
+
+**Redelivery and failed-delivery recovery:** GitHub does **not** automatically
+retry `503`/5xx webhook deliveries, and GitHub only supports manual webhook
+redelivery for **3 days** (local 14-day retention of `failed` receipts does not
+extend GitHub's 3-day redelivery window; no GitHub event replay exists past 3
+days).
+- **Failures before durable persistence** (for example, a database outage or an
+  unconfigured secret returning `503`): within GitHub's 3-day window, redeliver
+  the failed event manually from the GitHub App settings (**Advanced → Recent
+  Deliveries**) or via GitHub's `POST /app/hook/deliveries/{delivery_id}/attempts`
+  REST API once the issue is resolved.
+- **Persisted `pending` or `failed` receipts** (written to
+  `github_webhook_deliveries` before a local processing error): within GitHub's
+  3-day window, redelivering the same `X-GitHub-Delivery` via GitHub manual
+  redelivery resumes local processing idempotently.
+- **Persisted `staged` receipts (and recovery past GitHub's 3-day window)**:
+  redelivering an already `staged` delivery returns its stored `"staged"` status
+  without re-running local attachment. Automatic `staged` replay and hourly
+  GitHub reconciliation arrive in the follow-up reconciliation slice (X-6.6);
+  until then (and for any check data missed past GitHub's 3-day redelivery
+  window), operators can use manual **Refresh checks** in the grading workbench
+  to fetch current check runs directly from GitHub (separate from webhook event
+  replay).
+
+**Bounded retention:** `ScheduledTick`'s `github_webhook_retention` task
+performs bounded pruning only (up to 1,000 rows per tick), removing settled
+`processed` and `ignored` receipts after 30 days and unconsumed `staged`,
+`failed`, or abandoned `pending` receipts after 14 days (also callable manually
+via `GithubWebhookDelivery.prune_expired!`).
+
+**Remaining deferred permissions:** add **Issues: write** for the feedback
+slice. **Actions: read** is deferred until workflow-run provenance requires it;
+repository contents write and organization-membership administration are
+unnecessary.
 
 Provider contract references: [user token revocation](https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-token),
 [GitHub user authorization and PKCE](https://docs.github.com/en/enterprise-cloud@latest/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),

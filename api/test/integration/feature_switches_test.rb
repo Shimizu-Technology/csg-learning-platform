@@ -384,6 +384,28 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "github_webhooks defaults off and requires both school activation and explicit cohort opt-in" do
+    assert_equal false, FeatureSwitches.school(read_only: true).fetch("github_webhooks")
+    assert_equal false, FeatureSwitches.for(cohort: @cohort).fetch("github_webhooks")
+    assert_not FeatureSwitches.for_client(FeatureSwitches.for(cohort: @cohort)).key?("github_webhooks")
+
+    [
+      [ nil, nil, false ],
+      [ false, true, false ],
+      [ true, nil, false ],
+      [ true, false, false ],
+      [ true, true, true ]
+    ].each do |school_val, cohort_val, expected|
+      SchoolSetting.current.update!(features: school_val.nil? ? {} : { "github_webhooks" => school_val })
+      @cohort.update!(settings: { "features" => cohort_val.nil? ? {} : { "github_webhooks" => cohort_val } })
+      resolved = FeatureSwitches.for(cohort: @cohort.reload)
+      assert_equal expected, resolved.fetch("github_webhooks"),
+        "expected #{expected} for school=#{school_val.inspect} cohort=#{cohort_val.inspect}"
+      client = FeatureSwitches.for_client(resolved)
+      assert_not client.key?("github_webhooks")
+    end
+  end
+
   test "github_issue_delivery_v2 defaults off and requires both school activation and explicit cohort opt-in" do
     assert_equal false, FeatureSwitches.school(read_only: true).fetch("github_issue_delivery_v2")
     assert_equal false, FeatureSwitches.for(cohort: @cohort).fetch("github_issue_delivery_v2")

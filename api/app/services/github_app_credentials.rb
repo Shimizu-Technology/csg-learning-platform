@@ -8,6 +8,10 @@ class GithubAppCredentials
   def self.private_key = value(:private_key).to_s.gsub('\\n', "\n")
   def self.client_id = value(:client_id).to_s
   def self.client_secret = value(:client_secret).to_s
+  def self.webhook_secret
+    ENV["GITHUB_WEBHOOK_SECRET"].presence || value(:webhook_secret).to_s
+  end
+  def self.webhook_configured? = webhook_secret.present?
   def self.user_callback_url
     value(:user_callback_url).presence || "#{ENV.fetch('FRONTEND_URL', 'http://localhost:5173').delete_suffix('/')}/github-app/authorize"
   end

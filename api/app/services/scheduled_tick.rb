@@ -32,6 +32,8 @@ class ScheduledTick
     # Hourly, so a 24h or 48h reminder lands within the hour it becomes due;
     # it sends nothing 21:00-08:00 Guam time (W9.3).
     Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) }),
+    # Bounded batched pruning of expired webhook delivery receipts (X-6.5).
+    Task.new(name: "github_webhook_retention", daily_hour: nil, call: ->(now, _last_date, metrics) { GithubWebhookDelivery.prune_for_tick!(now: now, metrics: metrics) }),
     # Hourly: drain durable Redo/close GitHub issue intents for opted-in cohorts (X-6.8).
     # Runs outside the global advisory-lock transaction with its own durable row/scope leases
     # and wall-clock budget so GitHub HTTP never pins a PgBouncer transaction.
@@ -130,6 +132,7 @@ class ScheduledTick
     when "scheduled_updates" then ScheduledAnnouncementPublisher.preview(@now)
     when "expo_push_receipts" then { would_claim: ExpoPushReceipt.due.limit(ExpoPushReceiptJob::BATCH_SIZE).count }
     when "learner_nudges" then LearnerNudges.preview(@now)
+    when "github_webhook_retention" then GithubWebhookDelivery.prune_preview(now: @now)
     when "github_issue_deliveries" then GithubIssueDeliveryDrain.preview(@now)
     else {}
     end
