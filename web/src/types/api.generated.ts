@@ -5463,11 +5463,25 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description GitHub webhook event name (for example check_run, push, installation, installation_repositories, or ping). */
+                    "X-GitHub-Event": string;
+                    /** @description Unique GitHub webhook delivery identifier used for idempotent receipt deduplication. */
+                    "X-GitHub-Delivery": string;
+                    /** @description HMAC-SHA256 digest (`sha256=<64 lowercase hex chars>`) computed over the exact raw request body bytes sent. */
+                    "X-Hub-Signature-256": string;
+                };
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            /** @description Raw GitHub webhook JSON object payload (up to 1 MiB). HMAC-SHA256 in X-Hub-Signature-256 must be computed over the exact raw request body bytes sent. */
+            requestBody: {
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
             responses: {
                 /** @description Signed webhook accepted and recorded or ignored */
                 200: {
@@ -5503,6 +5517,17 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+                /** @description Public webhook rate limit exceeded */
+                429: {
+                    headers: {
+                        /** @description Rate-limit window in seconds before retrying. */
+                        "Retry-After"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiRateLimitError"];
                     };
                 };
                 /** @description Webhook secret unconfigured or durable storage unavailable */

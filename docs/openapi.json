@@ -4491,7 +4491,51 @@
     "/api/v1/webhooks/github": {
       "post": {
         "summary": "Receive signed GitHub App webhooks (raw-body HMAC-SHA256 authenticated; no Clerk JWT)",
-        "parameters": [],
+        "security": [],
+        "parameters": [
+          {
+            "name": "X-GitHub-Event",
+            "in": "header",
+            "required": true,
+            "description": "GitHub webhook event name (for example check_run, push, installation, installation_repositories, or ping).",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "X-GitHub-Delivery",
+            "in": "header",
+            "required": true,
+            "description": "Unique GitHub webhook delivery identifier used for idempotent receipt deduplication.",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Hub-Signature-256",
+            "in": "header",
+            "required": true,
+            "description": "HMAC-SHA256 digest (`sha256=<64 lowercase hex chars>`) computed over the exact raw request body bytes sent.",
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256=[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Raw GitHub webhook JSON object payload (up to 1 MiB). HMAC-SHA256 in X-Hub-Signature-256 must be computed over the exact raw request body bytes sent.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Signed webhook accepted and recorded or ignored",
@@ -4529,6 +4573,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Public webhook rate limit exceeded",
+            "headers": {
+              "Retry-After": {
+                "description": "Rate-limit window in seconds before retrying.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiRateLimitError"
                 }
               }
             }

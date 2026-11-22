@@ -12,6 +12,7 @@ class CreateGithubWebhookDeliveriesTest < ActiveSupport::TestCase
     connection = ActiveRecord::Base.connection
     refute connection.table_exists?(:github_webhook_deliveries)
     refute connection.column_exists?(:submissions, :github_repository_id)
+    refute connection.column_exists?(:github_check_runs, :check_suite_id)
 
     migration.migrate(:up)
     # Re-running up is idempotent.
@@ -19,6 +20,7 @@ class CreateGithubWebhookDeliveriesTest < ActiveSupport::TestCase
 
     assert connection.table_exists?(:github_webhook_deliveries)
     assert connection.column_exists?(:submissions, :github_repository_id)
+    assert connection.column_exists?(:github_check_runs, :check_suite_id)
     refute connection.columns(:github_webhook_deliveries).any? { |column| column.name.match?(/private_key|secret|token/) }
 
     indexes = connection.indexes(:github_webhook_deliveries)
@@ -65,10 +67,11 @@ class CreateGithubWebhookDeliveriesTest < ActiveSupport::TestCase
   ensure
     begin
       migration&.migrate(:up) unless ActiveRecord::Base.connection.table_exists?(:github_webhook_deliveries) &&
-        ActiveRecord::Base.connection.column_exists?(:submissions, :github_repository_id)
+        ActiveRecord::Base.connection.column_exists?(:submissions, :github_repository_id) &&
+        ActiveRecord::Base.connection.column_exists?(:github_check_runs, :check_suite_id)
     ensure
       ActiveRecord::Base.connection_handler.connection_pool_list.each { |pool| pool.connections.each(&:clear_cache!) }
-      [ GithubWebhookDelivery, Submission ].each(&:reset_column_information)
+      [ GithubWebhookDelivery, Submission, GithubCheckRun ].each(&:reset_column_information)
     end
   end
 end

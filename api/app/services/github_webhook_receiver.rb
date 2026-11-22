@@ -3,6 +3,7 @@ require "openssl"
 class GithubWebhookReceiver
   MAX_PAYLOAD_BYTES = 1.megabyte
   MAX_REPOSITORIES_LIST = 1000
+  MAX_UNIX_TIMESTAMP_SECONDS = 253_402_300_799
   ZERO_SHA = ("0" * 40).freeze
 
   Result = Data.define(:status, :body)
@@ -426,6 +427,7 @@ class GithubWebhookReceiver
             name: data["name"],
             workflow_name: data["workflow_name"],
             app_slug: data["app_slug"],
+            check_suite_id: positive_integer(data["check_suite_id"]),
             head_sha: head_sha,
             status: data["status"],
             conclusion: data["conclusion"],
@@ -593,6 +595,14 @@ class GithubWebhookReceiver
   end
 
   def parse_time(value)
+    if value.is_a?(Integer)
+      return nil if value.negative? || value > MAX_UNIX_TIMESTAMP_SECONDS
+
+      return Time.at(value).utc
+    end
+
     GithubCheckRunMerger.parse_time(value)
+  rescue RangeError
+    nil
   end
 end

@@ -1316,9 +1316,12 @@ reads at 1 MiB (`413`), and authenticates strictly via raw-body HMAC-SHA256
 (`X-Hub-Signature-256`) with no Clerk JWT before any JSON parsing or Rails
 parameter logging occurs. Unsigned requests return `401` (or `503` if the secret
 is unconfigured), and receipt performs zero external GitHub HTTP calls.
-Deliveries are persisted in `github_webhook_deliveries` by unique
-`X-GitHub-Delivery` before returning `200`; unmatched or provenance-ambiguous
-events are stored as `staged` for reconciliation.
+Supported events (`check_run`, `push`, `installation`, and
+`installation_repositories`) are persisted in `github_webhook_deliveries` by
+unique `X-GitHub-Delivery` before returning `200`; unmatched or
+provenance-ambiguous events are stored as `staged` for reconciliation. Valid
+signed `ping` (and other unsupported) events return `200` with
+`status: "ignored"` without inserting a `github_webhook_deliveries` row.
 
 **Redelivery and failed-delivery recovery:** GitHub does **not** automatically
 retry `503`/5xx webhook deliveries, and GitHub only supports manual webhook

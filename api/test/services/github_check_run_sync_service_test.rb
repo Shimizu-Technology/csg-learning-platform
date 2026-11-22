@@ -39,7 +39,7 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
           "started_at" => "2026-08-15T00:00:00Z",
           "completed_at" => "2026-08-15T00:01:00Z",
           "app" => { "slug" => "github-actions" },
-          "check_suite" => { "app" => { "name" => "GitHub Actions" } },
+          "check_suite" => { "id" => 901, "app" => { "name" => "GitHub Actions" } },
           "output" => { "text" => "private logs are intentionally ignored" }
         } ]
       })
@@ -52,6 +52,7 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
     assert_equal "test", run.name
     assert_equal "success", run.conclusion
     assert_equal "github-actions", run.app_slug
+    assert_equal 901, run.check_suite_id
     refute_includes run.attributes.to_json, "private logs"
     assert_not @submission.github_check_runs.exists?(external_id: 80)
     assert @submission.github_check_runs.exists?(external_id: 79), "prior-commit history should remain available for audit"

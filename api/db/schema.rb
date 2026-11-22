@@ -554,6 +554,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
 
   create_table "github_check_runs", force: :cascade do |t|
     t.string "app_slug"
+    t.bigint "check_suite_id"
     t.datetime "completed_at"
     t.string "conclusion"
     t.datetime "created_at", null: false

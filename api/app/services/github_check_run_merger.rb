@@ -73,9 +73,11 @@ class GithubCheckRunMerger
     false
   end
 
-  def self.superseded_by_newer_same_name_run?(submission:, external_id:, head_sha:, name:, app_slug:, status:, completed_at:)
+  def self.superseded_by_newer_same_name_run?(submission:, external_id:, head_sha:, name:, app_slug:, check_suite_id:, status:, completed_at:)
+    return false unless check_suite_id.present?
+
     peers = submission.github_check_runs
-      .where(head_sha: head_sha, name: name, app_slug: app_slug)
+      .where(head_sha: head_sha, name: name, app_slug: app_slug, check_suite_id: check_suite_id)
       .where.not(external_id: external_id)
       .where(status: "completed")
       .to_a
@@ -96,6 +98,7 @@ class GithubCheckRunMerger
     head_sha = attributes.fetch(:head_sha)
     incoming_status = attributes.fetch(:status)
     incoming_conclusion = attributes[:conclusion]
+    incoming_check_suite_id = positive_integer(attributes[:check_suite_id])
     incoming_started_at = parse_time(attributes[:started_at])
     incoming_completed_at = parse_time(attributes[:completed_at])
 
@@ -119,6 +122,7 @@ class GithubCheckRunMerger
       head_sha: head_sha,
       name: attributes.fetch(:name),
       app_slug: attributes[:app_slug],
+      check_suite_id: incoming_check_suite_id,
       status: incoming_status,
       completed_at: incoming_completed_at
     )
@@ -129,6 +133,7 @@ class GithubCheckRunMerger
       name: attributes.fetch(:name),
       workflow_name: attributes[:workflow_name].presence || run.workflow_name,
       app_slug: attributes[:app_slug].presence || run.app_slug,
+      check_suite_id: incoming_check_suite_id || run.check_suite_id,
       head_sha: head_sha,
       status: incoming_status,
       conclusion: incoming_conclusion,
@@ -173,6 +178,7 @@ class GithubCheckRunMerger
             name: attrs.fetch("name"),
             workflow_name: attrs.dig("check_suite", "app", "name"),
             app_slug: attrs.dig("app", "slug"),
+            check_suite_id: attrs.dig("check_suite", "id"),
             head_sha: attrs.fetch("head_sha"),
             status: attrs.fetch("status"),
             conclusion: attrs["conclusion"],
@@ -206,6 +212,14 @@ class GithubCheckRunMerger
         .reverse
       { check_runs: imported, error: nil }
     end
+  end
+
+  def self.positive_integer(value)
+    return value if value.is_a?(Integer) && value.positive? && value <= 9_223_372_036_854_775_807
+    return nil unless value.is_a?(String) && value.match?(/\A[1-9]\d{0,18}\z/)
+
+    int = value.to_i
+    int <= 9_223_372_036_854_775_807 ? int : nil
   end
 
   def self.parse_time(value)

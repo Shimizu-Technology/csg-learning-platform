@@ -513,6 +513,94 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_equal "verified", @binding.reload.verification_state
   end
 
+  test "installation_repositories removed parses integer Unix timestamp installation.updated_at" do
+    reverified_at = Time.utc(2026, 11, 22, 12, 15, 0)
+    @binding.update!(verification_state: "verified", failure_reason: nil, verified_at: reverified_at, checked_at: reverified_at)
+
+    # Older integer Unix timestamp must NOT revoke the binding and must stage.
+    older_epoch = (reverified_at - 5.minutes).to_i
+    older_removed = {
+      action: "removed",
+      installation: { id: 123, repository_selection: "selected", updated_at: older_epoch },
+      repositories_removed: [ { id: 98765, full_name: "app-learner/prework-exercises" } ],
+      repositories_added: []
+    }.to_json
+    post WEBHOOK_PATH, params: older_removed, headers: signed_headers(older_removed, event: "installation_repositories", delivery_id: "del-epoch-older-removed")
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_equal "verified", @binding.reload.verification_state
+    older_delivery = GithubWebhookDelivery.find_by!(delivery_id: "del-epoch-older-removed")
+    assert_equal Time.at(older_epoch).utc.iso8601, older_delivery.payload.dig("installation", "updated_at")
+
+    # Newer integer Unix timestamp proves ordering and revokes the removed binding cleanly.
+    newer_epoch = (reverified_at + 10.seconds).to_i
+    newer_removed = {
+      action: "removed",
+      installation: { id: 123, repository_selection: "selected", updated_at: newer_epoch },
+      repositories_removed: [ { id: 98765, full_name: "app-learner/prework-exercises" } ],
+      repositories_added: []
+    }.to_json
+    post WEBHOOK_PATH, params: newer_removed, headers: signed_headers(newer_removed, event: "installation_repositories", delivery_id: "del-epoch-newer-removed")
+    assert_response :ok
+    assert_equal "processed", response.parsed_body.fetch("status")
+    @binding.reload
+    assert_equal "failed", @binding.verification_state
+    assert_nil @binding.verified_at
+    assert_match(/removed/i, @binding.failure_reason)
+    newer_delivery = GithubWebhookDelivery.find_by!(delivery_id: "del-epoch-newer-removed")
+    assert_equal Time.at(newer_epoch).utc.iso8601, newer_delivery.payload.dig("installation", "updated_at")
+  end
+
+  test "same-name check_run suppression is scoped to matching check_suite_id" do
+    # Newer completed run in check_suite 901 arrives first.
+    suite_a_newer = check_run_payload(
+      external_id: 6200,
+      check_suite_id: 901,
+      name: "test",
+      status: "completed",
+      conclusion: "success",
+      started_at: "2026-11-22T02:04:00Z",
+      completed_at: "2026-11-22T02:05:00Z"
+    ).to_json
+    post WEBHOOK_PATH, params: suite_a_newer, headers: signed_headers(suite_a_newer, event: "check_run", delivery_id: "del-suite-a-newer")
+    assert_response :ok
+
+    # Out-of-order run with the SAME name/app_slug/head_sha from a DIFFERENT check_suite (902)
+    # must still be stored even with an older completed_at and smaller external_id.
+    suite_b_failure = check_run_payload(
+      external_id: 6150,
+      check_suite_id: 902,
+      name: "test",
+      status: "completed",
+      conclusion: "failure",
+      started_at: "2026-11-22T02:00:00Z",
+      completed_at: "2026-11-22T02:01:00Z"
+    ).to_json
+    post WEBHOOK_PATH, params: suite_b_failure, headers: signed_headers(suite_b_failure, event: "check_run", delivery_id: "del-suite-b-older")
+    assert_response :ok
+
+    run_a = @submission.github_check_runs.find_by!(external_id: 6200)
+    run_b = @submission.github_check_runs.find_by!(external_id: 6150)
+    assert_equal 901, run_a.check_suite_id
+    assert_equal "success", run_a.conclusion
+    assert_equal 902, run_b.check_suite_id
+    assert_equal "failure", run_b.conclusion
+
+    # An older superseded run in the SAME check_suite (901) is still rejected.
+    suite_a_superseded = check_run_payload(
+      external_id: 6100,
+      check_suite_id: 901,
+      name: "test",
+      status: "completed",
+      conclusion: "failure",
+      started_at: "2026-11-22T01:55:00Z",
+      completed_at: "2026-11-22T01:58:00Z"
+    ).to_json
+    post WEBHOOK_PATH, params: suite_a_superseded, headers: signed_headers(suite_a_superseded, event: "check_run", delivery_id: "del-suite-a-superseded")
+    assert_response :ok
+    assert_not @submission.github_check_runs.exists?(external_id: 6100)
+  end
+
   test "unknown repository and Off cohorts including Cohort 3 are ignored with zero writes" do
     # Unknown repository
     unknown_body = check_run_payload(repository_id: 999_999, external_id: 8001).to_json
@@ -907,6 +995,7 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
 
   def check_run_payload(
     external_id: 5001,
+    check_suite_id: 900,
     name: "prework/111.rb",
     status: "completed",
     conclusion: "success",
@@ -929,7 +1018,7 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
         started_at: started_at,
         completed_at: completed_at,
         app: { slug: "github-actions" },
-        check_suite: { id: 900, app: { name: "GitHub Actions" } },
+        check_suite: { id: check_suite_id, app: { name: "GitHub Actions" } },
         output: { title: "Output", summary: "private log blob", text: "very long private log blob" }
       },
       repository: { id: repository_id, full_name: repository_full_name },
