@@ -134,10 +134,10 @@ class CurriculumCopyForCohort
     # Copied (new rows on the copy)
     "curricula" => :copy, "learning_objectives" => :copy, "rubrics" => :copy, "rubric_criteria" => :copy,
     "modules" => :copy, "lessons" => :copy, "content_blocks" => :copy, "knowledge_checks" => :copy,
-    "objective_alignments" => :copy, "curriculum_resources" => :copy,
+    "exercise_check_policies" => :copy, "objective_alignments" => :copy, "curriculum_resources" => :copy,
     # The cohort's rows move to the copy's ids
     "cohorts" => :remap, "cohort_module_schedules" => :remap, "cohort_module_submission_windows" => :remap,
-    "github_repository_bindings" => :remap, "github_issue_deliveries" => :remap, "lesson_recordings" => :remap,
+    "github_repository_bindings" => :remap, "github_issue_deliveries" => :remap, "submission_grade_suggestions" => :remap, "lesson_recordings" => :remap,
     "module_assignments" => :remap, "lesson_assignments" => :remap, "progresses" => :remap,
     "submissions" => :remap, "submission_criterion_results" => :remap, "knowledge_check_attempts" => :remap,
     "learner_extensions" => :remap, "learning_plans" => :remap, "learning_plan_revisions" => :remap, "help_requests" => :remap,
@@ -339,6 +339,9 @@ class CurriculumCopyForCohort
       row["content_block_id"] = @block_map.fetch(row["content_block_id"])
       row["learning_objective_id"] = @objective_map.fetch(row["learning_objective_id"], row["learning_objective_id"])
     end
+    @policy_map = copy_rows(ExerciseCheckPolicy, ExerciseCheckPolicy.where(content_block_id: @block_ids)) do |row|
+      row["content_block_id"] = @block_map.fetch(row["content_block_id"])
+    end
     alignments = copy_rows(ObjectiveAlignment, ObjectiveAlignment.where(lesson_id: @lesson_ids)) do |row|
       row["lesson_id"] = @lesson_map.fetch(row["lesson_id"])
       row["content_block_id"] = @block_map.fetch(row["content_block_id"]) if row["content_block_id"]
@@ -348,7 +351,7 @@ class CurriculumCopyForCohort
     @counts.merge!(
       "modules" => @module_map.size, "lessons" => @lesson_map.size, "content_blocks" => @block_map.size,
       "learning_objectives" => @objective_map.size, "rubrics" => @rubric_map.size, "rubric_criteria" => @criterion_map.size,
-      "knowledge_checks" => @check_map.size, "objective_alignments" => alignments.size
+      "knowledge_checks" => @check_map.size, "exercise_check_policies" => @policy_map.size, "objective_alignments" => alignments.size
     )
   end
 
@@ -402,6 +405,9 @@ class CurriculumCopyForCohort
     submission_ids = learner_rows(Submission).where(content_block_id: @block_map.keys).pluck(:id)
     @counts["submissions"] = remap_column(Submission.where(id: submission_ids), :content_block_id, @block_map)
     @counts["github_issue_deliveries"] = remap_column(GithubIssueDelivery.where(enrollment_id: @enrollment_ids), :content_block_id, @block_map)
+    suggestions_scope = SubmissionGradeSuggestion.where(enrollment_id: @enrollment_ids)
+    @counts["submission_grade_suggestions"] = remap_column(suggestions_scope, :content_block_id, @block_map)
+    remap_column(suggestions_scope, :exercise_check_policy_id, @policy_map)
     @counts["submission_criterion_results"] = remap_column(SubmissionCriterionResult.where(submission_id: submission_ids), :rubric_criterion_id, @criterion_map)
     @counts["knowledge_check_attempts"] = remap_column(learner_rows(KnowledgeCheckAttempt), :knowledge_check_id, @check_map)
     @counts["learner_extensions"] = 0
@@ -704,6 +710,7 @@ class CurriculumCopyForCohort
       "modules" => module_ids.size, "lessons" => lesson_ids.size, "content_blocks" => block_ids.size,
       "learning_objectives" => LearningObjective.where(curriculum_id: source.id).count, "rubrics" => rubric_ids.size,
       "rubric_criteria" => criterion_ids.size, "knowledge_checks" => check_ids.size,
+      "exercise_check_policies" => ExerciseCheckPolicy.where(content_block_id: block_ids).count,
       "objective_alignments" => ObjectiveAlignment.where(lesson_id: lesson_ids).count,
       "curriculum_resources" => CurriculumResource.where(curriculum_id: source.id, ready: true).count,
       "cohorts" => 1,
@@ -716,6 +723,7 @@ class CurriculumCopyForCohort
       "progresses" => rows.call(Progress, :content_block_id, block_ids).count,
       "submissions" => submission_ids.size,
       "github_issue_deliveries" => GithubIssueDelivery.where(enrollment_id: enrollment_ids, content_block_id: block_ids).count,
+      "submission_grade_suggestions" => SubmissionGradeSuggestion.where(enrollment_id: enrollment_ids, content_block_id: block_ids).count,
       "submission_criterion_results" => SubmissionCriterionResult.where(submission_id: submission_ids, rubric_criterion_id: criterion_ids).count,
       "knowledge_check_attempts" => rows.call(KnowledgeCheckAttempt, :knowledge_check_id, check_ids).count,
       "learner_extensions" => LearnerExtension.where(enrollment_id: enrollment_ids).where(lesson_id: lesson_ids).or(LearnerExtension.where(enrollment_id: enrollment_ids, module_id: module_ids)).count,

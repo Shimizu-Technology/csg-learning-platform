@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -494,6 +494,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
 
   add_check_constraint "enrollments", "self_paced_support_weeks > 0", name: "enrollment_support_weeks_positive", validate: false
 
+  create_table "exercise_check_policies", force: :cascade do |t|
+    t.bigint "content_block_id", null: false
+    t.integer "version", null: false
+    t.boolean "active", default: true, null: false
+    t.jsonb "required_checks", default: [], null: false
+    t.jsonb "allowed_app_slugs", default: ["github-actions"], null: false
+    t.string "allowed_branch"
+    t.string "expected_workflow_path"
+    t.string "expected_workflow_sha"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_block_id", "version"], name: "index_exercise_check_policies_on_block_and_version", unique: true
+    t.index ["content_block_id"], name: "index_exercise_check_policies_active_per_block", unique: true, where: "(active = true)"
+    t.index ["content_block_id"], name: "index_exercise_check_policies_on_content_block_id"
+    t.index ["created_by_id"], name: "index_exercise_check_policies_on_created_by_id"
+    t.check_constraint "jsonb_typeof(allowed_app_slugs) = 'array'::text", name: "exercise_check_policies_allowed_app_slugs_array"
+    t.check_constraint "jsonb_typeof(required_checks) = 'array'::text", name: "exercise_check_policies_required_checks_array"
+    t.check_constraint "version > 0", name: "exercise_check_policies_version_positive"
+  end
+
   create_table "expo_push_receipts", force: :cascade do |t|
     t.datetime "available_at", null: false
     t.datetime "created_at", null: false
@@ -567,6 +588,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
     t.bigint "submission_id", null: false
     t.datetime "updated_at", null: false
     t.string "workflow_name"
+    t.bigint "check_suite_id"
     t.index ["submission_id", "external_id"], name: "index_github_check_runs_on_submission_id_and_external_id", unique: true
     t.index ["submission_id", "head_sha"], name: "index_github_check_runs_on_submission_id_and_head_sha"
     t.index ["submission_id"], name: "index_github_check_runs_on_submission_id"
@@ -1433,6 +1455,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
     t.index ["submission_id"], name: "index_submission_criterion_results_on_submission_id"
   end
 
+  create_table "submission_grade_suggestions", force: :cascade do |t|
+    t.bigint "submission_id", null: false
+    t.bigint "enrollment_id", null: false
+    t.bigint "content_block_id", null: false
+    t.bigint "exercise_check_policy_id"
+    t.integer "policy_version"
+    t.string "commit_sha"
+    t.string "outcome", null: false
+    t.string "suggested_grade"
+    t.string "reason_code", null: false
+    t.text "reason_summary", null: false
+    t.jsonb "evidence", default: {}, null: false
+    t.datetime "evaluated_at", null: false
+    t.string "decision"
+    t.text "override_reason"
+    t.bigint "decided_by_id"
+    t.datetime "decided_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_block_id"], name: "index_submission_grade_suggestions_on_content_block_id"
+    t.index ["decided_by_id"], name: "index_submission_grade_suggestions_on_decided_by_id"
+    t.index ["enrollment_id", "content_block_id"], name: "index_submission_grade_suggestions_on_enrollment_and_block"
+    t.index ["enrollment_id"], name: "index_submission_grade_suggestions_on_enrollment_id"
+    t.index ["exercise_check_policy_id"], name: "index_submission_grade_suggestions_on_exercise_check_policy_id"
+    t.index ["outcome"], name: "index_submission_grade_suggestions_on_outcome"
+    t.index ["submission_id"], name: "index_submission_grade_suggestions_on_submission_id", unique: true
+    t.check_constraint "decision IS NULL OR (decision::text = ANY (ARRAY['accepted'::character varying, 'overridden'::character varying, 'dismissed'::character varying]::text[]))", name: "submission_grade_suggestions_decision_valid"
+    t.check_constraint "jsonb_typeof(evidence) = 'object'::text", name: "submission_grade_suggestions_evidence_object"
+    t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying, 'review_for_redo'::character varying, 'no_suggestion'::character varying, 'stale_evidence'::character varying]::text[])", name: "submission_grade_suggestions_outcome_valid"
+    t.check_constraint "policy_version IS NULL OR policy_version > 0", name: "submission_grade_suggestions_policy_version_positive"
+    t.check_constraint "suggested_grade IS NULL OR suggested_grade::text = 'B'::text", name: "submission_grade_suggestions_suggested_grade_valid"
+  end
+
   create_table "submissions", force: :cascade do |t|
     t.string "branch"
     t.string "commit_sha"
@@ -1621,6 +1676,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
   add_foreign_key "enrollment_restarts", "users", column: "student_id"
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
+  add_foreign_key "exercise_check_policies", "content_blocks", on_delete: :cascade
+  add_foreign_key "exercise_check_policies", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "expo_push_receipts", "mobile_push_tokens", on_delete: :cascade
   add_foreign_key "feature_switch_changes", "cohorts"
   add_foreign_key "feature_switch_changes", "users", column: "actor_id"
@@ -1724,6 +1781,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
   add_foreign_key "submission_audit_reviews", "users", column: "reviewed_by_id", on_delete: :nullify
   add_foreign_key "submission_criterion_results", "rubric_criteria", column: "rubric_criterion_id"
   add_foreign_key "submission_criterion_results", "submissions"
+  add_foreign_key "submission_grade_suggestions", "content_blocks", on_delete: :cascade
+  add_foreign_key "submission_grade_suggestions", "enrollments", on_delete: :cascade
+  add_foreign_key "submission_grade_suggestions", "exercise_check_policies", on_delete: :nullify
+  add_foreign_key "submission_grade_suggestions", "submissions", on_delete: :cascade
+  add_foreign_key "submission_grade_suggestions", "users", column: "decided_by_id", on_delete: :nullify
   add_foreign_key "submissions", "content_blocks"
   add_foreign_key "submissions", "enrollments"
   add_foreign_key "submissions", "users"

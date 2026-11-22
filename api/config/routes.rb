@@ -213,6 +213,7 @@ Rails.application.routes.draw do
 
       # Content blocks (shallow) with video endpoints
       resources :content_blocks, only: [ :show, :update, :destroy ] do
+        resource :check_policy, only: [ :show, :update, :destroy ], controller: "exercise_check_policies"
         member do
           post :video_presign
           get :video_stream
@@ -308,6 +309,7 @@ Rails.application.routes.draw do
           patch :grade
           get :github_issue
           post :retry_github_issue
+          post :evaluate_grade_suggestion
         end
       end
     end

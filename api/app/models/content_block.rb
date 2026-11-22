@@ -15,6 +15,9 @@ class ContentBlock < ApplicationRecord
   belongs_to :s3_video_uploaded_by, class_name: "User", optional: true
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy
+  has_many :exercise_check_policies, dependent: :destroy
+  has_one :active_exercise_check_policy, -> { where(active: true) }, class_name: "ExerciseCheckPolicy"
+  has_many :submission_grade_suggestions, dependent: :destroy
   has_many :objective_alignments, dependent: :destroy
   has_many :learning_objectives, through: :objective_alignments
   has_one :knowledge_check, dependent: :destroy

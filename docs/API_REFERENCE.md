@@ -989,6 +989,10 @@ The staff student response keeps operational fields scoped to the selected enrol
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission |
 | `GET` | `/api/v1/submissions/:id/github_issue` | Staff | Get linked GitHub issue |
 | `POST` | `/api/v1/submissions/:id/retry_github_issue` | Staff | Retry a failed or pending durable GitHub issue delivery (`github_issue_delivery_v2` cohorts); returns `409` if already in progress |
+| `POST` | `/api/v1/submissions/:id/evaluate_grade_suggestion` | Staff | Re-evaluate pure GitHub grade suggestion for a submission (`github_app` + `github_grade_suggestions` cohorts only); never writes `Submission.grade` |
+| `GET` | `/api/v1/content_blocks/:id/check_policy` | Staff | Read active exercise check policy and version history for an exercise block |
+| `PUT` | `/api/v1/content_blocks/:id/check_policy` | Admin / authorized editor | Create a new active exercise check policy version (deactivating the prior active version immutably) |
+| `DELETE` | `/api/v1/content_blocks/:id/check_policy` | Admin / authorized editor | Deactivate the active exercise check policy without deleting historical policy rows |
 | `GET` | `/api/v1/submissions/:id/github_checks` | Staff or submission owner | Read persisted check-run metadata for the submission's current commit |
 | `POST` | `/api/v1/submissions/:id/github_checks` | Staff | Refresh current-commit check metadata from GitHub |
 

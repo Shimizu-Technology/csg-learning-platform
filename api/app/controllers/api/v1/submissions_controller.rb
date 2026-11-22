@@ -9,7 +9,7 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :require_student!, only: [ :create ]
-      before_action :set_submission, only: [ :show, :update, :grade, :github_issue, :retry_github_issue ]
+      before_action :set_submission, only: [ :show, :update, :grade, :github_issue, :retry_github_issue, :evaluate_grade_suggestion ]
       before_action :authorize_submission_read!, only: [ :show ]
 
       # GET /api/v1/submissions
@@ -354,6 +354,30 @@ module Api
           submission: submission_json(@submission, include_solution: true, include_github_checks: true),
           github_issue_delivery: delivery.to_staff_json
         }
+      end
+
+      # POST /api/v1/submissions/:id/evaluate_grade_suggestion
+      def evaluate_grade_suggestion
+        require_staff!
+        return if performed?
+
+        enrollment = @submission.enrollment
+        unless enrollment && StaffCohortScope.new(current_user).visible?(enrollment.cohort_id)
+          render_forbidden("Cannot access this submission")
+          return
+        end
+
+        unless GithubGradeSuggestionEvaluator.enabled_for?(enrollment.cohort)
+          render json: {
+            error: "GitHub grade suggestions are disabled for this cohort",
+            code: "feature_disabled",
+            feature: "github_grade_suggestions"
+          }, status: :forbidden
+          return
+        end
+
+        suggestion = GithubGradeSuggestionEvaluator.evaluate_submission!(@submission)
+        render json: { grade_suggestion: suggestion.to_staff_json }
       end
 
       private

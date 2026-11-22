@@ -40,7 +40,14 @@ class GithubCheckRunSyncService
       prune_obsolete_current_commit_runs(runs)
       current
     end
-    { check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse, error: nil }
+    suggestion = if cohort && features["github_app"] == true && features["github_grade_suggestions"] == true
+      GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: now)
+    end
+    {
+      check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse,
+      grade_suggestion: suggestion,
+      error: nil
+    }
   rescue GithubRepositoryAccess::BindingChanged => error
     failure(error.message)
   rescue GithubAppClient::Error => error
@@ -74,6 +81,7 @@ class GithubCheckRunSyncService
       name: attributes.fetch("name"),
       workflow_name: attributes.dig("check_suite", "app", "name"),
       app_slug: attributes.dig("app", "slug"),
+      check_suite_id: attributes.dig("check_suite", "id"),
       head_sha: attributes.fetch("head_sha"),
       status: attributes.fetch("status"),
       conclusion: attributes["conclusion"],

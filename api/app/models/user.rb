@@ -31,6 +31,8 @@ class User < ApplicationRecord
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy
   has_many :graded_submissions, class_name: "Submission", foreign_key: :graded_by_id, dependent: :nullify
+  has_many :created_exercise_check_policies, class_name: "ExerciseCheckPolicy", foreign_key: :created_by_id, dependent: :nullify
+  has_many :decided_submission_grade_suggestions, class_name: "SubmissionGradeSuggestion", foreign_key: :decided_by_id, dependent: :nullify
   has_many :watch_progresses, dependent: :destroy
   has_many :uploaded_recordings, class_name: "Recording", foreign_key: :uploaded_by_id, dependent: :nullify
   has_many :uploaded_content_block_videos, class_name: "ContentBlock", foreign_key: :s3_video_uploaded_by_id, dependent: :nullify

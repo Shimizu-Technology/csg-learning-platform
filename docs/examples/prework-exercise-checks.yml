@@ -1,0 +1,70 @@
+# Reference GitHub Actions template for CSG Learn exercise-specific checks (X-6.4 / AS-11).
+#
+# Security & policy properties demonstrated:
+# - Isolated GitHub-hosted runner (ubuntu-latest), never self-hosted.
+# - Zero school secrets and minimal token permissions (contents: read only).
+# - Third-party actions pinned by full commit SHA (replace placeholder SHAs with verified commits).
+# - Per-job timeout-minutes so runaway learner loops terminate cleanly.
+# - Exercise-specific check run names (`prework/111.rb`, `prework/112.rb`) so a single
+#   repository-wide `ci` check can never satisfy unrelated exercises.
+# - Advisory only: passing checks produce a `suggest_b` grade suggestion in CSG Learn;
+#   an instructor still reviews code and saves the authoritative grade.
+
+name: Prework Exercise Checks
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prework-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prework_111:
+    name: prework/111.rb
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout submitted revision
+        # Pin actions/checkout to a verified full commit SHA (example: v4.2.2)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        # Pin ruby/setup-ruby to a verified full commit SHA
+        uses: ruby/setup-ruby@44511735964ccb71245e7e55f725395be9016eb7
+        with:
+          ruby-version: "3.3"
+
+      - name: Run 111.rb exercise checks
+        run: |
+          test -f 111.rb
+          ruby -c 111.rb
+          ruby -Ilib -Itest test/test_111.rb
+
+  prework_112:
+    name: prework/112.rb
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout submitted revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@44511735964ccb71245e7e55f725395be9016eb7
+        with:
+          ruby-version: "3.3"
+
+      - name: Run 112.rb exercise checks
+        run: |
+          test -f 112.rb
+          ruby -c 112.rb
+          ruby -Ilib -Itest test/test_112.rb

@@ -538,6 +538,116 @@
         ]
       }
     },
+    "/api/v1/submissions/{id}/evaluate_grade_suggestion": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluateGradeSuggestionResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/content_blocks/{id}/check_policy": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExerciseCheckPolicyResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "put": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExerciseCheckPolicyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExerciseCheckPolicyResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExerciseCheckPolicyResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/content_blocks/{id}/video_progress": {
       "patch": {
         "responses": {
@@ -6936,6 +7046,314 @@
         },
         "required": [
           "lesson"
+        ],
+        "additionalProperties": false
+      },
+      "ExerciseCheckPolicyInput": {
+        "type": "object",
+        "properties": {
+          "required_checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed_app_slugs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed_branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_workflow_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_workflow_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "required_checks"
+        ],
+        "additionalProperties": false
+      },
+      "ExerciseCheckPolicy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "content_block_id": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "required_checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed_app_slugs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed_branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_workflow_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_workflow_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "content_block_id",
+          "version",
+          "active",
+          "required_checks",
+          "allowed_app_slugs",
+          "allowed_branch",
+          "expected_workflow_path",
+          "expected_workflow_sha",
+          "created_by_id",
+          "created_by_name",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "ExerciseCheckPolicyResponse": {
+        "type": "object",
+        "properties": {
+          "content_block_id": {
+            "type": "integer"
+          },
+          "active_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExerciseCheckPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExerciseCheckPolicy"
+            }
+          }
+        },
+        "required": [
+          "content_block_id",
+          "active_policy",
+          "versions"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionGradeSuggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "submission_id": {
+            "type": "integer"
+          },
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "content_block_id": {
+            "type": "integer"
+          },
+          "exercise_check_policy_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "policy_version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "commit_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "suggest_b",
+              "review_for_redo",
+              "no_suggestion",
+              "stale_evidence"
+            ]
+          },
+          "suggested_grade": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "B",
+              null
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "all_required_checks_passed",
+              "required_check_failed",
+              "missing_policy",
+              "unverified_revision",
+              "missing_required_check",
+              "check_pending",
+              "check_inconclusive",
+              "untrusted_producer",
+              "workflow_tampered",
+              "branch_mismatch",
+              "stale_sha",
+              "stale_policy",
+              "superseded_submission"
+            ]
+          },
+          "reason_summary": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "evaluated_at": {
+            "type": "string"
+          },
+          "stale_for_current_policy": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "accepted",
+              "overridden",
+              "dismissed",
+              null
+            ]
+          },
+          "override_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decided_by_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "submission_id",
+          "enrollment_id",
+          "content_block_id",
+          "exercise_check_policy_id",
+          "policy_version",
+          "commit_sha",
+          "outcome",
+          "suggested_grade",
+          "reason_code",
+          "reason_summary",
+          "evidence",
+          "evaluated_at",
+          "stale_for_current_policy",
+          "decision",
+          "override_reason",
+          "decided_by_id",
+          "decided_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "EvaluateGradeSuggestionResponse": {
+        "type": "object",
+        "properties": {
+          "grade_suggestion": {
+            "$ref": "#/components/schemas/SubmissionGradeSuggestion"
+          }
+        },
+        "required": [
+          "grade_suggestion"
         ],
         "additionalProperties": false
       },
