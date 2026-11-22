@@ -20,9 +20,22 @@ const syntheticVideo = { name: 'synthetic-video-stream', configureServer(server)
     sendMedia(request, response, media)
   })
 } }
+const recordingUpload = { name: 'synthetic-recording-upload', configureServer(server) {
+  server.middlewares.use('/qa-recording-upload', async (request, response) => {
+    if (request.method !== 'POST') {
+      response.statusCode = 405
+      return response.end()
+    }
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    const clip = readFileSync(new URL('../../.qa-local/synthetic.mp4', import.meta.url))
+    response.statusCode = Buffer.concat(chunks).includes(clip) ? 204 : 422
+    response.end()
+  })
+} }
 const server = await createServer({
   root: web, envFile: false,
-  plugins: [...(process.env.QA_SYNTHETIC_VIDEO === '1' ? [syntheticVideo] : []), ...(process.env.QA_GITHUB_APP === '1' ? [{ name: 'synthetic-github-authorization', configureServer(server) {
+  plugins: [...(process.env.QA_SYNTHETIC_VIDEO === '1' ? [syntheticVideo] : []), ...(process.env.QA_LESSON_RECORDINGS === '1' ? [recordingUpload] : []), ...(process.env.QA_GITHUB_APP === '1' ? [{ name: 'synthetic-github-authorization', configureServer(server) {
     server.middlewares.use('/qa/github-authorize', (request, response) => {
       const state = new URL(request.url, 'http://localhost').searchParams.get('state') || ''
       const href = '/github-app/authorize?' + new URLSearchParams({ state, code: 'synthetic-code' }).toString()

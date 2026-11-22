@@ -31,6 +31,7 @@ interface LegacyRecording {
   title: string
   url: string
   date: string | null
+  duration_display?: string | null
   description: string | null
   source: 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external'
   watch_progress: S3Recording['watch_progress']
@@ -114,6 +115,7 @@ function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem):
     title: recording.title,
     url,
     date: recording.date ?? recording.recorded_date ?? null,
+    duration_display: 'duration_display' in recording ? recording.duration_display : undefined,
     description: recording.description,
     source,
     watch_progress: 'watch_progress' in recording ? recording.watch_progress ?? null : null,
@@ -397,12 +399,7 @@ export function Recordings() {
                       {formatDate(liveSelectedItem.recorded_date)}
                     </span>
                   )}
-                  {liveSelectedItem.duration_display && (
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      {liveSelectedItem.duration_display}
-                    </span>
-                  )}
+                  {liveSelectedItem.duration_display && <Badge icon={<Clock className="size-3" aria-hidden="true" />}>{liveSelectedItem.duration_display}</Badge>}
                   <span className="inline-flex items-center gap-1">
                     <Film className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {liveSelectedItem.file_size_display}
@@ -423,8 +420,8 @@ export function Recordings() {
                 )}
               </div>
             </div>
-          ) : liveSelectedItem && (liveSelectedItem.source === 'youtube' || liveSelectedItem.source === 'external') ? (
-            <LegacyPlayer recording={liveSelectedItem as LegacyRecording} />
+          ) : liveSelectedItem && liveSelectedItem.source !== 'uploaded' ? (
+            <LegacyPlayer recording={liveSelectedItem} />
           ) : null}
           {v2 && liveSelectedItem?.learning_path && <Link to={liveSelectedItem.learning_path} className="app-link mt-3 inline-flex min-h-11 items-center">{liveSelectedItem.learning_label || 'Open Learn'}</Link>}
           {liveSelectedItem && recordingCohortId && selectedHelpContext && (
@@ -542,9 +539,7 @@ export function Recordings() {
                                 {!isS3 && (recording as LegacyRecording).date && (
                                   <span className="text-xs text-ink-muted">{formatDate((recording as LegacyRecording).date)}</span>
                                 )}
-                                {isS3 && s3Rec?.duration_display && (
-                                  <span className="text-xs text-ink-muted">{s3Rec.duration_display}</span>
-                                )}
+                                {recording.duration_display && <Badge icon={<Clock className="size-3" aria-hidden="true" />}>{recording.duration_display}</Badge>}
                                 {!isS3 && (
                                   <span className="flex items-center gap-0.5 text-xs text-ink-muted">
                                     <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -602,6 +597,7 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
                 {formatDate(recording.date)}
               </span>
             )}
+            {recording.duration_display && <Badge icon={<Clock className="size-3" aria-hidden="true" />}>{recording.duration_display}</Badge>}
             <a
               href={sanitizeUrl(recording.url)}
               target="_blank"
@@ -639,6 +635,7 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
       </div>
       <div className="app-surface p-5">
         <h2 className="min-w-0 text-lg font-semibold text-ink [overflow-wrap:anywhere]">{recording.title}</h2>
+        {recording.duration_display && <Badge className="mt-2" icon={<Clock className="size-3" aria-hidden="true" />}>{recording.duration_display}</Badge>}
         {recording.description && (
           <p className="mt-2 text-sm text-ink-secondary">{recording.description}</p>
         )}

@@ -232,7 +232,17 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecordingInput"
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/lessons/{id}": {
@@ -596,8 +606,35 @@
         }
       }
     },
+    "/api/v1/cohorts/{cohort_id}/recordings/lesson_options": {
+      "get": {
+        "description": "Active lessons from the cohort curriculum. Teaching staff only.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingLessonOptionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/cohorts/{cohort_id}/recordings/{id}": {
-      "patch": {
+      "get": {
         "responses": {
           "200": {
             "description": "Successful response",
@@ -628,6 +665,48 @@
             }
           }
         ]
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecordingInput"
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/workspaces": {
@@ -5748,6 +5827,13 @@
           "show_personal_deadline": {
             "type": "boolean",
             "description": "Included only for personal-pace cohorts or learners with an active extension; permits the personal deadline UI without changing Off-cohort lesson views."
+          },
+          "attached_recordings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachedRecording"
+            },
+            "description": "Present when the learner can read one or more attachments from their cohort."
           }
         },
         "required": [
@@ -7380,6 +7466,13 @@
           },
           "learning_label": {
             "type": "string"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordingLesson"
+            },
+            "description": "Present for staff. Explicit lesson attachments in selection order."
           }
         },
         "required": [
@@ -21576,23 +21669,30 @@
                   "minimum": 1
                 },
                 "block": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "integer"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
                     },
-                    "title": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                    {
+                      "type": "null"
                     }
-                  },
-                  "required": [
-                    "id",
-                    "title"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "sections": {
                   "type": "array",
@@ -21632,7 +21732,7 @@
                 "sections"
               ],
               "additionalProperties": false,
-              "description": "A lesson block on the cohort's curriculum that plays this recording (same upload or same link)."
+              "description": "A lesson on the cohort's curriculum that is attached to or has a block that plays this recording."
             }
           },
           "students_count": {
@@ -21691,6 +21791,12 @@
               "additionalProperties": false
             },
             "description": "Up to 25 watchers, in the order they started watching (a fixed order, so paging never skips or repeats anyone)."
+          },
+          "duration_display": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -21702,6 +21808,7 @@
           "source",
           "url",
           "duration_seconds",
+          "duration_display",
           "recorded_date",
           "published_at",
           "created_at",
@@ -26877,6 +26984,269 @@
         "required": [
           "learner_nudges_enabled"
         ]
+      },
+      "CreateRecordingInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "recorded_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 86400,
+            "description": "Stored duration in seconds. Null leaves duration unknown."
+          },
+          "lesson_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them."
+          },
+          "s3_key": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "publish_immediately": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateRecordingInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "recorded_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 86400,
+            "description": "Stored duration in seconds. Null leaves duration unknown."
+          },
+          "lesson_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "RecordingLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "week": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "module_name",
+          "week"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingLessonOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "week": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "week_starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "module_name",
+          "week",
+          "week_starts_on"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingLessonOptionsResponse": {
+        "type": "object",
+        "properties": {
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordingLessonOption"
+            }
+          }
+        },
+        "required": [
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "AttachedRecording": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "youtube",
+              "vimeo",
+              "loom",
+              "direct",
+              "external",
+              "uploaded"
+            ]
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duration_display": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recorded_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "source_kind",
+          "duration_seconds",
+          "duration_display",
+          "recorded_date",
+          "progress_percentage",
+          "completed",
+          "path"
+        ],
+        "additionalProperties": false
       },
       "CohortCreatedResponse": {
         "type": "object",

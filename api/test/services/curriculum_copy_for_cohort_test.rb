@@ -64,6 +64,21 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert_equal 1, planned.fetch(:counts).fetch("learner_extensions")
   end
 
+  test "copy moves only this cohort's recording attachments to the copied lessons" do
+    lesson = @f.curriculum.modules.first.lessons.first
+    moving, staying = [ @f.cohort, @f.other_cohort ].map do |cohort|
+      recording = cohort.recordings.create!(title: "Class recording", source_kind: "external", source_url: "https://example.invalid/replay")
+      recording.lesson_recordings.create!(lesson: lesson, position: 3)
+    end
+    result = copy!(@f.instructor)
+
+    assert_equal result.lesson_ids.fetch(lesson.id.to_s), moving.reload.lesson_id
+    assert_equal 3, moving.position
+    assert moving.valid?
+    assert_equal lesson.id, staying.reload.lesson_id
+    assert_equal 1, result.counts.fetch("lesson_recordings")
+  end
+
   test "copy preserves and remaps the paused library" do
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     enrollment.update!(status: :paused)

@@ -64,6 +64,18 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     refute_includes response.body, @coral_student.full_name
   end
 
+  test "the recording page includes explicit attachments without repeating a block match" do
+    @recording.lesson_recordings.create!(lesson: @lesson, position: 0)
+    @recording.lesson_recordings.create!(lesson: @second_lesson, position: 1)
+
+    detail = fetch(@instructor, "recording", @recording.id)
+    assert_response :success
+    assert_equal "1:00:00", detail["duration_display"]
+    assert_equal [ @lesson.id, @second_lesson.id ], detail["lessons"].map { |row| row.dig("lesson", "id") }
+    assert_equal @video.id, detail["lessons"].first.dig("block", "id")
+    assert_nil detail["lessons"].last["block"]
+  end
+
   # Review rounds 1 and 2 (P2): watchers come one bounded page at a time, in
   # the fixed order they started watching, with totals counted separately.
   test "a recording's watchers are paged by a fixed cursor, with totals for the whole cohort" do

@@ -337,7 +337,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateRecordingInput"];
+                };
+            };
             responses: {
                 /** @description Successful response */
                 201: {
@@ -848,6 +852,44 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/recordings/lesson_options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Active lessons from the cohort curriculum. Teaching staff only. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecordingLessonOptionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cohorts/{cohort_id}/recordings/{id}": {
         parameters: {
             query?: never;
@@ -855,7 +897,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecordingResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -871,7 +935,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateRecordingInput"];
+                };
+            };
             responses: {
                 /** @description Successful response */
                 200: {
@@ -6123,6 +6191,8 @@ export interface components {
             } | null;
             /** @description Included only for personal-pace cohorts or learners with an active extension; permits the personal deadline UI without changing Off-cohort lesson views. */
             show_personal_deadline?: boolean;
+            /** @description Present when the learner can read one or more attachments from their cohort. */
+            attached_recordings?: components["schemas"]["AttachedRecording"][];
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -6472,6 +6542,8 @@ export interface components {
             watch_progress?: null | components["schemas"]["S3RecordingWatchProgress"];
             learning_path?: string;
             learning_label?: string;
+            /** @description Present for staff. Explicit lesson attachments in selection order. */
+            lessons?: components["schemas"]["RecordingLesson"][];
         };
         CohortRecordingsResponse: {
             recordings: components["schemas"]["S3Recording"][];
@@ -9479,7 +9551,7 @@ export interface components {
                 block: {
                     id: number;
                     title: string | null;
-                };
+                } | null;
                 sections: {
                     label: string;
                     start_seconds: number;
@@ -9503,6 +9575,7 @@ export interface components {
                 /** Format: date-time */
                 last_watched_at: string | null;
             }[];
+            duration_display: string | null;
         };
         OfficeHourDetail: {
             /** @constant */
@@ -10685,6 +10758,67 @@ export interface components {
         NudgePreferenceUpdateRequest: {
             /** @description False turns off optional reminders (due dates, inactivity, support ending). Access-ending notices are essential and still arrive. */
             learner_nudges_enabled: boolean;
+        };
+        CreateRecordingInput: {
+            title: string;
+            description?: string | null;
+            source_url?: string;
+            /** Format: date */
+            recorded_date?: string | null;
+            /** @description Stored duration in seconds. Null leaves duration unknown. */
+            duration_seconds?: number | null;
+            /** @description Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them. */
+            lesson_ids?: number[];
+            s3_key?: string;
+            content_type?: string;
+            file_size?: number;
+            publish_immediately?: boolean;
+        };
+        UpdateRecordingInput: {
+            title?: string;
+            description?: string | null;
+            source_url?: string;
+            /** Format: date */
+            recorded_date?: string | null;
+            /** @description Stored duration in seconds. Null leaves duration unknown. */
+            duration_seconds?: number | null;
+            /** @description Replace attachments in this order. Omit to keep existing attachments, or pass an empty array to remove them. */
+            lesson_ids?: number[];
+            /** @enum {string} */
+            status?: "draft" | "published";
+        };
+        RecordingLesson: {
+            id: number;
+            title: string;
+            module_id: number;
+            module_name: string;
+            week: number | null;
+        };
+        RecordingLessonOption: {
+            id: number;
+            title: string;
+            module_id: number;
+            module_name: string;
+            week: number | null;
+            /** Format: date */
+            week_starts_on: string | null;
+        };
+        RecordingLessonOptionsResponse: {
+            lessons: components["schemas"]["RecordingLessonOption"][];
+        };
+        AttachedRecording: {
+            id: number;
+            title: string;
+            description: string | null;
+            /** @enum {string} */
+            source_kind: "youtube" | "vimeo" | "loom" | "direct" | "external" | "uploaded";
+            duration_seconds: number | null;
+            duration_display: string | null;
+            /** Format: date */
+            recorded_date: string | null;
+            progress_percentage: number;
+            completed: boolean;
+            path: string;
         };
         CohortCreatedResponse: {
             cohort: {
