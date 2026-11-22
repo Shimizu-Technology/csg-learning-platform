@@ -381,12 +381,21 @@ class LessonBlockEditor
     attributes[:required] = ActiveModel::Type::Boolean.new.cast(attributes[:required]) if attributes.key?(:required)
     @lesson.content_blocks.reload
     primary = @lesson.primary_assignment_block
-    if primary&.submission_type.present?
+    if primary&.submission_type.present? && !implicit_legacy_exercise_present?
       attributes[:requires_submission] = ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(primary.submission_type)
     end
     @lesson.assign_attributes(attributes)
     require_learner_access_kept! if @lesson.will_save_change_to_release_day?
     @lesson.save!
+  end
+
+  # An exercise or code challenge with submission_type: nil inherits its
+  # effective submission type from lesson.requires_submission
+  # (ContentBlock#legacy_submission_type). Keep the legacy lesson flag unchanged
+  # while any such block exists so saving another block never silently changes
+  # that sibling's submission requirement.
+  def implicit_legacy_exercise_present?
+    @lesson.content_blocks.any? { |block| block.exercise_like? && block.submission_type.nil? }
   end
 
   # Same rule as LessonMove: a learner with work in the lesson must still be

@@ -319,7 +319,18 @@ module Api
       end
 
       def editor_lesson_params
-        editor_params.slice(:title, :required, :requires_submission)
+        permitted = editor_params.slice(:title, :required, :requires_submission)
+        permitted = permitted.except(:requires_submission) if permitted.key?(:requires_submission) && preserves_implicit_legacy_sibling?
+        permitted
+      end
+
+      def preserves_implicit_legacy_sibling?
+        edited_id = editor_params.dig(:exercise, :id).presence&.to_i
+        implicit = @lesson.content_blocks.select { |block| block.exercise_like? && block.submission_type.nil? }
+        return false if implicit.empty?
+        return true if edited_id && implicit.any? { |block| block.id != edited_id }
+
+        @lesson.primary_assignment_block&.submission_type.present?
       end
 
       def require_current_editor_version!

@@ -5,7 +5,7 @@ module Api
       include AuthenticatedRateLimits
 
       def index
-        blocks = current_user.user_blocks.includes(:blocked_user).order(created_at: :desc)
+        blocks = current_user.user_blocks.includes(:blocked_user).recent_first
         render json: { blocked_users: blocks.map { |block| block_json(block) } }
       end
 

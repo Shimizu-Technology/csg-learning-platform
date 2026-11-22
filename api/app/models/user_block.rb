@@ -5,6 +5,8 @@ class UserBlock < ApplicationRecord
   validates :blocked_user_id, uniqueness: { scope: :blocker_id }
   validate :different_users
 
+  scope :recent_first, -> { order(created_at: :desc, id: :desc) }
+
   scope :between, ->(first_user_id, second_user_ids) {
     ids = Array(second_user_ids).map(&:to_i).uniq
     where(blocker_id: first_user_id, blocked_user_id: ids)

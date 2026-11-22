@@ -472,7 +472,7 @@ class ApplySubmissionAudit20261118Test < ActiveSupport::TestCase
     assert_equal "repo_and_live_url_submission", sibling.reload.effective_submission_type
   end
 
-  test "residual normal editor save resets a true legacy flag from a manual primary" do
+  test "normal editor save preserves a true legacy flag and implicit sibling when primary is manual" do
     lesson = @blocks[1079].lesson
     primary = @blocks[1079]
     primary.update!(block_type: :exercise)
@@ -481,10 +481,8 @@ class ApplySubmissionAudit20261118Test < ActiveSupport::TestCase
     assert_equal "text_submission", sibling.effective_submission_type
     LessonBlockEditor.new(lesson: lesson, user: @admin, params: { base_updated_at: lesson.updated_at.iso8601(6),
       blocks: lesson.content_blocks.map { |block| { id: block.id, block_type: block.block_type } } }).save!
-    # Documents the existing behavior for a separate editor fix; this ops PR
-    # avoids that save entirely for practice decisions.
-    refute lesson.reload.requires_submission
-    assert_equal "manual_complete", sibling.reload.effective_submission_type
+    assert lesson.reload.requires_submission
+    assert_equal "text_submission", sibling.reload.effective_submission_type
   end
 
   private
