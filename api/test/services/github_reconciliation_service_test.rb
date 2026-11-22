@@ -880,6 +880,7 @@ class GithubReconciliationServiceTest < ActiveSupport::TestCase
   test "finding 3b: shared staged delivery stays staged for sibling eligible binding and settles once both reconcile" do
     # Second module with an explicit module-scoped binding pointing at the SAME repository
     mod2 = @curriculum.modules.create!(name: "Module 2", position: 1)
+    @cohort.update!(content_defaults: (@cohort.content_defaults || {}).merge(mod2.id.to_s => { "assigned" => true }))
     lesson2 = mod2.lessons.create!(title: "Lesson 2", position: 0, release_day: 0)
     block2 = lesson2.content_blocks.create!(block_type: :exercise, submission_type: :prework_github_sync, filename: "222.rb", position: 0)
     binding2 = @enrollment.github_repository_bindings.create!(
@@ -935,6 +936,7 @@ class GithubReconciliationServiceTest < ActiveSupport::TestCase
 
   test "finding 3c: multi-repo and multi-binding revocation deliveries do not settle prematurely while other repos remain active" do
     mod2 = @curriculum.modules.create!(name: "Module 2", position: 1)
+    @cohort.update!(content_defaults: (@cohort.content_defaults || {}).merge(mod2.id.to_s => { "assigned" => true }))
     lesson2 = mod2.lessons.create!(title: "Lesson 2", position: 0, release_day: 0)
     lesson2.content_blocks.create!(block_type: :exercise, submission_type: :prework_github_sync, filename: "222.rb", position: 0)
     binding2 = @enrollment.github_repository_bindings.create!(
@@ -1056,8 +1058,19 @@ class GithubReconciliationServiceTest < ActiveSupport::TestCase
     lesson_b = partial_mod.lessons.create!(title: "Unassigned Lesson", position: 1, release_day: 0)
     block_b = lesson_b.content_blocks.create!(block_type: :exercise, submission_type: :prework_github_sync, filename: "partial_b.rb", position: 0)
 
+    # Module absent from non-nil content_defaults snapshot with NO enrollment assignment -> must NOT be imported!
+    absent_mod = @curriculum.modules.create!(name: "Newly Added Unassigned Module", position: 3)
+    absent_lesson = absent_mod.lessons.create!(title: "Absent Lesson", position: 0, release_day: 0)
+    absent_block = absent_lesson.content_blocks.create!(
+      block_type: :exercise,
+      submission_type: :prework_github_sync,
+      filename: "absent.rb",
+      position: 0
+    )
+
     @cohort.update!(
       content_defaults: {
+        @mod.id.to_s => { "assigned" => true },
         hidden_mod.id.to_s => { "assigned" => false },
         partial_mod.id.to_s => { "assigned" => false }
       }
@@ -1073,6 +1086,34 @@ class GithubReconciliationServiceTest < ActiveSupport::TestCase
     refute_includes synced_block_ids, text_block.id
     refute_includes synced_block_ids, hidden_block.id
     refute_includes synced_block_ids, block_b.id
+    refute_includes synced_block_ids, absent_block.id
+  end
+
+  test "revocation delivery arriving mid-Step-2 (after Step-1 checked_at) stays staged instead of being ignored" do
+    current_clock = @now
+    mid_step2_revocation = nil
+    @fake.on_files_at_commit = lambda do |**|
+      # Advance wall clock 30 seconds after Step-1 verification and insert revocation webhook mid-Step-2!
+      current_clock = @now + 30.seconds
+      travel_to current_clock
+      mid_step2_revocation = GithubWebhookDelivery.create!(
+        delivery_id: "del-mid-step2-revoke",
+        event: "installation",
+        action: "deleted",
+        installation_id: 123,
+        payload: { "installation" => { "id" => 123 } },
+        processing_state: "staged",
+        attempts: 1,
+        received_at: @now + 15.seconds
+      )
+      { commit_hash: SHA1, branch: "main", files: [ { "name" => "111.rb", "text" => "puts 'ok'" } ], workflow_files: {} }
+    end
+    @fake.on_checks = ->(**) { { "total_count" => 0, "check_runs" => [] } }
+
+    GithubReconciliationService.new(client: @fake, clock: -> { current_clock }).call(now: @now)
+
+    assert_equal @now, @binding.reload.checked_at
+    assert_equal "staged", mid_step2_revocation.reload.processing_state
   end
 
   test "finding 6: deleting reconciliation state mid-run returns stale_claim cleanly without aborting remaining bindings" do
