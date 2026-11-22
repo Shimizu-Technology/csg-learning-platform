@@ -439,3 +439,67 @@ it('moves from a notification anchor to a selected pin with merged router params
   expect(mockParams.messageId).toBeUndefined();
   await waitFor(() => expect(mockApi.messageDestination).toHaveBeenCalledWith(99));
 });
+
+it('hides the composer and shows the read-only notice on a read-only channel conversation', async () => {
+  const reason = 'Your support period has ended. Past messages remain readable.';
+  mockApi.channel.mockResolvedValue({
+    channel: { id: 4, workspace_id: 12, name: 'Class Chat', can_post: false, post_disabled_reason: reason },
+    messages: [{ ...message(200), mine: true }],
+    pinned_messages: [],
+    meta: { oldest_message_id: 200, newest_message_id: 200, has_older: false, has_newer: false },
+  });
+  const screen = render(<ConversationScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('channel-readonly-notice')).toBeTruthy());
+  expect(screen.getByText(reason)).toBeTruthy();
+  expect(screen.queryByLabelText('Message composer')).toBeNull();
+  expect(screen.queryByLabelText('Send message')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Actions 200'));
+  expect(screen.queryByText('Edit message')).toBeNull();
+  expect(screen.getByText('Remove message')).toBeTruthy();
+});
+
+it('keeps the conversation composer active when can_post is undefined', async () => {
+  mockApi.channel.mockResolvedValue({
+    channel: { id: 4, workspace_id: 12, name: 'Class Chat' },
+    messages: [message(200)],
+    pinned_messages: [],
+    meta: { oldest_message_id: 200, newest_message_id: 200, has_older: false, has_newer: false },
+  });
+  const screen = render(<ConversationScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByLabelText('Message composer')).toBeTruthy());
+  expect(screen.queryByTestId('channel-readonly-notice')).toBeNull();
+});
+
+it('hides the reply composer and shows the read-only notice on a read-only channel thread', async () => {
+  const reason = 'Your support period has ended. Past messages remain readable.';
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+  mockApi.channel.mockResolvedValue({
+    channel: { id: 4, workspace_id: 12, name: 'Class Chat', can_post: false, post_disabled_reason: reason },
+    messages: [message(1)],
+    pinned_messages: [],
+    meta: { oldest_message_id: 1, newest_message_id: 1, has_older: false, has_newer: false },
+  });
+  mockApi.messageThread.mockResolvedValue({ root_message: { ...message(1), mine: true }, replies: [] });
+  const screen = render(<ThreadScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('thread-readonly-notice')).toBeTruthy());
+  expect(screen.getByText(reason)).toBeTruthy();
+  expect(screen.queryByLabelText('Reply to thread')).toBeNull();
+  expect(screen.queryByLabelText('Send reply')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Actions 1'));
+  expect(screen.queryByText('Edit message')).toBeNull();
+  expect(screen.getByText('Remove message')).toBeTruthy();
+});
+
+it('keeps the thread reply composer active when can_post is undefined', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+  mockApi.channel.mockResolvedValue({
+    channel: { id: 4, workspace_id: 12, name: 'Class Chat' },
+    messages: [message(1)],
+    pinned_messages: [],
+    meta: { oldest_message_id: 1, newest_message_id: 1, has_older: false, has_newer: false },
+  });
+  mockApi.messageThread.mockResolvedValue({ root_message: message(1), replies: [] });
+  const screen = render(<ThreadScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByLabelText('Reply to thread')).toBeTruthy());
+  expect(screen.queryByTestId('thread-readonly-notice')).toBeNull();
+});

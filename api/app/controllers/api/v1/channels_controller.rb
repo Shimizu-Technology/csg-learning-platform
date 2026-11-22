@@ -16,7 +16,9 @@ module Api
         unread_counts = unread_counts_for(channels)
         latest_messages = latest_messages_for(channels)
         muted_ids = muted_target_ids("Channel", channels.map(&:id))
-        active_enrollments = current_user.student? ? current_user.enrollments.active.includes(:cohort).index_by(&:cohort_id) : {}
+        school = FeatureSwitches.school
+        has_peer_space = current_user.student? && channels.any? { |channel| Channel.self_paced_peer_space_enabled?(channel.cohort, school: school) }
+        active_enrollments = has_peer_space ? current_user.enrollments.active.includes(:cohort).index_by(&:cohort_id) : {}
 
         render json: {
           channels: channels.map do |channel|
@@ -27,7 +29,8 @@ module Api
               latest_messages[channel.id],
               muted_ids: muted_ids,
               visible: true,
-              enrollment: current_user.student? ? active_enrollments[channel.cohort_id] : :unloaded
+              enrollment: has_peer_space ? active_enrollments[channel.cohort_id] : :unloaded,
+              school: school
             )
           end
         }
@@ -170,9 +173,8 @@ module Api
           .index_by(&:channel_id)
       end
 
-      def channel_json(channel, read_state = nil, unread_count = 0, latest_message = nil, muted_ids: nil, visible: nil, enrollment: :unloaded)
-        can_post = channel.can_post?(current_user, visible: visible, enrollment: enrollment)
-        {
+      def channel_json(channel, read_state = nil, unread_count = 0, latest_message = nil, muted_ids: nil, visible: nil, enrollment: :unloaded, school: nil)
+        payload = {
           id: channel.id,
           workspace_id: channel.workspace_id,
           workspace_name: channel.workspace.name,
@@ -184,8 +186,6 @@ module Api
           visibility: channel.visibility,
           status: channel.status,
           position: channel.position,
-          can_post: can_post,
-          post_disabled_reason: can_post ? nil : channel.post_disabled_reason(current_user, visible: visible, enrollment: enrollment),
           muted: muted_ids ? muted_ids.include?(channel.id) : muted?(channel),
           unread_count: unread_count,
           last_read_at: read_state&.last_read_at,
@@ -194,6 +194,12 @@ module Api
           created_at: channel.created_at,
           updated_at: channel.updated_at
         }
+        if Channel.self_paced_peer_space_enabled?(channel.cohort, school: school)
+          can_post = channel.can_post?(current_user, visible: visible, enrollment: enrollment)
+          payload[:can_post] = can_post
+          payload[:post_disabled_reason] = can_post ? nil : channel.post_disabled_reason(current_user, visible: visible, enrollment: enrollment)
+        end
+        payload
       end
 
       def muted?(target)

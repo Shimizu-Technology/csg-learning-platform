@@ -190,9 +190,11 @@ class SelfPacedPeerSpaceTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "support expiry keeps course channel readable while disabling posting with a clear reason" do
+  test "support expiry keeps course channel readable while disabling posting edits and new reactions" do
     enable_peer_space!(@cohort)
-    Message.create!(channel: @channel, author: @peer, body: "Helpful thread")
+    own_message = Message.create!(channel: @channel, author: @learner, body: "My earlier question")
+    peer_message = Message.create!(channel: @channel, author: @peer, body: "Helpful thread")
+    peer_message.message_reactions.create!(user: @learner, emoji: "thumbs_up")
     @enrollment.update!(support_expires_at: 1.minute.ago)
 
     as_user(@learner) do
@@ -200,11 +202,58 @@ class SelfPacedPeerSpaceTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_equal false, response.parsed_body.dig("channel", "can_post")
       assert_match(/support period has ended/i, response.parsed_body.dig("channel", "post_disabled_reason"))
-      assert_equal [ "Helpful thread" ], response.parsed_body.fetch("messages").map { |m| m.fetch("body") }
+      assert_equal [ "My earlier question", "Helpful thread" ], response.parsed_body.fetch("messages").map { |m| m.fetch("body") }
+
+      get "/api/v1/messages/#{peer_message.id}/thread", headers: auth_headers
+      assert_response :success
 
       post "/api/v1/channels/#{@channel.id}/messages", params: { body: "Late post" }, headers: auth_headers, as: :json
       assert_response :forbidden
+
+      post "/api/v1/channels/#{@channel.id}/messages", params: { body: "Late reply", parent_message_id: peer_message.id }, headers: auth_headers, as: :json
+      assert_response :forbidden
+
+      patch "/api/v1/messages/#{own_message.id}", params: { body: "Edited after expiry" }, headers: auth_headers, as: :json
+      assert_response :forbidden
+      assert_equal "My earlier question", own_message.reload.body
+
+      post "/api/v1/messages/#{peer_message.id}/reactions", params: { emoji: "heart" }, headers: auth_headers, as: :json
+      assert_response :forbidden
+      assert_equal [ "thumbs_up" ], peer_message.message_reactions.where(user: @learner).pluck(:emoji)
+
+      # Removing an existing reaction or deleting one's own prior post stays permitted while readable.
+      delete "/api/v1/messages/#{peer_message.id}/reactions", params: { emoji: "thumbs_up" }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_empty peer_message.message_reactions.where(user: @learner)
+
+      delete "/api/v1/messages/#{own_message.id}", headers: auth_headers
+      assert_response :success
+      assert_not_nil own_message.reload.deleted_at
     end
+  end
+
+  test "removing an instructor assignment stops peer-space broadcasts and notifications even if support_instructor_id remains set" do
+    enable_peer_space!(@cohort)
+    @cohort.cohort_instructor_assignments.where(user: @instructor).destroy_all
+    assert_equal @instructor.id, @cohort.reload.support_instructor_id
+    refute_includes @channel.recipients.reorder(nil).pluck(:id), @instructor.id
+
+    broadcast_user_ids = []
+    original_broadcast = UserMessagesChannel.method(:broadcast_to)
+    UserMessagesChannel.define_singleton_method(:broadcast_to) { |user, _payload| broadcast_user_ids << user.id }
+
+    as_user(@learner) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: { body: "Hello peers" }, headers: auth_headers, as: :json
+      assert_response :created
+    end
+
+    refute_includes broadcast_user_ids, @instructor.id
+    assert_includes broadcast_user_ids, @peer.id
+    assert_includes broadcast_user_ids, @admin.id
+    assert_equal 0, @instructor.notifications.message.count
+    assert_equal 1, @peer.notifications.message.unread.count
+  ensure
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
   end
 
   test "user blocks work between peers in an opted-in peer space and hide blocked text" do

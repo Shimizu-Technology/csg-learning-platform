@@ -73,6 +73,24 @@ class MessageTypingBroadcastServiceTest < ActiveSupport::TestCase
     assert_nil broadcasts.first.second.dig(:user, :email)
   end
 
+  test "excludes users with a block relationship in either direction from typing broadcasts" do
+    cohort = @channel.cohort
+    blocked_by_author = User.create!(clerk_id: "typing_blocked_by_author", email: "typing-blocked-by-author@example.com", role: :student)
+    blocking_author = User.create!(clerk_id: "typing_blocking_author", email: "typing-blocking-author@example.com", role: :student)
+    unblocked_peer = User.create!(clerk_id: "typing_unblocked_peer", email: "typing-unblocked-peer@example.com", role: :student)
+    [ blocked_by_author, blocking_author, unblocked_peer ].each do |student|
+      Enrollment.create!(user: student, cohort: cohort, status: :active)
+    end
+    UserBlock.create!(blocker: @author, blocked_user: blocked_by_author)
+    UserBlock.create!(blocker: blocking_author, blocked_user: @author)
+
+    broadcasts = capture_broadcasts do
+      assert MessageTypingBroadcastService.call(user: @author, target_type: "channel", target_id: @channel.id, active: true)
+    end
+
+    assert_equal [ @recipient.id, unblocked_peer.id ].sort, broadcasts.map { |user, _payload| user.id }.sort
+  end
+
   private
 
   def capture_broadcasts

@@ -35,6 +35,17 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_response :success
     channels = JSON.parse(response.body).fetch("channels")
     assert_equal [ @channel.id ], channels.map { |channel| channel.fetch("id") }
+    assert_not channels.sole.key?("can_post")
+    assert_not channels.sole.key?("post_disabled_reason")
+
+    as_user(@student) do
+      get "/api/v1/channels/#{@channel.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    channel_payload = JSON.parse(response.body).fetch("channel")
+    assert_not channel_payload.key?("can_post")
+    assert_not channel_payload.key?("post_disabled_reason")
   end
 
   test "self paced learners cannot list or open class channels" do

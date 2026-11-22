@@ -68,11 +68,10 @@ class Workspace < ApplicationRecord
   def recipient_users
     if cohort&.self_paced? && Channel.self_paced_peer_space_enabled?(cohort)
       student_ids = cohort.enrollments.active.select(:user_id)
-      scope = User.not_archived.where(id: student_ids)
+      return User.not_archived.where(id: student_ids)
         .or(User.not_archived.where(role: User.roles[:admin]))
         .or(User.not_archived.where(id: cohort.cohort_instructor_assignments.select(:user_id)))
-      scope = scope.or(User.not_archived.where(id: cohort.support_instructor_id)) if cohort.support_instructor_id.present?
-      return scope.distinct.order(:first_name, :last_name, :email)
+        .distinct.order(:first_name, :last_name, :email)
     end
 
     available_users_scope(nil)

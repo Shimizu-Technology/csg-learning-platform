@@ -8,7 +8,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, MoreHorizontal, Send } from 'lucide-react-native';
+import { ChevronDown, Lock, MoreHorizontal, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, ScrollView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -139,6 +139,9 @@ export default function ThreadScreen() {
   const [composerToolsExpanded, setComposerToolsExpanded] = useState(false);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [channelPosting, setChannelPosting] = useState<{ canPost: boolean; reason: string | null }>({ canPost: true, reason: null });
+  const canPost = kind !== 'channel' || channelPosting.canPost;
+  const postDisabledReason = channelPosting.reason || 'Posting is disabled in this conversation.';
   const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; failedSend: FailedSendIntent | null } | null>(null);
@@ -158,7 +161,7 @@ export default function ThreadScreen() {
     surface: 'thread',
     draft,
     selection,
-    disabled: sending,
+    disabled: sending || !canPost,
     maxDraftLength: MESSAGE_BODY_LIMIT,
     onDraftChange: (value) => { draftRef.current = value; setDraft(value); },
     onSelectionChange: setSelection,
@@ -245,6 +248,14 @@ export default function ThreadScreen() {
       if (result.root_message.id !== rootId || (kind === 'channel' ? result.root_message.channel_id !== conversationId : result.root_message.direct_conversation_id !== conversationId)) throw new Error('This thread is no longer available.');
       if (anchorMessageId && ![result.root_message, ...result.replies].some((message) => message.id === anchorMessageId)) throw new Error('This message is no longer available.');
       const summary = 'channel' in conversation ? conversation.channel : conversation.direct_conversation;
+      if ('channel' in conversation) {
+        setChannelPosting({
+          canPost: conversation.channel.can_post !== false,
+          reason: conversation.channel.post_disabled_reason ?? null,
+        });
+      } else {
+        setChannelPosting({ canPost: true, reason: null });
+      }
       setAuthorizedWorkspaceId(summary.workspace_id);
       setAuthorizedDestinationKey(destinationKey);
       setAuthorized(true);
@@ -281,7 +292,8 @@ export default function ThreadScreen() {
     windowRequestRef.current += 1;
     retryRef.current = null;
     setAuthorized(false);
-  }, [anchorMessageId, rootId]);
+    setChannelPosting({ canPost: true, reason: null });
+  }, [anchorMessageId, conversationId, kind, rootId]);
   useEffect(() => {
     const destination = `${rootId}:${anchorMessageId || 'latest'}`;
     if (!destinationReady || !authorized || syncedDestinationRef.current === destination || !authorizedWorkspaceId || !workspaces.some((workspace) => workspace.id === authorizedWorkspaceId)) return;
@@ -304,6 +316,12 @@ export default function ThreadScreen() {
     const typingTimers = typingExpiryTimersRef.current;
     setTypingUsers([]);
     const subscription = subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
+      if (kind === 'channel' && event.channel) {
+        setChannelPosting({
+          canPost: event.channel.can_post !== false,
+          reason: event.channel.post_disabled_reason ?? null,
+        });
+      }
       if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
       else if (event.message.parent_message_id === rootId) {
         const timer = typingTimers.get(event.message.author.id);
@@ -361,7 +379,7 @@ export default function ThreadScreen() {
 
   useEffect(() => {
     const subscription = realtimeSubscriptionRef.current;
-    const active = Boolean(draft.trim());
+    const active = canPost && Boolean(draft.trim());
     const previous = outboundTypingRef.current;
     const send = (nextActive: boolean) => subscription?.perform('typing', { target_type: kind, target_id: conversationId, thread_root_id: rootId, active: nextActive }) ?? false;
     if (previous?.active && !active) {
@@ -380,7 +398,7 @@ export default function ThreadScreen() {
       outboundTypingRef.current = null;
       typingStopTimerRef.current = null;
     }, 4_000);
-  }, [conversationId, draft, kind, realtimeSubscriptionVersion, rootId]);
+  }, [canPost, conversationId, draft, kind, realtimeSubscriptionVersion, rootId]);
 
   useEffect(() => {
     typingExpiryTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -492,7 +510,7 @@ export default function ThreadScreen() {
     : null;
   const send = async (retryMessage?: Message) => {
     const body = retryMessage?.body ? retryMessage.body.trim() : messageBodyForSend(draft);
-    if (!destinationReady || !root || root.id !== rootId || !user || !body || sending) return;
+    if (!canPost || !destinationReady || !root || root.id !== rootId || !user || !body || sending) return;
     if (!messageBodyWithinLimit(body)) {
       if (retryMessage) Alert.alert('Reply is too long to send', `Shorten this reply to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
       return;
@@ -587,7 +605,7 @@ export default function ThreadScreen() {
     if (link) actions.push({ label: 'Copy link to message', onPress: () => { close(); void Clipboard.setStringAsync(link).then(() => haptic('success'), () => Alert.alert('Could not copy the link', 'Try again.')); } });
     if (user?.is_staff && message.id > 0) actions.push({ label: message.pinned_at ? 'Unpin message' : 'Pin message', onPress: () => void updateAction(() => api.pinMessage(message.id, Boolean(message.pinned_at))) });
     if (message.mine && message.id > 0) {
-      if (!message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });
+      if (canPost && !message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });
       actions.push({ label: 'Remove message', destructive: true, onPress: () => { close(); Alert.alert('Remove message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => void updateAction(() => api.deleteMessage(message.id)) }]); } });
     }
     if (!message.mine && message.id > 0) {
@@ -627,17 +645,24 @@ export default function ThreadScreen() {
         }} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <View testID={`thread-message-${item.id}`} style={[item.id === rootId && styles.root, item.id === anchorMessageId && styles.targetMessage]}>{index === 1 && <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>}<MessageBubble workspaceId={authorizedWorkspaceId} cohortId={workspaces.find(workspace => workspace.id === authorizedWorkspaceId)?.cohort_id} message={item} showAuthor={!threadItems[index - 1] || threadItems[index - 1].author.id !== item.author.id} mentionUsers={users} onOpenAuthor={setAuthorContext} onLongPress={(message) => { if (message.id > 0) { setActionError(null); setSelectedMessage(message); } }} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} /></View>} ListFooterComponent={windowMeta?.has_newer ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('newer')}>Load newer replies</Button> : !visible.length ? <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text> : null} />
     </>}
     {showLatest && <Button variant="secondary" accessibilityLabel="Jump to latest message" onPress={jumpToLatest}><ChevronDown color={c.text.strong} size={17} /><Text style={styles.subtitle}>{queuedReplyCount ? `New replies (${queuedReplyCount})` : hasNewMessages ? 'New messages' : 'Jump to latest'}</Text></Button>}
-    <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
-    <TypingIndicator users={typingUsers} />
-    <ComposerLimitNotice value={preparedDraft} />
-    <MessageFormattingToolbar value={draft} selection={selection} mentionUsers={users} visible={formattingExpanded} disabled={sending} onChange={(value) => { draftRef.current = value; setDraft(value); }} onSelectionChange={setSelection} onComposerFocus={() => inputRef.current?.focus()} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
-    <View style={styles.composer}>
+    {canPost ? <>
+      <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
+      <TypingIndicator users={typingUsers} />
+      <ComposerLimitNotice value={preparedDraft} />
+      <MessageFormattingToolbar value={draft} selection={selection} mentionUsers={users} visible={formattingExpanded} disabled={sending} onChange={(value) => { draftRef.current = value; setDraft(value); }} onSelectionChange={setSelection} onComposerFocus={() => inputRef.current?.focus()} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
+      <View style={styles.composer}>
 
-      {composerToolsExpanded && <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /></View>}
-          <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={c.text.body} multiline {...composerInputBehavior(draft, selection)} style={styles.input} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || !draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
-    </View>
+        {composerToolsExpanded && <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /></View>}
+            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={c.text.body} multiline {...composerInputBehavior(draft, selection)} style={styles.input} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || !draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
+      </View>
+    </> : (
+      <View accessible accessibilityRole="text" accessibilityLiveRegion="polite" testID="thread-readonly-notice" style={styles.readOnlyNotice}>
+        <Lock color={c.text.body} size={16} />
+        <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.readOnlyNoticeText}>{postDisabledReason}</Text>
+      </View>
+    )}
     {actionError && !editingAction && <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text>}
-    <MessageActionsSheet message={selectedMessage} onClose={() => setSelectedMessage(null)} onReact={(message, value) => void toggleReaction(message, value)} actions={messageActions} busy={savingAction} error={actionError} />
+    <MessageActionsSheet message={selectedMessage} onClose={() => setSelectedMessage(null)} onReact={(message, value) => void toggleReaction(message, value)} canReact={canPost} actions={messageActions} busy={savingAction} error={actionError} />
     <Modal visible={Boolean(editingAction)} animationType="slide" onRequestClose={() => { if (!savingAction) setEditingAction(null); }}><SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}><ScrollView contentContainerStyle={styles.actionEdit} keyboardShouldPersistTaps="handled"><Text style={styles.title}>Edit message</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Edit thread message" multiline value={editBody} onChangeText={setEditBody} style={styles.actionInput} />{actionError && <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text>}<Button disabled={savingAction || !editBody.trim() || !messageBodyWithinLimit(preparedEditBody)} onPress={() => { if (editingAction) void updateAction(() => api.updateMessage(editingAction.id, preparedEditBody, resolveMentionUserIds(preparedEditBody, users, editingAction.mention_user_ids))); }}>Save edit</Button><Button variant="secondary" disabled={savingAction} onPress={() => setEditingAction(null)}>Cancel</Button></ScrollView></KeyboardAvoidingView></SafeAreaView></Modal>
     {authorContext && <MessageAuthorContext workspaceId={authorizedWorkspaceId} author={authorContext} cohortId={workspaces.find((workspace) => workspace.id === authorizedWorkspaceId)?.cohort_id} onClose={() => setAuthorContext(null)} />}
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
@@ -651,5 +676,5 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   actionEdit: { padding: 16, gap: 12 },
   actionInput: { minHeight: 120, color: c.text.strong, backgroundColor: c.surface.sunken, padding: 12, fontSize: 16, borderRadius: 12 },
   composerOptions: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 56, paddingVertical: 4, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }, messageList: { flex: 1, minHeight: 0 }, root: { paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2, marginVertical: 12 }, dividerText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border.subtle }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, gap: 4, backgroundColor: c.surface.raised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: c.surface.page, borderWidth: 1, borderColor: c.border.subtle, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
+  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 56, paddingVertical: 4, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }, messageList: { flex: 1, minHeight: 0 }, root: { paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2, marginVertical: 12 }, dividerText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border.subtle }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, gap: 4, backgroundColor: c.surface.raised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, readOnlyNotice: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, backgroundColor: c.surface.sunken }, readOnlyNoticeText: { flex: 1, color: c.text.body, fontFamily: fonts.medium, fontSize: 13, lineHeight: 19 }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: c.surface.page, borderWidth: 1, borderColor: c.border.subtle, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
 }));
