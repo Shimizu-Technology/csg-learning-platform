@@ -236,4 +236,83 @@ class DailyUnlockNotificationsTest
     assert_equal outputs.first, outputs.last
     assert_nil FeatureSwitchChange.last.actor_id
   end
+
+  test "groups multiple lessons and exercises unlocking on the same day into one digest" do
+    second = @mod.lessons.create!(title: "Second same-day lesson", position: 1, release_day: 0)
+    third = @mod.lessons.create!(title: "Third same-day lesson", position: 2, release_day: 0)
+    [ @lesson, second, third ].each_with_index do |lesson, idx|
+      lesson.content_blocks.create!(block_type: :exercise, position: 0, title: "Exercise #{idx}A", submission_type: :text_submission)
+      lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Exercise #{idx}B", submission_type: :text_submission)
+    end
+
+    DailyUnlockNotifications.new.call
+    assert_equal 1, @sent.size
+    html = @sent.first[:html]
+    assert_includes html, "3 new lessons unlocked!"
+    [ @lesson, second, third ].each do |lesson|
+      assert_includes html, lesson.title
+      assert_includes html, "/lessons/#{lesson.id}?cohort_id=#{@cohort.id}"
+    end
+  end
+
+  test "excludes dropped, completed, archived, and invite-pending students while sending to eligible active learners" do
+    dropped = enroll("dropped")
+    dropped.update!(status: :dropped)
+    completed = enroll("completed")
+    completed.update!(status: :completed)
+    archived = enroll("archived")
+    archived.user.update!(archived_at: 1.hour.ago)
+    invited = enroll("invited")
+    invited.user.update!(clerk_id: "pending_invite_123")
+
+    DailyUnlockNotifications.new.call
+    assert_equal [ @enrollment.user.email ], @sent.map { |mail| mail[:to] }
+  end
+
+  test "school timezone DST transitions honor local midnight and 7am send boundary without duplicate sends" do
+    previous_zone = Rails.application.config.x.school.time_zone
+    Rails.application.config.x.school.time_zone = "America/Chicago"
+    task = ScheduledTick::TASKS.find { |entry| entry.name == "daily_unlocks" }
+
+    # Spring-forward day in Chicago: 2026-03-08 (UTC-6 -> UTC-5 at 02:00 local).
+    # 06:59 CDT = 11:59 UTC (not due yet); 07:00 CDT = 12:00 UTC (due!).
+    @cohort.update!(start_date: Date.new(2026, 3, 8))
+    assert ScheduledTick.new(now: Time.utc(2026, 3, 8, 11, 59), tasks: [ task ]).call
+    assert_empty @sent
+    assert ScheduledTick.new(now: Time.utc(2026, 3, 8, 12, 0), tasks: [ task ]).call
+    assert_equal 1, @sent.size
+    assert ScheduledTick.new(now: Time.utc(2026, 3, 8, 13, 0), tasks: [ task ]).call
+    assert_equal 1, @sent.size
+
+    # Fall-back day in Chicago: 2026-11-01 (UTC-5 -> UTC-6 at 02:00 local, 25-hour day).
+    # 06:59 CST = 12:59 UTC (not due yet); 07:00 CST = 13:00 UTC (due once!).
+    ScheduledTaskRun.delete_all
+    ScheduledNotificationAttempt.delete_all
+    @sent.clear
+    @cohort.update!(start_date: Date.new(2026, 11, 1))
+    assert ScheduledTick.new(now: Time.utc(2026, 11, 1, 12, 59), tasks: [ task ]).call
+    assert_empty @sent
+    assert ScheduledTick.new(now: Time.utc(2026, 11, 1, 13, 0), tasks: [ task ]).call
+    assert_equal 1, @sent.size
+    assert ScheduledTick.new(now: Time.utc(2026, 11, 1, 14, 0), tasks: [ task ]).call
+    assert_equal 1, @sent.size
+  ensure
+    Rails.application.config.x.school.time_zone = previous_zone
+  end
+
+  test "safe deep links ignore unsafe FRONTEND_URL values and fall back to a trusted origin" do
+    originals = ENV.to_h.slice("PUBLIC_FRONTEND_URL", "FRONTEND_URL")
+    ENV["PUBLIC_FRONTEND_URL"] = "javascript:alert(1)"
+    ENV["FRONTEND_URL"] = "//evil.example,https://learn.trusted.test"
+
+    DailyUnlockNotifications.new.call
+    assert_equal 1, @sent.size
+    html = @sent.first[:html]
+    assert_includes html, "https://learn.trusted.test/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}"
+    assert_includes html, "https://learn.trusted.test/materials?cohort_id=#{@cohort.id}"
+    refute_includes html, "javascript:"
+    refute_includes html, "evil.example"
+  ensure
+    %w[PUBLIC_FRONTEND_URL FRONTEND_URL].each { |key| ENV[key] = originals[key] }
+  end
 end

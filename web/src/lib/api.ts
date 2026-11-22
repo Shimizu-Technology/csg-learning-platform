@@ -976,6 +976,8 @@ export const api = {
     fetchApi<{ communication: import('../types/api').StudentCommunication }>(`/api/v1/progress/student/${userId}/communication${queryString({ cohort_id: cohortId })}`),
   getLearningInsights: (cohortId: number, userId?: number) =>
     fetchApi<LearningInsightsResponse>(`/api/v1/cohorts/${cohortId}/learning_insights${queryString({ user_id: userId })}`),
+  getCohortReleaseCommunications: (cohortId: number) =>
+    fetchApi<import('../types/api').CohortReleaseCommunicationsResponse>(`/api/v1/cohorts/${cohortId}/release_communications`),
   restartEnrollment: (enrollmentId: number, confirmation: string, reason: string, restartVersion: string | null | undefined) =>
     fetchApi<{
       message: string;

@@ -1,6 +1,16 @@
 class DailyUnlockNotifications
   CATCH_UP_DAYS = 3
+  DIGEST_KEY_PREFIX = "daily_unlock_digest".freeze
+  LESSON_KEY_PREFIX = "daily_unlock".freeze
   class DeliveryFailed < StandardError; end
+
+  def self.digest_key(enrollment_id, date)
+    "#{DIGEST_KEY_PREFIX}/#{enrollment_id}/#{date.iso8601}"
+  end
+
+  def self.claim_key(enrollment_id, lesson_id)
+    "#{LESSON_KEY_PREFIX}/#{enrollment_id}/#{lesson_id}"
+  end
 
   def preview(now: Time.current, last_date: nil)
     deliveries = candidates(now)
@@ -41,8 +51,14 @@ class DailyUnlockNotifications
       next if lessons.empty?
 
       begin
-        result = NotificationEmailService.send_daily_unlock_for_enrollment(enrollment: enrollment, lessons: lessons, on: LearningCalendar.today(at: now))
-        metrics[result ? :sent : :failed] += 1
+        result = NotificationEmailService.send_daily_unlock_for_enrollment(enrollment: enrollment, lessons: lessons, on: today)
+        if result.nil?
+          released.concat(lessons.map { |lesson| claim_key(enrollment, lesson) })
+          released << digest_key(enrollment, today)
+          released_lessons += lessons.size
+        else
+          metrics[result ? :sent : :failed] += 1
+        end
       rescue NotificationEmailService::DailyUnlockRejected
         # A definite provider rejection never reached a learner. Release only
         # this invocation's claims, in one bulk statement after all recipients.
@@ -75,7 +91,7 @@ class DailyUnlockNotifications
       lessons = progress.lessons.select do |lesson|
         date = lesson.assigned_unlock_date(enrollment.cohort, progress.content.module_assignments[lesson.module_id], progress.content.lesson_assignments[lesson.id])
         date && date.between?(first_date, today) && (!progress.plan || progress.required?(lesson)) && progress.available?(lesson)
-      end
+      end.uniq(&:id)
       next if lessons.empty? || enrollment.user.email.blank? || enrollment.user.invite_pending?
 
       { enrollment: enrollment, lessons: lessons }
@@ -92,7 +108,7 @@ class DailyUnlockNotifications
     deliveries.reject { |delivery| delivery[:lessons].empty? }
   end
 
-  def digest_key(enrollment, today) = "daily_unlock_digest/#{enrollment.id}/#{today.iso8601}"
+  def digest_key(enrollment, today) = self.class.digest_key(enrollment.id, today)
 
-  def claim_key(enrollment, lesson) = "daily_unlock/#{enrollment.id}/#{lesson.id}"
+  def claim_key(enrollment, lesson) = self.class.claim_key(enrollment.id, lesson.id)
 end
