@@ -204,7 +204,7 @@ module Api
           recently_graded: recently_graded,
           resources: dashboard_resources_json(cohort, enrollment),
           private_meetings_enabled: FeatureSwitches.for(cohort: cohort)["private_meetings"] && (cohort.private_meeting_config&.enabled? || false),
-          office_hours: FeatureSwitches.for(cohort: cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3) : []
+          office_hours: FeatureSwitches.for(cohort: cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3, optional_check_ins: cohort.optional_guided_check_ins?) : []
         }
         # The redesigned Today (W8 PR 8.2) only for a cohort with the new student
         # experience explicitly on; every other cohort's payload is unchanged.

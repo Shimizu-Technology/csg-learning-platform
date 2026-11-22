@@ -118,7 +118,16 @@ class MyWork
       ask_to: status == "waiting" ? nil : person_json(grader && eligible.include?(grader.id) ? grader : contact),
       submission_type: submission_type,
       submissions_closed: window[:submissions_closed],
-      can_resubmit: status == "redo" && @enrollment.active? && entry.available && !window[:submissions_closed] && !%w[manual_complete prework_github_sync].include?(submission_type)
+      can_resubmit: status == "redo" && @enrollment.active? && entry.available && !window[:submissions_closed] && !%w[manual_complete prework_github_sync].include?(submission_type),
+      **review_target(submission, status)
     }
+  end
+
+  def review_target(submission, status)
+    return {} unless status == "waiting" && @cohort.review_sla_business_days.present?
+
+    @review_sla ||= ReviewSla.new(holidays: SchoolSetting.current.review_sla_holidays)
+    target = @review_sla.call(submitted_at: submission.created_at, business_days: @cohort.review_sla_business_days)
+    { expected_review_on: target[:expected_on], expected_review_by: target[:expected_by] }
   end
 end

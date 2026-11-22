@@ -47,7 +47,7 @@ export function useRecordUsage<T extends UsageType>(type: T, id: number | null |
 /** "Live program", "Self-paced", with the cohort workspace's label for guided courses. */
 export function deliveryLabel(delivery: string) {
   if (delivery === 'self_paced') return TERMS.selfPaced
-  if (delivery === 'guided') return 'Focused course with meetings'
+  if (delivery === 'guided') return TERMS.smallClass
   return TERMS.liveProgram
 }
 

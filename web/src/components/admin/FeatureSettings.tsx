@@ -1,4 +1,4 @@
-import { ReviewResponseSettings, type SavedReviewResponse } from './ReviewResponseSettings'
+import { ReviewResponseSettings } from './ReviewResponseSettings'
 import { useEffect, useState } from 'react'
 import { api, type FeatureSettingsData } from '../../lib/api'
 import { Button } from '../ui/Button'
@@ -6,7 +6,11 @@ import { Button } from '../ui/Button'
 // A cohort gets these only by turning them on itself (FeatureSwitches::COHORT_OPT_IN).
 const cohortOptIn = new Set(['github_app', 'learner_nudges'])
 const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', github_app: 'GitHub App access', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans', student_experience_v2: 'New student experience', learner_nudges: 'Learner reminders' }
-export function FeatureSettings({ cohortId, onDraftChange, onReviewResponseDraftChange, savedReviewResponse }: { cohortId?: number; onDraftChange?: (values: Record<string, boolean | null> | null) => void; onReviewResponseDraftChange?: (value: string | null | undefined) => void; savedReviewResponse?: SavedReviewResponse }) {
+export function FeatureSettings({ cohortId, onDraftChange, showReviewResponse = true }: {
+  cohortId?: number
+  onDraftChange?: (values: Record<string, boolean | null> | null) => void
+  showReviewResponse?: boolean
+}) {
   const [data, setData] = useState<FeatureSettingsData | null>(null)
   const [values, setValues] = useState<Record<string, boolean | null>>({})
   const [mode, setMode] = useState('automatic')
@@ -43,7 +47,7 @@ export function FeatureSettings({ cohortId, onDraftChange, onReviewResponseDraft
     </select></label>)}</div>
     {!cohortId && <label className="flex flex-col gap-1 text-sm font-semibold text-ink">Public course catalog link<select disabled={saving} className="min-h-11 rounded-xl border border-line bg-surface-raised px-3" value={mode} onChange={e => setMode(e.target.value)}><option value="automatic">Automatic</option><option value="always">Always show</option><option value="hidden">Hidden</option></select></label>}
     {!onDraftChange && <Button disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save features'}</Button>}</>}
-    <ReviewResponseSettings key={cohortId || "school"} cohortId={cohortId} onDraftChange={onReviewResponseDraftChange} savedResponse={savedReviewResponse} />
+    {showReviewResponse && <ReviewResponseSettings key={cohortId || "school"} cohortId={cohortId} />}
     {message && <p role="status" className="text-sm text-ink-secondary">{message}</p>}
   </section>
 }

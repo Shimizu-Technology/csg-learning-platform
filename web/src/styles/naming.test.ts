@@ -63,6 +63,7 @@ describe('product naming', () => {
  * glossary.json. Exceptions that no longer match fail the test.
  */
 const TERM_EXCEPTIONS: Record<string, string> = {
+  'src/lib/glossary.ts Check-in': 'Small-class check-ins are optional live sessions. Follow-up remains the term for a staff action on a learner.',
   'src/components/shared/CommandPalette.tsx Record (developer word)': 'L-0.9 explicitly names the command palette sections Records, Pages and Actions; individual results use glossary labels',
   'src/pages/Legal.tsx Record (developer word)': 'Legal text: "learning records" is the defined data category in the privacy policy and terms',
   'src/components/auth/CommunityStandardsGate.tsx Record (developer word)': 'Quotes the privacy policy category "learning records"',

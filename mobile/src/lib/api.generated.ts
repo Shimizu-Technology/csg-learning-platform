@@ -4402,7 +4402,32 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortSettingsInput"];
+                };
+            };
+            responses: {
+                /** @description Updated cohort settings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortWorkspaceResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/v1/cohorts/{cohort_id}/learning_insights": {
@@ -5838,6 +5863,47 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortSettingsInput"] & {
+                        review_response_time?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created cohort */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -7438,6 +7504,8 @@ export interface components {
             timezone: string;
             recurrence: "once" | "weekly";
             event_kind: "office_hours" | "live_class";
+            /** @description Shown for office hours in a small class that has configured durations or a review target. */
+            optional_check_in?: boolean;
         };
         PersonalPlanLesson: {
             lesson_id: number;
@@ -8249,6 +8317,13 @@ export interface components {
                 native_path: string | null;
                 student_record: boolean;
                 urgent: boolean;
+                /** @description Present on reviews past the configured review target. */
+                overdue?: boolean;
+                /**
+                 * Format: date-time
+                 * @description End of the target business day in Guam.
+                 */
+                expected_review_by?: string;
             }[];
             counts: {
                 help?: number;
@@ -8399,12 +8474,30 @@ export interface components {
             /** @description Active grants applicable to this submission’s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant. */
             extensions?: components["schemas"]["LearnerExtension"][];
             submission_window?: components["schemas"]["SubmissionWindowStatus"];
+            /** @description The review target of the latest ungraded attempt, when the cohort has configured one. */
+            review_sla?: {
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                business_days: number;
+                /**
+                 * Format: date
+                 * @description The Guam calendar date for instructor feedback, when a review target is set.
+                 */
+                expected_on: string;
+                /**
+                 * Format: date-time
+                 * @description End of the target business day in Guam.
+                 */
+                expected_by: string;
+                overdue: boolean;
+            };
         };
         /** @description Status chip counts inside the module, student and lesson filters. */
         GradingQueueCounts: {
             ungraded: number;
             redo: number;
             all: number;
+            /** @description Ungraded latest attempts past their review target across all pages of the current cohort, module, lesson and student filters. Omitted when no cohort in scope has a review target. */
+            overdue?: number;
         };
         /** @description A module or student with work in the chosen status (inside the other filters). The chosen one stays listed with count 0. */
         GradingQueueOption: {
@@ -8710,6 +8803,12 @@ export interface components {
                 public_preview: string | null;
                 /** @description Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1). */
                 learner_pace_weeks: number[] | null;
+                /** @description Months of lesson access from each learner’s start. A fixed access date takes precedence. */
+                guided_access_months?: number;
+                /** @description Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence. */
+                guided_support_weeks?: number;
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                review_sla_business_days?: number;
             };
         };
         StudentCommunicationMessage: {
@@ -9815,6 +9914,16 @@ export interface components {
             can_resubmit: boolean;
             /** @description Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action. */
             ask_to: components["schemas"]["PersonName"] | null;
+            /**
+             * Format: date
+             * @description The Guam calendar date for instructor feedback, when a review target is set.
+             */
+            expected_review_on?: string;
+            /**
+             * Format: date-time
+             * @description End of the target business day in Guam.
+             */
+            expected_review_by?: string;
         };
         /** @description A learner's submitted work in one cohort (MyWork): redos, work waiting for review, and graded work. */
         MyWork: {
@@ -10576,6 +10685,53 @@ export interface components {
         NudgePreferenceUpdateRequest: {
             /** @description False turns off optional reminders (due dates, inactivity, support ending). Access-ending notices are essential and still arrive. */
             learner_nudges_enabled: boolean;
+        };
+        CohortCreatedResponse: {
+            cohort: {
+                id: number;
+                name: string;
+                course_delivery: string;
+                guided_access_ends_on: string | null;
+                guided_support_ends_on: string | null;
+                /** @description Months of lesson access from each learner’s start. A fixed access date takes precedence. */
+                guided_access_months?: number;
+                /** @description Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence. */
+                guided_support_weeks?: number;
+                /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
+                review_sla_business_days?: number;
+            };
+        };
+        CohortSettingsInput: {
+            name?: string;
+            cohort_type?: string;
+            curriculum_id?: number;
+            start_date?: string | null;
+            end_date?: string | null;
+            course_delivery?: string;
+            status?: string;
+            public_checkout_enabled?: boolean;
+            public_outcomes?: string | null;
+            public_duration?: string | null;
+            public_prerequisites?: string | null;
+            public_preview?: string | null;
+            public_title?: string | null;
+            public_description?: string | null;
+            public_image_url?: string | null;
+            stripe_price_id?: string | null;
+            support_instructor_id?: number | null;
+            public_price_cents?: number | null;
+            self_paced_access_months?: number;
+            self_paced_support_weeks?: number;
+            guided_access_ends_on?: string | null;
+            guided_support_ends_on?: string | null;
+            /** @description Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1). */
+            learner_pace_weeks?: number[] | null;
+            github_organization_name?: string | null;
+            repository_name?: string | null;
+            requires_github?: boolean;
+            guided_access_months?: number | null;
+            guided_support_weeks?: number | null;
+            review_sla_business_days?: number | null;
         };
     };
     responses: {

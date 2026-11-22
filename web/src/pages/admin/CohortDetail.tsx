@@ -25,8 +25,8 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     submissionWindows,
     classResources,
     editCourseDelivery,
-    editAccessEnd,
-    editSupportEnd,
+    guidedTerms,
+    reviewTarget,
     editPaceWeeks,
     editPaceEnabled,
     editStartDate,
@@ -78,8 +78,11 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
             editGithubOrganization !== (cohort.github_organization_name || '') ||
             editStatus !== cohort.status ||
             editCourseDelivery !== (cohort.course_delivery || 'program') ||
-            editAccessEnd !== (cohort.guided_access_ends_on || '') ||
-            editSupportEnd !== (cohort.guided_support_ends_on || '') ||
+            guidedTerms.guided_access_ends_on !== (cohort.guided_access_ends_on || '') ||
+            guidedTerms.guided_support_ends_on !== (cohort.guided_support_ends_on || '') ||
+            guidedTerms.guided_access_months !== (cohort.guided_access_months?.toString() || '') ||
+            guidedTerms.guided_support_weeks !== (cohort.guided_support_weeks?.toString() || '') ||
+            reviewTarget !== (cohort.review_sla_business_days?.toString() || '') ||
             editPaceEnabled !== Boolean(cohort.learner_pace_weeks?.length) ||
             (editPaceEnabled && editPaceWeeks !== formatPaceWeeks(cohort.learner_pace_weeks)) ||
             JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || []) ||

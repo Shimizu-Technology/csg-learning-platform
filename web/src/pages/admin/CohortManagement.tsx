@@ -21,6 +21,10 @@ import { FilterChip } from '../../components/ui/Choice'
 import { formatShortDate } from '../../lib/format'
 import type { CohortSummary, CurriculumSummary } from '../../types/api'
 import { cohortPath } from '../../lib/routes'
+import { ReviewTargetField } from '../../components/admin/ReviewTargetField'
+import { DeliveryChoice, type CohortDelivery } from './cohortSettings/DeliveryChoice'
+import { GuidedTermsFields } from './cohortSettings/GuidedTermsFields'
+import { emptyGuidedTerms, guidedTermParams } from './cohortSettings/settingsForm'
 
 interface CreateCohortForm {
   name: string
@@ -28,7 +32,7 @@ interface CreateCohortForm {
   curriculum_id: number | ''
   start_date: string
   end_date: string
-  course_delivery: 'program' | 'self_paced'
+  course_delivery: CohortDelivery
 }
 
 const COHORT_TYPES = [
@@ -55,6 +59,9 @@ export function CohortManagement() {
   const [createParam, setCreateParam] = useUrlParam('create', urlParsers.oneOf(['false', 'true'] as const, 'false'))
   const showCreate = createParam === 'true'
   const setShowCreate = (value: boolean) => setCreateParam(value ? 'true' : 'false')
+  const [guidedTerms, setGuidedTerms] = useState(emptyGuidedTerms)
+  const [reviewTarget, setReviewTarget] = useState('')
+  const [reviewResponse, setReviewResponse] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // The status filter lives in the URL (L-0.6), so Back from a cohort returns to the same list.
@@ -108,6 +115,9 @@ export function CohortManagement() {
       end_date: form.end_date || undefined,
       course_delivery: form.course_delivery,
       public_checkout_enabled: false,
+      ...(form.course_delivery === 'guided' ? guidedTermParams(guidedTerms) : {}),
+      review_sla_business_days: reviewTarget ? Number(reviewTarget) : undefined,
+      review_response_time: reviewResponse.trim() || undefined,
     })
 
     if (res.data) {
@@ -205,14 +215,31 @@ export function CohortManagement() {
             </div>
           </div>
 
-          <div>
-            <label htmlFor={`${formId}-delivery`} className="mb-1 block text-sm font-semibold text-ink-secondary">Delivery</label>
-            <select id={`${formId}-delivery`} className="app-control w-full" value={form.course_delivery} onChange={(event) => setForm({ ...form, course_delivery: event.target.value as CreateCohortForm['course_delivery'] })}>
-              <option value="program">Live program</option>
-              <option value="self_paced">Self-paced course</option>
-            </select>
-            {form.course_delivery === 'self_paced' && <p className="mt-2 text-sm text-ink-secondary">Learners study the selected modules on their own schedule and can ask for help during the help period instead of joining live classes. Checkout stays off. Next, assign a support instructor and set the price, access, help period, and readiness in cohort settings. Existing cohorts and enrollments are unchanged.</p>}
-          </div>
+          <DeliveryChoice
+            value={form.course_delivery}
+            onChange={course_delivery => setForm({ ...form, course_delivery })}
+            selfPacedLabel="Self-paced course"
+          />
+          {form.course_delivery === 'self_paced' && <p className="mt-2 text-sm text-ink-secondary">Learners study the selected modules on their own schedule and can ask for help during the help period instead of joining live classes. Checkout stays off. Next, assign a support instructor and set the price, access, help period, and readiness in cohort settings. Existing cohorts and enrollments are unchanged.</p>}
+          {form.course_delivery === 'guided' && <GuidedTermsFields terms={guidedTerms} onChange={setGuidedTerms} />}
+          <details className="rounded-xl border border-line px-3 pb-2">
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-ink">
+              Review settings
+            </summary>
+            <div className="space-y-3 pb-2">
+              <label className="block text-sm font-semibold">
+                Typical response time
+                <input
+                  className="app-control mt-1 min-h-11 w-full"
+                  maxLength={200}
+                  value={reviewResponse}
+                  onChange={event => setReviewResponse(event.target.value)}
+                  placeholder="Use the school default"
+                />
+              </label>
+              <ReviewTargetField value={reviewTarget} onChange={setReviewTarget} />
+            </div>
+          </details>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Button type="submit" disabled={creating}>
