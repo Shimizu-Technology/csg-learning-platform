@@ -9,7 +9,7 @@ class GithubSubmittedRevisionSync
     @access, @binding, @repository = access, binding, repository
   end
 
-  def call(user:, enrollment:, curriculum_module_id:, exercise_blocks:, repo_data:, errors:, request_started_at:)
+  def call(user:, enrollment:, curriculum_module_id:, exercise_blocks:, repo_data:, errors:, request_started_at:, synced_submission_ids: nil)
     sha = repo_data[:commit_hash]
     raise GithubAppClient::Error, "GitHub did not return an exact submitted commit" unless sha.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
 
@@ -94,6 +94,7 @@ class GithubSubmittedRevisionSync
             num_submissions: (previous&.num_submissions || 0) + 1,
             github_revision: revision_payload)
           latest[block.id] = submission
+          synced_submission_ids << submission.id if synced_submission_ids
           if features["github_issue_delivery_v2"] == true
             GithubIssueDeliveryPlanner.obsolete_pending!(
               enrollment_id: enrollment.id,

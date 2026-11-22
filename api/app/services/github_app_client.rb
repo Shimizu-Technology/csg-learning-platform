@@ -39,8 +39,8 @@ class GithubAppClient
     @transport, @cache, @credentials, @now = transport, cache, credentials, now
   end
 
-  def installation(installation_id)
-    result = request(:get, "/app/installations/#{Integer(installation_id)}", token: app_jwt)
+  def installation(installation_id, timeout: nil)
+    result = request(:get, "/app/installations/#{Integer(installation_id)}", token: app_jwt, timeout: timeout)
     account = result.fetch("account")
     unless result.fetch("id").to_i == Integer(installation_id) && account.is_a?(Hash) && positive_id?(account.fetch("id")) && account.fetch("login").is_a?(String) &&
         %w[User Organization].include?(account.fetch("type")) && %w[all selected].include?(result.fetch("repository_selection")) && result.fetch("permissions").is_a?(Hash)
@@ -70,22 +70,32 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
-  def files(installation:, repository:, filenames:, workflow_paths: [])
-    # Resolve once, then fetch every blob at that commit. HEAD:path and the
-    # branch tip in the same GraphQL query can observe different revisions.
-    repo = source_query(installation, repository, "defaultBranchRef { name target { ... on Commit { oid } } }")
+  def default_branch_head(installation:, repository:, timeout: nil)
+    repo = source_query(installation, repository, "defaultBranchRef { name target { ... on Commit { oid committedDate } } }", timeout: timeout)
     branch = repo.fetch("defaultBranchRef")
-    sha = branch&.fetch("target")&.fetch("oid")
+    target = branch&.fetch("target")
+    sha = target&.fetch("oid")
+    raise Error, "GitHub repository has no submitted commit" unless sha.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
+
+    committed_at = target["committedDate"].present? ? Time.iso8601(target["committedDate"].to_s) : nil
+    { commit_hash: sha, branch: branch.fetch("name"), committed_at: committed_at }
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def files_at_commit(installation:, repository:, sha:, branch:, filenames:, workflow_paths: [], timeout: nil)
     raise Error, "GitHub repository has no submitted commit" unless sha.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
 
     normalized_workflows = Array(workflow_paths).filter_map { |path| path.to_s.strip.presence }.uniq
+    return { files: [], workflow_files: {}, commit_hash: sha, branch: branch, error: nil } if filenames.empty? && normalized_workflows.empty?
+
     fragments = filenames.each_with_index.map do |filename, index|
       "file_#{index}: object(expression: #{"#{sha}:#{filename}".to_json}) { ... on Blob { text byteSize isTruncated } }"
     end
     normalized_workflows.each_with_index do |workflow_path, index|
       fragments << "workflow_#{index}: object(expression: #{"#{sha}:#{workflow_path}".to_json}) { ... on Blob { oid text byteSize isTruncated } }"
     end
-    repo = source_query(installation, repository, fragments.join("\n"))
+    repo = source_query(installation, repository, fragments.join("\n"), timeout: timeout)
     files = filenames.each_with_index.filter_map do |filename, index|
       blob = repo.fetch("file_#{index}")
       next unless blob
@@ -129,15 +139,30 @@ class GithubAppClient
         }
       end
     end
-    { files: files, workflow_files: workflow_files, commit_hash: sha, branch: branch.fetch("name"), error: nil }
+    { files: files, workflow_files: workflow_files, commit_hash: sha, branch: branch, error: nil }
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end
 
-  def checks(installation:, repository_id:, full_name:, sha:, page:)
+  def files(installation:, repository:, filenames:, workflow_paths: [], timeout: nil)
+    # Resolve once, then fetch every blob at that commit. HEAD:path and the
+    # branch tip in the same GraphQL query can observe different revisions.
+    head = default_branch_head(installation: installation, repository: repository, timeout: timeout)
+    files_at_commit(
+      installation: installation,
+      repository: repository,
+      sha: head.fetch(:commit_hash),
+      branch: head.fetch(:branch),
+      filenames: filenames,
+      workflow_paths: workflow_paths,
+      timeout: timeout
+    )
+  end
+
+  def checks(installation:, repository_id:, full_name:, sha:, page:, timeout: nil)
     raise Error, "Invalid submission commit SHA" unless sha.to_s.match?(/\A[a-fA-F0-9]{6,64}\z/)
 
-    result = installation_request(installation, :get, "/repos/#{full_name}/commits/#{sha}/check-runs", repository_id: repository_id, query: { filter: "latest", per_page: 100, page: page })
+    result = installation_request(installation, :get, "/repos/#{full_name}/commits/#{sha}/check-runs", repository_id: repository_id, query: { filter: "latest", per_page: 100, page: page }, timeout: timeout)
     unless result.fetch("check_runs").is_a?(Array) && result.fetch("total_count").is_a?(Integer) && result["total_count"] >= 0
       raise Error, PROVIDER_ERROR
     end
@@ -299,10 +324,10 @@ class GithubAppClient
 
   private
 
-  def source_query(installation, repository, fields)
+  def source_query(installation, repository, fields, timeout: nil)
     owner, name = repository.fetch("full_name").split("/")
     query = "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name, followRenames: false) { fullDatabaseId #{fields} } }"
-    result = installation_request(installation, :post, "/graphql", repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } })
+    result = installation_request(installation, :post, "/graphql", repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } }, timeout: timeout)
     repo = result.fetch("data").fetch("repository")
     raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo.fetch("fullDatabaseId").to_i == repository.fetch("id").to_i && result["errors"].blank?
 

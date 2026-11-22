@@ -4,7 +4,9 @@ require "digest"
 class FakeGithubAppClient
   attr_reader :calls, :issues
   attr_accessor :failure, :issue_failure, :repository_owner, :repository_owner_id, :fork, :owner_type,
-    :source_text, :commit_sha, :workflow_files, :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
+    :source_text, :commit_sha, :commit_branch, :committed_at, :files_by_name, :workflow_files,
+    :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
+    :on_default_branch_head, :on_files_at_commit, :on_checks,
     :on_find_issue_by_marker, :on_get_issue, :inconclusive_marker_search
 
   def initialize
@@ -19,12 +21,15 @@ class FakeGithubAppClient
     @owner_type = "User"
     @source_text = "puts 'synthetic source'"
     @commit_sha = "a" * 40
+    @commit_branch = "main"
+    @committed_at = nil
+    @files_by_name = nil
     @workflow_files = {}
     @timeout_after_create = false
     @inconclusive_marker_search = false
   end
 
-  def installation(id)
+  def installation(id, timeout: nil)
     @mutex.synchronize { @calls << [ :installation, id ] }
     raise failure if failure
 
@@ -43,7 +48,54 @@ class FakeGithubAppClient
     { "id" => repository_id || (name == "prework-exercises" ? 98765 : 98766), "full_name" => "#{owner}/#{name}", "fork" => (fork || name == "forked-repo"), "owner" => { "id" => (owner == "wrong-owner" || full_name.start_with?("victim-gh/") ? 86420 : repository_owner_id), "login" => owner, "type" => owner_type } }
   end
 
-  def files(installation:, repository:, filenames:, workflow_paths: [])
+  def default_branch_head(installation:, repository:, timeout: nil)
+    @mutex.synchronize { @calls << [ :default_branch_head, installation.id, repository.fetch("id"), timeout ] }
+    if @on_default_branch_head
+      result = @on_default_branch_head.call(installation: installation, repository: repository, timeout: timeout)
+      return result if result
+    end
+    raise failure if failure
+
+    { commit_hash: commit_sha, branch: commit_branch, committed_at: committed_at }
+  end
+
+  def files_at_commit(installation:, repository:, sha:, branch:, filenames:, workflow_paths: [], timeout: nil)
+    @mutex.synchronize do
+      entry = [ :files_at_commit, installation.id, repository.fetch("id"), sha, filenames ]
+      entry << workflow_paths if workflow_paths.any?
+      @calls << entry
+    end
+    if @on_files_at_commit
+      result = @on_files_at_commit.call(installation: installation, repository: repository, sha: sha, branch: branch, filenames: filenames, workflow_paths: workflow_paths, timeout: timeout)
+      return result if result
+    end
+    raise failure if failure
+
+    captured_workflows = Array(workflow_paths).each_with_object({}) do |path, hash|
+      entry = (@workflow_files || {})[path]
+      if entry.nil?
+        hash[path] = { "present" => false }
+      else
+        text = entry.fetch("text", "")
+        hash[path] = {
+          "present" => true,
+          "oid" => entry.fetch("oid", Digest::SHA1.hexdigest("blob #{text.bytesize}\0#{text}")),
+          "sha256" => entry.fetch("sha256", Digest::SHA256.hexdigest(text))
+        }
+      end
+    end
+    resolved_files = filenames.filter_map do |name|
+      if @files_by_name
+        text = @files_by_name[name]
+        text.nil? ? nil : { "name" => name, "text" => text }
+      else
+        { "name" => name, "text" => source_text }
+      end
+    end
+    { files: resolved_files, workflow_files: captured_workflows, commit_hash: sha, branch: branch, error: nil }
+  end
+
+  def files(installation:, repository:, filenames:, workflow_paths: [], timeout: nil)
     @mutex.synchronize do
       entry = [ :files, installation.id, repository.fetch("id"), filenames ]
       entry << workflow_paths if workflow_paths.any?
@@ -64,11 +116,15 @@ class FakeGithubAppClient
         }
       end
     end
-    { files: filenames.map { |name| { "name" => name, "text" => source_text } }, workflow_files: captured_workflows, commit_hash: commit_sha, branch: "main", error: nil }
+    { files: filenames.map { |name| { "name" => name, "text" => source_text } }, workflow_files: captured_workflows, commit_hash: commit_sha, branch: commit_branch, error: nil }
   end
 
-  def checks(installation:, repository_id:, full_name:, sha:, page:)
+  def checks(installation:, repository_id:, full_name:, sha:, page:, timeout: nil)
     @mutex.synchronize { @calls << [ :checks, installation.id, repository_id, full_name, sha, page ] }
+    if @on_checks
+      result = @on_checks.call(installation: installation, repository_id: repository_id, full_name: full_name, sha: sha, page: page, timeout: timeout)
+      return result if result
+    end
     raise failure if failure
 
     { "total_count" => 1, "check_runs" => [ { "id" => 13579, "name" => "synthetic-test", "head_sha" => sha, "status" => "completed", "conclusion" => "success" } ] }

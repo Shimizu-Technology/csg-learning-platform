@@ -14,11 +14,12 @@ module Api
       end
 
       def index
-        rows = @enrollment.github_repository_bindings.order(:id)
+        rows = @enrollment.github_repository_bindings.includes(:github_reconciliation_state).order(:id)
         # Bindings belong to this one learner; serializer identity reads are
         # constant even when many module bindings exist.
         rows.each { |row| row.enrollment = @enrollment }
-        render json: { bindings: rows.map { |row| GithubAppSerializer.binding(row) },
+        include_reconciliation = current_user.admin?
+        render json: { bindings: rows.map { |row| GithubAppSerializer.binding(row, include_reconciliation: include_reconciliation) },
           github_identity: GithubAppSerializer.identity(@enrollment.user), can_connect_github: current_user.id == @enrollment.user_id && GithubAppCredentials.oauth_configured?,
           installations: available_installations.order(:id).map { |row| { id: row.id, account_login: row.account_login, connection_state: row.connection_state } },
           modules: @enrollment.cohort.curriculum.modules.order(:position).map { |mod| { id: mod.id, name: mod.name } } }
@@ -36,20 +37,22 @@ module Api
           # An explicit rebind resets numeric provenance. Existing URL submissions
           # are never turned into verified bindings by migration or inference.
           binding.update!(github_app_installation: installation, full_name: name, repository_id: nil, github_user_id: nil, github_username: nil, verification_state: "pending", failure_reason: nil, verified_at: nil, checked_at: nil)
+          binding.github_reconciliation_state&.destroy!
+          binding.association(:github_reconciliation_state).reset
           binding
         end
-        render json: { binding: GithubAppSerializer.binding(binding) }
+        render json: { binding: GithubAppSerializer.binding(binding, include_reconciliation: current_user.admin?) }
       end
 
       def verify
-        binding = @enrollment.github_repository_bindings.find(params[:id])
+        binding = @enrollment.github_repository_bindings.includes(:github_reconciliation_state).find(params[:id])
         binding.enrollment = @enrollment
         begin
           GithubRepositoryAccess.new(binding).verify!
         rescue GithubAppClient::Error
           # Persisted failure is a recoverable verification result, not success.
         end
-        render json: { binding: GithubAppSerializer.binding(binding) }
+        render json: { binding: GithubAppSerializer.binding(binding, include_reconciliation: current_user.admin?) }
       end
 
       private

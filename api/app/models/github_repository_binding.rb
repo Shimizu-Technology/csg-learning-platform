@@ -3,6 +3,7 @@ class GithubRepositoryBinding < ApplicationRecord
   belongs_to :curriculum_module, optional: true
   belongs_to :github_app_installation
   has_many :github_issue_deliveries, dependent: :nullify
+  has_one :github_reconciliation_state, dependent: :destroy
 
   validates :full_name, format: { with: %r{\A[a-zA-Z0-9][a-zA-Z0-9-]{0,38}/[a-zA-Z0-9_.-]{1,100}\z}, message: "must be owner/repository" }
   validates :repository_id, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true

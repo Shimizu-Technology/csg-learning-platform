@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -589,7 +589,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "submission_id", null: false
     t.datetime "updated_at", null: false
     t.string "workflow_name"
-    t.bigint "check_suite_id"
     t.string "workflow_path"
     t.index ["submission_id", "external_id"], name: "index_github_check_runs_on_submission_id_and_external_id", unique: true
     t.index ["submission_id", "head_sha"], name: "index_github_check_runs_on_submission_id_and_head_sha"
@@ -629,6 +628,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.check_constraint "attempts >= 0", name: "github_issue_deliveries_attempts_nonnegative"
     t.check_constraint "grade::text = ANY (ARRAY['A'::character varying::text, 'B'::character varying::text, 'C'::character varying::text, 'R'::character varying::text])", name: "github_issue_deliveries_grade_valid"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'obsolete'::character varying::text])", name: "github_issue_deliveries_status_valid"
+  end
+
+  create_table "github_reconciliation_states", force: :cascade do |t|
+    t.bigint "github_repository_binding_id", null: false
+    t.datetime "activated_at", null: false
+    t.string "last_head_sha"
+    t.datetime "last_reconciled_at"
+    t.datetime "next_reconcile_at"
+    t.integer "consecutive_failures", default: 0, null: false
+    t.text "last_error"
+    t.string "claim_token"
+    t.datetime "claimed_until"
+    t.string "last_status", default: "idle", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["github_repository_binding_id"], name: "idx_on_github_repository_binding_id_4e6fbb4072", unique: true
+    t.index ["next_reconcile_at"], name: "index_github_reconciliation_states_on_next_reconcile_at"
+    t.check_constraint "consecutive_failures >= 0", name: "github_reconciliation_states_consecutive_failures_nonnegative"
+    t.check_constraint "last_status::text = ANY (ARRAY['idle'::character varying, 'ok'::character varying, 'backoff'::character varying, 'failed'::character varying]::text[])", name: "github_reconciliation_states_last_status_valid"
   end
 
   create_table "github_repository_bindings", force: :cascade do |t|
@@ -671,7 +689,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["processing_state", "received_at"], name: "index_github_webhook_deliveries_on_state_and_received_at"
     t.index ["repository_id", "head_sha"], name: "index_github_webhook_deliveries_on_repo_and_head_sha"
     t.check_constraint "attempts >= 0", name: "github_webhook_deliveries_attempts_nonnegative"
-    t.check_constraint "processing_state::text = ANY (ARRAY['pending'::character varying, 'processed'::character varying, 'staged'::character varying, 'ignored'::character varying, 'failed'::character varying]::text[])", name: "github_webhook_deliveries_processing_state_valid"
+    t.check_constraint "processing_state::text = ANY (ARRAY['pending'::character varying::text, 'processed'::character varying::text, 'staged'::character varying::text, 'ignored'::character varying::text, 'failed'::character varying::text])", name: "github_webhook_deliveries_processing_state_valid"
   end
 
   create_table "help_request_replies", force: :cascade do |t|
@@ -1505,12 +1523,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["exercise_check_policy_id"], name: "index_submission_grade_suggestions_on_exercise_check_policy_id"
     t.index ["outcome"], name: "index_submission_grade_suggestions_on_outcome"
     t.index ["submission_id"], name: "index_submission_grade_suggestions_on_submission_id", unique: true
-    t.check_constraint "decision IS NULL OR (decision::text = ANY (ARRAY['accepted'::character varying, 'overridden'::character varying, 'dismissed'::character varying]::text[]))", name: "submission_grade_suggestions_decision_valid"
+    t.check_constraint "decision IS NULL OR (decision::text = ANY (ARRAY['accepted'::character varying::text, 'overridden'::character varying::text, 'dismissed'::character varying::text]))", name: "submission_grade_suggestions_decision_valid"
     t.check_constraint "jsonb_typeof(evidence) = 'object'::text", name: "submission_grade_suggestions_evidence_object"
     t.check_constraint "outcome::text = 'suggest_b'::text AND suggested_grade IS NOT NULL AND suggested_grade::text = 'B'::text OR outcome::text <> 'suggest_b'::text AND suggested_grade IS NULL", name: "submission_grade_suggestions_suggested_grade_valid"
-    t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying, 'review_for_redo'::character varying, 'no_suggestion'::character varying, 'stale_evidence'::character varying]::text[])", name: "submission_grade_suggestions_outcome_valid"
+    t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying::text, 'review_for_redo'::character varying::text, 'no_suggestion'::character varying::text, 'stale_evidence'::character varying::text])", name: "submission_grade_suggestions_outcome_valid"
     t.check_constraint "policy_version IS NULL OR policy_version > 0", name: "submission_grade_suggestions_policy_version_positive"
-    t.check_constraint "reason_code::text = ANY (ARRAY['all_required_checks_passed'::character varying, 'required_check_failed'::character varying, 'missing_policy'::character varying, 'unverified_revision'::character varying, 'missing_required_check'::character varying, 'check_pending'::character varying, 'check_inconclusive'::character varying, 'untrusted_producer'::character varying, 'workflow_tampered'::character varying, 'branch_mismatch'::character varying, 'stale_sha'::character varying, 'stale_policy'::character varying, 'superseded_submission'::character varying]::text[])", name: "submission_grade_suggestions_reason_code_valid"
+    t.check_constraint "reason_code::text = ANY (ARRAY['all_required_checks_passed'::character varying::text, 'required_check_failed'::character varying::text, 'missing_policy'::character varying::text, 'unverified_revision'::character varying::text, 'missing_required_check'::character varying::text, 'check_pending'::character varying::text, 'check_inconclusive'::character varying::text, 'untrusted_producer'::character varying::text, 'workflow_tampered'::character varying::text, 'branch_mismatch'::character varying::text, 'stale_sha'::character varying::text, 'stale_policy'::character varying::text, 'superseded_submission'::character varying::text])", name: "submission_grade_suggestions_reason_code_valid"
   end
 
   create_table "submissions", force: :cascade do |t|
@@ -1714,6 +1732,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "github_issue_deliveries", "enrollments", on_delete: :cascade
   add_foreign_key "github_issue_deliveries", "github_repository_bindings", on_delete: :nullify
   add_foreign_key "github_issue_deliveries", "submissions", on_delete: :cascade
+  add_foreign_key "github_reconciliation_states", "github_repository_bindings", on_delete: :cascade
   add_foreign_key "github_repository_bindings", "enrollments"
   add_foreign_key "github_repository_bindings", "github_app_installations"
   add_foreign_key "github_repository_bindings", "modules", column: "curriculum_module_id"
