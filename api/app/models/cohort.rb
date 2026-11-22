@@ -317,9 +317,13 @@ class Cohort < ApplicationRecord
   private
 
   def curriculum_change_allowed
+    return unless persisted? && will_save_change_to_curriculum_id?
     return if moving_to_own_copy?
 
-    errors.add(:curriculum, "cannot change while students are enrolled") if persisted? && will_save_change_to_curriculum_id? && enrollments.exists?
+    errors.add(:curriculum, "cannot change while students are enrolled") if enrollments.exists?
+    if LessonRecording.where(recording_id: recordings.select(:id)).exists?
+      errors.add(:curriculum, "cannot change while recordings are attached to lessons")
+    end
   end
 
   def reset_content_defaults_for_curriculum

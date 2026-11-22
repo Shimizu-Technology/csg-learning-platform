@@ -49,6 +49,10 @@ module LessonSerialization
     json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
 
     if include_content
+      if current_user.student? && @lesson_enrollment && FeatureSwitches.for(cohort: @lesson_enrollment.cohort)["recordings"] == true
+        recordings = attached_recordings_json(lesson, @lesson_enrollment)
+        json[:attached_recordings] = recordings if recordings.any?
+      end
       # Staff see attempt counts from the cohorts they may see (StaffCohortScope); nil counts every attempt.
       @staff_attempt_enrollments = current_user.staff? ? cohort_scope.enrollment_ids(lesson.curriculum_module.curriculum_id)&.pluck(:id)&.to_set : nil
       completion_block_ids = lesson.completion_block_ids.to_set
@@ -175,6 +179,36 @@ module LessonSerialization
     end
 
     json
+  end
+
+  def attached_recordings_json(lesson, enrollment)
+    # The recording library uses school dates. New lesson attachments also
+    # respect the exact publication cutoff when a learner pauses mid-day.
+    pause_cutoff = enrollment.paused_at || enrollment.read_cutoff_at if enrollment.paused?
+    recordings = lesson.recordings.student_visible.where(cohort_id: enrollment.cohort_id)
+      .order(LessonRecording.arel_table[:position], LessonRecording.arel_table[:id])
+      .select do |recording|
+        enrollment.recording_available_for_read?(recording) &&
+          (pause_cutoff.nil? || (recording.published_at || recording.updated_at) <= pause_cutoff)
+      end
+    return [] if recordings.empty?
+
+    progress = current_user.watch_progresses.where(recording_id: recordings.map(&:id)).index_by(&:recording_id)
+    recordings.map do |recording|
+      watched = progress[recording.id]
+      {
+        id: recording.id,
+        title: recording.title,
+        description: recording.description,
+        source_kind: recording.source_kind,
+        duration_seconds: recording.duration_seconds,
+        duration_display: recording.duration_display,
+        recorded_date: recording.recorded_date&.iso8601,
+        progress_percentage: watched&.progress_percentage || 0,
+        completed: watched&.completed || false,
+        path: LearningDestination.recording(recording_id: recording.id, cohort_id: enrollment.cohort_id)
+      }
+    end
   end
 
   def objective_json(lesson, include_inactive: false)

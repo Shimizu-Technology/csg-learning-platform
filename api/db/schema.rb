@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_081000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -725,8 +725,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_081000) do
     t.index ["key"], name: "index_learner_nudges_on_key", unique: true
     t.index ["push_requested_at"], name: "index_learner_nudges_on_email_pending", where: "((email_status)::text = 'pending'::text)"
     t.index ["push_requested_at"], name: "index_learner_nudges_on_push_pending", where: "((push_requested_at IS NOT NULL) AND (push_settled_at IS NULL))"
-    t.check_constraint "email_status::text = ANY (ARRAY['not_requested'::character varying, 'pending'::character varying, 'sent'::character varying, 'failed'::character varying, 'not_configured'::character varying, 'no_address'::character varying]::text[])", name: "learner_nudges_email_status_valid"
-    t.check_constraint "kind::text = ANY (ARRAY['due_soon'::character varying, 'inactive'::character varying, 'support_ending'::character varying, 'access_ending'::character varying]::text[])", name: "learner_nudges_kind_valid"
+    t.check_constraint "email_status::text = ANY (ARRAY['not_requested'::character varying::text, 'pending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text, 'not_configured'::character varying::text, 'no_address'::character varying::text])", name: "learner_nudges_email_status_valid"
+    t.check_constraint "kind::text = ANY (ARRAY['due_soon'::character varying::text, 'inactive'::character varying::text, 'support_ending'::character varying::text, 'access_ending'::character varying::text])", name: "learner_nudges_kind_valid"
   end
 
   create_table "learning_objectives", force: :cascade do |t|
@@ -785,6 +785,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_081000) do
     t.index ["enrollment_id", "lesson_id"], name: "index_lesson_assignments_on_enrollment_id_and_lesson_id", unique: true
     t.index ["enrollment_id"], name: "index_lesson_assignments_on_enrollment_id"
     t.index ["lesson_id"], name: "index_lesson_assignments_on_lesson_id"
+  end
+
+  create_table "lesson_recordings", force: :cascade do |t|
+    t.bigint "recording_id", null: false
+    t.bigint "lesson_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["lesson_id", "position"], name: "index_lesson_recordings_on_lesson_id_and_position"
+    t.index ["recording_id", "lesson_id"], name: "index_lesson_recordings_on_recording_id_and_lesson_id", unique: true
   end
 
   create_table "lessons", force: :cascade do |t|
@@ -1578,6 +1588,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_081000) do
   add_foreign_key "learning_plans", "enrollments"
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"
+  add_foreign_key "lesson_recordings", "lessons", on_delete: :cascade
+  add_foreign_key "lesson_recordings", "recordings", on_delete: :cascade
   add_foreign_key "lessons", "modules"
   add_foreign_key "message_attachments", "messages"
   add_foreign_key "message_attachments", "users", column: "uploaded_by_id"

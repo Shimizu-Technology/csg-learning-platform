@@ -10,6 +10,8 @@ class Lesson < ApplicationRecord
   enum :lesson_type, { video: 0, exercise: 1, reading: 2, project: 3, checkpoint: 4 }
 
   belongs_to :curriculum_module, foreign_key: :module_id
+  has_many :lesson_recordings, dependent: :destroy
+  has_many :recordings, through: :lesson_recordings
   has_many :content_blocks, -> { order(:position) }, dependent: :destroy
   has_many :lesson_assignments, dependent: :destroy
   has_many :objective_alignments, dependent: :destroy

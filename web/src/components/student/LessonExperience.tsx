@@ -8,6 +8,7 @@ import { api } from '../../lib/api'
 import { learnerPaths } from '../../lib/routes'
 import { useKeyboardAwareViewport } from '../../lib/visualViewport'
 import type { HelpRequest, LessonDetail } from '../../types/api'
+import { LessonRecordings } from './LessonRecordings'
 import { ContextualHelp } from './ContextualHelp'
 import { PersonActions } from './PersonActions'
 import { Button, LinkButton } from '../ui/Button'
@@ -182,6 +183,7 @@ export function LessonExperience({
           Submissions are closed for this week. Your work and feedback are saved.
         </p>
       )}
+      <LessonRecordings lesson={lesson} />
       {children}
       {!savedData && lesson.learner_status === 'done' && !isLibrary && (
         <p

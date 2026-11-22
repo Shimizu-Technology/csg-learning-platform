@@ -1310,16 +1310,18 @@ export const api = {
   // S3 Recordings
   getCohortRecordings: (cohortId: number) =>
     fetchApi<CohortRecordingsResponse>(`/api/v1/cohorts/${cohortId}/recordings`),
+  getRecordingLessonOptions: (cohortId: number) =>
+    fetchApi<components['schemas']['RecordingLessonOptionsResponse']>(`/api/v1/cohorts/${cohortId}/recordings/lesson_options`),
   presignRecordingUpload: (cohortId: number, filename: string, contentType: string) =>
     fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
       `/api/v1/cohorts/${cohortId}/recordings_presign`,
       { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
     ),
-  createRecording: (cohortId: number, data: { title: string; description?: string; source_url?: string; s3_key?: string; content_type?: string; file_size?: number; duration_seconds?: number; recorded_date?: string; publish_immediately?: boolean }) =>
+  createRecording: (cohortId: number, data: components['schemas']['CreateRecordingInput']) =>
     fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {
       method: 'POST', body: JSON.stringify(data),
     }),
-  updateRecording: (cohortId: number, id: number, data: { title?: string; description?: string; source_url?: string; duration_seconds?: number; recorded_date?: string | null; status?: 'draft' | 'published' }) =>
+  updateRecording: (cohortId: number, id: number, data: components['schemas']['UpdateRecordingInput']) =>
     fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings/${id}`, {
       method: 'PATCH', body: JSON.stringify(data),
     }),

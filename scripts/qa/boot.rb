@@ -59,3 +59,17 @@ if ENV["QA_GITHUB_APP"] == "1"
   GithubAppCredentials.define_singleton_method(:oauth_configured?) { true }
   GithubAppCredentials.define_singleton_method(:user_callback_url) { "http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/github-app/authorize" }
 end
+
+# AS-7 uses a local video in Chromium. Only storage is simulated; recording
+# persistence, authorization and progress still run through Rails.
+if ENV["QA_LESSON_RECORDINGS"] == "1"
+  clip = Rails.root.join("..", ".qa-local", "synthetic.mp4")
+  upload = Struct.new(:url, :fields)
+  S3Service.define_singleton_method(:configured?) { true }
+  S3Service.define_singleton_method(:generate_presigned_post) do |key, _content_type|
+    upload.new("http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/qa-recording-upload", { "key" => key })
+  end
+  S3Service.define_singleton_method(:object_metadata) { |_key| { content_length: clip.size, content_type: "video/mp4" } }
+  S3Service.define_singleton_method(:object_exists?) { |_key| clip.file? }
+  S3Service.define_singleton_method(:generate_presigned_url) { |*_, **| "/qa-media.mp4" }
+end
