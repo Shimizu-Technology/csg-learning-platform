@@ -1,7 +1,25 @@
 import { toDateTimeInputValueInTimeZone } from '../../../lib/dateTime'
 import { formatShortDate } from '../../../lib/format'
 import { schoolTimeZone, schoolWallTimeToIso } from '../../../lib/schoolTime'
-import type { CourseOfferingTerms, InviteState, OfficeHour, OfficeHourOccurrence } from '../../../types/api'
+import type { CourseOfferingTerms, InviteState, OfficeHour, OfficeHourOccurrence, ReviewAndGuidedTerms } from '../../../types/api'
+
+export const emptyGuidedTerms = {
+  guided_access_months: '',
+  guided_support_weeks: '',
+  guided_access_ends_on: '',
+  guided_support_ends_on: '',
+}
+
+export type GuidedTermsDraft = typeof emptyGuidedTerms
+
+export function guidedTermParams(terms: GuidedTermsDraft) {
+  return {
+    guided_access_months: terms.guided_access_months ? Number(terms.guided_access_months) : null,
+    guided_support_weeks: terms.guided_support_weeks ? Number(terms.guided_support_weeks) : null,
+    guided_access_ends_on: terms.guided_access_ends_on || null,
+    guided_support_ends_on: terms.guided_support_ends_on || null,
+  }
+}
 
 export interface ClassResource {
   title: string
@@ -22,7 +40,7 @@ export interface SubmissionWindowForm {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type CohortData = Record<string, any> &
-  CourseOfferingTerms & {
+  CourseOfferingTerms & ReviewAndGuidedTerms & {
     id: number
     name: string
     curriculum_id: number

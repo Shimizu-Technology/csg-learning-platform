@@ -419,17 +419,24 @@ function Waiting({ today, paths, myWorkPath }: { today: StudentToday; paths: Pat
     <section className="app-surface" aria-labelledby="today-waiting">
       <SectionHead id="today-waiting" title="Waiting on your instructor" count={today.waiting.count} action={<Link to={myWorkPath('waiting')} className="app-link inline-flex min-h-11 items-center gap-1 text-sm">My work<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>} />
       <ul className="divide-y divide-line px-4 sm:px-5">
-        {today.waiting.items.map((item, index) => (
-          <li key={item.submission_id}>
-            <Link to={paths.redo(item.lesson_id, item.content_block_id)} className="pressable flex min-h-14 items-center gap-3 py-3">
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.lesson_title}</span>
-                <span className="mt-0.5 block text-xs text-ink-muted">Submitted <span className="tabular-nums">{shortAgo(item.submitted_at)}</span> ago{index === 0 ? ` · ${reviewerLine(today)}` : ''}</span>
-              </span>
-              <Badge tone="pending">Waiting</Badge>
-            </Link>
-          </li>
-        ))}
+        {today.waiting.items.map((item, index) => {
+          const age = shortAgo(item.submitted_at)
+          return (
+            <li key={item.submission_id}>
+              <Link to={paths.redo(item.lesson_id, item.content_block_id)} className="pressable flex min-h-14 items-center gap-3 py-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.lesson_title}</span>
+                  <span className="mt-0.5 block text-xs text-ink-muted">
+                    Submitted <span className="tabular-nums">{age === 'now' ? 'just now' : `${age} ago`}</span>
+                    {index === 0 && !item.expected_review_on ? ` · ${reviewerLine(today)}` : ''}
+                  </span>
+                  {item.expected_review_on && <span className="mt-0.5 block text-xs font-semibold text-ink-secondary">Feedback expected by <time dateTime={item.expected_review_on}>{formatShortDate(item.expected_review_on, '', { withYear: false, weekday: true })}</time></span>}
+                </span>
+                <Badge tone="pending">Waiting</Badge>
+              </Link>
+            </li>
+          )
+        })}
       </ul>
       {more > 0 && <Link to={myWorkPath('waiting')} className="app-link flex min-h-11 items-center px-4 pb-3 text-sm sm:px-5">Show all <span className="ml-1 tabular-nums">{today.waiting.count}</span></Link>}
     </section>
@@ -462,7 +469,7 @@ function NextSession({ session }: { session: NonNullable<StudentToday['next_sess
   const url = sanitizeUrl(session.meeting_url)
   return (
     <section className="app-surface p-5" aria-labelledby="today-session" data-region="next-session">
-      <h2 id="today-session" className="text-base font-semibold text-ink">{session.event_kind === 'live_class' ? 'Next live class' : 'Office hours'}</h2>
+      <h2 id="today-session" className="text-base font-semibold text-ink">{session.optional_check_in ? TERMS.optionalCheckIn : session.event_kind === 'live_class' ? 'Next live class' : 'Office hours'}</h2>
       <p className="mt-2 font-semibold tabular-nums text-ink">{formatShortDate(session.starts_at, 'TBD', { withYear: false, weekday: true, timeZone: session.timezone })} · {formatTime(session.starts_at, 'TBD', session.timezone)}</p>
       <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{session.title}</p>
       {session.description && <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{session.description}</p>}

@@ -3376,6 +3376,40 @@
             }
           }
         }
+      },
+      "patch": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortSettingsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated cohort settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortWorkspaceResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/cohorts/{cohort_id}/learning_insights": {
@@ -4779,6 +4813,50 @@
           },
           "422": {
             "description": "learner_nudges_enabled must be true or false"
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CohortSettingsInput"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "review_response_time": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "curriculum_id",
+                      "start_date"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created cohort",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortCreatedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -12416,6 +12494,10 @@
                 "const": "live_class"
               }
             ]
+          },
+          "optional_check_in": {
+            "type": "boolean",
+            "description": "Shown for office hours in a small class that has configured durations or a review target."
           }
         },
         "required": [
@@ -16128,6 +16210,15 @@
                 },
                 "urgent": {
                   "type": "boolean"
+                },
+                "overdue": {
+                  "type": "boolean",
+                  "description": "Present on reviews past the configured review target."
+                },
+                "expected_review_by": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "End of the target business day in Guam."
                 }
               }
             }
@@ -16726,6 +16817,38 @@
           },
           "submission_window": {
             "$ref": "#/components/schemas/SubmissionWindowStatus"
+          },
+          "review_sla": {
+            "type": "object",
+            "properties": {
+              "business_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              "expected_on": {
+                "type": "string",
+                "format": "date",
+                "description": "The Guam calendar date for instructor feedback, when a review target is set."
+              },
+              "expected_by": {
+                "type": "string",
+                "format": "date-time",
+                "description": "End of the target business day in Guam."
+              },
+              "overdue": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "business_days",
+              "expected_on",
+              "expected_by",
+              "overdue"
+            ],
+            "additionalProperties": false,
+            "description": "The review target of the latest ungraded attempt, when the cohort has configured one."
           }
         },
         "additionalProperties": false,
@@ -16766,6 +16889,11 @@
           },
           "all": {
             "type": "number"
+          },
+          "overdue": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Ungraded latest attempts past their review target across all pages of the current cohort, module, lesson and student filters. Omitted when no cohort in scope has a review target."
           }
         },
         "required": [
@@ -18446,6 +18574,24 @@
                   }
                 ],
                 "description": "Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1)."
+              },
+              "guided_access_months": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120,
+                "description": "Months of lesson access from each learner\u2019s start. A fixed access date takes precedence."
+              },
+              "guided_support_weeks": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 104,
+                "description": "Weeks of support from each learner\u2019s start, capped at the access expiry. A fixed support date takes precedence."
+              },
+              "review_sla_business_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
               }
             },
             "required": [
@@ -23434,6 +23580,16 @@
               }
             ],
             "description": "Who Ask about this feedback messages: the grader while reachable, else the cohort contact. Null (and always null while waiting) means no action."
+          },
+          "expected_review_on": {
+            "type": "string",
+            "format": "date",
+            "description": "The Guam calendar date for instructor feedback, when a review target is set."
+          },
+          "expected_review_by": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the target business day in Guam."
           }
         },
         "required": [
@@ -26721,6 +26877,303 @@
         "required": [
           "learner_nudges_enabled"
         ]
+      },
+      "CohortCreatedResponse": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "type": "string"
+              },
+              "guided_access_ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "guided_support_ends_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "guided_access_months": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120,
+                "description": "Months of lesson access from each learner\u2019s start. A fixed access date takes precedence."
+              },
+              "guided_support_weeks": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 104,
+                "description": "Weeks of support from each learner\u2019s start, capped at the access expiry. A fixed support date takes precedence."
+              },
+              "review_sla_business_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "course_delivery",
+              "guided_access_ends_on",
+              "guided_support_ends_on"
+            ]
+          }
+        },
+        "required": [
+          "cohort"
+        ],
+        "additionalProperties": false
+      },
+      "CohortSettingsInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "cohort_type": {
+            "type": "string"
+          },
+          "curriculum_id": {
+            "type": "integer"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "course_delivery": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "public_checkout_enabled": {
+            "type": "boolean"
+          },
+          "public_outcomes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_duration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_prerequisites": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_preview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stripe_price_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "support_instructor_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_price_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "self_paced_access_months": {
+            "type": "integer"
+          },
+          "self_paced_support_weeks": {
+            "type": "integer"
+          },
+          "guided_access_ends_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "guided_support_ends_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "learner_pace_weeks": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Paces (weeks) learners choose from in a guided or self-paced course; null when learner-chosen pace is off (W9.1)."
+          },
+          "github_organization_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repository_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requires_github": {
+            "type": "boolean"
+          },
+          "guided_access_months": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120,
+                "description": "Months of lesson access from each learner\u2019s start. A fixed access date takes precedence."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "guided_support_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 104,
+                "description": "Weeks of support from each learner\u2019s start, capped at the access expiry. A fixed support date takes precedence."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_sla_business_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
       }
     },
     "responses": {

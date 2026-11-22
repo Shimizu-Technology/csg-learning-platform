@@ -103,7 +103,7 @@ module Api
 
       # POST /api/v1/cohorts
       def create
-        cohort = Cohort.new(cohort_params)
+        cohort = Cohort.new(cohort_params.merge(params.permit(:review_response_time)))
         if ActiveModel::Type::Boolean.new.cast(cohort_params[:public_checkout_enabled]) && !cohort.setup_readiness.values.all?
           return render json: { errors: cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
         end
@@ -327,7 +327,8 @@ module Api
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status,
                        :public_outcomes, :public_duration, :public_prerequisites, :public_preview, :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
-                       :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on, learner_pace_weeks: [])
+                       :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on,
+                       :guided_access_months, :guided_support_weeks, :review_sla_business_days, learner_pace_weeks: [])
       end
 
       def module_access_params
@@ -728,6 +729,11 @@ module Api
           office_hours: office_hours_payload[:office_hours],
           office_hour_occurrences: office_hours_payload[:upcoming]
         }
+
+        %i[guided_access_months guided_support_weeks review_sla_business_days].each do |attribute|
+          value = cohort.public_send(attribute)
+          json[attribute] = value if value.present?
+        end
 
         if include_students
           json[:recording_library_count] = cohort.recordings.count

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '../../lib/api'
 import { Button } from '../ui/Button'
 
 export type SavedReviewResponse = { cohortId: number; value: string | null }
 
-export function ReviewResponseSettings({ cohortId, onDraftChange, savedResponse }: { cohortId?: number; onDraftChange?: (value: string | null | undefined) => void; savedResponse?: SavedReviewResponse }) {
+export function ReviewResponseSettings({ cohortId, onDraftChange, savedResponse, children }: { cohortId?: number; onDraftChange?: (value: string | null | undefined) => void; savedResponse?: SavedReviewResponse; children?: ReactNode }) {
   const [value, setValue] = useState('')
   const [saved, setSaved] = useState('')
   const [fallback, setFallback] = useState('')
@@ -42,7 +42,8 @@ export function ReviewResponseSettings({ cohortId, onDraftChange, savedResponse 
     <p className="text-sm text-ink-secondary">{cohortId ? `Leave blank to inherit the school default: ${fallback}.` : 'Learners see this while waiting for instructor review. Cohorts can override this default.'}</p>
     {!onDraftChange && <Button disabled={!loaded || saving || (!cohortId && !value.trim())} variant="secondary" onClick={() => void save()}>{saving ? 'Saving…' : 'Save response time'}</Button>}
     <p className="text-sm text-ink-muted">Write a review expectation, for example “usually reviewed within 2 days”. Learners will see “Your instructor will review it — usually within 2 days.”</p>
-    {onDraftChange && <p className="text-sm text-ink-secondary">Use Save settings below to save this response time with your other changes.</p>}
+    {children}
+    {onDraftChange && <p className="text-sm text-ink-secondary">Use Save settings below to apply your review settings.</p>}
     {message && <p role="status" className="text-sm text-ink-secondary">{message}</p>}
   </section>
 }
