@@ -308,7 +308,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
 
     @fake.timeout_after_create = true
     now = Time.current.change(usec: 0)
-    GithubIssueDeliveryDrain.new(client: @fake).call(now: now)
+    GithubIssueDeliveryDrain.new(client: @fake, clock: -> { now }).call(now: now)
 
     delivery = GithubIssueDelivery.sole
     assert_equal "pending", delivery.status
@@ -339,7 +339,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
     @fake.issue_failure = GithubAppClient::Error.new(GithubAppClient::PROVIDER_ERROR, status: 503)
     clock = Time.current.change(usec: 0)
     [ 5.minutes, 15.minutes, 1.hour, 4.hours ].each_with_index do |expected_backoff, idx|
-      GithubIssueDeliveryDrain.new(client: @fake).call(now: clock)
+      GithubIssueDeliveryDrain.new(client: @fake, clock: -> { clock }).call(now: clock)
       delivery = GithubIssueDelivery.sole
       assert_equal "pending", delivery.status
       assert_equal idx + 1, delivery.attempts
@@ -347,7 +347,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
       clock = delivery.next_retry_at
     end
 
-    GithubIssueDeliveryDrain.new(client: @fake).call(now: clock)
+    GithubIssueDeliveryDrain.new(client: @fake, clock: -> { clock }).call(now: clock)
     delivery = GithubIssueDelivery.sole
     assert_equal "failed", delivery.status
     assert_equal 5, delivery.attempts
@@ -618,7 +618,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
 
     # 1. Transient 503 on repository lookup must NOT invalidate verified binding
     @fake.failure = GithubAppClient::Error.new(GithubAppClient::PROVIDER_ERROR, status: 503)
-    GithubIssueDeliveryDrain.new(client: @fake).call(now: now)
+    GithubIssueDeliveryDrain.new(client: @fake, clock: -> { now }).call(now: now)
 
     delivery = GithubIssueDelivery.sole
     assert_equal "verified", @binding.reload.verification_state
@@ -635,7 +635,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
       rate_limited: true
     )
     t2 = now + 6.minutes
-    GithubIssueDeliveryDrain.new(client: @fake).call(now: t2)
+    GithubIssueDeliveryDrain.new(client: @fake, clock: -> { t2 }).call(now: t2)
 
     delivery.reload
     assert_equal "pending", delivery.status
@@ -644,7 +644,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
 
     # 3. Recovery succeeds cleanly after Retry-After elapses
     @fake.issue_failure = nil
-    GithubIssueDeliveryDrain.new(client: @fake).call(now: t2 + 91.seconds)
+    GithubIssueDeliveryDrain.new(client: @fake, clock: -> { t2 + 91.seconds }).call(now: t2 + 91.seconds)
 
     delivery.reload
     assert_equal "delivered", delivery.status
@@ -652,7 +652,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
     assert_equal 1, delivery.issue_number
   end
 
-  test "drain respects wall-clock max_duration budget and leaves remaining rows pending" do
+  test "drain respects wall-clock max_duration budget across and inside multi-step deliveries without burning attempts" do
     block2 = ContentBlock.create!(lesson: @lesson, block_type: :exercise, position: 1, title: "Ex 2", filename: "ex2.rb", submission_type: :prework_github_sync)
     sub2 = Submission.create!(user: @student, enrollment: @enrollment, content_block: block2, submission_type: :prework_github_sync, text: "y")
 
@@ -661,13 +661,94 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
       patch "/api/v1/submissions/#{sub2.id}/grade", params: grade_params(sub2, grade: "R", feedback: "Fix 2"), headers: app_headers, as: :json
     end
 
-    ticks = [ 0.0, 0.1, 25.0 ]
+    # Exhaust budget right after repository verification inside delivery 1 (before create_issue)
+    mono = 0.0
+    @fake.on_repository = lambda do |timeout:, **|
+      assert_in_delta 10.0, timeout, 0.001
+      mono = 25.0
+    end
     metrics = {}
-    GithubIssueDeliveryDrain.new(client: @fake, max_duration: 20.seconds, monotonic: -> { ticks.shift || 30.0 }).call(now: Time.current, metrics: metrics)
+    GithubIssueDeliveryDrain.new(client: @fake, max_duration: 20.seconds, monotonic: -> { mono }).call(now: Time.current, metrics: metrics)
+    @fake.on_repository = nil
+
+    assert_equal({ claimed: 0, sent: 0, failed: 0 }, metrics)
+    assert @fake.calls.none? { |c| c[0] == :create_issue }, "budget exhaustion must stop before mutating GitHub"
+    first_delivery = GithubIssueDelivery.order(:id).first
+    assert_equal "pending", first_delivery.status
+    assert_equal 0, first_delivery.attempts, "budget exhaustion before write must not burn an attempt"
+    assert_nil first_delivery.claim_token
+    assert_nil first_delivery.claimed_until
+
+    # With budget sufficient for 1 full delivery, stops before claiming delivery 2
+    @fake.calls.clear
+    mono = 0.0
+    @fake.on_create_issue = lambda do |**|
+      mono = 25.0
+    end
+    metrics = {}
+    GithubIssueDeliveryDrain.new(client: @fake, max_duration: 20.seconds, monotonic: -> { mono }).call(now: Time.current, metrics: metrics)
+    @fake.on_create_issue = nil
 
     assert_equal({ claimed: 1, sent: 1, failed: 0 }, metrics)
     assert_equal 1, GithubIssueDelivery.where(status: "delivered").count
     assert_equal 1, GithubIssueDelivery.where(status: "pending").count
+  end
+
+  test "more than 10 uncertain predecessors raises InconclusiveSearchError without creating duplicate issues" do
+    # Create 11 uncertain obsolete open_or_comment predecessors with attempts > 0 and issue_number: nil
+    11.times do |i|
+      GithubIssueDelivery.create!(
+        submission: @submission, enrollment: @enrollment, content_block: @block,
+        github_repository_binding: @binding, repository_id: 98765, repository_full_name: @binding.full_name,
+        action: "open_or_comment", grade: "R", feedback_body: "Old #{i}",
+        dedupe_token: SecureRandom.hex(16), status: "obsolete", attempts: 1
+      )
+    end
+
+    @submission.update_columns(grade: "R", feedback: "Latest redo")
+    latest = GithubIssueDelivery.create!(
+      submission: @submission, enrollment: @enrollment, content_block: @block,
+      github_repository_binding: @binding, repository_id: 98765, repository_full_name: @binding.full_name,
+      action: "open_or_comment", grade: "R", feedback_body: "Latest redo",
+      dedupe_token: SecureRandom.hex(16), status: "pending", attempts: 0
+    )
+
+    @fake.calls.clear
+    GithubIssueDeliveryDrain.new(client: @fake).call(now: Time.current)
+
+    latest.reload
+    assert_equal "failed", latest.status
+    assert_includes latest.last_error, "Too many prior uncertain"
+    assert @fake.calls.none? { |c| c[0] == :create_issue }, "truncated uncertain predecessor set must never blindly create a duplicate issue"
+    assert @fake.calls.none? { |c| c[0] == :find_issue_by_marker }
+  end
+
+  test "next_retry_at is computed from response-handling time and honors long Retry-After without shortening to 4 hours" do
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grade_params(@submission, grade: "R", feedback: "Rate limit timing"),
+        headers: app_headers, as: :json
+    end
+
+    tick_start = Time.current.change(usec: 0)
+    current_clock = tick_start
+    @fake.on_create_issue = lambda do |**|
+      # Simulate 15 seconds elapsed before GitHub responds with 403 + Retry-After: 6 hours
+      current_clock = tick_start + 15.seconds
+      raise GithubAppClient::Error.new(
+        "GitHub rate limit reached; try again later",
+        status: 403,
+        retry_after: 6.hours.to_i,
+        rate_limited: true
+      )
+    end
+
+    GithubIssueDeliveryDrain.new(client: @fake, clock: -> { current_clock }).call(now: tick_start)
+    @fake.on_create_issue = nil
+
+    delivery = GithubIssueDelivery.sole
+    assert_equal "pending", delivery.status
+    assert_in_delta tick_start + 15.seconds + 6.hours, delivery.next_retry_at, 0.001
   end
 
   private
@@ -1049,6 +1130,91 @@ class GithubIssueDeliveriesConcurrencyTest < ActionDispatch::IntegrationTest
     assert_empty @fake.issues, "superseded claim must abort BEFORE creating any GitHub issue"
   ensure
     release << true if defined?(release) && release
+  end
+
+  test "passing grade during marker reconciliation and expired lease before write both stop create_issue" do
+    # Seed an attempt so reconciliation runs before create_issue
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grade_params(@submission, grade: "R", feedback: "Reconcile race"),
+        headers: app_headers, as: :json
+    end
+    redo_delivery = GithubIssueDelivery.find_by!(submission_id: @submission.id)
+    redo_delivery.update_columns(attempts: 1)
+
+    # (a) Passing grade B commits while marker reconciliation is paused -> aborts BEFORE create_issue
+    entered = Queue.new
+    release = Queue.new
+    @fake.on_find_issue_by_marker = lambda do |**|
+      entered << true
+      release.pop
+    end
+
+    worker = Thread.new do
+      Rails.application.executor.wrap do
+        GithubIssueDeliveryDrain.new(client: @fake).deliver_one!(redo_delivery.id)
+      end
+    end
+    @threads << worker
+    assert entered.pop
+
+    @submission.reload
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grade_params(@submission, grade: "B", feedback: "Passed during reconcile"),
+        headers: app_headers, as: :json
+    end
+    assert_response :success
+
+    release << true
+    assert worker.join(10)
+    assert_equal :obsolete, worker.value
+    assert_equal "obsolete", redo_delivery.reload.status
+    assert_nil redo_delivery.claim_token
+    assert_nil redo_delivery.claimed_until
+    assert_empty(@fake.issues[98765] || {}, "passing grade during marker reconciliation must stop old R before create_issue")
+    assert @fake.calls.none? { |c| c[0] == :create_issue }
+
+    # (b) Lease expires during marker reconciliation -> aborts BEFORE create_issue
+    @fake.on_find_issue_by_marker = nil
+    @fake.calls.clear
+    sub2 = Submission.create!(
+      user: @student, enrollment: @enrollment, content_block: @block,
+      submission_type: :prework_github_sync, text: "puts 'v2'", num_submissions: 2, created_at: 1.minute.from_now
+    )
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{sub2.id}/grade",
+        params: grade_params(sub2, grade: "R", feedback: "Lease expiry test"),
+        headers: app_headers, as: :json
+    end
+    delivery2 = GithubIssueDelivery.find_by!(submission_id: sub2.id)
+    delivery2.update_columns(attempts: 1)
+
+    entered2 = Queue.new
+    release2 = Queue.new
+    @fake.on_find_issue_by_marker = lambda do |**|
+      entered2 << true
+      release2.pop
+    end
+
+    worker2 = Thread.new do
+      Rails.application.executor.wrap do
+        GithubIssueDeliveryDrain.new(client: @fake).deliver_one!(delivery2.id)
+      end
+    end
+    @threads << worker2
+    assert entered2.pop(timeout: 10), "worker2 must enter marker reconciliation"
+
+    # Expire the worker's lease before it reaches create_issue
+    delivery2.update_columns(claimed_until: 1.minute.ago)
+    release2 << true
+    assert worker2.join(10)
+    assert_equal :stale_claim, worker2.value
+    assert_empty(@fake.issues[98765] || {}, "expired lease must stop worker before calling create_issue")
+    assert @fake.calls.none? { |c| c[0] == :create_issue }
+  ensure
+    release << true if defined?(release) && release
+    release2 << true if defined?(release2) && release2
   end
 
   private

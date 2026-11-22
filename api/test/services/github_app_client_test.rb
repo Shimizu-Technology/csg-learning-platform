@@ -266,6 +266,56 @@ class GithubAppClientTest < ActiveSupport::TestCase
     assert_includes error.message, "rate limit"
   end
 
+  test "find_issue_by_markers scans multiple markers in one paginated pass and enforces deadline budget" do
+    repo_args = { installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises" }
+    page_calls = []
+    timeouts = []
+
+    multi_transport = Transport.new
+    original_request = multi_transport.method(:request)
+    multi_transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/issues") && method == :get
+        page = options.dig(:query, :page).to_i
+        page_calls << page
+        timeouts << options[:timeout]
+        if page == 1
+          return Response.new(200, Array.new(100) { |i| { "number" => i + 1, "html_url" => "https://github.com/app-learner/prework-exercises/issues/#{i + 1}", "state" => "open", "body" => "other" } },
+            { "Link" => '<https://api.github.com/repos/app-learner/prework-exercises/issues?page=2>; rel="next"' })
+        elsif page == 2
+          return Response.new(200, [ { "number" => 102, "html_url" => "https://github.com/app-learner/prework-exercises/issues/102", "state" => "open", "body" => "<!-- csg-delivery:m3 -->" } ], {})
+        end
+      end
+      original_request.call(method, url, options)
+    end
+    client = GithubAppClient.new(transport: multi_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+
+    # All 3 markers scanned in one pass (2 pages total, not 3x2)
+    clock_ticks = [ 10.0, 16.0 ]
+    found = client.find_issue_by_markers(
+      **repo_args,
+      markers: [ "<!-- csg-delivery:m1 -->", "<!-- csg-delivery:m2 -->", "<!-- csg-delivery:m3 -->" ],
+      deadline: 20.0,
+      monotonic: -> { clock_ticks.shift || 16.0 }
+    )
+    assert_equal 102, found.fetch("number")
+    assert_equal "<!-- csg-delivery:m3 -->", found.fetch("matched_marker")
+    assert_equal [ 1, 2 ], page_calls
+    assert_equal [ 10.0, 4.0 ], timeouts
+
+    # Deadline expiring between pages raises BudgetExceeded without fetching page 2
+    page_calls.clear
+    expired_ticks = [ 15.0, 21.0 ]
+    assert_raises(GithubAppClient::BudgetExceeded) do
+      client.find_issue_by_markers(
+        **repo_args,
+        markers: [ "<!-- csg-delivery:m3 -->" ],
+        deadline: 20.0,
+        monotonic: -> { expired_ticks.shift || 21.0 }
+      )
+    end
+    assert_equal [ 1 ], page_calls
+  end
+
   private
 
   def token_calls = @transport.calls.select { |call| call[1].end_with?("/access_tokens") }

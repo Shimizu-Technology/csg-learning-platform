@@ -17,12 +17,12 @@ class GithubRepositoryAccess
     @operation = nil
   end
 
-  def verify!
-    verify_repository!(require_verified: false)
+  def verify!(timeout: nil)
+    verify_repository!(require_verified: false, timeout: timeout)
   end
 
-  def repository!
-    verify_repository!(require_verified: true)
+  def repository!(timeout: nil)
+    verify_repository!(require_verified: true, timeout: timeout)
   end
 
   # Keep this same access object through source/check provider I/O. Its snapshot
@@ -42,13 +42,17 @@ class GithubRepositoryAccess
       installation_generation: installation.connection_generation, installation_state: installation.connection_state }.freeze
   end
 
-  def verify_repository!(require_verified:)
+  def verify_repository!(require_verified:, timeout: nil)
     operation = @operation = capture_operation(refresh_installation: true)
     check_gate!
     if require_verified && !(@binding.verification_state == "verified" && @binding.identity_current? && @binding.repository_id.present?)
       raise GithubAppClient::Error, "Repository verification required; verify the learner's GitHub identity and access again"
     end
-    repo = @client.repository(installation: operation[:installation], full_name: @binding.full_name, repository_id: @binding.repository_id)
+    repo = if timeout
+      @client.repository(installation: operation[:installation], full_name: @binding.full_name, repository_id: @binding.repository_id, timeout: timeout)
+    else
+      @client.repository(installation: operation[:installation], full_name: @binding.full_name, repository_id: @binding.repository_id)
+    end
     # No HTTP under locks. Every connection/binding mutation uses installation
     # then binding lock order, with the pre-I/O generations held separately.
     operation[:installation].with_lock do
