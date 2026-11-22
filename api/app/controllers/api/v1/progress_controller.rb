@@ -273,10 +273,7 @@ module Api
             access_expires_at: enrollment.access_expires_at,
             support_expires_at: enrollment.support_expires_at,
             first_opened_at: enrollment.first_opened_at,
-            # Only for cohorts that set reminders themselves (W9.3), so a cohort
-            # that turns them off keeps its history visible to staff and every
-            # other cohort's payload is unchanged.
-            **(cohort.settings.dig("features")&.key?("learner_nudges") ? { learner_nudges_enabled: LearnerNudges.enabled_for?(cohort) } : {}),
+            **learner_nudge_history_flag(enrollment),
             module_assignments: enrollment.module_assignments.sort_by { |item| [ modules_by_id[item.module_id]&.position || 0, item.id ] }.map do |assignment|
               # The curriculum's modules are loaded with their lessons, which
               # availability and unlock dates read; reuse them per assignment.
@@ -325,6 +322,14 @@ module Api
       end
 
       private
+
+      def learner_nudge_history_flag(enrollment)
+        cohort = enrollment.cohort
+        enabled = cohort.settings.dig("features", "learner_nudges") == true && LearnerNudges.enabled_for?(cohort)
+        return {} unless enabled || enrollment.learner_nudges.exists?
+
+        { learner_nudges_enabled: enabled }
+      end
 
       def staff_cohort_scope
         @staff_cohort_scope ||= StaffCohortScope.new(current_user)

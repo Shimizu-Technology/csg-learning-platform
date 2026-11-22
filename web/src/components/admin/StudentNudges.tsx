@@ -20,11 +20,13 @@ const EMAIL: Record<LearnerNudge['email_status'], string> = {
   not_configured: 'Email not set up',
   no_address: 'No email address',
   not_requested: 'No email',
+  pending: 'Email pending',
 }
 
 const PUSH: Record<LearnerNudge['push_status'], string> = {
-  attempted: 'Push attempted',
-  not_sent: 'Push not sent (too late)',
+  attempted: 'Push attempted via both providers',
+  partial: 'Push attempted via one provider',
+  not_sent: 'Push not sent',
   pending: 'Push pending',
   not_requested: 'No push',
 }
@@ -62,7 +64,7 @@ export function StudentNudges({ enrollmentId }: { enrollmentId: number }) {
       <p className="mt-1 text-sm text-ink-secondary">Sent by the hourly check, at most one a day unless access is ending. Nothing goes out between 9 pm and 8 am Guam time.</p>
     </div>
     {data && !data.enabled && <p className="text-sm text-ink-secondary">Reminders are off for this cohort. Reminders already sent stay listed.</p>}
-    {data?.learner_opted_out && <p className="text-sm text-ink-secondary">This learner turned off optional reminders. Access-ending reminders still go out.</p>}
+    {data?.learner_opted_out && <p className="text-sm text-ink-secondary">This learner turned off optional reminders.{data.enabled && ' Access-ending reminders still go out.'}</p>}
     {loading && !data && <p role="status" className="text-sm text-ink-muted">Loading reminders…</p>}
     {error && <div className="space-y-2">
       <p role="alert" className="text-sm text-danger-ink">{error}</p>

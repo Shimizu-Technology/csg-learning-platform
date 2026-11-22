@@ -23,19 +23,21 @@ it('lists what went out with kind, threshold, Guam time, delivery and read state
     nudge({ id: 2, kind: 'access_ending', threshold: '3d', essential: true, title: 'Your access ends Mon, Jan 4', body: null, email_status: 'failed', push_status: 'pending', read_at: '2026-12-20T01:00:00Z' }),
     nudge({ id: 3, kind: 'inactive', threshold: '7d', title: 'Pick up where you left off', email_status: 'not_configured', push_status: 'not_requested' }),
     nudge({ id: 4, kind: 'support_ending', threshold: '1d', title: 'Your help period ends today', push_status: 'not_sent' }),
+    nudge({ id: 5, push_status: 'partial', email_status: 'pending' }),
   ] }, error: null })
   await mount()
   expect(api.getLearnerNudges).toHaveBeenCalledWith(5)
   const rows = [...host.querySelectorAll('li')].map(item => item.textContent)
   expect(rows[0]).toContain('Due soon · 48 hours before')
   expect(rows[0]).toContain('Sent Dec 20, 2026, 8:00 AM ChST')
-  expect(rows[0]).toContain('Email sent · Push attempted · Not read yet')
+  expect(rows[0]).toContain('Email sent · Push attempted via both providers · Not read yet')
   expect(rows[1]).toContain('Access ending · Essential · 3 days before')
   expect(rows[1]).toContain('Email failed · Push pending · Read Dec 20, 2026, 11:00 AM ChST')
   expect(rows[2]).toContain('No recent activity · After 7 days inactive')
   expect(rows[2]).toContain('Email not set up · No push')
   expect(rows[3]).toContain('Support ending · 1 day before')
-  expect(rows[3]).toContain('Push not sent (too late)')
+  expect(rows[3]).toContain('Push not sent')
+  expect(rows[4]).toContain('Email pending · Push attempted via one provider')
   expect(host.textContent).not.toContain('2026-12-')
 })
 
@@ -43,7 +45,8 @@ it('says when the cohort has reminders off or the learner opted out, and when no
   vi.mocked(api.getLearnerNudges).mockResolvedValue({ data: { enabled: false, learner_opted_out: true, nudges: [] }, error: null })
   await mount()
   expect(host.textContent).toContain('Reminders are off for this cohort.')
-  expect(host.textContent).toContain('This learner turned off optional reminders. Access-ending reminders still go out.')
+  expect(host.textContent).toContain('This learner turned off optional reminders.')
+  expect(host.textContent).not.toContain('Access-ending reminders still go out.')
   expect(host.textContent).toContain('No reminders sent yet.')
 })
 

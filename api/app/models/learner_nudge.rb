@@ -6,7 +6,7 @@
 # PushNotificationJob claims per provider, as announcements do.
 class LearnerNudge < ApplicationRecord
   KINDS = %w[due_soon inactive support_ending access_ending].freeze
-  EMAIL_STATUSES = %w[not_requested sent failed not_configured no_address].freeze
+  EMAIL_STATUSES = %w[not_requested pending sent failed not_configured no_address].freeze
 
   belongs_to :enrollment
   has_many :notifications, as: :notifiable, dependent: :delete_all
@@ -17,12 +17,13 @@ class LearnerNudge < ApplicationRecord
 
   scope :push_pending, -> { where.not(push_requested_at: nil).where(push_settled_at: nil) }
 
-  # "not_sent": the outbox gave up on a push that was too old to help.
+  # Provider claims record attempts, regardless of device delivery.
   def push_status
     return "not_requested" unless push_requested_at
     return "pending" unless push_settled_at
 
-    web_push_attempted_notification_ids.blank? && expo_push_attempted_notification_ids.blank? ? "not_sent" : "attempted"
+    attempts = [ web_push_attempted_notification_ids, expo_push_attempted_notification_ids ].count(&:present?)
+    %w[not_sent partial attempted].fetch(attempts)
   end
 
   def staff_json(notification = nil)

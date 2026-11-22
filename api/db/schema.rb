@@ -723,8 +723,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_081000) do
     t.datetime "updated_at", null: false
     t.index ["enrollment_id", "school_date"], name: "index_learner_nudges_on_enrollment_id_and_school_date"
     t.index ["key"], name: "index_learner_nudges_on_key", unique: true
+    t.index ["push_requested_at"], name: "index_learner_nudges_on_email_pending", where: "((email_status)::text = 'pending'::text)"
     t.index ["push_requested_at"], name: "index_learner_nudges_on_push_pending", where: "((push_requested_at IS NOT NULL) AND (push_settled_at IS NULL))"
-    t.check_constraint "email_status::text = ANY (ARRAY['not_requested'::character varying, 'sent'::character varying, 'failed'::character varying, 'not_configured'::character varying, 'no_address'::character varying]::text[])", name: "learner_nudges_email_status_valid"
+    t.check_constraint "email_status::text = ANY (ARRAY['not_requested'::character varying, 'pending'::character varying, 'sent'::character varying, 'failed'::character varying, 'not_configured'::character varying, 'no_address'::character varying]::text[])", name: "learner_nudges_email_status_valid"
     t.check_constraint "kind::text = ANY (ARRAY['due_soon'::character varying, 'inactive'::character varying, 'support_ending'::character varying, 'access_ending'::character varying]::text[])", name: "learner_nudges_kind_valid"
   end
 

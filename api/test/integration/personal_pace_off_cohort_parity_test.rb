@@ -120,10 +120,7 @@ class PersonalPaceOffCohortParityTest < ActionDispatch::IntegrationTest
     assert_equal 0, Notification.where(notifiable_type: "LearnerNudge").count
     snapshots.each_with_index do |snapshot, index|
       enrollment = snapshot.dig("staff_progress", "body", "enrollment")
-      # Only cohorts that set the switch themselves carry it (false here).
-      explicit = cohorts[index].settings.dig("features")&.key?("learner_nudges")
-      assert_equal explicit, enrollment.key?("learner_nudges_enabled"), cohorts[index].name
-      assert_not enrollment["learner_nudges_enabled"], cohorts[index].name
+      assert_not enrollment.key?("learner_nudges_enabled"), cohorts[index].name
     end
     Enrollment.includes(:user).find_each do |enrollment|
       get "/api/v1/profile", headers: headers(enrollment.user)

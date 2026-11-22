@@ -188,6 +188,22 @@ class LearnerNudgesTest < ActiveSupport::TestCase
     assert_equal [ "due_soon/48h", "due_soon/24h" ], keys # the 24h final outranks support ending
   end
 
+  test "two opted-in enrollments share the learner's Guam daily cap, but access ending can still send" do
+    second = enroll(paced_cohort("Second program"), "second", user: @enrollment.user)
+    at(2026, 12, 20, 8) do
+      assert_equal 1, LearnerNudges.preview(Time.current)[:would_claim]
+      tick!
+    end
+    assert_equal [ @enrollment.id, Date.new(2026, 12, 20) ], LearnerNudge.sole.values_at(:enrollment_id, :school_date)
+
+    second.update!(access_expires_at: GUAM.local(2026, 12, 28, 12))
+    at(2026, 12, 20, 15) { tick! }
+    assert_equal [ @enrollment.id, second.id ], LearnerNudge.order(:id).pluck(:enrollment_id)
+    assert_equal [ "due_soon/48h", "access_ending/14d" ], keys
+    at(2026, 12, 21, 8) { tick! }
+    assert_equal 1, LearnerNudge.where(school_date: Date.new(2026, 12, 21), essential: false).count
+  end
+
   test "paused, dropped, completed, expired, archived and invited learners, and closed cohorts, get nothing" do
     { "paused" => { status: :paused }, "dropped" => { status: :dropped }, "completed" => { status: :completed },
       "expired" => { access_expires_at: GUAM.local(2026, 12, 19) } }.each do |name, attributes|
@@ -243,9 +259,24 @@ class LearnerNudgesTest < ActiveSupport::TestCase
       service = LearnerNudges.new
       chosen = service.send(:choose, Enrollment.where(id: @enrollment.id).includes(:user, :cohort).to_a, Time.current, FeatureSwitches.school, { failed: 0 })
       tick!
-      assert_equal [], service.send(:claim, chosen, Time.current, { claimed: 0 })
+      assert_equal [], service.send(:claim, chosen, { claimed: 0 })
     end
     assert_equal 1, Notification.count
+  end
+
+  test "an optional deadline projection raising still delivers essential access ending" do
+    @enrollment.update!(access_expires_at: GUAM.local(2026, 12, 30, 12))
+    @enrollment.update!(support_expires_at: GUAM.local(2026, 12, 23, 12))
+    service = LearnerNudges.new
+    service.define_singleton_method(:due_soon) { |*| raise "broken deadline" }
+    at(2026, 12, 20, 8) do
+      metrics = {}
+      assert_raises(LearnerNudges::EvaluationFailed) { service.call(now: Time.current, metrics: metrics) }
+      assert_equal 1, metrics[:failed]
+    end
+    assert_equal [ "access_ending/14d" ], keys
+    assert_equal "sent", LearnerNudge.sole.email_status
+    assert_equal LearnerNudge.sole, Notification.sole.notifiable
   end
 
   test "push is claimed per provider once and settled; the outbox re-requests a lost push and drops a stale one" do
@@ -269,13 +300,61 @@ class LearnerNudgesTest < ActiveSupport::TestCase
     assert_equal 4, calls.size
     assert nudge.reload.push_settled_at
 
-    nudge.update_columns(push_settled_at: nil, web_push_attempted_notification_ids: [], expo_push_attempted_notification_ids: [], push_requested_at: GUAM.local(2026, 12, 20, 8))
+    nudge.update_columns(push_settled_at: nil, web_push_attempted_notification_ids: [ Notification.sole.id ], expo_push_attempted_notification_ids: [], push_requested_at: GUAM.local(2026, 12, 20, 8))
     at(2026, 12, 21, 9) { assert_equal 1, tick![:push_expired] }
     assert_equal 4, calls.count { |call| call[1] == nudge.id }
-    assert_equal "not_sent", nudge.reload.push_status
+    assert_equal "partial", nudge.reload.push_status
   ensure
     WebPushNotificationService.define_singleton_method(:system_notice, web)
     ExpoPushNotificationService.define_singleton_method(:system_notice, expo)
+  end
+
+  test "recovery cancels a pending optional push when the cohort turns off" do
+    assert_canceled_push { @cohort.update!(settings: { "features" => { "learner_nudges" => false } }) }
+  end
+
+  test "recovery cancels a pending optional push when the learner opts out" do
+    assert_canceled_push { @enrollment.user.update!(learner_nudges_enabled: false) }
+  end
+
+  test "overnight recovery cancels a pending push for an extended final deadline" do
+    # The original 48h threshold would still qualify at 08:00 without the extension.
+    @enrollment.learner_extensions.new(scope: "lesson", lesson: @final, submissions_close_at: GUAM.local(2026, 12, 22, 12),
+      reason: "First extension").record_change!(actor: @teacher)
+    assert_canceled_push do
+      @enrollment.learner_extensions.new(scope: "final", submissions_close_at: GUAM.local(2026, 12, 28).end_of_day,
+        reason: "Family emergency").record_change!(actor: @teacher)
+    end
+    assert_equal [ "due_soon/#{@enrollment.id}/final/2026-12-22T02:00:00Z/48h" ], LearnerNudge.pluck(:key).grep(%r{/final/})
+  end
+
+  test "overnight recovery cancels a pending inactivity push after the learner resumes work" do
+    assert_canceled_push(day: 11) { complete(@lessons.first, at: GUAM.local(2026, 12, 11, 23)) }
+  end
+
+  test "opt-out alone does not cancel essential pushes, but school or enrollment eligibility still applies" do
+    @enrollment.update!(access_expires_at: GUAM.local(2026, 12, 30, 12))
+    @enrollment.user.update!(learner_nudges_enabled: false)
+    at(2026, 12, 20, 20) { tick! }
+    nudge = LearnerNudge.sole
+    calls = record_pushes do
+      reopen_push(nudge)
+      at(2026, 12, 21, 8) { tick! }
+      assert_equal "attempted", nudge.reload.push_status
+
+      reopen_push(nudge)
+      @enrollment.update!(status: :paused)
+      at(2026, 12, 21, 8) { tick! }
+      assert_equal "not_sent", nudge.reload.push_status
+
+      reopen_push(nudge)
+      @enrollment.update!(status: :active)
+      SchoolSetting.current.update!(features: { "learner_nudges" => false })
+      at(2026, 12, 21, 8) { tick! }
+      assert_equal "not_sent", nudge.reload.push_status
+    end
+    assert_equal [ [ :web, nudge.id ], [ :expo, nudge.id ] ], calls
+    assert_equal nudge, Notification.sole.notifiable
   end
 
   test "an email the provider refuses is recorded as failed and is not retried" do
@@ -286,22 +365,81 @@ class LearnerNudgesTest < ActiveSupport::TestCase
     assert_equal 1, Notification.count
   end
 
-  test "a spent budget records where it stopped and the next run starts there, then wraps round" do
+  test "budgeted batches never wrap into the first page and quiet ticks preserve the sweep" do
     ids = [ @enrollment.id ] + 4.times.map { |index| enroll(@cohort, "batch#{index}").id }
-    task = ScheduledTick::TASKS.find { |item| item.name == "learner_nudges" }
-    original = LearnerNudges.method(:new)
-    LearnerNudges.define_singleton_method(:new) { |**| original.call(batch_size: 2, time_budget: -1) }
-    at(2026, 12, 20, 8) { assert_not ScheduledTick.new(now: Time.current, tasks: [ task ]).call }
-    assert_equal ids.first(2).sort, LearnerNudge.distinct.pluck(:enrollment_id).sort
-    assert_equal ids.sort[1], ScheduledTaskRun.find_by!(name: "learner_nudges").last_result["resume_after"]
-    at(2026, 12, 20, 9) { ScheduledTick.new(now: Time.current, tasks: [ task ]).call }
-    assert_equal ids.first(4).sort, LearnerNudge.distinct.pluck(:enrollment_id).sort
-    LearnerNudges.define_singleton_method(:new) { |**| original.call(batch_size: 2) }
-    at(2026, 12, 20, 10) { assert ScheduledTick.new(now: Time.current, tasks: [ task ]).call }
-    assert_equal ids.sort, LearnerNudge.distinct.pluck(:enrollment_id).sort
-    assert_nil ScheduledTaskRun.find_by!(name: "learner_nudges").last_result["resume_after"]
-  ensure
-    LearnerNudges.define_singleton_method(:new, original)
+    batches = []
+    task = ScheduledTick::Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last, metrics) do
+      elapsed = 0
+      service = LearnerNudges.new(batch_size: 2, time_budget: 1)
+      service.define_singleton_method(:monotonic) { elapsed }
+      choose = service.method(:choose)
+      service.define_singleton_method(:choose) do |batch, *args|
+        batches << batch.map(&:id)
+        elapsed = 1
+        choose.call(batch, *args)
+      end
+      service.call(now: now, metrics: metrics)
+    end)
+    at(2026, 12, 20, 20) { assert_not ScheduledTick.new(tasks: [ task ]).call }
+    assert_equal [ ids[1], ids.last ], nudge_checkpoint.values_at("resume_after", "sweep_boundary")
+    at(2026, 12, 20, 21) { assert ScheduledTick.new(tasks: [ task ]).call }
+    at(2026, 12, 21, 7, 59) { assert ScheduledTick.new(tasks: [ task ]).call }
+    assert_equal [ true, ids[1], ids.last ], nudge_checkpoint.values_at("quiet_hours", "resume_after", "sweep_boundary")
+    at(2026, 12, 21, 8) { assert_not ScheduledTick.new(tasks: [ task ]).call }
+    assert_equal [ ids[3], ids.last ], nudge_checkpoint.values_at("resume_after", "sweep_boundary")
+    at(2026, 12, 21, 9) { assert ScheduledTick.new(tasks: [ task ]).call }
+    assert_equal [ ids.first(2), ids[2, 2], ids.last(1) ], batches
+    assert_empty nudge_checkpoint.slice("resume_after", "sweep_boundary")
+  end
+
+  test "time spent on recovery can exhaust the budget before the first enrollment batch" do
+    service = LearnerNudges.new(time_budget: 1)
+    elapsed = 0
+    service.define_singleton_method(:monotonic) { elapsed }
+    service.define_singleton_method(:recover_deliveries) { |*| elapsed = 1 }
+    at(2026, 12, 20, 8) do
+      metrics = {}
+      assert_raises(LearnerNudges::BacklogRemaining) { service.call(now: Time.current, metrics: metrics) }
+      assert_equal [ 0, @enrollment.id ], metrics.values_at(:resume_after, :sweep_boundary)
+      assert_empty LearnerNudge.all
+    end
+  end
+
+  test "crossing 21:00 between providers defers later delivery and stops the next batch" do
+    second = enroll(@cohort, "second")
+    local = GUAM.local(2026, 12, 20, 20, 59)
+    service = LearnerNudges.new(batch_size: 1, clock: -> { local })
+    calls = record_pushes(on_web: ->(_) { local += 1.minute }) do
+      service.call(now: local)
+      assert_equal [ @enrollment.id ], LearnerNudge.pluck(:enrollment_id)
+      assert_equal "pending", LearnerNudge.sole.push_status
+      assert_empty LearnerNudge.sole.expo_push_attempted_notification_ids
+      assert_equal 1, @emails.size
+    end
+    assert_equal [ [ :web, LearnerNudge.sole.id ] ], calls
+    assert_empty second.learner_nudges
+  end
+
+  test "unstarted email and pushes at 21:00 stay pending and eligible ones recover at 08:00" do
+    @enrollment.update!(access_expires_at: GUAM.local(2026, 12, 21, 18))
+    local = GUAM.local(2026, 12, 20, 20, 59)
+    service = LearnerNudges.new(clock: -> { local })
+    service.define_singleton_method(:pace_email) { local += 1.minute }
+    push_titles = []
+    calls = record_pushes(on_web: ->(notices) { push_titles.concat(notices.map(&:title)) }) do
+      service.call(now: local)
+      nudge = LearnerNudge.sole
+      assert_equal [ "pending", "pending" ], [ nudge.email_status, nudge.push_status ]
+      assert_empty @emails
+      at(2026, 12, 21, 8) { tick! }
+      assert_equal [ "sent", "attempted" ], [ nudge.reload.email_status, nudge.push_status ]
+      assert_match(/ends tomorrow\z/, Notification.find_by!(notifiable: nudge).title)
+    end
+    nudge = LearnerNudge.find_by!(kind: "access_ending")
+    assert_equal [ :web, :expo ], calls.select { |_, id| id == nudge.id }.map(&:first)
+    assert_equal 1, @emails.count { |email| email[:subject].include?("Your access") }
+    assert_includes push_titles, "Your access to Python pilot ends today"
+    assert @emails.any? { |email| email[:subject].include?("Python pilot ends today") }
   end
 
   test "guided terms ending at midnight name the last usable day" do
@@ -350,20 +488,56 @@ class LearnerNudgesTest < ActiveSupport::TestCase
     assert_equal counts.first, counts.last
   end
 
-  test "with the school switch off the task reads one row; Off cohorts add no queries" do
+  test "Off cohorts add no tick queries whether or not the school switch is on" do
     SchoolSetting.current.update!(features: {})
     off = count_queries { at(2026, 12, 20, 8) { tick! } }
-    assert_equal 1, off
+    5.times { |index| enroll(paced_cohort("Off #{index}", features: {}), "off#{index}") }
+    assert_equal off, count_queries { at(2026, 12, 20, 8) { tick! } }
 
     SchoolSetting.current.update!(features: { "learner_nudges" => true })
     @cohort.update!(settings: { "features" => { "learner_nudges" => false } })
     base = count_queries { at(2026, 12, 20, 8) { tick! } }
-    5.times { |index| enroll(paced_cohort("Off #{index}", features: {}), "off#{index}") }
+    enroll(paced_cohort("Also off", features: {}), "also_off")
     assert_equal base, count_queries { at(2026, 12, 20, 8) { tick! } }
     assert_equal 0, LearnerNudge.count
   end
 
   private
+
+  def nudge_checkpoint = ScheduledTaskRun.find_by!(name: "learner_nudges").last_result
+
+  def assert_canceled_push(day: 20)
+    at(2026, 12, day, 20) { tick! }
+    nudge = LearnerNudge.sole
+    notice = Notification.sole
+    reopen_push(nudge)
+    yield
+    calls = record_pushes do
+      at(2026, 12, day, 23) { assert tick![:quiet_hours] }
+      assert_equal "pending", nudge.reload.push_status
+      at(2026, 12, day + 1, 8) { tick! }
+    end
+    assert_empty calls.select { |_, id| id == nudge.id }
+    assert_equal "not_sent", nudge.reload.push_status
+    assert_equal nudge, notice.reload.notifiable
+  end
+
+  def reopen_push(nudge)
+    nudge.update_columns(push_settled_at: nil, web_push_attempted_notification_ids: [], expo_push_attempted_notification_ids: [])
+  end
+
+  def record_pushes(on_web: ->(_notices) { })
+    calls = []
+    web = WebPushNotificationService.method(:system_notice)
+    expo = ExpoPushNotificationService.method(:system_notice)
+    WebPushNotificationService.define_singleton_method(:system_notice) { |record, notices| calls << [ :web, record.id ]; on_web.call(notices) }
+    ExpoPushNotificationService.define_singleton_method(:system_notice) { |record, _| calls << [ :expo, record.id ] }
+    yield
+    calls
+  ensure
+    WebPushNotificationService.define_singleton_method(:system_notice, web)
+    ExpoPushNotificationService.define_singleton_method(:system_notice, expo)
+  end
 
   def tick!
     metrics = {}
@@ -400,8 +574,8 @@ class LearnerNudgesTest < ActiveSupport::TestCase
     cohort
   end
 
-  def enroll(cohort, name)
-    enrollment = Enrollment.create!(cohort: cohort, user: person(name, :student), status: :active)
+  def enroll(cohort, name, user: person(name, :student))
+    enrollment = Enrollment.create!(cohort: cohort, user: user, status: :active)
     enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
     LearnerPace.new(enrollment).choose!(weeks: 3, actor: @teacher)
     enrollment

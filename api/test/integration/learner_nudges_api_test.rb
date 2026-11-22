@@ -84,10 +84,27 @@ class LearnerNudgesApiTest < ActionDispatch::IntegrationTest
     assert_equal true, response.parsed_body.dig("enrollment", "learner_nudges_enabled")
     get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: off.id }, headers: headers(@teacher)
     assert_not response.parsed_body.fetch("enrollment").key?("learner_nudges_enabled")
-    # A cohort that turned reminders off itself keeps its history visible to staff.
+    # An explicit Off with no history omits the flag and avoids a history request.
     @cohort.update!(settings: { "features" => { "learner_nudges" => false } })
     get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @cohort.id }, headers: headers(@teacher)
-    assert_equal false, response.parsed_body.dig("enrollment", "learner_nudges_enabled")
+    assert_not response.parsed_body.fetch("enrollment").key?("learner_nudges_enabled")
+  end
+
+  test "staff keep reminder history when an opted-in cohort switches to Inherit and then Off" do
+    item = nudge("history/retained", push_requested_at: 2.hours.ago, push_settled_at: 1.hour.ago,
+      web_push_attempted_notification_ids: [ 1 ])
+    admin = person("admin", :admin)
+    [ nil, false ].each do |override|
+      patch "/api/v1/cohorts/#{@cohort.id}/feature_settings", params: { features: { learner_nudges: override } }, headers: headers(admin), as: :json
+      assert_response :success
+      assert_equal false, response.parsed_body.dig("features", "learner_nudges")
+
+      get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @cohort.id }, headers: headers(@teacher)
+      assert_equal false, response.parsed_body.dig("enrollment", "learner_nudges_enabled")
+      get @path, headers: headers(@teacher)
+      assert_equal false, response.parsed_body.fetch("enabled")
+      assert_equal [ item.id, "partial" ], response.parsed_body.fetch("nudges").sole.values_at("id", "push_status")
+    end
   end
 
   test "deleting an enrollment removes its reminders and their notifications" do

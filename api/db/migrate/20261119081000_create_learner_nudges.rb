@@ -32,8 +32,9 @@ class CreateLearnerNudges < ActiveRecord::Migration[8.1]
       add_index :learner_nudges, [ :enrollment_id, :school_date ]
       add_index :learner_nudges, :push_requested_at, name: "index_learner_nudges_on_push_pending",
         where: "push_requested_at IS NOT NULL AND push_settled_at IS NULL"
+      add_index :learner_nudges, :push_requested_at, name: "index_learner_nudges_on_email_pending", where: "email_status = 'pending'"
       add_check_constraint :learner_nudges, "kind IN (#{KINDS.map { |kind| "'#{kind}'" }.join(', ')})", name: "learner_nudges_kind_valid"
-      add_check_constraint :learner_nudges, "email_status IN ('not_requested', 'sent', 'failed', 'not_configured', 'no_address')", name: "learner_nudges_email_status_valid"
+      add_check_constraint :learner_nudges, "email_status IN ('not_requested', 'pending', 'sent', 'failed', 'not_configured', 'no_address')", name: "learner_nudges_email_status_valid"
       # A constant default is a catalog-only change on PostgreSQL 11+.
       add_column :users, :learner_nudges_enabled, :boolean, null: false, default: true
     end

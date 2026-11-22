@@ -24,8 +24,8 @@
 # Who: active (not paused, dropped, completed or expired), signed-up students
 # in active, non-alumni cohorts where both the school `learner_nudges` switch
 # and the cohort's own opt-in are on (FeatureSwitches::COHORT_OPT_IN). With the
-# school switch off the task reads one row and stops; cohorts that haven't
-# opted in add no queries and get no rows.
+# school switch off the task only settles old deliveries; cohorts that
+# haven't opted in get no rows.
 #
 # At most one reminder per learner per Guam day: the most urgent is sent and
 # the rest are considered again on later ticks (a passed date simply drops
@@ -35,17 +35,15 @@
 #
 # Delivery: the LearnerNudge row (unique key) and its in-app notification are
 # inserted in one transaction, which is the exactly-once claim. Email and push
-# go out after it commits, at most once: email is attempted once and its result
-# recorded on the row; push uses PushNotificationJob's per-provider claim and
-# the row's outbox columns, and a push a crash left unsettled is re-requested
-# after PUSH_GRACE (or dropped after PUSH_MAX_AGE).
+# go out after it commits, at most once. Recovery rechecks eligibility before
+# sending pending email or push, and settles deliveries that are too old.
 #
 # Enrollments are read in id batches until done or TIME_BUDGET runs out
 # (BacklogRemaining, so the tick retries without moving its checkpoint). A
 # failure while evaluating one learner is logged and skipped; the others still
 # get theirs, and the task reports failure so the next tick tries again.
 class LearnerNudges
-  GUAM = "Pacific/Guam".freeze
+  GUAM = LearningCalendar::TIMEZONE
   BATCH_SIZE = 200
   TIME_BUDGET = 300 # seconds per run
   QUIET_FROM_HOUR = 21
@@ -86,8 +84,8 @@ class LearnerNudges
     new.preview(now: now)
   end
 
-  def initialize(logger: Rails.logger, batch_size: BATCH_SIZE, time_budget: TIME_BUDGET)
-    @logger, @batch_size, @time_budget = logger, batch_size, time_budget
+  def initialize(logger: Rails.logger, batch_size: BATCH_SIZE, time_budget: TIME_BUDGET, clock: -> { Time.current })
+    @logger, @batch_size, @time_budget, @clock = logger, batch_size, time_budget, clock
   end
 
   # Dry run: what the next real run would send now, with no writes.
@@ -99,108 +97,172 @@ class LearnerNudges
     @started = monotonic
     metrics = { failed: 0 }
     count = 0
-    cohort_ids = opted_in_cohort_ids(now)
-    each_batch(cohort_ids, now, 0, metrics) { |batch| count += choose(batch, now, school, metrics).size } if cohort_ids.any?
-    { would_claim: count, cohorts: cohort_ids.size, failed: metrics[:failed] }
+    scope = eligible_enrollments(now)
+    planned = Set.new
+    each_batch(scope, metrics, start: 0, boundary: scope.maximum(:id).to_i, live: false) do |batch|
+      selected = select_daily(choose(batch, now, school, metrics), LearningCalendar.today(at: now), planned)
+      count += selected.size
+      planned.merge(selected.map { |candidate| candidate.enrollment.user_id })
+      true
+    end
+    { would_claim: count, cohorts: opted_in_cohorts(now).count, failed: metrics[:failed] }
   end
 
-  # metrics: claimed (reminders newly recorded), sent (delivered in-app, with
-  # email and push attempted), failed (learners whose evaluation raised),
+  # metrics: claimed (reminders newly recorded), sent (delivered in-app),
+  # failed (learner evaluations that raised),
   # email_failed, push_requeued and push_expired (the outbox), and
-  # resume_after (the last enrollment checked when the budget ran out; the
-  # tick keeps it in the task's last_result and the next run starts after it).
+  # resume_after and sweep_boundary (the last checked enrollment and the
+  # highest id in the sweep, retained across ticks until the sweep finishes).
   def call(now:, metrics: {})
     %i[claimed sent failed email_failed push_requeued push_expired].each { |key| metrics[key] ||= 0 }
     school = FeatureSwitches.school(read_only: true)
-    return metrics unless school["learner_nudges"] == true
     if self.class.quiet_hours?(now)
       metrics[:quiet_hours] = true
+      metrics.merge!(scan_checkpoint.symbolize_keys)
       return metrics
     end
 
     @started = monotonic
-    recover_pushes(now, metrics)
-    cohort_ids = opted_in_cohort_ids(now)
-    drained = cohort_ids.empty? || each_batch(cohort_ids, now, resume_after, metrics) { |batch| deliver(claim(choose(batch, now, school, metrics), now, metrics), now, metrics) }
+    recover_deliveries(now, metrics)
+    return metrics unless school["learner_nudges"] == true
+
+    checkpoint = scan_checkpoint
+    scope = eligible_enrollments(now)
+    boundary = checkpoint["sweep_boundary"] || scope.maximum(:id).to_i
+    drained = each_batch(scope, metrics, start: checkpoint["resume_after"].to_i, boundary: boundary) do |batch|
+      chosen = choose(batch, now, school, metrics)
+      claimed = claim(chosen, metrics)
+      next false unless claimed
+
+      deliver(claimed, metrics)
+      true
+    end
     raise EvaluationFailed, "#{metrics[:failed]} learner(s) could not be evaluated" if metrics[:failed].positive?
-    raise BacklogRemaining, "time budget spent with learners still to check; the next run continues" unless drained
+    raise BacklogRemaining, "time budget spent with learners still to check; the next run continues" unless drained || metrics[:quiet_hours]
 
     metrics
+  end
+
+  # Rebuild only the event this outbox row refers to, from current settings
+  # and progress. A different event date, inactivity streak, or tighter
+  # threshold gets evaluated independently by the regular enrollment scan.
+  def current_candidate(nudge, now:)
+    LearnerNudge.uncached do
+      school = FeatureSwitches.school(read_only: true)
+      next unless school["learner_nudges"]
+
+      enrollment = eligible_enrollments(now).includes(:user, :cohort).find_by(id: nudge.enrollment_id)
+      next unless enrollment && !enrollment.user.invite_pending?
+
+      candidates = if nudge.kind == "access_ending"
+        access_ending(enrollment, now)
+      elsif optional_for?(enrollment)
+        case nudge.kind
+        when "support_ending" then support_ending(enrollment, now)
+        when "due_soon" then due_soon(enrollment, LearnerProgress.new(enrollment, now: now, school_features: school), now)
+        when "inactive"
+          inactive(enrollment, LearnerProgress.new(enrollment, now: now, school_features: school), LearnerActivity.last_active_at(enrollment), now)
+        end
+      end
+      candidates&.find { |candidate| candidate.key == nudge.key }
+    end
   end
 
   private
 
   # Running cohorts, plus completed ones: their learners keep access until
   # it expires, so the essential access notice still reaches them.
-  def opted_in_cohort_ids(now)
-    today = now.in_time_zone(GUAM).to_date
-    Cohort.active(on: today).or(Cohort.completed).where.not(cohort_type: :alumni)
-      .where("cohorts.settings -> 'features' ->> 'learner_nudges' = 'true'").pluck(:id)
+  def opted_in_cohorts(now)
+    Cohort.active(on: LearningCalendar.today(at: now)).or(Cohort.completed).where.not(cohort_type: :alumni)
+      .where("cohorts.settings -> 'features' ->> 'learner_nudges' = 'true'")
   end
 
-  def resume_after
-    ScheduledTaskRun.find_by(name: "learner_nudges")&.last_result&.dig("resume_after").to_i
+  def eligible_enrollments(now)
+    Enrollment.active(at: now).where(cohort_id: opted_in_cohorts(now).select(:id)).joins(:user)
+      .where(users: { archived_at: nil, role: User.roles.fetch("student") })
   end
 
-  # Yields each batch of candidate enrollments, starting after `start` and
-  # wrapping round to the lowest ids, so a run cut short by the budget never
-  # starves learners with higher ids. True when every batch ran.
-  def each_batch(cohort_ids, now, start, metrics)
-    ranges = start.positive? ? [ [ start, nil ], [ 0, start ] ] : [ [ 0, nil ] ]
-    ranges.each do |cursor, stop|
-      loop do
-        scope = Enrollment.active(at: now).where(cohort_id: cohort_ids).where("enrollments.id > ?", cursor)
-        scope = scope.where("enrollments.id <= ?", stop) if stop
-        batch = scope.joins(:user).where(users: { archived_at: nil, role: User.roles.fetch("student") })
-          .includes(:user, :cohort).order(:id).limit(@batch_size).to_a
-        break if batch.empty?
+  def quiet_now?(metrics)
+    return false unless self.class.quiet_hours?(@clock.call)
 
-        yield batch
-        cursor = batch.last.id
-        break if batch.size < @batch_size
-        next unless monotonic - @started > @time_budget
+    metrics[:quiet_hours] = true
+  end
 
-        metrics[:resume_after] = cursor
+  def scan_checkpoint
+    result = ScheduledTaskRun.find_by(name: "learner_nudges")&.last_result || {}
+    result.slice("resume_after", "sweep_boundary")
+  end
+
+  # One sweep per run. New ids beyond the boundary wait for the next sweep,
+  # and a short tail completes this sweep without wrapping to its first page.
+  def each_batch(scope, metrics, start:, boundary:, live: true)
+    cursor = start
+    while cursor < boundary
+      if (live && quiet_now?(metrics)) || monotonic - @started >= @time_budget
+        metrics.merge!(resume_after: cursor, sweep_boundary: boundary)
         return false
       end
+
+      batch = scope.where(id: (cursor + 1)..boundary).includes(:user, :cohort).order(:id).limit(@batch_size).to_a
+      break if batch.empty?
+      unless yield batch
+        metrics.merge!(resume_after: cursor, sweep_boundary: boundary)
+        return false
+      end
+
+      cursor = batch.last.id
+      break if batch.size < @batch_size
     end
     true
   end
 
-  # The reminders to send now for one batch: due, not already sent, and within
-  # the daily cap. Reads a fixed number of queries however large the batch.
+  # New events due in this batch, evaluated with a fixed number of queries.
   def choose(batch, now, school, metrics)
     batch = batch.reject { |enrollment| enrollment.user.invite_pending? }
     return [] if batch.empty?
 
-    projections = progress_for(batch, now, school, metrics)
-    activity = LearnerActivity.for_all(batch)
-    candidates = batch.flat_map do |enrollment|
+    candidates = batch.flat_map { |enrollment| evaluate(enrollment.id, metrics) { access_ending(enrollment, now) } }
+    optional = batch.select { |enrollment| optional_for?(enrollment) }
+    projections = progress_for(optional, now, school, metrics)
+    activity = activity_for(optional, metrics)
+    candidates.concat(optional.flat_map do |enrollment|
       progress = projections[enrollment.id]
-      next [] unless progress
+      next [] unless progress && activity.key?(enrollment.id)
 
-      candidates_for(enrollment, progress, activity[enrollment.id], now)
-    rescue StandardError => error
-      metrics[:failed] += 1
-      @logger.error("[LearnerNudges] enrollment_id=#{enrollment.id} evaluation_failed=#{error.class}: #{error.message}")
-      []
-    end
+      evaluate(enrollment.id, metrics) { candidates_for(enrollment, progress, activity[enrollment.id], now) }
+    end)
     return [] if candidates.empty?
 
     sent = LearnerNudge.where(key: candidates.map(&:key)).pluck(:key).to_set
-    fresh = candidates.reject { |candidate| sent.include?(candidate.key) }
-    return [] if fresh.empty?
+    candidates.reject { |candidate| sent.include?(candidate.key) }
+  end
 
-    today = now.in_time_zone(GUAM).to_date
-    reminded_today = LearnerNudge.where(enrollment_id: fresh.map { |candidate| candidate.enrollment.id }.uniq, school_date: today).distinct.pluck(:enrollment_id).to_set
-    fresh.group_by { |candidate| candidate.enrollment.id }.flat_map do |enrollment_id, items|
-      items = items.sort_by(&:priority)
-      essential = items.find(&:essential)
-      if essential then [ essential ]
-      elsif reminded_today.include?(enrollment_id) then []
-      else [ items.first ]
-      end
+  def select_daily(candidates, today, planned = Set.new)
+    by_user = candidates.group_by { |candidate| candidate.enrollment.user_id }
+    optional_users = by_user.keys - planned.to_a
+    reminded = LearnerNudge.uncached do
+      LearnerNudge.joins(:enrollment).where(enrollments: { user_id: optional_users }, school_date: today)
+        .distinct.pluck("enrollments.user_id").to_set
     end
+    by_user.flat_map do |user_id, items|
+      essential = items.select(&:essential)
+      next essential if essential.any?
+      next [] if reminded.include?(user_id) || planned.include?(user_id)
+
+      [ items.min_by(&:priority) ]
+    end
+  end
+
+  def optional_for?(enrollment)
+    enrollment.user.learner_nudges_enabled? && enrollment.cohort.active?
+  end
+
+  def evaluate(enrollment_id, metrics)
+    yield
+  rescue StandardError => error
+    metrics[:failed] += 1
+    @logger.error("[LearnerNudges] enrollment_id=#{enrollment_id} evaluation_failed=#{error.class}: #{error.message}")
+    []
   end
 
   # One learner's bad data must not cost the batch: on a batch failure each
@@ -210,19 +272,21 @@ class LearnerNudges
   rescue StandardError => batch_error
     @logger.warn("[LearnerNudges] batch_projection_failed=#{batch_error.class}; projecting learners one at a time")
     batch.each_with_object({}) do |enrollment, result|
-      result[enrollment.id] = LearnerProgress.new(enrollment, now: now, school_features: school)
-    rescue StandardError => error
-      metrics[:failed] += 1
-      @logger.error("[LearnerNudges] enrollment_id=#{enrollment.id} evaluation_failed=#{error.class}: #{error.message}")
+      evaluate(enrollment.id, metrics) { result[enrollment.id] = LearnerProgress.new(enrollment, now: now, school_features: school) }
+    end
+  end
+
+  def activity_for(batch, metrics)
+    LearnerActivity.for_all(batch)
+  rescue StandardError => batch_error
+    @logger.warn("[LearnerNudges] batch_activity_failed=#{batch_error.class}; checking learners one at a time")
+    batch.each_with_object({}) do |enrollment, result|
+      evaluate(enrollment.id, metrics) { result[enrollment.id] = LearnerActivity.last_active_at(enrollment) }
     end
   end
 
   def candidates_for(enrollment, progress, last_active_at, now)
-    list = access_ending(enrollment, now)
-    # A completed cohort keeps only the essential access notice.
-    return list unless enrollment.user.learner_nudges_enabled? && enrollment.cohort.active?
-
-    list + due_soon(enrollment, progress, now) + support_ending(enrollment, now) + inactive(enrollment, progress, last_active_at, now)
+    due_soon(enrollment, progress, now) + support_ending(enrollment, now) + inactive(enrollment, progress, last_active_at, now)
   end
 
   def due_soon(enrollment, progress, now)
@@ -349,19 +413,31 @@ class LearnerNudges
   # Records each chosen reminder and its in-app notification together. Only
   # rows this call inserted come back, so a concurrent or repeated run that
   # lost the key sends nothing.
-  def claim(chosen, now, metrics)
+  def claim(chosen, metrics)
+    return if quiet_now?(metrics)
     return [] if chosen.empty?
 
-    today = now.in_time_zone(GUAM).to_date
     marker = ProviderEmailProvenance.marker
     claimed = LearnerNudge.transaction do
-      rows = chosen.map do |candidate|
+      # Lock in user id order across competing ticks, then read the cap on
+      # this connection without reusing any pre-lock query result.
+      User.where(id: chosen.map { |candidate| candidate.enrollment.user_id }).order(:id).lock.pluck(:id)
+      next if quiet_now?(metrics)
+
+      now = @clock.call
+      today = LearningCalendar.today(at: now)
+      selected = select_daily(chosen, today)
+      next [] if selected.empty?
+
+      rows = selected.map do |candidate|
         { enrollment_id: candidate.enrollment.id, kind: candidate.kind, threshold: candidate.threshold, key: candidate.key,
           essential: candidate.essential, event_at: candidate.event_at, school_date: today, title: candidate.title,
-          body: candidate.body, path: candidate.path, push_requested_at: now, created_at: now, updated_at: now }
+          body: candidate.body, path: candidate.path, email_status: "pending", push_requested_at: now, created_at: now, updated_at: now }
       end
+      next if quiet_now?(metrics)
+
       ids = LearnerNudge.insert_all(rows, unique_by: :index_learner_nudges_on_key, returning: %w[id key], record_timestamps: false).rows.to_h { |id, key| [ key, id ] }
-      won = chosen.filter_map { |candidate| [ candidate, ids[candidate.key] ] if ids[candidate.key] }
+      won = selected.filter_map { |candidate| [ candidate, ids[candidate.key] ] if ids[candidate.key] }
       next [] if won.empty?
 
       notices = won.map do |candidate, id|
@@ -373,28 +449,42 @@ class LearnerNudges
         returning: %w[id notifiable_id], record_timestamps: false).rows.to_h { |id, nudge_id| [ nudge_id, id ] }
       won.map { |candidate, id| [ candidate, id, notification_ids[id] ] }
     end
-    metrics[:claimed] += claimed.size
+    metrics[:claimed] += claimed.size if claimed
     claimed
   end
 
-  def deliver(claimed, _now, metrics)
-    return if claimed.empty?
-
-    email_ready = NotificationEmailService.configured?
+  def deliver(claimed, metrics)
+    metrics[:sent] += claimed.size
     claimed.each do |candidate, id, notification_id|
-      status = if !email_ready then "not_configured"
-      elsif candidate.enrollment.user.email.blank? then "no_address"
-      else
-        pace_email
-        NotificationEmailService.send_learner_nudge(user: candidate.enrollment.user, cohort: candidate.enrollment.cohort,
-          title: candidate.title, body: candidate.body, path: candidate.path, essential: candidate.essential) ? "sent" : "failed"
-      end
-      # Recorded per reminder, so a crash later in the batch can't hide a sent email.
-      LearnerNudge.where(id: id).update_all(email_status: status) unless status == "not_requested"
-      metrics[:email_failed] += 1 if status == "failed"
+      break if quiet_now?(metrics)
+
+      send_email(candidate, id, metrics)
+      break if quiet_now?(metrics)
+
       push(id, notification_id)
-      metrics[:sent] += 1
     end
+  end
+
+  def send_email(candidate, id, metrics)
+    user = candidate.enrollment.user
+    status = if !NotificationEmailService.configured? then "not_configured"
+    elsif user.email.blank? then "no_address"
+    end
+    pending = LearnerNudge.where(id: id, email_status: "pending")
+    return pending.update_all(email_status: status) if status
+
+    pace_email
+    return if quiet_now?(metrics) || pending.update_all(email_status: "not_requested") != 1
+
+    record = LearnerNudge.where(id: id)
+    # Once a request starts, a crash leaves the claimed email non-retryable.
+    # A request still unstarted at 21:00 can be evaluated again in the morning.
+    return record.update_all(email_status: "pending") if quiet_now?(metrics)
+
+    sent = NotificationEmailService.send_learner_nudge(user: user, cohort: candidate.enrollment.cohort,
+      title: candidate.title, body: candidate.body, path: candidate.path, essential: candidate.essential)
+    record.update_all(email_status: sent ? "sent" : "failed")
+    metrics[:email_failed] += 1 unless sent
   end
 
   def pace_email
@@ -404,28 +494,43 @@ class LearnerNudges
   end
 
   def push(nudge_id, notification_id)
-    PushNotificationJob.perform_now("LearnerNudge", nudge_id, [ notification_id ].compact)
+    job = PushNotificationJob.new("LearnerNudge", nudge_id, [ notification_id ].compact)
+    job.clock = @clock
+    job.perform_now
   rescue StandardError => error
     # The outbox stays unsettled, so the next tick re-requests what wasn't claimed.
     @logger.error("[LearnerNudges] learner_nudge_id=#{nudge_id} push_failed=#{error.class}: #{error.message}")
   end
 
-  # Re-requests pushes a crash left unsettled, and drops ones too old to help.
-  def recover_pushes(now, metrics)
-    due = LearnerNudge.push_pending.where(push_requested_at: ..(now - PUSH_GRACE)).order(:id).limit(@batch_size).to_a
-    return if due.empty?
+  def recover_deliveries(now, metrics)
+    pending = LearnerNudge.push_pending.or(LearnerNudge.where(email_status: "pending"))
+    due = pending.where(push_requested_at: ..(now - PUSH_GRACE)).order(:id).limit(@batch_size).to_a
+    notifications = Notification.where(notifiable_type: "LearnerNudge", notifiable_id: due.map(&:id)).pluck(:notifiable_id, :id).to_h
+    due.each do |nudge|
+      break if quiet_now?(metrics) || monotonic - @started >= @time_budget
 
-    expired, again = due.partition { |nudge| nudge.push_requested_at < now - PUSH_MAX_AGE }
-    if expired.any?
-      LearnerNudge.where(id: expired.map(&:id), push_settled_at: nil).update_all(push_settled_at: now)
-      metrics[:push_expired] += expired.size
-    end
-    return if again.empty?
+      if nudge.push_requested_at < now - PUSH_MAX_AGE
+        metrics[:push_expired] += LearnerNudge.push_pending.where(id: nudge.id).update_all(push_settled_at: now)
+        LearnerNudge.where(id: nudge.id, email_status: "pending").update_all(email_status: "not_requested")
+        next
+      end
 
-    notifications = Notification.where(notifiable_type: "LearnerNudge", notifiable_id: again.map(&:id)).pluck(:notifiable_id, :id).to_h
-    again.each do |nudge|
+      recover_email(nudge, metrics) if nudge.email_status == "pending"
+      next if nudge.push_settled_at || quiet_now?(metrics)
+
       push(nudge.id, notifications[nudge.id])
       metrics[:push_requeued] += 1
+    end
+  end
+
+  def recover_email(nudge, metrics)
+    evaluate(nudge.enrollment_id, metrics) do
+      candidate = current_candidate(nudge, now: @clock.call)
+      if candidate
+        send_email(candidate, nudge.id, metrics)
+      else
+        LearnerNudge.where(id: nudge.id, email_status: "pending").update_all(email_status: "not_requested")
+      end
     end
   end
 

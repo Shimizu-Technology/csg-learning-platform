@@ -17219,7 +17219,7 @@
               },
               "learner_nudges_enabled": {
                 "type": "boolean",
-                "description": "Present only when this cohort sets learner reminders itself: true while it sends them, false after it turned them off (sent reminders stay listed)."
+                "description": "True when learner reminders are enabled. False when reminders are off and this enrollment has reminder history. Omitted when reminders are off and there is no history."
               }
             },
             "required": [
@@ -26630,6 +26630,7 @@
             "type": "string",
             "enum": [
               "not_requested",
+              "pending",
               "sent",
               "failed",
               "not_configured",
@@ -26642,9 +26643,10 @@
               "not_requested",
               "pending",
               "attempted",
+              "partial",
               "not_sent"
             ],
-            "description": "attempted means every push provider was tried; delivery to a device is not confirmed. not_sent means the outbox gave up on a push that was too old to help."
+            "description": "For settled pushes, attempted means both providers claimed an attempt, partial means one provider did, and not_sent means neither did. Provider claims do not confirm delivery to a device."
           },
           "read_at": {
             "type": [

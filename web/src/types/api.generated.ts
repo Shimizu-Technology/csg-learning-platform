@@ -8493,7 +8493,7 @@ export interface components {
                     available: boolean;
                     next_unlock_date: string | null;
                 }[];
-                /** @description Present only when this cohort sets learner reminders itself: true while it sends them, false after it turned them off (sent reminders stay listed). */
+                /** @description True when learner reminders are enabled. False when reminders are off and this enrollment has reminder history. Omitted when reminders are off and there is no history. */
                 learner_nudges_enabled?: boolean;
             };
             user: {
@@ -10550,12 +10550,12 @@ export interface components {
             /** Format: date-time */
             sent_at: string;
             /** @enum {string} */
-            email_status: "not_requested" | "sent" | "failed" | "not_configured" | "no_address";
+            email_status: "not_requested" | "pending" | "sent" | "failed" | "not_configured" | "no_address";
             /**
-             * @description attempted means every push provider was tried; delivery to a device is not confirmed. not_sent means the outbox gave up on a push that was too old to help.
+             * @description For settled pushes, attempted means both providers claimed an attempt, partial means one provider did, and not_sent means neither did. Provider claims do not confirm delivery to a device.
              * @enum {string}
              */
-            push_status: "not_requested" | "pending" | "attempted" | "not_sent";
+            push_status: "not_requested" | "pending" | "attempted" | "partial" | "not_sent";
             /**
              * Format: date-time
              * @description When the learner read the in-app notification.

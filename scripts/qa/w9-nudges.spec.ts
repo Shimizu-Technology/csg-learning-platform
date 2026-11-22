@@ -50,7 +50,7 @@ test('staff see the reminders a learner got, newest first, with channels and Gua
   await expect(oldest(3)).toContainText('Week 1: due today')
   await expect(oldest(3)).toContainText('2 lessons left')
   for (const index of [0, 1, 2, 3]) {
-    await expect(oldest(index)).toContainText('ChST · Email sent · Push attempted · Not read yet')
+    await expect(oldest(index)).toContainText('ChST · Email sent · Push attempted via both providers · Not read yet')
   }
   await noSideScroll(page)
 })
@@ -67,14 +67,15 @@ test('an opted-out learner shows only essential access reminders, and staff are 
 
 test('the Off program cohort shows no reminders section and never asks for one', async ({ page }) => {
   const asked: string[] = []
-  page.on('request', (request) => { if (request.url().includes('/nudges')) asked.push(request.url()) })
+  page.on('request', (request) => {
+    if (/\/(?:nudges|nudge_preferences)$/.test(new URL(request.url()).pathname)) asked.push(request.url())
+  })
   await reminders(page, 974, ids.off)
   await expect(page.getByRole('region', { name: 'Reminders' })).toHaveCount(0)
   await page.goto(`/profile?qa_user=974`)
   await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible()
   await expect(page.getByRole('switch', { name: 'Course reminders' })).toHaveCount(0)
-  expect(asked.filter((url) => !url.includes('nudge_preferences'))).toEqual([])
-  expect(asked.filter((url) => url.includes('nudge_preferences'))).toEqual([])
+  expect(asked).toEqual([])
 })
 
 test('the learner reads the reminder in Notifications and it opens the lesson', async ({ page }) => {
@@ -115,4 +116,26 @@ test('staff see Learner reminders as a cohort opt-in that inherits Off', async (
   await page.goto(`/admin/cohorts/${ids.paced}/settings?qa_user=1`)
   await expect(page.getByLabel('Learner reminders').locator('option:checked')).toHaveText('On')
   await noSideScroll(page)
+})
+
+test('staff keep reminder history after setting a cohort to Inherit Off', async ({ page }) => {
+  async function saveSetting(value: 'inherit' | 'on') {
+    await page.goto(`/admin/cohorts/${ids.paced}/settings?qa_user=1`)
+    const select = page.getByLabel('Learner reminders')
+    await expect(select).toBeVisible()
+    if (await select.inputValue() === value) return
+    await select.selectOption(value)
+    await page.getByRole('button', { name: 'Save settings' }).click()
+    await expect(page.locator('#main-content').getByText('Cohort settings saved', { exact: true })).toBeVisible()
+  }
+
+  try {
+    await saveSetting('inherit')
+    const panel = await reminders(page, 971)
+    await expect(panel).toContainText('Reminders are off for this cohort.')
+    await expect(panel.getByRole('list', { name: 'Reminders sent' }).getByRole('listitem').first()).toBeVisible()
+    await noSideScroll(page)
+  } finally {
+    await saveSetting('on')
+  }
 })
