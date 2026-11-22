@@ -240,6 +240,7 @@ Rails.application.routes.draw do
           patch :lesson_editing, on: :member
         end
         resource :learning_insights, only: :show, controller: "cohort_learning_insights"
+        resource :release_communications, only: :show, controller: "cohort_release_communications"
         # "Make a copy for this cohort": GET previews, POST copies.
         resource :curriculum_copy, only: [ :show, :create ], controller: "curriculum_copies"
         member do

@@ -3520,6 +3520,32 @@
         }
       }
     },
+    "/api/v1/cohorts/{cohort_id}/release_communications": {
+      "get": {
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cohort release communication preview and delivery status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortReleaseCommunicationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/enrollments/{enrollment_id}/learning_plan": {
       "parameters": [
         {
@@ -28075,6 +28101,494 @@
           "certificate",
           "can_issue",
           "course_completed"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsConfiguration": {
+        "type": "object",
+        "properties": {
+          "school_time_zone": {
+            "type": "string"
+          },
+          "school_time_zone_label": {
+            "type": "string"
+          },
+          "daily_unlock_hour": {
+            "type": "integer"
+          },
+          "catch_up_days": {
+            "type": "integer"
+          },
+          "channel": {
+            "const": "email"
+          },
+          "email_configured": {
+            "type": "boolean"
+          },
+          "sender_identity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sender_display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sender_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "frontend_origin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "program",
+              "guided",
+              "self_paced"
+            ]
+          },
+          "lesson_release_mode": {
+            "type": "string",
+            "enum": [
+              "scheduled_daily_unlock",
+              "self_paced_open",
+              "personal_pace_open"
+            ]
+          },
+          "cohort_status": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "active",
+              "completed",
+              "archived"
+            ]
+          },
+          "daily_unlocks_apply": {
+            "type": "boolean"
+          },
+          "eligibility_reason": {
+            "type": "string"
+          },
+          "grade_publication_separation_note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "school_time_zone",
+          "school_time_zone_label",
+          "daily_unlock_hour",
+          "catch_up_days",
+          "channel",
+          "email_configured",
+          "sender_identity",
+          "sender_display_name",
+          "sender_address",
+          "frontend_origin",
+          "course_delivery",
+          "lesson_release_mode",
+          "cohort_status",
+          "daily_unlocks_apply",
+          "eligibility_reason",
+          "grade_publication_separation_note"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsExcludedCounts": {
+        "type": "object",
+        "properties": {
+          "paused": {
+            "type": "integer"
+          },
+          "dropped": {
+            "type": "integer"
+          },
+          "completed": {
+            "type": "integer"
+          },
+          "expired": {
+            "type": "integer"
+          },
+          "invite_pending": {
+            "type": "integer"
+          },
+          "archived_user": {
+            "type": "integer"
+          },
+          "missing_email": {
+            "type": "integer"
+          },
+          "opted_out": {
+            "type": "integer"
+          },
+          "cohort_ineligible": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "paused",
+          "dropped",
+          "completed",
+          "expired",
+          "invite_pending",
+          "archived_user",
+          "missing_email",
+          "opted_out",
+          "cohort_ineligible"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsRecipients": {
+        "type": "object",
+        "properties": {
+          "total_enrollments": {
+            "type": "integer"
+          },
+          "eligible_active_count": {
+            "type": "integer"
+          },
+          "excluded": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsExcludedCounts"
+          }
+        },
+        "required": [
+          "total_enrollments",
+          "eligible_active_count",
+          "excluded"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "release_day": {
+            "type": "integer"
+          },
+          "deep_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id",
+          "module_name",
+          "lesson_type",
+          "release_day",
+          "deep_link"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsUpcomingRelease": {
+        "type": "object",
+        "properties": {
+          "release_date": {
+            "type": "string"
+          },
+          "scheduled_send_at": {
+            "type": "string"
+          },
+          "is_today": {
+            "type": "boolean"
+          },
+          "eligible_recipient_count": {
+            "type": "integer"
+          },
+          "already_claimed_count": {
+            "type": "integer"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsLesson"
+            }
+          }
+        },
+        "required": [
+          "release_date",
+          "scheduled_send_at",
+          "is_today",
+          "eligible_recipient_count",
+          "already_claimed_count",
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsSampleLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "deep_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "deep_link"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsSamplePreview": {
+        "type": "object",
+        "properties": {
+          "release_date": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "headline": {
+            "type": "string"
+          },
+          "intro": {
+            "type": "string"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsSampleLesson"
+            }
+          },
+          "cta_label": {
+            "type": "string"
+          },
+          "cta_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "footer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "release_date",
+          "subject",
+          "from",
+          "headline",
+          "intro",
+          "lessons",
+          "cta_label",
+          "cta_url",
+          "footer"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsDelivery": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "attempted",
+              "skipped",
+              "pending"
+            ]
+          },
+          "recipient_count": {
+            "type": "integer"
+          },
+          "lesson_claim_count": {
+            "type": "integer"
+          },
+          "attempted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "key",
+          "status",
+          "recipient_count",
+          "lesson_claim_count",
+          "attempted_at",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunicationsSchedulerHealth": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "const": "school_wide"
+          },
+          "task_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "error",
+              "skipped",
+              "never_run"
+            ]
+          },
+          "last_run_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_succeeded_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_school_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "task_name",
+          "status",
+          "last_run_at",
+          "last_succeeded_at",
+          "last_school_date",
+          "error_class",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseCommunications": {
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "cohort_name": {
+            "type": "string"
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsConfiguration"
+          },
+          "recipients": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsRecipients"
+          },
+          "upcoming_releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsUpcomingRelease"
+            }
+          },
+          "sample_preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReleaseCommunicationsSamplePreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recent_deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseCommunicationsDelivery"
+            }
+          },
+          "scheduler_health": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsSchedulerHealth"
+          }
+        },
+        "required": [
+          "generated_at",
+          "cohort_id",
+          "cohort_name",
+          "configuration",
+          "recipients",
+          "upcoming_releases",
+          "sample_preview",
+          "recent_deliveries",
+          "scheduler_health"
+        ],
+        "additionalProperties": false
+      },
+      "CohortReleaseCommunicationsResponse": {
+        "type": "object",
+        "properties": {
+          "release_communications": {
+            "$ref": "#/components/schemas/ReleaseCommunications"
+          }
+        },
+        "required": [
+          "release_communications"
         ],
         "additionalProperties": false
       }

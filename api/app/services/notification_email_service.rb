@@ -23,15 +23,33 @@ class NotificationEmailService
     def send_daily_unlock_for_enrollment(enrollment:, lessons:, on: LearningCalendar.today)
       modules = enrollment.module_assignments.index_by(&:module_id)
       assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
-      lessons = lessons.select { |lesson| LessonReadAccess.readable?(enrollment, lesson, modules[lesson.module_id], assignments[lesson.id], on: on) }
+      lessons = lessons.uniq(&:id).select { |lesson| LessonReadAccess.readable?(enrollment, lesson, modules[lesson.module_id], assignments[lesson.id], on: on) }
       return nil if lessons.empty?
 
       deliver_daily_unlock(user: enrollment.user, cohort: enrollment.cohort, lessons: lessons, raise_rejection: true)
     end
 
+    def daily_unlock_subject
+      "New content unlocked - #{SchoolBrand.current.name}"
+    end
+
+    def daily_unlock_lesson_url(lesson, cohort)
+      return nil unless frontend_url.present?
+
+      path = RecordDestination.to_web_path(RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort.id }))
+      frontend_path(path)
+    end
+
+    def daily_unlock_cta_url(cohort)
+      return nil unless frontend_url.present?
+
+      frontend_path("/materials?cohort_id=#{cohort.id}")
+    end
+
     def deliver_daily_unlock(user:, cohort:, lessons:, raise_rejection: false)
       return false unless configured?
 
+      lessons = lessons.uniq(&:id)
       lesson_list = lessons.map { |lesson| daily_unlock_lesson_item(lesson, cohort) }.join
 
       response = Resend::Emails.send(
@@ -39,7 +57,7 @@ class NotificationEmailService
           from: from_email,
           tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
-          subject: "New content unlocked - #{SchoolBrand.current.name}",
+          subject: daily_unlock_subject,
           html: daily_unlock_html(
             user: user, cohort: cohort, lesson_list: lesson_list, count: lessons.size
           )
@@ -192,6 +210,10 @@ class NotificationEmailService
         Rails.logger.warn("[NotificationEmail] from email not configured; skipping")
         return false
       end
+      if frontend_url.blank?
+        Rails.logger.warn("[NotificationEmail] public frontend URL not configured; skipping")
+        return false
+      end
       true
     end
 
@@ -200,6 +222,7 @@ class NotificationEmailService
     def ensure_configured!
       raise ConfigurationError, "RESEND_API_KEY is not configured" if ENV["RESEND_API_KEY"].blank?
       raise ConfigurationError, "sender email is not configured" if from_email.blank?
+      raise ConfigurationError, "public frontend URL is not configured" if frontend_url.blank?
     end
 
     def readable_lessons(user, cohort, lessons)
@@ -225,7 +248,7 @@ class NotificationEmailService
     end
 
     def frontend_path(path)
-      "#{frontend_url.to_s.sub(%r{/\z}, "")}#{path}"
+      FrontendUrlResolver.safe_deep_link(path)
     end
 
     def h(value)
@@ -234,8 +257,7 @@ class NotificationEmailService
 
     # Each lesson opens in this cohort (L-3.7). Absolute, so it works from any mail client.
     def daily_unlock_lesson_item(lesson, cohort)
-      path = RecordDestination.to_web_path(RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort.id }))
-      %(<li style="margin-bottom: 8px;"><a href="#{h(frontend_path(path))}" target="_blank" style="color: #9c292b; font-weight: 600; text-decoration: underline;">#{h(lesson.title)}</a></li>)
+      %(<li style="margin-bottom: 8px;"><a href="#{h(daily_unlock_lesson_url(lesson, cohort))}" target="_blank" style="color: #9c292b; font-weight: 600; text-decoration: underline;">#{h(lesson.title)}</a></li>)
     end
 
     def daily_unlock_html(user:, cohort:, lesson_list:, count:)
