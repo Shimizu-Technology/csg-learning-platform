@@ -71,6 +71,9 @@ export function CourseCatalog() {
     }
   }, [slug, loading, notFound, returning, offerings])
 
+  // Static SPA hosting on Netlify (no Edge Functions): unlisted offerings stay
+  // excluded from the public catalog/sitemap, emit X-Robots-Tag on the offering
+  // API, and inject a noindex, nofollow meta tag in <head> while mounted.
   useEffect(() => {
     if (!isUnlistedOffering) return
     const existing = document.head.querySelector('meta[name="robots"]') as HTMLMetaElement | null

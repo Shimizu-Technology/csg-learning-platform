@@ -9,6 +9,9 @@ module Api
       def show
         cohort = offerings.find_by!(public_slug: params[:slug])
         raise ActiveRecord::RecordNotFound unless cohort.published_selected_content?
+        # Unlisted offerings are excluded from the public catalog and sitemap,
+        # carry X-Robots-Tag on this JSON API, and inject <meta name="robots">
+        # in the static Netlify SPA (which has no Edge Functions).
         response.headers["X-Robots-Tag"] = "noindex, nofollow" if cohort.unlisted?
         render json: { offering: PublicCourseSerializer.call(cohort) }
       end

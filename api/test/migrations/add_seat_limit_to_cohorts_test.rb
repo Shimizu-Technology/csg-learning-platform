@@ -34,6 +34,28 @@ class AddSeatLimitToCohortsTest < ActiveSupport::TestCase
     clear_caches
   end
 
+  test "down raises IrreversibleMigration without altering schema when repurchase history rows exist" do
+    migration = AddSeatLimitToCohorts.new
+    connection = ActiveRecord::Base.connection
+    curriculum = Curriculum.create!(name: "Migration Repurchase Curriculum", status: :active)
+    cohort = Cohort.create!(curriculum: curriculum, name: "Migration Repurchase Cohort", start_date: Date.new(2026, 11, 22), status: :active, course_delivery: "guided")
+    student = User.create!(clerk_id: "mig_repurchase_student", email: "mig-repurchase@example.invalid", first_name: "Mig", last_name: "Student", role: :student)
+    first_purchase = CoursePurchase.create!(user: student, cohort: cohort, stripe_price_id: "price_mig_1", price_cents: 14_900, status: "paid", stripe_session_id: "cs_mig_1")
+    second_purchase = CoursePurchase.create!(user: student, cohort: cohort, stripe_price_id: "price_mig_2", price_cents: 14_900, status: "pending", stripe_session_id: "cs_mig_2")
+
+    error = assert_raises(ActiveRecord::IrreversibleMigration) { migration.migrate(:down) }
+    assert_match(/repurchase history rows exist/i, error.message)
+    assert connection.column_exists?(:course_purchases, :terms_snapshot)
+    assert connection.index_name_exists?(:course_purchases, AddSeatLimitToCohorts::OPEN_ATTEMPT_INDEX)
+  ensure
+    CoursePurchase.where(id: [ first_purchase&.id, second_purchase&.id ].compact).delete_all
+    cohort&.destroy
+    curriculum&.destroy
+    student&.destroy
+    migration&.migrate(:up)
+    clear_caches
+  end
+
   private
 
   def clear_caches

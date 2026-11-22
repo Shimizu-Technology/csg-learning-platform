@@ -50,7 +50,16 @@ class CoursePurchase < ApplicationRecord
       self.support_weeks ||= cohort.self_paced_support_weeks
     end
     if terms_snapshot.blank?
-      self.terms_snapshot = self.class.terms_snapshot_for(cohort)
+      snap = self.class.terms_snapshot_for(cohort)
+      # Preserve terms already saved on pre-upgrade purchases even if staff later
+      # edited the cohort's current defaults.
+      snap["access_months"] = access_months if access_months.present?
+      snap["support_weeks"] = support_weeks if support_weeks.present?
+      if cohort.guided?
+        snap["guided_access_months"] = access_months if access_months.present? && snap["guided_access_ends_on"].blank?
+        snap["guided_support_weeks"] = support_weeks if support_weeks.present? && snap["guided_support_ends_on"].blank?
+      end
+      self.terms_snapshot = snap
     elsif !cohort.guided? && (caught_up_access || caught_up_support)
       snap = terms_snapshot.dup
       snap["access_months"] = access_months if caught_up_access
@@ -65,8 +74,8 @@ class CoursePurchase < ApplicationRecord
       {
         course_delivery: snap["course_delivery"],
         cohort_type: snap["cohort_type"],
-        access_months: snap["access_months"] || access_months,
-        support_weeks: snap["support_weeks"] || support_weeks,
+        access_months: snap["course_delivery"] == "guided" ? snap["access_months"] : (access_months || snap["access_months"]),
+        support_weeks: snap["course_delivery"] == "guided" ? snap["support_weeks"] : (support_weeks || snap["support_weeks"]),
         guided_access_ends_on: parse_snapshot_date(snap["guided_access_ends_on"]),
         guided_support_ends_on: parse_snapshot_date(snap["guided_support_ends_on"]),
         guided_access_ends_at: parse_snapshot_time(snap["guided_access_ends_at"]),
@@ -84,8 +93,8 @@ class CoursePurchase < ApplicationRecord
         guided_support_ends_on: cohort&.guided? ? cohort.guided_support_ends_on : nil,
         guided_access_ends_at: cohort&.guided? ? cohort.guided_access_ends_at : nil,
         guided_support_ends_at: cohort&.guided? ? cohort.guided_support_ends_at : nil,
-        guided_access_months: cohort&.guided? ? cohort.guided_access_months : nil,
-        guided_support_weeks: cohort&.guided? ? cohort.guided_support_weeks : nil
+        guided_access_months: cohort&.guided? ? (access_months || cohort.guided_access_months) : nil,
+        guided_support_weeks: cohort&.guided? ? (support_weeks || cohort.guided_support_weeks) : nil
       }
     end
   end

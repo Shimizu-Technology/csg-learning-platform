@@ -28,4 +28,35 @@ class FrontendUrlResolverTest < ActiveSupport::TestCase
 
     assert_equal "http://localhost:5173", FrontendUrlResolver.resolve(env: env)
   end
+
+  test "rejects unsafe origins and prevents arbitrary host injection in deep links" do
+    unsafe_env = {
+      "PUBLIC_FRONTEND_URL" => "javascript:alert(1)",
+      "FRONTEND_URL" => "https://user:pass@evil.example,//evil.example,https://learn.example.test",
+      "RAILS_ENV" => "production"
+    }
+
+    assert_equal "https://learn.example.test", FrontendUrlResolver.resolve(env: unsafe_env)
+    assert_equal "https://learn.example.test/lessons/42?cohort_id=7",
+      FrontendUrlResolver.safe_deep_link("/lessons/42?cohort_id=7", env: unsafe_env)
+
+    [ "//evil.example/phish", "https://evil.example/phish", "lessons/42", "/lessons/42\r\nHost: evil", "/lessons/42\\evil" ].each do |bad_path|
+      assert_raises(ArgumentError, "expected #{bad_path.inspect} to be rejected") do
+        FrontendUrlResolver.safe_deep_link(bad_path, env: unsafe_env)
+      end
+    end
+  end
+
+  test "production refuses localhost fallback when no safe public origin is configured" do
+    [
+      { "RAILS_ENV" => "production" },
+      { "RAILS_ENV" => "production", "PUBLIC_FRONTEND_URL" => "http://localhost:5173" },
+      { "RAILS_ENV" => "production", "FRONTEND_URL" => "http://localhost:5173,http://127.0.0.1:5173,javascript:alert(1)" }
+    ].each do |prod_env|
+      assert_nil FrontendUrlResolver.resolve(env: prod_env)
+      assert_raises(ArgumentError) { FrontendUrlResolver.safe_deep_link("/lessons/1", env: prod_env) }
+    end
+
+    assert_equal "http://localhost:5173", FrontendUrlResolver.resolve(env: { "RAILS_ENV" => "development" })
+  end
 end

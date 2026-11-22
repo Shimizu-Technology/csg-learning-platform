@@ -158,6 +158,7 @@ class Enrollment < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :cohort_id }
   validate :starts_on_needs_personal_pace
+  attr_accessor :skip_default_guided_access_terms
 
   before_save :record_paused_library
   before_validation :record_pause_date
@@ -337,6 +338,7 @@ class Enrollment < ApplicationRecord
       support_end = [ guided_date_boundary(anchor + effective_support_weeks.weeks), access_expires_at ].compact.min
     end
     self.support_expires_at = support_end
+    self.skip_default_guided_access_terms = true
   end
 
   private
@@ -354,7 +356,7 @@ class Enrollment < ApplicationRecord
   end
 
   def set_guided_access_terms
-    return unless cohort.guided?
+    return if skip_default_guided_access_terms || !cohort.guided?
 
     anchor = personal_start_on || cohort.start_date || LearningCalendar.today
     access_end = cohort.guided_access_ends_on

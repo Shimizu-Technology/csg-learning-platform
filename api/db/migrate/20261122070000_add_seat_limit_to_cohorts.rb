@@ -41,6 +41,11 @@ class AddSeatLimitToCohorts < ActiveRecord::Migration[8.1]
   end
 
   def down
+    if connection.select_value("SELECT 1 FROM course_purchases GROUP BY user_id, cohort_id HAVING COUNT(*) > 1 LIMIT 1")
+      raise ActiveRecord::IrreversibleMigration,
+        "Cannot restore unique (user_id, cohort_id) index on course_purchases while repurchase history rows exist"
+    end
+
     with_lock_timeout do
       unless index_name_exists?(:course_purchases, OLD_USER_COHORT_INDEX)
         add_index :course_purchases, [ :user_id, :cohort_id ], unique: true, name: OLD_USER_COHORT_INDEX

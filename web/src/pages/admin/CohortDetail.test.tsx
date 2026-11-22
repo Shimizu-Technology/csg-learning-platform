@@ -21,6 +21,7 @@ let root: Root
 const button = (text: string) => [...container.querySelectorAll('button')].find((el) => el.textContent === text)!
 
 vi.mock('../../components/admin/FeatureSettings', () => ({ FeatureSettings: () => null }))
+vi.mock('../../components/admin/ReleaseCommunicationsPanel', () => ({ ReleaseCommunicationsPanel: () => null }))
 vi.mock('../../components/admin/ReviewResponseSettings', () => ({
   ReviewResponseSettings: ({ onDraftChange }: { onDraftChange: (value: string) => void }) => (
     <label>Typical response time<input id="review-response-time-test" onChange={e => onDraftChange(e.target.value)} /></label>

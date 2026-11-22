@@ -1351,3 +1351,8 @@ export type LearnerExtension = components['schemas']['LearnerExtension'];
 export type LearnerExtensionInput = components['schemas']['LearnerExtensionInput'];
 export type LearnerNudge = components['schemas']['LearnerNudge'];
 export type LearnerNudgesResponse = components['schemas']['LearnerNudgesResponse'];
+
+export type ReleaseCommunications = components['schemas']['ReleaseCommunications'];
+export type ReleaseCommunicationsDelivery = components['schemas']['ReleaseCommunicationsDelivery'];
+export type ReleaseCommunicationsUpcomingRelease = components['schemas']['ReleaseCommunicationsUpcomingRelease'];
+export type CohortReleaseCommunicationsResponse = components['schemas']['CohortReleaseCommunicationsResponse'];

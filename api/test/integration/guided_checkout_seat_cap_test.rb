@@ -346,6 +346,73 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     assert_equal ZONE.local(2027, 11, 23), enrollment.access_expires_at
     assert_equal ZONE.local(2027, 1, 18), enrollment.support_expires_at
 
+    # Pre-upgrade self-paced purchase with empty terms_snapshot preserves its own saved access_months/support_weeks
+    # even if staff later shorten the cohort's current defaults before settlement.
+    self_paced = Cohort.create!(
+      curriculum: @curriculum,
+      name: "Legacy Self-Paced",
+      start_date: Date.new(2026, 11, 1),
+      status: :active,
+      cohort_type: :workshop,
+      course_delivery: "self_paced",
+      public_title: "Legacy Python",
+      public_price_cents: 14_900,
+      stripe_price_id: "price_legacy_sp",
+      self_paced_access_months: 12,
+      self_paced_support_weeks: 8,
+      public_checkout_enabled: true
+    )
+    self_paced.cohort_instructor_assignments.create!(user: @instructor)
+    self_paced.update!(support_instructor: @instructor)
+    legacy_purchase = CoursePurchase.create!(
+      user: @learner_c,
+      cohort: self_paced,
+      stripe_price_id: "price_legacy_sp",
+      price_cents: 14_900,
+      stripe_session_id: "cs_legacy_sp",
+      access_months: 12,
+      support_weeks: 8
+    )
+    legacy_purchase.update_columns(terms_snapshot: {})
+    self_paced.update!(self_paced_access_months: 1, self_paced_support_weeks: 1)
+
+    CoursePurchaseFulfillment.fulfill!(paid_session("cs_legacy_sp", legacy_purchase, intent: "pi_legacy_sp"))
+    legacy_enrollment = Enrollment.find_by!(user: @learner_c, cohort: self_paced)
+    assert_in_delta (NOW + 12.months).to_i, legacy_enrollment.access_expires_at.to_i, 5
+    assert_equal 8, legacy_enrollment.self_paced_support_weeks
+    assert_equal 12, legacy_purchase.reload.terms_snapshot.fetch("access_months")
+    assert_equal 8, legacy_purchase.terms_snapshot.fetch("support_weeks")
+
+    # Guided checkout started with open-ended (nil) cutoffs keeps nil cutoffs on first-time enrollment creation
+    # even if staff add fixed cutoffs to the cohort before the webhook settles.
+    open_ended = Cohort.create!(
+      curriculum: @curriculum,
+      name: "Open-Ended Guided",
+      start_date: Date.new(2026, 11, 1),
+      status: :active,
+      cohort_type: :workshop,
+      course_delivery: "guided",
+      public_title: "Open Guided Python",
+      public_price_cents: 14_900,
+      stripe_price_id: "price_open_guided",
+      public_checkout_enabled: true
+    )
+    open_ended.cohort_instructor_assignments.create!(user: @instructor)
+    open_ended.update!(support_instructor: @instructor)
+
+    with_checkout_client(cohort: open_ended, session_id: "cs_open_ended") do
+      as_user(@learner_c) { post "/api/v1/course_checkouts", params: { cohort_id: open_ended.id }, headers: auth_headers, as: :json }
+      assert_response :success
+    end
+    open_purchase = CoursePurchase.find_by!(user: @learner_c, cohort: open_ended)
+    open_ended.update!(guided_access_ends_on: Date.new(2027, 1, 31), guided_support_ends_on: Date.new(2026, 12, 31))
+
+    CoursePurchaseFulfillment.fulfill!(paid_session("cs_open_ended", open_purchase, intent: "pi_open_ended"))
+    open_enrollment = Enrollment.find_by!(user: @learner_c, cohort: open_ended)
+    assert open_enrollment.active?
+    assert_nil open_enrollment.access_expires_at
+    assert_nil open_enrollment.support_expires_at
+
     # Fixed access window that elapses between checkout start and delayed webhook settlement
     # still marks paid and persists a durable in-app admin recovery alert.
     closing_fixed = Cohort.create!(

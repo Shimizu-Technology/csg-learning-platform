@@ -1,4 +1,5 @@
 import { GithubAppSettings } from '../../components/admin/GithubAppSettings'
+import { ReleaseCommunicationsPanel } from '../../components/admin/ReleaseCommunicationsPanel'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { Button } from '../../components/ui/Button'
@@ -115,6 +116,9 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         <ResourceSettingsDialog settings={ready} />
       </fieldset>
     </form>
+    <div className="mt-6">
+      <ReleaseCommunicationsPanel cohortId={cohort.id} />
+    </div>
     </>
   )
 }
