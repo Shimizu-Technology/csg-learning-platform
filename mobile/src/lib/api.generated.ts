@@ -6265,6 +6265,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course_checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start or resume a Stripe Checkout session for an eligible course offering */
+        post: operations["createCourseCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course_checkouts/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read local checkout confirmation status for a signed-in student purchase */
+        get: operations["getCourseCheckoutStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9199,6 +9233,11 @@ export interface components {
                 guided_support_weeks?: number;
                 /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
                 review_sla_business_days?: number;
+                unlisted: boolean;
+                seat_limit: number | null;
+                seats_taken: number;
+                seats_remaining: number | null;
+                sold_out: boolean;
             };
         };
         StudentCommunicationMessage: {
@@ -9528,9 +9567,9 @@ export interface components {
             checkout_available: boolean;
             price_cents: number | null;
             currency: string;
-            access_months: number;
+            access_months: number | null;
             includes_private_meetings: boolean;
-            instructor_message_weeks: number;
+            instructor_message_weeks: number | null;
             instructor_response_target: string;
             includes_individual_project_review: boolean;
             outcomes: string | null;
@@ -9543,6 +9582,15 @@ export interface components {
                 title: string;
                 lessons: string[];
             }[];
+            /** @enum {string} */
+            course_delivery: "self_paced" | "guided";
+            unlisted: boolean;
+            guided_access_ends_on: string | null;
+            guided_support_ends_on: string | null;
+            seat_limit: number | null;
+            seats_taken: number | null;
+            seats_remaining: number | null;
+            sold_out: boolean;
         };
         PublicCourseResponse: {
             offering: components["schemas"]["PublicCourse"];
@@ -10690,8 +10738,8 @@ export interface components {
             public_slug: string | null;
             checkout_enabled: boolean;
             price_cents: number | null;
-            access_months: number;
-            support_weeks: number;
+            access_months: number | null;
+            support_weeks: number | null;
             support_instructor: components["schemas"]["RecordDetailPerson"] | null;
             curriculum: {
                 id: number;
@@ -10734,7 +10782,13 @@ export interface components {
                     id: number;
                     status: string;
                 } | null;
+                over_capacity: boolean;
             }[];
+            unlisted: boolean;
+            seat_limit: number | null;
+            seats_taken: number;
+            seats_remaining: number | null;
+            sold_out: boolean;
         };
         /** @description The curriculum a course package was already imported as. */
         CoursePackageCurriculum: {
@@ -11155,6 +11209,11 @@ export interface components {
                 guided_support_weeks?: number;
                 /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
                 review_sla_business_days?: number;
+                unlisted?: boolean;
+                seat_limit?: number | null;
+                seats_taken?: number;
+                seats_remaining?: number | null;
+                sold_out?: boolean;
             };
         };
         CohortSettingsInput: {
@@ -11191,6 +11250,8 @@ export interface components {
             settings?: {
                 next_step: components["schemas"]["CourseCompletionNextStep"] | null;
             };
+            unlisted?: boolean;
+            seat_limit?: number | null;
         };
         CertificateVerification: {
             code: string;
@@ -11337,6 +11398,30 @@ export interface components {
         };
         CohortReleaseCommunicationsResponse: {
             release_communications: components["schemas"]["ReleaseCommunications"];
+        };
+        CourseCheckoutCreateResponse: {
+            /** Format: uri */
+            url: string;
+        };
+        CourseCheckoutConflictError: {
+            error: string;
+            /** @enum {string} */
+            code: "cohort_full" | "price_changed";
+        };
+        CourseCheckoutStatusCohort: {
+            id: number;
+            name: string;
+            slug: string | null;
+            unlisted: boolean;
+        };
+        CourseCheckoutStatusResponse: {
+            /** @enum {string} */
+            status: "pending" | "starting" | "setup_failed" | "fulfilled" | "failed" | "refunded";
+            can_resume: boolean;
+            can_continue: boolean;
+            purchase_id: number;
+            cohort: components["schemas"]["CourseCheckoutStatusCohort"];
+            enrollment_id: number | null;
         };
     };
     responses: {
@@ -11658,6 +11743,63 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    createCourseCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cohort_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Stripe Checkout URL for the learner */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutCreateResponse"];
+                };
+            };
+            /** @description Cohort seat cap reached or price changed while checkout started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutConflictError"];
+                };
+            };
+        };
+    };
+    getCourseCheckoutStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Local checkout and fulfillment status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutStatusResponse"];
+                };
             };
         };
     };

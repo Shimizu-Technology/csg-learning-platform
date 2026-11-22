@@ -106,10 +106,11 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             showReviewResponse={false}
           />
         )}
-        {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && (
+        {user?.role === 'admin' && (editCourseDelivery === 'self_paced' || editCourseDelivery === 'guided') && cohort.cohort_type !== 'alumni' && (
           <CourseOfferingSettings
             key={`${cohort.id}-${savedRevision}`}
             cohort={cohort}
+            courseDelivery={editCourseDelivery}
             onSaved={async () => {}}
             onDraftChange={setOfferingDraft}
           />

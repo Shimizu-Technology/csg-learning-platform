@@ -127,3 +127,24 @@ it('uses unsaved public copy to refresh readiness and enable checkout in this fo
   expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).disabled).toBe(false)
   expect(api.updateCohort).not.toHaveBeenCalled()
 })
+
+it('validates and stages seat limit and unlisted toggle for guided cohorts without self-paced duration fields', async () => {
+  const onDraftChange = vi.fn()
+  await act(async () => root.render(<TestRouter><CourseOfferingSettings cohort={{ ...cohort, seat_limit: 15, seats_taken: 4, seats_remaining: 11, sold_out: false, unlisted: false, public_slug: 'python-pilot' }} courseDelivery="guided" onSaved={onSaved} onDraftChange={onDraftChange} /></TestRouter>))
+  expect(container.textContent).not.toContain('Lesson access (months)')
+  expect(container.textContent).not.toContain('Help period (weeks)')
+  expect(container.textContent).toContain('Currently 4 of 15 seats occupied')
+
+  const seatInput = container.querySelector('#offering-seat-limit') as HTMLInputElement
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(seatInput, '0'); seatInput.dispatchEvent(new Event('input', { bubbles: true })) })
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('at least 1')
+
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(seatInput, '20'); seatInput.dispatchEvent(new Event('input', { bubbles: true })) })
+  expect(container.querySelector('[role="alert"]')).toBeNull()
+  expect(onDraftChange).toHaveBeenLastCalledWith({ seat_limit: 20 })
+
+  const unlistedBox = container.querySelector('#offering-unlisted') as HTMLInputElement
+  await act(async () => { unlistedBox.click() })
+  expect(onDraftChange).toHaveBeenLastCalledWith({ seat_limit: 20, unlisted: true })
+  expect(container.textContent).toContain('/courses/python-pilot')
+})

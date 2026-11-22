@@ -4,14 +4,15 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseCheckoutStatus } from './CourseCheckoutStatus'
-const state = vi.hoisted(() => ({ getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn(), syncSession: vi.fn() }))
+const state = vi.hoisted(() => ({ isSignedIn: true, getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn(), syncSession: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: state }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ isSignedIn: true, syncSession: state.syncSession }) }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ isSignedIn: state.isSignedIn, syncSession: state.syncSession }) }))
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let root: Root, container: HTMLDivElement
 const response = (status: string) => ({ data: { status, purchase_id: 20, cohort: { id: 13, name: 'Python' }, enrollment_id: status === 'fulfilled' ? 2 : null } })
 beforeEach(() => {
   vi.useFakeTimers(); vi.clearAllMocks()
+  state.isSignedIn = true
   state.getCourseCheckoutStatus.mockResolvedValue(response('pending'))
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
 })
@@ -116,4 +117,15 @@ it('allows continuation of an expired session using the server renewal path', as
   const button = [...container.querySelectorAll('button')].find(el => el.textContent === 'Continue checkout')!
   await act(async () => button.click())
   expect(state.startCourseCheckout).toHaveBeenCalledWith(13)
+})
+
+it('preserves validated offering_slug on the signed-out confirmation sign-in link', async () => {
+  state.isSignedIn = false
+  await act(async () => root.render(<MemoryRouter><CourseCheckoutStatus purchaseId="20" slug="python-pilot" /></MemoryRouter>))
+  const link = container.querySelector('a[href^="/sign-in"]')!
+  expect(link.getAttribute('href')).toBe('/sign-in?checkout=return&purchase_id=20&offering_slug=python-pilot')
+
+  await act(async () => root.render(<MemoryRouter><CourseCheckoutStatus purchaseId="20" slug="../evil" /></MemoryRouter>))
+  const sanitizedLink = container.querySelector('a[href^="/sign-in"]')!
+  expect(sanitizedLink.getAttribute('href')).toBe('/sign-in?checkout=return&purchase_id=20')
 })
