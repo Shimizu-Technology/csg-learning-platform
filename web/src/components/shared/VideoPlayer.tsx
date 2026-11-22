@@ -20,10 +20,16 @@ interface VideoPlayerProps {
 }
 
 export interface VideoPlayerHandle {
+  prepareSourceChange: () => void
   seekTo: (seconds: number, play?: boolean) => void
 }
 
 const URL_REFRESH_MS = 90 * 60 * 1000
+
+// WebKit-prefixed fullscreen APIs (older desktop Safari, and iPhone Safari's video-only fullscreen).
+type FullscreenDocument = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void }
+type FullscreenContainer = HTMLDivElement & { webkitRequestFullscreen?: () => void }
+type FullscreenVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -71,38 +77,58 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     setBuffering(false)
   }, [])
 
+  const requestGeneration = useRef(0)
+  const sourceChangePendingRef = useRef(false)
+  const refreshCleanupRef = useRef<(() => void) | null>(null)
   const loadUrl = useCallback(() => {
+    const generation = ++requestGeneration.current
     return fetchStreamUrl().then((url) => {
+      if (generation !== requestGeneration.current) return null
       if (url) {
         setStreamUrl(url)
         setError(null)
       } else {
+        sourceChangePendingRef.current = false
+        pendingSeekRef.current = null
         setError('Failed to load video')
       }
+      return url ? generation : null
+    }).catch(() => {
+      if (generation !== requestGeneration.current) return null
+      sourceChangePendingRef.current = false
+      pendingSeekRef.current = null
+      setError('Failed to load video')
+      return null
     })
   }, [fetchStreamUrl])
 
   useEffect(() => {
-    loadUrl().then(() => setLoading(false))
+    loadUrl().then((generation) => {
+      if (generation !== null || !sourceChangePendingRef.current) setLoading(false)
+    })
 
     const refreshTimer = setInterval(() => {
       const video = videoRef.current
       const savedTime = video?.currentTime ?? 0
       const wasPaused = video?.paused ?? true
 
-      loadUrl().then(() => {
+      loadUrl().then((generation) => {
+        if (generation === null || generation !== requestGeneration.current) return
         const v = videoRef.current
         if (!v || savedTime <= 0) return
         const onLoaded = () => {
+          v.removeEventListener('loadedmetadata', onLoaded)
+          if (generation !== requestGeneration.current) return
           v.currentTime = savedTime
           if (!wasPaused) v.play()
-          v.removeEventListener('loadedmetadata', onLoaded)
         }
+        refreshCleanupRef.current?.()
+        refreshCleanupRef.current = () => v.removeEventListener('loadedmetadata', onLoaded)
         v.addEventListener('loadedmetadata', onLoaded)
       })
     }, URL_REFRESH_MS)
 
-    return () => clearInterval(refreshTimer)
+    return () => { clearInterval(refreshTimer); refreshCleanupRef.current?.() }
   }, [loadUrl])
 
   const sendProgress = useCallback((ended: boolean) => {
@@ -114,12 +140,22 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     if (progress) onSaveProgress(progress, ended)
   }, [onSaveProgress, trackProgress])
 
+  // Parents pass a new save callback on most renders. The autosave and the
+  // unmount save read the latest one through this ref, so a new callback
+  // never sends a save by itself: a save that completes the block reloads the
+  // lesson, and saving on that re-render looped many times a second.
+  const sendProgressRef = useRef(sendProgress)
+  useEffect(() => {
+    sendProgressRef.current = sendProgress
+  }, [sendProgress])
+
   useEffect(() => {
     const video = videoRef.current
     if (!video || !streamUrl) return
 
     const handleLoaded = () => {
       setDuration(video.duration)
+      sourceChangePendingRef.current = false
       const pendingSeek = pendingSeekRef.current
       if (pendingSeek) {
         const maximum = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : pendingSeek.seconds
@@ -173,6 +209,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       // the player can sit forever on a black box or spinner with no user
       // feedback. Collapse buffering, stop the playing state, and render the
       // existing error fallback instead.
+      sourceChangePendingRef.current = false
+      pendingSeekRef.current = null
       hideBuffering()
       setLoading(false)
       setPlaying(false)
@@ -209,6 +247,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handlePlaying = () => hideBuffering()
     const handleSeeking = () => showBufferingSoon()
     const handleCanPlay = () => hideBuffering()
+    // The native fullscreen player has its own mute control; keep ours in step.
+    const handleVolumeChange = () => setMuted(video.muted)
 
     video.addEventListener('loadedmetadata', handleLoaded)
     video.addEventListener('timeupdate', handleTimeUpdate)
@@ -222,6 +262,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     video.addEventListener('seeking', handleSeeking)
     video.addEventListener('seeked', handleSeeked)
     video.addEventListener('canplay', handleCanPlay)
+    video.addEventListener('volumechange', handleVolumeChange)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoaded)
@@ -236,8 +277,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener('seeking', handleSeeking)
       video.removeEventListener('seeked', handleSeeked)
       video.removeEventListener('canplay', handleCanPlay)
+      video.removeEventListener('volumechange', handleVolumeChange)
     }
-  }, [streamUrl, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
+  }, [streamUrl, error, loading, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
 
   useEffect(() => {
     return () => {
@@ -255,13 +297,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   // close mid-watch loses at most ~10s of unsaved progress.
   useEffect(() => {
     if (!playing) return
-    const interval = setInterval(() => sendProgress(false), 10000)
+    const interval = setInterval(() => sendProgressRef.current(false), 10000)
     return () => clearInterval(interval)
-  }, [playing, sendProgress])
+  }, [playing])
 
   useEffect(() => {
-    return () => { sendProgress(false) }
-  }, [sendProgress])
+    return () => { sendProgressRef.current(false) }
+  }, [])
 
   const togglePlay = () => {
     const video = videoRef.current
@@ -278,13 +320,39 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   }
 
   const toggleFullscreen = () => {
-    const container = containerRef.current
-    if (!container) return
-    if (document.fullscreenElement) document.exitFullscreen()
-    else container.requestFullscreen()
+    const container = containerRef.current as FullscreenContainer | null
+    const video = videoRef.current as FullscreenVideo | null
+    if (!container || !video) return
+    const doc = document as FullscreenDocument
+    if (doc.fullscreenElement) { doc.exitFullscreen().catch(() => undefined); return }
+    if (doc.webkitFullscreenElement) { doc.webkitExitFullscreen?.(); return }
+    // iPhone Safari has no element fullscreen API: only the <video> itself can
+    // go full screen, in the native player. It's the same element, so the
+    // position and selected version are still there on exit.
+    const enterNativeFullscreen = () => {
+      try { video.webkitEnterFullscreen?.() } catch { /* metadata not loaded yet */ }
+    }
+    if (typeof container.requestFullscreen === 'function') container.requestFullscreen().catch(enterNativeFullscreen)
+    else if (typeof container.webkitRequestFullscreen === 'function') container.webkitRequestFullscreen()
+    else enterNativeFullscreen()
   }
 
   useImperativeHandle(ref, () => ({
+    prepareSourceChange() {
+      ++requestGeneration.current
+      refreshCleanupRef.current?.()
+      if (sourceChangePendingRef.current) return
+      const video = videoRef.current
+      sourceChangePendingRef.current = true
+      pendingSeekRef.current = { seconds: video?.currentTime ?? lastTimeRef.current, play: video ? !video.paused : false }
+      lastTimeRef.current = pendingSeekRef.current.seconds
+      video?.pause()
+      sendProgress(false)
+      lastTickAtRef.current = null
+      setError(null)
+      setLoading(true)
+      setStreamUrl(null)
+    },
     seekTo(seconds: number, play = true) {
       const video = videoRef.current
       const requested = Math.max(0, Math.floor(seconds))
@@ -302,7 +370,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       showBufferingSoon()
       if (play) void video.play()
     },
-  }), [showBufferingSoon])
+  }), [showBufferingSoon, sendProgress])
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const video = videoRef.current
@@ -373,6 +441,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       <video
         ref={videoRef}
         src={streamUrl}
+        muted={muted}
         className="absolute inset-0 w-full h-full object-contain"
         onClick={togglePlay}
         playsInline

@@ -778,7 +778,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Stable id of an attached video version. Omit to play the first version (or the legacy upload). */
+                    version_id?: string;
+                };
                 header?: never;
                 path: {
                     id: number;
@@ -6151,6 +6154,8 @@ export interface components {
              * @enum {string}
              */
             learner_state?: "not_started" | "in_progress" | "submitted" | "redo_requested" | "complete";
+            /** @description Authoritative duration of the original hosted upload (staff only). */
+            s3_video_duration_seconds?: number | null;
         };
         Rubric: {
             id: number;

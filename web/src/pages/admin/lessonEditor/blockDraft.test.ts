@@ -34,6 +34,16 @@ describe('block lesson draft', () => {
     expect(draft.alignments).toEqual([{ learning_objective_id: 5, block_key: 'b12' }])
   })
 
+  it('duplicates a versioned block with the established original duration for its new row', () => {
+    const source = { ...newBlock('video'), id: 20, s3_video_key: 'original.mp4', s3_video_duration_seconds: 300,
+      metadata: { video_versions: [{ id: 'studio', label: 'Studio', s3_video_key: 'original.mp4' }] } }
+    const copy = duplicateBlock(source)
+    expect(copy.metadata.video_versions_duration_seconds).toBe(300)
+    expect(source.metadata).not.toHaveProperty('video_versions_duration_seconds')
+    const payload = draftPayload({ ...draftFromLesson(lesson), blocks: [copy] }, { baseUpdatedAt: lesson.updated_at, baseline: new Map() })
+    expect(payload.blocks[0].metadata).toMatchObject({ video_versions_duration_seconds: 300 })
+  })
+
   it('moves, inserts, duplicates and removes without changing saved ids', () => {
     const draft = draftFromLesson(lesson)
     const moved = moveBlock(draft.blocks, 2, 0)

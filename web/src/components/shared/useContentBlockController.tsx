@@ -76,7 +76,7 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
   }, [analyticsContext, latestSubmission?.grade, latestSubmission?.graded_at, latestSubmission?.id])
 
   const { knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError, handleKnowledgeCheck } = useKnowledgeCheckBlock({ block, cohortId, isStaff, readOnly, onProgressUpdate, setIsCompleted })
-  const { activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect } = useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsContext, onProgressUpdate, isCompleted, setIsCompleted })
+  const { versions, versionId, selectVideoVersion, activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect } = useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsContext, onProgressUpdate, isCompleted, setIsCompleted })
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   // Checkpoints with an explicit reviewed submission type (the Python pilot's
@@ -425,7 +425,7 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
     liveUrl, setLiveUrl, branchName, setBranchName, commitSha, setCommitSha,
     submissionNotes, setSubmissionNotes, showAdvancedRepoFields, setShowAdvancedRepoFields, isSubmitting, hasEditedSubmissionDraft,
     knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError,
-    activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, isSubmissionCheckpoint,
+    versions, versionId, selectVideoVersion, activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, isSubmissionCheckpoint,
     isWorkBlock, detectedLang, runnerConfig, writtenSubmission, submissionType, usesManualExerciseCompletion,
     usesGithubSyncSubmission, usesTextSubmission, usesRepoArtifactSubmission, requiresLiveUrl, workLocked, starterLinks,
     latestStatus, editAnswer, lockCopy, videoSegments, initialVideoPosition, finishActiveVideoSegment,

@@ -31,7 +31,7 @@ csg-learning-platform/
 
 ### Prerequisites
 
-- Ruby 3.3.7+ and Bundler 4+
+- Ruby 3.3.14+ and Bundler 4+
 - Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL 16+
 
@@ -42,14 +42,14 @@ This repo now includes `.ruby-version`, `.nvmrc`, and `.node-version`.
 ```bash
 cd csg-learning-platform
 nvm use                    # uses 20.19.5 from .nvmrc
-rbenv local 3.3.7         # or ensure your Ruby manager picks up .ruby-version
+rbenv local 3.3.14        # or ensure your Ruby manager picks up .ruby-version
 ruby -v
 node -v
 ```
 
 Expected local versions:
 
-- Ruby `3.3.7`
+- Ruby `3.3.14`
 - Bundler `4.0.5+`
 - Node `20.19.5` or `22.12+`
 

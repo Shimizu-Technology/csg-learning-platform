@@ -1,3 +1,4 @@
+import { SegmentedControl, SegmentButton } from '../ui/Choice'
 import { getYouTubeId, getVimeoEmbed } from '../../lib/videoUrls'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import type { ContentBlockRendererProps } from './contentBlockTypes'
@@ -10,6 +11,11 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
   const { block, isStaff, readOnly } = props
   return (
     <>
+      {controller.versions.length >= 2 && (
+        <SegmentedControl label="Video version" className="mb-3">
+          {controller.versions.map((version) => <SegmentButton key={version.id} selected={controller.versionId === version.id} onClick={() => controller.selectVideoVersion(version.id)}>{version.label}</SegmentButton>)}
+        </SegmentedControl>
+      )}
       {(block.block_type === 'video' || block.block_type === 'recording') && block.s3_video_key && (
         <VideoPlayer
           ref={s3VideoRef}
