@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -585,6 +585,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_040000) do
     t.index ["enrollment_id"], name: "index_github_bindings_on_enrollment_default", unique: true, where: "(curriculum_module_id IS NULL)"
     t.index ["enrollment_id"], name: "index_github_repository_bindings_on_enrollment_id"
     t.index ["github_app_installation_id"], name: "index_github_repository_bindings_on_github_app_installation_id"
+  end
+
+  create_table "github_webhook_deliveries", force: :cascade do |t|
+    t.string "delivery_id", null: false
+    t.string "event", null: false
+    t.string "action"
+    t.bigint "installation_id"
+    t.bigint "repository_id"
+    t.string "head_sha"
+    t.jsonb "payload", default: {}, null: false
+    t.string "processing_state", default: "pending", null: false
+    t.integer "attempts", default: 0, null: false
+    t.text "last_error"
+    t.datetime "received_at", null: false
+    t.datetime "processed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["delivery_id"], name: "index_github_webhook_deliveries_on_delivery_id", unique: true
+    t.index ["processing_state", "received_at"], name: "index_github_webhook_deliveries_on_state_and_received_at"
+    t.index ["repository_id", "head_sha"], name: "index_github_webhook_deliveries_on_repo_and_head_sha"
+    t.check_constraint "attempts >= 0", name: "github_webhook_deliveries_attempts_nonnegative"
+    t.check_constraint "processing_state::text = ANY (ARRAY['pending'::character varying, 'processed'::character varying, 'staged'::character varying, 'ignored'::character varying, 'failed'::character varying]::text[])", name: "github_webhook_deliveries_processing_state_valid"
   end
 
   create_table "help_request_replies", force: :cascade do |t|

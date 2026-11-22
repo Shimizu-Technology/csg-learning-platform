@@ -223,6 +223,7 @@ Rails.application.routes.draw do
       post "github_identity/callback", to: "github_identities#callback"
       post "enrollments/:enrollment_id/github_identity/prepare", to: "github_identities#prepare"
       post "github_app/setup", to: "github_app_installations#callback"
+      post "webhooks/github", to: "github_webhooks#create"
 
       # Cohorts with nested enrollments
       resources :cohorts, only: [ :index, :show, :create, :update, :destroy ] do

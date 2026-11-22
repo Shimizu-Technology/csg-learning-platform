@@ -16,6 +16,7 @@ class FeatureSwitches
     "help_requests" => true,
     "github_sync" => true,
     "github_app" => false,
+    "github_webhooks" => false,
     "announcements" => true,
     "interventions" => true,
     "learning_plans" => true,
@@ -26,7 +27,9 @@ class FeatureSwitches
   }.freeze
   # Switches a cohort only gets by opting in itself, with the school switch on:
   # a cohort that inherits gets Off even when the school default is On.
-  COHORT_OPT_IN = %w[github_app self_paced_peer_space learner_nudges certificates].freeze
+  COHORT_OPT_IN = %w[github_app github_webhooks self_paced_peer_space learner_nudges certificates].freeze
+  # Disabled opt-in switches omitted from client payloads to preserve Off-cohort parity.
+  IMPLICIT_OFF_FOR_CLIENT = %w[certificates github_webhooks].freeze
   KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
@@ -39,10 +42,12 @@ class FeatureSwitches
     resolved
   end
 
-  # A disabled certificate switch is implicit in existing client payloads.
-  # The management endpoint still includes the explicit default and override.
+  # Disabled opt-in switches listed in IMPLICIT_OFF_FOR_CLIENT are implicit in
+  # existing client payloads. The management endpoint still includes the
+  # explicit default and override.
   def self.for_client(features)
-    features["certificates"] == true ? features : features.except("certificates")
+    omitted = IMPLICIT_OFF_FOR_CLIENT.reject { |key| features[key] == true }
+    omitted.empty? ? features : features.except(*omitted)
   end
 
   # Preview/audit callers must not lazily create a settings row.

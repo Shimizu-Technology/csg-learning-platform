@@ -4433,6 +4433,64 @@
         }
       }
     },
+    "/api/v1/webhooks/github": {
+      "post": {
+        "summary": "Receive signed GitHub App webhooks (raw-body HMAC-SHA256 authenticated; no Clerk JWT)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Signed webhook accepted and recorded or ignored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubWebhookReceiptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required GitHub headers or invalid JSON body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-Hub-Signature-256 signature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Webhook payload exceeds 1 MiB limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Webhook secret unconfigured or durable storage unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/enrollments/{enrollment_id}/github_repository_bindings": {
       "get": {
         "summary": "List own or admin-managed enrollment bindings (both gates required)",
@@ -10802,7 +10860,7 @@
         "properties": {
           "features": {
             "type": "object",
-            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app, self_paced_peer_space, learner_nudges, and certificates).",
+            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app, github_webhooks, self_paced_peer_space, learner_nudges, and certificates).",
             "additionalProperties": {
               "type": "boolean"
             }
@@ -26248,6 +26306,35 @@
         "required": [
           "installation",
           "cohort_id"
+        ],
+        "additionalProperties": false
+      },
+      "GithubWebhookReceiptResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "processed",
+              "staged",
+              "ignored"
+            ]
+          },
+          "delivery_id": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string"
+          },
+          "duplicate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "delivery_id",
+          "event",
+          "duplicate"
         ],
         "additionalProperties": false
       },

@@ -1289,13 +1289,35 @@ with the numeric binding and do not follow renames. Manual source sync and check
 the App only for these opted-in cohorts; issue delivery and organization
 invitations retain their existing paths in this slice.
 
-**Deferred configuration:** no events or webhook URL are required by slice 2;
-leave webhooks inactive. Slice 5 will need `GITHUB_APP_WEBHOOK_SECRET` (or
-`github_app.webhook_secret`) and the `check_run`, `push`, `installation`, and
-`installation_repositories` events. Do not enter the webhook secret into Learn.
-Add **Issues: write** for the feedback slice. **Actions: read** is deferred until
-workflow-run provenance requires it; repository contents write and organization
-membership administration are unnecessary.
+### Signed GitHub webhooks (X-6 slice 5)
+
+Leave `github_webhooks` Off until the App webhook secret and a disposable
+repository have been verified. Webhook processing requires **both** `github_app`
+and `github_webhooks` On at the school level AND explicitly On for the cohort.
+Inherit leaves the cohort Off, and Off cohorts (including Cohort 3) are ignored
+with zero writes.
+
+Configure the webhook signing secret in the API secret store (never enter it
+into Learn):
+
+| ENV name | Fallback / Rails credentials key |
+| --- | --- |
+| `GITHUB_WEBHOOK_SECRET` | `GITHUB_APP_WEBHOOK_SECRET` or `github_app.webhook_secret` |
+
+Point the GitHub App webhook URL to `https://<api-host>/api/v1/webhooks/github`
+with content type `application/json` and subscribe to `check_run`, `push`,
+`installation`, and `installation_repositories` events. The endpoint authenticates
+strictly via raw-body HMAC-SHA256 (`X-Hub-Signature-256`) with no Clerk JWT;
+unsigned requests return `401` (or `503` if the secret is unconfigured), and
+receipt performs zero external GitHub HTTP calls. Deliveries are persisted in
+`github_webhook_deliveries` by unique `X-GitHub-Delivery` before returning `200`;
+unmatched events are stored as `staged` for reconciliation, and processed/ignored
+rows can be pruned with `GithubWebhookDelivery.prune_expired!`.
+
+**Remaining deferred permissions:** add **Issues: write** for the feedback
+slice. **Actions: read** is deferred until workflow-run provenance requires it;
+repository contents write and organization-membership administration are
+unnecessary.
 
 Provider contract references: [user token revocation](https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-token),
 [GitHub user authorization and PKCE](https://docs.github.com/en/enterprise-cloud@latest/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),

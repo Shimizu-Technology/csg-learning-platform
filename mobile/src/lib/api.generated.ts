@@ -5369,6 +5369,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive signed GitHub App webhooks (raw-body HMAC-SHA256 authenticated; no Clerk JWT) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Signed webhook accepted and recorded or ignored */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GithubWebhookReceiptResponse"];
+                    };
+                };
+                /** @description Missing required GitHub headers or invalid JSON body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+                /** @description Missing or invalid X-Hub-Signature-256 signature */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+                /** @description Webhook payload exceeds 1 MiB limit */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+                /** @description Webhook secret unconfigured or durable storage unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/enrollments/{enrollment_id}/github_repository_bindings": {
         parameters: {
             query?: never;
@@ -7335,7 +7407,7 @@ export interface components {
             };
         };
         FeatureSettingsData: {
-            /** @description Resolved boolean switches (including default-Off cohort opt-in switches github_app, self_paced_peer_space, learner_nudges, and certificates). */
+            /** @description Resolved boolean switches (including default-Off cohort opt-in switches github_app, github_webhooks, self_paced_peer_space, learner_nudges, and certificates). */
             features: {
                 [key: string]: boolean;
             };
@@ -10739,6 +10811,13 @@ export interface components {
         GithubAppConnectionResponse: {
             installation: components["schemas"]["GithubAppInstallation"];
             cohort_id: number;
+        };
+        GithubWebhookReceiptResponse: {
+            /** @enum {string} */
+            status: "processed" | "staged" | "ignored";
+            delivery_id: string;
+            event: string;
+            duplicate: boolean;
         };
         GithubRepositoryBinding: {
             id: number;
