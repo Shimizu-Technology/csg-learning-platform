@@ -396,6 +396,7 @@ class GithubReconciliationService
       head_branch: head_branch,
       step2_succeeded: step2_succeeded && !pre_activation_head,
       activated_at: claim[:activated_at],
+      request_started_at: request_started_at,
       now: now,
       school: school,
       deadline: deadline
@@ -525,7 +526,7 @@ class GithubReconciliationService
       overridden_ids.any? ? scope.where.not(id: overridden_ids).to_a : scope.to_a
     end
 
-    content_defaults = cohort.content_defaults.is_a?(Hash) ? cohort.content_defaults : {}
+    has_defaults_snapshot = cohort.content_defaults.is_a?(Hash) && !cohort.alumni?
     assigned_module_ids = enrollment.module_assignments.pluck(:module_id).to_set
     lesson_ids_by_module = enrollment.lesson_assignments
       .joins(:lesson)
@@ -536,9 +537,9 @@ class GithubReconciliationService
     modules = []
     lesson_restrictions = {}
     candidates.each do |mod|
-      default_entry = content_defaults[mod.id.to_s]
-      default_disabled = default_entry.is_a?(Hash) && default_entry["assigned"] == false
-      if default_disabled && !assigned_module_ids.include?(mod.id)
+      default_entry = has_defaults_snapshot ? cohort.content_defaults[mod.id.to_s] : nil
+      default_assigned = !has_defaults_snapshot || (default_entry.is_a?(Hash) && default_entry["assigned"] == true)
+      if !default_assigned && !assigned_module_ids.include?(mod.id)
         assigned_lessons = lesson_ids_by_module[mod.id]
         next if assigned_lessons.blank?
 
@@ -638,7 +639,7 @@ class GithubReconciliationService
     { synced_ids: synced_ids, warning_error: size_limit_exceeded ? SIZE_LIMIT_WARNING : nil }
   end
 
-  def replay_staged_webhooks!(binding:, covered_modules:, head_sha:, head_branch:, step2_succeeded:, activated_at:, now:, school:, deadline:)
+  def replay_staged_webhooks!(binding:, covered_modules:, head_sha:, head_branch:, step2_succeeded:, activated_at:, request_started_at:, now:, school:, deadline:)
     installation = binding.github_app_installation
     repo_id = binding.repository_id
     inst_id = installation.installation_id
@@ -699,6 +700,7 @@ class GithubReconciliationService
       settled = replay_one_revocation_delivery!(
         delivery: delivery,
         binding: binding,
+        request_started_at: request_started_at,
         handled_at: handled_at
       )
       replayed_count += 1 if settled
@@ -713,9 +715,10 @@ class GithubReconciliationService
     module_ids = covered_modules.map(&:id)
     if module_ids.any?
       shas.concat(
-        Submission.latest_attempts
+        Submission.where(enrollment_id: binding.enrollment_id)
+          .latest_attempts
           .joins(content_block: :lesson)
-          .where(enrollment_id: binding.enrollment_id, lessons: { module_id: module_ids })
+          .where(lessons: { module_id: module_ids })
           .where.not(commit_sha: [ nil, "" ])
           .distinct
           .pluck(:commit_sha)
@@ -951,9 +954,9 @@ class GithubReconciliationService
   # an ambiguous staged revocation webhook was received, live provider proof
   # supersedes the ambiguous revocation once every verified binding in scope
   # has been verified after delivery.received_at.
-  def replay_one_revocation_delivery!(delivery:, binding:, handled_at:)
+  def replay_one_revocation_delivery!(delivery:, binding:, request_started_at:, handled_at:)
     settled = false
-    verified_live_at = [ binding.checked_at, handled_at ].compact.max
+    verified_live_at = binding.checked_at || request_started_at
     delivery.with_lock do
       return false unless delivery.processing_state == "staged"
       return false unless verified_live_at.present? && verified_live_at >= delivery.received_at
@@ -1071,9 +1074,10 @@ class GithubReconciliationService
   end
 
   def post_activation_latest_submissions_scope(binding:, module_ids:, head_sha:, activated_at:)
-    scope = Submission.latest_attempts
+    scope = Submission.where(enrollment_id: binding.enrollment_id)
+      .latest_attempts
       .joins(content_block: :lesson)
-      .where(enrollment_id: binding.enrollment_id, lessons: { module_id: module_ids })
+      .where(lessons: { module_id: module_ids })
       .where.not(commit_sha: [ nil, "" ])
       .where(
         "submissions.github_repository_id = :repo_id OR submissions.github_revision->>'repository_id' = :repo_id_str",
