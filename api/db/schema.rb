@@ -349,10 +349,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.boolean "over_capacity", default: false, null: false
+    t.jsonb "terms_snapshot", default: {}
     t.index ["cohort_id"], name: "index_course_purchases_on_cohort_id"
     t.index ["stripe_payment_intent_id"], name: "index_course_purchases_on_stripe_payment_intent_id", unique: true
     t.index ["stripe_session_id"], name: "index_course_purchases_on_stripe_session_id", unique: true
-    t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id", unique: true
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id_lookup"
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_one_open_attempt_per_user_cohort", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'failed'::character varying, 'expired'::character varying])::text[]))"
     t.index ["user_id"], name: "index_course_purchases_on_user_id"
     t.check_constraint "price_cents IS NULL OR price_cents > 0", name: "course_purchase_price_positive"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text, 'expired'::character varying::text, 'failed'::character varying::text, 'refunded'::character varying::text, 'disputed'::character varying::text])", name: "course_purchase_status_valid"

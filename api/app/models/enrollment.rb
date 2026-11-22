@@ -295,22 +295,44 @@ class Enrollment < ApplicationRecord
 
   # Recalculates guided access and support cutoffs for in-app checkout
   # fulfillment (new enrollment or reactivation of a dropped/expired learner).
-  # Fixed cohort dates win when set; otherwise relative terms start from the
-  # learner's staff-set start, the cohort start (if in the future), or today
-  # (for late joiners and repurchases) so a paid learner always receives their
-  # purchased window. Preserves first_opened_at and existing submissions.
-  def apply_guided_purchase_terms(access_months: nil, support_weeks: nil)
-    return unless cohort.guided?
+  # Uses snapshotted purchase terms when provided so mid-checkout admin edits
+  # never alter a paid order. Fixed dates win when set; otherwise relative terms
+  # anchor at the latest of starts_on, cohort start, and fulfillment day (updating
+  # an expired past starts_on when personal pace is enabled) so repurchasing
+  # learners always receive usable access. Preserves first_opened_at and graded
+  # submissions.
+  def apply_guided_purchase_terms(access_months: nil, support_weeks: nil, terms: nil, at: Time.current)
+    sold = terms || {}
+    return unless sold[:course_delivery] == "guided" || (sold.empty? && cohort.guided?)
 
-    anchor = starts_on || [ cohort.start_date, LearningCalendar.today ].compact.max
-    effective_access_months = access_months || cohort.guided_access_months
-    effective_support_weeks = support_weeks || cohort.guided_support_weeks
+    today = at.in_time_zone(LearningCalendar::TIMEZONE).to_date
+    anchor = [ starts_on, cohort.start_date, today ].compact.max
 
-    access_end = cohort.guided_access_ends_on
-    access_end ||= anchor + effective_access_months.months if effective_access_months
-    self.access_expires_at = guided_date_boundary(access_end)
+    fixed_access_ends_at = sold[:guided_access_ends_at] || guided_date_boundary(sold.key?(:guided_access_ends_on) ? sold[:guided_access_ends_on] : cohort.guided_access_ends_on)
+    effective_access_months = if fixed_access_ends_at
+      nil
+    elsif sold.key?(:guided_access_months)
+      sold[:guided_access_months] || access_months
+    else
+      access_months || cohort.guided_access_months
+    end
 
-    support_end = guided_date_boundary(cohort.guided_support_ends_on)
+    fixed_support_ends_at = sold[:guided_support_ends_at] || guided_date_boundary(sold.key?(:guided_support_ends_on) ? sold[:guided_support_ends_on] : cohort.guided_support_ends_on)
+    effective_support_weeks = if fixed_support_ends_at
+      nil
+    elsif sold.key?(:guided_support_weeks)
+      sold[:guided_support_weeks] || support_weeks
+    else
+      support_weeks || cohort.guided_support_weeks
+    end
+
+    if (effective_access_months || effective_support_weeks) && starts_on.present? && starts_on < anchor && cohort.personal_pace?
+      self.starts_on = anchor
+    end
+
+    self.access_expires_at = fixed_access_ends_at || (effective_access_months ? guided_date_boundary(anchor + effective_access_months.months) : nil)
+
+    support_end = fixed_support_ends_at
     if !support_end && effective_support_weeks
       support_end = [ guided_date_boundary(anchor + effective_support_weeks.weeks), access_expires_at ].compact.min
     end

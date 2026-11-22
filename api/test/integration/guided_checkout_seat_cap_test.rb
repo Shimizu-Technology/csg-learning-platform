@@ -1,6 +1,5 @@
 require "test_helper"
 require "ostruct"
-require Rails.root.join("db/migrate/20261122070000_add_seat_limit_to_cohorts").to_s
 
 class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
@@ -94,7 +93,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     assert_nil Enrollment.find_by(user: @learner_a, cohort: @program)
   end
 
-  test "unlisted guided cohort hides from public catalog list but works via direct slug URL without leaking PII" do
+  test "unlisted guided cohort hides from public catalog list, sends X-Robots-Tag noindex, and works via direct slug URL without leaking PII" do
     Enrollment.create!(user: @learner_a, cohort: @guided, status: :active)
 
     get "/api/v1/course_offerings"
@@ -107,6 +106,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
 
     get "/api/v1/course_offerings/#{@guided.public_slug}"
     assert_response :success
+    assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
     offering = response.parsed_body.fetch("offering")
     assert_equal "guided", offering.fetch("course_delivery")
     assert_equal true, offering.fetch("unlisted")
@@ -125,16 +125,20 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     get "/api/v1/course_offerings/#{@program.public_slug}"
     assert_response :not_found
 
-    # Turning unlisted off lists the guided cohort in the public catalog.
+    # Turning unlisted off lists the guided cohort in the public catalog and drops X-Robots-Tag.
     @guided.update!(unlisted: false)
     get "/api/v1/course_offerings"
     assert_response :success
     assert_equal [ @guided.id ], response.parsed_body.fetch("offerings").pluck("id")
+
+    get "/api/v1/course_offerings/#{@guided.public_slug}"
+    assert_response :success
+    assert_nil response.headers["X-Robots-Tag"]
   end
 
-  test "guided checkout fulfills relative terms and fixed dates accurately and preserves submissions on repurchase" do
+  test "guided checkout fulfills relative terms and fixed dates accurately, supports real repurchase via POST, and protects renewal from older refunds" do
     # 1) Relative terms on an already-started cohort anchor to today so full purchased window applies.
-    with_checkout_client(cohort: @guided) do |_sessions, requests|
+    with_checkout_client(cohort: @guided, session_id: "cs_initial") do |_sessions, requests|
       as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
       assert_response :success
       # Unlisted guided cohort redirects back to its direct slug page.
@@ -143,9 +147,10 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
       assert_includes params.fetch(:cancel_url), "/courses/#{@guided.public_slug}?checkout=canceled"
     end
 
-    purchase = CoursePurchase.find_by!(user: @learner_a, cohort: @guided)
-    assert_equal [ 12, 8 ], [ purchase.access_months, purchase.support_weeks ]
-    session = paid_session(purchase.stripe_session_id, purchase)
+    first_purchase = CoursePurchase.find_by!(user: @learner_a, cohort: @guided)
+    assert_equal [ 12, 8 ], [ first_purchase.access_months, first_purchase.support_weeks ]
+    assert_equal "guided", first_purchase.terms_snapshot.fetch("course_delivery")
+    session = paid_session(first_purchase.stripe_session_id, first_purchase, intent: "pi_initial")
 
     perform_enqueued_jobs(only: AdminAlertJob) do
       CoursePurchaseFulfillment.fulfill!(session)
@@ -153,29 +158,69 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
       CoursePurchaseFulfillment.fulfill!(session)
     end
 
+    as_user(@learner_a) { get "/api/v1/course_checkouts/#{first_purchase.id}/status", headers: auth_headers }
+    assert_response :success
+    status_body = response.parsed_body
+    assert_equal "fulfilled", status_body.fetch("status")
+    assert_equal @guided.public_slug, status_body.dig("cohort", "slug")
+    assert_equal true, status_body.dig("cohort", "unlisted")
+
     enrollment = Enrollment.find_by!(user: @learner_a, cohort: @guided)
     assert enrollment.active?
-    assert_equal 1, Notification.course_purchase.where(notifiable: purchase, user: @admin).count
+    assert_equal 1, Notification.course_purchase.where(notifiable: first_purchase, user: @admin).count
     assert_equal ZONE.local(2027, 11, 23), enrollment.access_expires_at
     assert_equal ZONE.local(2027, 1, 18), enrollment.support_expires_at
     assert_nil enrollment.first_opened_at
     assert_equal [ @mod.id ], enrollment.module_assignments.pluck(:module_id)
 
-    # 2) Repurchase / reactivation of a dropped or expired guided learner recalculates terms
-    #    and preserves both prior graded submissions and first_opened_at.
+    # 2) Repurchase through real POST /api/v1/course_checkouts after drop/expiry:
+    #    - creates a NEW CoursePurchase row preserving the old paid receipt & Stripe IDs
+    #    - recalculates relative terms freshly (including updating a stale past starts_on)
+    #    - preserves both prior graded submissions and first_opened_at.
+    @guided.update!(learner_pace_weeks: [ 4, 6 ])
     opened = ZONE.local(2026, 11, 22, 11)
-    enrollment.update!(status: :dropped, first_opened_at: opened, access_expires_at: 1.day.ago, support_expires_at: 2.days.ago)
+    enrollment.update!(
+      status: :dropped,
+      starts_on: Date.new(2025, 1, 1),
+      first_opened_at: opened,
+      access_expires_at: 1.day.ago,
+      support_expires_at: 2.days.ago
+    )
     submission = Submission.create!(user: @learner_a, enrollment: enrollment, content_block: @block, submission_type: :text_submission, text: "My graded work", grade: "A", graded_by_id: @instructor.id, graded_at: NOW)
-    purchase.reload.update!(status: "pending", stripe_session_id: "cs_repurchase", stripe_payment_intent_id: nil)
 
     travel 5.days do
-      CoursePurchaseFulfillment.fulfill!(paid_session("cs_repurchase", purchase, intent: "pi_repurchase"))
+      with_checkout_client(cohort: @guided, session_id: "cs_repurchase") do
+        as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
+        assert_response :success
+      end
+
+      purchases = CoursePurchase.where(user: @learner_a, cohort: @guided).order(:id).to_a
+      assert_equal 2, purchases.size
+      assert_equal first_purchase.id, purchases.first.id
+      assert_equal "paid", purchases.first.status
+      assert_equal "cs_initial", purchases.first.stripe_session_id
+      assert_equal "pi_initial", purchases.first.stripe_payment_intent_id
+
+      second_purchase = purchases.last
+      assert_equal "pending", second_purchase.status
+      assert_equal "cs_repurchase", second_purchase.stripe_session_id
+
+      CoursePurchaseFulfillment.fulfill!(paid_session("cs_repurchase", second_purchase, intent: "pi_repurchase"))
       enrollment.reload
       assert enrollment.active?
+      assert_equal Date.new(2026, 11, 27), enrollment.starts_on
       assert_equal opened, enrollment.first_opened_at
       assert_equal ZONE.local(2027, 11, 28), enrollment.access_expires_at
       assert_equal ZONE.local(2027, 1, 23), enrollment.support_expires_at
       assert_equal "A", submission.reload.grade
+
+      # Delayed refund webhook for the OLD purchase must NOT drop the renewed enrollment!
+      with_payment_intent_client(purchase: first_purchase) do
+        CoursePurchaseFulfillment.revoke!(payment_intent_id: "pi_initial", status: "refunded")
+      end
+      assert_equal "refunded", first_purchase.reload.status
+      assert_equal "paid", second_purchase.reload.status
+      assert enrollment.reload.active?, "Refunding an older purchase must never drop a renewed active enrollment"
     end
 
     # 3) Fixed guided cohort dates take precedence over relative durations.
@@ -205,6 +250,136 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     fixed_enrollment = Enrollment.find_by!(user: @learner_b, cohort: fixed_cohort)
     assert_equal ZONE.local(2027, 7, 1), fixed_enrollment.access_expires_at
     assert_equal ZONE.local(2027, 5, 1), fixed_enrollment.support_expires_at
+  end
+
+  test "concurrent admin price edit between Stripe verification and lock rejects checkout with 409 before creating a Stripe session" do
+    seen_price_ids = []
+    guided_id = @guided.id
+    with_checkout_client(cohort: @guided, session_id: "cs_should_not_exist") do |_sessions, requests, prices|
+      prices.define_singleton_method(:retrieve) do |price_id|
+        seen_price_ids << price_id
+        # Simulate an admin editing price while Stripe price verification is in flight.
+        Cohort.where(id: guided_id).update_all(stripe_price_id: "price_guided_new", public_price_cents: 19_900)
+        OpenStruct.new(active: true, currency: "usd", unit_amount: 14_900, type: "one_time")
+      end
+
+      as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
+      assert_response :conflict
+      assert_equal "price_changed", response.parsed_body.fetch("code")
+      assert_empty requests
+    end
+
+    assert_equal [ "price_guided_python" ], seen_price_ids
+
+    purchase = CoursePurchase.find_by!(user: @learner_a, cohort: @guided)
+    assert_equal "failed", purchase.status
+    assert_nil purchase.stripe_session_id
+    assert_equal 0, @guided.reload.seats_taken
+  end
+
+  test "switching cohort to program or alumni is blocked while open checkout sessions exist, while turning off sales lets issued sessions settle" do
+    with_checkout_client(cohort: @guided, session_id: "cs_open_session", expires_at: 1.hour.from_now) do
+      as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
+      assert_response :success
+    end
+    purchase = CoursePurchase.find_by!(user: @learner_a, cohort: @guided)
+
+    # Admin cannot switch delivery to program or cohort_type to alumni while open checkout exists.
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@guided.id}",
+        params: { course_delivery: "program", public_checkout_enabled: false, seat_limit: nil, unlisted: false },
+        headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      assert_match(/open checkout sessions/i, response.parsed_body.fetch("errors").join(" "))
+
+      patch "/api/v1/cohorts/#{@guided.id}",
+        params: { cohort_type: "alumni", public_checkout_enabled: false, seat_limit: nil, unlisted: false },
+        headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      assert_match(/open checkout sessions/i, response.parsed_body.fetch("errors").join(" "))
+
+      # Turning public_checkout_enabled off IS allowed, and the already-issued session still settles cleanly!
+      patch "/api/v1/cohorts/#{@guided.id}", params: { public_checkout_enabled: false }, headers: auth_headers, as: :json
+      assert_response :success
+    end
+
+    assert_not @guided.reload.public_checkout_enabled?
+    CoursePurchaseFulfillment.fulfill!(paid_session("cs_open_session", purchase, intent: "pi_after_sales_off"))
+    assert_equal "paid", purchase.reload.status
+    assert Enrollment.find_by!(user: @learner_a, cohort: @guided).active?
+  end
+
+  test "past fixed guided access refuses new checkout, mid-checkout term edits do not corrupt in-flight purchases, and delayed settlement alerts admins" do
+    past_fixed = Cohort.create!(
+      curriculum: @curriculum,
+      name: "Past Fixed Guided",
+      start_date: Date.new(2026, 10, 1),
+      status: :active,
+      cohort_type: :workshop,
+      course_delivery: "guided",
+      public_title: "Past Python",
+      public_price_cents: 14_900,
+      stripe_price_id: "price_past_fixed",
+      guided_access_ends_on: Date.new(2026, 11, 21),
+      public_checkout_enabled: true
+    )
+    past_fixed.cohort_instructor_assignments.create!(user: @instructor)
+    past_fixed.update!(support_instructor: @instructor)
+
+    assert_not past_fixed.purchase_ready?
+    with_checkout_client(cohort: past_fixed) do |_sessions, requests|
+      as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: past_fixed.id }, headers: auth_headers, as: :json }
+      assert_response :unprocessable_entity
+      assert_empty requests
+    end
+
+    # Mid-checkout term edits must not alter the snapshotted terms of an in-flight purchase.
+    with_checkout_client(cohort: @guided, session_id: "cs_mid_edit") do
+      as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
+      assert_response :success
+    end
+    purchase = CoursePurchase.find_by!(user: @learner_a, cohort: @guided)
+    @guided.update!(guided_access_months: 1, guided_support_weeks: 1)
+
+    CoursePurchaseFulfillment.fulfill!(paid_session("cs_mid_edit", purchase, intent: "pi_mid_edit"))
+    enrollment = Enrollment.find_by!(user: @learner_a, cohort: @guided)
+    assert_equal ZONE.local(2027, 11, 23), enrollment.access_expires_at
+    assert_equal ZONE.local(2027, 1, 18), enrollment.support_expires_at
+
+    # Fixed access window that elapses between checkout start and delayed webhook settlement
+    # still marks paid and persists a durable in-app admin recovery alert.
+    closing_fixed = Cohort.create!(
+      curriculum: @curriculum,
+      name: "Closing Fixed Guided",
+      start_date: Date.new(2026, 11, 1),
+      status: :active,
+      cohort_type: :workshop,
+      course_delivery: "guided",
+      public_title: "Closing Python",
+      public_price_cents: 14_900,
+      stripe_price_id: "price_closing_fixed",
+      guided_access_ends_on: Date.new(2026, 11, 22),
+      public_checkout_enabled: true
+    )
+    closing_fixed.cohort_instructor_assignments.create!(user: @instructor)
+    closing_fixed.update!(support_instructor: @instructor)
+
+    with_checkout_client(cohort: closing_fixed, session_id: "cs_closing_fixed") do
+      as_user(@learner_b) { post "/api/v1/course_checkouts", params: { cohort_id: closing_fixed.id }, headers: auth_headers, as: :json }
+      assert_response :success
+    end
+    closing_purchase = CoursePurchase.find_by!(user: @learner_b, cohort: closing_fixed)
+
+    travel 2.days do
+      CoursePurchaseFulfillment.fulfill!(paid_session("cs_closing_fixed", closing_purchase, intent: "pi_closing_fixed"))
+      assert_equal "paid", closing_purchase.reload.status
+      assert closing_purchase.fulfilled_after_access_end?
+      assert Enrollment.exists?(user: @learner_b, cohort: closing_fixed)
+
+      notice = Notification.course_purchase.find_by!(notifiable: closing_purchase, user: @admin)
+      assert_includes notice.title, "Access window ended"
+      assert_includes notice.body, "Fixed access window ended before settlement"
+    end
   end
 
   test "seat cap counts active enrollments and unexpired pending sessions, refuses 409 when full, and releases seats on expiry or full refund" do
@@ -261,15 +436,8 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
       CoursePurchaseFulfillment.fulfill!(paid_session("cs_seat_c_after_expiry", purchase_c, intent: "pi_refund_c"))
       assert_equal 2, @guided.seats_taken
 
-      payment_intent = OpenStruct.new(metadata: { "course_purchase_id" => purchase_c.id.to_s }, amount: 14_900)
-      intents = Object.new
-      intents.define_singleton_method(:retrieve) { |_id| payment_intent }
-      original_client = CourseCheckout.method(:client)
-      CourseCheckout.define_singleton_method(:client) { OpenStruct.new(v1: OpenStruct.new(payment_intents: intents)) }
-      begin
+      with_payment_intent_client(purchase: purchase_c) do
         CoursePurchaseFulfillment.revoke!(payment_intent_id: "pi_refund_c", status: "refunded")
-      ensure
-        CourseCheckout.define_singleton_method(:client, original_client)
       end
 
       assert_equal "dropped", Enrollment.find_by!(user: @learner_c, cohort: @guided).status
@@ -279,7 +447,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "over-capacity paid webhook still enrolls the paid learner, flags the purchase, and alerts admins" do
+  test "over-capacity paid webhook enrolls the learner, persists durable admin notifications inside the transaction even if push raises" do
     @guided.update!(seat_limit: 1)
     # Learner A started a session earlier which expired locally.
     late_purchase = CoursePurchase.create!(
@@ -294,9 +462,14 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     Enrollment.create!(user: @learner_b, cohort: @guided, status: :active)
     assert @guided.sold_out?
 
-    # Late paid webhook arrives for Learner A: MUST enroll anyway and alert admin!
-    perform_enqueued_jobs(only: AdminAlertJob) do
+    # Even if PushNotificationJob / downstream delivery raises, the durable in-app
+    # Notification row is ALREADY persisted atomically inside the fulfillment transaction!
+    original_push = WebPushNotificationService.method(:admin_alert)
+    WebPushNotificationService.define_singleton_method(:admin_alert) { |_record, _notifications| raise "push gateway down" }
+    begin
       CoursePurchaseFulfillment.fulfill!(paid_session("cs_late_paid", late_purchase, intent: "pi_late_paid"))
+    ensure
+      WebPushNotificationService.define_singleton_method(:admin_alert, original_push)
     end
 
     assert_equal "paid", late_purchase.reload.status
@@ -307,10 +480,12 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     assert_equal 0, @guided.seats_remaining
     assert @guided.sold_out?
 
+    # Durable notification exists IMMEDIATELY on commit without running AdminAlertJob!
     notice = Notification.course_purchase.find_by!(notifiable: late_purchase, user: @admin)
     assert_includes notice.title, "Over capacity"
     assert_includes notice.title, @learner_a.full_name
     assert_includes notice.body, "Over capacity (2/1 seats)"
+    assert_equal 1, Notification.course_purchase.where(notifiable: late_purchase, user: @admin).count
 
     # Offering detail record exposes guided offering seat capacity and over_capacity flag.
     as_user(@admin) { get "/api/v1/records/offering/#{@guided.id}/detail", headers: auth_headers }
@@ -337,24 +512,6 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     assert_equal 0, updated.fetch("seats_taken")
     assert_equal false, updated.fetch("sold_out")
     assert_equal false, updated.fetch("unlisted")
-  end
-
-  test "migration up and down cleanly add and remove seat_limit, unlisted, and over_capacity" do
-    migration = AddSeatLimitToCohorts.new
-    migration.down
-    assert_not ActiveRecord::Base.connection.column_exists?(:cohorts, :seat_limit)
-    assert_not ActiveRecord::Base.connection.column_exists?(:cohorts, :unlisted)
-    assert_not ActiveRecord::Base.connection.column_exists?(:course_purchases, :over_capacity)
-
-    migration.up
-    assert ActiveRecord::Base.connection.column_exists?(:cohorts, :seat_limit)
-    assert ActiveRecord::Base.connection.check_constraint_exists?(:cohorts, name: AddSeatLimitToCohorts::CONSTRAINT_NAME)
-    assert ActiveRecord::Base.connection.column_exists?(:cohorts, :unlisted)
-    assert ActiveRecord::Base.connection.column_exists?(:course_purchases, :over_capacity)
-  ensure
-    ActiveRecord::Base.connection_pool.connections.each(&:clear_cache!)
-    Cohort.reset_column_information
-    CoursePurchase.reset_column_information
   end
 
   private
@@ -387,6 +544,17 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     )
   end
 
+  def with_payment_intent_client(purchase:)
+    payment_intent = OpenStruct.new(metadata: { "course_purchase_id" => purchase.id.to_s }, amount: purchase.price_cents)
+    intents = Object.new
+    intents.define_singleton_method(:retrieve) { |_id| payment_intent }
+    original_client = CourseCheckout.method(:client)
+    CourseCheckout.define_singleton_method(:client) { OpenStruct.new(v1: OpenStruct.new(payment_intents: intents)) }
+    yield
+  ensure
+    CourseCheckout.define_singleton_method(:client, original_client) if original_client
+  end
+
   def with_checkout_client(cohort:, session_id: "cs_new", expires_at: 1.day.from_now)
     requests = []
     prices = Object.new
@@ -403,7 +571,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     ENV["FRONTEND_URL"] = "https://learn.example.test"
     CourseCheckout.define_singleton_method(:client) { OpenStruct.new(v1: OpenStruct.new(prices: prices, checkout: OpenStruct.new(sessions: sessions))) }
     CourseCheckout.define_singleton_method(:enabled?) { true }
-    yield sessions, requests
+    yield sessions, requests, prices
   ensure
     CourseCheckout.define_singleton_method(:client, original_client) if original_client
     CourseCheckout.define_singleton_method(:enabled?, original_enabled) if original_enabled

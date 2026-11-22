@@ -94,6 +94,7 @@ class Cohort < ApplicationRecord
   validate :checkout_delivery_allowed
   validate :seat_limit_requires_checkout_delivery
   validate :unlisted_requires_checkout_delivery
+  validate :no_pending_checkouts_on_non_checkout_delivery, on: :update
   validate :support_instructor_is_staff
   validates :public_price_cents, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :stripe_price_id, format: { with: /\Aprice_[a-zA-Z0-9_]+\z/ }, allow_blank: true
@@ -264,8 +265,25 @@ class Cohort < ApplicationRecord
     personal_pace? && guided?
   end
 
-  def purchase_ready?
-    checkout_eligible_delivery? && public_checkout_enabled? && offering_readiness.values.all?
+  def guided_access_ends_at
+    return nil unless guided? && guided_access_ends_on.present?
+
+    (guided_access_ends_on + 1).in_time_zone(LearningCalendar::TIMEZONE)
+  end
+
+  def guided_support_ends_at
+    return nil unless guided? && guided_support_ends_on.present?
+
+    (guided_support_ends_on + 1).in_time_zone(LearningCalendar::TIMEZONE)
+  end
+
+  def guided_access_window_open?(at: Time.current)
+    ends_at = guided_access_ends_at
+    ends_at.nil? || ends_at > at
+  end
+
+  def purchase_ready?(at: Time.current)
+    checkout_eligible_delivery? && public_checkout_enabled? && guided_access_window_open?(at: at) && offering_readiness.values.all?
   end
 
   def occupied_enrollment_user_ids(at: Time.current)
@@ -372,6 +390,17 @@ class Cohort < ApplicationRecord
 
   def unlisted_requires_checkout_delivery
     errors.add(:unlisted, "is only for guided or self-paced courses") if unlisted? && !checkout_eligible_delivery?
+  end
+
+  def no_pending_checkouts_on_non_checkout_delivery
+    return unless (will_save_change_to_course_delivery? || will_save_change_to_cohort_type?) && !checkout_eligible_delivery?
+    return unless course_purchases.holding_seat.exists?
+
+    if will_save_change_to_cohort_type? && alumni?
+      errors.add(:cohort_type, "cannot change to alumni while open checkout sessions exist")
+    else
+      errors.add(:course_delivery, "cannot change to program while open checkout sessions exist")
+    end
   end
 
   def support_instructor_is_staff

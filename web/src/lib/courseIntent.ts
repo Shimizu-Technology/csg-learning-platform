@@ -7,9 +7,14 @@ export function offeringIdFrom(search: string): number | null {
   return /^[1-9]\d*$/.test(value) && Number.isSafeInteger(id) ? id : null
 }
 
+const OFFERING_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+export function validOfferingSlug(value: string | null | undefined): string | null {
+  return value && OFFERING_SLUG_RE.test(value) ? value : null
+}
+
 export function offeringSlugFrom(search: string): string | null {
-  const value = new URLSearchParams(search).get('offering_slug') || ''
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) ? value : null
+  return validOfferingSlug(new URLSearchParams(search).get('offering_slug'))
 }
 
 export function courseIntentDestination(search: string, fallback = '/dashboard'): string {

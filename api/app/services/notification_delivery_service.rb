@@ -285,25 +285,33 @@ class NotificationDeliveryService
     when CoursePurchase
       return unless record.status == "paid"
 
+      sold = record.sold_terms
       price = record.price_cents && ActiveSupport::NumberHelper.number_to_currency(record.price_cents / 100.0)
-      access = if record.cohort.guided? && record.cohort.guided_access_ends_on.present?
-        "access through #{record.cohort.guided_access_ends_on.strftime('%b %-d, %Y')}"
-      elsif record.access_months
-        "#{record.access_months} #{"month".pluralize(record.access_months)} of access"
+      access = if sold[:course_delivery] == "guided" && sold[:guided_access_ends_on].present?
+        "access through #{sold[:guided_access_ends_on].strftime('%b %-d, %Y')}"
+      elsif sold[:access_months]
+        "#{sold[:access_months]} #{"month".pluralize(sold[:access_months])} of access"
       end
       over_cap = if record.over_capacity?
         limit = record.cohort.seat_limit
         limit ? "Over capacity (#{record.cohort.seats_taken}/#{limit} seats) — review enrollment" : "Over capacity — review enrollment"
       end
-      title = if record.over_capacity?
+      access_ended = if record.fulfilled_after_access_end?
+        "Fixed access window ended before settlement — review or extend enrollment"
+      end
+      title = if record.over_capacity? && record.fulfilled_after_access_end?
+        "Over capacity & access ended: #{record.user.full_name} bought #{record.cohort.name}"
+      elsif record.over_capacity?
         "Over capacity: #{record.user.full_name} bought #{record.cohort.name}"
+      elsif record.fulfilled_after_access_end?
+        "Access window ended: #{record.user.full_name} bought #{record.cohort.name}"
       else
         "#{record.user.full_name} bought #{record.cohort.name}"
       end
       {
         actor: record.user, notification_type: :course_purchase,
         title: title,
-        body: [ over_cap, price, access ].compact.join(" · ").presence,
+        body: [ over_cap, access_ended, price, access ].compact.join(" · ").presence,
         path: RecordDestination.to_web_path(RecordDestination.build(kind: "student", id: record.user_id, context: { cohort_id: record.cohort_id }))
       }
     end

@@ -60,6 +60,8 @@ module Api
         render json: { error: "Course not found" }, status: :not_found
       rescue CourseCheckout::CohortFull => error
         render json: { error: error.message, code: "cohort_full" }, status: :conflict
+      rescue CourseCheckout::PriceChanged => error
+        render json: { error: error.message, code: "price_changed" }, status: :conflict
       rescue CourseCheckout::Unavailable => error
         render json: { error: error.message }, status: :unprocessable_entity
       rescue Stripe::StripeError => error

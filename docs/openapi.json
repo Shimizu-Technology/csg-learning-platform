@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API \u2014 migrated transport contracts",
+    "title": "CSG Learning API — migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -3607,7 +3607,7 @@
     "/api/v1/help_requests/{help_request_id}/replies": {
       "post": {
         "summary": "Reply to a help request (staff)",
-        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8\u201364 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
+        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
         "responses": {
           "201": {
             "description": "Reply saved",
@@ -3889,7 +3889,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The signed-in student\u2019s hosted payment receipt",
+            "description": "The signed-in student’s hosted payment receipt",
             "content": {
               "application/json": {
                 "schema": {
@@ -4990,7 +4990,7 @@
         }
       ],
       "get": {
-        "summary": "Read the signed-in learner\u2019s certificate and completion status",
+        "summary": "Read the signed-in learner’s certificate and completion status",
         "responses": {
           "200": {
             "description": "CourseCompletionResponse",
@@ -5011,7 +5011,7 @@
         }
       },
       "patch": {
-        "summary": "Change the printed name on the signed-in learner\u2019s active certificate",
+        "summary": "Change the printed name on the signed-in learner’s active certificate",
         "requestBody": {
           "required": true,
           "content": {
@@ -5139,6 +5139,82 @@
           },
           "422": {
             "$ref": "#/components/responses/422"
+          }
+        }
+      }
+    },
+    "/api/v1/course_checkouts": {
+      "post": {
+        "operationId": "createCourseCheckout",
+        "summary": "Start or resume a Stripe Checkout session for an eligible course offering",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "cohort_id"
+                ],
+                "properties": {
+                  "cohort_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stripe Checkout URL for the learner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCheckoutCreateResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cohort seat cap reached or price changed while checkout started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCheckoutConflictError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/course_checkouts/{id}/status": {
+      "get": {
+        "operationId": "getCourseCheckoutStatus",
+        "summary": "Read local checkout confirmation status for a signed-in student purchase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Local checkout and fulfillment status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCheckoutStatusResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11427,7 +11503,7 @@
           },
           "used_in": {
             "type": "array",
-            "description": "Cohorts on this lesson\u2019s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
+            "description": "Cohorts on this lesson’s curriculum that the viewer can see (admins: all; instructors: the cohorts they teach).",
             "items": {
               "type": "object",
               "properties": {
@@ -11466,7 +11542,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "submissions_count": {
             "type": "integer",
@@ -12503,7 +12579,7 @@
           },
           "status_label": {
             "type": "string",
-            "description": "The learner\u2019s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
+            "description": "The learner’s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
           },
           "released_blocks": {
             "type": "number"
@@ -15354,7 +15430,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_cohorts": {
             "type": "array",
@@ -16614,7 +16690,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null for an instructor who doesn\u2019t teach that cohort."
+            "description": "Null for an instructor who doesn’t teach that cohort."
           },
           "source_curriculum": {
             "anyOf": [
@@ -16724,7 +16800,7 @@
           "shared_with_others_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Other cohorts sharing the curriculum that the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Other cohorts sharing the curriculum that the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "already_copied": {
             "type": "boolean"
@@ -17131,7 +17207,7 @@
             "items": {
               "$ref": "#/components/schemas/LearnerExtension"
             },
-            "description": "Active grants applicable to this submission\u2019s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
+            "description": "Active grants applicable to this submission’s lesson, module week, or final project, including reasons. Included for personal-pace cohorts (possibly empty), or when the learner has an active grant."
           },
           "submission_window": {
             "$ref": "#/components/schemas/SubmissionWindowStatus"
@@ -18905,13 +18981,13 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 120,
-                "description": "Months of lesson access from each learner\u2019s start. A fixed access date takes precedence."
+                "description": "Months of lesson access from each learner’s start. A fixed access date takes precedence."
               },
               "guided_support_weeks": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 104,
-                "description": "Weeks of support from each learner\u2019s start, capped at the access expiry. A fixed support date takes precedence."
+                "description": "Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence."
               },
               "review_sla_business_days": {
                 "type": "integer",
@@ -20778,7 +20854,7 @@
           },
           "assigned": {
             "type": "boolean",
-            "description": "False when the cohort\u2019s content defaults leave this module out."
+            "description": "False when the cohort’s content defaults leave this module out."
           },
           "starts_on": {
             "type": [
@@ -20797,7 +20873,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading\u2019s All filter counts them."
+            "description": "Every attempt, as Grading’s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -20829,7 +20905,7 @@
           "open_help"
         ],
         "additionalProperties": false,
-        "description": "A cohort\u2019s schedule for the module; dates are null for self-paced cohorts."
+        "description": "A cohort’s schedule for the module; dates are null for self-paced cohorts."
       },
       "LessonUsageCohort": {
         "type": "object",
@@ -20889,7 +20965,7 @@
           "submissions": {
             "type": "integer",
             "minimum": 0,
-            "description": "Every attempt, as Grading\u2019s All filter counts them."
+            "description": "Every attempt, as Grading’s All filter counts them."
           },
           "waiting": {
             "type": "integer",
@@ -21040,7 +21116,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "copy_of": {
             "anyOf": [
@@ -21069,7 +21145,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Null when the viewer doesn\u2019t teach the cohort."
+                    "description": "Null when the viewer doesn’t teach the cohort."
                   },
                   "source_curriculum": {
                     "anyOf": [
@@ -21133,7 +21209,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set when this curriculum is one cohort\u2019s own copy."
+            "description": "Set when this curriculum is one cohort’s own copy."
           },
           "copies": {
             "type": "array",
@@ -21459,7 +21535,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "totals": {
             "type": "object",
@@ -21635,7 +21711,7 @@
           "other_cohorts_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Cohorts on the same curriculum the viewer doesn\u2019t teach, as a number and never named. Always 0 for admins, who see every cohort."
+            "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
           "help_requests": {
             "type": "array",
@@ -23457,7 +23533,7 @@
                 "type": "null"
               }
             ],
-            "description": "\"Week 3\" in programs, \"Part 2 \u00b7 lessons 21\u201340\" in a split self-paced section, null for a single group."
+            "description": "\"Week 3\" in programs, \"Part 2 · lessons 21–40\" in a split self-paced section, null for a single group."
           },
           "week": {
             "anyOf": [
@@ -27659,13 +27735,13 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 120,
-                "description": "Months of lesson access from each learner\u2019s start. A fixed access date takes precedence."
+                "description": "Months of lesson access from each learner’s start. A fixed access date takes precedence."
               },
               "guided_support_weeks": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 104,
-                "description": "Weeks of support from each learner\u2019s start, capped at the access expiry. A fixed support date takes precedence."
+                "description": "Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence."
               },
               "review_sla_business_days": {
                 "type": "integer",
@@ -27914,7 +27990,7 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 120,
-                "description": "Months of lesson access from each learner\u2019s start. A fixed access date takes precedence."
+                "description": "Months of lesson access from each learner’s start. A fixed access date takes precedence."
               },
               {
                 "type": "null"
@@ -27927,7 +28003,7 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 104,
-                "description": "Weeks of support from each learner\u2019s start, capped at the access expiry. A fixed support date takes precedence."
+                "description": "Weeks of support from each learner’s start, capped at the access expiry. A fixed support date takes precedence."
               },
               {
                 "type": "null"
@@ -28167,6 +28243,109 @@
           "course_completed"
         ],
         "additionalProperties": false
+      },
+      "CourseCheckoutCreateResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "CourseCheckoutConflictError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "cohort_full",
+              "price_changed"
+            ]
+          }
+        }
+      },
+      "CourseCheckoutStatusCohort": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "unlisted"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unlisted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CourseCheckoutStatusResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "can_resume",
+          "can_continue",
+          "purchase_id",
+          "cohort",
+          "enrollment_id"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "starting",
+              "setup_failed",
+              "fulfilled",
+              "failed",
+              "refunded"
+            ]
+          },
+          "can_resume": {
+            "type": "boolean"
+          },
+          "can_continue": {
+            "type": "boolean"
+          },
+          "purchase_id": {
+            "type": "integer"
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/CourseCheckoutStatusCohort"
+          },
+          "enrollment_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
       }
     },
     "responses": {

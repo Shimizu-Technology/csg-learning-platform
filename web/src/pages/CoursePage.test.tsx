@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseCatalog } from './CourseCatalog'
-const state = vi.hoisted(() => ({ api: { getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn() }, auth: { isSignedIn: false, user: null as unknown, enrollments: [] as unknown[] } }))
+const state = vi.hoisted(() => ({ api: { getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn() }, auth: { isSignedIn: false, user: null as unknown, enrollments: [] as unknown[], syncSession: vi.fn() } }))
 vi.mock('../lib/api', () => ({ api: state.api }))
 vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 let host: HTMLDivElement, root: ReturnType<typeof createRoot>
@@ -103,4 +103,51 @@ it('shows a disabled Cohort full state with support waitlist guidance when sold 
   expect(btn.disabled).toBe(true)
   expect(host.querySelector('a[href^="mailto:"]')?.textContent).toBeTruthy()
   expect(host.textContent).not.toContain('Continue to secure checkout')
+})
+
+it('sets robots noindex, nofollow meta tag for unlisted courses and cleans it up on unmount', async () => {
+  const unlisted = { ...course, course_delivery: 'guided' as const, unlisted: true }
+  state.api.getCourseOffering.mockResolvedValue({ data: { offering: unlisted } })
+  await render()
+  const meta = document.head.querySelector('meta[name="robots"]')
+  expect(meta?.getAttribute('content')).toBe('noindex, nofollow')
+
+  await act(async () => root.unmount())
+  expect(document.head.querySelector('meta[name="robots"]')).toBeNull()
+
+  state.api.getCourseOffering.mockResolvedValue({ data: { offering: { ...course, unlisted: false } } })
+  await render()
+  expect(document.head.querySelector('meta[name="robots"]')).toBeNull()
+})
+
+it('renders checkout confirmation on Stripe return even when the offering is closed (404) and preserves slug for sign-in', async () => {
+  state.api.getCourseOffering.mockResolvedValue({ error: 'Not found', status: 404, data: null })
+  await render('?checkout=return&purchase_id=20&offering_id=13')
+  expect(host.textContent).not.toContain('This course isn’t available')
+  expect(host.textContent).toContain('Confirming your enrollment')
+  const statusSignIn = host.querySelector('main a[href^="/sign-in"]')!
+  expect(statusSignIn.getAttribute('href')).toBe('/sign-in?checkout=return&purchase_id=20&offering_slug=course-counter')
+  const headerSignIn = host.querySelector('header a[href^="/sign-in"]')!
+  expect(headerSignIn.getAttribute('href')).toContain('offering_slug=course-counter')
+
+  await act(async () => root.unmount())
+  host.remove()
+
+  state.auth.isSignedIn = true
+  state.auth.user = { id: 1 }
+  state.api.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [] } })
+  state.api.getCourseCheckoutStatus.mockResolvedValue({
+    data: {
+      status: 'fulfilled',
+      can_resume: false,
+      can_continue: false,
+      purchase_id: 20,
+      cohort: { id: 13, name: 'Python Pilot', slug: 'course-counter', unlisted: true },
+      enrollment_id: 7,
+    },
+  })
+  await render('?checkout=return&purchase_id=20&offering_id=13')
+  expect(host.textContent).toContain('You’re in')
+  expect(host.querySelector('a[href="/dashboard?cohort_id=13"]')?.textContent).toBe('Open Python Pilot')
+  expect(host.textContent).not.toContain('Course listings are unavailable')
 })

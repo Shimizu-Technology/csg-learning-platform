@@ -2,6 +2,7 @@ class CourseCheckout
   class Unavailable < StandardError; end
   class SetupFailure < Unavailable; end
   class CohortFull < Unavailable; end
+  class PriceChanged < Unavailable; end
 
   def self.enabled?
     !!(ActiveModel::Type::Boolean.new.cast(ENV["COURSE_CHECKOUT_ENABLED"]) &&
@@ -19,14 +20,20 @@ class CourseCheckout
 
   def self.start!(user:, cohort:)
     raise Unavailable, "Course checkout is not available" unless enabled? && cohort.purchase_ready?
-    raise Unavailable, "This course is already in your library" if user.enrollments.active.exists?(cohort: cohort)
+    raise Unavailable, "This course is already in your library" if user.enrollments.with_read_access.exists?(cohort: cohort)
 
     purchase = user.with_lock do
-      CoursePurchase.find_or_create_by!(user: user, cohort: cohort) do |record|
-        record.status = "failed" # No session has been requested; safe to retry setup.
-        record.stripe_price_id = cohort.stripe_price_id
-        record.price_cents = cohort.public_price_cents
-      end
+      raise Unavailable, "This course is already in your library" if user.enrollments.with_read_access.exists?(cohort: cohort)
+      raise Unavailable, "This purchase needs staff review" if CoursePurchase.where(user: user, cohort: cohort, status: "disputed").exists?
+
+      CoursePurchase.where(user: user, cohort: cohort, status: CoursePurchase::OPEN_ATTEMPT_STATUSES).order(id: :desc).first ||
+        CoursePurchase.create!(
+          user: user,
+          cohort: cohort,
+          status: "failed", # No session has been requested; safe to retry setup.
+          stripe_price_id: cohort.stripe_price_id,
+          price_cents: cohort.public_price_cents
+        )
     end
 
     # Commit the full immutable request BEFORE the external side effect. A
@@ -51,7 +58,7 @@ class CourseCheckout
       else
         begin
           prepare_attempt!(purchase, user, cohort)
-        rescue CohortFull => error
+        rescue CohortFull, PriceChanged => error
           if purchase.status == "pending" && purchase.stripe_session_id.present?
             purchase.update!(status: "expired", checkout_url: nil, checkout_expires_at: nil)
           end
@@ -93,41 +100,48 @@ class CourseCheckout
 
     raise CohortFull, "This cohort is full" if cohort.full_for_checkout?(user: user)
 
+    captured_price_id = cohort.stripe_price_id
+    captured_price_cents = cohort.public_price_cents
+
     stripe_price = begin
-      client.v1.prices.retrieve(cohort.stripe_price_id)
+      client.v1.prices.retrieve(captured_price_id)
     rescue Stripe::StripeError
       raise SetupFailure, "We couldn't start checkout — try again"
     end
-    unless stripe_price.active && stripe_price.currency == "usd" && stripe_price.unit_amount == cohort.public_price_cents && stripe_price.type == "one_time"
+    unless stripe_price.active && stripe_price.currency == "usd" && stripe_price.unit_amount == captured_price_cents && stripe_price.type == "one_time"
       raise SetupFailure, "We couldn't start checkout — try again"
     end
 
     identifier = purchase.integration_identifier.presence || "csglearn#{Array.new(8) { ("a".ord + SecureRandom.random_number(26)).chr }.join}"
-    course_path = cohort.unlisted? && cohort.public_slug.present? ? "/courses/#{cohort.public_slug}" : "/courses"
-    params = {
-      mode: "payment",
-      line_items: [ { price: cohort.stripe_price_id, quantity: 1 } ],
-      customer_email: user.email,
-      client_reference_id: purchase.id.to_s,
-      metadata: { purchase_id: purchase.id.to_s },
-      payment_intent_data: { metadata: { course_purchase_id: purchase.id.to_s } },
-      success_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}#{course_path}?checkout=return&purchase_id=#{purchase.id}&offering_id=#{cohort.id}",
-      cancel_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}#{course_path}?checkout=canceled&offering_id=#{cohort.id}",
-      integration_identifier: identifier
-    }
 
-    # Acquire cohort row lock to serialize concurrent seat reservations before
-    # marking this purchase pending (which holds a seat until expiry).
+    # Acquire cohort row lock to serialize concurrent seat reservations and
+    # verify price/terms did not change while Stripe verified the price.
     cohort.with_lock do
       raise Unavailable, "Course checkout is not available" unless cohort.purchase_ready?
+      if cohort.stripe_price_id != captured_price_id || cohort.public_price_cents != captured_price_cents
+        raise PriceChanged, "The course price changed while checkout was starting. Reload and try again."
+      end
       raise CohortFull, "This cohort is full" if cohort.full_for_checkout?(user: user)
 
-      access_months = cohort.guided? ? (cohort.guided_access_ends_on.present? ? nil : cohort.guided_access_months) : cohort.self_paced_access_months
-      support_weeks = cohort.guided? ? (cohort.guided_support_ends_on.present? ? nil : cohort.guided_support_weeks) : cohort.self_paced_support_weeks
+      course_path = cohort.unlisted? && cohort.public_slug.present? ? "/courses/#{cohort.public_slug}" : "/courses"
+      params = {
+        mode: "payment",
+        line_items: [ { price: captured_price_id, quantity: 1 } ],
+        customer_email: user.email,
+        client_reference_id: purchase.id.to_s,
+        metadata: { purchase_id: purchase.id.to_s },
+        payment_intent_data: { metadata: { course_purchase_id: purchase.id.to_s } },
+        success_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}#{course_path}?checkout=return&purchase_id=#{purchase.id}&offering_id=#{cohort.id}",
+        cancel_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}#{course_path}?checkout=canceled&offering_id=#{cohort.id}",
+        integration_identifier: identifier
+      }
+
+      snapshot = CoursePurchase.terms_snapshot_for(cohort)
       purchase.update!(
         status: "pending", stripe_session_id: nil, checkout_url: nil, checkout_expires_at: nil,
-        stripe_price_id: cohort.stripe_price_id, price_cents: cohort.public_price_cents,
-        access_months: access_months, support_weeks: support_weeks, over_capacity: false,
+        stripe_price_id: captured_price_id, price_cents: captured_price_cents,
+        access_months: snapshot["access_months"], support_weeks: snapshot["support_weeks"],
+        terms_snapshot: snapshot, over_capacity: false,
         integration_identifier: identifier,
         checkout_attempt: { key: "csg-course-#{purchase.id}-#{SecureRandom.uuid}", requested_at: Time.current.iso8601, params: params }
       )

@@ -10,7 +10,7 @@ import { Button, LinkButton } from '../components/ui/Button'
 import { api } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { CourseCheckoutStatus } from '../components/courses/CourseCheckoutStatus'
-import { courseAuthPath, offeringIdFrom } from '../lib/courseIntent'
+import { courseAuthPath, offeringIdFrom, validOfferingSlug } from '../lib/courseIntent'
 import { SCHOOL_COURSES_URL } from '../lib/brand'
 import { hasCourseAccess } from '../lib/courseAccess'
 import { formatShortDate } from '../lib/format'
@@ -63,9 +63,31 @@ export function CourseCatalog() {
     return () => { active = false }
   }, [isSignedIn, user?.id, user?.is_staff])
 
+  const isUnlistedOffering = Boolean(slug && offerings[0]?.unlisted)
+
   useEffect(() => {
-    if (slug && !loading) document.title = pageTitle(notFound ? 'Course unavailable' : offerings[0]?.name || 'Course')
-  }, [slug, loading, notFound, offerings])
+    if (slug && !loading) {
+      document.title = pageTitle(returning && notFound ? 'Enrollment confirmation' : notFound ? 'Course unavailable' : offerings[0]?.name || 'Course')
+    }
+  }, [slug, loading, notFound, returning, offerings])
+
+  useEffect(() => {
+    if (!isUnlistedOffering) return
+    const existing = document.head.querySelector('meta[name="robots"]') as HTMLMetaElement | null
+    const previousContent = existing?.getAttribute('content') ?? null
+    const meta = existing || document.createElement('meta')
+    meta.setAttribute('name', 'robots')
+    meta.setAttribute('content', 'noindex, nofollow')
+    if (!existing) document.head.appendChild(meta)
+    return () => {
+      if (existing) {
+        if (previousContent === null) existing.removeAttribute('content')
+        else existing.setAttribute('content', previousContent)
+      } else {
+        meta.remove()
+      }
+    }
+  }, [isUnlistedOffering])
 
   const startCheckout = async (cohortId: number) => {
     setCheckingOut(cohortId)
@@ -83,24 +105,29 @@ export function CourseCatalog() {
     }
   }
 
-  if (slug && notFound) return <CourseUnavailable />
+  if (slug && notFound && !returning) return <CourseUnavailable />
 
+  const validatedSlug = validOfferingSlug(slug)
   const signInParams = new URLSearchParams(searchParams)
   if (slug && offerings[0]) {
     signInParams.set('offering_id', String(offerings[0].id))
     if (offerings[0].unlisted && offerings[0].slug) signInParams.set('offering_slug', offerings[0].slug)
+  } else if (returning && validatedSlug) {
+    signInParams.set('offering_slug', validatedSlug)
   }
-  const signInPath = slug && offerings[0] ? `/sign-in?${signInParams}` : courseAuthPath('/sign-in', searchParams.toString())
+  const signInPath = (slug && offerings[0]) || (returning && validatedSlug)
+    ? `/sign-in?${signInParams}`
+    : courseAuthPath('/sign-in', searchParams.toString())
 
   return (
     <div className="flex min-h-svh flex-col bg-brand-cream text-ink">
       <PublicHeader actions={<LinkButton to={isSignedIn ? '/dashboard' : signInPath} variant="quiet" shape="brand" className="px-3 text-ink">{isSignedIn ? 'My learning' : 'Sign in'}</LinkButton>} />
       <main className="safe-px mx-auto w-full max-w-[1200px] flex-1 py-12 lg:py-20">
         <p className="brand-eyebrow">Focused courses</p>
-        <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">{slug ? offerings[0]?.name || 'Course' : 'Learn one useful skill at a time.'}</h1>
+        <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">{slug ? (returning && notFound ? 'Enrollment confirmation' : offerings[0]?.name || 'Course') : 'Learn one useful skill at a time.'}</h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, practice what you learn, and get feedback from a real instructor.</p>
-        {((slug && !offerings[0]?.unlisted) || selectedId) && <LinkButton to="/courses" variant="quiet" className="mt-4">Back to courses</LinkButton>}
-        {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} />}
+        {((slug && offerings[0] && !offerings[0].unlisted) || (!slug && selectedId)) && <LinkButton to="/courses" variant="quiet" className="mt-4">Back to courses</LinkButton>}
+        {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} slug={validatedSlug ?? undefined} />}
         {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is not currently listed. Contact {brand.schoolAbbreviation} if you need help enrolling.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">Checkout not completed. Review your course below to continue checkout.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">{error}</p>}
@@ -155,7 +182,7 @@ export function CourseCatalog() {
                 {user?.is_staff ? <p className="text-sm text-ink-secondary">Staff preview — students see the enrollment button here.</p>
                   : enrolled ? <LinkButton to={`/dashboard?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : returning ? null
-                  : pendingPurchase && searchParams.get('checkout') === 'canceled' ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled />
+                  : pendingPurchase && searchParams.get('checkout') === 'canceled' ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled slug={validatedSlug ?? undefined} />
                   : pendingPurchase ? <LinkButton to={`${offering.unlisted && offering.slug ? `/courses/${offering.slug}` : '/courses'}?checkout=return&purchase_id=${pendingPurchase.id}&offering_id=${offering.id}`} variant="secondary">Check enrollment confirmation</LinkButton>
                   : isSignedIn && (!pending || purchaseError) ? <p role="status" className="text-sm text-ink-secondary">{purchaseError ? `We could not check your purchases. Refresh or contact ${brand.schoolAbbreviation} before trying checkout.` : 'Checking your purchases…'}</p>
                   : !offering.checkout_available ? <span className="inline-flex min-h-12 items-center text-sm font-bold text-ink-muted">Enrollment is not open yet</span>
@@ -180,7 +207,7 @@ export function CourseCatalog() {
               </div> : offering.slug && <LinkButton to={`/courses/${offering.slug}`} variant="secondary" className="mt-5 self-start">View course</LinkButton>}
             </article>
           })}
-          {!loading && offerings.length === 0 && <div className="rounded-md border border-brand-line bg-surface-raised p-8 md:col-span-2">
+          {!loading && offerings.length === 0 && !(returning && notFound) && <div className="rounded-md border border-brand-line bg-surface-raised p-8 md:col-span-2">
             <h2 className="font-display text-2xl font-medium">{error ? 'Course listings are unavailable' : 'Courses are being prepared'}</h2>
             <p className="mt-2 text-sm leading-6 text-ink-secondary">{error || 'We are recording and testing the first focused course. Enrollment will appear here when it opens.'}</p>
             <a href={SCHOOL_COURSES_URL} className="mt-4 inline-flex min-h-11 items-center font-bold text-primary-ink underline underline-offset-4 hover:text-primary-soft-ink">Explore courses at {new URL(SCHOOL_COURSES_URL).host}</a>

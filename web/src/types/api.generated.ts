@@ -6184,6 +6184,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course_checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start or resume a Stripe Checkout session for an eligible course offering */
+        post: operations["createCourseCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course_checkouts/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read local checkout confirmation status for a signed-in student purchase */
+        get: operations["getCourseCheckoutStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -11160,6 +11194,30 @@ export interface components {
             can_issue: boolean;
             course_completed: boolean;
         };
+        CourseCheckoutCreateResponse: {
+            /** Format: uri */
+            url: string;
+        };
+        CourseCheckoutConflictError: {
+            error: string;
+            /** @enum {string} */
+            code: "cohort_full" | "price_changed";
+        };
+        CourseCheckoutStatusCohort: {
+            id: number;
+            name: string;
+            slug: string | null;
+            unlisted: boolean;
+        };
+        CourseCheckoutStatusResponse: {
+            /** @enum {string} */
+            status: "pending" | "starting" | "setup_failed" | "fulfilled" | "failed" | "refunded";
+            can_resume: boolean;
+            can_continue: boolean;
+            purchase_id: number;
+            cohort: components["schemas"]["CourseCheckoutStatusCohort"];
+            enrollment_id: number | null;
+        };
     };
     responses: {
         /** @description ApiError */
@@ -11480,6 +11538,63 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    createCourseCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cohort_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Stripe Checkout URL for the learner */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutCreateResponse"];
+                };
+            };
+            /** @description Cohort seat cap reached or price changed while checkout started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutConflictError"];
+                };
+            };
+        };
+    };
+    getCourseCheckoutStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Local checkout and fulfillment status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseCheckoutStatusResponse"];
+                };
             };
         };
     };
