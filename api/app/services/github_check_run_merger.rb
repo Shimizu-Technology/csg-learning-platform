@@ -39,8 +39,18 @@ class GithubCheckRunMerger
 
     # Require stored numeric repository provenance so legacy rows and replacement
     # repositories at the same owner/repo path stage safely rather than guessing.
-    return false unless submission.github_repository_id.present? &&
-      submission.github_repository_id.to_i == binding.repository_id.to_i
+    revision = submission.github_revision.is_a?(Hash) ? submission.github_revision : nil
+    if revision && revision["binding_id"].present? && revision["binding_id"].to_i != binding.id
+      return false
+    end
+
+    proven_repository_id = submission.github_repository_id || revision&.dig("repository_id")
+    return false unless proven_repository_id.present? &&
+      proven_repository_id.to_i == binding.repository_id.to_i
+    if submission.github_repository_id.present? && revision && revision["repository_id"].present? &&
+        submission.github_repository_id.to_i != revision["repository_id"].to_i
+      return false
+    end
 
     full_name = submission_repository_full_name(submission, require_consistent: true)
     full_name.nil? || full_name.casecmp?(binding.full_name)

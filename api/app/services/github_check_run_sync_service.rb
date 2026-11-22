@@ -22,6 +22,9 @@ class GithubCheckRunSyncService
       @app_binding = GithubRepositoryAccess.binding_for(enrollment: submission.enrollment, curriculum_module_id: submission.content_block.lesson.module_id)
       return failure("Verify a repository binding before refreshing checks") unless @app_binding
       return failure("Submission repository does not match the verified binding") unless @app_binding.full_name.casecmp?("#{owner}/#{repository}")
+      if submission.github_revision && (submission.github_revision.fetch("repository_id") != @app_binding.repository_id || submission.github_revision.fetch("binding_id") != @app_binding.id)
+        return failure("Submitted revision belongs to a different repository binding; its evidence is preserved")
+      end
 
       @app_client ||= GithubAppClient.new
       @repository_access = GithubRepositoryAccess.new(@app_binding, client: @app_client)

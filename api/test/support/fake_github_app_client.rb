@@ -2,8 +2,8 @@
 class FakeGithubAppClient
   attr_reader :calls, :issues
   attr_accessor :failure, :issue_failure, :repository_owner, :repository_owner_id, :fork, :owner_type,
-    :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository, :on_find_issue_by_marker,
-    :on_get_issue, :inconclusive_marker_search
+    :source_text, :commit_sha, :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
+    :on_find_issue_by_marker, :on_get_issue, :inconclusive_marker_search
 
   def initialize
     @calls = []
@@ -15,6 +15,8 @@ class FakeGithubAppClient
     @repository_owner_id = 24680
     @fork = false
     @owner_type = "User"
+    @source_text = "puts 'synthetic source'"
+    @commit_sha = "a" * 40
     @timeout_after_create = false
     @inconclusive_marker_search = false
   end
@@ -42,7 +44,7 @@ class FakeGithubAppClient
     @mutex.synchronize { @calls << [ :files, installation.id, repository.fetch("id"), filenames ] }
     raise failure if failure
 
-    { files: filenames.map { |name| { "name" => name, "text" => "puts 'synthetic source'" } }, commit_hash: "a" * 40, error: nil }
+    { files: filenames.map { |name| { "name" => name, "text" => source_text } }, commit_hash: commit_sha, branch: "main", error: nil }
   end
 
   def checks(installation:, repository_id:, full_name:, sha:, page:)

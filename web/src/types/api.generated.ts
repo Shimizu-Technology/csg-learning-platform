@@ -6848,6 +6848,19 @@ export interface components {
             /** @enum {string|null} */
             course_delivery: "program" | "guided" | "self_paced" | null;
             week_number: number | null;
+            /** @description Included only for staff when an immutable GitHub revision was captured. Source is retained in text; historical attempts omit this field. */
+            github_revision?: {
+                /** @constant */
+                version: 1;
+                binding_id: number;
+                repository_id: number;
+                repository_full_name: string;
+                paths: string[];
+                content_digest: string;
+                source_bytes: number;
+                /** Format: date-time */
+                captured_at: string;
+            };
         };
         GithubChecks: {
             head_sha: null | string;

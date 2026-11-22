@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -1478,6 +1478,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "github_repository_id"
+    t.jsonb "github_revision"
     t.index "to_tsvector('simple'::regconfig, ((COALESCE(text, ''::text) || ' '::text) || COALESCE(notes, ''::text)))", name: "index_submissions_search_document", using: :gin
     t.index ["content_block_id", "user_id"], name: "index_submissions_on_content_block_id_and_user_id"
     t.index ["content_block_id"], name: "index_submissions_on_content_block_id"

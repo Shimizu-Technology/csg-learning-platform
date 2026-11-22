@@ -226,6 +226,18 @@ async function input(label: string, value: string) {
   })
 }
 
+it('identifies an empty captured revision without treating it as missing work', async () => {
+  vi.mocked(api.getSubmission).mockResolvedValue({ data: { submission: {
+    ...first, submission_type: 'prework_github_sync', text: '', commit_sha: 'a'.repeat(40),
+    github_revision: { version: 1, binding_id: 3, repository_id: 98765, repository_full_name: 'learner/prework',
+      paths: ['111.rb'], content_digest: 'e'.repeat(64), source_bytes: 0, captured_at: '2026-11-18T07:00:00Z' },
+  } }, error: null })
+  await render('/admin/submissions/42')
+  expect(container.textContent).toContain('Submitted revision aaaaaaaa')
+  expect(container.textContent).toContain('The captured file is empty.')
+  expect(container.textContent).not.toContain('No inline code submitted.')
+})
+
 describe.each(entries)('canonical review at %s', (entry) => {
   it('validates rubric then submits the same version, feedback and criterion contract', async () => {
     await render(entry)

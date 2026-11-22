@@ -33,6 +33,27 @@ class GithubRepositoryAccess
     record_failure(error, operation: @operation) if @operation
   end
 
+  # Called after source I/O inside the enrollment write guard. Rebinds use that
+  # guard too; installation mutations use this same installation/binding order.
+  # No provider I/O occurs while these locks are held.
+  def with_current_operation
+    operation = @operation
+    raise BindingChanged, "Repository verification required" unless operation
+
+    operation[:installation].with_lock do
+      @binding.with_lock do
+        raise BindingChanged, "Repository changed during source sync; reload and sync again" unless operation_current?(operation)
+
+        @binding.enrollment.user.reload
+        check_gate!
+        unless @binding.verification_state == "verified" && @binding.identity_current?
+          raise BindingChanged, "Repository changed during source sync; reload and sync again"
+        end
+        yield
+      end
+    end
+  end
+
   private
 
   def capture_operation(refresh_installation: false)

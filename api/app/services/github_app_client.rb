@@ -70,24 +70,31 @@ class GithubAppClient
   end
 
   def files(installation:, repository:, filenames:)
-    fragments = filenames.each_with_index.map do |filename, index|
-      "file_#{index}: object(expression: #{"HEAD:#{filename}".to_json}) { ... on Blob { text } }"
-    end.join("\n")
-    owner, name = repository.fetch("full_name").split("/")
-    query = "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name, followRenames: false) { fullDatabaseId defaultBranchRef { target { ... on Commit { oid } } } #{fragments} } }"
-    result = installation_request(installation, :post, "/graphql", repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } })
-    repo = result.fetch("data").fetch("repository")
-    raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo.fetch("fullDatabaseId").to_i == repository.fetch("id").to_i && result["errors"].blank?
-
+    # Resolve once, then fetch every blob at that commit. HEAD:path and the
+    # branch tip in the same GraphQL query can observe different revisions.
+    repo = source_query(installation, repository, "defaultBranchRef { name target { ... on Commit { oid } } }")
     branch = repo.fetch("defaultBranchRef")
+    sha = branch&.fetch("target")&.fetch("oid")
+    raise Error, "GitHub repository has no submitted commit" unless sha.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
+
+    fragments = filenames.each_with_index.map do |filename, index|
+      "file_#{index}: object(expression: #{"#{sha}:#{filename}".to_json}) { ... on Blob { text byteSize isTruncated } }"
+    end.join("\n")
+    repo = source_query(installation, repository, fragments)
     files = filenames.each_with_index.filter_map do |filename, index|
       blob = repo.fetch("file_#{index}")
-      text = blob&.fetch("text", nil)
-      raise Error, PROVIDER_ERROR unless text.nil? || text.is_a?(String)
+      next unless blob
 
-      { "name" => filename, "text" => text } if text.present?
+      raise Error, "GitHub returned truncated source; no revisions imported" if blob.fetch("isTruncated") == true
+      text = blob.fetch("text")
+      size = blob.fetch("byteSize")
+      unless blob.fetch("isTruncated") == false && size.is_a?(Integer) && text.is_a?(String) && size == text.bytesize
+        raise Error, "GitHub did not return complete UTF-8 source; no revisions imported"
+      end
+
+      { "name" => filename, "text" => text }
     end
-    { files: files, commit_hash: branch&.fetch("target")&.fetch("oid"), error: nil }
+    { files: files, commit_hash: sha, branch: branch.fetch("name"), error: nil }
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end
@@ -256,6 +263,16 @@ class GithubAppClient
   end
 
   private
+
+  def source_query(installation, repository, fields)
+    owner, name = repository.fetch("full_name").split("/")
+    query = "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name, followRenames: false) { fullDatabaseId #{fields} } }"
+    result = installation_request(installation, :post, "/graphql", repository_id: repository.fetch("id"), body: { query: query, variables: { owner: owner, name: name } })
+    repo = result.fetch("data").fetch("repository")
+    raise Error, "GitHub repository is unavailable; verify access again" unless repo && repo.fetch("fullDatabaseId").to_i == repository.fetch("id").to_i && result["errors"].blank?
+
+    repo
+  end
 
   FULL_NAME_FORMAT = %r{\A[a-zA-Z0-9][a-zA-Z0-9-]{0,38}/[a-zA-Z0-9_.-]{1,100}\z}
 
