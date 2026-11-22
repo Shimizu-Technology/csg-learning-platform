@@ -292,6 +292,7 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     assert_empty Submission.where(user_id: @f.classmate.id, text: "Raced")
 
     # The reload resolves the old id to the copy and saves there.
+    travel 1.second
     as_user(@f.classmate) { post "/api/v1/submissions", params: { content_block_id: @f.blocks[:exercise].id, text: "Raced" }, headers: auth_headers, as: :json }
     assert_response :created
     assert_equal ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "ContentBlock", old_id: @f.blocks[:exercise].id).new_id,
@@ -306,6 +307,7 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
   }.each do |state, change|
     test "a learner whose #{state} enrollment is on the shared curriculum still saves old ids on the copy" do
       copy_as_admin!
+      travel 1.second
       old_enrollment = Enrollment.create!(user: @f.classmate, cohort: @f.other_cohort, status: :active)
       change.call(old_enrollment)
 

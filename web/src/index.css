@@ -1348,3 +1348,30 @@ details[open] > :not(summary) {
     animation-timing-function: linear !important;
   }
 }
+
+@page completion-certificate {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+@media print {
+  .certificate-page {
+    page: completion-certificate;
+    color-scheme: light;
+    display: grid;
+    align-content: center;
+    min-block-size: 184mm;
+    --csg-surface-raised: #ffffff;
+    --csg-surface-sunken: #ffffff;
+    --csg-ink: #0f172a;
+    --csg-ink-secondary: #334155;
+    --csg-line: #94a3b8;
+    --csg-line-strong: #475569;
+    --csg-success-ink: #166534;
+    --csg-success-soft: #ffffff;
+    --csg-success-line: #166534;
+    --csg-danger-ink: #991b1b;
+    --csg-danger-soft: #ffffff;
+    --csg-danger-line: #991b1b;
+  }
+}

@@ -9,7 +9,7 @@ export function PostHogPageView() {
   const location = useLocation()
 
   useEffect(() => {
-    if (!isPostHogEnabled) return
+    if (!isPostHogEnabled || location.pathname.startsWith('/certificates/')) return
     const url = `${window.location.origin}${location.pathname}`
     const pathname = location.pathname
     withPostHog((posthog) => {

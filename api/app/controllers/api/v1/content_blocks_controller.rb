@@ -269,6 +269,7 @@ module Api
       private
 
       def record_video_activity!(progress)
+        CourseCompletion.evaluate!(progress.enrollment) if progress.saved_change_to_status? && progress.completed?
         event_type = if progress.saved_change_to_status? && progress.completed?
           "video_completed"
         elsif progress.saved_change_to_video_total_watched? &&

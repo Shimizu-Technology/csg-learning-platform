@@ -6,7 +6,7 @@ class CohortHomeProjection
 
   def call
     payload = {
-      features: FeatureSwitches.for(cohort: @cohort),
+      features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: @cohort)),
       cohort: cohort_summary,
       permissions: permissions,
       upcoming_events: @viewer.staff? || FeatureSwitches.for(cohort: @cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(@cohort), limit: 4) : [],

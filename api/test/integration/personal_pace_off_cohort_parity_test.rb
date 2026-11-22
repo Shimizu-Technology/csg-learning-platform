@@ -5,10 +5,10 @@ require "test_helper"
 # program cohort (Cohort 3's shape, with the new student experience off and on),
 # a guided cohort with pace off, and the alumni library sees, byte for byte,
 # with a golden file recorded on origin/main (6c169d6d) before W9.1 existed:
-# X-6 adds only the intentional default-Off github_app and github_issue_delivery_v2
-# feature keys to this baseline, W9.3 adds only the default-Off learner_nudges key,
-# and W9.8/AS-9 adds only the default-Off self_paced_peer_space key; all existing
-# fields and behavior remain unchanged.
+# X-6 adds only the intentional default-Off github_app feature key to this
+# baseline, W9.3 adds only the default-Off learner_nudges key, and W9.8/AS-9
+# adds only the default-Off self_paced_peer_space key; all existing fields and
+# behavior remain unchanged. AS-8 and X-6.8 add no certificate or Redo-delivery keys when Off.
 # Today and the dashboard, the course outline, the weekly plan, progress, each
 # module, whether each lesson opens, the staff progress view, and the daily
 # unlock digest candidates.
@@ -75,6 +75,7 @@ class PersonalPaceOffCohortParityTest < ActionDispatch::IntegrationTest
     }
     snapshot["daily_unlock_candidates"] = DailyUnlockNotifications.new.send(:candidates, NOW).map { |delivery| [ delivery[:enrollment].id, delivery[:lessons].map(&:id) ] }.sort
     snapshot["daily_unlock_preview"] = DailyUnlockNotifications.new.preview(now: NOW)
+    assert_empty Certificate.all
 
     if ENV["UPDATE_GOLDEN"] == "1"
       GOLDEN.dirname.mkpath

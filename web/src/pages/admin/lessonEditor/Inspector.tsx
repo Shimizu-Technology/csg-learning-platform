@@ -300,6 +300,16 @@ function BlockSettings({ block, onBlock, activity, objectives, rubrics, onRubric
               {SUBMISSION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             <p className="-mt-1 text-xs leading-5 text-ink-muted">{submissionTypeHint(block.submission_type)} Reviewed work goes to the cohort's grading queue, self-paced work included.</p>
+            {isExercise && <div>
+              <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-ink-secondary">
+                <input type="checkbox" className="size-5 shrink-0 accent-action-primary" checked={block.metadata.final_project === true}
+                  disabled={readOnly} onChange={(event) => onBlock({ metadata: { ...block.metadata, final_project: event.target.checked } })} />
+                Final project (required for completion certificate)
+              </label>
+              {block.metadata.final_project === true && block.submission_type === 'manual_complete' && (
+                <p className="text-sm text-warning-ink">Choose a reviewed submission type so an instructor can grade this final project.</p>
+              )}
+            </div>}
           </>
         )}
         {isExercise && (

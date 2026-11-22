@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { RefreshCw, UserRound } from 'lucide-react'
 import { NavLink, useParams } from 'react-router-dom'
 import { StudentAccess } from '../../components/admin/StudentAccess'
+import { StudentCertificatePanel } from '../../components/admin/StudentCertificatePanel'
 import { StudentCommunication } from '../../components/admin/StudentCommunication'
 import { StudentLearningPlan } from '../../components/admin/StudentLearningPlan'
 import { StudentExtensions } from '../../components/admin/StudentExtensions'
@@ -167,6 +168,9 @@ function Workspace() {
           </div>
         </nav>
 
+        {activeTab === 'overview' && progress.course_certificate && (
+          <StudentCertificatePanel summary={progress.course_certificate} enrollmentId={progress.enrollment.id} onSaved={() => load(false)} />
+        )}
         {activeTab === 'overview' && (
           <OverviewTab
             returnState={returnState}
