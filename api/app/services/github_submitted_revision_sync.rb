@@ -76,12 +76,14 @@ class GithubSubmittedRevisionSync
           # moves backwards (or a historical row has a future timestamp). The
           # actual capture clock remains separate in provenance.
           created_at = [ captured_at, previous&.created_at ].compact.max
+          repository_id = @repository.fetch("id").to_i
           submission = Submission.create!(user: user, enrollment: enrollment, content_block: block,
             submission_type: :prework_github_sync, text: text, commit_sha: sha, branch: repo_data[:branch],
             created_at: created_at,
             github_code_url: "https://github.com/#{@repository.fetch('full_name')}/blob/#{sha}/#{ERB::Util.url_encode(path).gsub('%2F', '/')}#L1-L#{text.count("\n") + 1}",
+            github_repository_id: repository_id,
             num_submissions: (previous&.num_submissions || 0) + 1,
-            github_revision: { "version" => 1, "binding_id" => @binding.id, "repository_id" => @repository.fetch("id").to_i,
+            github_revision: { "version" => 1, "binding_id" => @binding.id, "repository_id" => repository_id,
               "repository_full_name" => @repository.fetch("full_name"), "paths" => [ path ],
               "content_digest" => Digest::SHA256.hexdigest(text), "source_bytes" => text.bytesize,
               "captured_at" => captured_at.iso8601(6) })

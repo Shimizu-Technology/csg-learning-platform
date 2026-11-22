@@ -31,16 +31,30 @@ class GithubCheckRunSyncService
       @repository_access.repository!
     end
 
-    result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
+    fetched_sha = submission.commit_sha
+    pre_fetch_versions = submission.github_check_runs
+      .where(head_sha: fetched_sha)
+      .pluck(:id, :updated_at, :status, :conclusion, :completed_at)
+      .each_with_object({}) do |(id, updated_at, status, conclusion, completed_at), versions|
+        versions[id] = {
+          updated_at: updated_at,
+          status: status,
+          conclusion: conclusion,
+          completed_at: completed_at
+        }
+      end
+
+    result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{fetched_sha}/check-runs", sha: fetched_sha)
     return failure(result[:error]) if result[:error]
 
     runs = result[:runs]
-    imported = GithubCheckRun.transaction do
-      current = runs.map { |attributes| upsert_run(attributes) }
-      prune_obsolete_current_commit_runs(runs)
-      current
-    end
-    { check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse, error: nil }
+    GithubCheckRunMerger.sync_snapshot!(
+      submission: submission,
+      runs: runs,
+      fetched_at: now,
+      pre_fetch_versions: pre_fetch_versions,
+      fetched_sha: fetched_sha
+    )
   rescue GithubRepositoryAccess::BindingChanged => error
     failure(error.message)
   rescue GithubAppClient::Error => error
@@ -58,39 +72,16 @@ class GithubCheckRunSyncService
   attr_reader :submission, :token, :now
 
   def repository_coordinates
-    [ submission.repo_url, submission.pr_url, submission.github_code_url ].compact_blank.each do |value|
-      uri = URI.parse(value)
-      next unless uri.scheme == "https" && uri.host == "github.com"
-
-      owner, repository = uri.path.split("/").reject(&:blank?).first(2)
-      return [ owner, repository&.delete_suffix(".git") ] if owner.present? && repository.present?
-    end
-    nil
+    full_name = GithubCheckRunMerger.submission_repository_full_name(submission)
+    full_name&.split("/", 2)
   end
 
-  def upsert_run(attributes)
-    run = submission.github_check_runs.find_or_initialize_by(external_id: attributes.fetch("id"))
-    run.update!(
-      name: attributes.fetch("name"),
-      workflow_name: attributes.dig("check_suite", "app", "name"),
-      app_slug: attributes.dig("app", "slug"),
-      head_sha: attributes.fetch("head_sha"),
-      status: attributes.fetch("status"),
-      conclusion: attributes["conclusion"],
-      details_url: attributes["details_url"],
-      started_at: attributes["started_at"],
-      completed_at: attributes["completed_at"],
-      fetched_at: now
-    )
-    run
-  end
-
-  def fetch_runs(url)
+  def fetch_runs(url, sha:)
     runs = []
     page = 1
     loop do
       if @app_binding
-        data = @app_client.checks(installation: @app_binding.github_app_installation, repository_id: @app_binding.repository_id, full_name: @app_binding.full_name, sha: submission.commit_sha, page: page)
+        data = @app_client.checks(installation: @app_binding.github_app_installation, repository_id: @app_binding.repository_id, full_name: @app_binding.full_name, sha: sha, page: page)
       else
         response = github_get(url, page: page)
         return { runs: [], error: "GitHub checks could not be loaded (HTTP #{response.code})" } unless response.success?
@@ -106,13 +97,6 @@ class GithubCheckRunSyncService
       page += 1
     end
     { runs: runs, error: nil }
-  end
-
-  def prune_obsolete_current_commit_runs(runs)
-    external_ids = runs.map { |attributes| attributes.fetch("id") }
-    scope = submission.github_check_runs.where(head_sha: submission.commit_sha)
-    scope = scope.where.not(external_id: external_ids) if external_ids.any?
-    scope.delete_all
   end
 
   def headers

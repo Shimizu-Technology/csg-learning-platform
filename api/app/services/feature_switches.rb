@@ -16,6 +16,7 @@ class FeatureSwitches
     "help_requests" => true,
     "github_sync" => true,
     "github_app" => false,
+    "github_webhooks" => false,
     # X-6.8 reliable Redo GitHub issues: durable outbox scoped by enrollment and binding.
     "github_issue_delivery_v2" => false,
     "announcements" => true,
@@ -28,7 +29,7 @@ class FeatureSwitches
   }.freeze
   # Switches a cohort only gets by opting in itself, with the school switch on:
   # a cohort that inherits gets Off even when the school default is On.
-  COHORT_OPT_IN = %w[github_app github_issue_delivery_v2 self_paced_peer_space learner_nudges certificates].freeze
+  COHORT_OPT_IN = %w[github_app github_webhooks github_issue_delivery_v2 self_paced_peer_space learner_nudges certificates].freeze
   KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
@@ -44,7 +45,7 @@ class FeatureSwitches
   # Server-only switches never appear in learner/client payloads (session, dashboard,
   # cohorts), even when enabled at the school or cohort level. Admin feature_settings
   # endpoints read FeatureSwitches.for directly and still expose them for management.
-  SERVER_ONLY = %w[github_issue_delivery_v2].freeze
+  SERVER_ONLY = %w[github_webhooks github_issue_delivery_v2].freeze
 
   # Disabled opt-in switches added after the baseline stay implicit in existing
   # client payloads. The management endpoint still includes explicit defaults and overrides.
