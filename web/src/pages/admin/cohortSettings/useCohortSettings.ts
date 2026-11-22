@@ -163,6 +163,13 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
       notifyError(paceWeeksProblem(editPaceWeeks)!)
       return
     }
+    if (editCourseDelivery !== 'program' && 'seat_limit' in offeringDraft) {
+      const limit = offeringDraft.seat_limit
+      if (limit !== null && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1)) {
+        notifyError('Seat limit must be a whole number of at least 1, or blank for unlimited.')
+        return
+      }
+    }
     setSaving(true)
     try {
       const candidates = {
@@ -189,13 +196,20 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
       const paceChange = JSON.stringify(paceWeeks) !== JSON.stringify(cohort.learner_pace_weeks?.length ? cohort.learner_pace_weeks : null)
         ? { learner_pace_weeks: paceWeeks }
         : {}
+      const programClearing = editCourseDelivery === 'program'
+        ? {
+            ...(cohort.seat_limit != null ? { seat_limit: null } : {}),
+            ...(cohort.unlisted ? { unlisted: false } : {}),
+            ...(cohort.public_checkout_enabled ? { public_checkout_enabled: false } : {}),
+          }
+        : offeringDraft
       const patch = {
         ...Object.fromEntries(
           Object.entries(candidates).filter(([key, value]) => value !== baseline[key as keyof typeof baseline]),
         ),
         ...paceChange,
         ...(nextStepChanged ? { settings: { next_step: Object.values(editNextStep).some((value) => value.trim()) ? editNextStep : null } } : {}),
-        ...offeringDraft,
+        ...programClearing,
       }
       const res = Object.keys(patch).length
         ? await api.updateCohort(Number(id), patch)

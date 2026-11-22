@@ -68,6 +68,7 @@ class Cohort < ApplicationRecord
   validates :guided_access_months, numericality: { only_integer: true, in: 1..120 }, allow_nil: true
   validates :guided_support_weeks, numericality: { only_integer: true, in: 1..104 }, allow_nil: true
   validates :review_sla_business_days, numericality: { only_integer: true, in: 1..30 }, allow_nil: true
+  validates :seat_limit, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :course_delivery, inclusion: { in: %w[program guided self_paced] }
   before_validation :normalize_learner_pace_weeks
   validate :learner_pace_weeks_are_valid
@@ -90,7 +91,9 @@ class Cohort < ApplicationRecord
   validate :curriculum_change_allowed
   before_save :reset_content_defaults_for_curriculum
   validate :guided_access_dates_are_valid
-  validate :checkout_is_self_paced
+  validate :checkout_delivery_allowed
+  validate :seat_limit_requires_checkout_delivery
+  validate :unlisted_requires_checkout_delivery
   validate :support_instructor_is_staff
   validates :public_price_cents, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :stripe_price_id, format: { with: /\Aprice_[a-zA-Z0-9_]+\z/ }, allow_blank: true
@@ -212,12 +215,18 @@ class Cohort < ApplicationRecord
     end
   end
 
+  CHECKOUT_DELIVERIES = %w[self_paced guided].freeze
+
   def self_paced?
     course_delivery == "self_paced"
   end
 
   def guided?
     course_delivery == "guided"
+  end
+
+  def checkout_eligible_delivery?
+    CHECKOUT_DELIVERIES.include?(course_delivery) && !alumni?
   end
 
   def optional_guided_check_ins?
@@ -256,7 +265,57 @@ class Cohort < ApplicationRecord
   end
 
   def purchase_ready?
-    self_paced? && public_checkout_enabled? && offering_readiness.values.all?
+    checkout_eligible_delivery? && public_checkout_enabled? && offering_readiness.values.all?
+  end
+
+  def occupied_enrollment_user_ids(at: Time.current)
+    enrollments.where(status: %i[active paused completed]).unexpired(at: at)
+      .joins(:user).merge(User.not_archived)
+      .distinct.pluck(:user_id)
+  end
+
+  def active_pending_purchase_user_ids(at: Time.current)
+    course_purchases.holding_seat(at: at).distinct.pluck(:user_id)
+  end
+
+  def seats_taken(at: Time.current, excluding_user_id: nil)
+    ids = occupied_enrollment_user_ids(at: at) | active_pending_purchase_user_ids(at: at)
+    ids.delete(excluding_user_id) if excluding_user_id
+    ids.size
+  end
+
+  def seats_remaining(at: Time.current)
+    return nil if seat_limit.nil?
+
+    [ seat_limit - seats_taken(at: at), 0 ].max
+  end
+
+  def sold_out?(at: Time.current)
+    seat_limit.present? && seats_taken(at: at) >= seat_limit
+  end
+
+  def full_for_checkout?(user:, at: Time.current)
+    seat_limit.present? && seats_taken(at: at, excluding_user_id: user.id) >= seat_limit
+  end
+
+  def seat_capacity(at: Time.current, include_taken_when_unlimited: true)
+    if seat_limit.nil?
+      {
+        seat_limit: nil,
+        seats_taken: include_taken_when_unlimited ? seats_taken(at: at) : nil,
+        seats_remaining: nil,
+        sold_out: false
+      }
+    else
+      taken = seats_taken(at: at)
+      remaining = [ seat_limit - taken, 0 ].max
+      {
+        seat_limit: seat_limit,
+        seats_taken: taken,
+        seats_remaining: remaining,
+        sold_out: remaining.zero?
+      }
+    end
   end
 
   def offering_readiness
@@ -303,8 +362,16 @@ class Cohort < ApplicationRecord
     end
   end
 
-  def checkout_is_self_paced
-    errors.add(:public_checkout_enabled, "requires a self-paced course") if public_checkout_enabled? && !self_paced?
+  def checkout_delivery_allowed
+    errors.add(:public_checkout_enabled, "requires a guided or self-paced course") if public_checkout_enabled? && !checkout_eligible_delivery?
+  end
+
+  def seat_limit_requires_checkout_delivery
+    errors.add(:seat_limit, "is only for guided or self-paced courses") if seat_limit.present? && !checkout_eligible_delivery?
+  end
+
+  def unlisted_requires_checkout_delivery
+    errors.add(:unlisted, "is only for guided or self-paced courses") if unlisted? && !checkout_eligible_delivery?
   end
 
   def support_instructor_is_staff

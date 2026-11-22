@@ -1,6 +1,7 @@
 class CourseCheckout
   class Unavailable < StandardError; end
   class SetupFailure < Unavailable; end
+  class CohortFull < Unavailable; end
 
   def self.enabled?
     !!(ActiveModel::Type::Boolean.new.cast(ENV["COURSE_CHECKOUT_ENABLED"]) &&
@@ -50,6 +51,12 @@ class CourseCheckout
       else
         begin
           prepare_attempt!(purchase, user, cohort)
+        rescue CohortFull => error
+          if purchase.status == "pending" && purchase.stripe_session_id.present?
+            purchase.update!(status: "expired", checkout_url: nil, checkout_expires_at: nil)
+          end
+          setup_error = error
+          nil
         rescue SetupFailure => error
           # Reconciliation above proved any prior session expired; no new
           # session was requested. Commit the definitive failure before raising.
@@ -84,6 +91,8 @@ class CourseCheckout
       raise Unavailable, "Your checkout is still open; try again shortly" unless old_session.status == "expired"
     end
 
+    raise CohortFull, "This cohort is full" if cohort.full_for_checkout?(user: user)
+
     stripe_price = begin
       client.v1.prices.retrieve(cohort.stripe_price_id)
     rescue Stripe::StripeError
@@ -94,6 +103,7 @@ class CourseCheckout
     end
 
     identifier = purchase.integration_identifier.presence || "csglearn#{Array.new(8) { ("a".ord + SecureRandom.random_number(26)).chr }.join}"
+    course_path = cohort.unlisted? && cohort.public_slug.present? ? "/courses/#{cohort.public_slug}" : "/courses"
     params = {
       mode: "payment",
       line_items: [ { price: cohort.stripe_price_id, quantity: 1 } ],
@@ -101,15 +111,27 @@ class CourseCheckout
       client_reference_id: purchase.id.to_s,
       metadata: { purchase_id: purchase.id.to_s },
       payment_intent_data: { metadata: { course_purchase_id: purchase.id.to_s } },
-      success_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=return&purchase_id=#{purchase.id}&offering_id=#{cohort.id}",
-      cancel_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=canceled&offering_id=#{cohort.id}",
+      success_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}#{course_path}?checkout=return&purchase_id=#{purchase.id}&offering_id=#{cohort.id}",
+      cancel_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}#{course_path}?checkout=canceled&offering_id=#{cohort.id}",
       integration_identifier: identifier
     }
-    purchase.update!(status: "pending", stripe_session_id: nil, checkout_url: nil, checkout_expires_at: nil,
-      stripe_price_id: cohort.stripe_price_id, price_cents: cohort.public_price_cents,
-      access_months: cohort.self_paced_access_months, support_weeks: cohort.self_paced_support_weeks,
-      integration_identifier: identifier,
-      checkout_attempt: { key: "csg-course-#{purchase.id}-#{SecureRandom.uuid}", requested_at: Time.current.iso8601, params: params })
+
+    # Acquire cohort row lock to serialize concurrent seat reservations before
+    # marking this purchase pending (which holds a seat until expiry).
+    cohort.with_lock do
+      raise Unavailable, "Course checkout is not available" unless cohort.purchase_ready?
+      raise CohortFull, "This cohort is full" if cohort.full_for_checkout?(user: user)
+
+      access_months = cohort.guided? ? (cohort.guided_access_ends_on.present? ? nil : cohort.guided_access_months) : cohort.self_paced_access_months
+      support_weeks = cohort.guided? ? (cohort.guided_support_ends_on.present? ? nil : cohort.guided_support_weeks) : cohort.self_paced_support_weeks
+      purchase.update!(
+        status: "pending", stripe_session_id: nil, checkout_url: nil, checkout_expires_at: nil,
+        stripe_price_id: cohort.stripe_price_id, price_cents: cohort.public_price_cents,
+        access_months: access_months, support_weeks: support_weeks, over_capacity: false,
+        integration_identifier: identifier,
+        checkout_attempt: { key: "csg-course-#{purchase.id}-#{SecureRandom.uuid}", requested_at: Time.current.iso8601, params: params }
+      )
+    end
     purchase.checkout_attempt
   end
   private_class_method :prepare_attempt!

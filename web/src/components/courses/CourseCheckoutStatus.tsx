@@ -66,7 +66,7 @@ export function CourseCheckoutStatus({ purchaseId, canceled = false }: { purchas
       : <>
         <p className="mt-2 text-sm text-ink-secondary">{canContinue ? 'Continue securely. We will reopen your checkout or start a new attempt only if the previous session has expired.' : setupFailed ? 'No checkout session was started. Return to your course to try again.' : starting ? result.can_resume ? 'The checkout request has no confirmed session yet. Resume the same attempt or contact support before making another payment.' : `Contact ${brand.schoolAbbreviation} to check this checkout before making another payment.` : problem ? `Contact ${brand.schoolAbbreviation} to check your purchase and course access.` : 'Please wait for confirmation before making another payment.'}</p>
         {!isSignedIn && <LinkButton className="mt-4" to={`/sign-in?checkout=return&purchase_id=${encodeURIComponent(purchaseId)}`}>Sign in to check enrollment</LinkButton>}
-        {setupFailed && <LinkButton className="mt-4" to={`/courses?offering_id=${result.cohort.id}`}>Try checkout again</LinkButton>}
+        {setupFailed && <LinkButton className="mt-4" to={result.cohort.unlisted && result.cohort.slug ? `/courses/${result.cohort.slug}` : `/courses?offering_id=${result.cohort.id}`}>Try checkout again</LinkButton>}
         {canContinue && <Button className="mt-4" disabled={resuming} onClick={() => void resumeCheckout()}>{resuming ? 'Opening checkout…' : 'Continue checkout'}</Button>}
         {starting && result.can_resume && <Button className="mt-4" disabled={resuming} onClick={() => void resumeCheckout()}>{resuming ? 'Resuming…' : 'Resume checkout'}</Button>}
         {resumeError && <p role="alert" className="mt-2 text-sm text-danger-ink">{resumeError}</p>}

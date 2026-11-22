@@ -3,7 +3,7 @@ module Api
     class CourseOfferingsController < ApplicationController
       def index
         render json: { public_catalog_mode: SchoolSetting.current.public_catalog_mode,
-          offerings: offerings.select(&:published_selected_content?).map { |cohort| PublicCourseSerializer.call(cohort) } }
+          offerings: offerings.where(unlisted: false).select(&:published_selected_content?).map { |cohort| PublicCourseSerializer.call(cohort) } }
       end
 
       def show
@@ -15,7 +15,8 @@ module Api
       private
 
       def offerings
-        Cohort.active.where(course_delivery: "self_paced", public_checkout_enabled: true)
+        Cohort.active.where(course_delivery: Cohort::CHECKOUT_DELIVERIES, public_checkout_enabled: true)
+          .where.not(cohort_type: :alumni)
           .where.not(public_slug: nil)
           .joins(:curriculum).merge(Curriculum.active).includes(:curriculum, :support_instructor).order(:id)
       end

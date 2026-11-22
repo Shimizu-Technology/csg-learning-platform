@@ -58,3 +58,49 @@ it('uses Sign in to recover an unlisted course when the school hides its catalog
   expect(host.querySelector('a[href="/courses"]')).toBeNull()
   expect(host.textContent).not.toContain('Try again')
 })
+
+it('shows seats remaining and guided terms on a capped small-class course page', async () => {
+  const guided = {
+    ...course,
+    course_delivery: 'guided' as const,
+    unlisted: true,
+    access_months: 12,
+    instructor_message_weeks: 8,
+    guided_access_ends_on: null,
+    guided_support_ends_on: null,
+    seat_limit: 15,
+    seats_taken: 11,
+    seats_remaining: 4,
+    sold_out: false,
+  }
+  state.api.getCourseOffering.mockResolvedValue({ data: { offering: guided } })
+  await render()
+  expect(host.textContent).toContain('Small-class course')
+  expect(host.textContent).toContain('4 of 15 seats remaining')
+  expect(host.textContent).toContain('12 months of lesson access from your start')
+  expect(host.textContent).toContain('Ask an instructor for help for 8 weeks from your start')
+  expect(host.querySelector('a[href="/sign-up?offering_id=13&offering_slug=course-counter"]')).not.toBeNull()
+  expect(host.querySelector('a[href="/courses"]')).toBeNull()
+})
+
+it('shows a disabled Cohort full state with support waitlist guidance when sold out', async () => {
+  state.auth.isSignedIn = true
+  state.auth.user = { id: 1 }
+  state.api.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [] } })
+  const full = {
+    ...course,
+    course_delivery: 'guided' as const,
+    seat_limit: 10,
+    seats_taken: 10,
+    seats_remaining: 0,
+    sold_out: true,
+  }
+  state.api.getCourseOffering.mockResolvedValue({ data: { offering: full } })
+  await render()
+  expect(host.textContent).toContain('Cohort full · 0 of 10 seats remaining')
+  const btn = [...host.querySelectorAll('main button')].find(el => el.textContent?.includes('Cohort full')) as HTMLButtonElement
+  expect(btn).toBeDefined()
+  expect(btn.disabled).toBe(true)
+  expect(host.querySelector('a[href^="mailto:"]')?.textContent).toBeTruthy()
+  expect(host.textContent).not.toContain('Continue to secure checkout')
+})

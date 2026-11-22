@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -255,6 +255,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_040000) do
     t.integer "guided_access_months"
     t.integer "guided_support_weeks"
     t.integer "review_sla_business_days"
+    t.integer "seat_limit"
+    t.boolean "unlisted", default: false, null: false
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
@@ -265,6 +267,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_040000) do
     t.check_constraint "guided_support_weeks IS NULL OR guided_support_weeks > 0", name: "cohorts_guided_support_weeks_positive"
     t.check_constraint "public_price_cents IS NULL OR public_price_cents > 0", name: "cohort_public_price_positive"
     t.check_constraint "review_sla_business_days IS NULL OR review_sla_business_days > 0", name: "cohorts_review_sla_business_days_positive"
+    t.check_constraint "seat_limit IS NULL OR seat_limit > 0", name: "cohorts_seat_limit_positive"
     t.check_constraint "self_paced_access_months > 0 AND self_paced_support_weeks > 0", name: "cohort_self_paced_terms_positive"
   end
 
@@ -345,6 +348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_040000) do
     t.integer "support_weeks"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.boolean "over_capacity", default: false, null: false
     t.index ["cohort_id"], name: "index_course_purchases_on_cohort_id"
     t.index ["stripe_payment_intent_id"], name: "index_course_purchases_on_stripe_payment_intent_id", unique: true
     t.index ["stripe_session_id"], name: "index_course_purchases_on_stripe_session_id", unique: true

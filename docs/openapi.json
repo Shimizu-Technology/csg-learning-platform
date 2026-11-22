@@ -18918,6 +18918,38 @@
                 "minimum": 1,
                 "maximum": 30,
                 "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              "unlisted": {
+                "type": "boolean"
+              },
+              "seat_limit": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seats_taken": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "seats_remaining": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sold_out": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -18964,7 +18996,12 @@
               "public_duration",
               "public_prerequisites",
               "public_preview",
-              "learner_pace_weeks"
+              "learner_pace_weeks",
+              "unlisted",
+              "seat_limit",
+              "seats_taken",
+              "seats_remaining",
+              "sold_out"
             ],
             "additionalProperties": false
           }
@@ -20446,13 +20483,19 @@
             "type": "string"
           },
           "access_months": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "includes_private_meetings": {
             "type": "boolean"
           },
           "instructor_message_weeks": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "instructor_response_target": {
             "type": "string"
@@ -20511,6 +20554,49 @@
               ],
               "additionalProperties": false
             }
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "self_paced",
+              "guided"
+            ]
+          },
+          "unlisted": {
+            "type": "boolean"
+          },
+          "guided_access_ends_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guided_support_ends_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seat_limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seats_taken": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seats_remaining": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sold_out": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -20533,7 +20619,15 @@
           "preview",
           "slug",
           "lesson_count",
-          "syllabus"
+          "syllabus",
+          "course_delivery",
+          "unlisted",
+          "guided_access_ends_on",
+          "guided_support_ends_on",
+          "seat_limit",
+          "seats_taken",
+          "seats_remaining",
+          "sold_out"
         ],
         "additionalProperties": false
       },
@@ -25616,10 +25710,16 @@
             ]
           },
           "access_months": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "support_weeks": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "support_instructor": {
             "anyOf": [
@@ -25813,6 +25913,9 @@
                       "type": "null"
                     }
                   ]
+                },
+                "over_capacity": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -25825,10 +25928,33 @@
                 "created_at",
                 "updated_at",
                 "buyer",
-                "enrollment"
+                "enrollment",
+                "over_capacity"
               ],
               "additionalProperties": false
             }
+          },
+          "unlisted": {
+            "type": "boolean"
+          },
+          "seat_limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seats_taken": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "seats_remaining": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sold_out": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -25848,7 +25974,12 @@
           "paid_cents",
           "enrolled_count",
           "purchases_next_before",
-          "purchases"
+          "purchases",
+          "unlisted",
+          "seat_limit",
+          "seats_taken",
+          "seats_remaining",
+          "sold_out"
         ],
         "additionalProperties": false,
         "description": "A self-paced course offering and its purchases, for admins."
@@ -27541,6 +27672,38 @@
                 "minimum": 1,
                 "maximum": 30,
                 "description": "Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded."
+              },
+              "unlisted": {
+                "type": "boolean"
+              },
+              "seat_limit": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seats_taken": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "seats_remaining": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sold_out": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -27802,6 +27965,20 @@
               "next_step"
             ],
             "additionalProperties": false
+          },
+          "unlisted": {
+            "type": "boolean"
+          },
+          "seat_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

@@ -34,24 +34,45 @@ class CoursePurchaseFulfillment
       return if %w[paid refunded disputed].include?(purchase.status)
       purchase.snapshot_terms
       cohort = purchase.cohort
-      raise "Checkout purchase is not a self-paced course" unless cohort.self_paced?
+      raise "Checkout purchase is not eligible for in-app checkout" unless cohort.checkout_eligible_delivery?
       # The payer may use a different receipt email. Entitlement follows the verified Clerk account that
       # created this signed Checkout Session, not the payer's receipt address.
       raise "Checkout total changed" unless session.currency == "usd" && session.amount_subtotal == purchase.price_cents
 
+      over_capacity = false
       purchase.user.with_lock do
         cohort.with_lock do
+          # Never refuse or drop a paid learner if a late/expired session or
+          # concurrent enrollment fills the cap: enroll anyway and alert admins.
+          over_capacity = cohort.seat_limit.present? &&
+            cohort.seats_taken(excluding_user_id: purchase.user_id) >= cohort.seat_limit
+
           enrollment = Enrollment.find_or_initialize_by(user: purchase.user, cohort: cohort)
           enrollment.status = :active
-          enrollment.access_expires_at = Time.current + purchase.access_months.months
-          enrollment.self_paced_support_weeks = purchase.support_weeks
-          enrollment.first_opened_at = nil
-          enrollment.support_expires_at = nil
+          if cohort.guided?
+            # Guided terms (fixed dates or relative months/weeks) apply right at
+            # fulfillment. Preserve first_opened_at on reactivation so an
+            # existing personal-pace anchor and learning plan aren't shifted.
+            enrollment.apply_guided_purchase_terms(access_months: purchase.access_months, support_weeks: purchase.support_weeks)
+          else
+            # Self-paced support starts on the learner's next first open, so
+            # reactivation resets first_opened_at and support_expires_at.
+            enrollment.access_expires_at = Time.current + purchase.access_months.months
+            enrollment.self_paced_support_weeks = purchase.support_weeks
+            enrollment.first_opened_at = nil
+            enrollment.support_expires_at = nil
+          end
           enrollment.save!
           enrollment.assign_cohort_content_defaults!
         end
       end
-      purchase.update!(status: "paid", stripe_payment_intent_id: session.payment_intent)
+      purchase.update!(status: "paid", stripe_payment_intent_id: session.payment_intent, over_capacity: over_capacity)
+      if over_capacity
+        Rails.logger.warn(
+          "[CoursePurchaseFulfillment] over_capacity purchase_id=#{purchase.id} cohort_id=#{cohort.id} " \
+          "user_id=#{purchase.user_id} seat_limit=#{cohort.seat_limit}"
+        )
+      end
       # Deferred until this lock's transaction commits; a webhook replay returns above.
       AdminAlertJob.perform_later("CoursePurchase", purchase.id)
     end

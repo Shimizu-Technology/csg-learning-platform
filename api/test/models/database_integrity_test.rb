@@ -21,6 +21,7 @@ class DatabaseIntegrityTest < ModelCoverageTestCase
   test "cohort delivery price and terms are database constraints" do
     assert_database_rejects course, { course_delivery: "unknown" }, constraint: "cohort_course_delivery_valid"
     assert_database_rejects course, { public_price_cents: 0 }, constraint: "cohort_public_price_positive"
+    assert_database_rejects course, { seat_limit: 0 }, constraint: "cohorts_seat_limit_positive"
     assert_database_rejects course, { self_paced_access_months: 0 }, constraint: "cohort_self_paced_terms_positive"
     assert_database_rejects course, { self_paced_support_weeks: 0 }, constraint: "cohort_self_paced_terms_positive"
   end

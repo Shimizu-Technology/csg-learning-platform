@@ -492,6 +492,11 @@ export interface CourseOfferingTerms {
   public_description?: string | null;
   public_image_url?: string | null;
   public_checkout_enabled: boolean;
+  unlisted?: boolean;
+  seat_limit?: number | null;
+  seats_taken?: number;
+  seats_remaining?: number | null;
+  sold_out?: boolean;
   public_price_cents: number | null;
   stripe_price_id: string | null;
   support_instructor_id: number | null;

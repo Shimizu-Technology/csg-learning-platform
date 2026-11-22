@@ -523,7 +523,7 @@ export const api = {
   dismissStartHere: (cohortId: number) => fetchApi<{ dismissed: boolean }>('/api/v1/dashboard/start_here', { method: 'PATCH', body: JSON.stringify({ cohort_id: cohortId }) }),
   getCourseReceipt: (id: number) => fetchApi<{ url: string }>(`/api/v1/course_checkouts/${id}/receipt`, { cache: 'no-store' }),
   getCourseCheckoutStatus: (id: string | number) =>
-    fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
+    fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string; slug?: string | null; unlisted?: boolean }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
   getPendingCoursePurchases: () =>
     fetchApi<{ purchases: Array<{ id: number; cohort_id: number }> }>('/api/v1/course_checkouts', { cache: 'no-store' }),
   startCourseCheckout: (cohortId: number) =>
@@ -1066,6 +1066,8 @@ export const api = {
   createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string;
     course_delivery?: 'program' | 'guided' | 'self_paced'
     public_checkout_enabled?: boolean
+    unlisted?: boolean
+    seat_limit?: number | null
     guided_access_ends_on?: string | null
     guided_support_ends_on?: string | null
     guided_access_months?: number | null
@@ -1086,6 +1088,8 @@ export const api = {
     github_organization_name?: string | null
     course_delivery?: 'program' | 'guided' | 'self_paced'
     public_checkout_enabled?: boolean
+    unlisted?: boolean
+    seat_limit?: number | null
     public_price_cents?: number | null
     stripe_price_id?: string | null
     support_instructor_id?: number | null

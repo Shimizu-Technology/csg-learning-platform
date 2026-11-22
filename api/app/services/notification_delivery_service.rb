@@ -286,11 +286,24 @@ class NotificationDeliveryService
       return unless record.status == "paid"
 
       price = record.price_cents && ActiveSupport::NumberHelper.number_to_currency(record.price_cents / 100.0)
-      access = record.access_months && "#{record.access_months} #{"month".pluralize(record.access_months)} of access"
+      access = if record.cohort.guided? && record.cohort.guided_access_ends_on.present?
+        "access through #{record.cohort.guided_access_ends_on.strftime('%b %-d, %Y')}"
+      elsif record.access_months
+        "#{record.access_months} #{"month".pluralize(record.access_months)} of access"
+      end
+      over_cap = if record.over_capacity?
+        limit = record.cohort.seat_limit
+        limit ? "Over capacity (#{record.cohort.seats_taken}/#{limit} seats) — review enrollment" : "Over capacity — review enrollment"
+      end
+      title = if record.over_capacity?
+        "Over capacity: #{record.user.full_name} bought #{record.cohort.name}"
+      else
+        "#{record.user.full_name} bought #{record.cohort.name}"
+      end
       {
         actor: record.user, notification_type: :course_purchase,
-        title: "#{record.user.full_name} bought #{record.cohort.name}",
-        body: [ price, access ].compact.join(" · ").presence,
+        title: title,
+        body: [ over_cap, price, access ].compact.join(" · ").presence,
         path: RecordDestination.to_web_path(RecordDestination.build(kind: "student", id: record.user_id, context: { cohort_id: record.cohort_id }))
       }
     end

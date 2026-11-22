@@ -9101,6 +9101,11 @@ export interface components {
                 guided_support_weeks?: number;
                 /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
                 review_sla_business_days?: number;
+                unlisted: boolean;
+                seat_limit: number | null;
+                seats_taken: number;
+                seats_remaining: number | null;
+                sold_out: boolean;
             };
         };
         StudentCommunicationMessage: {
@@ -9430,9 +9435,9 @@ export interface components {
             checkout_available: boolean;
             price_cents: number | null;
             currency: string;
-            access_months: number;
+            access_months: number | null;
             includes_private_meetings: boolean;
-            instructor_message_weeks: number;
+            instructor_message_weeks: number | null;
             instructor_response_target: string;
             includes_individual_project_review: boolean;
             outcomes: string | null;
@@ -9445,6 +9450,15 @@ export interface components {
                 title: string;
                 lessons: string[];
             }[];
+            /** @enum {string} */
+            course_delivery: "self_paced" | "guided";
+            unlisted: boolean;
+            guided_access_ends_on: string | null;
+            guided_support_ends_on: string | null;
+            seat_limit: number | null;
+            seats_taken: number | null;
+            seats_remaining: number | null;
+            sold_out: boolean;
         };
         PublicCourseResponse: {
             offering: components["schemas"]["PublicCourse"];
@@ -10592,8 +10606,8 @@ export interface components {
             public_slug: string | null;
             checkout_enabled: boolean;
             price_cents: number | null;
-            access_months: number;
-            support_weeks: number;
+            access_months: number | null;
+            support_weeks: number | null;
             support_instructor: components["schemas"]["RecordDetailPerson"] | null;
             curriculum: {
                 id: number;
@@ -10636,7 +10650,13 @@ export interface components {
                     id: number;
                     status: string;
                 } | null;
+                over_capacity: boolean;
             }[];
+            unlisted: boolean;
+            seat_limit: number | null;
+            seats_taken: number;
+            seats_remaining: number | null;
+            sold_out: boolean;
         };
         /** @description The curriculum a course package was already imported as. */
         CoursePackageCurriculum: {
@@ -11057,6 +11077,11 @@ export interface components {
                 guided_support_weeks?: number;
                 /** @description Business days after submission, through the end of the target day in Guam. Weekends and school holidays are excluded. */
                 review_sla_business_days?: number;
+                unlisted?: boolean;
+                seat_limit?: number | null;
+                seats_taken?: number;
+                seats_remaining?: number | null;
+                sold_out?: boolean;
             };
         };
         CohortSettingsInput: {
@@ -11093,6 +11118,8 @@ export interface components {
             settings?: {
                 next_step: components["schemas"]["CourseCompletionNextStep"] | null;
             };
+            unlisted?: boolean;
+            seat_limit?: number | null;
         };
         CertificateVerification: {
             code: string;

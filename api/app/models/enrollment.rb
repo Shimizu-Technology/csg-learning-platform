@@ -293,6 +293,30 @@ class Enrollment < ApplicationRecord
     update_column(:joined_at, Time.current) if joined_at.nil?
   end
 
+  # Recalculates guided access and support cutoffs for in-app checkout
+  # fulfillment (new enrollment or reactivation of a dropped/expired learner).
+  # Fixed cohort dates win when set; otherwise relative terms start from the
+  # learner's staff-set start, the cohort start (if in the future), or today
+  # (for late joiners and repurchases) so a paid learner always receives their
+  # purchased window. Preserves first_opened_at and existing submissions.
+  def apply_guided_purchase_terms(access_months: nil, support_weeks: nil)
+    return unless cohort.guided?
+
+    anchor = starts_on || [ cohort.start_date, LearningCalendar.today ].compact.max
+    effective_access_months = access_months || cohort.guided_access_months
+    effective_support_weeks = support_weeks || cohort.guided_support_weeks
+
+    access_end = cohort.guided_access_ends_on
+    access_end ||= anchor + effective_access_months.months if effective_access_months
+    self.access_expires_at = guided_date_boundary(access_end)
+
+    support_end = guided_date_boundary(cohort.guided_support_ends_on)
+    if !support_end && effective_support_weeks
+      support_end = [ guided_date_boundary(anchor + effective_support_weeks.weeks), access_expires_at ].compact.min
+    end
+    self.support_expires_at = support_end
+  end
+
   private
 
   def starts_on_needs_personal_pace

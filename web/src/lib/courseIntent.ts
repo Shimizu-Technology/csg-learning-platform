@@ -7,12 +7,20 @@ export function offeringIdFrom(search: string): number | null {
   return /^[1-9]\d*$/.test(value) && Number.isSafeInteger(id) ? id : null
 }
 
+export function offeringSlugFrom(search: string): string | null {
+  const value = new URLSearchParams(search).get('offering_slug') || ''
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) ? value : null
+}
+
 export function courseIntentDestination(search: string, fallback = '/dashboard'): string {
   const params = new URLSearchParams(search)
   const purchaseId = params.get('purchase_id') || ''
-  if (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(purchaseId)) return `/courses?checkout=return&purchase_id=${purchaseId}`
+  const slug = offeringSlugFrom(search)
+  if (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(purchaseId)) {
+    return slug ? `/courses/${slug}?checkout=return&purchase_id=${purchaseId}` : `/courses?checkout=return&purchase_id=${purchaseId}`
+  }
   const id = offeringIdFrom(search)
-  if (id) return `/courses?offering_id=${id}`
+  if (id) return slug ? `/courses/${slug}` : `/courses?offering_id=${id}`
   return safeInternalReturnPath(params.get('redirect_url'), '') || safeInternalReturnPath(params.get('redirect'), fallback)
 }
 
@@ -20,6 +28,18 @@ export function courseAuthPath(path: '/sign-in' | '/sign-up', search: string): s
   const destination = courseIntentDestination(search)
   if (destination === '/dashboard') return path
   const params = new URLSearchParams(search)
-  if (offeringIdFrom(search) || (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(params.get('purchase_id') || ''))) return `${path}?${destination.split('?')[1]}`
+  const id = offeringIdFrom(search)
+  const slug = offeringSlugFrom(search)
+  const purchaseId = params.get('purchase_id') || ''
+  if (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(purchaseId)) {
+    const next = new URLSearchParams({ checkout: 'return', purchase_id: purchaseId })
+    if (slug) next.set('offering_slug', slug)
+    return `${path}?${next}`
+  }
+  if (id) {
+    const next = new URLSearchParams({ offering_id: String(id) })
+    if (slug) next.set('offering_slug', slug)
+    return `${path}?${next}`
+  }
   return `${path}?${new URLSearchParams({ redirect_url: destination })}`
 }

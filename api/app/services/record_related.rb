@@ -316,8 +316,8 @@ class RecordRelated
     items << item("recordings", count: cohort.recordings.count, cohort_id: cohort.id) if features["recordings"]
     # Posted updates only: a draft is private to its author and admins.
     items << item("updates", count: cohort.announcements.published.count, cohort_id: cohort.id) if features["announcements"]
-    # Admins: a self-paced course's paid purchases (L-3.2 "offering → purchases"), on its offering page.
-    items << item("purchases", count: CoursePurchase.where(cohort_id: cohort.id, status: "paid").count, cohort_id: cohort.id) if @viewer.admin? && cohort.self_paced?
+    # Admins: a checkout-eligible course's paid purchases (L-3.2 "offering → purchases"), on its offering page.
+    items << item("purchases", count: CoursePurchase.where(cohort_id: cohort.id, status: "paid").count, cohort_id: cohort.id) if @viewer.admin? && cohort.checkout_eligible_delivery?
 
     result("cohort", cohort.id, items, cohort: cohort)
   end
