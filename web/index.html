@@ -49,7 +49,7 @@
       (function () {
         var root = document.documentElement;
         // Keep in sync with surfaceForPath() in src/lib/brand.ts (asserted in brand.test.ts).
-        var PUBLIC_SURFACE = /^\/((sign-in|sign-up|courses|privacy|terms|account-deletion)(\/.*)?)?$/;
+        var PUBLIC_SURFACE = /^\/((sign-in|sign-up|courses|certificates|privacy|terms|account-deletion)(\/.*)?)?$/;
         var isPublic = PUBLIC_SURFACE.test(location.pathname);
         root.setAttribute('data-surface', isPublic ? 'public' : 'app');
         // Keep in sync with readThemePreference() and THEME_COLORS in src/lib/theme.ts (asserted in theme.test.ts).

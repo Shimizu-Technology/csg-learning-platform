@@ -21,6 +21,7 @@ import {
   formatPaceWeeks,
   parsePaceWeeks,
   paceWeeksProblem,
+  nextStepFields,
 } from './settingsForm'
 
 export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> } = {}) {
@@ -36,6 +37,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   const [reviewResponseDraft, setReviewResponseDraft] = useState<string | null | undefined>(undefined)
   const [savedReviewResponse, setSavedReviewResponse] = useState<SavedReviewResponse>()
   const [featureDraft, setFeatureDraft] = useState<Record<string, boolean | null> | null>(null)
+  const [editNextStep, setEditNextStep] = useState(nextStepFields)
   const [savedRevision, setSavedRevision] = useState(0)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -109,6 +111,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     (nextCohort: CohortData) => {
       setCohort(nextCohort)
       setClassResources(nextCohort.class_resources || [])
+      setEditNextStep(nextStepFields(nextCohort.settings?.next_step))
       setEditCourseDelivery(nextCohort.course_delivery || 'program')
       setGuidedTerms({
         guided_access_ends_on: nextCohort.guided_access_ends_on || '',
@@ -152,6 +155,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   }, [reloadCohort])
 
   const [loadError, setLoadError] = useState('')
+  const nextStepChanged = JSON.stringify(editNextStep) !== JSON.stringify(nextStepFields(cohort?.settings?.next_step))
   const saveSettings = async () => {
     if (!id || !cohort) return
     const pacing = editPaceEnabled && editCourseDelivery !== 'program'
@@ -190,6 +194,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
           Object.entries(candidates).filter(([key, value]) => value !== baseline[key as keyof typeof baseline]),
         ),
         ...paceChange,
+        ...(nextStepChanged ? { settings: { next_step: Object.values(editNextStep).some((value) => value.trim()) ? editNextStep : null } } : {}),
         ...offeringDraft,
       }
       const res = Object.keys(patch).length
@@ -341,6 +346,9 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     savedReviewResponse,
     featureDraft,
     setFeatureDraft,
+    editNextStep,
+    setEditNextStep,
+    nextStepChanged,
     savedRevision,
     loading,
     message,

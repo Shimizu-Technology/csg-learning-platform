@@ -180,7 +180,7 @@ module Api
           capabilities: EnrollmentCapabilities.for(enrollment),
           user: user_summary,
           cohort: {
-            features: FeatureSwitches.for(cohort: cohort),
+            features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: cohort)),
             id: cohort.id,
             name: cohort.name,
             cohort_type: cohort.cohort_type,
@@ -209,7 +209,11 @@ module Api
         # The redesigned Today (W8 PR 8.2) only for a cohort with the new student
         # experience explicitly on; every other cohort's payload is unchanged.
         features = FeatureSwitches.for(cohort: cohort)
-        dashboard[:student_today] = StudentToday.new(enrollment, progress: progress, features: features).call if features["student_experience_v2"] == true
+        if features["student_experience_v2"] == true
+          dashboard[:student_today] = StudentToday.new(enrollment, progress: progress, features: features).call
+        else
+          dashboard.merge!(CourseCompletion.learner_summary(enrollment, progress: progress, features: features))
+        end
         render json: { dashboard: dashboard }
       end
 
@@ -286,7 +290,7 @@ module Api
 
         {
           cohort: {
-            features: FeatureSwitches.for(cohort: cohort, school: @school_features),
+            features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: cohort, school: @school_features)),
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,

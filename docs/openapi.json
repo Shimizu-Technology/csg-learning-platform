@@ -3487,6 +3487,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
           }
         }
       }
@@ -4936,6 +4939,206 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/certificates/{code}": {
+      "parameters": [
+        {
+          "name": "code",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{12}$"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Verify a certificate without signing in",
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "429": {
+            "$ref": "#/components/responses/429"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/certificate": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read the signed-in learner\u2019s certificate and completion status",
+        "responses": {
+          "200": {
+            "description": "CourseCompletionResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseCompletionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Change the printed name on the signed-in learner\u2019s active certificate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificateNameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/certificate/reissue": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Reissue a certificate as staff assigned to the cohort",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificateReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        }
+      }
+    },
+    "/api/v1/enrollments/{enrollment_id}/certificate/revoke": {
+      "parameters": [
+        {
+          "name": "enrollment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Revoke a certificate as staff assigned to the cohort",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificateReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CertificateVerificationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
           }
         }
       }
@@ -10132,6 +10335,10 @@
           "learner_nudges_enabled": {
             "type": "boolean",
             "description": "Included (true) only when this enrollment's cohort sends learner reminders."
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Present when the course has certificates enabled or the enrollment has an active certificate."
           }
         },
         "required": [
@@ -10595,7 +10802,7 @@
         "properties": {
           "features": {
             "type": "object",
-            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app and self_paced_peer_space).",
+            "description": "Resolved boolean switches (including default-Off cohort opt-in switches github_app, self_paced_peer_space, learner_nudges, and certificates).",
             "additionalProperties": {
               "type": "boolean"
             }
@@ -13420,6 +13627,10 @@
           "student_today": {
             "$ref": "#/components/schemas/StudentToday",
             "description": "Present for enrolled student dashboards only when the cohort's student_experience_v2 switch is explicitly on."
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Legacy dashboard completion summary for courses using certificates."
           }
         },
         "required": [
@@ -17963,6 +18174,9 @@
           },
           "can_message": {
             "type": "boolean"
+          },
+          "course_certificate": {
+            "$ref": "#/components/schemas/StaffCourseCertificate"
           }
         },
         "required": [
@@ -18293,7 +18507,12 @@
                   {
                     "type": "object",
                     "additionalProperties": true,
-                    "description": "Stored cohort settings; intentionally arbitrary metadata."
+                    "description": "Stored cohort settings; intentionally arbitrary metadata.",
+                    "properties": {
+                      "next_step": {
+                        "$ref": "#/components/schemas/CourseCompletionNextStep"
+                      }
+                    }
                   },
                   {
                     "type": "null"
@@ -23544,6 +23763,10 @@
           },
           "next_redo": {
             "type": "boolean"
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Present when the course has certificates enabled or the enrollment has an active certificate."
           }
         },
         "required": [
@@ -24599,6 +24822,10 @@
           "personal_pace": {
             "$ref": "#/components/schemas/PersonalPace",
             "description": "Included only when the cohort has learner-chosen pace on (W9.1); other cohorts' Today is unchanged."
+          },
+          "course_completion": {
+            "$ref": "#/components/schemas/CourseCompletionResponse",
+            "description": "Present when the course has certificates enabled or the enrollment has an active certificate."
           }
         },
         "required": [
@@ -27556,8 +27783,213 @@
                 "type": "null"
               }
             ]
+          },
+          "settings": {
+            "type": "object",
+            "properties": {
+              "next_step": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CourseCompletionNextStep"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "next_step"
+            ],
+            "additionalProperties": false
           }
         }
+      },
+      "CertificateVerification": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{12}$"
+          },
+          "holder_name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "course_title": {
+            "type": "string"
+          },
+          "issuer_name": {
+            "type": "string"
+          },
+          "wording_version": {
+            "type": "integer"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "holder_name",
+          "course_title",
+          "issuer_name",
+          "wording_version",
+          "issued_at",
+          "revoked",
+          "revoked_at"
+        ],
+        "additionalProperties": false
+      },
+      "CertificateVerificationResponse": {
+        "type": "object",
+        "properties": {
+          "certificate": {
+            "$ref": "#/components/schemas/CertificateVerification"
+          }
+        },
+        "required": [
+          "certificate"
+        ],
+        "additionalProperties": false
+      },
+      "CertificateNameRequest": {
+        "type": "object",
+        "properties": {
+          "holder_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "holder_name"
+        ],
+        "additionalProperties": false
+      },
+      "CertificateReasonRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "CourseCompletionNextStep": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          },
+          "offering_slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,119}$"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "CourseCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "all_work_handed_in": {
+            "type": "boolean"
+          },
+          "course_completed": {
+            "type": "boolean"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CertificateVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseCompletionNextStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "enrollment_id",
+          "all_work_handed_in",
+          "course_completed",
+          "certificate",
+          "next_step"
+        ],
+        "additionalProperties": false
+      },
+      "StaffCourseCertificate": {
+        "type": "object",
+        "properties": {
+          "certificate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CertificateVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_issue": {
+            "type": "boolean"
+          },
+          "course_completed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "certificate",
+          "can_issue",
+          "course_completed"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {

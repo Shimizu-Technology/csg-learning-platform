@@ -288,9 +288,10 @@ class LessonBlockEditor
     end
     block.submission_config = payload[:submission_config].to_h if payload.key?(:submission_config)
     block.rubric_id = payload[:rubric_id].presence if payload.key?(:rubric_id)
-    block.metadata = payload[:metadata].to_h if block.new_record? && payload[:metadata].is_a?(Hash)
-    if payload[:metadata].is_a?(Hash) && (payload[:metadata].key?(:video_versions) || payload[:metadata].key?(:video_versions_duration_seconds))
-      block.metadata = (block.metadata || {}).merge(payload[:metadata].slice(:video_versions, :video_versions_duration_seconds).stringify_keys)
+    if payload[:metadata].is_a?(Hash)
+      block.metadata = payload[:metadata] if block.new_record?
+      editable = payload[:metadata].slice(:video_versions, :video_versions_duration_seconds, :final_project)
+      block.metadata = block.metadata.to_h.merge(editable.stringify_keys) if editable.present?
     end
     if payload.key?(:video_segments)
       block.metadata = (block.metadata || {}).merge(

@@ -21,11 +21,12 @@ class FeatureSwitches
     "learning_plans" => true,
     "student_experience_v2" => true,
     # W9.3 learner reminders: the school switch and an explicit cohort opt-in.
-    "learner_nudges" => false
+    "learner_nudges" => false,
+    "certificates" => false
   }.freeze
   # Switches a cohort only gets by opting in itself, with the school switch on:
   # a cohort that inherits gets Off even when the school default is On.
-  COHORT_OPT_IN = %w[github_app self_paced_peer_space learner_nudges].freeze
+  COHORT_OPT_IN = %w[github_app self_paced_peer_space learner_nudges certificates].freeze
   KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
@@ -36,6 +37,12 @@ class FeatureSwitches
     # Opt-in switches require both school activation and an explicit cohort opt-in.
     COHORT_OPT_IN.each { |key| resolved[key] = defaults[key] == true && overrides[key] == true } if cohort
     resolved
+  end
+
+  # A disabled certificate switch is implicit in existing client payloads.
+  # The management endpoint still includes the explicit default and override.
+  def self.for_client(features)
+    features["certificates"] == true ? features : features.except("certificates")
   end
 
   # Preview/audit callers must not lazily create a settings row.

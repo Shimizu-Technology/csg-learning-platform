@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -117,6 +117,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_030000) do
     t.index ["expires_at"], name: "index_cable_token_nonces_on_expires_at"
     t.index ["nonce"], name: "index_cable_token_nonces_on_nonce", unique: true
     t.index ["user_id"], name: "index_cable_token_nonces_on_user_id"
+  end
+
+  create_table "certificates", force: :cascade do |t|
+    t.bigint "enrollment_id", null: false
+    t.string "code", null: false
+    t.string "holder_name", null: false
+    t.string "course_title", null: false
+    t.string "issuer_name", null: false
+    t.integer "wording_version", default: 1, null: false
+    t.datetime "issued_at", null: false
+    t.bigint "issued_by_id"
+    t.text "issuance_reason"
+    t.datetime "revoked_at"
+    t.bigint "revoked_by_id"
+    t.text "revocation_reason"
+    t.index ["code"], name: "index_certificates_on_code", unique: true
+    t.index ["enrollment_id"], name: "index_certificates_on_active_enrollment_id", unique: true, where: "(revoked_at IS NULL)"
+    t.index ["enrollment_id"], name: "index_certificates_on_enrollment_id"
   end
 
   create_table "channel_read_states", force: :cascade do |t|
@@ -1512,6 +1530,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_030000) do
   add_foreign_key "auth_sessions", "users"
   add_foreign_key "authoring_clones", "users"
   add_foreign_key "cable_token_nonces", "users"
+  add_foreign_key "certificates", "enrollments", on_delete: :cascade
+  add_foreign_key "certificates", "users", column: "issued_by_id", on_delete: :nullify
+  add_foreign_key "certificates", "users", column: "revoked_by_id", on_delete: :nullify
   add_foreign_key "channel_read_states", "channels"
   add_foreign_key "channel_read_states", "messages", column: "last_read_message_id"
   add_foreign_key "channel_read_states", "users"

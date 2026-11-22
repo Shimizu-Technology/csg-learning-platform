@@ -1,4 +1,5 @@
 import { TERMS } from '../../lib/glossary'
+import { CourseCompletionStatus } from '../../components/student/CourseCompletionCards'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { StartHere } from '../../components/student/StartHere'
 import { brand } from '../../lib/brand'
@@ -235,6 +236,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   return (
     <div className="app-page max-w-5xl">
       {previewBanner}
+      {!previewData && !showingSavedData && <CourseCompletionStatus completion={data.course_completion} />}
       {data.start_here && !previewData && <StartHere key={data.cohort?.id} data={data} onDismiss={() => setData(current => current && current.cohort?.id === data.cohort?.id ? { ...current, start_here: false } : current)} />}
       {!paused && data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (

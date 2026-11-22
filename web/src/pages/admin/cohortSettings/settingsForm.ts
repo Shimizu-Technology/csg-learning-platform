@@ -1,6 +1,7 @@
 import { toDateTimeInputValueInTimeZone } from '../../../lib/dateTime'
 import { formatShortDate } from '../../../lib/format'
 import { schoolTimeZone, schoolWallTimeToIso } from '../../../lib/schoolTime'
+import type { CourseCompletionNextStep } from '../../../lib/certificates'
 import type { CourseOfferingTerms, InviteState, OfficeHour, OfficeHourOccurrence, ReviewAndGuidedTerms } from '../../../types/api'
 
 export const emptyGuidedTerms = {
@@ -57,6 +58,7 @@ export type CohortData = Record<string, any> &
     guided_access_ends_on?: string | null
     guided_support_ends_on?: string | null
     learner_pace_weeks?: number[] | null
+    settings?: { next_step?: CourseCompletionNextStep } | null
     class_resources?: ClassResource[]
     office_hours?: OfficeHour[]
     office_hour_occurrences?: OfficeHourOccurrence[]
@@ -102,6 +104,15 @@ export type CohortData = Record<string, any> &
       }>
     }>
   }
+
+export function nextStepFields(step?: CourseCompletionNextStep) {
+  return {
+    title: step?.title ?? '',
+    description: step?.description ?? '',
+    url: step?.url ?? '',
+    offering_slug: step?.offering_slug ?? '',
+  }
+}
 
 /** W9.1: the paces learners choose from when learner-chosen pace is first turned on. */
 export const DEFAULT_PACE_WEEKS = '3, 4, 6'

@@ -71,7 +71,8 @@ class StudentToday
       can_ask_for_plan: program_active? && !paced? && @features["learning_plans"] == true && @work.contact.present?,
       review_response_time: @cohort.effective_review_response_time,
       support: support_json,
-      recently_added: library? ? recently_added : []
+      recently_added: library? ? recently_added : [],
+      **CourseCompletion.learner_summary(@enrollment, progress: @progress, features: @features)
     }.tap do |json|
       # Only cohorts with personal pace on get the key, so every other
       # cohort's Today is unchanged (W9.1).

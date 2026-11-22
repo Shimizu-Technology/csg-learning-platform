@@ -1,3 +1,4 @@
+import { CourseCompletionStatus } from '../../components/student/CourseCompletionCards'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowRight, CalendarDays, CheckCircle2, ChevronDown, CircleHelp, Clock, ExternalLink, Hourglass, Lock, MessageCircle, RefreshCw, RotateCcw, WifiOff } from 'lucide-react'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
@@ -123,6 +124,7 @@ function TodayView({ data, today, saved, onDismissStartHere, onPaceSaved }: { da
         <div className="min-w-0 space-y-5">
           {/* A pace not chosen yet is the first thing to do (W9.1); once chosen it follows the next action. */}
           {paceCard && !paceChosen && paceCard}
+          {!saved && <CourseCompletionStatus completion={today.course_completion} />}
           {firstRun
             ? <FirstRunWelcome key={cohortId} data={data} today={today} lessonPath={today.next_lesson ? paths.lesson(today.next_lesson.id) : null} learnPath={learnPath} onDismiss={onDismissStartHere} />
             : <Hero data={data} today={today} paths={paths} learnPath={learnPath} myWorkPath={myWorkPath} messenger={messenger} />}

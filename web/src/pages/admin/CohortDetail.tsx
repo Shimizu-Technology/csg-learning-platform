@@ -72,6 +72,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
           dirty={
             reviewResponseDraft !== undefined ||
             featureDraft !== null ||
+            settings.nextStepChanged ||
             Object.keys(assignedChanges).length > 0 ||
             Object.keys(offeringDraft).length > 0 ||
             editStartDate !== toDateInputValue(cohort.start_date) ||
