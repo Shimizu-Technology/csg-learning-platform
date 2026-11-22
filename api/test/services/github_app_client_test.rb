@@ -1,7 +1,7 @@
 require "test_helper"
 
 class GithubAppClientTest < ActiveSupport::TestCase
-  Response = Struct.new(:code, :parsed_response) do
+  Response = Struct.new(:code, :parsed_response, :headers) do
     def success? = code.between?(200, 299)
   end
   Credentials = Struct.new(:app_id, :slug, :private_key) do
@@ -191,6 +191,79 @@ class GithubAppClientTest < ActiveSupport::TestCase
     assert_equal "closed", closed.fetch("state")
 
     assert_equal [ [ 98765 ] ], token_calls.map { |call| JSON.parse(call[2].fetch(:body)).fetch("repository_ids") }
+  end
+
+  test "find_issue_by_marker paginates through issues and comments and raises InconclusiveSearchError at page cap" do
+    repo_args = { installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises" }
+
+    # Marker on page 2 of issues
+    page_transport = Transport.new
+    original_request = page_transport.method(:request)
+    page_transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/issues") && method == :get
+        page = options.dig(:query, :page).to_i
+        if page == 1
+          return Response.new(200, Array.new(100) { |i| { "number" => i + 1, "html_url" => "https://github.com/app-learner/prework-exercises/issues/#{i + 1}", "state" => "open", "body" => "other" } },
+            { "Link" => '<https://api.github.com/repos/app-learner/prework-exercises/issues?page=2>; rel="next"' })
+        elsif page == 2
+          return Response.new(200, [ { "number" => 101, "html_url" => "https://github.com/app-learner/prework-exercises/issues/101", "state" => "open", "body" => "<!-- csg-delivery:page2 -->" } ], {})
+        end
+      end
+      original_request.call(method, url, options)
+    end
+    client = GithubAppClient.new(transport: page_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+
+    found = client.find_issue_by_marker(**repo_args, marker: "<!-- csg-delivery:page2 -->")
+    assert_equal 101, found.fetch("number")
+
+    # Marker not found after bounded page limit raises InconclusiveSearchError
+    cap_transport = Transport.new
+    cap_original = cap_transport.method(:request)
+    cap_transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/issues") && method == :get
+        page = options.dig(:query, :page).to_i
+        return Response.new(200, Array.new(100) { |i| { "number" => (page - 1) * 100 + i + 1, "html_url" => "https://github.com/app-learner/prework-exercises/issues/1", "state" => "open", "body" => "none" } },
+          { "Link" => %(<https://api.github.com/repos/app-learner/prework-exercises/issues?page=#{page + 1}>; rel="next") })
+      end
+      if url.end_with?("/issues/7/comments") && method == :get
+        page = options.dig(:query, :page).to_i
+        return Response.new(200, Array.new(100) { |i| { "id" => page * 100 + i, "body" => "no match" } },
+          { "Link" => %(<https://api.github.com/repos/app-learner/prework-exercises/issues/7/comments?page=#{page + 1}>; rel="next") })
+      end
+      cap_original.call(method, url, options)
+    end
+    cap_client = GithubAppClient.new(transport: cap_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+
+    error = assert_raises(GithubAppClient::InconclusiveSearchError) do
+      cap_client.find_issue_by_marker(**repo_args, marker: "<!-- csg-delivery:missing -->", max_pages: 2)
+    end
+    assert_includes error.message, "2 pages"
+
+    comment_error = assert_raises(GithubAppClient::InconclusiveSearchError) do
+      cap_client.find_issue_by_marker(**repo_args, marker: "<!-- csg-delivery:missing -->", issue_number: 7, max_pages: 2)
+    end
+    assert_includes comment_error.message, "2 pages"
+  end
+
+  test "403 rate limit responses are classified as rate_limited and transient with Retry-After without leaking body" do
+    rate_transport = Transport.new
+    original_request = rate_transport.method(:request)
+    rate_transport.define_singleton_method(:request) do |method, url, options|
+      return original_request.call(method, url, options) if url.end_with?("/access_tokens")
+
+      Response.new(403, { "message" => "SECRET API rate limit exceeded" }, { "X-RateLimit-Remaining" => "0", "Retry-After" => "120" })
+    end
+    client = GithubAppClient.new(transport: rate_transport, credentials: Credentials.new("12345", "synthetic-app", @key.to_pem), cache: ActiveSupport::Cache::MemoryStore.new)
+
+    error = assert_raises(GithubAppClient::Error) do
+      client.create_issue(installation: @installation, repository_id: 98765, full_name: "app-learner/prework-exercises", title: "Redo", body: "Fix")
+    end
+    assert_equal 403, error.status
+    assert error.rate_limited?
+    assert error.transient?
+    assert_equal 120, error.retry_after
+    assert_not_includes error.message, "SECRET"
+    assert_includes error.message, "rate limit"
   end
 
   private

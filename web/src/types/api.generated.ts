@@ -761,6 +761,13 @@ export interface paths {
                         "application/json": components["schemas"]["RetryGithubIssueResponse"];
                     };
                 };
+                /** @description GitHub feedback delivery is already in progress for this submission; try again in a moment. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;

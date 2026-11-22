@@ -16,7 +16,11 @@ class GithubIssueDelivery < ApplicationRecord
   validates :attempts, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :issue_number, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
 
-  scope :due, ->(now = Time.current) { where(status: "pending").where("next_retry_at IS NULL OR next_retry_at <= ?", now) }
+  scope :due, ->(now = Time.current) {
+    where(status: "pending")
+      .where("next_retry_at IS NULL OR next_retry_at <= ?", now)
+      .where("claimed_until IS NULL OR claimed_until <= ?", now)
+  }
   scope :active_outbox, -> { where(status: %w[pending failed]) }
   scope :delivered, -> { where(status: "delivered") }
 
@@ -24,6 +28,7 @@ class GithubIssueDelivery < ApplicationRecord
   def delivered? = status == "delivered"
   def failed? = status == "failed"
   def obsolete? = status == "obsolete"
+  def claimed?(now = Time.current) = claimed_until.present? && claimed_until > now
 
   def marker
     "<!-- csg-delivery:#{dedupe_token} -->"

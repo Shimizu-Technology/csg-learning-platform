@@ -5,14 +5,30 @@ require "openssl"
 # headers, tokens or key material in errors. Cache tokens in this process only.
 class GithubAppClient
   class Error < StandardError
-    attr_reader :status
-    def initialize(message, status: nil)
+    attr_reader :status, :retry_after
+
+    def initialize(message, status: nil, retry_after: nil, rate_limited: false)
       @status = status
+      @retry_after = retry_after
+      @rate_limited = rate_limited
       super(message)
+    end
+
+    def rate_limited? = @rate_limited == true
+
+    def transient?
+      rate_limited? ||
+        status == 429 ||
+        (status && status >= 500) ||
+        (status.nil? && message == PROVIDER_ERROR)
     end
   end
 
+  class InconclusiveSearchError < Error; end
+
   PROVIDER_ERROR = "GitHub is temporarily unavailable; try again".freeze
+  MARKER_SEARCH_MAX_PAGES = 5
+  MARKER_SEARCH_PER_PAGE = 100
   BASE = "https://api.github.com".freeze
   TOKEN_CACHE = ActiveSupport::Cache::MemoryStore.new(size: 1.megabyte)
 
@@ -86,29 +102,67 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
-  def find_issue_by_marker(installation:, repository_id:, full_name:, marker:, issue_number: nil)
+  def find_issue_by_marker(installation:, repository_id:, full_name:, marker:, issue_number: nil, max_pages: MARKER_SEARCH_MAX_PAGES)
     validate_repo_target!(repository_id: repository_id, full_name: full_name)
     raise Error, PROVIDER_ERROR unless marker.is_a?(String) && marker.present?
 
+    pages_limit = Integer(max_pages)
+    raise Error, PROVIDER_ERROR unless pages_limit.positive?
+
     if issue_number
       num = validate_issue_number!(issue_number)
-      comments = installation_request(installation, :get, "/repos/#{full_name}/issues/#{num}/comments", repository_id: repository_id, query: { per_page: 100 }, expect: Array)
-      matched = comments.find { |item| item.is_a?(Hash) && item["body"].to_s.include?(marker) }
-      if matched
-        issue = get_issue(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num)
-        return issue.merge("matched_comment" => true)
+      inconclusive = false
+
+      1.upto(pages_limit) do |page|
+        comments, headers = installation_request(
+          installation,
+          :get,
+          "/repos/#{full_name}/issues/#{num}/comments",
+          repository_id: repository_id,
+          query: { per_page: MARKER_SEARCH_PER_PAGE, page: page },
+          expect: Array,
+          include_headers: true
+        )
+        matched = comments.find { |item| item.is_a?(Hash) && item["body"].to_s.include?(marker) }
+        if matched
+          issue = get_issue(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num)
+          return issue.merge("matched_comment" => true)
+        end
+
+        more_pages = has_next_page?(headers) || comments.size >= MARKER_SEARCH_PER_PAGE
+        break unless more_pages
+
+        inconclusive = true if page == pages_limit
       end
+
       issue = get_issue(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num)
       return issue if issue["body"].to_s.include?(marker)
+
+      if inconclusive
+        raise InconclusiveSearchError, "Could not confirm whether GitHub feedback was already posted after checking #{pages_limit} pages; inspect the repository before retrying"
+      end
 
       return nil
     end
 
-    issues = installation_request(installation, :get, "/repos/#{full_name}/issues", repository_id: repository_id, query: { state: "all", sort: "updated", direction: "desc", per_page: 100 }, expect: Array)
-    matched = issues.find { |item| item.is_a?(Hash) && !item.key?("pull_request") && item["body"].to_s.include?(marker) }
-    return nil unless matched
+    1.upto(pages_limit) do |page|
+      issues, headers = installation_request(
+        installation,
+        :get,
+        "/repos/#{full_name}/issues",
+        repository_id: repository_id,
+        query: { state: "all", sort: "updated", direction: "desc", per_page: MARKER_SEARCH_PER_PAGE, page: page },
+        expect: Array,
+        include_headers: true
+      )
+      matched = issues.find { |item| item.is_a?(Hash) && !item.key?("pull_request") && item["body"].to_s.include?(marker) }
+      return normalize_issue!(matched) if matched
 
-    normalize_issue!(matched)
+      more_pages = has_next_page?(headers) || issues.size >= MARKER_SEARCH_PER_PAGE
+      return nil unless more_pages
+    end
+
+    raise InconclusiveSearchError, "Could not confirm whether GitHub feedback was already posted after checking #{pages_limit} pages; inspect the repository before retrying"
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end
@@ -234,27 +288,76 @@ class GithubAppClient
     end
   end
 
-  def request(method, path, token:, body: nil, query: nil, expect: Hash)
+  def request(method, path, token:, body: nil, query: nil, expect: Hash, include_headers: false)
     options = { headers: { "Authorization" => "Bearer #{token}", "Accept" => "application/vnd.github+json", "X-GitHub-Api-Version" => "2022-11-28", "Content-Type" => "application/json" }, timeout: 10 }
     options[:body] = body.to_json if body
     options[:query] = query if query
     response = @transport.public_send(method, "#{BASE}#{path}", **options)
+    headers = extract_headers(response)
     unless response.success?
-      message = case response.code.to_i
+      code = response.code.to_i
+      if rate_limited_response?(code, headers, response.parsed_response)
+        raise Error.new(
+          "GitHub rate limit reached; try again later",
+          status: code,
+          retry_after: parse_retry_after(headers),
+          rate_limited: true
+        )
+      end
+
+      message = case code
       when 401 then "GitHub authorization expired; reconnect the installation"
       when 403, 404, 422 then "GitHub installation cannot access this repository; check selected repositories and reconnect"
-      when 429 then "GitHub rate limit reached; try again later"
       else "GitHub is temporarily unavailable; try again"
       end
-      raise Error.new(message, status: response.code.to_i)
+      raise Error.new(message, status: code)
     end
     value = response.parsed_response
     raise Error, PROVIDER_ERROR unless value.is_a?(expect)
 
-    value
+    include_headers ? [ value, headers ] : value
   rescue Error
     raise
   rescue StandardError
     raise Error, "GitHub is temporarily unavailable; try again"
+  end
+
+  def extract_headers(response)
+    raw = response.respond_to?(:headers) ? response.headers : nil
+    return {} unless raw.respond_to?(:each)
+
+    raw.each_with_object({}) do |(key, value), acc|
+      acc[key.to_s.downcase] = value.is_a?(Array) ? value.first.to_s : value.to_s
+    end
+  end
+
+  def rate_limited_response?(code, headers, parsed_body)
+    return true if code == 429
+    return false unless code == 403
+
+    return true if headers["x-ratelimit-remaining"].to_s.strip == "0"
+    return true if headers["retry-after"].to_s.strip.present?
+
+    parsed_body.is_a?(Hash) && parsed_body["message"].to_s.downcase.include?("rate limit")
+  end
+
+  def parse_retry_after(headers)
+    raw = headers["retry-after"].to_s.strip
+    if raw.match?(/\A\d+\z/)
+      seconds = raw.to_i
+      return seconds if seconds.positive?
+    end
+
+    reset = headers["x-ratelimit-reset"].to_s.strip
+    if reset.match?(/\A\d+\z/)
+      delta = reset.to_i - @now.call.to_i
+      return delta if delta.positive?
+    end
+
+    nil
+  end
+
+  def has_next_page?(headers)
+    headers["link"].to_s.include?('rel="next"')
   end
 end

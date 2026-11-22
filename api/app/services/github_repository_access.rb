@@ -28,6 +28,8 @@ class GithubRepositoryAccess
   # Keep this same access object through source/check provider I/O. Its snapshot
   # is the operation's generation, never a freshly reloaded replacement's.
   def fail_current_verification!(error)
+    return if error.is_a?(GithubAppClient::Error) && error.transient?
+
     record_failure(error, operation: @operation) if @operation
   end
 
@@ -76,7 +78,7 @@ class GithubRepositoryAccess
   rescue BindingChanged
     raise
   rescue GithubAppClient::Error => error
-    if !require_verified || operation[:binding_state] == "verified"
+    if (!require_verified || operation[:binding_state] == "verified") && !(require_verified && error.transient?)
       record_failure(error, operation: operation)
     else
       @operation = nil

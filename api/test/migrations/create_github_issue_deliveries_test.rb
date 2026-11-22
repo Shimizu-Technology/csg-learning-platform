@@ -17,12 +17,16 @@ class CreateGithubIssueDeliveriesTest < ActiveSupport::TestCase
 
     connection = ActiveRecord::Base.connection
     assert connection.table_exists?(:github_issue_deliveries)
-    refute connection.columns(:github_issue_deliveries).any? { |column| column.name.match?(/private_key|secret/) }
+    column_names = connection.columns(:github_issue_deliveries).map(&:name)
+    assert_includes column_names, "claim_token"
+    assert_includes column_names, "claimed_until"
+    refute column_names.any? { |name| name.match?(/private_key|secret/) }
 
     indexes = connection.indexes(:github_issue_deliveries)
     assert indexes.any? { |idx| idx.unique && idx.columns == [ "dedupe_token" ] }
     assert indexes.any? { |idx| idx.columns == %w[status next_retry_at] }
     assert indexes.any? { |idx| idx.columns == %w[enrollment_id content_block_id repository_id] }
+    assert indexes.any? { |idx| idx.columns == %w[enrollment_id content_block_id claimed_until] }
     assert indexes.any? { |idx| idx.columns == [ "submission_id" ] }
 
     constraints = connection.check_constraints(:github_issue_deliveries).map(&:name)

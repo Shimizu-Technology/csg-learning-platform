@@ -41,12 +41,17 @@ class FeatureSwitches
     resolved
   end
 
+  # Server-only switches never appear in learner/client payloads (session, dashboard,
+  # cohorts), even when enabled at the school or cohort level. Admin feature_settings
+  # endpoints read FeatureSwitches.for directly and still expose them for management.
+  SERVER_ONLY = %w[github_issue_delivery_v2].freeze
+
   # Disabled opt-in switches added after the baseline stay implicit in existing
   # client payloads. The management endpoint still includes explicit defaults and overrides.
-  IMPLICIT_OFF_FOR_CLIENT = %w[certificates github_issue_delivery_v2].freeze
+  IMPLICIT_OFF_FOR_CLIENT = %w[certificates].freeze
 
   def self.for_client(features)
-    hidden = IMPLICIT_OFF_FOR_CLIENT.reject { |key| features[key] == true }
+    hidden = SERVER_ONLY + IMPLICIT_OFF_FOR_CLIENT.reject { |key| features[key] == true }
     hidden.empty? ? features : features.except(*hidden)
   end
 

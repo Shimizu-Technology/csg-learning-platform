@@ -312,7 +312,12 @@ module Api
       def retry_github_issue
         require_staff!
         return if performed?
-        return unless authorize_submission_cohort!
+
+        enrollment = @submission.enrollment
+        unless enrollment && StaffCohortScope.new(current_user).visible?(enrollment.cohort_id)
+          render_forbidden("Cannot access this submission")
+          return
+        end
 
         delivery = latest_github_issue_delivery(@submission)
         unless delivery
@@ -330,10 +335,20 @@ module Api
           return
         end
 
-        GithubIssueDeliveryDrain.new.deliver_one!(delivery, force: true)
+        outcome = GithubIssueDeliveryDrain.new.deliver_one!(delivery, force: true)
+        if %i[in_flight scope_busy].include?(outcome)
+          render json: { error: "GitHub feedback delivery is already in progress. Try again in a moment." }, status: :conflict
+          return
+        end
+
         @submission.reload
         @submission.association(:github_issue_deliveries).reset
         delivery.reload
+
+        if outcome == :skipped && delivery.delivered?
+          render json: { error: "GitHub feedback was already delivered for this submission" }, status: :unprocessable_entity
+          return
+        end
 
         render json: {
           submission: submission_json(@submission, include_solution: true, include_github_checks: true),

@@ -1,10 +1,14 @@
 # Drains pending GithubIssueDelivery outbox rows through the GitHub App
-# without holding DB locks across provider HTTP. Reconciles ambiguous timeouts
-# via an embedded HTML comment marker before creating duplicate issues/comments.
+# without holding DB locks across provider HTTP. Serializes active mutations
+# per (enrollment, content_block) scope using durable claim leases, persists
+# verified repository identity before the first write, and reconciles ambiguous
+# timeouts via bounded paginated marker lookup across uncertain predecessors.
 class GithubIssueDeliveryDrain
   BATCH_SIZE = 25
   MAX_ATTEMPTS = GithubIssueDelivery::MAX_ATTEMPTS
   CLAIM_LEASE = 5.minutes
+  DEFAULT_MAX_DURATION = 20.seconds
+  MAX_PREDECESSOR_RECONCILE = 10
   BACKOFFS = [ 5.minutes, 15.minutes, 1.hour, 4.hours ].freeze
   PERMANENT_STATUSES = [ 401, 403, 404, 422 ].freeze
 
@@ -17,9 +21,11 @@ class GithubIssueDeliveryDrain
     { would_claim: GithubIssueDelivery.due(now).limit(BATCH_SIZE).count }
   end
 
-  def initialize(client: nil, batch_size: BATCH_SIZE)
+  def initialize(client: nil, batch_size: BATCH_SIZE, max_duration: DEFAULT_MAX_DURATION, monotonic: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) })
     @client = client
     @batch_size = batch_size
+    @max_duration = max_duration
+    @monotonic = monotonic
   end
 
   def call(now: Time.current, metrics: {})
@@ -30,10 +36,13 @@ class GithubIssueDeliveryDrain
     school = FeatureSwitches.school(read_only: true)
     return metrics unless school["github_app"] == true && school["github_issue_delivery_v2"] == true
 
+    started = @monotonic.call
     ids = GithubIssueDelivery.due(now).order(:id).limit(@batch_size).pluck(:id)
     ids.each do |id|
+      break if @max_duration && (@monotonic.call - started) >= @max_duration
+
       outcome = deliver_one!(id, now: now, school: school, force: false)
-      next if outcome == :skipped
+      next if %i[skipped in_flight scope_busy stale_claim].include?(outcome)
 
       metrics[:claimed] += 1
       case outcome
@@ -48,35 +57,71 @@ class GithubIssueDeliveryDrain
     delivery = delivery_or_id.is_a?(GithubIssueDelivery) ? delivery_or_id : GithubIssueDelivery.find_by(id: delivery_or_id)
     return :skipped unless delivery
 
-    prior_attempts = nil
-    delivery.with_lock do
-      eligible_status = force ? %w[pending failed].include?(delivery.status) : delivery.status == "pending"
-      return :skipped unless eligible_status
-      return :skipped if !force && delivery.next_retry_at.present? && delivery.next_retry_at > now
+    claim = claim_delivery!(delivery, now: now, school: school, force: force)
+    return claim unless claim.is_a?(Hash)
 
-      cohort = delivery.enrollment.cohort
-      unless GithubIssueDeliveryPlanner.enabled_for?(cohort, school: school)
-        delivery.update!(status: "obsolete", next_retry_at: nil, last_error: "GitHub issue delivery is disabled for this cohort")
-        return :obsolete
-      end
-
-      if stale_delivery?(delivery, delivery.submission)
-        delivery.update!(status: "obsolete", next_retry_at: nil)
-        return :obsolete
-      end
-
-      prior_attempts = delivery.attempts
-      delivery.update!(
-        status: "pending",
-        attempts: prior_attempts + 1,
-        next_retry_at: now + CLAIM_LEASE
-      )
-    end
-
-    execute_delivery!(delivery, prior_attempts: prior_attempts, now: now)
+    execute_delivery!(delivery, prior_attempts: claim.fetch(:prior_attempts), claim_token: claim.fetch(:claim_token), now: now)
   end
 
   private
+
+  # Acquires locks in the same strict order as SubmissionsController#grade:
+  # enrollment -> submission -> scope github_issue_deliveries (ordered by id).
+  def claim_delivery!(delivery, now:, school:, force:)
+    enrollment = delivery.enrollment
+    submission = delivery.submission
+    return :skipped unless enrollment && submission
+
+    enrollment.with_lock do
+      submission.lock!
+      scope_rows = GithubIssueDelivery
+        .where(enrollment_id: delivery.enrollment_id, content_block_id: delivery.content_block_id)
+        .order(:id)
+        .lock
+        .to_a
+
+      locked = scope_rows.find { |row| row.id == delivery.id }
+      return :skipped unless locked
+
+      # Active claim lease is NEVER bypassed, even with force: true.
+      return :in_flight if locked.claimed?(now)
+
+      eligible_status = force ? %w[pending failed].include?(locked.status) : locked.status == "pending"
+      return :skipped unless eligible_status
+      return :skipped if !force && locked.next_retry_at.present? && locked.next_retry_at > now
+
+      cohort = enrollment.cohort
+      unless GithubIssueDeliveryPlanner.enabled_for?(cohort, school: school)
+        locked.update!(status: "obsolete", next_retry_at: nil, claim_token: nil, claimed_until: nil,
+          last_error: "GitHub issue delivery is disabled for this cohort")
+        delivery.reload
+        return :obsolete
+      end
+
+      if stale_delivery?(locked, submission)
+        locked.update!(status: "obsolete", next_retry_at: nil, claim_token: nil, claimed_until: nil)
+        delivery.reload
+        return :obsolete
+      end
+
+      # Serialize active GitHub mutations per (enrollment, content_block) scope.
+      if scope_rows.any? { |row| row.id != locked.id && row.claimed?(now) }
+        return :scope_busy
+      end
+
+      prior_attempts = locked.attempts
+      claim_token = SecureRandom.hex(16)
+      locked.update!(
+        status: "pending",
+        attempts: prior_attempts + 1,
+        claim_token: claim_token,
+        claimed_until: now + CLAIM_LEASE,
+        next_retry_at: nil
+      )
+      delivery.reload
+      { prior_attempts: prior_attempts, claim_token: claim_token }
+    end
+  end
 
   def stale_delivery?(delivery, submission)
     return true unless submission.grade == delivery.grade
@@ -85,7 +130,7 @@ class GithubIssueDeliveryDrain
     false
   end
 
-  def execute_delivery!(delivery, prior_attempts:, now:)
+  def execute_delivery!(delivery, prior_attempts:, claim_token:, now:)
     client = @client || GithubAppClient.new
     binding = resolve_binding(delivery)
     raise NonRetryableError, "Verify a repository binding before delivering GitHub feedback" unless binding
@@ -99,8 +144,17 @@ class GithubIssueDeliveryDrain
       raise NonRetryableError, "Repository binding changed since this grade was saved; verify the repository and grade again"
     end
 
+    checkpoint = persist_verified_repository_and_check_active!(
+      delivery,
+      claim_token: claim_token,
+      binding: binding,
+      repo_id: repo_id,
+      full_name: full_name
+    )
+    return checkpoint unless checkpoint == :active
+
     installation = binding.github_app_installation
-    existing_issue_number = resolve_existing_issue_number(delivery, repo_id: repo_id, full_name: full_name)
+    existing_issue_number = resolve_existing_issue_number(delivery, repo_id: repo_id)
 
     result = if delivery.action == "open_or_comment"
       deliver_redo!(
@@ -125,11 +179,76 @@ class GithubIssueDeliveryDrain
     end
 
     if result == :obsolete
-      delivery.with_lock { delivery.update!(status: "obsolete", next_retry_at: nil) }
-      return :obsolete
+      return finalize_obsolete!(delivery, claim_token: claim_token)
     end
 
-    delivery.with_lock do
+    finalize_success!(
+      delivery,
+      claim_token: claim_token,
+      binding: binding,
+      repo_id: repo_id,
+      full_name: full_name,
+      result: result,
+      now: now
+    )
+  rescue NonRetryableError, GithubRepositoryAccess::BindingChanged, GithubAppClient::Error, StandardError => error
+    record_failure!(delivery, error, claim_token: claim_token, now: now)
+  end
+
+  # Persists verified repository identity BEFORE any GitHub write and aborts if
+  # the claim was lost or superseded while repository verification ran.
+  def persist_verified_repository_and_check_active!(delivery, claim_token:, binding:, repo_id:, full_name:)
+    submission = delivery.submission
+    submission.with_lock do
+      delivery.lock!
+      return :stale_claim unless delivery.claim_token == claim_token
+
+      if delivery.status != "pending" || stale_delivery?(delivery, submission)
+        delivery.update!(status: "obsolete", next_retry_at: nil, claim_token: nil, claimed_until: nil)
+        return :obsolete
+      end
+
+      delivery.update!(
+        github_repository_binding_id: binding.id,
+        repository_id: repo_id,
+        repository_full_name: full_name
+      )
+      :active
+    end
+  end
+
+  def finalize_obsolete!(delivery, claim_token:)
+    delivery.submission.with_lock do
+      delivery.lock!
+      return :stale_claim unless delivery.claim_token == claim_token
+
+      delivery.update!(status: "obsolete", next_retry_at: nil, claim_token: nil, claimed_until: nil)
+      :obsolete
+    end
+  end
+
+  def finalize_success!(delivery, claim_token:, binding:, repo_id:, full_name:, result:, now:)
+    submission = delivery.submission
+    submission.with_lock do
+      delivery.lock!
+      return :stale_claim unless delivery.claim_token == claim_token
+
+      # Never revert an obsolete row back to delivered; record discovered issue
+      # identity so superseding intents can immediately target the created issue.
+      if delivery.status == "obsolete"
+        delivery.update!(
+          github_repository_binding_id: binding.id,
+          repository_id: repo_id,
+          repository_full_name: full_name,
+          issue_number: result.fetch(:issue_number),
+          issue_url: result.fetch(:issue_url),
+          next_retry_at: nil,
+          claim_token: nil,
+          claimed_until: nil
+        )
+        return :obsolete
+      end
+
       delivery.update!(
         status: "delivered",
         github_repository_binding_id: binding.id,
@@ -139,15 +258,15 @@ class GithubIssueDeliveryDrain
         issue_url: result.fetch(:issue_url),
         delivered_at: now,
         next_retry_at: nil,
+        claim_token: nil,
+        claimed_until: nil,
         last_error: nil
       )
       if result[:issue_url].present?
-        delivery.submission.update_column(:github_issue_url, result[:issue_url])
+        submission.update_column(:github_issue_url, result[:issue_url])
       end
+      :delivered
     end
-    :delivered
-  rescue NonRetryableError, GithubRepositoryAccess::BindingChanged, GithubAppClient::Error, StandardError => error
-    record_failure!(delivery, error, now: now)
   end
 
   def resolve_binding(delivery)
@@ -160,7 +279,7 @@ class GithubIssueDeliveryDrain
     )
   end
 
-  def resolve_existing_issue_number(delivery, repo_id:, full_name:)
+  def resolve_existing_issue_number(delivery, repo_id:)
     if delivery.issue_number.present? && (delivery.repository_id.nil? || delivery.repository_id == repo_id)
       return delivery.issue_number
     end
@@ -168,12 +287,74 @@ class GithubIssueDeliveryDrain
     GithubIssueDeliveryPlanner.prior_tracked_issue(
       enrollment_id: delivery.enrollment_id,
       content_block_id: delivery.content_block_id,
-      repository_id: repo_id,
-      repository_full_name: full_name
+      repository_id: repo_id
     )&.dig(:issue_number)
   end
 
+  def uncertain_predecessors(delivery, repo_id:)
+    GithubIssueDelivery
+      .where(
+        enrollment_id: delivery.enrollment_id,
+        content_block_id: delivery.content_block_id,
+        action: "open_or_comment",
+        issue_number: nil,
+        status: %w[obsolete failed]
+      )
+      .where("id < ?", delivery.id)
+      .where("attempts > 0")
+      .where("repository_id IS NULL OR repository_id = ?", repo_id)
+      .order(id: :desc)
+      .limit(MAX_PREDECESSOR_RECONCILE)
+      .to_a
+  end
+
+  def reconcile_predecessors!(delivery:, client:, installation:, repo_id:, full_name:)
+    uncertain_predecessors(delivery, repo_id: repo_id).each do |predecessor|
+      found = client.find_issue_by_marker(
+        installation: installation,
+        repository_id: repo_id,
+        full_name: full_name,
+        marker: predecessor.marker
+      )
+      next unless found
+
+      predecessor.with_lock do
+        if predecessor.issue_number.nil?
+          predecessor.update!(
+            repository_id: predecessor.repository_id || repo_id,
+            repository_full_name: predecessor.repository_full_name.presence || full_name,
+            issue_number: found.fetch("number"),
+            issue_url: found.fetch("html_url")
+          )
+        end
+      end
+      return found
+    end
+    nil
+  end
+
   def deliver_redo!(delivery:, client:, installation:, repo_id:, full_name:, existing_issue_number:, reconcile:)
+    if existing_issue_number.nil?
+      if reconcile
+        found = client.find_issue_by_marker(
+          installation: installation,
+          repository_id: repo_id,
+          full_name: full_name,
+          marker: delivery.marker
+        )
+        return { issue_number: found.fetch("number"), issue_url: found.fetch("html_url") } if found
+      end
+
+      predecessor_issue = reconcile_predecessors!(
+        delivery: delivery,
+        client: client,
+        installation: installation,
+        repo_id: repo_id,
+        full_name: full_name
+      )
+      existing_issue_number = predecessor_issue.fetch("number") if predecessor_issue
+    end
+
     if existing_issue_number.present?
       issue = client.get_issue(installation: installation, repository_id: repo_id, full_name: full_name, issue_number: existing_issue_number)
       if issue["state"] == "closed"
@@ -201,16 +382,6 @@ class GithubIssueDeliveryDrain
       return { issue_number: issue.fetch("number"), issue_url: issue.fetch("html_url") }
     end
 
-    if reconcile
-      found = client.find_issue_by_marker(
-        installation: installation,
-        repository_id: repo_id,
-        full_name: full_name,
-        marker: delivery.marker
-      )
-      return { issue_number: found.fetch("number"), issue_url: found.fetch("html_url") } if found
-    end
-
     created = client.create_issue(
       installation: installation,
       repository_id: repo_id,
@@ -222,6 +393,17 @@ class GithubIssueDeliveryDrain
   end
 
   def deliver_close!(delivery:, client:, installation:, repo_id:, full_name:, existing_issue_number:, reconcile:)
+    if existing_issue_number.nil?
+      predecessor_issue = reconcile_predecessors!(
+        delivery: delivery,
+        client: client,
+        installation: installation,
+        repo_id: repo_id,
+        full_name: full_name
+      )
+      existing_issue_number = predecessor_issue&.fetch("number")
+    end
+
     return :obsolete unless existing_issue_number.present?
 
     issue = client.get_issue(installation: installation, repository_id: repo_id, full_name: full_name, issue_number: existing_issue_number)
@@ -246,20 +428,26 @@ class GithubIssueDeliveryDrain
     { issue_number: issue.fetch("number"), issue_url: issue.fetch("html_url") }
   end
 
-  def record_failure!(delivery, error, now:)
+  def record_failure!(delivery, error, claim_token:, now:)
     retryable = retryable_error?(error)
     message = safe_error_message(error)
     outcome = nil
 
-    delivery.with_lock do
-      return :obsolete if delivery.status == "obsolete"
+    delivery.submission.with_lock do
+      delivery.lock!
+      return :stale_claim unless delivery.claim_token == claim_token
+
+      if delivery.status == "obsolete"
+        delivery.update!(next_retry_at: nil, claim_token: nil, claimed_until: nil)
+        return :obsolete
+      end
 
       if !retryable || delivery.attempts >= MAX_ATTEMPTS
-        delivery.update!(status: "failed", next_retry_at: nil, last_error: message)
+        delivery.update!(status: "failed", next_retry_at: nil, claim_token: nil, claimed_until: nil, last_error: message)
         outcome = :failed
       else
-        backoff = BACKOFFS[[ delivery.attempts - 1, BACKOFFS.length - 1 ].min]
-        delivery.update!(status: "pending", next_retry_at: now + backoff, last_error: message)
+        delay = retry_delay(delivery, error)
+        delivery.update!(status: "pending", next_retry_at: now + delay, claim_token: nil, claimed_until: nil, last_error: message)
         outcome = :retry_scheduled
       end
     end
@@ -267,14 +455,24 @@ class GithubIssueDeliveryDrain
     outcome
   end
 
+  def retry_delay(delivery, error)
+    if error.is_a?(GithubAppClient::Error) && error.retry_after.present? && error.retry_after.positive?
+      error.retry_after.seconds.clamp(1.second, 4.hours)
+    else
+      BACKOFFS[[ delivery.attempts - 1, BACKOFFS.length - 1 ].min]
+    end
+  end
+
   def retryable_error?(error)
-    return false if error.is_a?(NonRetryableError) || error.is_a?(GithubRepositoryAccess::BindingChanged)
+    return false if error.is_a?(NonRetryableError) ||
+      error.is_a?(GithubRepositoryAccess::BindingChanged) ||
+      error.is_a?(GithubAppClient::InconclusiveSearchError)
 
     if error.is_a?(GithubAppClient::Error)
+      return true if error.rate_limited?
       return false if PERMANENT_STATUSES.include?(error.status)
-      return true if error.status == 429 || (error.status && error.status >= 500)
 
-      return error.status.nil? && error.message == GithubAppClient::PROVIDER_ERROR
+      return error.transient?
     end
 
     true

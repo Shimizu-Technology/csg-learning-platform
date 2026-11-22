@@ -47,3 +47,15 @@ Fixtures are synthetic and local-only via `QA_GITHUB_APP=1 scripts/qa/run start`
 
 - Local Playwright QA runs against synthetic fixtures, `FakeGithubAppClient`, and bundled Chromium; live GitHub App API delivery, native iOS/Android Expo clients, Safari, and Clerk production auth are not claimed beyond automated unit/integration coverage.
 - Full CI workflows (including pooler legs) will run on the opened PR.
+
+## Review hardening follow-up
+
+- Addressed all 9 Round 1 Codex review findings (5 P1, 3 P2, 1 P3) plus 3 CI test suite fixes:
+  - Removed learner-supplied `submission.github_issue_url` fallback from v2 issue history (`GithubIssueDeliveryPlanner.prior_tracked_issue` trusts only scoped `GithubIssueDelivery` rows).
+  - Separated durable claim leases (`claim_token` + `claimed_until`) from retry backoff (`next_retry_at`), enforced per-`(enrollment_id, content_block_id)` serialization and `enrollment -> submission -> delivery` lock ordering, guarded all finalizations on `claim_token`, preserved `obsolete` status while recording discovered `issue_number`/`issue_url`, and persisted `close` intents whenever an in-flight/uncertain `R` exists.
+  - Persisted verified `repository_id`/`repository_full_name` before the first GitHub write, bounded paginated marker search (up to 5 pages of 100) across issues, comments, and uncertain predecessors, and failed safely on `InconclusiveSearchError`.
+  - Fixed legacy `GithubIssueService` cross-cohort targeting to use `submission.enrollment&.cohort` and enrollment-scoped prior issue lookup.
+  - Made `github_issue_delivery_v2` unconditionally server-only in `FeatureSwitches.for_client` (Cohort 3 full `/api/v1/sessions` parity verified with school switch On and Off).
+  - Preserved verified binding state on transient provider read errors in `GithubRepositoryAccess` and classified GitHub 403 rate limits as retryable honoring `Retry-After`.
+  - Moved `github_issue_deliveries` outside `ScheduledTick`'s global advisory-lock transaction with a 20s wall-clock budget, and switched `SubmissionsController#retry_github_issue` to `StaffCohortScope#visible?` (returning `409 Conflict` when actively claimed).
+  - Updated `learner_capabilities_test.rb`, `activity_history_test.rb`, `create_github_app_bindings_test.rb`, and microsecond timestamp assertions in `github_issue_deliveries_test.rb` for Linux CI parity.

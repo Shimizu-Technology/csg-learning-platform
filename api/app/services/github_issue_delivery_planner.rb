@@ -11,69 +11,78 @@ class GithubIssueDeliveryPlanner
       features["github_issue_delivery_v2"] == true
   end
 
-  def self.obsolete_pending!(enrollment_id:, content_block_id:)
+  # Marks prior pending/failed intents in this (enrollment, content_block) scope
+  # obsolete while preserving any active claim_token / claimed_until lease so an
+  # in-flight worker keeps serializing GitHub mutations until it finishes.
+  def self.obsolete_pending!(enrollment_id:, content_block_id:, now: Time.current)
     return 0 unless enrollment_id && content_block_id
 
-    GithubIssueDelivery
+    ids = GithubIssueDelivery
       .where(enrollment_id: enrollment_id, content_block_id: content_block_id, status: %w[pending failed])
-      .update_all(status: "obsolete", next_retry_at: nil, updated_at: Time.current)
+      .order(:id)
+      .lock
+      .pluck(:id)
+    return 0 if ids.empty?
+
+    GithubIssueDelivery
+      .where(id: ids)
+      .update_all(status: "obsolete", next_retry_at: nil, updated_at: now)
   end
 
-  def self.prior_tracked_issue(enrollment_id:, content_block_id:, repository_id:, repository_full_name: nil)
+  # Never trusts learner-supplied submission.github_issue_url. Only prior
+  # delivered or reconciled GithubIssueDelivery rows scoped by
+  # (enrollment_id, content_block_id, repository_id) are authoritative.
+  def self.prior_tracked_issue(enrollment_id:, content_block_id:, repository_id:)
     return nil unless enrollment_id && content_block_id && repository_id.present?
 
     prior = GithubIssueDelivery
-      .where(enrollment_id: enrollment_id, content_block_id: content_block_id, repository_id: repository_id, status: "delivered")
+      .where(
+        enrollment_id: enrollment_id,
+        content_block_id: content_block_id,
+        repository_id: repository_id,
+        status: %w[delivered obsolete]
+      )
       .where.not(issue_number: nil)
-      .order(delivered_at: :desc, id: :desc)
+      .order(id: :desc)
       .first
+    return nil unless prior
 
-    if prior
-      return {
-        issue_number: prior.issue_number,
-        issue_url: prior.issue_url,
-        last_action: prior.action
-      }
-    end
-
-    return nil if repository_full_name.blank?
-
-    pattern = %r{\Ahttps://github\.com/#{Regexp.escape(repository_full_name)}/issues/(\d+)\z}i
-    urls = Submission
-      .where(enrollment_id: enrollment_id, content_block_id: content_block_id)
-      .where.not(github_issue_url: [ nil, "" ])
-      .order(created_at: :desc, id: :desc)
-      .pluck(:github_issue_url)
-
-    urls.each do |url|
-      match = pattern.match(url.to_s.strip)
-      next unless match
-
-      return {
-        issue_number: match[1].to_i,
-        issue_url: url,
-        last_action: "open_or_comment"
-      }
-    end
-
-    nil
+    {
+      issue_number: prior.issue_number,
+      issue_url: prior.issue_url,
+      last_action: prior.status == "delivered" ? prior.action : "open_or_comment"
+    }
   end
 
-  def self.record!(submission:, grade:, feedback:)
+  def self.record!(submission:, grade:, feedback:, now: Time.current)
     enrollment = submission.enrollment
     return nil unless enrollment && enabled_for?(enrollment.cohort)
-
-    obsolete_pending!(enrollment_id: enrollment.id, content_block_id: submission.content_block_id)
 
     curriculum_module_id = submission.content_block.lesson.module_id
     binding = GithubRepositoryAccess.binding_for(enrollment: enrollment, curriculum_module_id: curriculum_module_id)
     repository_id = binding&.repository_id
     repository_full_name = binding&.full_name
+
+    # Lock scope rows in deterministic id order (enrollment & submission are already locked).
+    scope_rows = GithubIssueDelivery
+      .where(enrollment_id: enrollment.id, content_block_id: submission.content_block_id)
+      .order(:id)
+      .lock
+      .to_a
+
+    has_uncertain_open = scope_rows.any? do |row|
+      row.action == "open_or_comment" &&
+        row.issue_number.nil? &&
+        (repository_id.nil? || row.repository_id.nil? || row.repository_id == repository_id) &&
+        (row.claimed?(now) || (row.attempts.positive? && %w[pending failed obsolete].include?(row.status)))
+    end
+
+    obsolete_pending!(enrollment_id: enrollment.id, content_block_id: submission.content_block_id, now: now)
+
     prior = prior_tracked_issue(
       enrollment_id: enrollment.id,
       content_block_id: submission.content_block_id,
-      repository_id: repository_id,
-      repository_full_name: repository_full_name
+      repository_id: repository_id
     )
 
     if grade == "R"
@@ -95,7 +104,8 @@ class GithubIssueDeliveryPlanner
         attempts: 0
       )
     elsif %w[A B C].include?(grade)
-      return nil unless prior && prior[:issue_number].present? && prior[:last_action] != "close"
+      needs_close = (prior && prior[:issue_number].present? && prior[:last_action] != "close") || has_uncertain_open
+      return nil unless needs_close
 
       GithubIssueDelivery.create!(
         submission: submission,
@@ -109,8 +119,8 @@ class GithubIssueDeliveryPlanner
         feedback_body: feedback.presence,
         dedupe_token: SecureRandom.hex(16),
         status: "pending",
-        issue_number: prior[:issue_number],
-        issue_url: prior[:issue_url],
+        issue_number: prior&.dig(:issue_number),
+        issue_url: prior&.dig(:issue_url),
         attempts: 0
       )
     end

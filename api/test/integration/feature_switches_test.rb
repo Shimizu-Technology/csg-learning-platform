@@ -402,6 +402,32 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "github_issue_delivery_v2 stays absent from full Off-cohort POST /api/v1/sessions payload even when school switch is On" do
+    @cohort.update!(settings: { features: { student_experience_v2: false } })
+    SchoolSetting.current.update!(features: { github_issue_delivery_v2: false })
+
+    off_payload = nil
+    as_user(@student) do
+      post "/api/v1/sessions", headers: @headers
+      assert_response :success
+      off_payload = response.parsed_body
+    end
+    assert_not off_payload.dig("school", "features").key?("github_issue_delivery_v2")
+    assert_not off_payload.dig("enrollments", 0, "cohort", "features").key?("github_issue_delivery_v2")
+
+    SchoolSetting.current.update!(features: { github_issue_delivery_v2: true })
+    on_payload = nil
+    as_user(@student) do
+      post "/api/v1/sessions", headers: @headers
+      assert_response :success
+      on_payload = response.parsed_body
+    end
+
+    assert_not on_payload.dig("school", "features").key?("github_issue_delivery_v2")
+    assert_not on_payload.dig("enrollments", 0, "cohort", "features").key?("github_issue_delivery_v2")
+    assert_equal off_payload, on_payload
+  end
+
   private
 
   def as_user(user, &block)

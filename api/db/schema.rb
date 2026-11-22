@@ -583,11 +583,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_060000) do
     t.integer "attempts", default: 0, null: false
     t.text "last_error"
     t.datetime "next_retry_at"
+    t.string "claim_token"
+    t.datetime "claimed_until"
     t.datetime "delivered_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["content_block_id"], name: "index_github_issue_deliveries_on_content_block_id"
     t.index ["dedupe_token"], name: "index_github_issue_deliveries_on_dedupe_token", unique: true
+    t.index ["enrollment_id", "content_block_id", "claimed_until"], name: "index_github_issue_deliveries_on_scope_and_claim"
     t.index ["enrollment_id", "content_block_id", "repository_id"], name: "index_github_issue_deliveries_on_scope"
     t.index ["github_repository_binding_id"], name: "index_github_issue_deliveries_on_github_repository_binding_id"
     t.index ["status", "next_retry_at"], name: "index_github_issue_deliveries_on_status_and_retry"

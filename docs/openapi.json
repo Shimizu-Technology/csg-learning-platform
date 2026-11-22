@@ -521,6 +521,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "GitHub feedback delivery is already in progress for this submission; try again in a moment."
           }
         },
         "parameters": [
