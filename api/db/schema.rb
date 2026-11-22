@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_070000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -255,6 +255,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_060000) do
     t.integer "guided_access_months"
     t.integer "guided_support_weeks"
     t.integer "review_sla_business_days"
+    t.integer "seat_limit"
+    t.boolean "unlisted", default: false, null: false
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
@@ -265,6 +267,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_060000) do
     t.check_constraint "guided_support_weeks IS NULL OR guided_support_weeks > 0", name: "cohorts_guided_support_weeks_positive"
     t.check_constraint "public_price_cents IS NULL OR public_price_cents > 0", name: "cohort_public_price_positive"
     t.check_constraint "review_sla_business_days IS NULL OR review_sla_business_days > 0", name: "cohorts_review_sla_business_days_positive"
+    t.check_constraint "seat_limit IS NULL OR seat_limit > 0", name: "cohorts_seat_limit_positive"
     t.check_constraint "self_paced_access_months > 0 AND self_paced_support_weeks > 0", name: "cohort_self_paced_terms_positive"
   end
 
@@ -345,10 +348,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_060000) do
     t.integer "support_weeks"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.boolean "over_capacity", default: false, null: false
+    t.jsonb "terms_snapshot", default: {}
     t.index ["cohort_id"], name: "index_course_purchases_on_cohort_id"
     t.index ["stripe_payment_intent_id"], name: "index_course_purchases_on_stripe_payment_intent_id", unique: true
     t.index ["stripe_session_id"], name: "index_course_purchases_on_stripe_session_id", unique: true
-    t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id", unique: true
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id_lookup"
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_one_open_attempt_per_user_cohort", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('failed'::character varying)::text, ('expired'::character varying)::text]))"
     t.index ["user_id"], name: "index_course_purchases_on_user_id"
     t.check_constraint "price_cents IS NULL OR price_cents > 0", name: "course_purchase_price_positive"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text, 'expired'::character varying::text, 'failed'::character varying::text, 'refunded'::character varying::text, 'disputed'::character varying::text])", name: "course_purchase_status_valid"
@@ -595,10 +601,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_060000) do
     t.index ["github_repository_binding_id"], name: "index_github_issue_deliveries_on_github_repository_binding_id"
     t.index ["status", "next_retry_at"], name: "index_github_issue_deliveries_on_status_and_retry"
     t.index ["submission_id"], name: "index_github_issue_deliveries_on_submission_id"
-    t.check_constraint "action::text = ANY (ARRAY['open_or_comment'::character varying, 'close'::character varying]::text[])", name: "github_issue_deliveries_action_valid"
+    t.check_constraint "action::text = ANY (ARRAY['open_or_comment'::character varying::text, 'close'::character varying::text])", name: "github_issue_deliveries_action_valid"
     t.check_constraint "attempts >= 0", name: "github_issue_deliveries_attempts_nonnegative"
-    t.check_constraint "grade::text = ANY (ARRAY['A'::character varying, 'B'::character varying, 'C'::character varying, 'R'::character varying]::text[])", name: "github_issue_deliveries_grade_valid"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'delivered'::character varying, 'failed'::character varying, 'obsolete'::character varying]::text[])", name: "github_issue_deliveries_status_valid"
+    t.check_constraint "grade::text = ANY (ARRAY['A'::character varying::text, 'B'::character varying::text, 'C'::character varying::text, 'R'::character varying::text])", name: "github_issue_deliveries_grade_valid"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'obsolete'::character varying::text])", name: "github_issue_deliveries_status_valid"
   end
 
   create_table "github_repository_bindings", force: :cascade do |t|

@@ -50,9 +50,10 @@ module Api
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary,
-            catalog_enabled: Cohort.active.where(course_delivery: "self_paced", public_checkout_enabled: true).exists?,
+            catalog_enabled: Cohort.active.where(course_delivery: Cohort::CHECKOUT_DELIVERIES, public_checkout_enabled: true, unlisted: false).where.not(cohort_type: :alumni).exists?,
             pending_purchases: current_user.course_purchases.where(status: "pending").includes(:cohort).map { |purchase|
-              { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.public_title.presence || "Self-paced course" }
+              default_name = purchase.cohort.guided? ? "Small-class course" : "Self-paced course"
+              { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.public_title.presence || default_name }
             } } }
           return
         end
