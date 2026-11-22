@@ -1306,13 +1306,34 @@ into Learn):
 
 Point the GitHub App webhook URL to `https://<api-host>/api/v1/webhooks/github`
 with content type `application/json` and subscribe to `check_run`, `push`,
-`installation`, and `installation_repositories` events. The endpoint authenticates
-strictly via raw-body HMAC-SHA256 (`X-Hub-Signature-256`) with no Clerk JWT;
-unsigned requests return `401` (or `503` if the secret is unconfigured), and
-receipt performs zero external GitHub HTTP calls. Deliveries are persisted in
-`github_webhook_deliveries` by unique `X-GitHub-Delivery` before returning `200`;
-unmatched events are stored as `staged` for reconciliation, and processed/ignored
-rows can be pruned with `GithubWebhookDelivery.prune_expired!`.
+`installation`, and `installation_repositories` events. The endpoint is mounted
+as a pre-controller Rack boundary that enforces the public rate limit, caps raw
+reads at 1 MiB (`413`), and authenticates strictly via raw-body HMAC-SHA256
+(`X-Hub-Signature-256`) with no Clerk JWT before any JSON parsing or Rails
+parameter logging occurs. Unsigned requests return `401` (or `503` if the secret
+is unconfigured), and receipt performs zero external GitHub HTTP calls.
+Deliveries are persisted in `github_webhook_deliveries` by unique
+`X-GitHub-Delivery` before returning `200`; unmatched or provenance-ambiguous
+events are stored as `staged` for reconciliation.
+
+**Redelivery and failed-delivery recovery:** GitHub does **not** automatically
+retry `503`/5xx webhook deliveries.
+- **Failures before durable persistence** (for example, a database outage or an
+  unconfigured secret returning `503`): redeliver the failed event manually from
+  the GitHub App settings (**Advanced → Recent Deliveries**) or via GitHub's
+  `POST /app/hook/deliveries/{delivery_id}/attempts` REST API once the issue is
+  resolved.
+- **Persisted `pending` or `failed` receipts** (written to
+  `github_webhook_deliveries` before a local processing error): redelivering the
+  same `X-GitHub-Delivery` resumes local processing idempotently, and local
+  replay or hourly reconciliation can reprocess persisted `pending`, `failed`,
+  and `staged` rows without external fetches.
+
+**Bounded retention:** `ScheduledTick` runs `github_webhook_retention` in
+bounded batches (up to 1,000 rows per tick), pruning settled `processed` and
+`ignored` receipts after 30 days and unconsumed `staged`, `failed`, or abandoned
+`pending` receipts after 14 days (also callable manually via
+`GithubWebhookDelivery.prune_expired!`).
 
 **Remaining deferred permissions:** add **Issues: write** for the feedback
 slice. **Actions: read** is deferred until workflow-run provenance requires it;

@@ -35,22 +35,41 @@ class GithubWebhookDeliveryTest < ActiveSupport::TestCase
     assert_includes bad_payload.errors[:payload], "must be a JSON object"
   end
 
-  test "prune_expired! removes only expired processed and ignored deliveries" do
+  test "prune_expired! removes expired settled (>30d) and expired unsettled (>14d) deliveries in bounded batches" do
     now = Time.zone.parse("2026-11-22 12:00:00 UTC")
     old_processed = GithubWebhookDelivery.create!(delivery_id: "old-proc", event: "check_run", processing_state: "processed", received_at: now - 40.days, processed_at: now - 35.days)
     old_ignored = GithubWebhookDelivery.create!(delivery_id: "old-ign", event: "push", processing_state: "ignored", received_at: now - 40.days, processed_at: now - 31.days)
     recent_processed = GithubWebhookDelivery.create!(delivery_id: "rec-proc", event: "check_run", processing_state: "processed", received_at: now - 5.days, processed_at: now - 5.days)
-    old_staged = GithubWebhookDelivery.create!(delivery_id: "old-staged", event: "check_run", processing_state: "staged", received_at: now - 40.days)
-    old_pending = GithubWebhookDelivery.create!(delivery_id: "old-pending", event: "check_run", processing_state: "pending", received_at: now - 40.days)
-    old_failed = GithubWebhookDelivery.create!(delivery_id: "old-failed", event: "check_run", processing_state: "failed", received_at: now - 40.days, last_error: "boom")
+    old_staged = GithubWebhookDelivery.create!(delivery_id: "old-staged", event: "check_run", processing_state: "staged", received_at: now - 20.days)
+    old_pending = GithubWebhookDelivery.create!(delivery_id: "old-pending", event: "check_run", processing_state: "pending", received_at: now - 16.days)
+    old_failed = GithubWebhookDelivery.create!(delivery_id: "old-failed", event: "check_run", processing_state: "failed", received_at: now - 15.days, last_error: "boom")
+    recent_staged = GithubWebhookDelivery.create!(delivery_id: "rec-staged", event: "check_run", processing_state: "staged", received_at: now - 5.days)
+    recent_failed = GithubWebhookDelivery.create!(delivery_id: "rec-failed", event: "check_run", processing_state: "failed", received_at: now - 5.days, last_error: "boom")
 
-    deleted = GithubWebhookDelivery.prune_expired!(older_than: now - 30.days)
-    assert_equal 2, deleted
+    # Bounded batching deletes at most batch_size * max_batches per invocation.
+    first_pass = GithubWebhookDelivery.prune_expired!(
+      older_than: now - 30.days,
+      unsettled_older_than: now - 14.days,
+      batch_size: 2,
+      max_batches: 1
+    )
+    assert_equal 2, first_pass
+
+    second_pass = GithubWebhookDelivery.prune_expired!(
+      older_than: now - 30.days,
+      unsettled_older_than: now - 14.days,
+      batch_size: 2
+    )
+    assert_equal 3, second_pass
+
     assert_not GithubWebhookDelivery.exists?(old_processed.id)
     assert_not GithubWebhookDelivery.exists?(old_ignored.id)
+    assert_not GithubWebhookDelivery.exists?(old_staged.id)
+    assert_not GithubWebhookDelivery.exists?(old_pending.id)
+    assert_not GithubWebhookDelivery.exists?(old_failed.id)
+
     assert GithubWebhookDelivery.exists?(recent_processed.id)
-    assert GithubWebhookDelivery.exists?(old_staged.id)
-    assert GithubWebhookDelivery.exists?(old_pending.id)
-    assert GithubWebhookDelivery.exists?(old_failed.id)
+    assert GithubWebhookDelivery.exists?(recent_staged.id)
+    assert GithubWebhookDelivery.exists?(recent_failed.id)
   end
 end

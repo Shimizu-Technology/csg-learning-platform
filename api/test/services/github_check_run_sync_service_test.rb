@@ -94,4 +94,96 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
   ensure
     service.define_singleton_method(:github_get, original_get)
   end
+
+  test "concurrent webhook check run committed during manual refresh is never regressed or pruned" do
+    @submission.github_check_runs.create!(
+      external_id: 700,
+      name: "stale run",
+      head_sha: "abc123",
+      status: "completed",
+      conclusion: "failure",
+      fetched_at: 1.hour.ago
+    )
+    @submission.github_check_runs.create!(
+      external_id: 701,
+      name: "prework/111.rb",
+      head_sha: "abc123",
+      status: "in_progress",
+      started_at: Time.iso8601("2026-08-15T00:00:00Z"),
+      fetched_at: 5.minutes.ago
+    )
+
+    service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token", now: Time.zone.parse("2026-08-15 10:00"))
+    original_get = service.method(:github_get)
+    submission = @submission
+
+    service.define_singleton_method(:github_get) do |_url, page:|
+      # Simulate a webhook committing newer evidence while the manual HTTP fetch is in flight:
+      # 1) external_id 701 completes with success
+      # 2) a brand-new check run 702 arrives that is absent from this older HTTP snapshot
+      submission.with_lock do
+        GithubCheckRunMerger.upsert_locked!(
+          submission: submission,
+          attributes: {
+            external_id: 701,
+            name: "prework/111.rb",
+            head_sha: "abc123",
+            status: "completed",
+            conclusion: "success",
+            started_at: "2026-08-15T00:00:00Z",
+            completed_at: "2026-08-15T00:02:00Z",
+            app_slug: "github-actions"
+          },
+          fetched_at: Time.zone.parse("2026-08-15 10:00:01")
+        )
+        GithubCheckRunMerger.upsert_locked!(
+          submission: submission,
+          attributes: {
+            external_id: 702,
+            name: "prework/lint",
+            head_sha: "abc123",
+            status: "completed",
+            conclusion: "success",
+            started_at: "2026-08-15T00:01:00Z",
+            completed_at: "2026-08-15T00:02:30Z",
+            app_slug: "github-actions"
+          },
+          fetched_at: Time.zone.parse("2026-08-15 10:00:01")
+        )
+      end
+
+      # Older GitHub HTTP snapshot still shows 701 as in_progress and does not include 702.
+      FakeResponse.new(true, 200, {
+        "total_count" => 1,
+        "check_runs" => [ {
+          "id" => 701,
+          "name" => "prework/111.rb",
+          "head_sha" => "abc123",
+          "status" => "in_progress",
+          "conclusion" => nil,
+          "started_at" => "2026-08-15T00:00:00Z",
+          "completed_at" => nil,
+          "app" => { "slug" => "github-actions" }
+        } ]
+      })
+    end
+
+    result = service.call
+    assert_nil result[:error]
+
+    # Pre-existing stale run 700 (unchanged during fetch and absent from snapshot) IS pruned.
+    assert_not @submission.github_check_runs.exists?(external_id: 700)
+
+    # Webhook's completed 701 is NOT regressed back to in_progress.
+    run_701 = @submission.github_check_runs.find_by!(external_id: 701)
+    assert_equal "completed", run_701.status
+    assert_equal "success", run_701.conclusion
+
+    # Webhook's newly committed 702 is NOT pruned by the older snapshot.
+    run_702 = @submission.github_check_runs.find_by!(external_id: 702)
+    assert_equal "completed", run_702.status
+    assert_equal "success", run_702.conclusion
+  ensure
+    service.define_singleton_method(:github_get, original_get)
+  end
 end

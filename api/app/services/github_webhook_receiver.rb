@@ -5,15 +5,6 @@ class GithubWebhookReceiver
   MAX_REPOSITORIES_LIST = 1000
   ZERO_SHA = ("0" * 40).freeze
 
-  STATUS_RANK = {
-    "queued" => 0,
-    "requested" => 0,
-    "waiting" => 0,
-    "pending" => 0,
-    "in_progress" => 1,
-    "completed" => 2
-  }.freeze
-
   Result = Data.define(:status, :body)
 
   def initialize(raw_body:, headers:, now: Time.current)
@@ -41,6 +32,10 @@ class GithubWebhookReceiver
 
     unless GithubWebhookDelivery::SUPPORTED_EVENTS.include?(event)
       return Result.new(status: :ok, body: { status: "ignored", delivery_id: delivery_id, event: event, duplicate: false })
+    end
+
+    unless valid_payload_shape?(event, parsed)
+      return Result.new(status: :bad_request, body: { error: "Invalid webhook payload structure" })
     end
 
     delivery, duplicate = persist_or_find_delivery(delivery_id: delivery_id, event: event, parsed: parsed)
@@ -71,6 +66,43 @@ class GithubWebhookReceiver
   rescue JSON::ParserError
     nil
   end
+
+  def valid_payload_shape?(event, parsed)
+    return false unless string_or_nil?(parsed["action"])
+    return false unless hash_or_nil?(parsed["installation"])
+    return false unless hash_or_nil?(parsed["repository"])
+
+    case event
+    when "check_run"
+      cr = parsed["check_run"]
+      return false unless hash_or_nil?(cr)
+
+      if cr.is_a?(Hash)
+        return false unless hash_or_nil?(cr["app"])
+        return false unless hash_or_nil?(cr["check_suite"])
+        return false if cr["check_suite"].is_a?(Hash) && !hash_or_nil?(cr["check_suite"]["app"])
+      end
+      true
+    when "push"
+      string_or_nil?(parsed["ref"]) &&
+        string_or_nil?(parsed["before"]) &&
+        string_or_nil?(parsed["after"]) &&
+        boolean_or_nil?(parsed["deleted"])
+    when "installation"
+      inst = parsed["installation"]
+      !inst.is_a?(Hash) || hash_or_nil?(inst["account"])
+    when "installation_repositories"
+      array_of_hashes_or_nil?(parsed["repositories_removed"]) &&
+        array_of_hashes_or_nil?(parsed["repositories_added"])
+    else
+      true
+    end
+  end
+
+  def hash_or_nil?(value) = value.nil? || value.is_a?(Hash)
+  def string_or_nil?(value) = value.nil? || value.is_a?(String)
+  def boolean_or_nil?(value) = value.nil? || value == true || value == false
+  def array_of_hashes_or_nil?(value) = value.nil? || (value.is_a?(Array) && value.all? { |item| item.is_a?(Hash) })
 
   def persist_or_find_delivery(delivery_id:, event:, parsed:)
     existing = GithubWebhookDelivery.find_by(delivery_id: delivery_id)
@@ -150,13 +182,27 @@ class GithubWebhookReceiver
     bindings = eligible_bindings(installation_id: delivery.installation_id, repository_id: delivery.repository_id, school: school)
     return "ignored" if bindings.empty?
 
-    submissions = matching_submissions(bindings: bindings, head_sha: head_sha)
-    return "staged" if submissions.empty?
+    payload_repo_full_name = delivery.payload.dig("repository", "full_name")
+    candidates = matching_submission_pairs(bindings: bindings, head_sha: head_sha, payload_repo_full_name: payload_repo_full_name)
+    return "staged" if candidates.empty?
 
-    submissions.each do |submission|
-      upsert_check_run(submission: submission, data: data, external_id: external_id, head_sha: head_sha)
+    attached = 0
+    candidates.each do |submission, binding|
+      if attach_check_run_if_proven!(
+        submission: submission,
+        binding: binding,
+        delivery: delivery,
+        data: data,
+        external_id: external_id,
+        head_sha: head_sha,
+        payload_repo_full_name: payload_repo_full_name,
+        school: school
+      )
+        attached += 1
+      end
     end
-    "processed"
+
+    attached.positive? ? "processed" : "staged"
   end
 
   def process_push(delivery, school:)
@@ -172,14 +218,29 @@ class GithubWebhookReceiver
     installations = opted_in_installations(delivery.installation_id, school: school)
     return "ignored" if installations.empty?
 
+    inst_payload = delivery.payload["installation"].is_a?(Hash) ? delivery.payload["installation"] : {}
+    event_time = if delivery.action == "suspend"
+      parse_time(inst_payload["suspended_at"]) || parse_time(inst_payload["updated_at"])
+    else
+      parse_time(inst_payload["updated_at"])
+    end
+
     reason = if delivery.action == "deleted"
       "GitHub App installation was removed on GitHub; reconnect to restore access"
     else
       "GitHub App installation was suspended on GitHub; unsuspend or reconnect to restore access"
     end
 
+    staged_any = false
+    revoked_any = false
+
     installations.each do |installation|
       installation.with_lock do
+        if stale_or_ambiguous_installation_revocation?(installation, action: delivery.action, event_time: event_time)
+          staged_any = true
+          next
+        end
+
         installation.update!(connection_state: "failed", failure_reason: reason, checked_at: now)
         installation.github_repository_bindings.order(:id).lock.each do |binding|
           binding.update!(
@@ -189,9 +250,13 @@ class GithubWebhookReceiver
             checked_at: now
           )
         end
+        revoked_any = true
       end
     end
-    "processed"
+
+    return "staged" if staged_any
+
+    revoked_any ? "processed" : "ignored"
   end
 
   def process_installation_repositories(delivery, school:)
@@ -203,11 +268,19 @@ class GithubWebhookReceiver
     installations = opted_in_installations(delivery.installation_id, school: school)
     return "ignored" if installations.empty?
 
+    event_time = parse_time(delivery.payload.dig("installation", "updated_at"))
     reason = "Repository access was removed from the GitHub App installation; re-enable access and verify again"
     updated = 0
+    staged_any = false
+
     installations.each do |installation|
       installation.with_lock do
         installation.github_repository_bindings.where(repository_id: removed_ids).order(:id).lock.each do |binding|
+          if stale_or_ambiguous_binding_revocation?(binding, event_time: event_time)
+            staged_any = true
+            next
+          end
+
           binding.update!(
             verification_state: "failed",
             failure_reason: reason,
@@ -218,7 +291,38 @@ class GithubWebhookReceiver
         end
       end
     end
+
+    return "staged" if staged_any
+
     updated.positive? ? "processed" : "ignored"
+  end
+
+  def stale_or_ambiguous_installation_revocation?(installation, action:, event_time:)
+    return false unless installation.connection_state == "connected"
+
+    freshness = [ installation.connected_at, installation.checked_at, installation.updated_at ].compact.max
+    if action == "suspend"
+      # Suspend can race with a newer unsuspend/reconnect; require a provider
+      # timestamp at least as recent as the connection's latest verification.
+      return true if event_time.nil?
+      return true if freshness.present? && event_time < freshness
+    elsif event_time.present? && installation.connected_at.present? && event_time < installation.connected_at
+      return true
+    end
+
+    false
+  end
+
+  def stale_or_ambiguous_binding_revocation?(binding, event_time:)
+    return false unless binding.verification_state == "verified"
+
+    # GitHub does not provide a per-repository removal timestamp; require an
+    # installation.updated_at at or after the binding's latest verification.
+    freshness = [ binding.verified_at, binding.checked_at ].compact.max
+    return true if event_time.nil? && freshness.present?
+    return true if event_time.present? && freshness.present? && event_time < freshness
+
+    false
   end
 
   def opted_in_installations(external_installation_id, school:)
@@ -240,17 +344,24 @@ class GithubWebhookReceiver
         github_app_installations: { installation_id: installation_id, connection_state: "connected" }
       )
       .order(:id)
-      .select do |binding|
-        enrollment = binding.enrollment
-        user = enrollment&.user
-        enrollment&.active? &&
-          user.present? && !user.archived? && !user.invite_pending? &&
-          binding.identity_current? &&
-          webhooks_enabled_for?(enrollment.cohort, school: school)
-      end
+      .select { |binding| binding_eligible?(binding, installation_id: installation_id, repository_id: repository_id, school: school) }
   end
 
-  def matching_submissions(bindings:, head_sha:)
+  def binding_eligible?(binding, installation_id:, repository_id:, school:)
+    installation = binding.github_app_installation
+    enrollment = binding.enrollment
+    user = enrollment&.user
+    binding.verification_state == "verified" &&
+      binding.repository_id == repository_id &&
+      installation&.installation_id == installation_id &&
+      installation.connection_state == "connected" &&
+      enrollment&.active? &&
+      user.present? && !user.archived? && !user.invite_pending? &&
+      binding.identity_current? &&
+      webhooks_enabled_for?(enrollment.cohort, school: school)
+  end
+
+  def matching_submission_pairs(bindings:, head_sha:, payload_repo_full_name:)
     enrollment_ids = bindings.map(&:enrollment_id).uniq
     overridden_by_enrollment = GithubRepositoryBinding
       .where(enrollment_id: enrollment_ids)
@@ -261,6 +372,8 @@ class GithubWebhookReceiver
 
     found = {}
     bindings.each do |binding|
+      next if payload_repo_full_name.present? && !binding.full_name.casecmp?(payload_repo_full_name)
+
       scope = Submission.joins(content_block: :lesson)
         .where(enrollment_id: binding.enrollment_id, commit_sha: head_sha)
       if binding.curriculum_module_id.present?
@@ -269,88 +382,53 @@ class GithubWebhookReceiver
         excluded = overridden_by_enrollment[binding.enrollment_id]
         scope = scope.where.not(lessons: { module_id: excluded }) if excluded.present?
       end
-      scope.order(:id).each { |submission| found[submission.id] = submission }
+
+      scope.order(:id).each do |submission|
+        next unless GithubCheckRunMerger.submission_matches_binding?(submission, binding: binding, payload_repo_full_name: payload_repo_full_name)
+
+        found[submission.id] ||= [ submission, binding ]
+      end
     end
     found.values
   end
 
-  def upsert_check_run(submission:, data:, external_id:, head_sha:)
-    incoming_status = data["status"]
-    incoming_conclusion = data["conclusion"]
-    incoming_started_at = parse_time(data["started_at"])
-    incoming_completed_at = parse_time(data["completed_at"])
-
+  def attach_check_run_if_proven!(submission:, binding:, delivery:, data:, external_id:, head_sha:, payload_repo_full_name:, school:)
     submission.with_lock do
-      run = submission.github_check_runs.find_or_initialize_by(external_id: external_id)
-      if run.persisted?
-        return if regresses_existing_run?(
-          run,
-          status: incoming_status,
-          conclusion: incoming_conclusion,
-          started_at: incoming_started_at,
-          completed_at: incoming_completed_at
-        )
-      elsif superseded_by_newer_same_name_run?(
+      return false unless submission.commit_sha == head_sha
+
+      current_binding = GithubRepositoryBinding
+        .includes(:github_app_installation, enrollment: [ :cohort, :user ])
+        .find_by(id: binding.id)
+      return false unless current_binding && binding_eligible?(
+        current_binding,
+        installation_id: delivery.installation_id,
+        repository_id: delivery.repository_id,
+        school: school
+      )
+      return false unless GithubCheckRunMerger.submission_matches_binding?(
+        submission,
+        binding: current_binding,
+        payload_repo_full_name: payload_repo_full_name
+      )
+
+      GithubCheckRunMerger.upsert_locked!(
         submission: submission,
-        external_id: external_id,
-        head_sha: head_sha,
-        name: data["name"],
-        app_slug: data["app_slug"],
-        status: incoming_status,
-        completed_at: incoming_completed_at
+        attributes: {
+          external_id: external_id,
+          name: data["name"],
+          workflow_name: data["workflow_name"],
+          app_slug: data["app_slug"],
+          head_sha: head_sha,
+          status: data["status"],
+          conclusion: data["conclusion"],
+          details_url: data["details_url"],
+          started_at: data["started_at"],
+          completed_at: data["completed_at"]
+        },
+        fetched_at: now,
+        check_superseded_peers: true
       )
-        return
-      end
-
-      run.update!(
-        name: data["name"],
-        workflow_name: data["workflow_name"].presence || run.workflow_name,
-        app_slug: data["app_slug"].presence || run.app_slug,
-        head_sha: head_sha,
-        status: incoming_status,
-        conclusion: incoming_conclusion,
-        details_url: data["details_url"].presence || run.details_url,
-        started_at: incoming_started_at || run.started_at,
-        completed_at: incoming_completed_at || run.completed_at,
-        fetched_at: now
-      )
-    end
-  end
-
-  def regresses_existing_run?(run, status:, conclusion:, started_at:, completed_at:)
-    existing_rank = STATUS_RANK.fetch(run.status, 0)
-    incoming_rank = STATUS_RANK.fetch(status, 0)
-    return true if incoming_rank < existing_rank
-
-    if run.status == "completed" && status == "completed"
-      if run.completed_at.present?
-        return true if completed_at.nil? || completed_at < run.completed_at
-        if completed_at == run.completed_at
-          return true if run.started_at.present? && started_at.present? && started_at < run.started_at
-          return true if run.conclusion.present? && conclusion.nil?
-        end
-      end
-    elsif incoming_rank == existing_rank
-      return true if run.started_at.present? && started_at.present? && started_at < run.started_at
-    end
-
-    false
-  end
-
-  def superseded_by_newer_same_name_run?(submission:, external_id:, head_sha:, name:, app_slug:, status:, completed_at:)
-    peers = submission.github_check_runs
-      .where(head_sha: head_sha, name: name, app_slug: app_slug)
-      .where.not(external_id: external_id)
-      .where(status: "completed")
-      .to_a
-    return false if peers.empty?
-
-    peers.any? do |peer|
-      if status == "completed"
-        peer.completed_at.present? && (completed_at.nil? || completed_at < peer.completed_at)
-      else
-        peer.external_id > external_id
-      end
+      true
     end
   end
 
@@ -396,7 +474,7 @@ class GithubWebhookReceiver
   def normalized_payload(event, parsed, action:, installation_id:, repository_id:)
     case event
     when "check_run"
-      cr = parsed["check_run"].is_a?(Hash) ? parsed["check_run"] : {}
+      cr = parsed["check_run"] || {}
       {
         "check_run" => {
           "external_id" => positive_integer(cr["id"]),
@@ -431,7 +509,7 @@ class GithubWebhookReceiver
         "installation" => { "id" => installation_id }.compact
       }
     when "installation"
-      inst = parsed["installation"].is_a?(Hash) ? parsed["installation"] : {}
+      inst = parsed["installation"] || {}
       {
         "action" => action,
         "installation" => {
@@ -440,18 +518,21 @@ class GithubWebhookReceiver
           "account_id" => positive_integer(inst.dig("account", "id")),
           "account_login" => bounded_string(inst.dig("account", "login"), 100),
           "account_type" => bounded_string(inst.dig("account", "type"), 50),
-          "repository_selection" => bounded_string(inst["repository_selection"], 50)
+          "repository_selection" => bounded_string(inst["repository_selection"], 50),
+          "suspended_at" => iso_timestamp(inst["suspended_at"]),
+          "updated_at" => iso_timestamp(inst["updated_at"])
         }.compact
       }.compact
     when "installation_repositories"
-      inst = parsed["installation"].is_a?(Hash) ? parsed["installation"] : {}
+      inst = parsed["installation"] || {}
       removed_ids = extract_repository_ids(parsed["repositories_removed"])
       added_ids = extract_repository_ids(parsed["repositories_added"])
       {
         "action" => action,
         "installation" => {
           "id" => installation_id,
-          "repository_selection" => bounded_string(inst["repository_selection"] || parsed["repository_selection"], 50)
+          "repository_selection" => bounded_string(inst["repository_selection"] || parsed["repository_selection"], 50),
+          "updated_at" => iso_timestamp(inst["updated_at"])
         }.compact,
         "repositories_removed_ids" => removed_ids,
         "repositories_added_ids" => added_ids
@@ -503,11 +584,6 @@ class GithubWebhookReceiver
   end
 
   def parse_time(value)
-    return value if value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
-    return nil unless value.is_a?(String) && value.present?
-
-    Time.iso8601(value)
-  rescue ArgumentError
-    nil
+    GithubCheckRunMerger.parse_time(value)
   end
 end

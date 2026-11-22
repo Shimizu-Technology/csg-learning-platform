@@ -21,6 +21,13 @@ module ApiRateLimits
     github_webhooks: { to: 600, within: 1.minute }
   }.freeze
 
+  def self.rate_limit_exceeded?(name, key:)
+    policy = PUBLIC.fetch(name)
+    cache_key = "rate-limit:public-api:#{name}:#{key}"
+    count = STORE.increment(cache_key, 1, expires_in: policy[:within])
+    count.to_i > policy[:to]
+  end
+
   def self.applies?(name, controller, action)
     case name
     when :all then true

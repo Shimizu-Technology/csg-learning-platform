@@ -402,11 +402,7 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
       assert_equal expected, resolved.fetch("github_webhooks"),
         "expected #{expected} for school=#{school_val.inspect} cohort=#{cohort_val.inspect}"
       client = FeatureSwitches.for_client(resolved)
-      if expected
-        assert_equal true, client.fetch("github_webhooks")
-      else
-        assert_not client.key?("github_webhooks")
-      end
+      assert_not client.key?("github_webhooks")
     end
   end
 

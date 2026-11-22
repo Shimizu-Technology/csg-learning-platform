@@ -28,8 +28,10 @@ class FeatureSwitches
   # Switches a cohort only gets by opting in itself, with the school switch on:
   # a cohort that inherits gets Off even when the school default is On.
   COHORT_OPT_IN = %w[github_app github_webhooks self_paced_peer_space learner_nudges certificates].freeze
+  # Server-only switches omitted from client session/cohort payloads regardless of school state.
+  SERVER_ONLY_FOR_CLIENT = %w[github_webhooks].freeze
   # Disabled opt-in switches omitted from client payloads to preserve Off-cohort parity.
-  IMPLICIT_OFF_FOR_CLIENT = %w[certificates github_webhooks].freeze
+  IMPLICIT_OFF_FOR_CLIENT = %w[certificates].freeze
   KEYS = DEFAULTS.keys.freeze
 
   # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
@@ -42,11 +44,11 @@ class FeatureSwitches
     resolved
   end
 
-  # Disabled opt-in switches listed in IMPLICIT_OFF_FOR_CLIENT are implicit in
-  # existing client payloads. The management endpoint still includes the
-  # explicit default and override.
+  # Server-only switches and disabled opt-in switches listed above are omitted
+  # from client payloads so Off cohorts (including Cohort 3) see zero payload
+  # drift even when school defaults are toggled. Management endpoints use `.for`.
   def self.for_client(features)
-    omitted = IMPLICIT_OFF_FOR_CLIENT.reject { |key| features[key] == true }
+    omitted = SERVER_ONLY_FOR_CLIENT + IMPLICIT_OFF_FOR_CLIENT.reject { |key| features[key] == true }
     omitted.empty? ? features : features.except(*omitted)
   end
 

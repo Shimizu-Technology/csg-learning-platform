@@ -1,5 +1,6 @@
 require "test_helper"
 require "openssl"
+require "stringio"
 require_relative "../support/github_app_fixtures"
 
 class GithubWebhooksTest < ActionDispatch::IntegrationTest
@@ -365,12 +366,18 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_equal "failed", @binding.verification_state
     assert_nil @binding.verified_at
 
-    # Reconnect and verify suspend also revokes.
-    @installation.update!(connection_state: "connected", failure_reason: nil)
-    @binding.update!(verification_state: "verified", failure_reason: nil, verified_at: Time.current)
+    # Reconnect and verify suspend with fresh provider timestamp also revokes.
+    @installation.update!(connection_state: "connected", failure_reason: nil, connected_at: Time.current, checked_at: Time.current)
+    @binding.update!(verification_state: "verified", failure_reason: nil, verified_at: Time.current, checked_at: Time.current)
     suspend_body = {
       action: "suspend",
-      installation: { id: 123, app_id: 12345, account: { id: 24680, login: "app-learner", type: "User" } }
+      installation: {
+        id: 123,
+        app_id: 12345,
+        suspended_at: (Time.current + 1.second).utc.iso8601,
+        updated_at: (Time.current + 1.second).utc.iso8601,
+        account: { id: 24680, login: "app-learner", type: "User" }
+      }
     }.to_json
     post WEBHOOK_PATH, params: suspend_body, headers: signed_headers(suspend_body, event: "installation", delivery_id: "del-inst-suspend")
     assert_response :ok
@@ -380,7 +387,41 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_equal "failed", @binding.reload.verification_state
   end
 
-  test "installation_repositories removed revokes only removed repositories" do
+  test "delayed installation suspend arriving after newer reconnection stages without clobbering" do
+    reconnected_at = Time.utc(2026, 11, 22, 12, 10, 0)
+    @installation.update!(connection_state: "connected", failure_reason: nil, connected_at: reconnected_at, checked_at: reconnected_at)
+    @binding.update!(verification_state: "verified", failure_reason: nil, verified_at: reconnected_at, checked_at: reconnected_at)
+
+    # Delayed suspend from 5 minutes before reconnect must NOT revoke the newer connection.
+    delayed_suspend = {
+      action: "suspend",
+      installation: {
+        id: 123,
+        app_id: 12345,
+        suspended_at: (reconnected_at - 5.minutes).iso8601,
+        updated_at: (reconnected_at - 5.minutes).iso8601,
+        account: { id: 24680, login: "app-learner", type: "User" }
+      }
+    }.to_json
+    post WEBHOOK_PATH, params: delayed_suspend, headers: signed_headers(delayed_suspend, event: "installation", delivery_id: "del-delayed-suspend")
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_equal "connected", @installation.reload.connection_state
+    assert_equal "verified", @binding.reload.verification_state
+
+    # Suspend with missing provider timestamp is ambiguous -> stage rather than clobber.
+    ambiguous_suspend = {
+      action: "suspend",
+      installation: { id: 123, app_id: 12345, account: { id: 24680, login: "app-learner", type: "User" } }
+    }.to_json
+    post WEBHOOK_PATH, params: ambiguous_suspend, headers: signed_headers(ambiguous_suspend, event: "installation", delivery_id: "del-ambiguous-suspend")
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_equal "connected", @installation.reload.connection_state
+    assert_equal "verified", @binding.reload.verification_state
+  end
+
+  test "installation_repositories removed revokes only removed repositories when timestamp proves ordering" do
     other_mod = @curriculum.modules.create!(name: "Module 2", position: 1)
     kept_binding = @enrollment.github_repository_bindings.create!(
       github_app_installation: @installation,
@@ -396,7 +437,7 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
 
     body = {
       action: "removed",
-      installation: { id: 123, repository_selection: "selected" },
+      installation: { id: 123, repository_selection: "selected", updated_at: (Time.current + 1.second).utc.iso8601 },
       repositories_removed: [ { id: 98765, full_name: "app-learner/prework-exercises" } ],
       repositories_added: []
     }.to_json
@@ -410,6 +451,34 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_nil @binding.verified_at
     assert_match(/removed/i, @binding.failure_reason)
     assert_equal "verified", kept_binding.reload.verification_state
+  end
+
+  test "delayed or timestamp-less installation_repositories removed stages without clobbering newer reverification" do
+    reverified_at = Time.utc(2026, 11, 22, 12, 15, 0)
+    @binding.update!(verification_state: "verified", failure_reason: nil, verified_at: reverified_at, checked_at: reverified_at)
+
+    delayed_removed = {
+      action: "removed",
+      installation: { id: 123, repository_selection: "selected", updated_at: (reverified_at - 5.minutes).iso8601 },
+      repositories_removed: [ { id: 98765, full_name: "app-learner/prework-exercises" } ],
+      repositories_added: []
+    }.to_json
+    post WEBHOOK_PATH, params: delayed_removed, headers: signed_headers(delayed_removed, event: "installation_repositories", delivery_id: "del-delayed-removed")
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_equal "verified", @binding.reload.verification_state
+
+    # Missing installation.updated_at cannot prove ordering against verified_at -> stage.
+    timeless_removed = {
+      action: "removed",
+      installation: { id: 123, repository_selection: "selected" },
+      repositories_removed: [ { id: 98765, full_name: "app-learner/prework-exercises" } ],
+      repositories_added: []
+    }.to_json
+    post WEBHOOK_PATH, params: timeless_removed, headers: signed_headers(timeless_removed, event: "installation_repositories", delivery_id: "del-timeless-removed")
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_equal "verified", @binding.reload.verification_state
   end
 
   test "unknown repository and Off cohorts including Cohort 3 are ignored with zero writes" do
@@ -557,6 +626,163 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     assert_equal({ "error" => "Too many requests", "retry_after" => 60 }, response.parsed_body)
   end
 
+  test "pure Rack endpoint rejects oversized Content-Length and chunked streams without buffering and never logs unsigned bodies" do
+    # (a) Oversized payload WITH Content-Length header returns 413 without reading rack.input.
+    read_calls = 0
+    unreadable_input = Object.new
+    unreadable_input.define_singleton_method(:read) { |*_args| read_calls += 1; "" }
+    status, _headers, body_chunks = GithubWebhookEndpoint.new.call(
+      "REQUEST_METHOD" => "POST",
+      "PATH_INFO" => WEBHOOK_PATH,
+      "REMOTE_ADDR" => "198.51.100.88",
+      "CONTENT_LENGTH" => (GithubWebhookReceiver::MAX_PAYLOAD_BYTES + 100).to_s,
+      "rack.input" => unreadable_input
+    )
+    assert_equal 413, status
+    assert_equal 0, read_calls
+    assert_equal({ "error" => "Payload too large" }, JSON.parse(body_chunks.join))
+
+    # (b) Oversized payload WITHOUT Content-Length (chunked) returns 413 and stops reading after MAX_PAYLOAD_BYTES + 1.
+    bytes_read = 0
+    chunk_size = 65_536
+    chunked_input = Object.new
+    chunked_input.define_singleton_method(:read) do |length = nil|
+      n = [ length || chunk_size, chunk_size ].min
+      bytes_read += n
+      "x" * n
+    end
+    status, _headers, body_chunks = GithubWebhookEndpoint.new.call(
+      "REQUEST_METHOD" => "POST",
+      "PATH_INFO" => WEBHOOK_PATH,
+      "REMOTE_ADDR" => "198.51.100.89",
+      "HTTP_TRANSFER_ENCODING" => "chunked",
+      "rack.input" => chunked_input
+    )
+    assert_equal 413, status
+    assert_equal GithubWebhookReceiver::MAX_PAYLOAD_BYTES + 1, bytes_read
+    assert_equal({ "error" => "Payload too large" }, JSON.parse(body_chunks.join))
+
+    # (c) Unsigned request with distinctive secret marker in JSON body produces ZERO occurrences in Rails.logger.
+    marker = "UNAUTHENTICATED_BODY_LEAK_CANARY_987654321"
+    log_buffer = StringIO.new
+    original_logger = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(log_buffer)
+    begin
+      post WEBHOOK_PATH,
+        params: { canary: marker, check_run: { name: marker } }.to_json,
+        headers: {
+          "CONTENT_TYPE" => "application/json",
+          "X-GitHub-Event" => "check_run",
+          "X-GitHub-Delivery" => "del-log-canary"
+        }
+      assert_response :unauthorized
+    ensure
+      Rails.logger = original_logger
+    end
+    refute_includes log_buffer.string, marker
+  end
+
+  test "submission repository provenance prevents cross-repository and post-rebind check-run attachment" do
+    # (a) Same commit SHA in two different repositories: only the matching repo's submission receives the check run.
+    mod2 = @curriculum.modules.create!(name: "Module B", position: 2)
+    lesson2 = mod2.lessons.create!(title: "Lesson B", position: 0, release_day: 0)
+    block2 = lesson2.content_blocks.create!(block_type: :exercise, submission_type: :prework_github_sync, filename: "222.rb", position: 0)
+    other_repo_submission = Submission.create!(
+      user: @student,
+      enrollment: @enrollment,
+      content_block: block2,
+      submission_type: :prework_github_sync,
+      text: "puts 'other'",
+      commit_sha: SHA,
+      github_code_url: "https://github.com/app-learner/other-repo/blob/#{SHA}/222.rb#L1-L1",
+      num_submissions: 1
+    )
+    @enrollment.github_repository_bindings.create!(
+      github_app_installation: @installation,
+      curriculum_module: mod2,
+      full_name: "app-learner/other-repo",
+      repository_id: 55555,
+      github_user_id: "24680",
+      github_username: "app-learner",
+      verification_state: "verified",
+      verified_at: Time.current,
+      checked_at: Time.current
+    )
+
+    body = check_run_payload(repository_id: 98765, external_id: 8201).to_json
+    post WEBHOOK_PATH, params: body, headers: signed_headers(body, event: "check_run", delivery_id: "del-prov-same-sha")
+    assert_response :ok
+    assert_equal "processed", response.parsed_body.fetch("status")
+    assert @submission.github_check_runs.exists?(external_id: 8201)
+    assert_not other_repo_submission.github_check_runs.exists?(external_id: 8201)
+
+    # (b) Binding changed to a replacement repository after submission: webhook from new binding with the same SHA
+    # must NOT attach to the old repository's submission and must stage cleanly.
+    @binding.update!(
+      full_name: "app-learner/replacement-repo",
+      repository_id: 66666,
+      verification_state: "verified",
+      verified_at: Time.current
+    )
+    replacement_body = check_run_payload(
+      repository_id: 66666,
+      repository_full_name: "app-learner/replacement-repo",
+      external_id: 8202
+    ).to_json
+    assert_no_difference "GithubCheckRun.count" do
+      post WEBHOOK_PATH, params: replacement_body, headers: signed_headers(replacement_body, event: "check_run", delivery_id: "del-prov-rebound")
+    end
+    assert_response :ok
+    assert_equal "staged", response.parsed_body.fetch("status")
+    assert_not @submission.github_check_runs.exists?(external_id: 8202)
+  end
+
+  test "malformed nested scalar JSON shapes return 400 instead of 500" do
+    malformed_cases = [
+      [ "check_run", { installation: "bad", repository: { id: 98765 }, check_run: { id: 1 } } ],
+      [ "check_run", { installation: { id: 123 }, repository: 42, check_run: { id: 1 } } ],
+      [ "check_run", { installation: { id: 123 }, repository: { id: 98765 }, check_run: 123 } ],
+      [ "check_run", { installation: { id: 123 }, repository: { id: 98765 }, check_run: { id: 1, app: "bad" } } ],
+      [ "installation", { action: "deleted", installation: { id: 123, account: "bad" } } ],
+      [ "installation_repositories", { action: "removed", installation: { id: 123 }, repositories_removed: "bad" } ],
+      [ "installation_repositories", { action: "removed", installation: { id: 123 }, repositories_removed: [ 123 ] } ]
+    ]
+
+    assert_no_difference "GithubWebhookDelivery.count" do
+      malformed_cases.each_with_index do |(event, payload), index|
+        raw = payload.to_json
+        post WEBHOOK_PATH, params: raw, headers: signed_headers(raw, event: event, delivery_id: "del-malformed-#{index}")
+        assert_response :bad_request, "Expected 400 for malformed #{event} case #{index}"
+        assert_equal({ "error" => "Invalid webhook payload structure" }, response.parsed_body)
+      end
+    end
+  end
+
+  test "Cohort 3 full session response is byte-for-byte identical whether school github_webhooks is Off or On" do
+    cohort3 = Cohort.create!(
+      name: "Cohort 3 Session Parity",
+      curriculum: @curriculum,
+      start_date: Date.new(2026, 10, 5),
+      status: :active,
+      settings: { "features" => { "student_experience_v2" => false } }
+    )
+    c3_student = User.create!(clerk_id: "c3-session-student", email: "c3-session@example.invalid", role: :student)
+    Enrollment.create!(cohort: cohort3, user: c3_student, status: :active)
+
+    SchoolSetting.current.update!(features: { "github_app" => false, "github_webhooks" => false })
+    as_app_user(c3_student) { post "/api/v1/sessions", headers: app_headers }
+    assert_response :success
+    body_when_off = response.body
+
+    SchoolSetting.current.update!(features: { "github_app" => false, "github_webhooks" => true })
+    as_app_user(c3_student) { post "/api/v1/sessions", headers: app_headers }
+    assert_response :success
+    body_when_on = response.body
+
+    assert_equal body_when_off, body_when_on
+    refute_includes body_when_on, "github_webhooks"
+  end
+
   private
 
   def signature_for(raw_body, secret: SECRET)
@@ -579,6 +805,7 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
     conclusion: "success",
     head_sha: SHA,
     repository_id: 98765,
+    repository_full_name: "app-learner/prework-exercises",
     installation_id: 123,
     started_at: "2026-11-22T02:00:00Z",
     completed_at: "2026-11-22T02:01:00Z"
@@ -598,7 +825,7 @@ class GithubWebhooksTest < ActionDispatch::IntegrationTest
         check_suite: { id: 900, app: { name: "GitHub Actions" } },
         output: { title: "Output", summary: "private log blob", text: "very long private log blob" }
       },
-      repository: { id: repository_id, full_name: "app-learner/prework-exercises" },
+      repository: { id: repository_id, full_name: repository_full_name },
       installation: { id: installation_id }
     }
   end
