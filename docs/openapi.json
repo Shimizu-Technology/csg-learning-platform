@@ -28057,7 +28057,10 @@
             ]
           },
           "frontend_origin": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "course_delivery": {
             "type": "string",
@@ -28200,7 +28203,10 @@
             "type": "integer"
           },
           "deep_link": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -28259,7 +28265,10 @@
             "type": "string"
           },
           "deep_link": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -28300,7 +28309,10 @@
             "type": "string"
           },
           "cta_url": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "footer": {
             "type": "string"
@@ -28331,8 +28343,7 @@
           "status": {
             "type": "string",
             "enum": [
-              "sent",
-              "failed",
+              "attempted",
               "skipped",
               "pending"
             ]
@@ -28344,12 +28355,6 @@
             "type": "integer"
           },
           "attempted_at": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "error_message": {
             "type": [
               "string",
               "null"
@@ -28369,18 +28374,29 @@
           "recipient_count",
           "lesson_claim_count",
           "attempted_at",
-          "error_message",
           "note"
         ],
         "additionalProperties": false
       },
-      "ReleaseCommunicationsScheduler": {
+      "ReleaseCommunicationsSchedulerHealth": {
         "type": "object",
         "properties": {
+          "scope": {
+            "const": "school_wide"
+          },
           "task_name": {
             "type": "string"
           },
-          "last_attempted_at": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "error",
+              "skipped",
+              "never_run"
+            ]
+          },
+          "last_run_at": {
             "type": [
               "string",
               "null"
@@ -28398,26 +28414,25 @@
               "null"
             ]
           },
-          "last_status": {
+          "error_class": {
             "type": [
               "string",
               "null"
             ]
           },
-          "last_error": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "note": {
+            "type": "string"
           }
         },
         "required": [
+          "scope",
           "task_name",
-          "last_attempted_at",
+          "status",
+          "last_run_at",
           "last_succeeded_at",
           "last_school_date",
-          "last_status",
-          "last_error"
+          "error_class",
+          "note"
         ],
         "additionalProperties": false
       },
@@ -28461,8 +28476,8 @@
               "$ref": "#/components/schemas/ReleaseCommunicationsDelivery"
             }
           },
-          "scheduler": {
-            "$ref": "#/components/schemas/ReleaseCommunicationsScheduler"
+          "scheduler_health": {
+            "$ref": "#/components/schemas/ReleaseCommunicationsSchedulerHealth"
           }
         },
         "required": [
@@ -28474,7 +28489,7 @@
           "upcoming_releases",
           "sample_preview",
           "recent_deliveries",
-          "scheduler"
+          "scheduler_health"
         ],
         "additionalProperties": false
       },

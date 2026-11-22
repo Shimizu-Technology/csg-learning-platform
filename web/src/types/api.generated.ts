@@ -11181,7 +11181,7 @@ export interface components {
             sender_identity: string | null;
             sender_display_name: string | null;
             sender_address: string | null;
-            frontend_origin: string;
+            frontend_origin: string | null;
             /** @enum {string} */
             course_delivery: "program" | "guided" | "self_paced";
             /** @enum {string} */
@@ -11215,7 +11215,7 @@ export interface components {
             module_name: string;
             lesson_type: string;
             release_day: number;
-            deep_link: string;
+            deep_link: string | null;
         };
         ReleaseCommunicationsUpcomingRelease: {
             release_date: string;
@@ -11228,7 +11228,7 @@ export interface components {
         ReleaseCommunicationsSampleLesson: {
             id: number;
             title: string;
-            deep_link: string;
+            deep_link: string | null;
         };
         ReleaseCommunicationsSamplePreview: {
             release_date: string;
@@ -11238,27 +11238,30 @@ export interface components {
             intro: string;
             lessons: components["schemas"]["ReleaseCommunicationsSampleLesson"][];
             cta_label: string;
-            cta_url: string;
+            cta_url: string | null;
             footer: string;
         };
         ReleaseCommunicationsDelivery: {
             date: string;
             key: string;
             /** @enum {string} */
-            status: "sent" | "failed" | "skipped" | "pending";
+            status: "attempted" | "skipped" | "pending";
             recipient_count: number;
             lesson_claim_count: number;
             attempted_at: string | null;
-            error_message: string | null;
             note: string | null;
         };
-        ReleaseCommunicationsScheduler: {
+        ReleaseCommunicationsSchedulerHealth: {
+            /** @constant */
+            scope: "school_wide";
             task_name: string;
-            last_attempted_at: string | null;
+            /** @enum {string} */
+            status: "healthy" | "error" | "skipped" | "never_run";
+            last_run_at: string | null;
             last_succeeded_at: string | null;
             last_school_date: string | null;
-            last_status: string | null;
-            last_error: string | null;
+            error_class: string | null;
+            note: string;
         };
         ReleaseCommunications: {
             generated_at: string;
@@ -11269,7 +11272,7 @@ export interface components {
             upcoming_releases: components["schemas"]["ReleaseCommunicationsUpcomingRelease"][];
             sample_preview: components["schemas"]["ReleaseCommunicationsSamplePreview"] | null;
             recent_deliveries: components["schemas"]["ReleaseCommunicationsDelivery"][];
-            scheduler: components["schemas"]["ReleaseCommunicationsScheduler"];
+            scheduler_health: components["schemas"]["ReleaseCommunicationsSchedulerHealth"];
         };
         CohortReleaseCommunicationsResponse: {
             release_communications: components["schemas"]["ReleaseCommunications"];

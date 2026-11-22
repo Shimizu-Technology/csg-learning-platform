@@ -46,4 +46,17 @@ class FrontendUrlResolverTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "production refuses localhost fallback when no safe public origin is configured" do
+    [
+      { "RAILS_ENV" => "production" },
+      { "RAILS_ENV" => "production", "PUBLIC_FRONTEND_URL" => "http://localhost:5173" },
+      { "RAILS_ENV" => "production", "FRONTEND_URL" => "http://localhost:5173,http://127.0.0.1:5173,javascript:alert(1)" }
+    ].each do |prod_env|
+      assert_nil FrontendUrlResolver.resolve(env: prod_env)
+      assert_raises(ArgumentError) { FrontendUrlResolver.safe_deep_link("/lessons/1", env: prod_env) }
+    end
+
+    assert_equal "http://localhost:5173", FrontendUrlResolver.resolve(env: { "RAILS_ENV" => "development" })
+  end
 end

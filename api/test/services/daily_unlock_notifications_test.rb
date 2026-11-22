@@ -315,4 +315,20 @@ class DailyUnlockNotificationsTest
   ensure
     %w[PUBLIC_FRONTEND_URL FRONTEND_URL].each { |key| ENV[key] = originals[key] }
   end
+
+  test "refuses delivery before reserving claims when production has no safe public frontend origin" do
+    originals = ENV.to_h.slice("RAILS_ENV", "RACK_ENV", "PUBLIC_FRONTEND_URL", "FRONTEND_URL", "ALLOWED_ORIGINS")
+    ENV["RAILS_ENV"] = "production"
+    ENV["PUBLIC_FRONTEND_URL"] = "http://localhost:5173"
+    ENV["FRONTEND_URL"] = "http://localhost:5173"
+    ENV["ALLOWED_ORIGINS"] = ""
+
+    assert_not NotificationEmailService.configured?
+    assert_no_difference("ScheduledNotificationAttempt.count") do
+      assert_raises(NotificationEmailService::ConfigurationError) { DailyUnlockNotifications.new.call }
+    end
+    assert_empty @sent
+  ensure
+    %w[RAILS_ENV RACK_ENV PUBLIC_FRONTEND_URL FRONTEND_URL ALLOWED_ORIGINS].each { |key| ENV[key] = originals[key] }
+  end
 end

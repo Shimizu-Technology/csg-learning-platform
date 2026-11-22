@@ -91,37 +91,27 @@ const activePayload: ReleaseCommunications = {
       recipient_count: 2,
       lesson_claim_count: 2,
       attempted_at: null,
-      error_message: null,
-      note: 'Scheduled for 07:00 ChST.',
+      note: 'Unclaimed deliveries scheduled for 07:00 ChST.',
     },
     {
       date: '2026-11-17',
       key: 'daily_unlock_digest/cohort/4/2026-11-17',
-      status: 'sent',
+      status: 'attempted',
       recipient_count: 2,
       lesson_claim_count: 2,
       attempted_at: '2026-11-17T07:00:12+10:00',
-      error_message: null,
-      note: null,
-    },
-    {
-      date: '2026-11-16',
-      key: 'daily_unlock_digest/cohort/4/2026-11-16',
-      status: 'failed',
-      recipient_count: 0,
-      lesson_claim_count: 0,
-      attempted_at: '2026-11-16T07:00:05+10:00',
-      error_message: 'Delivery attempt failed (DailyUnlockNotifications::DeliveryFailed).',
-      note: null,
+      note: 'Digest claim recorded for delivery; per-cohort provider delivery confirmation is not stored.',
     },
   ],
-  scheduler: {
+  scheduler_health: {
+    scope: 'school_wide',
     task_name: 'daily_unlocks',
-    last_attempted_at: '2026-11-17T07:00:12+10:00',
+    status: 'error',
+    last_run_at: '2026-11-18T07:00:05+10:00',
     last_succeeded_at: '2026-11-17T07:00:12+10:00',
     last_school_date: '2026-11-17',
-    last_status: 'run',
-    last_error: null,
+    error_class: 'DailyUnlockNotifications::DeliveryFailed',
+    note: 'School-wide daily unlock tick reported DailyUnlockNotifications::DeliveryFailed across eligible cohorts. Check server logs to determine which cohort or recipient failed.',
   },
 }
 
@@ -141,7 +131,7 @@ describe('ReleaseCommunicationsPanel', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders configuration, upcoming preview, interactive email preview, and delivery receipts', async () => {
+  it('renders configuration, upcoming preview, interactive email preview, cohort claims, and separate school-wide scheduler health', async () => {
     vi.spyOn(api, 'getCohortReleaseCommunications').mockResolvedValue({
       data: { release_communications: activePayload },
       error: null,
@@ -162,9 +152,10 @@ describe('ReleaseCommunicationsPanel', () => {
     expect(container.textContent).toContain('1 paused, 1 dropped, 1 invite pending')
     expect(container.textContent).toContain('Variables and Strings')
     expect(container.textContent).toContain('Grades and instructor feedback are published separately')
-    expect(container.textContent).toContain('Sent')
-    expect(container.textContent).toContain('Failed')
+    expect(container.textContent).toContain('Attempted (claim recorded)')
     expect(container.textContent).toContain('Pending')
+    expect(container.textContent).toContain('School-wide scheduler health')
+    expect(container.textContent).toContain('DailyUnlockNotifications::DeliveryFailed')
 
     const previewButton = [...container.querySelectorAll('button')].find((btn) =>
       btn.textContent?.includes('Preview sample email'),
@@ -197,10 +188,15 @@ describe('ReleaseCommunicationsPanel', () => {
               recipient_count: 0,
               lesson_claim_count: 0,
               attempted_at: '2026-11-18T07:00:00+10:00',
-              error_message: null,
               note: 'Self-paced cohorts open assigned lessons immediately, so scheduled daily unlock emails are skipped.',
             },
           ],
+          scheduler_health: {
+            ...activePayload.scheduler_health,
+            status: 'healthy',
+            error_class: null,
+            note: 'Last school-wide daily unlock tick completed cleanly across eligible cohorts.',
+          },
         },
       },
       error: null,

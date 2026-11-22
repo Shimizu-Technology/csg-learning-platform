@@ -1,14 +1,19 @@
 require "mail"
 
 # Staff-scoped read-only projection of a cohort's daily lesson-release email
-# configuration, upcoming scheduled releases (grouped uniquely by school date),
-# recipient eligibility breakdown, sample deep-link preview, and recent
-# delivery receipts derived from existing durable tables without migrations.
+# configuration, upcoming scheduled releases (sharing DailyUnlockNotifications'
+# assignment-aware rules), recipient eligibility breakdown, anonymous single-digest
+# sample preview, cohort claim history (indexed exact-key lookups), and separate
+# school-wide scheduler health without database migrations.
 class CohortReleaseCommunications
   MAX_UPCOMING_DATES = 5
   MAX_RECENT_DELIVERIES = 14
+  RECENT_LOOKBACK_DAYS = 45
+  KEY_LOOKUP_BATCH_SIZE = 1000
   GRADE_PUBLICATION_SEPARATION_NOTE =
     "Lesson release emails announce newly unlocked lessons only. Grades and instructor feedback are published separately when an instructor saves a grade in Learn.".freeze
+  CLAIM_RECORDED_NOTE =
+    "Digest claim recorded for delivery; per-cohort provider delivery confirmation is not stored.".freeze
 
   def initialize(cohort:, now: Time.current)
     @cohort = cohort
@@ -18,24 +23,30 @@ class CohortReleaseCommunications
     @today = LearningCalendar.today(at: @now)
     @daily_unlock_hour = ScheduledTick.daily_unlock_hour
     @school_features = FeatureSwitches.school(read_only: true)
-    @learning_plans_enabled = FeatureSwitches.for(cohort: @cohort, school: @school_features)["learning_plans"]
   end
 
   def call
-    enrollments = @cohort.enrollments.includes(:user, :module_assignments, :lesson_assignments, :learning_plan).to_a
+    enrollments = @cohort.enrollments.includes(:user).to_a
     recipient_buckets = classify_recipients(enrollments)
     eligible_enrollments = recipient_buckets[:eligible]
     enrollment_ids = enrollments.map(&:id)
-    digest_rows, lesson_claim_rows = load_attempt_rows(enrollment_ids)
+    modules = @cohort.curriculum.modules.ordered.includes(lessons: :content_blocks).to_a
+    cohort_lesson_ids = modules.flat_map { |mod| mod.lessons.map(&:id) }.uniq
+
+    digest_rows, lesson_claim_rows = load_recent_attempt_rows(enrollment_ids, eligible_enrollments.map(&:id), cohort_lesson_ids)
     task_run = ScheduledTaskRun.find_by(name: "daily_unlocks")
 
-    upcoming_releases = daily_unlocks_apply? ? build_upcoming_releases(eligible_enrollments, digest_rows) : []
+    upcoming_releases, sample_preview = if daily_unlocks_apply?
+      build_upcoming_and_sample(eligible_enrollments, modules, digest_rows, lesson_claim_rows)
+    else
+      [ [], nil ]
+    end
+
     recent_deliveries = build_recent_deliveries(
       digest_rows: digest_rows,
       lesson_claim_rows: lesson_claim_rows,
       task_run: task_run,
-      upcoming_releases: upcoming_releases,
-      eligible_count: eligible_enrollments.size
+      upcoming_releases: upcoming_releases
     )
 
     {
@@ -45,9 +56,9 @@ class CohortReleaseCommunications
       configuration: build_configuration,
       recipients: build_recipient_summary(enrollments.size, recipient_buckets),
       upcoming_releases: upcoming_releases,
-      sample_preview: build_sample_preview(upcoming_releases.first),
+      sample_preview: sample_preview,
       recent_deliveries: recent_deliveries,
-      scheduler: build_scheduler_summary(task_run)
+      scheduler_health: build_scheduler_health(task_run)
     }
   end
 
@@ -185,26 +196,141 @@ class CohortReleaseCommunications
     }
   end
 
-  def load_attempt_rows(enrollment_ids)
+  # Exact-key indexed lookups against index_scheduled_notification_attempts_on_key
+  # over a bounded recent window (RECENT_LOOKBACK_DAYS). Never scans full history.
+  def load_recent_attempt_rows(enrollment_ids, eligible_enrollment_ids, cohort_lesson_ids)
     return [ [], [] ] if enrollment_ids.empty?
 
-    id_strings = enrollment_ids.map(&:to_s)
-    digest_rows = ScheduledNotificationAttempt
-      .where("split_part(key, '/', 1) = ? AND split_part(key, '/', 2) IN (?)", DailyUnlockNotifications::DIGEST_KEY_PREFIX, id_strings)
-      .order(created_at: :desc)
-      .to_a
-    return [ [], [] ] if digest_rows.empty?
+    recent_dates = ((@today - (RECENT_LOOKBACK_DAYS - 1))..@today).to_a
+    digest_keys = enrollment_ids.flat_map { |eid| recent_dates.map { |date| DailyUnlockNotifications.digest_key(eid, date) } }
+    digest_rows = fetch_attempts_by_keys(digest_keys)
+    return [ digest_rows, [] ] if cohort_lesson_ids.empty?
 
-    lesson_claim_rows = ScheduledNotificationAttempt
-      .where("split_part(key, '/', 1) = ? AND split_part(key, '/', 2) IN (?)", DailyUnlockNotifications::LESSON_KEY_PREFIX, id_strings)
-      .to_a
+    matched_enrollment_ids = digest_rows.filter_map { |row| parse_digest_key(row.key).first }
+    lesson_lookup_ids = (matched_enrollment_ids | eligible_enrollment_ids).uniq
+    return [ digest_rows, [] ] if lesson_lookup_ids.empty?
+
+    lesson_keys = lesson_lookup_ids.flat_map { |eid| cohort_lesson_ids.map { |lid| DailyUnlockNotifications.claim_key(eid, lid) } }
+    lesson_claim_rows = fetch_attempts_by_keys(lesson_keys)
     [ digest_rows, lesson_claim_rows ]
   end
 
-  def build_upcoming_releases(eligible_enrollments, digest_rows)
-    modules = @cohort.curriculum.modules.ordered.includes(lessons: :content_blocks).to_a
-    assigned_modules = select_assigned_modules(modules, eligible_enrollments)
-    by_date = Hash.new { |hash, key| hash[key] = [] }
+  def fetch_attempts_by_keys(keys)
+    return [] if keys.empty?
+
+    rows = []
+    keys.each_slice(KEY_LOOKUP_BATCH_SIZE) do |slice|
+      rows.concat(ScheduledNotificationAttempt.where(key: slice).to_a)
+    end
+    rows
+  end
+
+  def build_upcoming_and_sample(eligible_enrollments, modules, digest_rows, lesson_claim_rows)
+    modules_by_id = modules.index_by(&:id)
+    lesson_order = build_lesson_order(modules)
+
+    if eligible_enrollments.empty?
+      upcoming = build_base_schedule_upcoming(modules)
+      return [ upcoming, build_sample_preview(upcoming.first&.dig(:release_date), upcoming.first&.dig(:lessons)) ]
+    end
+
+    projections = LearnerProgress.for_all(eligible_enrollments, now: @now, school_features: @school_features)
+    today_deliveries = if effective_cohort_status == "active"
+      DailyUnlockNotifications.new.candidates_for_enrollments(
+        eligible_enrollments,
+        now: @now,
+        school: @school_features,
+        projections: projections
+      )
+    else
+      []
+    end
+
+    today_claimed_ids = digest_rows.filter_map do |row|
+      enrollment_id, date_str = parse_digest_key(row.key)
+      enrollment_id if date_str == @today.iso8601
+    end.to_set
+
+    claimed_lesson_keys = lesson_claim_rows.map(&:key).to_set
+
+    # Collect per-date deliveries: date => { enrollment_ids:, lessons_by_id:, sample_lessons: }
+    schedule = {}
+
+    if today_deliveries.any?
+      sample_lessons = sort_lessons(today_deliveries.first[:lessons], lesson_order)
+      all_today_lessons = sort_lessons(today_deliveries.flat_map { |d| d[:lessons] }.uniq(&:id), lesson_order)
+      schedule[@today] = {
+        recipient_count: today_deliveries.size,
+        already_claimed_count: eligible_enrollments.count { |e| today_claimed_ids.include?(e.id) },
+        lessons: all_today_lessons,
+        sample_lessons: sample_lessons
+      }
+    end
+
+    future_deliveries_by_date = Hash.new { |h, k| h[k] = [] }
+    eligible_enrollments.each do |enrollment|
+      progress = projections.fetch(enrollment.id)
+      lessons_by_future_date = Hash.new { |h, k| h[k] = [] }
+
+      progress.lessons.each do |lesson|
+        ma = progress.content.module_assignments[lesson.module_id]
+        la = progress.content.lesson_assignments[lesson.id]
+        unlock_on = lesson.assigned_unlock_date(@cohort, ma, la)
+        next unless unlock_on && unlock_on > @today
+        next if progress.plan && !progress.required?(lesson)
+        next if enrollment.access_expires_at.present? && enrollment.access_expires_at <= scheduled_time_on(unlock_on)
+        next if claimed_lesson_keys.include?(DailyUnlockNotifications.claim_key(enrollment.id, lesson.id))
+        next unless LessonReadAccess.readable?(enrollment, lesson, ma, la, on: unlock_on)
+
+        lessons_by_future_date[unlock_on] << lesson
+      end
+
+      lessons_by_future_date.each do |date, lessons|
+        future_deliveries_by_date[date] << { enrollment: enrollment, lessons: lessons.uniq(&:id) }
+      end
+    end
+
+    future_deliveries_by_date.each do |date, deliveries|
+      sample_lessons = sort_lessons(deliveries.first[:lessons], lesson_order)
+      all_lessons = sort_lessons(deliveries.flat_map { |d| d[:lessons] }.uniq(&:id), lesson_order)
+      schedule[date] = {
+        recipient_count: deliveries.size,
+        already_claimed_count: 0,
+        lessons: all_lessons,
+        sample_lessons: sample_lessons
+      }
+    end
+
+    sorted_dates = schedule.keys.sort.first(MAX_UPCOMING_DATES)
+    upcoming = sorted_dates.map do |date|
+      entry = schedule[date]
+      {
+        release_date: date.iso8601,
+        scheduled_send_at: scheduled_time_on(date).iso8601,
+        is_today: date == @today,
+        eligible_recipient_count: entry[:recipient_count],
+        already_claimed_count: entry[:already_claimed_count],
+        lessons: serialize_lessons(entry[:lessons], modules_by_id)
+      }
+    end
+
+    first_date = sorted_dates.first
+    sample_preview = if first_date
+      build_sample_preview(first_date.iso8601, serialize_lessons(schedule[first_date][:sample_lessons], modules_by_id))
+    end
+
+    [ upcoming, sample_preview ]
+  end
+
+  def build_base_schedule_upcoming(modules)
+    assigned_modules = if @cohort.content_defaults.nil?
+      modules
+    else
+      allowed = @cohort.content_defaults.filter_map { |id, cfg| id.to_i if cfg.is_a?(Hash) && cfg["assigned"] }.to_set
+      modules.select { |mod| allowed.include?(mod.id) }
+    end
+    modules_by_id = modules.index_by(&:id)
+    by_date = Hash.new { |h, k| h[k] = [] }
 
     assigned_modules.each do |mod|
       mod.lessons.each do |lesson|
@@ -214,72 +340,51 @@ class CohortReleaseCommunications
         unlock_on = lesson.unlock_date(@cohort)
         next unless unlock_on && unlock_on >= @today
 
-        by_date[unlock_on] << [ mod, lesson ]
+        by_date[unlock_on] << lesson
       end
     end
 
-    today_claimed_ids = digest_rows.filter_map do |row|
-      enrollment_id, date_str = parse_digest_key(row.key)
-      enrollment_id if date_str == @today.iso8601
-    end.to_set
-
     by_date.keys.sort.first(MAX_UPCOMING_DATES).map do |date|
-      unique_entries = by_date[date].uniq { |(_, lesson)| lesson.id }
-      recipient_count = count_recipients_for_release_date(eligible_enrollments, unique_entries, date)
-      claimed_today = date == @today ? eligible_enrollments.count { |enrollment| today_claimed_ids.include?(enrollment.id) } : 0
-
+      unique_lessons = by_date[date].uniq(&:id)
       {
         release_date: date.iso8601,
         scheduled_send_at: scheduled_time_on(date).iso8601,
         is_today: date == @today,
-        eligible_recipient_count: recipient_count,
-        already_claimed_count: claimed_today,
-        lessons: unique_entries.map do |mod, lesson|
-          {
-            id: lesson.id,
-            title: lesson.title,
-            module_id: mod.id,
-            module_name: mod.name,
-            lesson_type: lesson.lesson_type,
-            release_day: lesson.release_day,
-            deep_link: NotificationEmailService.daily_unlock_lesson_url(lesson, @cohort)
-          }
-        end
+        eligible_recipient_count: 0,
+        already_claimed_count: 0,
+        lessons: serialize_lessons(unique_lessons, modules_by_id)
       }
     end
   end
 
-  def select_assigned_modules(modules, eligible_enrollments)
-    return modules if @cohort.content_defaults.nil?
-
-    assigned_from_defaults = @cohort.content_defaults.filter_map do |id, config|
-      id.to_i if config.is_a?(Hash) && config["assigned"]
-    end.to_set
-    assigned_from_enrollments = eligible_enrollments.flat_map { |enrollment| enrollment.module_assignments.map(&:module_id) }.to_set
-    allowed = assigned_from_defaults | assigned_from_enrollments
-    modules.select { |mod| allowed.include?(mod.id) }
+  def build_lesson_order(modules)
+    order = {}
+    idx = 0
+    modules.each do |mod|
+      mod.lessons.each do |lesson|
+        order[lesson.id] = idx
+        idx += 1
+      end
+    end
+    order
   end
 
-  def count_recipients_for_release_date(eligible_enrollments, entries, date)
-    return 0 if eligible_enrollments.empty?
+  def sort_lessons(lessons, lesson_order)
+    lessons.sort_by { |lesson| [ lesson_order.fetch(lesson.id, Float::INFINITY), lesson.release_day, lesson.position, lesson.id ] }
+  end
 
-    eligible_enrollments.count do |enrollment|
-      next false if enrollment.access_expires_at.present? && enrollment.access_expires_at <= scheduled_time_on(date)
-
-      module_assignments = enrollment.module_assignments.index_by(&:module_id)
-      lesson_assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
-      plan = @learning_plans_enabled && enrollment.learning_plan&.active? ? enrollment.learning_plan : nil
-
-      entries.any? do |mod, lesson|
-        ma = module_assignments[mod.id]
-        ma&.association(:curriculum_module)&.target = mod
-        ma&.association(:enrollment)&.target = enrollment
-        la = lesson_assignments[lesson.id]
-        next false unless ma.present? || la.present?
-        next false if plan && !plan.required?(lesson)
-
-        LessonReadAccess.readable?(enrollment, lesson, ma, la, on: date)
-      end
+  def serialize_lessons(lessons, modules_by_id)
+    lessons.map do |lesson|
+      mod = modules_by_id[lesson.module_id] || lesson.curriculum_module
+      {
+        id: lesson.id,
+        title: lesson.title,
+        module_id: lesson.module_id,
+        module_name: mod&.name.to_s,
+        lesson_type: lesson.lesson_type,
+        release_day: lesson.release_day,
+        deep_link: NotificationEmailService.daily_unlock_lesson_url(lesson, @cohort)
+      }
     end
   end
 
@@ -287,13 +392,12 @@ class CohortReleaseCommunications
     @zone.local(date.year, date.month, date.day, @daily_unlock_hour, 0, 0)
   end
 
-  def build_sample_preview(next_release)
-    return nil unless next_release
+  def build_sample_preview(release_date, lessons)
+    return nil unless release_date && lessons.present?
 
-    lessons = next_release[:lessons]
     count = lessons.size
     {
-      release_date: next_release[:release_date],
+      release_date: release_date,
       subject: NotificationEmailService.daily_unlock_subject,
       from: SchoolBrand.email_sender.presence,
       headline: "#{count} new lesson#{count > 1 ? 's' : ''} unlocked!",
@@ -305,7 +409,7 @@ class CohortReleaseCommunications
     }
   end
 
-  def build_recent_deliveries(digest_rows:, lesson_claim_rows:, task_run:, upcoming_releases:, eligible_count:)
+  def build_recent_deliveries(digest_rows:, lesson_claim_rows:, task_run:, upcoming_releases:)
     claims_by_date_and_enrollment = Hash.new(0)
     lesson_claim_rows.each do |row|
       parts = row.key.split("/")
@@ -321,44 +425,23 @@ class CohortReleaseCommunications
       enrollment_id, date_str = parse_digest_key(row.key)
       next unless enrollment_id && date_str
 
-      entry = grouped[date_str] ||= { enrollment_ids: Set.new, attempted_at: row.created_at, sample_key: row.key }
+      entry = grouped[date_str] ||= { enrollment_ids: Set.new, attempted_at: row.created_at }
       entry[:enrollment_ids].add(enrollment_id)
       entry[:attempted_at] = row.created_at if row.created_at > entry[:attempted_at]
     end
 
-    error_on_date = active_error_date(task_run)
-    task_error_message = task_run&.last_result&.dig("error")
-
     deliveries = grouped.keys.sort.reverse.first(MAX_RECENT_DELIVERIES).map do |date_str|
       entry = grouped[date_str]
       lesson_count = entry[:enrollment_ids].sum { |eid| claims_by_date_and_enrollment[[ date_str, eid ]] }
-      failed_for_date = error_on_date == date_str
       {
         date: date_str,
         key: "daily_unlock_digest/cohort/#{@cohort.id}/#{date_str}",
-        status: failed_for_date ? "failed" : "sent",
+        status: "attempted",
         recipient_count: entry[:enrollment_ids].size,
         lesson_claim_count: lesson_count,
         attempted_at: entry[:attempted_at].iso8601,
-        error_message: failed_for_date ? format_error_message(task_error_message, claims_retained: true) : nil,
-        note: nil
+        note: CLAIM_RECORDED_NOTE
       }
-    end
-
-    # Surface an unresolved failure on a date where all claims were released (e.g. provider rejection or missing config).
-    if daily_unlocks_apply? && error_on_date.present? && !grouped.key?(error_on_date)
-      deliveries.unshift(
-        {
-          date: error_on_date,
-          key: "daily_unlock_digest/cohort/#{@cohort.id}/#{error_on_date}",
-          status: "failed",
-          recipient_count: 0,
-          lesson_claim_count: 0,
-          attempted_at: task_run.last_attempted_at&.iso8601,
-          error_message: format_error_message(task_error_message, claims_retained: false),
-          note: nil
-        }
-      )
     end
 
     # Show skipped status for cohorts where daily unlock emails do not apply.
@@ -371,15 +454,13 @@ class CohortReleaseCommunications
         recipient_count: 0,
         lesson_claim_count: 0,
         attempted_at: (task_run.last_succeeded_at || task_run.last_attempted_at)&.iso8601,
-        error_message: nil,
         note: eligibility_reason
       }
     end
 
-    # Show today as pending when eligible lessons are due today and no digest has been claimed or failed yet.
+    # Show today as pending when remaining unclaimed eligible deliveries exist for today.
     today_release = upcoming_releases.find { |item| item[:is_today] }
-    if daily_unlocks_apply? && today_release && today_release[:eligible_recipient_count].positive? &&
-       !grouped.key?(@today.iso8601) && error_on_date != @today.iso8601 && eligible_count.positive?
+    if daily_unlocks_apply? && today_release && today_release[:eligible_recipient_count].positive?
       deliveries.unshift(
         {
           date: @today.iso8601,
@@ -388,29 +469,12 @@ class CohortReleaseCommunications
           recipient_count: today_release[:eligible_recipient_count],
           lesson_claim_count: today_release[:lessons].size * today_release[:eligible_recipient_count],
           attempted_at: nil,
-          error_message: nil,
-          note: "Scheduled for #{formatted_unlock_hour} #{time_zone_label}."
+          note: "Unclaimed deliveries scheduled for #{formatted_unlock_hour} #{time_zone_label}."
         }
       )
     end
 
     deliveries.first(MAX_RECENT_DELIVERIES)
-  end
-
-  def active_error_date(task_run)
-    return nil unless task_run&.last_attempted_at && task_run.last_result["status"] == "error"
-    return nil if task_run.last_succeeded_at && task_run.last_succeeded_at >= task_run.last_attempted_at
-
-    LearningCalendar.today(at: task_run.last_attempted_at).iso8601
-  end
-
-  def format_error_message(error_name, claims_retained:)
-    detail = error_name.presence || "DailyUnlockNotifications::DeliveryFailed"
-    if claims_retained
-      "Delivery attempt failed (#{detail}). Claims were retained to avoid duplicate sends."
-    else
-      "Delivery attempt failed (#{detail}). Rejected claims were released for the next retry."
-    end
   end
 
   def parse_digest_key(key)
@@ -421,14 +485,52 @@ class CohortReleaseCommunications
     [ parts[1].to_i, parts[2] ]
   end
 
-  def build_scheduler_summary(task_run)
+  def build_scheduler_health(task_run)
+    if task_run.nil?
+      return {
+        scope: "school_wide",
+        task_name: "daily_unlocks",
+        status: "never_run",
+        last_run_at: nil,
+        last_succeeded_at: nil,
+        last_school_date: nil,
+        error_class: nil,
+        note: "No school-wide daily unlock tick has been recorded yet."
+      }
+    end
+
+    last_result = task_run.last_result || {}
+    unresolved_error = task_run.last_attempted_at.present? &&
+      last_result["status"] == "error" &&
+      (task_run.last_succeeded_at.nil? || task_run.last_attempted_at > task_run.last_succeeded_at)
+
+    status = if unresolved_error
+      "error"
+    elsif last_result["status"] == "skipped"
+      "skipped"
+    else
+      "healthy"
+    end
+
+    error_class = unresolved_error ? last_result["error"].presence : nil
+    note = case status
+    when "error"
+      "School-wide daily unlock tick reported #{error_class || 'an error'} across eligible cohorts. Check server logs to determine which cohort or recipient failed."
+    when "skipped"
+      "Last school-wide daily unlock tick skipped execution."
+    else
+      "Last school-wide daily unlock tick completed cleanly across eligible cohorts."
+    end
+
     {
+      scope: "school_wide",
       task_name: "daily_unlocks",
-      last_attempted_at: task_run&.last_attempted_at&.iso8601,
-      last_succeeded_at: task_run&.last_succeeded_at&.iso8601,
-      last_school_date: task_run&.last_school_date&.iso8601,
-      last_status: task_run&.last_result&.dig("status"),
-      last_error: task_run&.last_result&.dig("error")
+      status: status,
+      last_run_at: (task_run.last_attempted_at || task_run.last_succeeded_at)&.iso8601,
+      last_succeeded_at: task_run.last_succeeded_at&.iso8601,
+      last_school_date: task_run.last_school_date&.iso8601,
+      error_class: error_class,
+      note: note
     }
   end
 end

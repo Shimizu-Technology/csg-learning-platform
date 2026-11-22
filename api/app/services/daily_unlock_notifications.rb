@@ -12,6 +12,49 @@ class DailyUnlockNotifications
     "#{LESSON_KEY_PREFIX}/#{enrollment_id}/#{lesson_id}"
   end
 
+  def self.eligible_lessons_for_enrollment(enrollment, progress:, date_range:, on:, scheduled_at: nil)
+    progress.lessons.select do |lesson|
+      ma = progress.content.module_assignments[lesson.module_id]
+      la = progress.content.lesson_assignments[lesson.id]
+      date = lesson.assigned_unlock_date(enrollment.cohort, ma, la)
+      next false unless date && date_range.cover?(date)
+      next false if progress.plan && !progress.required?(lesson)
+      next false if scheduled_at && enrollment.access_expires_at.present? && enrollment.access_expires_at <= scheduled_at
+
+      on == progress.today ? progress.available?(lesson) : LessonReadAccess.readable?(enrollment, lesson, ma, la, on: on)
+    end.uniq(&:id)
+  end
+
+  def candidates_for_enrollments(enrollments, now: Time.current, school: nil, projections: nil)
+    today = LearningCalendar.today(at: now)
+    first_date = today - (CATCH_UP_DAYS - 1)
+    date_range = first_date..today
+    enrollments = enrollments.to_a
+    return [] if enrollments.empty?
+
+    school ||= FeatureSwitches.school(read_only: true)
+    projections ||= LearnerProgress.for_all(enrollments, now: now, school_features: school)
+    deliveries = enrollments.filter_map do |enrollment|
+      next if enrollment.user.nil? || enrollment.user.archived? || enrollment.user.email.blank? || enrollment.user.invite_pending?
+
+      progress = projections.fetch(enrollment.id)
+      lessons = self.class.eligible_lessons_for_enrollment(enrollment, progress: progress, date_range: date_range, on: today)
+      next if lessons.empty?
+
+      { enrollment: enrollment, lessons: lessons }
+    end
+    keys = deliveries.flat_map { |delivery| delivery[:lessons].map { |lesson| claim_key(delivery[:enrollment], lesson) } + [ digest_key(delivery[:enrollment], today) ] }
+    claimed = keys.empty? ? Set.new : ScheduledNotificationAttempt.where(key: keys).pluck(:key).to_set
+    deliveries.each do |delivery|
+      if claimed.include?(digest_key(delivery[:enrollment], today))
+        delivery[:lessons].clear
+      else
+        delivery[:lessons].reject! { |lesson| claimed.include?(claim_key(delivery[:enrollment], lesson)) }
+      end
+    end
+    deliveries.reject { |delivery| delivery[:lessons].empty? }
+  end
+
   def preview(now: Time.current, last_date: nil)
     deliveries = candidates(now)
     { recipients: deliveries.size, lessons: deliveries.sum { |delivery| delivery[:lessons].size },
@@ -79,33 +122,12 @@ class DailyUnlockNotifications
   # so there is no daily release to announce; their reminders come in W9.3.
   def candidates(now)
     today = LearningCalendar.today(at: now)
-    first_date = today - (CATCH_UP_DAYS - 1)
     enrollments = Enrollment.active(at: now).joins(:cohort, :user)
       .merge(Cohort.active(on: today)).where(cohorts: { course_delivery: %w[program guided], learner_pace_weeks: nil })
       .where(users: { archived_at: nil }).includes(:user).to_a
     # Preview must not lazily create SchoolSetting through FeatureSwitches.school.
     school = FeatureSwitches.school(read_only: true)
-    projections = LearnerProgress.for_all(enrollments, now: now, school_features: school)
-    deliveries = enrollments.filter_map do |enrollment|
-      progress = projections.fetch(enrollment.id)
-      lessons = progress.lessons.select do |lesson|
-        date = lesson.assigned_unlock_date(enrollment.cohort, progress.content.module_assignments[lesson.module_id], progress.content.lesson_assignments[lesson.id])
-        date && date.between?(first_date, today) && (!progress.plan || progress.required?(lesson)) && progress.available?(lesson)
-      end.uniq(&:id)
-      next if lessons.empty? || enrollment.user.email.blank? || enrollment.user.invite_pending?
-
-      { enrollment: enrollment, lessons: lessons }
-    end
-    keys = deliveries.flat_map { |delivery| delivery[:lessons].map { |lesson| claim_key(delivery[:enrollment], lesson) } + [ digest_key(delivery[:enrollment], today) ] }
-    claimed = ScheduledNotificationAttempt.where(key: keys).pluck(:key).to_set
-    deliveries.each do |delivery|
-      if claimed.include?(digest_key(delivery[:enrollment], today))
-        delivery[:lessons].clear
-      else
-        delivery[:lessons].reject! { |lesson| claimed.include?(claim_key(delivery[:enrollment], lesson)) }
-      end
-    end
-    deliveries.reject { |delivery| delivery[:lessons].empty? }
+    candidates_for_enrollments(enrollments, now: now, school: school)
   end
 
   def digest_key(enrollment, today) = self.class.digest_key(enrollment.id, today)

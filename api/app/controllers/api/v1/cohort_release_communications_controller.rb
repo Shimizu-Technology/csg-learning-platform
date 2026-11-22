@@ -17,6 +17,7 @@ module Api
           return
         end
 
+        response.headers["Cache-Control"] = "private, no-store"
         render json: {
           release_communications: CohortReleaseCommunications.new(cohort: cohort).call
         }

@@ -1,4 +1,5 @@
 import {
+  Activity,
   AlertCircle,
   CalendarDays,
   CheckCircle2,
@@ -37,21 +38,41 @@ const DELIVERY_STATUS_META: Record<
   ReleaseCommunicationsDelivery['status'],
   { label: string; tone: BadgeTone }
 > = {
-  sent: { label: 'Sent', tone: 'success' },
-  failed: { label: 'Failed', tone: 'danger' },
+  attempted: { label: 'Attempted (claim recorded)', tone: 'info' },
   skipped: { label: 'Skipped', tone: 'neutral' },
   pending: { label: 'Pending', tone: 'warning' },
 }
 
+const SCHEDULER_HEALTH_META: Record<
+  ReleaseCommunications['scheduler_health']['status'],
+  { label: string; tone: BadgeTone }
+> = {
+  healthy: { label: 'Healthy', tone: 'success' },
+  error: { label: 'Error', tone: 'danger' },
+  skipped: { label: 'Skipped', tone: 'neutral' },
+  never_run: { label: 'Not yet run', tone: 'neutral' },
+}
+
 function DeliveryStatusIcon({ status }: { status: ReleaseCommunicationsDelivery['status'] }) {
   switch (status) {
-    case 'sent':
+    case 'attempted':
       return <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-    case 'failed':
-      return <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
     case 'skipped':
       return <SkipForward className="h-3.5 w-3.5" aria-hidden="true" />
     case 'pending':
+      return <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+  }
+}
+
+function SchedulerHealthIcon({ status }: { status: ReleaseCommunications['scheduler_health']['status'] }) {
+  switch (status) {
+    case 'healthy':
+      return <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+    case 'error':
+      return <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+    case 'skipped':
+      return <SkipForward className="h-3.5 w-3.5" aria-hidden="true" />
+    case 'never_run':
       return <Clock className="h-3.5 w-3.5" aria-hidden="true" />
   }
 }
@@ -70,7 +91,7 @@ function formatSchoolDate(isoDate: string) {
 }
 
 function formatTimestamp(iso: string | null, timeZone: string) {
-  if (!iso) return 'Not sent yet'
+  if (!iso) return 'Not recorded yet'
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
   try {
@@ -138,6 +159,7 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
 
   const config = data?.configuration
   const recipients = data?.recipients
+  const schedulerHealth = data?.scheduler_health
 
   const statusBadge = (() => {
     if (!config) return null
@@ -186,7 +208,7 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
             {statusBadge && <Badge tone={statusBadge.tone}>{statusBadge.label}</Badge>}
           </div>
           <p className="mt-1 text-sm leading-6 text-ink-secondary">
-            Verify school timezone, sender identity, upcoming daily unlock emails, and recent delivery receipts.
+            Verify school timezone, sender identity, upcoming daily unlock emails, and recorded digest claims.
           </p>
         </div>
         <Button
@@ -205,7 +227,7 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
         <p role="status" className="text-sm text-ink-muted">
           Loading release communication status…
         </p>
-      ) : error || !data || !config || !recipients ? (
+      ) : error || !data || !config || !recipients || !schedulerHealth ? (
         <div role="alert" className="space-y-3 rounded-xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">
           <p>{error || 'Could not load release communication status.'}</p>
           <Button variant="secondary" size="sm" onClick={() => void load()}>
@@ -242,7 +264,9 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
                 {config.sender_identity || 'Not configured'}
               </p>
               <p className="mt-1 text-xs text-ink-secondary">
-                {config.email_configured ? 'Email provider configured' : 'Set RESEND_API_KEY and sender email'}
+                {config.email_configured
+                  ? 'Email provider configured'
+                  : 'Set RESEND_API_KEY, sender email, and public frontend URL'}
               </p>
             </div>
 
@@ -286,7 +310,10 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
                   <h3 className="text-base font-bold text-ink">Upcoming release preview</h3>
                   <p className="text-xs text-ink-secondary">
                     Lessons grouped uniquely by school release day. Deep links target{' '}
-                    <span className="break-all font-mono text-ink">{config.frontend_origin}</span>.
+                    <span className="break-all font-mono text-ink">
+                      {config.frontend_origin || 'Unconfigured public origin'}
+                    </span>
+                    .
                   </p>
                 </div>
                 {data.sample_preview && (
@@ -314,7 +341,7 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
 
               {data.upcoming_releases.length === 0 ? (
                 <p className="rounded-xl border border-line bg-surface-sunken p-4 text-sm text-ink-secondary">
-                  No upcoming scheduled lesson releases remain for this cohort.
+                  No remaining upcoming scheduled lesson releases for this cohort.
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -350,30 +377,37 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
                                 <RecordLink
                                   record={{ type: 'lesson', id: lesson.id, cohortId }}
                                   variant="plain"
+                                  touchTarget
                                 >
                                   {lesson.title}
                                 </RecordLink>
                               </p>
-                              <p className="text-xs text-ink-secondary">
+                              <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-ink-secondary">
                                 <RecordLink
                                   record={{ type: 'module', id: lesson.module_id, cohortId }}
                                   variant="plain"
+                                  touchTarget
                                   className="text-xs font-medium text-ink-secondary"
                                 >
                                   {lesson.module_name}
-                                </RecordLink>{' '}
-                                · Day {lesson.release_day + 1}
-                              </p>
+                                </RecordLink>
+                                <span aria-hidden="true">·</span>
+                                <span>Day {lesson.release_day + 1}</span>
+                              </div>
                             </div>
-                            <a
-                              href={lesson.deep_link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="app-link inline-flex min-h-11 items-center gap-1.5 break-all text-xs lg:min-h-9"
-                            >
-                              <span className="break-all">Open lesson link</span>
-                              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                            </a>
+                            {lesson.deep_link ? (
+                              <a
+                                href={lesson.deep_link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="app-link inline-flex min-h-11 items-center gap-1.5 break-all text-xs lg:min-h-9"
+                              >
+                                <span className="break-all">Open lesson link</span>
+                                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                              </a>
+                            ) : (
+                              <span className="text-xs text-ink-muted">Public origin required for deep links</span>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -409,17 +443,22 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
                           <RecordLink
                             record={{ type: 'lesson', id: lesson.id, cohortId }}
                             variant="plain"
+                            touchTarget
                             className="font-semibold"
                           >
                             {lesson.title}
-                          </RecordLink>{' '}
-                          <span className="block break-all font-mono text-xs text-ink-muted">{lesson.deep_link}</span>
+                          </RecordLink>
+                          <span className="block break-all font-mono text-xs text-ink-muted">
+                            {lesson.deep_link || 'Public origin required'}
+                          </span>
                         </li>
                       ))}
                     </ul>
                     <div className="rounded-xl border border-line bg-surface-sunken px-3.5 py-2.5 text-xs text-ink-secondary">
                       <span className="font-semibold text-ink">{data.sample_preview.cta_label}:</span>{' '}
-                      <span className="break-all font-mono">{data.sample_preview.cta_url}</span>
+                      <span className="break-all font-mono">
+                        {data.sample_preview.cta_url || 'Public origin required'}
+                      </span>
                     </div>
                     <p className="text-xs text-ink-muted">{data.sample_preview.footer}</p>
                   </div>
@@ -429,20 +468,16 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
           )}
 
           <div className="space-y-3">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
               <h3 className="text-base font-bold text-ink">Recent delivery status</h3>
-              {data.scheduler.last_attempted_at && (
-                <p className="text-xs text-ink-secondary">
-                  Last scheduler check:{' '}
-                  {formatTimestamp(data.scheduler.last_attempted_at, config.school_time_zone)}{' '}
-                  {config.school_time_zone_label}
-                </p>
-              )}
+              <p className="text-xs text-ink-secondary">
+                Cohort-scoped digest claims recorded in the last 45 school days.
+              </p>
             </div>
 
             {data.recent_deliveries.length === 0 ? (
               <p className="rounded-xl border border-line bg-surface-sunken p-4 text-sm text-ink-secondary">
-                No release email deliveries recorded for this cohort yet.
+                No release email digest claims recorded for this cohort yet.
               </p>
             ) : (
               <>
@@ -477,11 +512,7 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
                               {formatTimestamp(delivery.attempted_at, config.school_time_zone)}
                             </td>
                             <td className="max-w-xs break-words px-4 py-3 text-xs text-ink-secondary">
-                              {delivery.error_message ? (
-                                <span className="text-danger-ink">{delivery.error_message}</span>
-                              ) : (
-                                delivery.note || delivery.key
-                              )}
+                              {delivery.note || delivery.key}
                             </td>
                           </tr>
                         )
@@ -513,17 +544,48 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
                           </span>
                           <span>{formatTimestamp(delivery.attempted_at, config.school_time_zone)}</span>
                         </div>
-                        {delivery.error_message ? (
-                          <p className="break-words text-xs text-danger-ink">{delivery.error_message}</p>
-                        ) : delivery.note ? (
-                          <p className="break-words text-xs text-ink-secondary">{delivery.note}</p>
-                        ) : null}
+                        {delivery.note && <p className="break-words text-xs text-ink-secondary">{delivery.note}</p>}
                       </li>
                     )
                   })}
                 </ul>
               </>
             )}
+          </div>
+
+          <div
+            aria-label="School-wide scheduler health"
+            className="space-y-2 rounded-xl border border-line bg-surface-sunken p-4 text-sm"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Activity className="h-4 w-4 shrink-0 text-ink-secondary" aria-hidden="true" />
+                <h3 className="font-bold text-ink">School-wide scheduler health</h3>
+                <Badge tone="neutral">School-wide</Badge>
+              </div>
+              <Badge
+                tone={SCHEDULER_HEALTH_META[schedulerHealth.status].tone}
+                icon={<SchedulerHealthIcon status={schedulerHealth.status} />}
+              >
+                {SCHEDULER_HEALTH_META[schedulerHealth.status].label}
+              </Badge>
+            </div>
+            <p className="break-words text-xs leading-5 text-ink-secondary">{schedulerHealth.note}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
+              <span>
+                Last run: {formatTimestamp(schedulerHealth.last_run_at, config.school_time_zone)}
+                {schedulerHealth.last_run_at ? ` ${config.school_time_zone_label}` : ''}
+              </span>
+              {schedulerHealth.last_succeeded_at && (
+                <span>
+                  Last success: {formatTimestamp(schedulerHealth.last_succeeded_at, config.school_time_zone)}{' '}
+                  {config.school_time_zone_label}
+                </span>
+              )}
+              {schedulerHealth.error_class && (
+                <span className="font-mono text-danger-ink">Error: {schedulerHealth.error_class}</span>
+              )}
+            </div>
           </div>
         </div>
       )}

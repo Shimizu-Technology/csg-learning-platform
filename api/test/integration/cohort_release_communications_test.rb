@@ -27,7 +27,7 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
     @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @other_cohort.cohort_instructor_assignments.create!(user: @other_instructor)
 
-    @active_student = enroll_student("rc_active", @cohort)
+    @active_student = enroll_student("rc_active", @cohort, first_name: "PrivateLearnerName")
     @paused_student = enroll_student("rc_paused", @cohort, status: :paused)
     @dropped_student = enroll_student("rc_dropped", @cohort, status: :dropped)
     @invited_student = enroll_student("rc_invited", @cohort, clerk_id: "pending_rc_invited")
@@ -54,10 +54,11 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
 
     as_user(@instructor) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
     assert_response :success
+    assert_equal "private, no-store", response.headers["Cache-Control"]
     assert_equal @cohort.id, response.parsed_body.dig("release_communications", "cohort_id")
   end
 
-  test "returns configuration, recipient breakdown, unique-day upcoming preview, and safe deep links without leaking secrets" do
+  test "returns configuration, recipient breakdown, anonymous single-digest preview, and safe deep links without leaking secrets or learner names" do
     SchoolSetting.delete_all
 
     assert_no_difference("SchoolSetting.count") do
@@ -65,7 +66,9 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
+    assert_equal "private, no-store", response.headers["Cache-Control"]
     refute_includes response.body, "re_secret_do_not_leak"
+    refute_includes response.body, "PrivateLearnerName"
 
     payload = response.parsed_body.fetch("release_communications")
     config = payload.fetch("configuration")
@@ -106,15 +109,20 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
     preview = payload.fetch("sample_preview")
     assert_equal "New content unlocked - Code School of Guam", preview.fetch("subject")
     assert_equal "2 new lessons unlocked!", preview.fetch("headline")
+    assert_equal "Hey Student, new content is available in Prework Cohort A:", preview.fetch("intro")
     assert_equal "https://learn.codeschoolofguam.com/materials?cohort_id=#{@cohort.id}", preview.fetch("cta_url")
 
     deliveries = payload.fetch("recent_deliveries")
     assert_equal 1, deliveries.size
     assert_equal "pending", deliveries.first.fetch("status")
     assert_equal 1, deliveries.first.fetch("recipient_count")
+
+    health = payload.fetch("scheduler_health")
+    assert_equal "school_wide", health.fetch("scope")
+    assert_equal "never_run", health.fetch("status")
   end
 
-  test "isolates recent delivery attempts per cohort and reflects sent and failed states" do
+  test "reports truthful cohort claim attempts and separates school-wide scheduler errors without blaming this cohort" do
     today_iso = LearningCalendar.today.iso8601
     yesterday_iso = (LearningCalendar.today - 1).iso8601
 
@@ -134,27 +142,95 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
 
     as_user(@instructor) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
     assert_response :success
-    deliveries = response.parsed_body.dig("release_communications", "recent_deliveries")
-    sent_row = deliveries.find { |row| row["date"] == yesterday_iso }
-    assert_equal "sent", sent_row.fetch("status")
-    assert_equal 1, sent_row.fetch("recipient_count")
-    assert_equal 1, sent_row.fetch("lesson_claim_count")
-    assert_nil sent_row.fetch("error_message")
+    payload = response.parsed_body.fetch("release_communications")
+    deliveries = payload.fetch("recent_deliveries")
+    attempted_row = deliveries.find { |row| row["date"] == yesterday_iso }
+    assert_equal "attempted", attempted_row.fetch("status")
+    assert_equal 1, attempted_row.fetch("recipient_count")
+    assert_equal 1, attempted_row.fetch("lesson_claim_count")
+    assert_includes attempted_row.fetch("note"), "claim recorded"
     # Today is still pending for @cohort despite @other_cohort having a claim today.
     today_row = deliveries.find { |row| row["date"] == today_iso }
     assert_equal "pending", today_row.fetch("status")
+    assert_equal "healthy", payload.dig("scheduler_health", "status")
     refute_includes response.body, @other_cohort.name
 
-    # Simulate an unresolved failure on today's run (e.g., provider rejection released claims).
+    # A school-wide tick error surfaces in scheduler_health without fabricating a cohort failure row or mutating cohort claims.
     ScheduledTaskRun.find_by!(name: "daily_unlocks").update!(
       last_attempted_at: Time.current,
       last_result: { "status" => "error", "error" => "DailyUnlockNotifications::DeliveryFailed", "failed" => 1, "sent" => 0 }
     )
     as_user(@instructor) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
     assert_response :success
-    failed_row = response.parsed_body.dig("release_communications", "recent_deliveries").find { |row| row["date"] == today_iso }
-    assert_equal "failed", failed_row.fetch("status")
-    assert_includes failed_row.fetch("error_message"), "DeliveryFailed"
+    payload = response.parsed_body.fetch("release_communications")
+    assert_equal "error", payload.dig("scheduler_health", "status")
+    assert_equal "school_wide", payload.dig("scheduler_health", "scope")
+    assert_equal "DailyUnlockNotifications::DeliveryFailed", payload.dig("scheduler_health", "error_class")
+    assert payload.fetch("recent_deliveries").none? { |row| row["status"] == "failed" }
+    assert_equal "attempted", payload.fetch("recent_deliveries").find { |row| row["date"] == yesterday_iso }.fetch("status")
+  end
+
+  test "preview shares assignment-aware candidate rules for overrides, lesson-only assignments, catch-up, and claimed digests" do
+    # Create an extra module NOT assigned in cohort content_defaults, with a lesson-only assignment for @active_student.
+    bonus_mod = @curriculum.modules.create!(name: "Bonus Clinic", position: 1, day_offset: 30, schedule_days: "daily")
+    bonus_lesson = bonus_mod.lessons.create!(title: "Custom Override Lesson", position: 0, release_day: 0)
+    custom_date = LearningCalendar.today + 3
+    @active_student.lesson_assignments.create!(lesson: bonus_lesson, unlocked: true, unlock_date_override: custom_date)
+
+    # Also add a per-learner unlock_date_override moving @tomorrow to 4 days from now for @active_student.
+    override_date = LearningCalendar.today + 4
+    @active_student.lesson_assignments.create!(lesson: @tomorrow, unlocked: true, unlock_date_override: override_date)
+
+    # Move cohort start back 1 day so a yesterday catch-up lesson is still due in today's 3-day window.
+    catchup_lesson = @mod.lessons.create!(title: "Yesterday Catch-up", position: 4, release_day: 0)
+    @cohort.update!(start_date: LearningCalendar.today - 1)
+    @today_a.update!(release_day: 1)
+    @today_b.update!(release_day: 1)
+
+    as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+    assert_response :success
+    upcoming = response.parsed_body.dig("release_communications", "upcoming_releases")
+    by_date = upcoming.index_by { |entry| entry.fetch("release_date") }
+
+    # Today includes catchup_lesson (from yesterday inside 3-day catch-up window) + today's lessons.
+    today_ids = by_date.fetch(LearningCalendar.today.iso8601).fetch("lessons").map { |l| l.fetch("id") }
+    assert_includes today_ids, catchup_lesson.id
+    assert_includes today_ids, @today_a.id
+    assert_includes today_ids, @today_b.id
+
+    # Lesson-only assignment outside cohort defaults appears on custom_date.
+    assert_equal [ bonus_lesson.id ], by_date.fetch(custom_date.iso8601).fetch("lessons").map { |l| l.fetch("id") }
+    # Per-learner unlock override moves @tomorrow to override_date.
+    assert_equal [ @tomorrow.id ], by_date.fetch(override_date.iso8601).fetch("lessons").map { |l| l.fetch("id") }
+
+    # Once today's digest is claimed for @active_student, today is excluded from remaining upcoming releases and pending deliveries.
+    ScheduledNotificationAttempt.create!(key: DailyUnlockNotifications.digest_key(@active_student.id, LearningCalendar.today), created_at: Time.current)
+    as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+    assert_response :success
+    payload = response.parsed_body.fetch("release_communications")
+    assert payload.fetch("upcoming_releases").none? { |entry| entry.fetch("is_today") }
+    assert_equal custom_date.iso8601, payload.dig("sample_preview", "release_date")
+    today_delivery = payload.fetch("recent_deliveries").find { |row| row["date"] == LearningCalendar.today.iso8601 }
+    assert_equal "attempted", today_delivery.fetch("status")
+  end
+
+  test "uses exact indexed key lookups instead of split_part table scans and keeps query count flat" do
+    ScheduledNotificationAttempt.create!(key: DailyUnlockNotifications.digest_key(@active_student.id, LearningCalendar.today - 1), created_at: 1.day.ago)
+    ScheduledNotificationAttempt.create!(key: DailyUnlockNotifications.claim_key(@active_student.id, @today_a.id), created_at: 1.day.ago)
+
+    as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+    small_sql = capture_queries do
+      as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+      assert_response :success
+    end
+    assert small_sql.none? { |sql| sql.include?("split_part") }, "Expected indexed key lookup, got split_part:\n#{small_sql.join("\n")}"
+
+    5.times { |idx| enroll_student("rc_growth_#{idx}", @cohort) }
+    large_sql = capture_queries do
+      as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+      assert_response :success
+    end
+    assert_equal small_sql.size, large_sql.size, "Query count grew with learners: #{small_sql.size} vs #{large_sql.size}"
   end
 
   test "explains when self-paced and personal-pace cohorts are skipped" do
@@ -181,29 +257,14 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
     assert_equal "skipped", payload.fetch("recent_deliveries").first.fetch("status")
   end
 
-  test "query count stays flat as enrolled learners grow" do
-    as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
-    small = count_queries do
-      as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
-      assert_response :success
-    end
-
-    5.times { |idx| enroll_student("rc_growth_#{idx}", @cohort) }
-    large = count_queries do
-      as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
-      assert_response :success
-    end
-    assert_equal small, large, "Query count grew with learners: #{small} vs #{large}"
-  end
-
   private
 
-  def create_user(clerk_id, email, role)
-    User.create!(clerk_id: clerk_id, email: email, first_name: clerk_id.capitalize, last_name: "Test", role: role)
+  def create_user(clerk_id, email, role, first_name: clerk_id.capitalize)
+    User.create!(clerk_id: clerk_id, email: email, first_name: first_name, last_name: "Test", role: role)
   end
 
-  def enroll_student(slug, cohort, status: :active, clerk_id: slug)
-    user = create_user(clerk_id, "#{slug}@example.test", :student)
+  def enroll_student(slug, cohort, status: :active, clerk_id: slug, first_name: slug.capitalize)
+    user = create_user(clerk_id, "#{slug}@example.test", :student, first_name: first_name)
     enrollment = Enrollment.create!(cohort: cohort, user: user, status: status)
     enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
     enrollment

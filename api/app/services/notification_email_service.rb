@@ -34,11 +34,15 @@ class NotificationEmailService
     end
 
     def daily_unlock_lesson_url(lesson, cohort)
+      return nil unless frontend_url.present?
+
       path = RecordDestination.to_web_path(RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort.id }))
       frontend_path(path)
     end
 
     def daily_unlock_cta_url(cohort)
+      return nil unless frontend_url.present?
+
       frontend_path("/materials?cohort_id=#{cohort.id}")
     end
 
@@ -206,6 +210,10 @@ class NotificationEmailService
         Rails.logger.warn("[NotificationEmail] from email not configured; skipping")
         return false
       end
+      if frontend_url.blank?
+        Rails.logger.warn("[NotificationEmail] public frontend URL not configured; skipping")
+        return false
+      end
       true
     end
 
@@ -214,6 +222,7 @@ class NotificationEmailService
     def ensure_configured!
       raise ConfigurationError, "RESEND_API_KEY is not configured" if ENV["RESEND_API_KEY"].blank?
       raise ConfigurationError, "sender email is not configured" if from_email.blank?
+      raise ConfigurationError, "public frontend URL is not configured" if frontend_url.blank?
     end
 
     def readable_lessons(user, cohort, lessons)

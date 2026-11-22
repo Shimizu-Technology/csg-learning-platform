@@ -3,13 +3,16 @@ class FrontendUrlResolver
 
   class << self
     def resolve(env: ENV, fallback: "http://localhost:5173")
+      production = production_env?(env)
       explicit = env["PUBLIC_FRONTEND_URL"].to_s.strip
-      return explicit if safe_origin?(explicit)
+      return explicit if acceptable_origin?(explicit, production: production)
 
-      urls = candidate_urls(env)
-      return fallback if urls.empty?
+      urls = candidate_urls(env, production: production)
+      if urls.empty?
+        return production ? nil : fallback
+      end
 
-      preferred_url(urls, env) || urls.first || fallback
+      preferred_url(urls, production: production) || urls.first || (production ? nil : fallback)
     end
 
     def safe_origin?(url)
@@ -32,28 +35,36 @@ class FrontendUrlResolver
       end
 
       origin = resolve(env: env).to_s.sub(%r{/\z}, "")
-      raise ArgumentError, "Frontend URL origin is unsafe" unless safe_origin?(origin)
+      raise ArgumentError, "Frontend URL origin is unsafe or unconfigured" unless acceptable_origin?(origin, production: production_env?(env))
 
       "#{origin}#{relative}"
     end
 
     private
 
-    def candidate_urls(env)
+    def acceptable_origin?(url, production:)
+      safe_origin?(url) && (!production || !local_url?(url))
+    end
+
+    def candidate_urls(env, production:)
       raw = env["FRONTEND_URL"].presence || env["ALLOWED_ORIGINS"].presence
       return [] if raw.blank?
 
-      raw.split(",").map(&:strip).select { |url| safe_origin?(url) }
+      raw.split(",").map(&:strip).select { |url| acceptable_origin?(url, production: production) }
     end
 
-    def preferred_url(urls, env)
-      return urls.first unless production_env?(env)
+    def preferred_url(urls, production:)
+      return urls.first unless production
 
       remote_https_url(urls) || remote_url(urls) || urls.first
     end
 
     def production_env?(env)
-      env["RAILS_ENV"].to_s == "production" || env["RACK_ENV"].to_s == "production"
+      if env.key?("RAILS_ENV") || env.key?("RACK_ENV")
+        return env["RAILS_ENV"].to_s == "production" || env["RACK_ENV"].to_s == "production"
+      end
+
+      defined?(Rails) && Rails.env.production?
     end
 
     def remote_https_url(urls)

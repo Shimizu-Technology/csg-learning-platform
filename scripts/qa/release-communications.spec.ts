@@ -35,25 +35,34 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(section.getByText('Grades and instructor feedback are published separately')).toBeVisible()
       await expect(section.getByText('Upcoming release preview')).toBeVisible()
       await expect(section.getByText('Recent delivery status')).toBeVisible()
+      await expect(section.getByText('School-wide scheduler health')).toBeVisible()
 
-      const visibleSent = section.locator(`${isMobile ? 'ul' : 'table'} >> text=Sent`).first()
+      const visibleAttempted = section.locator(`${isMobile ? 'ul' : 'table'} >> text=Attempted (claim recorded)`).first()
       const visiblePending = section.locator(`${isMobile ? 'ul' : 'table'} >> text=Pending`).first()
-      await expect(visibleSent).toBeVisible()
+      await expect(visibleAttempted).toBeVisible()
       await expect(visiblePending).toBeVisible()
 
-      // Interactive sample email preview toggle + mobile touch target check
+      // Interactive sample email preview toggle + mobile >=44px touch targets on buttons, lesson/module RecordLinks, and sample links
       const previewButton = section.getByRole('button', { name: 'Preview sample email' })
       await expect(previewButton).toBeVisible()
       const refreshButton = section.getByRole('button', { name: 'Refresh status' })
       if (isMobile) {
-        const previewBox = await previewButton.boundingBox()
-        const refreshBox = await refreshButton.boundingBox()
-        expect(previewBox?.height ?? 0).toBeGreaterThanOrEqual(44)
-        expect(refreshBox?.height ?? 0).toBeGreaterThanOrEqual(44)
+        expect((await previewButton.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+        expect((await refreshButton.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+        const lessonLink = section.locator('a[data-record-link="lesson"]').first()
+        const moduleLink = section.locator('a[data-record-link="module"]').first()
+        expect((await lessonLink.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+        expect((await moduleLink.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
       }
       await previewButton.click()
-      await expect(section.getByText('New content unlocked - Code School of Guam')).toBeVisible()
-      await expect(section.getByText('Open Learn:')).toBeVisible()
+      const samplePreview = section.getByLabel('Sample release email preview')
+      await expect(samplePreview).toBeVisible()
+      await expect(samplePreview.getByText('New content unlocked - Code School of Guam')).toBeVisible()
+      await expect(samplePreview.getByText('Open Learn:')).toBeVisible()
+      if (isMobile) {
+        const sampleLessonLink = samplePreview.locator('a[data-record-link="lesson"]').first()
+        expect((await sampleLessonLink.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+      }
 
       // Verify theme, zero horizontal overflow, and WCAG AA contrast inside Release Communications
       const metrics = await page.evaluate(() => {
@@ -78,7 +87,7 @@ for (const theme of ['light', 'dark'] as const) {
       expect(axe.violations).toEqual([])
 
       await section.getByRole('button', { name: 'Hide sample email' }).click()
-      await expect(section.getByText('New content unlocked - Code School of Guam')).toBeHidden()
+      await expect(samplePreview).toBeHidden()
 
       // 2. Admin on QA Self paced (cohort 2) Communication tab -> skipped explanation
       await page.goto('/admin/cohorts/2?tab=communication')
