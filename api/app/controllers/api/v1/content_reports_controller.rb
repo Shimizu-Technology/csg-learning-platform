@@ -27,7 +27,7 @@ module Api
         reports = reports.none if person == false
         reports = case view
         when "open" then reports.where(status: OPEN_STATUSES).order(created_at: :asc, id: :asc)
-        when "resolved" then reports.where(status: RESOLVED_STATUSES).order(resolved_at: :desc, id: :desc)
+        when "resolved" then reports.where(status: RESOLVED_STATUSES).order(Arel.sql("content_reports.resolved_at DESC NULLS LAST"), id: :desc)
         else reports.recent_first
         end
         per_page = view.in?(%w[open resolved]) ? per_page_param : LEGACY_LIMIT

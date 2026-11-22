@@ -464,6 +464,179 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     assert_equal "Mobile", @exercise.reload.body
   end
 
+  test "block editor preserves legacy requires_submission when an implicit sibling relies on it" do
+    @lesson.update!(requires_submission: true)
+    @exercise.update!(submission_type: :manual_complete)
+    implicit_exercise = @lesson.content_blocks.create!(block_type: :exercise, position: 4, title: "Legacy essay", submission_type: nil)
+    implicit_challenge = @lesson.content_blocks.create!(block_type: :code_challenge, position: 5, title: "Legacy code", submission_type: nil)
+    assert_equal [ "manual_complete", "text_submission", "text_submission" ],
+      [ @exercise, implicit_exercise, implicit_challenge ].map(&:effective_submission_type)
+
+    blocks = payload[:blocks]
+    blocks[0] = blocks[0].merge(body: "Updated reading prose.")
+    blocks.unshift({ client_id: "practice-companion", block_type: "exercise", title: "Warmup", body: "Try it locally.", submission_type: "manual_complete" })
+    put_editor(@admin, payload(title: "Updated title", blocks: blocks))
+
+    assert_response :success
+    assert @lesson.reload.requires_submission, "manual_complete primary must not strip legacy requires_submission"
+    assert_equal "text_submission", implicit_exercise.reload.effective_submission_type
+    assert_equal "text_submission", implicit_challenge.reload.effective_submission_type
+    assert_equal "manual_complete", @exercise.reload.effective_submission_type
+
+    # Once every exercise-like block carries an explicit submission type, saving recalculates the legacy flag.
+    explicit_blocks = payload[:blocks].map do |block|
+      [ implicit_exercise.id, implicit_challenge.id ].include?(block[:id]) ? block.merge(submission_type: "manual_complete") : block
+    end
+    put_editor(@admin, payload(blocks: explicit_blocks))
+    assert_response :success
+    assert_not @lesson.reload.requires_submission
+  end
+
+  test "block editor does not flip legacy requires_submission from false to true when an implicit sibling exists" do
+    @lesson.update!(requires_submission: false)
+    @exercise.update!(submission_type: :manual_complete)
+    implicit_sibling = @lesson.content_blocks.create!(block_type: :exercise, position: 4, title: "Implicit practice", submission_type: nil)
+    assert_equal "manual_complete", implicit_sibling.effective_submission_type
+
+    blocks = payload[:blocks].map do |block|
+      block[:id] == @exercise.id ? block.merge(submission_type: "repo_url_submission") : block
+    end
+    put_editor(@admin, payload(blocks: blocks))
+
+    assert_response :success
+    assert_not @lesson.reload.requires_submission, "changing primary to reviewed must not silently require submission on an implicit sibling"
+    assert_equal "repo_url_submission", @exercise.reload.effective_submission_type
+    assert_equal "manual_complete", implicit_sibling.reload.effective_submission_type
+  end
+
+  test "mobile editor and legacy block endpoints preserve an implicit sibling's legacy submission requirement" do
+    @lesson.update!(requires_submission: true)
+    @exercise.update!(submission_type: :manual_complete)
+    implicit_sibling = @lesson.content_blocks.create!(block_type: :exercise, position: 4, title: "Legacy submission", submission_type: nil)
+    assert_equal "text_submission", implicit_sibling.effective_submission_type
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: @lesson.reload.updated_at.iso8601(6),
+          title: "Mobile edit",
+          requires_submission: false,
+          exercise: { id: @exercise.id, body: "Updated warmup", submission_type: "manual_complete" }
+        }
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert @lesson.reload.requires_submission
+    assert_equal "text_submission", implicit_sibling.reload.effective_submission_type
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: @lesson.reload.updated_at.iso8601(6),
+          title: "Mobile title only",
+          requires_submission: false
+        }
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert @lesson.reload.requires_submission
+    assert_equal "text_submission", implicit_sibling.reload.effective_submission_type
+
+    as_user(@admin) do
+      post "/api/v1/lessons/#{@lesson.id}/content_blocks",
+        params: { block_type: "exercise", position: 5, title: "Practice", submission_type: "manual_complete" },
+        headers: auth_headers, as: :json
+      assert_response :created
+      patch "/api/v1/content_blocks/#{@exercise.id}", params: { title: "Renamed warmup" }, headers: auth_headers, as: :json
+      assert_response :success
+    end
+    assert @lesson.reload.requires_submission
+    assert_equal "text_submission", implicit_sibling.reload.effective_submission_type
+  end
+
+  test "adding a new manual_complete exercise via /editor protects an existing implicit primary" do
+    @lesson.update!(requires_submission: true)
+    @exercise.update!(submission_type: nil)
+    assert_equal "text_submission", @exercise.effective_submission_type
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: @lesson.reload.updated_at.iso8601(6),
+          title: @lesson.title,
+          requires_submission: false,
+          exercise: {
+            title: "Optional warmup",
+            body: "Try this locally before starting the graded exercise.",
+            submission_type: "manual_complete"
+          }
+        }
+      }, headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert @lesson.reload.requires_submission, "adding a new manual_complete exercise must not strip legacy requires_submission"
+    assert_equal "text_submission", @exercise.reload.effective_submission_type
+    added = @lesson.content_blocks.order(:id).last
+    assert_not_equal @exercise.id, added.id
+    assert_equal "manual_complete", added.submission_type
+    assert_equal "manual_complete", added.effective_submission_type
+  end
+
+  test "flag-only requires_submission update via /editor returns 422 when an implicit sibling exists, while versioned lesson PATCH succeeds" do
+    @lesson.update!(requires_submission: true)
+    @exercise.update!(submission_type: :manual_complete)
+    implicit_sibling = @lesson.content_blocks.create!(block_type: :exercise, position: 4, title: "Legacy submission", submission_type: nil)
+    objective = LearningObjective.create!(curriculum: @curriculum, code: "JS.10", title: "Guard flag", success_criteria: "I can guard the legacy flag.")
+    @lesson.objective_alignments.create!(learning_objective: objective, position: 0)
+    version_before = @lesson.reload.updated_at
+
+    # Bare flag-only request must not silently discard the requested change.
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: version_before.iso8601(6),
+          requires_submission: false
+        }
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_match(/PATCH \/api\/v1\/lessons\/:id/, response.parsed_body.fetch("errors").join(" "))
+    assert_match(/submission_type/, response.parsed_body.fetch("errors").join(" "))
+    assert @lesson.reload.requires_submission
+    assert_equal version_before, @lesson.updated_at
+    assert_equal [ objective.id ], @lesson.objective_alignments.pluck(:learning_objective_id)
+    assert_equal "text_submission", implicit_sibling.reload.effective_submission_type
+
+    # Unchanged lesson/exercise/alignment fields with only requires_submission changed also returns 422.
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor", params: {
+        editor: {
+          base_updated_at: version_before.iso8601(6),
+          title: @lesson.title,
+          required: @lesson.required,
+          requires_submission: false,
+          exercise: { id: @exercise.id, body: @exercise.body, submission_type: "manual_complete" },
+          alignments: [ { learning_objective_id: objective.id, content_block_id: nil } ]
+        }
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert @lesson.reload.requires_submission
+    assert_equal version_before, @lesson.updated_at
+
+    # Explicit versioned lesson PATCH /api/v1/lessons/:id succeeds.
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}", params: {
+        base_updated_at: @lesson.reload.updated_at.iso8601(6),
+        requires_submission: false
+      }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_not @lesson.reload.requires_submission
+    assert_equal "manual_complete", implicit_sibling.reload.effective_submission_type
+  end
+
   private
 
   def user(role, slug)

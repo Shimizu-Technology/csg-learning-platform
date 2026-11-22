@@ -202,11 +202,29 @@ module Api
           @lesson.with_authoring_lock do
             require_current_editor_version!
             lock_editor_blocks!
-            @lesson.update!(editor_lesson_params)
-            old_s3_key, new_s3_key = update_editor_video!
-            update_editor_exercise!
-            removed_check_block_id = update_editor_retrieval_check!
+            preserves_flag = requires_submission_change_blocked?
+            before_alignments = @lesson.objective_alignments.order(:position, :id).pluck(:learning_objective_id, :content_block_id)
+            @lesson.update!(editor_lesson_params(preserve_requires_submission: preserves_flag))
+            old_s3_key, new_s3_key, video_changed = update_editor_video!
+            exercise_changed = update_editor_exercise!
+            removed_check_block_id, check_changed = update_editor_retrieval_check!
             replace_editor_objective_alignments!(removed_check_block_id: removed_check_block_id)
+            alignments_changed = editor_params.key?(:alignments) &&
+              before_alignments != @lesson.objective_alignments.order(:position, :id).pluck(:learning_objective_id, :content_block_id)
+
+            if preserves_flag && !other_editor_changes?(
+              lesson_changed: @lesson.saved_changes.except("updated_at").any?,
+              video_changed: video_changed,
+              exercise_changed: exercise_changed,
+              check_changed: check_changed,
+              alignments_changed: alignments_changed
+            )
+              @lesson.errors.add(
+                :requires_submission,
+                "cannot be changed through /editor while an exercise inherits the legacy lesson flag; use PATCH /api/v1/lessons/:id or set an explicit submission_type on each exercise"
+              )
+              raise ActiveRecord::RecordInvalid, @lesson
+            end
           end
         end
 
@@ -318,8 +336,37 @@ module Api
         )
       end
 
-      def editor_lesson_params
-        editor_params.slice(:title, :required, :requires_submission)
+      def editor_lesson_params(preserve_requires_submission: false)
+        permitted = editor_params.slice(:title, :required, :requires_submission)
+        preserve_requires_submission ? permitted.except(:requires_submission) : permitted
+      end
+
+      def requires_submission_change_blocked?
+        return false unless editor_params.key?(:requires_submission)
+
+        requested = ActiveModel::Type::Boolean.new.cast(editor_params[:requires_submission])
+        return false if requested == @lesson.requires_submission
+
+        preserves_implicit_legacy_sibling?
+      end
+
+      def preserves_implicit_legacy_sibling?
+        implicit = @lesson.content_blocks.select { |block| block.exercise_like? && block.submission_type.nil? }
+        return false if implicit.empty?
+
+        exercise_payload = editor_params[:exercise]
+        edited_id = exercise_payload&.[](:id).presence&.to_i
+        # An exercise payload without an id creates a new block rather than
+        # editing an existing one, so every existing implicit exercise is a sibling.
+        return true if exercise_payload.present? && edited_id.nil?
+        return true if edited_id && implicit.any? { |block| block.id != edited_id }
+        return true if implicit.size > 1
+
+        @lesson.primary_assignment_block&.submission_type.present?
+      end
+
+      def other_editor_changes?(lesson_changed:, video_changed:, exercise_changed:, check_changed:, alignments_changed:)
+        lesson_changed || video_changed || exercise_changed || check_changed || alignments_changed
       end
 
       def require_current_editor_version!
@@ -338,12 +385,12 @@ module Api
 
       def update_editor_video!
         payload = editor_params[:video]
-        return [ nil, nil ] if payload.blank?
+        return [ nil, nil, false ] if payload.blank?
 
         block = if payload[:id].present?
           @lesson.content_blocks.where(block_type: %i[video recording]).find(payload[:id])
         else
-          return [ nil, nil ] if payload[:video_url].blank? && payload[:s3_video_key].blank?
+          return [ nil, nil, false ] if payload[:video_url].blank? && payload[:s3_video_key].blank?
 
           @lesson.content_blocks.new(block_type: :video, position: next_editor_block_position)
         end
@@ -380,7 +427,7 @@ module Api
         # A confirmed replacement resets watch progress in ContentBlock.
         block.save!
 
-        [ old_s3_key, block.s3_video_key ]
+        [ old_s3_key, block.s3_video_key, block.previously_new_record? || block.saved_changes.except("updated_at").any? ]
       end
 
       def prepare_editor_video_metadata!
@@ -468,21 +515,22 @@ module Api
 
       def update_editor_exercise!
         payload = editor_params[:exercise]
-        return if payload.blank?
+        return false if payload.blank?
 
         block = if payload[:id].present?
           @lesson.content_blocks.where(block_type: %i[exercise code_challenge]).find(payload[:id])
         else
-          return if payload[:body].blank? && payload[:filename].blank?
+          return false if payload[:body].blank? && payload[:filename].blank?
 
           @lesson.content_blocks.new(block_type: :exercise, position: next_editor_block_position)
         end
         block.update!(payload.except(:id))
+        block.previously_new_record? || block.saved_changes.except("updated_at").any?
       end
 
       def update_editor_retrieval_check!
         payload = editor_params[:retrieval_check]
-        return if payload.blank?
+        return [ nil, false ] if payload.blank?
 
         block = if payload[:content_block_id].present?
           @lesson.content_blocks.where(block_type: :checkpoint).find(payload[:content_block_id])
@@ -493,9 +541,10 @@ module Api
         unless ActiveModel::Type::Boolean.new.cast(payload[:enabled])
           removed_block_id = block&.id
           block&.destroy!
-          return removed_block_id
+          return [ removed_block_id, removed_block_id.present? ]
         end
 
+        created = block.nil?
         block ||= @lesson.content_blocks.create!(
           block_type: :checkpoint,
           position: next_editor_block_position,
@@ -503,6 +552,7 @@ module Api
         )
         block.update!(title: payload[:title].presence || "Quick check")
         check = block.knowledge_check || block.build_knowledge_check
+        check_created = check.new_record?
         check.update!(
           prompt: payload[:prompt],
           options: Array(payload[:options]).map(&:strip),
@@ -510,7 +560,9 @@ module Api
           explanation: payload[:explanation],
           learning_objective_id: payload[:learning_objective_id].presence
         )
-        nil
+        changed = created || block.saved_changes.except("updated_at").any? ||
+          check_created || check.saved_changes.except("updated_at").any?
+        [ nil, changed ]
       end
 
       def replace_editor_objective_alignments!(removed_check_block_id: nil)
