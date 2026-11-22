@@ -129,6 +129,10 @@ class GithubGradeSuggestionEvaluator
             decided_by_id: nil,
             decided_at: nil
           )
+        elsif record.persisted? && record.evidence.is_a?(Hash) && record.evidence["prior_decision"].present?
+          merged_evidence = result.evidence.deep_dup
+          merged_evidence["prior_decision"] = record.evidence["prior_decision"]
+          attributes = attributes.merge(evidence: merged_evidence)
         end
         record.assign_attributes(attributes)
         record.save!
@@ -448,25 +452,15 @@ class GithubGradeSuggestionEvaluator
   end
 
   # Selects the authoritative run for one required check name on target_sha:
-  # 1. If any pending run is newer than or concurrent with the latest completed run,
-  #    prefer it so a running rerun or parallel job never returns suggest_b early.
+  # 1. If ANY trusted pending run exists on target_sha, fail closed as pending
+  #    so a faster parallel job never bypasses a still-running job.
   # 2. A completed run supersedes an earlier completed run only when it is a
   #    sequential rerun (started_at >= earlier.completed_at, or higher external_id
   #    when neither has timestamps). Overlapping conflicting same-named jobs fail
   #    closed (failure beats inconclusive beats success).
   def select_authoritative_run(runs)
     pending_runs, completed_runs = runs.partition { |run| pending_run?(run) }
-    latest_completed = newest_by_recency(completed_runs)
-
-    if pending_runs.any?
-      return newest_pending(pending_runs) if latest_completed.nil?
-
-      active_pending = pending_runs.select do |pending|
-        pending.external_id.to_i > latest_completed.external_id.to_i ||
-          (pending.started_at.present? && latest_completed.started_at.present? && pending.started_at >= latest_completed.started_at)
-      end
-      return newest_pending(active_pending) if active_pending.any?
-    end
+    return newest_pending(pending_runs) if pending_runs.any?
 
     active_completed = completed_runs.reject do |earlier|
       completed_runs.any? { |later| sequential_rerun_supersedes?(later: later, earlier: earlier) }

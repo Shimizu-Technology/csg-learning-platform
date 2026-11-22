@@ -472,9 +472,36 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     res_overlap_skip = GithubGradeSuggestionEvaluator.evaluate_submission!(overlap_skip_sub, now: @now)
     assert_equal "no_suggestion", res_overlap_skip.outcome
     assert_equal "check_inconclusive", res_overlap_skip.reason_code
+
+    # 2e. Lower-external_id pending/queued parallel job alongside faster higher-external_id passing job -> check_pending (fail closed!)
+    %w[in_progress queued].each_with_index do |pending_status, idx|
+      parallel_pending_sub = create_verified_submission
+      create_check_run(
+        parallel_pending_sub,
+        external_id: 8040 + (idx * 2),
+        name: "prework/111.rb",
+        status: pending_status,
+        conclusion: nil,
+        started_at: pending_status == "queued" ? nil : @now - 5.minutes,
+        completed_at: nil
+      )
+      create_check_run(
+        parallel_pending_sub,
+        external_id: 8041 + (idx * 2),
+        name: "prework/111.rb",
+        status: "completed",
+        conclusion: "success",
+        started_at: @now - 4.minutes,
+        completed_at: @now - 1.minute
+      )
+      res_parallel = GithubGradeSuggestionEvaluator.evaluate_submission!(parallel_pending_sub, now: @now)
+      assert_equal "no_suggestion", res_parallel.outcome, "expected no_suggestion for parallel #{pending_status}"
+      assert_nil res_parallel.suggested_grade
+      assert_equal "check_pending", res_parallel.reason_code
+    end
   end
 
-  test "re-evaluation clears prior human decision and archives it in evidence on material change while preserving unchanged decisions" do
+  test "re-evaluation clears prior human decision and preserves archived prior_decision across consecutive re-evaluations" do
     submission = create_verified_submission
     run = create_check_run(submission, external_id: 8050, name: "prework/111.rb", status: "completed", conclusion: "success")
     suggestion = GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: @now)
@@ -494,20 +521,28 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     assert_equal @admin.id, unchanged.decided_by_id
     assert_equal decided_time, unchanged.decided_at
 
-    # Material outcome change clears human decision attribution and archives prior_decision in evidence.
-    run.update!(conclusion: "failure")
-    changed = GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: @now + 10.minutes)
-    assert_equal "review_for_redo", changed.outcome
-    assert_nil changed.decision
-    assert_nil changed.override_reason
-    assert_nil changed.decided_by_id
-    assert_nil changed.decided_at
-    prior = changed.evidence.fetch("prior_decision")
-    assert_equal "overridden", prior.fetch("decision")
-    assert_equal "Gave A for extra polish", prior.fetch("override_reason")
-    assert_equal @admin.id, prior.fetch("decided_by_id")
-    assert_equal "suggest_b", prior.fetch("prior_outcome")
-    assert_equal "B", prior.fetch("prior_suggested_grade")
+    # Material outcome change (e.g. rerun starts in_progress) clears decision and archives prior_decision in evidence.
+    run.update!(status: "in_progress", conclusion: nil, completed_at: nil)
+    pending_eval = GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: @now + 10.minutes)
+    assert_equal "no_suggestion", pending_eval.outcome
+    assert_equal "check_pending", pending_eval.reason_code
+    assert_nil pending_eval.decision
+    assert_nil pending_eval.override_reason
+    assert_nil pending_eval.decided_by_id
+    assert_nil pending_eval.decided_at
+    archived = pending_eval.evidence.fetch("prior_decision")
+    assert_equal "overridden", archived.fetch("decision")
+    assert_equal "Gave A for extra polish", archived.fetch("override_reason")
+    assert_equal @admin.id, archived.fetch("decided_by_id")
+    assert_equal "suggest_b", archived.fetch("prior_outcome")
+    assert_equal "B", archived.fetch("prior_suggested_grade")
+
+    # Second consecutive re-evaluation (rerun finishes as failure) preserves the archived prior_decision.
+    run.update!(status: "completed", conclusion: "failure", completed_at: @now + 12.minutes)
+    completed_eval = GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: @now + 12.minutes)
+    assert_equal "review_for_redo", completed_eval.outcome
+    assert_nil completed_eval.decision
+    assert_equal archived, completed_eval.evidence.fetch("prior_decision")
   end
 
   test "stale SHA, superseded submission, and policy version staleness are flagged as stale_evidence" do
