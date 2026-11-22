@@ -498,7 +498,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "content_block_id", null: false
     t.integer "version", null: false
     t.boolean "active", default: true, null: false
-    t.jsonb "required_checks", default: [], null: false
+    t.jsonb "required_checks", null: false
     t.jsonb "allowed_app_slugs", default: ["github-actions"], null: false
     t.string "allowed_branch"
     t.string "expected_workflow_path"
@@ -510,8 +510,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["content_block_id"], name: "index_exercise_check_policies_active_per_block", unique: true, where: "(active = true)"
     t.index ["content_block_id"], name: "index_exercise_check_policies_on_content_block_id"
     t.index ["created_by_id"], name: "index_exercise_check_policies_on_created_by_id"
-    t.check_constraint "jsonb_typeof(allowed_app_slugs) = 'array'::text", name: "exercise_check_policies_allowed_app_slugs_array"
-    t.check_constraint "jsonb_typeof(required_checks) = 'array'::text", name: "exercise_check_policies_required_checks_array"
+    t.check_constraint "jsonb_typeof(allowed_app_slugs) = 'array'::text AND jsonb_array_length(allowed_app_slugs) > 0", name: "exercise_check_policies_allowed_app_slugs_array"
+    t.check_constraint "jsonb_typeof(required_checks) = 'array'::text AND jsonb_array_length(required_checks) > 0", name: "exercise_check_policies_required_checks_array"
     t.check_constraint "version > 0", name: "exercise_check_policies_version_positive"
   end
 
@@ -1483,9 +1483,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["submission_id"], name: "index_submission_grade_suggestions_on_submission_id", unique: true
     t.check_constraint "decision IS NULL OR (decision::text = ANY (ARRAY['accepted'::character varying, 'overridden'::character varying, 'dismissed'::character varying]::text[]))", name: "submission_grade_suggestions_decision_valid"
     t.check_constraint "jsonb_typeof(evidence) = 'object'::text", name: "submission_grade_suggestions_evidence_object"
+    t.check_constraint "outcome::text = 'suggest_b'::text AND suggested_grade IS NOT NULL AND suggested_grade::text = 'B'::text OR outcome::text <> 'suggest_b'::text AND suggested_grade IS NULL", name: "submission_grade_suggestions_suggested_grade_valid"
     t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying, 'review_for_redo'::character varying, 'no_suggestion'::character varying, 'stale_evidence'::character varying]::text[])", name: "submission_grade_suggestions_outcome_valid"
     t.check_constraint "policy_version IS NULL OR policy_version > 0", name: "submission_grade_suggestions_policy_version_positive"
-    t.check_constraint "suggested_grade IS NULL OR suggested_grade::text = 'B'::text", name: "submission_grade_suggestions_suggested_grade_valid"
+    t.check_constraint "reason_code::text = ANY (ARRAY['all_required_checks_passed'::character varying, 'required_check_failed'::character varying, 'missing_policy'::character varying, 'unverified_revision'::character varying, 'missing_required_check'::character varying, 'check_pending'::character varying, 'check_inconclusive'::character varying, 'untrusted_producer'::character varying, 'workflow_tampered'::character varying, 'branch_mismatch'::character varying, 'stale_sha'::character varying, 'stale_policy'::character varying, 'superseded_submission'::character varying]::text[])", name: "submission_grade_suggestions_reason_code_valid"
   end
 
   create_table "submissions", force: :cascade do |t|

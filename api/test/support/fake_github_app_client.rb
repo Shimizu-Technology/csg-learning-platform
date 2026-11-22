@@ -1,8 +1,10 @@
+require "digest"
+
 # No transport calls. Shared by automated tests and the guarded local QA harness.
 class FakeGithubAppClient
   attr_reader :calls, :issues
   attr_accessor :failure, :issue_failure, :repository_owner, :repository_owner_id, :fork, :owner_type,
-    :source_text, :commit_sha, :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
+    :source_text, :commit_sha, :workflow_files, :timeout_after_create, :on_create_issue, :on_close_issue, :on_repository,
     :on_find_issue_by_marker, :on_get_issue, :inconclusive_marker_search
 
   def initialize
@@ -17,6 +19,7 @@ class FakeGithubAppClient
     @owner_type = "User"
     @source_text = "puts 'synthetic source'"
     @commit_sha = "a" * 40
+    @workflow_files = {}
     @timeout_after_create = false
     @inconclusive_marker_search = false
   end
@@ -40,11 +43,28 @@ class FakeGithubAppClient
     { "id" => repository_id || (name == "prework-exercises" ? 98765 : 98766), "full_name" => "#{owner}/#{name}", "fork" => (fork || name == "forked-repo"), "owner" => { "id" => (owner == "wrong-owner" || full_name.start_with?("victim-gh/") ? 86420 : repository_owner_id), "login" => owner, "type" => owner_type } }
   end
 
-  def files(installation:, repository:, filenames:)
-    @mutex.synchronize { @calls << [ :files, installation.id, repository.fetch("id"), filenames ] }
+  def files(installation:, repository:, filenames:, workflow_paths: [])
+    @mutex.synchronize do
+      entry = [ :files, installation.id, repository.fetch("id"), filenames ]
+      entry << workflow_paths if workflow_paths.any?
+      @calls << entry
+    end
     raise failure if failure
 
-    { files: filenames.map { |name| { "name" => name, "text" => source_text } }, commit_hash: commit_sha, branch: "main", error: nil }
+    captured_workflows = Array(workflow_paths).each_with_object({}) do |path, hash|
+      entry = (@workflow_files || {})[path]
+      if entry.nil?
+        hash[path] = { "present" => false }
+      else
+        text = entry.fetch("text", "")
+        hash[path] = {
+          "present" => true,
+          "oid" => entry.fetch("oid", Digest::SHA1.hexdigest("blob #{text.bytesize}\0#{text}")),
+          "sha256" => entry.fetch("sha256", Digest::SHA256.hexdigest(text))
+        }
+      end
+    end
+    { files: filenames.map { |name| { "name" => name, "text" => source_text } }, workflow_files: captured_workflows, commit_hash: commit_sha, branch: "main", error: nil }
   end
 
   def checks(installation:, repository_id:, full_name:, sha:, page:)

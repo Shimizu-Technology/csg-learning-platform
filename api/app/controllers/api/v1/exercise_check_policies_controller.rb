@@ -20,7 +20,12 @@ module Api
           return
         end
 
-        attrs = policy_params
+        attrs, type_errors = validated_policy_params
+        if type_errors.any?
+          render json: { errors: type_errors }, status: :unprocessable_entity
+          return
+        end
+
         created = nil
         ApplicationRecord.transaction do
           recheck_lesson_edit_access!(curriculum)
@@ -66,20 +71,39 @@ module Api
         @content_block.lesson.curriculum_module.curriculum
       end
 
-      def policy_params
+      # Validate raw array/string types BEFORE Strong Parameters so invalid nested
+      # hashes, scalars, or non-string array items return 422 instead of being
+      # silently dropped or coerced back to defaults.
+      def validated_policy_params
         source = params[:check_policy].is_a?(ActionController::Parameters) ? params[:check_policy] : params
-        permitted = source.permit(
-          :allowed_branch,
-          :expected_workflow_path,
-          :expected_workflow_sha,
-          required_checks: [],
-          allowed_app_slugs: []
-        ).to_h.symbolize_keys
+        raw = source.to_unsafe_h
+        errors = []
 
-        # Preserve explicit empty arrays (ActionController::Parameters strips or passes nil if omitted).
-        permitted[:required_checks] = [] if source.key?(:required_checks) && source[:required_checks] == []
-        permitted[:allowed_app_slugs] = [] if source.key?(:allowed_app_slugs) && source[:allowed_app_slugs] == []
-        permitted
+        if !raw.key?("required_checks") || !string_array?(raw["required_checks"])
+          errors << "Required checks must be an array of strings"
+        end
+        if raw.key?("allowed_app_slugs") && !raw["allowed_app_slugs"].nil? && !string_array?(raw["allowed_app_slugs"])
+          errors << "Allowed app slugs must be an array of strings"
+        end
+        %w[allowed_branch expected_workflow_path expected_workflow_sha].each do |field|
+          if raw.key?(field) && !raw[field].nil? && !raw[field].is_a?(String)
+            errors << "#{field.humanize} must be a string"
+          end
+        end
+        return [ {}, errors ] if errors.any?
+
+        attrs = {
+          required_checks: raw["required_checks"].dup,
+          allowed_branch: raw["allowed_branch"],
+          expected_workflow_path: raw["expected_workflow_path"],
+          expected_workflow_sha: raw["expected_workflow_sha"]
+        }
+        attrs[:allowed_app_slugs] = raw["allowed_app_slugs"]&.dup if raw.key?("allowed_app_slugs")
+        [ attrs, [] ]
+      end
+
+      def string_array?(value)
+        value.is_a?(Array) && value.all?(String)
       end
 
       def policy_payload(active: :load)

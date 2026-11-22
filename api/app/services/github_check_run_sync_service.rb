@@ -41,7 +41,12 @@ class GithubCheckRunSyncService
       current
     end
     suggestion = if cohort && features["github_app"] == true && features["github_grade_suggestions"] == true
-      GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: now)
+      begin
+        GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: Time.current)
+      rescue StandardError => error
+        Rails.logger.warn("GitHub grade suggestion evaluation failed for submission #{submission.id}: #{error.class.name}")
+        nil
+      end
     end
     {
       check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse,

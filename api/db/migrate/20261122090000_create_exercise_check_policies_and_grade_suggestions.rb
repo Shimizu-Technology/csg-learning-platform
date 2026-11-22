@@ -2,6 +2,22 @@ class CreateExerciseCheckPoliciesAndGradeSuggestions < ActiveRecord::Migration[8
   # Additive tables and column only; SET LOCAL and all DDL share a transaction on PgBouncer.
   disable_ddl_transaction!
 
+  REASON_CODES_SQL = %w[
+    all_required_checks_passed
+    required_check_failed
+    missing_policy
+    unverified_revision
+    missing_required_check
+    check_pending
+    check_inconclusive
+    untrusted_producer
+    workflow_tampered
+    branch_mismatch
+    stale_sha
+    stale_policy
+    superseded_submission
+  ].map { |code| "'#{code}'" }.join(", ").freeze
+
   def up
     transaction do
       execute "SET LOCAL lock_timeout = '5s'"
@@ -15,7 +31,7 @@ class CreateExerciseCheckPoliciesAndGradeSuggestions < ActiveRecord::Migration[8
           t.references :content_block, null: false, foreign_key: { on_delete: :cascade }
           t.integer :version, null: false
           t.boolean :active, null: false, default: true
-          t.jsonb :required_checks, null: false, default: []
+          t.jsonb :required_checks, null: false
           t.jsonb :allowed_app_slugs, null: false, default: [ "github-actions" ]
           t.string :allowed_branch
           t.string :expected_workflow_path
@@ -36,10 +52,14 @@ class CreateExerciseCheckPoliciesAndGradeSuggestions < ActiveRecord::Migration[8
         add_check_constraint :exercise_check_policies, "version > 0", name: "exercise_check_policies_version_positive"
       end
       unless check_constraint_exists?(:exercise_check_policies, name: "exercise_check_policies_required_checks_array")
-        add_check_constraint :exercise_check_policies, "jsonb_typeof(required_checks) = 'array'", name: "exercise_check_policies_required_checks_array"
+        add_check_constraint :exercise_check_policies,
+          "jsonb_typeof(required_checks) = 'array' AND jsonb_array_length(required_checks) > 0",
+          name: "exercise_check_policies_required_checks_array"
       end
       unless check_constraint_exists?(:exercise_check_policies, name: "exercise_check_policies_allowed_app_slugs_array")
-        add_check_constraint :exercise_check_policies, "jsonb_typeof(allowed_app_slugs) = 'array'", name: "exercise_check_policies_allowed_app_slugs_array"
+        add_check_constraint :exercise_check_policies,
+          "jsonb_typeof(allowed_app_slugs) = 'array' AND jsonb_array_length(allowed_app_slugs) > 0",
+          name: "exercise_check_policies_allowed_app_slugs_array"
       end
 
       unless table_exists?(:submission_grade_suggestions)
@@ -81,8 +101,13 @@ class CreateExerciseCheckPoliciesAndGradeSuggestions < ActiveRecord::Migration[8
       end
       unless check_constraint_exists?(:submission_grade_suggestions, name: "submission_grade_suggestions_suggested_grade_valid")
         add_check_constraint :submission_grade_suggestions,
-          "suggested_grade IS NULL OR suggested_grade = 'B'",
+          "(outcome = 'suggest_b' AND suggested_grade IS NOT NULL AND suggested_grade = 'B') OR (outcome <> 'suggest_b' AND suggested_grade IS NULL)",
           name: "submission_grade_suggestions_suggested_grade_valid"
+      end
+      unless check_constraint_exists?(:submission_grade_suggestions, name: "submission_grade_suggestions_reason_code_valid")
+        add_check_constraint :submission_grade_suggestions,
+          "reason_code IN (#{REASON_CODES_SQL})",
+          name: "submission_grade_suggestions_reason_code_valid"
       end
       unless check_constraint_exists?(:submission_grade_suggestions, name: "submission_grade_suggestions_decision_valid")
         add_check_constraint :submission_grade_suggestions,
@@ -107,7 +132,10 @@ class CreateExerciseCheckPoliciesAndGradeSuggestions < ActiveRecord::Migration[8
       execute "SET LOCAL lock_timeout = '5s'"
       drop_table :submission_grade_suggestions if table_exists?(:submission_grade_suggestions)
       drop_table :exercise_check_policies if table_exists?(:exercise_check_policies)
-      remove_column :github_check_runs, :check_suite_id if column_exists?(:github_check_runs, :check_suite_id)
+      # Preserve github_check_runs.check_suite_id if PR #332 (github_webhook_deliveries) also relies on it.
+      if column_exists?(:github_check_runs, :check_suite_id) && !table_exists?(:github_webhook_deliveries)
+        remove_column :github_check_runs, :check_suite_id
+      end
     end
   end
 end

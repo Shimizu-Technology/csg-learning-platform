@@ -1,3 +1,4 @@
+require "digest"
 require "jwt"
 require "openssl"
 
@@ -69,7 +70,7 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
-  def files(installation:, repository:, filenames:)
+  def files(installation:, repository:, filenames:, workflow_paths: [])
     # Resolve once, then fetch every blob at that commit. HEAD:path and the
     # branch tip in the same GraphQL query can observe different revisions.
     repo = source_query(installation, repository, "defaultBranchRef { name target { ... on Commit { oid } } }")
@@ -77,10 +78,14 @@ class GithubAppClient
     sha = branch&.fetch("target")&.fetch("oid")
     raise Error, "GitHub repository has no submitted commit" unless sha.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
 
+    normalized_workflows = Array(workflow_paths).filter_map { |path| path.to_s.strip.presence }.uniq
     fragments = filenames.each_with_index.map do |filename, index|
       "file_#{index}: object(expression: #{"#{sha}:#{filename}".to_json}) { ... on Blob { text byteSize isTruncated } }"
-    end.join("\n")
-    repo = source_query(installation, repository, fragments)
+    end
+    normalized_workflows.each_with_index do |workflow_path, index|
+      fragments << "workflow_#{index}: object(expression: #{"#{sha}:#{workflow_path}".to_json}) { ... on Blob { oid text byteSize isTruncated } }"
+    end
+    repo = source_query(installation, repository, fragments.join("\n"))
     files = filenames.each_with_index.filter_map do |filename, index|
       blob = repo.fetch("file_#{index}")
       next unless blob
@@ -94,7 +99,28 @@ class GithubAppClient
 
       { "name" => filename, "text" => text }
     end
-    { files: files, commit_hash: sha, branch: branch.fetch("name"), error: nil }
+    workflow_files = normalized_workflows.each_with_index.each_with_object({}) do |(workflow_path, index), captured|
+      blob = repo.fetch("workflow_#{index}")
+      unless blob
+        captured[workflow_path] = { "present" => false }
+        next
+      end
+
+      raise Error, "GitHub returned truncated workflow file; no revisions imported" if blob.fetch("isTruncated") == true
+      oid = blob.fetch("oid").to_s
+      text = blob.fetch("text")
+      size = blob.fetch("byteSize")
+      unless oid.match?(/\A[0-9a-f]{40,64}\z/i) && blob.fetch("isTruncated") == false && size.is_a?(Integer) && text.is_a?(String) && size == text.bytesize
+        raise Error, "GitHub did not return complete UTF-8 workflow source; no revisions imported"
+      end
+
+      captured[workflow_path] = {
+        "present" => true,
+        "oid" => oid.downcase,
+        "sha256" => Digest::SHA256.hexdigest(text)
+      }
+    end
+    { files: files, workflow_files: workflow_files, commit_hash: sha, branch: branch.fetch("name"), error: nil }
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
   end

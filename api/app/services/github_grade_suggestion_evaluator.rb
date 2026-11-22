@@ -8,6 +8,14 @@ class GithubGradeSuggestionEvaluator
   SHA_PATTERN = /\A[0-9a-f]{40,64}\z/i
   PENDING_STATUSES = %w[queued in_progress pending requested waiting].freeze
   INCONCLUSIVE_CONCLUSIONS = %w[skipped neutral cancelled timed_out action_required stale startup_failure].freeze
+  MATERIAL_DECISION_FIELDS = %i[
+    exercise_check_policy_id
+    policy_version
+    commit_sha
+    outcome
+    suggested_grade
+    reason_code
+  ].freeze
 
   Result = Data.define(
     :outcome,
@@ -24,17 +32,18 @@ class GithubGradeSuggestionEvaluator
   def self.enabled_for?(cohort, school: nil)
     return false unless cohort.present?
 
-    FeatureSwitches.enabled?(:github_app, cohort: cohort, school: school) &&
-      FeatureSwitches.enabled?(:github_grade_suggestions, cohort: cohort, school: school)
+    features = FeatureSwitches.for(cohort: cohort, school: school)
+    features["github_app"] == true && features["github_grade_suggestions"] == true
   end
 
   # Pure evaluation: performs zero DB writes and zero HTTP calls.
-  def self.evaluate(submission:, policy:, check_runs:, latest_submission_id: nil, active_policy: :same_as_policy, now: Time.current)
+  def self.evaluate(submission:, policy:, check_runs:, binding: nil, latest_submission_id: nil, active_policy: :same_as_policy, now: Time.current)
     resolved_active = active_policy == :same_as_policy ? policy : active_policy
     new(
       submission: submission,
       policy: policy,
       active_policy: resolved_active,
+      binding: binding,
       check_runs: Array(check_runs),
       latest_submission_id: latest_submission_id,
       now: now
@@ -43,27 +52,39 @@ class GithubGradeSuggestionEvaluator
 
   # Persists the evaluation to submission_grade_suggestions only when the
   # submission's cohort has opted into both github_app and github_grade_suggestions.
-  # Makes zero writes and returns nil when disabled.
+  # Serializes in canonical lock order (Enrollment -> Submission) so curriculum
+  # copy and concurrent check refreshes cannot race or persist stale block IDs.
+  # Makes zero policy/suggestion writes and returns nil when disabled.
   def self.evaluate_submission!(submission, now: Time.current, policy: :active)
-    enrollment = submission.enrollment
-    cohort = enrollment&.cohort
-    return nil unless enrollment && enabled_for?(cohort)
+    return nil unless submission.enrollment_id
 
-    active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: submission.content_block_id)
-    selected_policy = policy == :active ? active_policy : policy
-    latest_id = submission.latest_attempt&.id
-    runs = GithubCheckRun.where(submission_id: submission.id).to_a
+    ApplicationRecord.transaction do
+      enrollment = Enrollment.includes(:cohort).lock("FOR NO KEY UPDATE").find(submission.enrollment_id)
+      cohort = enrollment.cohort
+      return nil unless enabled_for?(cohort)
 
-    result = evaluate(
-      submission: submission,
-      policy: selected_policy,
-      active_policy: active_policy,
-      check_runs: runs,
-      latest_submission_id: latest_id,
-      now: now
-    )
+      locked_submission = Submission.includes(content_block: :lesson).lock("FOR NO KEY UPDATE").find(submission.id)
+      active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: locked_submission.content_block_id)
+      selected_policy = policy == :active ? active_policy : policy
+      binding = GithubRepositoryAccess.binding_for(
+        enrollment: enrollment,
+        curriculum_module_id: locked_submission.content_block.lesson.module_id
+      )
+      latest_id = locked_submission.latest_attempt&.id
+      runs = GithubCheckRun.where(submission_id: locked_submission.id).to_a
 
-    persist_result!(submission: submission, enrollment: enrollment, result: result)
+      result = evaluate(
+        submission: locked_submission,
+        policy: selected_policy,
+        active_policy: active_policy,
+        binding: binding,
+        check_runs: runs,
+        latest_submission_id: latest_id,
+        now: now
+      )
+
+      persist_result!(submission: locked_submission, enrollment: enrollment, result: result)
+    end
   end
 
   def self.persist_result!(submission:, enrollment:, result:)
@@ -84,8 +105,31 @@ class GithubGradeSuggestionEvaluator
     attempts = 0
     begin
       attempts += 1
-      SubmissionGradeSuggestion.transaction do
+      # Savepoint (requires_new: true) prevents RecordNotUnique from poisoning an outer transaction.
+      SubmissionGradeSuggestion.transaction(requires_new: true) do
         record = SubmissionGradeSuggestion.lock.find_or_initialize_by(submission_id: submission.id)
+        if record.persisted? && record.decision.present? && material_change?(record, attributes)
+          merged_evidence = result.evidence.deep_dup
+          merged_evidence["prior_decision"] = {
+            "decision" => record.decision,
+            "override_reason" => record.override_reason,
+            "decided_by_id" => record.decided_by_id,
+            "decided_at" => record.decided_at&.iso8601(6),
+            "prior_outcome" => record.outcome,
+            "prior_suggested_grade" => record.suggested_grade,
+            "prior_reason_code" => record.reason_code,
+            "prior_policy_version" => record.policy_version,
+            "prior_commit_sha" => record.commit_sha,
+            "superseded_at" => result.evaluated_at.iso8601(6)
+          }
+          attributes = attributes.merge(
+            evidence: merged_evidence,
+            decision: nil,
+            override_reason: nil,
+            decided_by_id: nil,
+            decided_at: nil
+          )
+        end
         record.assign_attributes(attributes)
         record.save!
         record
@@ -98,10 +142,16 @@ class GithubGradeSuggestionEvaluator
   end
   private_class_method :persist_result!
 
-  def initialize(submission:, policy:, active_policy:, check_runs:, latest_submission_id:, now:)
+  def self.material_change?(record, attributes)
+    MATERIAL_DECISION_FIELDS.any? { |field| record.public_send(field) != attributes[field] }
+  end
+  private_class_method :material_change?
+
+  def initialize(submission:, policy:, active_policy:, binding:, check_runs:, latest_submission_id:, now:)
     @submission = submission
     @policy = policy
     @active_policy = active_policy
+    @binding = binding
     @check_runs = check_runs
     @latest_submission_id = latest_submission_id
     @now = now
@@ -112,7 +162,7 @@ class GithubGradeSuggestionEvaluator
       return build_result(
         outcome: "no_suggestion",
         reason_code: "unverified_revision",
-        reason_summary: "Submission lacks verified immutable GitHub revision provenance.",
+        reason_summary: "Submission lacks verified immutable GitHub revision provenance or an active verified repository binding.",
         policy_for_record: nil,
         evidence: base_evidence(policy_ref: nil)
       )
@@ -181,9 +231,17 @@ class GithubGradeSuggestionEvaluator
     @submission.github_revision
   end
 
+  def strict_positive_integer(value)
+    value.is_a?(Integer) && value.positive? ? value : nil
+  end
+
   def verified_revision?
     return false unless revision.is_a?(Hash) && revision.present?
-    return false unless revision["repository_id"].to_i.positive?
+
+    repo_id = strict_positive_integer(revision["repository_id"])
+    binding_id = strict_positive_integer(revision["binding_id"])
+    return false unless repo_id && binding_id
+    return false unless revision["content_digest"].is_a?(String) && revision["content_digest"].strip.present?
 
     sha = @submission.commit_sha.to_s
     return false unless SHA_PATTERN.match?(sha)
@@ -191,7 +249,17 @@ class GithubGradeSuggestionEvaluator
     revision_sha = revision["commit_sha"].presence
     return false if revision_sha && !revision_sha.to_s.casecmp?(sha)
 
-    true
+    verified_binding?(binding_id: binding_id, repository_id: repo_id)
+  end
+
+  def verified_binding?(binding_id:, repository_id:)
+    return false unless @binding.present?
+
+    @binding.id == binding_id &&
+      @binding.repository_id == repository_id &&
+      @binding.verification_state == "verified" &&
+      @binding.identity_current? &&
+      @binding.github_app_installation&.connection_state == "connected"
   end
 
   def policy_archived_or_superseded?
@@ -226,17 +294,32 @@ class GithubGradeSuggestionEvaluator
     submitted_branch != @policy.allowed_branch
   end
 
+  def captured_workflow_entry(policy_ref)
+    return nil unless policy_ref&.expected_workflow_path.present? && revision.is_a?(Hash)
+
+    workflow_files = revision["workflow_files"]
+    return nil unless workflow_files.is_a?(Hash)
+
+    entry = workflow_files[policy_ref.expected_workflow_path]
+    entry.is_a?(Hash) ? entry : nil
+  end
+
   def workflow_tampered?
     return true if revision.is_a?(Hash) && revision["workflow_tampered"] == true
+    return false if @policy.expected_workflow_path.blank? && @policy.expected_workflow_sha.blank?
 
-    if @policy.expected_workflow_path.present? && revision.is_a?(Hash) && revision["workflow_path"].present?
-      return true if revision["workflow_path"].to_s != @policy.expected_workflow_path
-    end
+    # Fail closed whenever expected_workflow_path (or expected_workflow_sha) is configured:
+    # the captured revision must prove the workflow file existed at commit_sha.
+    return true if @policy.expected_workflow_path.blank?
 
+    entry = captured_workflow_entry(@policy)
+    return true unless entry && entry["present"] == true
     return false if @policy.expected_workflow_sha.blank?
 
-    observed_sha = revision.is_a?(Hash) ? revision["workflow_sha"].presence : nil
-    observed_sha.nil? || !observed_sha.to_s.casecmp?(@policy.expected_workflow_sha)
+    expected = @policy.expected_workflow_sha.to_s.downcase
+    oid = entry["oid"].to_s.downcase.presence
+    sha256 = entry["sha256"].to_s.downcase.presence
+    !(oid == expected || sha256 == expected)
   end
 
   def evaluate_check_runs(required_checks)
@@ -306,7 +389,7 @@ class GithubGradeSuggestionEvaluator
       )
     end
 
-    pending_runs = authoritative_runs.select { |run| run.status != "completed" || PENDING_STATUSES.include?(run.status) }
+    pending_runs = authoritative_runs.select { |run| pending_run?(run) }
     if pending_runs.any?
       names = pending_runs.map(&:name).join(", ")
       return build_result(
@@ -360,7 +443,64 @@ class GithubGradeSuggestionEvaluator
     run.app_slug.present? && trusted_slugs.include?(run.app_slug.to_s.strip.downcase)
   end
 
+  def pending_run?(run)
+    run.status != "completed" || PENDING_STATUSES.include?(run.status)
+  end
+
+  # Selects the authoritative run for one required check name on target_sha:
+  # 1. If any pending run is newer than or concurrent with the latest completed run,
+  #    prefer it so a running rerun or parallel job never returns suggest_b early.
+  # 2. A completed run supersedes an earlier completed run only when it is a
+  #    sequential rerun (started_at >= earlier.completed_at, or higher external_id
+  #    when neither has timestamps). Overlapping conflicting same-named jobs fail
+  #    closed (failure beats inconclusive beats success).
   def select_authoritative_run(runs)
+    pending_runs, completed_runs = runs.partition { |run| pending_run?(run) }
+    latest_completed = newest_by_recency(completed_runs)
+
+    if pending_runs.any?
+      return newest_pending(pending_runs) if latest_completed.nil?
+
+      active_pending = pending_runs.select do |pending|
+        pending.external_id.to_i > latest_completed.external_id.to_i ||
+          (pending.started_at.present? && latest_completed.started_at.present? && pending.started_at >= latest_completed.started_at)
+      end
+      return newest_pending(active_pending) if active_pending.any?
+    end
+
+    active_completed = completed_runs.reject do |earlier|
+      completed_runs.any? { |later| sequential_rerun_supersedes?(later: later, earlier: earlier) }
+    end
+
+    failed = active_completed.select { |run| run.conclusion == "failure" }
+    return newest_by_recency(failed) if failed.any?
+
+    inconclusive = active_completed.select { |run| run.conclusion != "success" }
+    return newest_by_recency(inconclusive) if inconclusive.any?
+
+    newest_by_recency(active_completed)
+  end
+
+  def sequential_rerun_supersedes?(later:, earlier:)
+    return false if later.equal?(earlier)
+
+    if later.started_at.present? && earlier.completed_at.present?
+      later.started_at >= earlier.completed_at &&
+        (later.started_at > earlier.completed_at || later.external_id.to_i > earlier.external_id.to_i)
+    elsif later.started_at.nil? && earlier.completed_at.nil?
+      later.external_id.to_i > earlier.external_id.to_i
+    else
+      false
+    end
+  end
+
+  def newest_pending(runs)
+    runs.max_by do |run|
+      [ run.external_id.to_i, (run.started_at || run.fetched_at || Time.at(0)).to_f, run.id.to_i ]
+    end
+  end
+
+  def newest_by_recency(runs)
     runs.max_by do |run|
       primary_time = run.completed_at || run.started_at || run.fetched_at || Time.at(0)
       started_time = run.started_at || Time.at(0)
@@ -386,16 +526,20 @@ class GithubGradeSuggestionEvaluator
   end
 
   def base_evidence(policy_ref:)
+    wf_entry = captured_workflow_entry(policy_ref)
     {
       "commit_sha" => @submission.commit_sha,
       "branch" => submitted_branch,
+      "binding_id" => revision.is_a?(Hash) ? revision["binding_id"] : nil,
       "repository_id" => revision.is_a?(Hash) ? revision["repository_id"] : nil,
       "repository_full_name" => revision.is_a?(Hash) ? revision["repository_full_name"] : nil,
       "allowed_branch" => policy_ref&.allowed_branch,
       "allowed_app_slugs" => policy_ref&.allowed_app_slugs || [],
       "expected_workflow_path" => policy_ref&.expected_workflow_path,
       "expected_workflow_sha" => policy_ref&.expected_workflow_sha,
-      "observed_workflow_sha" => revision.is_a?(Hash) ? revision["workflow_sha"] : nil,
+      "workflow_file_present" => wf_entry ? wf_entry["present"] == true : nil,
+      "observed_workflow_oid" => wf_entry ? wf_entry["oid"] : nil,
+      "observed_workflow_sha256" => wf_entry ? wf_entry["sha256"] : nil,
       "required_checks" => policy_ref&.required_checks || [],
       "missing_checks" => [],
       "untrusted_checks" => [],

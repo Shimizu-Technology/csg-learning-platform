@@ -66,7 +66,17 @@ class GithubSyncService
       client = @app_client ||= GithubAppClient.new
       access = GithubRepositoryAccess.new(binding, client: client)
       repository = access.repository!
-      repo_data = client.files(installation: binding.github_app_installation, repository: repository, filenames: target_filenames)
+      workflow_paths = ExerciseCheckPolicy.active
+        .where(content_block_id: exercise_blocks.map(&:id))
+        .where.not(expected_workflow_path: [ nil, "" ])
+        .distinct
+        .pluck(:expected_workflow_path)
+        .sort
+      repo_data = if workflow_paths.any?
+        client.files(installation: binding.github_app_installation, repository: repository, filenames: target_filenames, workflow_paths: workflow_paths)
+      else
+        client.files(installation: binding.github_app_installation, repository: repository, filenames: target_filenames)
+      end
     else
       repo_data = fetch_exercise_files(user.github_username, repo_name, target_filenames)
     end

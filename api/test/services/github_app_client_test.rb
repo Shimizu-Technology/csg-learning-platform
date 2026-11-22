@@ -139,6 +139,47 @@ class GithubAppClientTest < ActiveSupport::TestCase
     assert_raises(GithubAppClient::Error) { @client.files(installation: @installation, repository: repository, filenames: [ "nested/111.rb" ]) }
   end
 
+  test "source fetch captures workflow_paths blob OID and SHA-256 at the exact submitted SHA" do
+    repository = { "id" => 98765, "full_name" => "app-learner/prework-exercises" }
+    workflow_text = "name: Prework Checks\n"
+    workflow_oid = "d" * 40
+    captured_queries = []
+    original_request = @transport.method(:request)
+    @transport.define_singleton_method(:request) do |method, url, options|
+      if url.end_with?("/graphql")
+        captured_queries << JSON.parse(options.fetch(:body)).fetch("query")
+        return Response.new(200, { "data" => { "repository" => {
+          "fullDatabaseId" => "98765",
+          "defaultBranchRef" => { "name" => "main", "target" => { "oid" => "c" * 40 } },
+          "file_0" => { "text" => "puts 'source'", "byteSize" => "puts 'source'".bytesize, "isTruncated" => false },
+          "workflow_0" => { "oid" => workflow_oid, "text" => workflow_text, "byteSize" => workflow_text.bytesize, "isTruncated" => false },
+          "workflow_1" => nil
+        } } })
+      end
+      original_request.call(method, url, options)
+    end
+
+    result = @client.files(
+      installation: @installation,
+      repository: repository,
+      filenames: [ "111.rb" ],
+      workflow_paths: [ ".github/workflows/prework-checks.yml", ".github/workflows/missing.yml" ]
+    )
+    query = captured_queries.last
+    assert_includes query, "#{'c' * 40}:.github/workflows/prework-checks.yml"
+    assert_equal(
+      {
+        ".github/workflows/prework-checks.yml" => {
+          "present" => true,
+          "oid" => workflow_oid,
+          "sha256" => Digest::SHA256.hexdigest(workflow_text)
+        },
+        ".github/workflows/missing.yml" => { "present" => false }
+      },
+      result[:workflow_files]
+    )
+  end
+
   test "nearly expired response token is not cached or used" do
     @transport.token_expiry = 20.seconds.from_now
     assert_raises(GithubAppClient::Error) { @client.repository(installation: @installation, full_name: "app-learner/prework-exercises") }

@@ -12,7 +12,9 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
     connection = ActiveRecord::Base.connection
     refute connection.table_exists?(:submission_grade_suggestions)
     refute connection.table_exists?(:exercise_check_policies)
-    refute connection.column_exists?(:github_check_runs, :check_suite_id)
+    unless connection.table_exists?(:github_webhook_deliveries)
+      refute connection.column_exists?(:github_check_runs, :check_suite_id)
+    end
 
     migration.migrate(:up)
     # Idempotent re-run
@@ -75,6 +77,20 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
     assert_raises(ActiveRecord::StatementInvalid) do
       connection.execute(<<~SQL)
         INSERT INTO exercise_check_policies (content_block_id, version, active, required_checks, allowed_app_slugs, created_at, updated_at)
+        VALUES (#{block.id}, 1, true, '[]'::jsonb, '["github-actions"]'::jsonb, '#{now}', '#{now}')
+      SQL
+    end
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      connection.execute(<<~SQL)
+        INSERT INTO exercise_check_policies (content_block_id, version, active, required_checks, allowed_app_slugs, created_at, updated_at)
+        VALUES (#{block.id}, 1, true, '["prework/111.rb"]'::jsonb, '[]'::jsonb, '#{now}', '#{now}')
+      SQL
+    end
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      connection.execute(<<~SQL)
+        INSERT INTO exercise_check_policies (content_block_id, version, active, required_checks, allowed_app_slugs, created_at, updated_at)
         VALUES (#{block.id}, 1, true, '["prework/111.rb"]'::jsonb, '{}'::jsonb, '#{now}', '#{now}')
       SQL
     end
@@ -92,7 +108,9 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
       SQL
     end
 
-    # submission_grade_suggestions CHECK constraints: invalid outcome, suggested_grade, decision, policy_version, evidence.
+    # submission_grade_suggestions CHECK constraints:
+    # invalid outcome, invalid suggested_grade, suggest_b with NULL grade, non-suggest_b with 'B',
+    # invalid reason_code, invalid decision, policy_version <= 0, non-object evidence.
     assert_raises(ActiveRecord::StatementInvalid) do
       connection.execute(<<~SQL)
         INSERT INTO submission_grade_suggestions (submission_id, enrollment_id, content_block_id, outcome, reason_code, reason_summary, evidence, evaluated_at, created_at, updated_at)
@@ -104,6 +122,27 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
       connection.execute(<<~SQL)
         INSERT INTO submission_grade_suggestions (submission_id, enrollment_id, content_block_id, outcome, suggested_grade, reason_code, reason_summary, evidence, evaluated_at, created_at, updated_at)
         VALUES (#{submission.id}, #{enrollment.id}, #{block.id}, 'suggest_b', 'A', 'all_required_checks_passed', 'bad grade', '{}'::jsonb, '#{now}', '#{now}', '#{now}')
+      SQL
+    end
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      connection.execute(<<~SQL)
+        INSERT INTO submission_grade_suggestions (submission_id, enrollment_id, content_block_id, outcome, suggested_grade, reason_code, reason_summary, evidence, evaluated_at, created_at, updated_at)
+        VALUES (#{submission.id}, #{enrollment.id}, #{block.id}, 'suggest_b', NULL, 'all_required_checks_passed', 'missing B', '{}'::jsonb, '#{now}', '#{now}', '#{now}')
+      SQL
+    end
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      connection.execute(<<~SQL)
+        INSERT INTO submission_grade_suggestions (submission_id, enrollment_id, content_block_id, outcome, suggested_grade, reason_code, reason_summary, evidence, evaluated_at, created_at, updated_at)
+        VALUES (#{submission.id}, #{enrollment.id}, #{block.id}, 'no_suggestion', 'B', 'missing_policy', 'grade on non-suggest_b', '{}'::jsonb, '#{now}', '#{now}', '#{now}')
+      SQL
+    end
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      connection.execute(<<~SQL)
+        INSERT INTO submission_grade_suggestions (submission_id, enrollment_id, content_block_id, outcome, reason_code, reason_summary, evidence, evaluated_at, created_at, updated_at)
+        VALUES (#{submission.id}, #{enrollment.id}, #{block.id}, 'no_suggestion', 'made_up_reason', 'bad reason', '{}'::jsonb, '#{now}', '#{now}', '#{now}')
       SQL
     end
 
@@ -142,17 +181,23 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
     end
 
     # Clean up test records we inserted outside transactional tests.
-    submission.destroy!
-    enrollment.destroy!
-    cohort.destroy!
-    student.destroy!
-    curriculum.destroy!
+    submission&.destroy!
+    enrollment&.destroy!
+    cohort&.destroy!
+    student&.destroy!
+    curriculum&.destroy!
+    submission = enrollment = cohort = student = curriculum = nil
 
     assert_equal before, Cohort.pluck(:id, :settings)
     assert_equal 0, ExerciseCheckPolicy.count
     assert_equal 0, SubmissionGradeSuggestion.count
   ensure
     begin
+      submission&.destroy if submission&.persisted? && ActiveRecord::Base.connection.table_exists?(:submissions)
+      enrollment&.destroy if enrollment&.persisted? && ActiveRecord::Base.connection.table_exists?(:enrollments)
+      cohort&.destroy if cohort&.persisted? && ActiveRecord::Base.connection.table_exists?(:cohorts)
+      student&.destroy if student&.persisted? && ActiveRecord::Base.connection.table_exists?(:users)
+      curriculum&.destroy if curriculum&.persisted? && ActiveRecord::Base.connection.table_exists?(:curricula)
       migration&.migrate(:up) unless ActiveRecord::Base.connection.table_exists?(:submission_grade_suggestions) && ActiveRecord::Base.connection.table_exists?(:exercise_check_policies)
     ensure
       ActiveRecord::Base.connection_handler.connection_pool_list.each { |pool| pool.connections.each(&:clear_cache!) }
