@@ -18,7 +18,7 @@ module Api
         scope = scope.where(blocker_id: person.id).or(scope.where(blocked_user_id: person.id)) if person
         scope = scope.none if person == false
         total_count = scope.count
-        blocks = scope.includes(:blocker, :blocked_user).order(created_at: :desc, id: :desc)
+        blocks = scope.includes(:blocker, :blocked_user).recent_first
           .offset((page_param - 1) * per_page_param).limit(per_page_param)
         total_pages = (total_count.to_f / per_page_param).ceil
         render json: {

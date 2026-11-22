@@ -217,9 +217,7 @@ module Ops
     end
 
     def editor_flag_matches?(lesson)
-      primary = lesson.primary_assignment_block
-      return true unless primary&.submission_type.present?
-      lesson.requires_submission == ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(primary.submission_type)
+      lesson.requires_submission == LessonBlockEditor.derived_requires_submission(lesson)
     end
 
     def original_content_matches?(block, digest)
@@ -255,9 +253,7 @@ module Ops
         block
       end
       projected_lesson.association(:content_blocks).target = projected
-      if content_change && (primary = projected_lesson.primary_assignment_block)&.submission_type.present?
-        projected_lesson.requires_submission = ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(primary.submission_type)
-      end
+      projected_lesson.requires_submission = LessonBlockEditor.derived_requires_submission(projected_lesson) if content_change
       changes = blocks.filter_map do |before|
         after = projected.find { |block| block.id == before.id }
         previous = { effective_types: effective_types(before), content_digest: SubmissionAudit.digest(before) }

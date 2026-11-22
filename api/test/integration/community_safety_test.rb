@@ -80,6 +80,25 @@ class CommunitySafetyTest < ActionDispatch::IntegrationTest
     assert_not UserBlock.exists?(blocker: @student, blocked_user: @classmate)
   end
 
+  test "blocked users list orders equal-timestamp blocks deterministically by id descending" do
+    tied_at = Time.utc(2026, 11, 18, 10, 0, 0)
+    peers = 3.times.map do |index|
+      peer = User.create!(clerk_id: "safety_tied_#{index}", email: "safety-tied-#{index}@example.com", first_name: "Peer", last_name: index.to_s, role: :student)
+      Enrollment.create!(user: peer, cohort: @cohort, status: :active)
+      peer
+    end
+    blocks = peers.map do |peer|
+      block = UserBlock.create!(blocker: @student, blocked_user: peer)
+      block.update_columns(created_at: tied_at, updated_at: tied_at)
+      block
+    end
+
+    as_user(@student) { get "/api/v1/user_blocks", headers: auth_headers }
+    assert_response :success
+    assert_equal blocks.sort_by(&:id).reverse.map(&:blocked_user_id),
+      JSON.parse(response.body).fetch("blocked_users").map { |entry| entry.fetch("id") }
+  end
+
   test "blocking hides previously stored message notifications" do
     message = Message.create!(channel: @channel, author: @classmate, body: "Stored notification secret")
     notification = @student.notifications.create!(
