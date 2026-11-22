@@ -367,6 +367,67 @@ The full secret-free ASUS gate remains `scripts/qa/first-run-states-gate.sh`,
 including both API prepared-statement modes and its migration subprocess port
 adapter.
 
+### Synthetic Actualize Prework Demo & 10-Minute Rehearsal (X-6.10)
+
+Start a fresh owned harness with `QA_X6_DEMO=1` so the local file-backed simulated
+GitHub provider is active (still guarded by `RAILS_ENV=test`, local loopback
+`csg_qa_*` DB, and `LocalHTTPOnly` blocking all non-loopback HTTP):
+
+```sh
+QA_X6_DEMO=1 scripts/qa/run start
+# From api/, using the exact owned csg_qa_* database printed by startup:
+DATABASE_URL=postgresql://localhost/<owned csg_qa_ database> QA_X6_DEMO=1 bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb setup
+```
+
+`setup` (and idempotent `reset`) creates the separate **"Prework Demo — synthetic"**
+curriculum and cohort with 3 invented Ruby exercises (`111.rb`, `112.rb`, `113.rb`),
+aligned learning objective `PREWORK-RUBY-1`, rubric, feedback snippet, upcoming Day 2
+lesson release, verified bindings for personas 3–5 (paused persona 5 proves refusal;
+personas 6–8 prove unrelated-cohort refusal), and writes metadata + reset commands to
+`.qa-local/x6-actualize-demo.json`.
+
+Deterministic simulation helpers (all running through REAL Rails services —
+`GithubSyncService`, `GithubWebhookReceiver` with HMAC-SHA256,
+`GithubReconciliationService`, `GithubGradeSuggestionEvaluator`,
+`GithubIssueDeliveryDrain`, `CohortReleaseCommunications`, `ScheduledTick`):
+
+```sh
+# From api/ with DATABASE_URL and QA_X6_DEMO=1 set:
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb reset
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb sync [program|behind|paused]
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb send_webhook --persona program --check prework/111.rb --conclusion success --evaluate
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb push_fix --persona behind --exercise 112.rb
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb reconcile --force-due
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb simulate_outage --mode issue_failed
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb recover_outage
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb drain_issues --force-due
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb preview_release
+bundle exec ruby ../scripts/qa/x6-actualize-demo-fixtures.rb status
+```
+
+Run the full 1280/390 light/dark Playwright rehearsal from the repo root:
+
+```sh
+QA_SPEC=x6-actualize-demo.spec.ts node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+scripts/qa/run clean
+```
+
+Run the separate Cohort 3 Off-cohort regression pass on a fresh owned harness
+(never mutating the demo fixture):
+
+```sh
+scripts/qa/run start
+(cd api && DATABASE_URL=postgresql://localhost/<owned csg_qa_ database> bundle exec ruby ../scripts/qa/first-run-states-fixtures.rb)
+QA_SPEC=x6-cohort3-off.spec.ts node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+scripts/qa/run clean
+```
+
+**Boundaries:** Simulated local GitHub source, SHAs, webhooks, checks, issues, and
+receipts (`example.invalid`) verify real Rails service invariants and browser UI,
+but do NOT certify live GitHub App webhooks/issue delivery, real Resend/email
+delivery, Clerk authentication, Safari, or Expo/native builds. Leon's X-7 operator
+walkthrough remains human-gated. See `docs/qa/x6-actualize-demo-rehearsal-2026-11-22.md`.
+
 ### Submitted GitHub revisions (X-6 slice 3)
 
 Start a fresh owned harness with `QA_GITHUB_REVISIONS=1 scripts/qa/run start`.

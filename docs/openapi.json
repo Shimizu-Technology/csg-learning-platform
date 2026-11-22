@@ -7991,6 +7991,37 @@
               "captured_at": {
                 "type": "string",
                 "format": "date-time"
+              },
+              "workflow_files": {
+                "type": "object",
+                "description": "Captured workflow file integrity hashes when an exercise check policy specifies expected_workflow_path.",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "present": {
+                      "type": "boolean"
+                    },
+                    "unreadable": {
+                      "type": "boolean"
+                    },
+                    "oid": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sha256": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "present"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
