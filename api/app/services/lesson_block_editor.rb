@@ -152,6 +152,9 @@ class LessonBlockEditor
 
       key.to_s
     end
+    keys += block_payloads.flat_map do |payload|
+      Array(payload.dig(:metadata, :video_versions)).filter_map { |item| item[:s3_video_key].presence if item.is_a?(Hash) }
+    end
     @verified_video_keys = Set.new
     # Sorted so writers that verify several keys (LessonDuplicate too) take
     # their advisory locks in the same order.
@@ -250,6 +253,7 @@ class LessonBlockEditor
       require_watch_reset_confirmation!(block)
       block.confirm_watch_reset = confirmed_watch_resets.include?(block.id)
       block.verified_s3_video_key = block.s3_video_key if @verified_video_keys.include?(block.s3_video_key)
+      block.verified_video_version_keys = @verified_video_keys
       old_key = block.s3_video_key_in_database
       key_changed = block.will_save_change_to_s3_video_key?
       # A confirmed replacement resets watch progress in ContentBlock.
@@ -285,6 +289,9 @@ class LessonBlockEditor
     block.submission_config = payload[:submission_config].to_h if payload.key?(:submission_config)
     block.rubric_id = payload[:rubric_id].presence if payload.key?(:rubric_id)
     block.metadata = payload[:metadata].to_h if block.new_record? && payload[:metadata].is_a?(Hash)
+    if payload[:metadata].is_a?(Hash) && (payload[:metadata].key?(:video_versions) || payload[:metadata].key?(:video_versions_duration_seconds))
+      block.metadata = (block.metadata || {}).merge(payload[:metadata].slice(:video_versions, :video_versions_duration_seconds).stringify_keys)
+    end
     if payload.key?(:video_segments)
       block.metadata = (block.metadata || {}).merge(
         "video_segments" => VideoSegmentSet.normalize(Array(payload[:video_segments])),

@@ -169,11 +169,21 @@ module Api
           return
         end
 
+        version = if params[:version_id].present?
+          @content_block.video_versions.find { |item| item["id"] == params[:version_id] }
+        else
+          @content_block.video_versions.first
+        end
+        if params[:version_id].present? && version.nil?
+          render json: { error: "Video version not found" }, status: :not_found
+          return
+        end
+
         expiry = video_stream_expiry_for(@learning_read_enrollment)
         return unless expiry
 
         expires_at = expiry.seconds.from_now
-        url = S3Service.generate_presigned_url(@content_block.s3_video_key, expires_in: expiry)
+        url = S3Service.generate_presigned_url(version ? version["s3_video_key"] : @content_block.s3_video_key, expires_in: expiry)
         progress = current_user.progresses.find_by(enrollment: @learning_read_enrollment, content_block: @content_block) unless current_user.staff?
 
         render json: {
@@ -196,7 +206,7 @@ module Api
         # via the first-reporter lock below, corrupting the authoritative
         # duration the moment a real video is later attached.
         linked_provider = Recording.source_kind_for(@content_block.video_url)
-        linked_video = %w[video recording].include?(@content_block.block_type) && %w[youtube vimeo].include?(linked_provider)
+        linked_video = @content_block.s3_video_key.blank? && %w[video recording].include?(@content_block.block_type) && %w[youtube vimeo].include?(linked_provider)
         unless @content_block.s3_video_key.present? || linked_video
           render json: { error: "Content block has no video to track" }, status: :unprocessable_entity
           return
@@ -214,7 +224,7 @@ module Api
         # makes only one writer succeed; the loser re-reads the winner's value.
         with_learning_write_guard(@learning_write_enrollment) do
           authoritative_duration = linked_video ? params[:duration_seconds].to_i.clamp(0, 28_800) : @content_block.s3_video_duration_seconds
-          if !linked_video && authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
+          if !linked_video && @content_block.video_versions.empty? && authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
             candidate = params[:duration_seconds].to_i
             updated = ContentBlock.where(id: @content_block.id, s3_video_duration_seconds: nil)
                                   .update_all(s3_video_duration_seconds: candidate)

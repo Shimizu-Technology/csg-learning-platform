@@ -69,7 +69,7 @@ class LessonDuplicate
       @lesson.reload
       # Never validate an unverified key here: that would take its advisory
       # lock while holding the lesson.
-      raise MediaChanged if @lesson.content_blocks.any? { |block| block.s3_video_key.present? && !verified[block.s3_video_key] }
+      raise MediaChanged if @lesson.content_blocks.any? { |block| block_video_keys(block).any? { |key| !verified[key] } }
 
       copy = @lesson.curriculum_module.all_lessons.create!(
         title: copy_title,
@@ -90,6 +90,7 @@ class LessonDuplicate
           new_block.s3_video_uploaded_by_id = block.s3_video_uploaded_by_id
           new_block.s3_video_uploaded_at = block.s3_video_uploaded_at
         end
+        new_block.verified_video_version_keys = verified.keys
         new_block.save!
         if (check = block.knowledge_check)
           new_block.create_knowledge_check!(check.attributes.except("id", "content_block_id", "created_at", "updated_at"))
@@ -111,8 +112,12 @@ class LessonDuplicate
   # retry sees the video that replaced the one it couldn't use.
   def current_video_keys
     ApplicationRecord.uncached do
-      ContentBlock.where(lesson_id: @lesson.id).where.not(s3_video_key: [ nil, "" ]).distinct.pluck(:s3_video_key).sort
+      ContentBlock.where(lesson_id: @lesson.id).select(:s3_video_key, :metadata).flat_map { |block| block_video_keys(block) }.uniq.sort
     end
+  end
+
+  def block_video_keys(block)
+    ([ block.s3_video_key ] + block.video_version_keys).compact_blank
   end
 
   def copy_title

@@ -1,0 +1,27 @@
+<p>A branch lets you make one change without mixing unfinished work into main. A pull request shows the difference and gives someone a place to review it before you merge.</p>
+<p>Start with an existing class repository, such as your JavaScript practice repo. Your API and frontend stay in separate repositories. Never run <code>git init</code> in your home folder or inside another repository.</p>
+<h3>Check the folder, then make a branch</h3>
+<pre><code>cd ~/CSG/javascript_practice
+git status
+git rev-parse --show-toplevel
+git checkout main
+git pull
+git checkout -b docs/run-instructions</code></pre>
+<p>Use your actual project folder. The top-level path must be that project, not your home folder. If it is wrong, stop and ask your instructor before moving or deleting any <code>.git</code> folder. If git status shows unfinished changes, finish or save them before switching branches. If main does not exist, check the repository's default branch on GitHub and use that name.</p>
+<h3>Make one change and check it</h3>
+<p>Add a README section explaining how to run one file. Run that command and check its output. Before staging, read the changed files and confirm that no token, password, or .env file is included.</p>
+<pre><code>git status
+git diff
+git add .
+git status
+git commit -m "Document how to run the practice file"
+git push -u origin docs/run-instructions</code></pre>
+<p>On GitHub, open a pull request from <code>docs/run-instructions</code> into <code>main</code>. Read Files changed. Describe what changed, why, and the command you tested. If you accidentally included a secret, stop and tell your instructor; deleting the line alone does not revoke it.</p>
+<h3>Review and merge</h3>
+<p>Ask your instructor to review the PR. Make requested changes on the same branch, test, commit, and push again. Once approved, merge on GitHub. Keep the PR URL: it still opens after the branch is deleted.</p>
+<pre><code>git checkout main
+git pull
+git status</code></pre>
+<p>Confirm the README change is on main. Start each later lesson from an updated main and use a new feature branch for its work.</p>
+<p><a href="https://github.com/Code-School-of-Guam-Alumni/Resources/blob/main/web-development/02-git-github/branches_and_pull_requests.md">CSG Git branches and pull requests guide</a></p>
+<p><strong>Exercise and submission:</strong> make the README change, test the run command, open a PR, get it reviewed, and merge it. Submit the GitHub PR URL, plus the command and result in the submission text. Done when the merged PR shows only the intended change and your local main includes it.</p>

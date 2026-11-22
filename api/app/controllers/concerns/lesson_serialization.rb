@@ -79,6 +79,7 @@ module LessonSerialization
         if current_user.staff?
           block[:s3_video_content_type] = cb.s3_video_content_type
           block[:s3_video_size] = cb.s3_video_size
+          block[:s3_video_duration_seconds] = cb.s3_video_duration_seconds
           block[:s3_video_uploaded_at] = cb.s3_video_uploaded_at
           block[:s3_video_uploaded_by] = cb.s3_video_uploaded_by&.full_name
         end

@@ -1,3 +1,4 @@
+import { videoVersions, type VideoVersion } from '../../lib/videoVersions'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
@@ -80,7 +81,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const previewing = searchParams.get('preview') === 'true'
-  const { uploads, completeDeferredUpload } = useUpload()
+  const { uploads, completeDeferredUpload, cancelUpload } = useUpload()
 
   const [server, setServer] = useState<LessonBlockEditorResponse | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -213,6 +214,24 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   }, [load])
 
   const activity = useMemo(() => new Map((server?.block_activity || []).map((row) => [row.content_block_id, row])), [server])
+  const previousVersionKeys = useRef(new Set<string>())
+  const removedVersionKeys = useRef(new Set<string>())
+  useEffect(() => {
+    if (!draft) return
+    const keys = new Set(draft.blocks.flatMap((block) => videoVersions(block.metadata).map((v) => v.s3_video_key)))
+    const referenced = new Set([...keys, ...draft.blocks.map((block) => block.s3_video_key)])
+    for (const key of previousVersionKeys.current) {
+      if (!referenced.has(key)) removedVersionKeys.current.add(key)
+    }
+    for (const upload of uploads) {
+      if (status !== 'saving' && upload.deferPersistence && upload.status === 'waiting' && upload.s3Key && removedVersionKeys.current.has(upload.s3Key) && !referenced.has(upload.s3Key)) {
+        cancelUpload(upload.id)
+        removedVersionKeys.current.delete(upload.s3Key)
+      }
+    }
+    previousVersionKeys.current = keys
+  }, [draft, uploads, cancelUpload, status])
+
   const problems = useMemo(() => (draft ? draftProblems(draft) : new Map<string, string>()), [draft])
   const firstProblem = problems.size ? [...problems.values()][0] : null
   const signature = useMemo(() => (draft ? draftSignature(draft) : ''), [draft])
@@ -322,7 +341,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     setStatus('idle')
     setDraft((current) => applySavedIds(current, sent, savedLesson))
     for (const upload of currentUploads) {
-      if (upload.deferPersistence && upload.status === 'waiting' && upload.contentBlockId && savedBlocks.get(upload.contentBlockId)?.s3_video_key === upload.s3Key) {
+      if (upload.deferPersistence && upload.status === 'waiting' && [...savedBlocks.values()].some((block) => block.s3_video_key === upload.s3Key || videoVersions(block.metadata).some((version) => version.s3_video_key === upload.s3Key))) {
         completeUpload(upload.id)
       }
     }
@@ -388,6 +407,25 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const blocks = draft?.blocks || []
   const selectedBlock = blocks.find((block) => block.key === selectedKey) || null
   const canAdd = blocks.length < MAX_BLOCKS
+
+  const editorMounted = useRef(true)
+  useEffect(() => {
+    editorMounted.current = true
+    return () => { editorMounted.current = false }
+  }, [])
+
+  const appendVideoVersion = useCallback((key: string, version: VideoVersion, expectedSource: string | null) => {
+    const owner = draftRef.current?.blocks.find((block) => block.key === key)
+    if (!editorMounted.current || !owner?.s3_video_key || owner.s3_video_key !== expectedSource || !['video', 'recording'].includes(owner.block_type) || videoVersions(owner.metadata).length >= 8) return false
+    setDraft((current) => current && ({ ...current, blocks: current.blocks.map((block) => {
+      if (block.key !== key || !block.s3_video_key) return block
+      const versions = videoVersions(block.metadata)
+      return { ...block, metadata: { ...block.metadata, video_versions: [
+        ...(versions.length ? versions : [{ id: crypto.randomUUID(), label: 'Original', s3_video_key: block.s3_video_key }]), version,
+      ] } }
+    }) }))
+    return true
+  }, [setDraft])
 
   const updateBlock = useCallback((key: string, patch: Partial<BlockDraft>) => {
     setDraft((current) => ({ ...current, blocks: current.blocks.map((block) => block.key === key ? { ...block, ...patch } : block) }))
@@ -729,6 +767,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
                       }
                     }}
                     onChange={(patch) => updateBlock(block.key, patch)}
+                    onAddVideoVersion={(version) => appendVideoVersion(block.key, version, block.s3_video_key)}
                     onMove={(to) => move(index, to)}
                     onDuplicate={() => duplicate(index)}
                     onDelete={() => requestDelete(block)}
