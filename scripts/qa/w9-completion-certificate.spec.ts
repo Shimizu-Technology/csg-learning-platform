@@ -14,6 +14,14 @@ test.use({ actionTimeout: 15_000, navigationTimeout: 20_000 })
 test.describe.configure({ timeout: 120_000 })
 const expectReady = expect.configure({ timeout: 15_000 })
 
+function seedCohorts() {
+  const result = execFileSync('bundle', ['exec', 'ruby', '../scripts/qa/w9-completion-certificate-fixtures.rb'], {
+    cwd: new URL('../../api', import.meta.url).pathname, encoding: 'utf8',
+    env: { ...process.env, DATABASE_URL: `postgresql://localhost/${state.database}` },
+  })
+  return JSON.parse(result.trim().split('\n').at(-1)!) as { on: Fixture; off: Fixture }
+}
+
 async function prepare(page: Page, theme: Theme) {
   await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' })
   await page.addInitScript((choice) => localStorage.setItem('csg-learn:theme', choice), theme)
@@ -55,11 +63,7 @@ async function pass(page: Page, submissionId: number) {
 
 for (const theme of ['light', 'dark'] as const) {
   test(`${theme}: reviewed completion, printed name, signed-out verification, revocation and Off cohort`, async ({ page, browser }, info) => {
-    const fixtures = JSON.parse(execFileSync('bundle', ['exec', 'ruby', '../scripts/qa/w9-completion-certificate-fixtures.rb'], {
-      cwd: new URL('../../api', import.meta.url).pathname, encoding: 'utf8',
-      env: { ...process.env, DATABASE_URL: `postgresql://localhost/${state.database}` },
-    }).trim().split('\n').at(-1)!) as { on: Fixture; off: Fixture }
-    const { on, off } = fixtures
+    const { on, off } = seedCohorts()
     await prepare(page, theme)
     const submissionId = await submit(page, on)
     await page.getByRole('button', { name: 'All work handed in', exact: true }).click()
@@ -171,3 +175,40 @@ for (const theme of ['light', 'dark'] as const) {
     await snapshot(page, info, 'legacy-off', theme)
   })
 }
+
+test('staff authoring saves the cohort opt-in, next step and final-project marker', async ({ page }, info) => {
+  const { off } = seedCohorts()
+  await prepare(page, 'light')
+  await page.goto(`/admin/cohorts/${off.cohort}/settings?qa_user=1`)
+  const certificates = page.getByRole('combobox', { name: 'Certificates', exact: true })
+  await expectReady(certificates).toHaveValue('inherit')
+  await expect(certificates.locator('option[value="inherit"]')).toHaveText('Inherit → Off')
+  await certificates.selectOption('on')
+  const nextStep = page.getByRole('region', { name: 'Next step after completion' })
+  await nextStep.getByLabel('Title', { exact: true }).fill('Keep working on your portfolio')
+  await nextStep.getByLabel('Course offering slug').fill('')
+  await nextStep.getByLabel('Destination URL').fill('https://example.invalid/portfolio')
+  await page.getByRole('button', { name: 'Save settings', exact: true }).click()
+  await expectReady(page.getByText('Cohort settings saved', { exact: true }).first()).toBeVisible()
+  await page.reload()
+  await expectReady(certificates).toHaveValue('on')
+  await expect(nextStep.getByLabel('Destination URL')).toHaveValue('https://example.invalid/portfolio')
+  await snapshot(page, info, 'cohort-settings', 'light')
+
+  await page.goto(`/admin/lessons/${off.lesson}/edit?qa_user=1`)
+  await page.locator('[data-block-key]').first().getByText('· Submit your project', { exact: true }).click()
+  const phone = (page.viewportSize()?.width ?? 0) < 1024
+  if (phone) await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const inspector = phone ? page.getByRole('dialog', { name: 'Settings', exact: true }) : page.getByRole('complementary', { name: 'Settings', exact: true })
+  await inspector.getByRole('tab', { name: 'Exercise block', exact: true }).click()
+  const marker = inspector.getByRole('checkbox', { name: 'Final project (required for completion certificate)' })
+  await expect(marker).toBeChecked()
+  await marker.uncheck()
+  if (phone) await inspector.getByRole('button', { name: 'Close Settings' }).click()
+  const saved = page.waitForResponse((response) => response.url().endsWith('/block_editor') && response.request().method() === 'PUT')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  const response = await saved
+  expect(response.status()).toBe(200)
+  const block = (await response.json()).lesson.content_blocks.find((block: { id: number }) => block.id === off.block)
+  expect(block.metadata).toMatchObject({ language: 'markdown', final_project: false })
+})
