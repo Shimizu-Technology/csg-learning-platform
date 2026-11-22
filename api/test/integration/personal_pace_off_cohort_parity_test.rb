@@ -8,7 +8,7 @@ require "test_helper"
 # X-6 adds only the intentional default-Off github_app feature key to this
 # baseline, W9.3 adds only the default-Off learner_nudges key, and W9.8/AS-9
 # adds only the default-Off self_paced_peer_space key; all existing fields and
-# behavior remain unchanged. AS-8 adds no certificate keys when Off.
+# behavior remain unchanged. AS-8 and X-6.8 add no certificate or Redo-delivery keys when Off.
 # Today and the dashboard, the course outline, the weekly plan, progress, each
 # module, whether each lesson opens, the staff progress view, and the daily
 # unlock digest candidates.

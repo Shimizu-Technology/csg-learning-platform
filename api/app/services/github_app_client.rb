@@ -5,14 +5,32 @@ require "openssl"
 # headers, tokens or key material in errors. Cache tokens in this process only.
 class GithubAppClient
   class Error < StandardError
-    attr_reader :status
-    def initialize(message, status: nil)
+    attr_reader :status, :retry_after
+
+    def initialize(message, status: nil, retry_after: nil, rate_limited: false)
       @status = status
+      @retry_after = retry_after
+      @rate_limited = rate_limited
       super(message)
+    end
+
+    def rate_limited? = @rate_limited == true
+
+    def transient?
+      rate_limited? ||
+        status == 429 ||
+        (status && status >= 500) ||
+        (status.nil? && message == PROVIDER_ERROR)
     end
   end
 
+  class InconclusiveSearchError < Error; end
+  class BudgetExceeded < StandardError; end
+
   PROVIDER_ERROR = "GitHub is temporarily unavailable; try again".freeze
+  DEFAULT_TIMEOUT = 10
+  MARKER_SEARCH_MAX_PAGES = 5
+  MARKER_SEARCH_PER_PAGE = 100
   BASE = "https://api.github.com".freeze
   TOKEN_CACHE = ActiveSupport::Cache::MemoryStore.new(size: 1.megabyte)
 
@@ -35,17 +53,17 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
-  def repository(installation:, full_name:, repository_id: nil)
+  def repository(installation:, full_name:, repository_id: nil, timeout: nil)
     # Restrict a second token to this numeric repo. GitHub rejects repository_ids
     # outside this installation, including readable public but unselected repos.
     path = repository_id ? "/repositories/#{Integer(repository_id)}" : "/repos/#{full_name}"
-    repo = installation_request(installation, :get, path, repository_id: repository_id)
+    repo = installation_request(installation, :get, path, repository_id: repository_id, timeout: timeout)
     id = Integer(repo.fetch("id"))
     unless positive_id?(id) && repo.fetch("full_name").is_a?(String) && repo.fetch("owner").is_a?(Hash) && positive_id?(repo.fetch("owner").fetch("id")) &&
         repo.fetch("owner").fetch("login").is_a?(String) && %w[User Organization].include?(repo.fetch("owner").fetch("type")) && [ true, false ].include?(repo.fetch("fork"))
       raise Error, PROVIDER_ERROR
     end
-    installation_token(installation, repository_id: id)
+    installation_token(installation, repository_id: id, timeout: timeout)
     repo
   rescue KeyError, TypeError, ArgumentError, NoMethodError
     raise Error, PROVIDER_ERROR
@@ -86,7 +104,180 @@ class GithubAppClient
     raise Error, PROVIDER_ERROR
   end
 
+  def find_issue_by_marker(installation:, repository_id:, full_name:, marker:, issue_number: nil, max_pages: MARKER_SEARCH_MAX_PAGES, timeout: nil, deadline: nil, monotonic: nil)
+    found = find_issue_by_markers(
+      installation: installation,
+      repository_id: repository_id,
+      full_name: full_name,
+      markers: [ marker ],
+      issue_number: issue_number,
+      max_pages: max_pages,
+      timeout: timeout,
+      deadline: deadline,
+      monotonic: monotonic
+    )
+    found&.except("matched_marker")
+  end
+
+  def find_issue_by_markers(installation:, repository_id:, full_name:, markers:, issue_number: nil, max_pages: MARKER_SEARCH_MAX_PAGES, timeout: nil, deadline: nil, monotonic: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    marker_list = Array(markers).select { |m| m.is_a?(String) && m.present? }.uniq
+    raise Error, PROVIDER_ERROR if marker_list.empty?
+
+    pages_limit = Integer(max_pages)
+    raise Error, PROVIDER_ERROR unless pages_limit.positive?
+
+    if issue_number
+      num = validate_issue_number!(issue_number)
+      inconclusive = false
+
+      1.upto(pages_limit) do |page|
+        page_timeout = resolve_request_timeout(timeout: timeout, deadline: deadline, monotonic: monotonic)
+        comments, headers = installation_request(
+          installation,
+          :get,
+          "/repos/#{full_name}/issues/#{num}/comments",
+          repository_id: repository_id,
+          query: { per_page: MARKER_SEARCH_PER_PAGE, page: page },
+          expect: Array,
+          include_headers: true,
+          timeout: page_timeout
+        )
+        matched_marker = nil
+        comments.each do |item|
+          next unless item.is_a?(Hash)
+
+          body = item["body"].to_s
+          matched_marker = marker_list.find { |m| body.include?(m) }
+          break if matched_marker
+        end
+        if matched_marker
+          issue_timeout = resolve_request_timeout(timeout: timeout, deadline: deadline, monotonic: monotonic)
+          issue = get_issue(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num, timeout: issue_timeout)
+          return issue.merge("matched_comment" => true, "matched_marker" => matched_marker)
+        end
+
+        more_pages = has_next_page?(headers) || comments.size >= MARKER_SEARCH_PER_PAGE
+        break unless more_pages
+
+        inconclusive = true if page == pages_limit
+      end
+
+      issue_timeout = resolve_request_timeout(timeout: timeout, deadline: deadline, monotonic: monotonic)
+      issue = get_issue(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num, timeout: issue_timeout)
+      body_marker = marker_list.find { |m| issue["body"].to_s.include?(m) }
+      return issue.merge("matched_marker" => body_marker) if body_marker
+
+      if inconclusive
+        raise InconclusiveSearchError, "Could not confirm whether GitHub feedback was already posted after checking #{pages_limit} pages; inspect the repository before retrying"
+      end
+
+      return nil
+    end
+
+    1.upto(pages_limit) do |page|
+      page_timeout = resolve_request_timeout(timeout: timeout, deadline: deadline, monotonic: monotonic)
+      issues, headers = installation_request(
+        installation,
+        :get,
+        "/repos/#{full_name}/issues",
+        repository_id: repository_id,
+        query: { state: "all", sort: "updated", direction: "desc", per_page: MARKER_SEARCH_PER_PAGE, page: page },
+        expect: Array,
+        include_headers: true,
+        timeout: page_timeout
+      )
+      issues.each do |item|
+        next unless item.is_a?(Hash) && !item.key?("pull_request")
+
+        body = item["body"].to_s
+        matched_marker = marker_list.find { |m| body.include?(m) }
+        return normalize_issue!(item).merge("matched_marker" => matched_marker) if matched_marker
+      end
+
+      more_pages = has_next_page?(headers) || issues.size >= MARKER_SEARCH_PER_PAGE
+      return nil unless more_pages
+    end
+
+    raise InconclusiveSearchError, "Could not confirm whether GitHub feedback was already posted after checking #{pages_limit} pages; inspect the repository before retrying"
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def create_issue(installation:, repository_id:, full_name:, title:, body:, timeout: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    result = installation_request(installation, :post, "/repos/#{full_name}/issues", repository_id: repository_id, body: { title: title.to_s, body: body.to_s }, timeout: timeout)
+    normalize_issue!(result)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def get_issue(installation:, repository_id:, full_name:, issue_number:, timeout: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    result = installation_request(installation, :get, "/repos/#{full_name}/issues/#{num}", repository_id: repository_id, timeout: timeout)
+    normalize_issue!(result).merge("title" => result["title"].to_s, "body" => result["body"].to_s)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def reopen_issue(installation:, repository_id:, full_name:, issue_number:, timeout: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    result = installation_request(installation, :patch, "/repos/#{full_name}/issues/#{num}", repository_id: repository_id, body: { state: "open" }, timeout: timeout)
+    normalize_issue!(result)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def add_issue_comment(installation:, repository_id:, full_name:, issue_number:, body:, timeout: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    result = installation_request(installation, :post, "/repos/#{full_name}/issues/#{num}/comments", repository_id: repository_id, body: { body: body.to_s }, timeout: timeout)
+    id = Integer(result.fetch("id"))
+    url = result.fetch("html_url")
+    raise Error, PROVIDER_ERROR unless positive_id?(id) && url.is_a?(String) && url.present?
+
+    { "id" => id, "html_url" => url }
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
+  def close_issue(installation:, repository_id:, full_name:, issue_number:, comment: nil, timeout: nil)
+    validate_repo_target!(repository_id: repository_id, full_name: full_name)
+    num = validate_issue_number!(issue_number)
+    if comment.present?
+      add_issue_comment(installation: installation, repository_id: repository_id, full_name: full_name, issue_number: num, body: comment, timeout: timeout)
+    end
+    result = installation_request(installation, :patch, "/repos/#{full_name}/issues/#{num}", repository_id: repository_id, body: { state: "closed", state_reason: "completed" }, timeout: timeout)
+    normalize_issue!(result)
+  rescue KeyError, TypeError, ArgumentError, NoMethodError
+    raise Error, PROVIDER_ERROR
+  end
+
   private
+
+  FULL_NAME_FORMAT = %r{\A[a-zA-Z0-9][a-zA-Z0-9-]{0,38}/[a-zA-Z0-9_.-]{1,100}\z}
+
+  def validate_repo_target!(repository_id:, full_name:)
+    raise Error, PROVIDER_ERROR unless positive_id?(repository_id) && full_name.is_a?(String) && FULL_NAME_FORMAT.match?(full_name)
+  end
+
+  def validate_issue_number!(issue_number)
+    num = Integer(issue_number)
+    raise Error, PROVIDER_ERROR unless positive_id?(num)
+
+    num
+  end
+
+  def normalize_issue!(payload)
+    number = Integer(payload.fetch("number"))
+    url = payload.fetch("html_url")
+    state = payload.fetch("state")
+    raise Error, PROVIDER_ERROR unless positive_id?(number) && url.is_a?(String) && url.present? && %w[open closed].include?(state)
+
+    { "number" => number, "html_url" => url, "state" => state }
+  end
 
   def positive_id?(value)
     value.to_s.match?(/\A[1-9]\d{0,18}\z/) && value.to_i <= 9_223_372_036_854_775_807
@@ -105,14 +296,14 @@ class GithubAppClient
       Digest::SHA256.hexdigest(@credentials.private_key) ].join(":")
   end
 
-  def installation_token(installation, repository_id: nil, refresh: false)
+  def installation_token(installation, repository_id: nil, refresh: false, timeout: nil)
     key = token_key(installation, repository_id)
     @cache.delete(key) if refresh
     cached = @cache.read(key)
     return cached if cached
 
     payload = repository_id ? { repository_ids: [ Integer(repository_id) ] } : {}
-    result = request(:post, "/app/installations/#{installation.installation_id}/access_tokens", token: app_jwt, body: payload)
+    result = request(:post, "/app/installations/#{installation.installation_id}/access_tokens", token: app_jwt, body: payload, timeout: timeout)
     ttl = [ Time.iso8601(result.fetch("expires_at")) - @now.call - 60, 5.minutes.to_i ].min
     raise Error, "GitHub returned an expired installation token" unless ttl.positive? && result.fetch("token").is_a?(String) && result["token"].present?
 
@@ -120,11 +311,11 @@ class GithubAppClient
     result.fetch("token")
   end
 
-  def installation_request(installation, method, path, repository_id: nil, **options)
+  def installation_request(installation, method, path, repository_id: nil, timeout: nil, **options)
     attempts = 0
     begin
-      token = installation_token(installation, repository_id: repository_id, refresh: attempts.positive?)
-      request(method, path, token: token, **options)
+      token = installation_token(installation, repository_id: repository_id, refresh: attempts.positive?, timeout: timeout)
+      request(method, path, token: token, timeout: timeout, **options)
     rescue Error => error
       if error.status == 401 && attempts.zero?
         attempts += 1
@@ -134,27 +325,90 @@ class GithubAppClient
     end
   end
 
-  def request(method, path, token:, body: nil, query: nil)
-    options = { headers: { "Authorization" => "Bearer #{token}", "Accept" => "application/vnd.github+json", "X-GitHub-Api-Version" => "2022-11-28", "Content-Type" => "application/json" }, timeout: 10 }
+  def request(method, path, token:, body: nil, query: nil, expect: Hash, include_headers: false, timeout: nil)
+    effective_timeout = timeout ? [ timeout.to_f, DEFAULT_TIMEOUT.to_f ].min : DEFAULT_TIMEOUT
+    raise BudgetExceeded, "GitHub request budget exhausted" if effective_timeout <= 0
+
+    options = { headers: { "Authorization" => "Bearer #{token}", "Accept" => "application/vnd.github+json", "X-GitHub-Api-Version" => "2022-11-28", "Content-Type" => "application/json" }, timeout: effective_timeout }
     options[:body] = body.to_json if body
     options[:query] = query if query
     response = @transport.public_send(method, "#{BASE}#{path}", **options)
+    headers = extract_headers(response)
     unless response.success?
-      message = case response.code.to_i
+      code = response.code.to_i
+      if rate_limited_response?(code, headers, response.parsed_response)
+        raise Error.new(
+          "GitHub rate limit reached; try again later",
+          status: code,
+          retry_after: parse_retry_after(headers),
+          rate_limited: true
+        )
+      end
+
+      message = case code
       when 401 then "GitHub authorization expired; reconnect the installation"
       when 403, 404, 422 then "GitHub installation cannot access this repository; check selected repositories and reconnect"
-      when 429 then "GitHub rate limit reached; try again later"
       else "GitHub is temporarily unavailable; try again"
       end
-      raise Error.new(message, status: response.code.to_i)
+      raise Error.new(message, status: code)
     end
     value = response.parsed_response
-    raise Error, PROVIDER_ERROR unless value.is_a?(Hash)
+    raise Error, PROVIDER_ERROR unless value.is_a?(expect)
 
-    value
-  rescue Error
+    include_headers ? [ value, headers ] : value
+  rescue Error, BudgetExceeded
     raise
   rescue StandardError
     raise Error, "GitHub is temporarily unavailable; try again"
+  end
+
+  def resolve_request_timeout(timeout:, deadline:, monotonic:)
+    return timeout unless deadline
+
+    clock = monotonic || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+    remaining = deadline - clock.call
+    raise BudgetExceeded, "GitHub request budget exhausted" if remaining <= 0
+
+    clamped = [ remaining, DEFAULT_TIMEOUT.to_f ].min
+    timeout ? [ timeout.to_f, clamped ].min : clamped
+  end
+
+  def extract_headers(response)
+    raw = response.respond_to?(:headers) ? response.headers : nil
+    return {} unless raw.respond_to?(:each)
+
+    raw.each_with_object({}) do |(key, value), acc|
+      acc[key.to_s.downcase] = value.is_a?(Array) ? value.first.to_s : value.to_s
+    end
+  end
+
+  def rate_limited_response?(code, headers, parsed_body)
+    return true if code == 429
+    return false unless code == 403
+
+    return true if headers["x-ratelimit-remaining"].to_s.strip == "0"
+    return true if headers["retry-after"].to_s.strip.present?
+
+    parsed_body.is_a?(Hash) && parsed_body["message"].to_s.downcase.include?("rate limit")
+  end
+
+  def parse_retry_after(headers)
+    raw = headers["retry-after"].to_s.strip
+    if raw.match?(/\A\d+\z/)
+      seconds = raw.to_i
+      return seconds if seconds.positive?
+    end
+
+    reset = headers["x-ratelimit-reset"].to_s.strip
+    if reset.match?(/\A\d+\z/)
+      delta = reset.to_i - @now.call.to_i
+      return delta if delta.positive?
+    end
+
+    nil
+  end
+
+  def has_next_page?(headers)
+    headers["link"].to_s.include?('rel="next"')
   end
 end

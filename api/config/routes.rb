@@ -308,6 +308,7 @@ Rails.application.routes.draw do
         member do
           patch :grade
           get :github_issue
+          post :retry_github_issue
         end
       end
     end

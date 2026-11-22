@@ -9,13 +9,15 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :require_student!, only: [ :create ]
-      before_action :set_submission, only: [ :show, :update, :grade, :github_issue ]
+      before_action :set_submission, only: [ :show, :update, :grade, :github_issue, :retry_github_issue ]
       before_action :authorize_submission_read!, only: [ :show ]
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes({ user: { enrollments: :cohort } }, { enrollment: :cohort }, :grader,
-          :submission_criterion_results, { content_block: { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } } })
+        includes = [ { user: { enrollments: :cohort } }, { enrollment: :cohort }, :grader,
+          :submission_criterion_results, { content_block: { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } } } ]
+        includes << :github_issue_deliveries if current_user.staff?
+        submissions = Submission.includes(*includes)
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
@@ -90,6 +92,12 @@ module Api
           existing = submission.latest_attempt
           submission.num_submissions = existing.num_submissions + 1 if existing
           if submission.save
+            if GithubIssueDeliveryPlanner.enabled_for?(submission.enrollment&.cohort)
+              GithubIssueDeliveryPlanner.obsolete_pending!(
+                enrollment_id: submission.enrollment_id,
+                content_block_id: submission.content_block_id
+              )
+            end
             progress = Progress.find_or_initialize_by(enrollment: submission.enrollment, content_block_id: submission.content_block_id)
             progress.user = current_user
             progress.update!(status: :completed)
@@ -190,6 +198,7 @@ module Api
         end
 
         enrollment = @submission.enrollment
+        use_v2_issue_delivery = GithubIssueDeliveryPlanner.enabled_for?(enrollment&.cohort)
         with_learning_write_guard(enrollment) do
           Submission.transaction do
             @submission.lock!
@@ -221,6 +230,14 @@ module Api
             ActivityEvent.record!(event_type: "submission_graded", actor: current_user,
               subject_user: @submission.user, cohort: enrollment&.cohort, record: @submission)
             CourseCompletion.evaluate!(enrollment, actor: current_user) unless redo_grade
+
+            if use_v2_issue_delivery
+              GithubIssueDeliveryPlanner.record!(
+                submission: @submission,
+                grade: @submission.grade,
+                feedback: @submission.feedback
+              )
+            end
           end
         end
 
@@ -234,15 +251,19 @@ module Api
 
         SubmissionNotificationJob.perform_later("graded", @submission.id, @submission.graded_at.iso8601(6))
 
-        token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
-        if token.present?
-          GithubIssueService.handle_grade(
-            submission: @submission,
-            grade: @submission.grade,
-            feedback: @submission.feedback,
-            token: token
-          )
-          @submission.reload
+        if use_v2_issue_delivery
+          @submission.association(:github_issue_deliveries).reset
+        else
+          token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+          if token.present?
+            GithubIssueService.handle_grade(
+              submission: @submission,
+              grade: @submission.grade,
+              feedback: @submission.feedback,
+              token: token
+            )
+            @submission.reload
+          end
         end
 
         render json: { submission: submission_json(@submission, include_github_checks: true) }
@@ -287,6 +308,54 @@ module Api
         end
       end
 
+      # POST /api/v1/submissions/:id/retry_github_issue
+      def retry_github_issue
+        require_staff!
+        return if performed?
+
+        enrollment = @submission.enrollment
+        unless enrollment && StaffCohortScope.new(current_user).visible?(enrollment.cohort_id)
+          render_forbidden("Cannot access this submission")
+          return
+        end
+
+        delivery = latest_github_issue_delivery(@submission)
+        unless delivery
+          render json: { error: "No GitHub issue delivery found for this submission" }, status: :not_found
+          return
+        end
+
+        if delivery.delivered?
+          render json: { error: "GitHub feedback was already delivered for this submission" }, status: :unprocessable_entity
+          return
+        end
+
+        if delivery.obsolete?
+          render json: { error: "This GitHub feedback delivery was superseded by a newer update" }, status: :unprocessable_entity
+          return
+        end
+
+        outcome = GithubIssueDeliveryDrain.new.deliver_one!(delivery, force: true)
+        if %i[in_flight scope_busy].include?(outcome)
+          render json: { error: "GitHub feedback delivery is already in progress. Try again in a moment." }, status: :conflict
+          return
+        end
+
+        @submission.reload
+        @submission.association(:github_issue_deliveries).reset
+        delivery.reload
+
+        if outcome == :skipped && delivery.delivered?
+          render json: { error: "GitHub feedback was already delivered for this submission" }, status: :unprocessable_entity
+          return
+        end
+
+        render json: {
+          submission: submission_json(@submission, include_solution: true, include_github_checks: true),
+          github_issue_delivery: delivery.to_staff_json
+        }
+      end
+
       private
 
       def learning_enrollment_for(user, content_block)
@@ -312,7 +381,9 @@ module Api
       end
 
       def set_submission
-        @submission = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }).find(params[:id])
+        includes = [ { user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } } ]
+        includes << :github_issue_deliveries if current_user.staff?
+        @submission = Submission.includes(*includes).find(params[:id])
       end
 
       def authorize_submission_read!
@@ -393,6 +464,11 @@ module Api
         json[:rubric] = rubric_json(submission)
         json[:github_checks] = GithubCheckRunSerializer.collection_json(submission) if include_github_checks
 
+        if current_user.staff?
+          delivery = latest_github_issue_delivery(submission)
+          json[:github_issue_delivery] = delivery.to_staff_json if delivery
+        end
+
         if include_solution
           json[:solution] = submission.content_block.solution
           json[:exercise_body] = submission.content_block.body
@@ -400,6 +476,14 @@ module Api
         end
 
         json
+      end
+
+      def latest_github_issue_delivery(submission)
+        if submission.association(:github_issue_deliveries).loaded?
+          submission.github_issue_deliveries.max_by(&:id)
+        else
+          submission.github_issue_deliveries.order(id: :desc).first
+        end
       end
 
       def rubric_results_acceptable?(requested_results, expected_criterion_ids, partial:)

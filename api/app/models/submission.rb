@@ -25,6 +25,7 @@ class Submission < ApplicationRecord
   belongs_to :grader, class_name: "User", foreign_key: :graded_by_id, optional: true
   has_many :submission_criterion_results, dependent: :destroy
   has_many :github_check_runs, dependent: :destroy
+  has_many :github_issue_deliveries, dependent: :destroy
 
   normalizes :feedback, with: ->(feedback) { MarkdownText.normalize(feedback) }
 

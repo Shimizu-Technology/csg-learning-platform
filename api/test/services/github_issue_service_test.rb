@@ -81,4 +81,52 @@ class GithubIssueServiceTest < ActiveSupport::TestCase
     url = GithubIssueService.send(:find_prior_issue_url, @submission)
     assert_nil url
   end
+
+  test "handle_grade targets the submission enrollment cohort and isolates prior issues across active cohorts" do
+    cohort_two = Cohort.create!(
+      curriculum: @curriculum, name: "Cohort Two", start_date: Date.current + 1.day, status: :active,
+      repository_name: "cohort-two-prework"
+    )
+    enrollment_one = Enrollment.find_by!(user: @student, cohort: @cohort)
+    enrollment_two = Enrollment.create!(user: @student, cohort: cohort_two, status: :active)
+
+    prior_one = Submission.create!(
+      user: @student, enrollment: enrollment_one, content_block: @block, text: "c1",
+      github_issue_url: "https://github.com/student-one/cohort-3-prework/issues/11"
+    )
+    assert prior_one.github_issue_url.present?
+
+    sub_two = Submission.create!(
+      user: @student, enrollment: enrollment_two, content_block: @block, text: "c2"
+    )
+
+    posted = []
+    patched = []
+    fake_response = Struct.new(:code, :parsed_response) { def success? = code.between?(200, 299) }
+    original_post = HTTParty.method(:post)
+    original_patch = HTTParty.method(:patch)
+    HTTParty.define_singleton_method(:post) do |url, **opts|
+      posted << [ url, opts ]
+      fake_response.new(201, { "html_url" => "https://github.com/student-one/cohort-two-prework/issues/3" })
+    end
+    HTTParty.define_singleton_method(:patch) do |url, **opts|
+      patched << [ url, opts ]
+      fake_response.new(200, { "state" => "closed" })
+    end
+
+    # Passing grade in Cohort Two must NOT close Cohort One's issue
+    GithubIssueService.handle_grade(submission: sub_two, grade: "A", feedback: "Great!", token: "tok")
+    assert_empty posted
+    assert_empty patched
+
+    # Redo grade in Cohort Two must create on Cohort Two's repo, not Cohort One's repo or issue
+    GithubIssueService.handle_grade(submission: sub_two, grade: "R", feedback: "Fix loop", token: "tok")
+    assert_equal 1, posted.size
+    assert_equal "https://api.github.com/repos/student-one/cohort-two-prework/issues", posted.first.first
+    assert_equal "https://github.com/student-one/cohort-two-prework/issues/3", sub_two.reload.github_issue_url
+    assert_equal "https://github.com/student-one/cohort-3-prework/issues/11", prior_one.reload.github_issue_url
+  ensure
+    HTTParty.define_singleton_method(:post, original_post) if original_post
+    HTTParty.define_singleton_method(:patch, original_patch) if original_patch
+  end
 end
