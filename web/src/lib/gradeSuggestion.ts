@@ -42,7 +42,7 @@ export function gradeDiffersFromSuggestion(
   suggestion: SubmissionGradeSuggestion | undefined,
   grade: GradeChoice | null,
 ): boolean {
-  if (!suggestion || !grade) return false
+  if (!suggestion || !grade || isGradeSuggestionStale(suggestion)) return false
   if (suggestion.outcome === 'suggest_b') return grade !== 'B'
   if (suggestion.outcome === 'review_for_redo') return grade !== 'R'
   return false
@@ -59,16 +59,16 @@ export function gradeSuggestionQueueBadge(suggestion: SubmissionGradeSuggestion)
 }
 
 export function gradeSuggestionHeadline(suggestion: SubmissionGradeSuggestion): string {
-  if (suggestion.outcome === 'stale_evidence') return 'Stale check evidence'
+  if (isGradeSuggestionStale(suggestion)) return 'Stale check evidence'
   if (suggestion.outcome === 'suggest_b') return 'Checks passed · B suggested'
   if (suggestion.outcome === 'review_for_redo') return 'Checks failed · Review for Redo'
   return 'No grade suggestion'
 }
 
 export function gradeSuggestionSignalLabel(suggestion: SubmissionGradeSuggestion): string {
+  if (isGradeSuggestionStale(suggestion)) return 'Stale checks'
   if (suggestion.outcome === 'suggest_b') return 'Checks passed'
   if (suggestion.outcome === 'review_for_redo') return 'Checks failed'
-  if (suggestion.outcome === 'stale_evidence') return 'Stale checks'
   return 'No suggestion'
 }
 

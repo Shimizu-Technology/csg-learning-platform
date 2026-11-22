@@ -63,7 +63,17 @@ class FeatureSwitches
 
   # Preview/audit callers must not lazily create a settings row.
   def self.school(read_only: false)
-    setting = read_only ? SchoolSetting.find_by(id: 1) : SchoolSetting.current
+    setting = if read_only
+      if SchoolSetting::RequestCache.enabled
+        SchoolSetting::RequestCache.school_setting || SchoolSetting.find_by(id: 1).tap do |found|
+          SchoolSetting::RequestCache.school_setting = found if found
+        end
+      else
+        SchoolSetting.find_by(id: 1)
+      end
+    else
+      SchoolSetting.current
+    end
     DEFAULTS.merge((setting&.features || {}).slice(*KEYS))
   end
 

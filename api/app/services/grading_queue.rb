@@ -109,7 +109,7 @@ class GradingQueue
     when "redo" then scope.latest_attempts.where(grade: "R")
     else scope
     end
-    apply_suggestion ? apply_suggestion_outcome(result) : result
+    apply_suggestion ? apply_suggestion_outcome(result, status: status) : result
   end
 
   def ordered(scope)
@@ -285,16 +285,45 @@ class GradingQueue
     end
   end
 
-  def apply_suggestion_outcome(scope)
+  FRESH_SUGGESTION_SQL = Arel.sql(
+    "submission_grade_suggestions.outcome <> 'stale_evidence' AND " \
+    "((submission_grade_suggestions.exercise_check_policy_id IS NULL AND active_policies.id IS NULL) " \
+    "OR (submission_grade_suggestions.exercise_check_policy_id IS NOT NULL " \
+    "AND active_policies.id IS NOT NULL " \
+    "AND active_policies.id = submission_grade_suggestions.exercise_check_policy_id " \
+    "AND submission_grade_suggestions.policy_version IS NOT NULL " \
+    "AND active_policies.version = submission_grade_suggestions.policy_version)) AND " \
+    "(submission_grade_suggestions.commit_sha IS NULL OR submissions.commit_sha IS NULL " \
+    "OR LOWER(submission_grade_suggestions.commit_sha) = LOWER(submissions.commit_sha))"
+  ).freeze
+
+  def apply_suggestion_outcome(scope, status:)
     return scope unless @suggestion_outcome
     return scope.none if suggestion_enabled_cohort_ids.empty?
 
     enabled_enrollments = Enrollment.where(cohort_id: suggestion_enabled_cohort_ids).select(:id)
-    matching_ids = SubmissionGradeSuggestion.where(
-      enrollment_id: enabled_enrollments,
-      outcome: @suggestion_outcome
-    ).select(:submission_id)
-    scope.where(id: matching_ids)
+    suggestions = SubmissionGradeSuggestion
+      .joins(:submission)
+      .joins(
+        "LEFT JOIN exercise_check_policies active_policies " \
+        "ON active_policies.content_block_id = submission_grade_suggestions.content_block_id " \
+        "AND active_policies.active = TRUE"
+      )
+      .where(enrollment_id: enabled_enrollments)
+
+    matching = if @suggestion_outcome == "stale_evidence"
+      stale = suggestions.where.not(FRESH_SUGGESTION_SQL)
+      if status == "all"
+        stale.or(suggestions.where.not(submission_id: base_scope.latest_attempts.select(:id)))
+      else
+        stale
+      end
+    else
+      fresh = suggestions.where(outcome: @suggestion_outcome).where(FRESH_SUGGESTION_SQL)
+      status == "all" ? fresh.where(submission_id: base_scope.latest_attempts.select(:id)) : fresh
+    end
+
+    scope.where(id: matching.select(:submission_id))
   end
 
   def grade_suggestion_fields(submission, cohort, block, latest_ids)

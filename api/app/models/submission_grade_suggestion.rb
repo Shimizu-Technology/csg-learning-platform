@@ -50,12 +50,20 @@ class SubmissionGradeSuggestion < ApplicationRecord
     end
   end
 
-  def to_staff_json(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded)
-    stale_policy = stale_policy?(active_policy)
-    stale = outcome == "stale_evidence" ||
-      stale_policy ||
+  def stale_for?(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded)
+    outcome == "stale_evidence" ||
+      stale_policy?(active_policy) ||
       (latest_submission_id != :unloaded && latest_submission_id.present? && latest_submission_id != submission_id) ||
       (submission_commit_sha != :unloaded && submission_commit_sha.present? && commit_sha.present? && !commit_sha.casecmp?(submission_commit_sha))
+  end
+
+  def to_staff_json(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded)
+    stale_policy = stale_policy?(active_policy)
+    stale = stale_policy || stale_for?(
+      active_policy: active_policy,
+      latest_submission_id: latest_submission_id,
+      submission_commit_sha: submission_commit_sha
+    )
     {
       id: id,
       submission_id: submission_id,

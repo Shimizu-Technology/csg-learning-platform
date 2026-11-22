@@ -63,7 +63,7 @@ export function useSubmissionReview(
           setFeedback(next.feedback || '')
           setCriteria(criteriaFor(next))
           setSelectedGrade(null)
-          setOverrideReason('')
+          setOverrideReason(next.grade_suggestion?.override_reason || '')
         } else {
           setCriteria((current) =>
             Object.fromEntries(
@@ -98,7 +98,9 @@ export function useSubmissionReview(
 
   // Every way out (links, browser Back, a query change that swaps the review) asks first.
   const guard = useLeaveGuard({
-    dirty: feedbackDraftDiffers(submission, feedback, criteria) || Boolean(overrideReason.trim()),
+    dirty:
+      feedbackDraftDiffers(submission, feedback, criteria) ||
+      overrideReason.trim() !== (submission?.grade_suggestion?.override_reason || ''),
     blocks: leaves,
     // A grade in flight is neither saved nor safe to abandon.
     confirm: async () => !saving.current && (await confirm(DISCARD_DRAFT_CONFIRMATION)),
@@ -143,7 +145,8 @@ export function useSubmissionReview(
         rating: criteria[criterion.id].rating!,
         feedback: criteria[criterion.id].feedback,
       }))
-    const trimmedOverrideReason = options?.suggestionOverrideReason?.trim()
+    const includeOverrideReason = options !== undefined && 'suggestionOverrideReason' in options && options.suggestionOverrideReason !== undefined
+    const trimmedOverrideReason = includeOverrideReason ? options.suggestionOverrideReason!.trim() : undefined
     setError(null)
     saving.current = true
     setGrading(true)
@@ -156,7 +159,7 @@ export function useSubmissionReview(
         // No ratings on a redo: omit the field so the server keeps any earlier evidence.
         criterion_results: ratedCriteria.length || !redo ? ratedCriteria : undefined,
         ...(options?.suggestionDecision ? { suggestion_decision: options.suggestionDecision } : {}),
-        ...(trimmedOverrideReason ? { suggestion_override_reason: trimmedOverrideReason } : {}),
+        ...(includeOverrideReason ? { suggestion_override_reason: trimmedOverrideReason } : {}),
       })
       if (request !== generation.current) return 'not_saved'
       if (!result.data || result.error) {
@@ -170,7 +173,7 @@ export function useSubmissionReview(
       setFeedback(result.data.submission.feedback || '')
       setCriteria(criteriaFor(result.data.submission))
       setSelectedGrade(null)
-      setOverrideReason('')
+      setOverrideReason(result.data.submission.grade_suggestion?.override_reason || '')
       toast.success(result.data.submission.user_name ? `Saved ${gradeLabel(value)} for ${result.data.submission.user_name}` : `Saved ${gradeLabel(value)}`)
       // Saved: Save and next may navigate before the clean draft renders.
       guard.release()

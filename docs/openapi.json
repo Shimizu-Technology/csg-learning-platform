@@ -485,6 +485,16 @@
     },
     "/api/v1/submissions/{id}/grade": {
       "patch": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionGradeInput"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful response",
@@ -500,6 +510,56 @@
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/submissions/{submission_id}/github_checks": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubChecksResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubChecksResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "submission_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7373,6 +7433,103 @@
         },
         "required": [
           "grade_suggestion"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionGradeInput": {
+        "type": "object",
+        "properties": {
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "R"
+            ]
+          },
+          "base_submission_updated_at": {
+            "type": "string",
+            "description": "ISO 8601 submission updated_at timestamp for optimistic concurrency."
+          },
+          "feedback": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "criterion_results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rubric_criterion_id": {
+                  "type": "integer"
+                },
+                "rating": {
+                  "type": "string",
+                  "enum": [
+                    "exceeds",
+                    "meets",
+                    "developing",
+                    "redo"
+                  ]
+                },
+                "feedback": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "rubric_criterion_id",
+                "rating"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "suggestion_decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "accepted",
+              "overridden",
+              "dismissed",
+              null
+            ],
+            "description": "Optional explicit decision on an active grade suggestion; must be dismissed or match the computed decision for the saved grade."
+          },
+          "suggestion_override_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "description": "Optional single-line note explaining why the saved grade differs from the automated check suggestion."
+          }
+        },
+        "required": [
+          "grade",
+          "base_submission_updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "GithubChecksResponse": {
+        "type": "object",
+        "properties": {
+          "github_checks": {
+            "$ref": "#/components/schemas/GithubChecks"
+          },
+          "grade_suggestion": {
+            "$ref": "#/components/schemas/SubmissionGradeSuggestion",
+            "description": "Present on staff check refreshes when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists."
+          }
+        },
+        "required": [
+          "github_checks"
         ],
         "additionalProperties": false
       },

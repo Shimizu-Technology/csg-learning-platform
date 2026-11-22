@@ -248,7 +248,7 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     })
   })
 
-  it('renders amber stale warning and hides Select B when evidence or policy is stale', async () => {
+  it('renders amber stale warning, Stale check evidence headline, and hides Select B and Override note when stale', async () => {
     const staleSub = makeSubmission({
       grade_suggestion: makeSuggestion({
         outcome: 'suggest_b',
@@ -261,10 +261,16 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
 
     const card = container.querySelector('[data-grade-suggestion="suggest_b"]')!
     expect(card.getAttribute('data-grade-suggestion-stale')).toBe('true')
+    expect(card.textContent).toContain('Stale check evidence')
+    expect(card.textContent).not.toContain('Checks passed · B suggested')
     expect(card.textContent).toContain('Stale evidence')
     expect(card.textContent).toContain('Policy updated')
     expect(findButton('Select B')).toBeUndefined()
     expect(findButton('Re-evaluate')).toBeTruthy()
+
+    // Selecting A while stale must NOT show Override note input
+    await act(async () => findButton('A')!.click())
+    expect(container.querySelector('input[type="text"]')).toBeNull()
   })
 
   it('renders review_for_redo without Select B, enforces Redo feedback, and shows override note for passing grades', async () => {
@@ -440,5 +446,79 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     expect(params.get('cohort_id')).toBe('4')
     expect(params.get('module_id')).toBe('2')
     expect(params.get('submission')).toBe('52')
+  })
+
+  it('syncs grade_suggestion inline when Refresh checks returns a refreshed suggestion', async () => {
+    const sub = makeSubmission({
+      grade_suggestion: makeSuggestion({
+        outcome: 'no_suggestion',
+        suggested_grade: null,
+        reason_code: 'check_pending',
+        reason_summary: 'Checks still pending.',
+      }),
+    })
+    vi.spyOn(api, 'refreshSubmissionGithubChecks').mockResolvedValue({
+      data: {
+        github_checks: {
+          head_sha: SHA,
+          fetched_at: '2026-11-22T02:00:00Z',
+          summary: { total: 1, passed: 1, failed: 0, pending: 0, neutral: 0 },
+          runs: [],
+        },
+        grade_suggestion: makeSuggestion({ outcome: 'suggest_b', suggested_grade: 'B' }),
+      },
+      error: null,
+    })
+
+    await renderPanel(sub)
+    expect(container.querySelector('[data-grade-suggestion="no_suggestion"]')).toBeTruthy()
+
+    const summary = [...container.querySelectorAll('summary')].find((el) => el.textContent?.includes('GitHub checks'))!
+    await act(async () => summary.click())
+    await act(async () => findButton('Refresh checks')!.click())
+    await settle()
+
+    expect(container.querySelector('[data-grade-suggestion="suggest_b"]')).toBeTruthy()
+    expect(findButton('Select B')).toBeTruthy()
+  })
+
+  it('hydrates saved override_reason on load and sends empty string when intentionally cleared', async () => {
+    const sub = makeSubmission({
+      grade: 'A',
+      feedback: 'Strong solution.',
+      grade_suggestion: makeSuggestion({
+        outcome: 'suggest_b',
+        decision: 'overridden',
+        override_reason: 'Saved override note',
+      }),
+    })
+    const gradeSpy = vi.spyOn(api, 'gradeSubmission').mockResolvedValue({
+      data: {
+        submission: {
+          ...sub,
+          grade_suggestion: makeSuggestion({ outcome: 'suggest_b', decision: 'overridden', override_reason: null }),
+        },
+      },
+      error: null,
+    })
+
+    await renderPanel(sub)
+    await act(async () => findButton('A')!.click())
+
+    const overrideInput = container.querySelector<HTMLInputElement>('input[type="text"]')!
+    expect(overrideInput.value).toBe('Saved override note')
+
+    // Clear the note and save -> explicitly sends suggestion_override_reason: ''
+    await act(async () => setInputValue(overrideInput, '   '))
+    await act(async () => findButton('Save grade')!.click())
+    await settle()
+
+    expect(gradeSpy).toHaveBeenCalledExactlyOnceWith(
+      50,
+      expect.objectContaining({
+        grade: 'A',
+        suggestion_override_reason: '',
+      }),
+    )
   })
 })

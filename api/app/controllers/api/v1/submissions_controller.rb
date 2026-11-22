@@ -3,6 +3,7 @@ module Api
     class SubmissionsController < ApplicationController
       class StaleGradingWrite < StandardError; end
       class SupersededAttempt < StandardError; end
+      class InvalidSuggestionDecision < StandardError; end
       REDO_FEEDBACK_REQUIRED = "Write feedback before choosing Redo, so the student knows what to change.".freeze
       GRADE_INVALID = "Grade must be A, B, C or R.".freeze
 
@@ -59,13 +60,14 @@ module Api
         latest_attempt_ids = Submission.latest_attempt_ids_for(submissions)
 
         render json: {
-          submissions: submissions.map { |s| submission_json(s, latest_attempt_ids: latest_attempt_ids) }
+          submissions: submissions.map { |s| submission_json(s, latest_attempt_ids: latest_attempt_ids, staff_view: current_user.staff?) }
         }
       end
 
       # GET /api/v1/submissions/:id
       def show
-        render json: { submission: submission_json(@submission, include_solution: current_user.staff?, include_github_checks: true) }
+        staff_view = current_user.staff? && @submission.enrollment.present? && current_user.can_teach_cohort?(@submission.enrollment.cohort)
+        render json: { submission: submission_json(@submission, include_solution: staff_view, include_github_checks: true, staff_view: staff_view) }
       end
 
       # POST /api/v1/submissions
@@ -167,7 +169,7 @@ module Api
                 cohort: learning_enrollment_for(@submission.user, @submission.content_block)&.cohort,
                 record: @submission)
             end
-            render json: { submission: submission_json(@submission, include_github_checks: true) }
+            render json: { submission: submission_json(@submission, include_github_checks: true, staff_view: current_user.staff?) }
           else
             render json: { errors: @submission.errors.full_messages }, status: :unprocessable_entity
           end
@@ -211,6 +213,7 @@ module Api
 
         requested_suggestion_decision = validated_suggestion_decision
         return if performed?
+        override_reason_provided = params.key?(:suggestion_override_reason)
         suggestion_override_reason = validated_suggestion_override_reason
         return if performed?
 
@@ -254,6 +257,7 @@ module Api
                 submission: @submission,
                 grade: grade,
                 requested_decision: requested_suggestion_decision,
+                override_reason_provided: override_reason_provided,
                 override_reason: suggestion_override_reason,
                 decided_at: @submission.graded_at
               )
@@ -296,7 +300,7 @@ module Api
           end
         end
 
-        render json: { submission: submission_json(@submission, include_github_checks: true) }
+        render json: { submission: submission_json(@submission, include_github_checks: true, staff_view: true) }
       rescue SupersededAttempt
         render_superseded_attempt
       rescue StaleGradingWrite
@@ -305,6 +309,8 @@ module Api
           error: "This submission changed after you opened it. Your draft was kept; review the latest version before saving again.",
           code: "stale_submission"
         }, status: :conflict
+      rescue InvalidSuggestionDecision => error
+        render json: { errors: [ error.message ] }, status: :unprocessable_entity
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -381,7 +387,7 @@ module Api
         end
 
         render json: {
-          submission: submission_json(@submission, include_solution: true, include_github_checks: true),
+          submission: submission_json(@submission, include_solution: true, include_github_checks: true, staff_view: true),
           github_issue_delivery: delivery.to_staff_json
         }
       end
@@ -468,25 +474,78 @@ module Api
         trimmed.presence
       end
 
-      def record_grade_suggestion_decision!(submission:, grade:, requested_decision:, override_reason:, decided_at:)
+      def record_grade_suggestion_decision!(submission:, grade:, requested_decision:, override_reason_provided:, override_reason:, decided_at:)
         suggestion = SubmissionGradeSuggestion.lock.find_by(submission_id: submission.id)
-        return unless suggestion
-
-        decision, reason = if requested_decision == "dismissed"
-          [ "dismissed", override_reason ]
-        elsif suggestion.outcome == "suggest_b"
-          grade == "B" ? [ "accepted", nil ] : [ "overridden", override_reason ]
-        elsif suggestion.outcome == "review_for_redo"
-          grade == "R" ? [ "accepted", nil ] : [ "overridden", override_reason ]
-        else
+        if suggestion.nil?
+          if requested_decision.present? && requested_decision != "dismissed"
+            raise InvalidSuggestionDecision, "Suggestion decision does not match the saved grade and suggestion state."
+          end
           return
+        end
+
+        active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: submission.content_block_id)
+        stale = suggestion.stale_for?(
+          active_policy: active_policy,
+          latest_submission_id: submission.id,
+          submission_commit_sha: submission.commit_sha
+        )
+
+        computed_decision = if stale
+          nil
+        elsif suggestion.outcome == "suggest_b"
+          grade == "B" ? "accepted" : "overridden"
+        elsif suggestion.outcome == "review_for_redo"
+          grade == "R" ? "accepted" : "overridden"
+        end
+
+        if requested_decision.present? && requested_decision != "dismissed" && requested_decision != computed_decision
+          raise InvalidSuggestionDecision, "Suggestion decision does not match the saved grade and suggestion state."
+        end
+
+        timestamp = decided_at || Time.current
+
+        if stale && requested_decision != "dismissed"
+          if suggestion.decision.present?
+            archived_evidence = (suggestion.evidence || {}).deep_dup
+            archived_evidence["prior_decision"] = {
+              "decision" => suggestion.decision,
+              "override_reason" => suggestion.override_reason,
+              "decided_by_id" => suggestion.decided_by_id,
+              "decided_at" => suggestion.decided_at&.iso8601(6),
+              "prior_outcome" => suggestion.outcome,
+              "prior_suggested_grade" => suggestion.suggested_grade,
+              "prior_reason_code" => suggestion.reason_code,
+              "prior_policy_version" => suggestion.policy_version,
+              "prior_commit_sha" => suggestion.commit_sha,
+              "superseded_at" => timestamp.iso8601(6)
+            }
+            suggestion.update!(
+              evidence: archived_evidence,
+              decision: nil,
+              override_reason: nil,
+              decided_by_id: nil,
+              decided_at: nil
+            )
+          end
+          return
+        end
+
+        decision = requested_decision == "dismissed" ? "dismissed" : computed_decision
+        return unless decision
+
+        reason = if decision == "accepted"
+          nil
+        elsif override_reason_provided
+          override_reason
+        elsif %w[overridden dismissed].include?(suggestion.decision)
+          suggestion.override_reason
         end
 
         suggestion.update!(
           decision: decision,
           override_reason: reason,
           decided_by_id: current_user.id,
-          decided_at: decided_at || Time.current
+          decided_at: timestamp
         )
       end
 
@@ -566,7 +625,7 @@ module Api
         nil
       end
 
-      def submission_json(submission, include_solution: false, include_github_checks: false, latest_attempt_ids: nil)
+      def submission_json(submission, include_solution: false, include_github_checks: false, latest_attempt_ids: nil, staff_view: false)
         submission_type = submission.effective_submission_type
         enrollment = submission.enrollment || learning_enrollment_for(submission.user, submission.content_block)
         resolved_latest_id = latest_attempt_ids ? latest_attempt_ids[submission.attempt_key] : submission.latest_attempt&.id
@@ -616,9 +675,9 @@ module Api
         json[:github_checks] = GithubCheckRunSerializer.collection_json(submission) if include_github_checks
         # Read the captured column, without feature/configuration or binding
         # lookups. Off responses and legacy records keep their existing shape.
-        json[:github_revision] = submission.github_revision if current_user.staff? && submission.github_revision.present?
+        json[:github_revision] = submission.github_revision if staff_view && submission.github_revision.present?
 
-        if current_user.staff?
+        if staff_view
           delivery = latest_github_issue_delivery(submission)
           json[:github_issue_delivery] = delivery.to_staff_json if delivery
 

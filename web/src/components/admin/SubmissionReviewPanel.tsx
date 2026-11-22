@@ -160,9 +160,7 @@ export function SubmissionReviewPanel({
     const overriding = gradeDiffersFromSuggestion(submission?.grade_suggestion, value)
     const result = await review.grade(
       value,
-      overriding && overrideReason.trim()
-        ? { suggestionOverrideReason: overrideReason }
-        : undefined,
+      overriding ? { suggestionOverrideReason: overrideReason } : undefined,
     )
     if (result !== 'needs_feedback') return
     setFeedbackOpen(true)
@@ -239,7 +237,15 @@ export function SubmissionReviewPanel({
       if (!alive.current) return
       if (result.data && !result.error)
         review.setSubmission((current) =>
-          current ? { ...current, github_checks: result.data!.github_checks } : current,
+          current
+            ? {
+                ...current,
+                github_checks: result.data!.github_checks,
+                ...(result.data!.grade_suggestion !== undefined
+                  ? { grade_suggestion: result.data!.grade_suggestion }
+                  : {}),
+              }
+            : current,
         )
       else review.setError(result.error || 'Could not refresh GitHub checks.')
     } catch {

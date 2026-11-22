@@ -988,7 +988,7 @@ export interface LearningInsights {
 }
 
 export interface LearningInsightsResponse { learning_insights: LearningInsights }
-export interface GithubChecksResponse { github_checks: GithubChecks }
+export type GithubChecksResponse = components['schemas']['GithubChecksResponse'];
 
 // ─── API Response wrappers ───────────────────────────────────────────────────
 

@@ -67,7 +67,6 @@
   "web/src/types/api.ts:EnrollmentsListResponse",
   "web/src/types/api.ts:FeedbackSnippet",
   "web/src/types/api.ts:GithubAccessResponse",
-  "web/src/types/api.ts:GithubChecksResponse",
   "web/src/types/api.ts:Intervention",
   "web/src/types/api.ts:InterventionNote",
   "web/src/types/api.ts:InterventionResponse",
