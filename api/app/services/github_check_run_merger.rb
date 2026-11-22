@@ -46,7 +46,7 @@ class GithubCheckRunMerger
     full_name.nil? || full_name.casecmp?(binding.full_name)
   end
 
-  def self.regresses_existing_run?(run, status:, conclusion:, started_at:, completed_at:)
+  def self.regresses_existing_run?(run, status:, conclusion:, started_at:, completed_at:, changed_since_prefetch: false)
     existing_rank = STATUS_RANK.fetch(run.status, 0)
     incoming_rank = STATUS_RANK.fetch(status, 0)
     return true if incoming_rank < existing_rank
@@ -62,9 +62,12 @@ class GithubCheckRunMerger
       if run.completed_at.present?
         return true if completed_at.nil? || completed_at < run.completed_at
         if completed_at == run.completed_at
+          return true if changed_since_prefetch
           return true if run.started_at.present? && started_at.present? && started_at < run.started_at
           return true if run.conclusion.present? && conclusion.nil?
         end
+      elsif changed_since_prefetch && completed_at.nil?
+        return true
       end
     else
       return true if run.started_at.present? && started_at.present? && started_at < run.started_at
@@ -93,7 +96,7 @@ class GithubCheckRunMerger
   end
 
   # Must be called inside `submission.with_lock`.
-  def self.upsert_locked!(submission:, attributes:, fetched_at:, check_superseded_peers: false, allow_rerun_reset: false)
+  def self.upsert_locked!(submission:, attributes:, fetched_at:, check_superseded_peers: false, allow_rerun_reset: false, changed_since_prefetch: false)
     external_id = attributes.fetch(:external_id)
     head_sha = attributes.fetch(:head_sha)
     incoming_status = attributes.fetch(:status)
@@ -112,7 +115,8 @@ class GithubCheckRunMerger
         status: incoming_status,
         conclusion: incoming_conclusion,
         started_at: incoming_started_at,
-        completed_at: incoming_completed_at
+        completed_at: incoming_completed_at,
+        changed_since_prefetch: changed_since_prefetch
       )
         return run
       end
@@ -188,7 +192,8 @@ class GithubCheckRunMerger
           },
           fetched_at: fetched_at,
           check_superseded_peers: false,
-          allow_rerun_reset: unchanged_since_prefetch
+          allow_rerun_reset: unchanged_since_prefetch,
+          changed_since_prefetch: existing.present? && !unchanged_since_prefetch
         )
       end
 

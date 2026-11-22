@@ -188,6 +188,106 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
     service.define_singleton_method(:github_get, original_get)
   end
 
+  test "stale snapshot with tied timestamps does not overwrite webhook conclusion committed during fetch" do
+    @submission.github_check_runs.create!(
+      external_id: 750,
+      name: "prework/111.rb",
+      head_sha: "abc123",
+      status: "completed",
+      conclusion: "failure",
+      started_at: Time.iso8601("2026-08-15T00:00:00Z"),
+      completed_at: Time.iso8601("2026-08-15T00:01:00Z"),
+      fetched_at: 5.minutes.ago
+    )
+
+    service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token", now: Time.zone.parse("2026-08-15 10:00"))
+    original_get = service.method(:github_get)
+    submission = @submission
+
+    service.define_singleton_method(:github_get) do |_url, page:|
+      # Concurrent webhook updates conclusion to success at the same second before HTTP fetch returns.
+      submission.with_lock do
+        GithubCheckRunMerger.upsert_locked!(
+          submission: submission,
+          attributes: {
+            external_id: 750,
+            name: "prework/111.rb",
+            head_sha: "abc123",
+            status: "completed",
+            conclusion: "success",
+            started_at: "2026-08-15T00:00:00Z",
+            completed_at: "2026-08-15T00:01:00Z",
+            app_slug: "github-actions"
+          },
+          fetched_at: Time.zone.parse("2026-08-15 10:00:01")
+        )
+      end
+
+      # Stale HTTP snapshot has identical started_at/completed_at with the pre-webhook failure conclusion.
+      FakeResponse.new(true, 200, {
+        "total_count" => 1,
+        "check_runs" => [ {
+          "id" => 750,
+          "name" => "prework/111.rb",
+          "head_sha" => "abc123",
+          "status" => "completed",
+          "conclusion" => "failure",
+          "started_at" => "2026-08-15T00:00:00Z",
+          "completed_at" => "2026-08-15T00:01:00Z",
+          "app" => { "slug" => "github-actions" }
+        } ]
+      })
+    end
+
+    result = service.call
+    assert_nil result[:error]
+
+    run = @submission.github_check_runs.find_by!(external_id: 750)
+    assert_equal "completed", run.status
+    assert_equal "success", run.conclusion
+
+    # A subsequent snapshot with a strictly later completed_at DOES update even if the row changed mid-fetch.
+    service.define_singleton_method(:github_get) do |_url, page:|
+      submission.with_lock do
+        GithubCheckRunMerger.upsert_locked!(
+          submission: submission,
+          attributes: {
+            external_id: 750,
+            name: "prework/111.rb",
+            head_sha: "abc123",
+            status: "completed",
+            conclusion: "neutral",
+            started_at: "2026-08-15T00:00:00Z",
+            completed_at: "2026-08-15T00:01:00Z",
+            app_slug: "github-actions"
+          },
+          fetched_at: Time.zone.parse("2026-08-15 10:00:02")
+        )
+      end
+
+      FakeResponse.new(true, 200, {
+        "total_count" => 1,
+        "check_runs" => [ {
+          "id" => 750,
+          "name" => "prework/111.rb",
+          "head_sha" => "abc123",
+          "status" => "completed",
+          "conclusion" => "success",
+          "started_at" => "2026-08-15T00:00:00Z",
+          "completed_at" => "2026-08-15T00:02:00Z",
+          "app" => { "slug" => "github-actions" }
+        } ]
+      })
+    end
+
+    assert_nil service.call[:error]
+    run.reload
+    assert_equal "success", run.conclusion
+    assert_equal Time.iso8601("2026-08-15T00:02:00Z"), run.completed_at
+  ensure
+    service.define_singleton_method(:github_get, original_get)
+  end
+
   test "manual refresh reflects a legitimate GitHub rerun reset when untouched since pre-fetch" do
     @submission.github_check_runs.create!(
       external_id: 801,
