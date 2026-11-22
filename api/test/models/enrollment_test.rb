@@ -38,6 +38,29 @@ class EnrollmentTest < ModelCoverageTestCase
     end
   end
 
+  test "guided relative terms use personal start with calendar months and cap support" do
+    course.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 4, 6 ], guided_access_months: 1, guided_support_weeks: 8)
+    enrolled = Enrollment.create!(user: person, cohort: course, starts_on: Date.new(2026, 1, 31))
+    cutoff = Time.utc(2026, 2, 28, 14)
+    assert_equal cutoff, enrolled.access_expires_at
+    assert_equal cutoff, enrolled.support_expires_at
+    course.update!(guided_access_months: 12, guided_support_weeks: 4)
+    assert_equal [ cutoff, cutoff ], enrolled.reload.attributes.values_at("access_expires_at", "support_expires_at")
+  end
+
+  test "guided fixed dates take precedence independently over relative terms" do
+    course.update!(course_delivery: "guided", start_date: Date.new(2026, 4, 6), guided_access_months: 12, guided_support_weeks: 8,
+      guided_access_ends_on: Date.new(2026, 6, 10), guided_support_ends_on: Date.new(2026, 4, 10))
+    fixed = Enrollment.create!(user: person, cohort: course)
+    assert_equal Time.utc(2026, 6, 10, 14), fixed.access_expires_at
+    assert_equal Time.utc(2026, 4, 10, 14), fixed.support_expires_at
+
+    course.update!(guided_support_ends_on: nil)
+    mixed = Enrollment.create!(user: person, cohort: course)
+    assert_equal fixed.access_expires_at, mixed.access_expires_at
+    assert_equal Time.utc(2026, 6, 1, 14), mixed.support_expires_at
+  end
+
   test "self paced support starts once and never outlives access" do
     course.update!(course_delivery: "self_paced")
     enrollment.update!(access_expires_at: 1.week.from_now)

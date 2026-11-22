@@ -5,6 +5,7 @@ class InstructorToday
     @user, @cohorts, @attention, @now = user, cohorts, attention, now
     @scoped = scoped
     @blocked_ids = user.blocked_relationship_user_ids
+    @review_targets = cohorts.index_by(&:id).transform_values(&:review_sla_business_days)
     school = FeatureSwitches.school
     @features = cohorts.to_h { |cohort| [ cohort.id, FeatureSwitches.for(cohort: cohort, school: school) ] }
   end
@@ -25,6 +26,7 @@ class InstructorToday
     latest.where(grade: nil).includes(content_block: :lesson).order(:created_at, :id).each do |submission|
       row = by_enrollment.fetch(submission.enrollment_id)
       items << item(row, "review", submission.id, submission.created_at, submission.content_block.title.presence || submission.content_block.lesson.title, "Open grading", "/admin/submissions/#{submission.id}", "/staff/submission/#{submission.id}")
+        .merge(overdue_review(submission, row[:cohort_id]))
     end
     items.concat(unread_items(identities))
     rows.each do |row|
@@ -38,9 +40,9 @@ class InstructorToday
     rows.select { |row| row[:status] == "active" && row[:inactive] }.each do |row|
       items << item(row, "quiet", row[:enrollment_id], row[:last_activity_at] || row[:joined_at], "No learning activity in 7+ days", "Message", nil, nil)
     end
-    # Stable category priority, oldest first within each category, then ID.
+    # Stable category priority, urgent help and overdue reviews first in their own categories.
     # Help is always first, followed by review, unread conversations, follow-ups, and quiet.
-    items.sort_by! { |entry| [ %w[help review message follow_up quiet].index(entry[:kind]), entry[:urgent] ? 0 : 1, entry[:since] || @now, entry[:id] ] }
+    items.sort_by! { |entry| [ %w[help review message follow_up quiet].index(entry[:kind]), (entry[:urgent] || entry[:overdue]) ? 0 : 1, entry[:since] || @now, entry[:id] ] }
     counts = items.map { |entry| entry[:kind] }.tally
     visible = items.group_by { |entry| entry[:kind] }.values.flat_map { |entries| entries.first(20) }
     represented = visible.map { |entry| [ entry[:user_id], entry[:cohort_id] ] }
@@ -50,6 +52,15 @@ class InstructorToday
   end
 
   private
+
+  def overdue_review(submission, cohort_id)
+    business_days = @review_targets[cohort_id]
+    return {} unless business_days
+
+    @review_sla ||= ReviewSla.new(holidays: SchoolSetting.current.review_sla_holidays)
+    target = @review_sla.call(submitted_at: submission.created_at, business_days: business_days, now: @now)
+    target[:overdue] ? { overdue: true, expected_review_by: target[:expected_by] } : {}
+  end
 
   def feature_ids(key)
     @features.select { |_, features| features[key] }.keys

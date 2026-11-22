@@ -128,7 +128,7 @@ function WorkRow({ item, work }: { item: MyWorkItem; work: MyWork }) {
     ? `${work.reviewer.full_name.split(' ')[0]} ${reviewTiming(work.review_response_time).replace(/^usually\s+/i, 'usually reviews ')}`
     : `Your instructor will review it, ${reviewTiming(work.review_response_time)}`
   const meta = item.status === 'waiting'
-    ? [where, `submitted ${shortAgo(item.submitted_at) === 'now' ? 'just now' : `${shortAgo(item.submitted_at)} ago`}`, waitingLine]
+    ? [where, `submitted ${shortAgo(item.submitted_at) === 'now' ? 'just now' : `${shortAgo(item.submitted_at)} ago`}`, item.expected_review_on ? null : waitingLine]
     : [where, submitted, reviewed]
   return (
     <article className="px-4 py-4 sm:px-5" data-work-status={item.status}>
@@ -140,6 +140,7 @@ function WorkRow({ item, work }: { item: MyWorkItem; work: MyWork }) {
             {item.block_title !== item.lesson_title && <span className="font-normal text-ink-muted"> · {item.block_title}</span>}
           </h2>
           <p className="mt-0.5 text-xs text-ink-muted [overflow-wrap:anywhere]">{meta.filter(Boolean).join(' · ')}{item.attempt > 1 ? ` · attempt ${item.attempt}` : ''}</p>
+          {item.expected_review_on && <p className="mt-1 text-xs font-semibold text-ink-secondary">Feedback expected by <time dateTime={item.expected_review_on}>{formatShortDate(item.expected_review_on, '', { withYear: false, weekday: true })}</time></p>}
           {item.feedback && <div className={`mt-2 border-l-2 pl-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere] ${item.status === 'redo' ? 'border-warning-line' : 'border-line-strong'}`}><MarkdownText content={item.feedback} /></div>}
           {item.status === 'redo' && item.submissions_closed && <p className="mt-1 text-xs text-ink-muted">Submissions are closed for this week.</p>}
           {item.status !== 'waiting' && (

@@ -359,6 +359,7 @@ export type OfficeHourOccurrence = {
   timezone: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['timezone'], undefined>;
   recurrence: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['recurrence'], undefined>;
   event_kind: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['event_kind'], undefined>;
+  optional_check_in?: components['schemas']['OfficeHourOccurrence']['optional_check_in'];
 };
 
 export interface OfficeHour {
@@ -388,7 +389,10 @@ export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningP
 
 export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>>; recording_catch_up?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>> };
 
-export interface CohortSummary extends Partial<CourseOfferingTerms> {
+type CohortSettingsFields = components['schemas']['CohortWorkspaceResponse']['cohort'];
+export type ReviewAndGuidedTerms = Pick<CohortSettingsFields, 'guided_access_months' | 'guided_support_weeks' | 'review_sla_business_days'>;
+
+export interface CohortSummary extends Partial<CourseOfferingTerms>, ReviewAndGuidedTerms {
   review_response_time?: string;
   course_delivery?: 'program' | 'guided' | 'self_paced';
   id: number;

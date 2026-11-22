@@ -1053,7 +1053,16 @@ export const api = {
     fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`, {}, true, 30_000),
   getCohortStudentView: (id: number) =>
     fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
-  createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string; course_delivery?: 'program' | 'self_paced'; public_checkout_enabled?: boolean }) =>
+  createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string;
+    course_delivery?: 'program' | 'guided' | 'self_paced'
+    public_checkout_enabled?: boolean
+    guided_access_ends_on?: string | null
+    guided_support_ends_on?: string | null
+    guided_access_months?: number | null
+    guided_support_weeks?: number | null
+    review_sla_business_days?: number | null
+    review_response_time?: string
+  }) =>
     fetchApi<CohortResponse>('/api/v1/cohorts', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -1073,6 +1082,9 @@ export const api = {
     self_paced_support_weeks?: number
     guided_access_ends_on?: string | null
     guided_support_ends_on?: string | null
+    guided_access_months?: number | null
+    guided_support_weeks?: number | null
+    review_sla_business_days?: number | null
     learner_pace_weeks?: number[] | null
   }) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`, {

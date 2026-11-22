@@ -1,10 +1,13 @@
 import { Github } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { CourseOfferingSettings } from '../../../components/admin/CourseOfferingSettings'
+import { DeliveryChoice } from './DeliveryChoice'
+import { ReviewResponseSettings } from '../../../components/admin/ReviewResponseSettings'
+import { GuidedTermsFields } from './GuidedTermsFields'
+import { ReviewTargetField } from '../../../components/admin/ReviewTargetField'
 import { FeatureSettings } from '../../../components/admin/FeatureSettings'
 import { SegmentButton, SegmentedControl } from '../../../components/ui/Choice'
 import { cohortPath } from '../../../lib/routes'
-import { schoolTimeDescription } from '../../../lib/schoolTime'
 import { COHORT_STATUS_OPTIONS, DEFAULT_PACE_WEEKS } from './settingsForm'
 import type { CohortSettingsController } from './useCohortSettings'
 
@@ -20,10 +23,10 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
     savedRevision,
     editCourseDelivery,
     setEditCourseDelivery,
-    editAccessEnd,
-    setEditAccessEnd,
-    editSupportEnd,
-    setEditSupportEnd,
+    guidedTerms,
+    setGuidedTerms,
+    reviewTarget,
+    setReviewTarget,
     editPaceWeeks,
     setEditPaceWeeks,
     editPaceEnabled,
@@ -76,13 +79,29 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             onChange={(e) => setEditStartDate(e.target.value)}
           />
         </label>
+        <section className="space-y-3 border-t border-line pt-4" aria-labelledby="course-access-heading">
+          <h2 id="course-access-heading" className="text-base font-semibold text-ink">
+            Course access for new enrollments
+          </h2>
+          <DeliveryChoice value={editCourseDelivery} onChange={setEditCourseDelivery} />
+          {editCourseDelivery === 'guided' && <GuidedTermsFields terms={guidedTerms} onChange={setGuidedTerms} />}
+        </section>
+        {user?.role === 'admin' && (
+          <ReviewResponseSettings
+            key={`review-${cohort.id}-${savedRevision}`}
+            cohortId={cohort.id}
+            onDraftChange={setReviewResponseDraft}
+            savedResponse={savedReviewResponse}
+          >
+            <ReviewTargetField value={reviewTarget} onChange={setReviewTarget} />
+          </ReviewResponseSettings>
+        )}
         {user?.role === 'admin' && (
           <FeatureSettings
             key={`features-${cohort.id}-${savedRevision}`}
             cohortId={cohort.id}
             onDraftChange={setFeatureDraft}
-            onReviewResponseDraftChange={setReviewResponseDraft}
-            savedReviewResponse={savedReviewResponse}
+            showReviewResponse={false}
           />
         )}
         {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && (
@@ -92,57 +111,6 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             onSaved={async () => {}}
             onDraftChange={setOfferingDraft}
           />
-        )}
-        {cohort.course_delivery !== 'self_paced' && (
-          <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">
-            <h2 id="course-access-heading" className="text-base font-semibold text-ink">
-              Course access for new enrollments
-            </h2>
-            <p className="mt-1 text-xs text-ink-secondary">
-              Dates include the entire selected day in {schoolTimeDescription().replace(' time', '')}. Saving defaults
-              does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has
-              indefinite lesson access.
-            </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <label className="text-xs font-semibold text-ink-secondary">
-                Delivery
-                <select
-                  value={editCourseDelivery}
-                  onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')}
-                  disabled={saving}
-                  className="app-control mt-1 w-full"
-                >
-                  <option value="program">Live program</option>
-                  <option value="guided">Focused course with meetings</option>
-                  <option value="self_paced">Self-paced</option>
-                </select>
-              </label>
-              {editCourseDelivery === 'guided' && (
-                <>
-                  <label className="text-xs font-semibold text-ink-secondary">
-                    Lessons available through
-                    <input
-                      type="date"
-                      value={editAccessEnd}
-                      onChange={(e) => setEditAccessEnd(e.target.value)}
-                      disabled={saving}
-                      className="app-control mt-1 w-full"
-                    />
-                  </label>
-                  <label className="text-xs font-semibold text-ink-secondary">
-                    Help period ends
-                    <input
-                      type="date"
-                      value={editSupportEnd}
-                      onChange={(e) => setEditSupportEnd(e.target.value)}
-                      disabled={saving}
-                      className="app-control mt-1 w-full"
-                    />
-                  </label>
-                </>
-              )}
-            </div>
-          </section>
         )}
         {editCourseDelivery !== 'program' && cohort.cohort_type !== 'alumni' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="learner-pace-heading">

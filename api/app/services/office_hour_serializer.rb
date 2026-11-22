@@ -56,7 +56,7 @@ class OfficeHourSerializer
       }
     end
 
-    def upcoming(office_hours, limit: 3, occurrences_by_office_hour: nil)
+    def upcoming(office_hours, limit: 3, occurrences_by_office_hour: nil, optional_check_ins: false)
       office_hours.flat_map do |office_hour|
         occurrences = if occurrences_by_office_hour
           occurrences_by_office_hour.fetch(office_hour)
@@ -65,7 +65,9 @@ class OfficeHourSerializer
         end
 
         occurrences.first(limit).map do |occurrence|
-          occurrence_json(office_hour, occurrence)
+          json = occurrence_json(office_hour, occurrence)
+          json[:optional_check_in] = true if optional_check_ins && office_hour.event_kind_office_hours?
+          json
         end
       end.sort_by { |occurrence| occurrence[:starts_at] }.first(limit)
     end

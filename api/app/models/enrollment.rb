@@ -304,8 +304,16 @@ class Enrollment < ApplicationRecord
   def set_guided_access_terms
     return unless cohort.guided?
 
-    self.access_expires_at ||= guided_date_boundary(cohort.guided_access_ends_on)
-    self.support_expires_at ||= guided_date_boundary(cohort.guided_support_ends_on)
+    anchor = personal_start_on || cohort.start_date || LearningCalendar.today
+    access_end = cohort.guided_access_ends_on
+    access_end ||= anchor + cohort.guided_access_months.months if cohort.guided_access_months
+    self.access_expires_at ||= guided_date_boundary(access_end)
+
+    support_end = guided_date_boundary(cohort.guided_support_ends_on)
+    if !support_end && cohort.guided_support_weeks
+      support_end = [ guided_date_boundary(anchor + cohort.guided_support_weeks.weeks), access_expires_at ].compact.min
+    end
+    self.support_expires_at ||= support_end
   end
 
   def guided_date_boundary(date)

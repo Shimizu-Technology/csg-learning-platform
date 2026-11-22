@@ -1,6 +1,7 @@
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { RecordLink } from '../shared/RecordLink'
+import { PastReviewTargetBadge } from './PastReviewTargetBadge'
 import { useMessageStudent } from './MessageStudentsDialog'
 import type { InstructorTodayData } from '../../types/api'
 
@@ -16,6 +17,7 @@ export function TodayInbox({ today }: { today: InstructorTodayData }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-ink"><>{item.student_record === false || !item.cohort_id ? item.full_name : <RecordLink record={{ type: 'student', id: item.user_id, cohortId: item.cohort_id }} returnLabel="Today" touchTarget>{item.full_name}</RecordLink>}</><span className="text-xs font-normal text-ink-muted">{item.cohort_id && item.cohort_name && <RecordLink record={{ type: 'cohort', id: item.cohort_id }} returnLabel="Today" touchTarget>{item.cohort_name}</RecordLink>}</span></div>
         <p className="line-clamp-2 break-words text-sm text-ink-secondary [overflow-wrap:anywhere]">{item.urgent && <strong>Urgent · </strong>}{item.text}</p>
+        {item.overdue === true && <div className="mt-1.5"><PastReviewTargetBadge /></div>}
         {item.since && <p className="mt-1 text-xs text-ink-muted">{new Date(item.since).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {({ help: 'Help request', review: 'Waiting for review', message: 'Unread message', quiet: 'Going quiet', follow_up: 'Follow-up due' })[item.kind]}</p>}
       </div>
       {item.web_path ? <Link className="inline-flex min-h-11 shrink-0 items-center rounded-xl bg-action-primary px-4 text-sm font-semibold text-on-action" to={`${item.web_path}${item.web_path.includes('?') ? '&' : '?'}return_to=${encodeURIComponent(location.pathname + location.search)}`}>{item.action_label}</Link> : <button type="button" disabled={message.opening === item.user_id} onClick={() => void message.open(item.user_id, item.cohort_id!)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-ink hover:bg-surface-sunken">{message.opening === item.user_id ? 'Opening…' : 'Message'}</button>}

@@ -1,3 +1,4 @@
+import { TERMS } from '../../lib/glossary'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { StartHere } from '../../components/student/StartHere'
 import { brand } from '../../lib/brand'
@@ -388,7 +389,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             Live schedule
           </h3>
           <div className="rounded-xl border border-line bg-surface-sunken p-4">
-            <p className="text-xs font-semibold text-ink-muted">Next session</p>
+            <p className="text-xs font-semibold text-ink-muted">{data.office_hours[0].optional_check_in ? TERMS.optionalCheckIn : 'Next session'}</p>
             <p className="mt-1 text-base font-semibold text-ink">{data.office_hours[0].title}</p>
             <p className="mt-0.5 text-sm tabular-nums text-ink-secondary">{formatShortDateTime(data.office_hours[0].starts_at, 'TBD', data.office_hours[0].timezone)}</p>
             {data.office_hours[0].description && <p className="mt-2 text-sm text-ink-secondary">{data.office_hours[0].description}</p>}

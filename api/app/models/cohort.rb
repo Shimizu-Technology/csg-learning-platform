@@ -65,6 +65,9 @@ class Cohort < ApplicationRecord
   validates :name, presence: true
   validates :start_date, presence: true
   validates :self_paced_access_months, :self_paced_support_weeks, numericality: { only_integer: true, greater_than: 0 }
+  validates :guided_access_months, numericality: { only_integer: true, in: 1..120 }, allow_nil: true
+  validates :guided_support_weeks, numericality: { only_integer: true, in: 1..104 }, allow_nil: true
+  validates :review_sla_business_days, numericality: { only_integer: true, in: 1..30 }, allow_nil: true
   validates :course_delivery, inclusion: { in: %w[program guided self_paced] }
   before_validation :normalize_learner_pace_weeks
   validate :learner_pace_weeks_are_valid
@@ -215,6 +218,10 @@ class Cohort < ApplicationRecord
 
   def guided?
     course_delivery == "guided"
+  end
+
+  def optional_guided_check_ins?
+    guided? && (guided_access_months.present? || guided_support_weeks.present? || review_sla_business_days.present?)
   end
 
   # W9.1 personal pace (AS-1, AS-2). A guided or self-paced cohort can offer

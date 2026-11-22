@@ -234,13 +234,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_030000) do
     t.text "public_preview"
     t.string "review_response_time"
     t.integer "learner_pace_weeks", array: true
+    t.integer "guided_access_months"
+    t.integer "guided_support_weeks"
+    t.integer "review_sla_business_days"
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["public_slug"], name: "index_cohorts_on_public_slug", unique: true
     t.index ["status"], name: "index_cohorts_on_status"
     t.index ["support_instructor_id"], name: "index_cohorts_on_support_instructor_id"
     t.check_constraint "course_delivery::text = ANY (ARRAY['program'::character varying::text, 'guided'::character varying::text, 'self_paced'::character varying::text])", name: "cohort_course_delivery_valid"
+    t.check_constraint "guided_access_months IS NULL OR guided_access_months > 0", name: "cohorts_guided_access_months_positive"
+    t.check_constraint "guided_support_weeks IS NULL OR guided_support_weeks > 0", name: "cohorts_guided_support_weeks_positive"
     t.check_constraint "public_price_cents IS NULL OR public_price_cents > 0", name: "cohort_public_price_positive"
+    t.check_constraint "review_sla_business_days IS NULL OR review_sla_business_days > 0", name: "cohorts_review_sla_business_days_positive"
     t.check_constraint "self_paced_access_months > 0 AND self_paced_support_weeks > 0", name: "cohort_self_paced_terms_positive"
   end
 
@@ -1221,6 +1227,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_030000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "review_response_time", default: "usually reviewed within 2 days", null: false
+    t.date "review_sla_holidays", default: [], null: false, array: true
     t.check_constraint "id = 1", name: "school_settings_singleton"
   end
 
