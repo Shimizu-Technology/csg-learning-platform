@@ -22,6 +22,9 @@ class Recording < ApplicationRecord
   validate :stored_video_object_is_attachable, if: -> { uploaded? && will_save_change_to_s3_key? }
 
   before_save :record_publication_date
+  # Attachment saves lock the recording before touching join rows. Deletion
+  # must take the same lock before dependent deletes to avoid a deadlock.
+  before_destroy -> { self.class.where(id: id).lock("FOR NO KEY UPDATE").pluck(:id) }, prepend: true
 
   def record_publication_date
     self.published_at = Time.current if published? && (will_save_change_to_status? || published_at.nil?)

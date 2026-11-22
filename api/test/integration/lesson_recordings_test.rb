@@ -53,6 +53,18 @@ class LessonRecordingsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "staff deletion removes the recording's attachments without removing lessons" do
+    recording = record("Recording to remove")
+    attachment = recording.lesson_recordings.create!(lesson: @lesson)
+
+    as_user(@instructor) { delete "#{@endpoint}/#{recording.id}", headers: auth_headers }
+
+    assert_response :no_content
+    refute Recording.exists?(recording.id)
+    refute LessonRecording.exists?(attachment.id)
+    assert Lesson.exists?(@lesson.id)
+  end
+
   test "foreign, archived, missing, and malformed lessons fail without partial writes" do
     archived = create_lesson(@module, "Archived")
     archived.update!(archived_at: Time.current)
