@@ -24,17 +24,26 @@ it('previews the exact source with the learner renderer without emitting an edit
   expect(onChange).toHaveBeenCalledWith(edited);
 });
 
-it('switches Markdown keyboard corrections as the selection moves between prose and code', () => {
+it('leaves the cursor uncontrolled while switching keyboard corrections between prose and code', () => {
   const source = 'Before\n```js\nlet count = 1;\n```\nAfter';
   const screen = render(<StaffMarkdownEditor value={source} onChange={jest.fn()} />);
   const input = () => screen.getByLabelText('Exercise instructions');
   const proseBehavior = { autoCorrect: true, spellCheck: true, autoCapitalize: 'sentences', smartInsertDelete: false };
+  const codeSelection = { nativeEvent: { selection: { start: 0, end: source.indexOf('count') } } };
+  expect(input().props.selection).toBeUndefined();
   expect(input().props).toMatchObject(proseBehavior);
 
-  fireEvent(input(), 'selectionChange', { nativeEvent: { selection: { start: 0, end: source.indexOf('count') } } });
+  fireEvent(input(), 'selectionChange', codeSelection);
+  expect(input().props.selection).toBeUndefined();
   expect(input().props).toMatchObject({ autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false });
 
   fireEvent(input(), 'selectionChange', { nativeEvent: { selection: { start: source.length, end: source.length } } });
+  expect(input().props).toMatchObject(proseBehavior);
+
+  fireEvent(input(), 'selectionChange', codeSelection);
+  fireEvent.press(screen.getByLabelText('Preview Exercise instructions'));
+  fireEvent.press(screen.getByLabelText('Edit Exercise instructions'));
+  expect(input().props.selection).toBeUndefined();
   expect(input().props).toMatchObject(proseBehavior);
 });
 
