@@ -16,7 +16,8 @@ module ApiRateLimits
 
   PUBLIC = {
     bootstrap: { to: 600, within: 1.minute },
-    catalog: { to: 300, within: 1.minute }
+    catalog: { to: 300, within: 1.minute },
+    certificate: { to: 60, within: 1.minute }
   }.freeze
 
   def self.applies?(name, controller, action)
@@ -37,6 +38,7 @@ module ApiRateLimits
     when :search then controller.in?([ "api/v1/messages_search", "api/v1/search" ])
     when :bootstrap then controller == "api/v1/sessions"
     when :catalog then controller == "api/v1/course_offerings"
+    when :certificate then controller == "api/v1/certificates" && action == "show"
     end
   end
 end

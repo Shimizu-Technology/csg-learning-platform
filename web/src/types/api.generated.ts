@@ -4426,6 +4426,7 @@ export interface paths {
                         "application/json": components["schemas"]["CohortWorkspaceResponse"];
                     };
                 };
+                422: components["responses"]["422"];
             };
         };
         trace?: never;
@@ -5906,6 +5907,215 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/certificates/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        /** Verify a certificate without signing in */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                404: components["responses"]["404"];
+                429: components["responses"]["429"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Read the signed-in learner’s certificate and completion status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CourseCompletionResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CourseCompletionResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                404: components["responses"]["404"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the printed name on the signed-in learner’s active certificate */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CertificateNameRequest"];
+                };
+            };
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                404: components["responses"]["404"];
+                422: components["responses"]["422"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/certificate/reissue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reissue a certificate as staff assigned to the cohort */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CertificateReasonRequest"];
+                };
+            };
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                403: components["responses"]["403"];
+                404: components["responses"]["404"];
+                422: components["responses"]["422"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/certificate/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a certificate as staff assigned to the cohort */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    enrollment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CertificateReasonRequest"];
+                };
+            };
+            responses: {
+                /** @description CertificateVerificationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CertificateVerificationResponse"];
+                    };
+                };
+                401: components["responses"]["401"];
+                403: components["responses"]["403"];
+                404: components["responses"]["404"];
+                422: components["responses"]["422"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6962,6 +7172,8 @@ export interface components {
             github_app_enabled?: boolean;
             /** @description Included (true) only when this enrollment's cohort sends learner reminders. */
             learner_nudges_enabled?: boolean;
+            /** @description Present when the course has certificates enabled or the enrollment has an active certificate. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -7713,6 +7925,8 @@ export interface components {
             review_response_time?: string;
             /** @description Present for enrolled student dashboards only when the cohort's student_experience_v2 switch is explicitly on. */
             student_today?: components["schemas"]["StudentToday"];
+            /** @description Legacy dashboard completion summary for courses using certificates. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -8678,6 +8892,7 @@ export interface components {
                 completed_at: string | null;
             }[];
             can_message: boolean;
+            course_certificate?: components["schemas"]["StaffCourseCertificate"];
         };
         CohortModuleLearning: {
             id: number;
@@ -8738,9 +8953,11 @@ export interface components {
                 repository_name: string | null;
                 requires_github: boolean;
                 status: string;
-                settings: {
+                settings: ({
+                    next_step?: components["schemas"]["CourseCompletionNextStep"];
+                } & {
                     [key: string]: unknown;
-                } | null;
+                }) | null;
                 enrolled_count: number;
                 active_count: number;
                 announcements: unknown[];
@@ -9882,6 +10099,8 @@ export interface components {
             };
             manual_block_ids: number[];
             next_redo: boolean;
+            /** @description Present when the course has certificates enabled or the enrollment has an active certificate. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         /** @description A person named on a learner page: only an id and a name. */
         PersonName: {
@@ -10103,6 +10322,8 @@ export interface components {
             } | null;
             /** @description Included only when the cohort has learner-chosen pace on (W9.1); other cohorts' Today is unchanged. */
             personal_pace?: components["schemas"]["PersonalPace"];
+            /** @description Present when the course has certificates enabled or the enrollment has an active certificate. */
+            course_completion?: components["schemas"]["CourseCompletionResponse"];
         };
         CourseReceiptResponse: {
             /** Format: uri */
@@ -10732,6 +10953,48 @@ export interface components {
             guided_access_months?: number | null;
             guided_support_weeks?: number | null;
             review_sla_business_days?: number | null;
+            settings?: {
+                next_step: components["schemas"]["CourseCompletionNextStep"] | null;
+            };
+        };
+        CertificateVerification: {
+            code: string;
+            holder_name: string;
+            course_title: string;
+            issuer_name: string;
+            wording_version: number;
+            /** Format: date-time */
+            issued_at: string;
+            revoked: boolean;
+            revoked_at: string | null;
+        };
+        CertificateVerificationResponse: {
+            certificate: components["schemas"]["CertificateVerification"];
+        };
+        CertificateNameRequest: {
+            holder_name: string;
+        };
+        CertificateReasonRequest: {
+            reason: string;
+        };
+        CourseCompletionNextStep: {
+            title: string;
+            description?: string;
+            /** Format: uri */
+            url?: string;
+            offering_slug?: string;
+        };
+        CourseCompletionResponse: {
+            enrollment_id: number;
+            all_work_handed_in: boolean;
+            course_completed: boolean;
+            certificate: components["schemas"]["CertificateVerification"] | null;
+            next_step: components["schemas"]["CourseCompletionNextStep"] | null;
+        };
+        StaffCourseCertificate: {
+            certificate: components["schemas"]["CertificateVerification"] | null;
+            can_issue: boolean;
+            course_completed: boolean;
         };
     };
     responses: {

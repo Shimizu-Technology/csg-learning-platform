@@ -3,12 +3,13 @@ import { useBackLink } from '../../lib/recordOrigin'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useSearchParams } from 'react-router-dom'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, List } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Clock3, List } from 'lucide-react'
 import { api } from '../../lib/api'
 import { learnerPaths } from '../../lib/routes'
 import { useKeyboardAwareViewport } from '../../lib/visualViewport'
 import type { HelpRequest, LessonDetail } from '../../types/api'
 import { ContextualHelp } from './ContextualHelp'
+import { CourseCompletionCards } from './CourseCompletionCards'
 import { PersonActions } from './PersonActions'
 import { Button, LinkButton } from '../ui/Button'
 import { Modal } from '../shared/Modal'
@@ -58,6 +59,9 @@ export function LessonExperience({
   const paths = learnerPaths(lesson.cohort_id)
   const outline = lesson.outline
   const navigation = savedData ? undefined : lesson.learning_navigation
+  const completion = navigation?.course_completion
+  const finished = completion ? completion.all_work_handed_in || completion.course_completed || Boolean(completion.certificate) : navigation?.course_complete
+  const completionLabel = completion ? completion.course_completed ? 'Course completed' : completion.all_work_handed_in ? 'All work handed in' : 'Your certificate' : 'Course complete'
   const module = outline?.modules.find((item) => item.id === lesson.module_id)
   const group = module?.groups.find((item) => item.lessons.some((entry) => entry.id === lesson.id))
   const next = navigation?.next
@@ -101,18 +105,22 @@ export function LessonExperience({
       onRequestsRefresh={refreshHelp}
     />
   )
-  if (search.get('complete') === '1' && navigation?.course_complete && !readOnly)
+  if (search.get('complete') === '1' && finished && !readOnly)
     return (
       <article data-testid="course-complete" className="app-page mx-auto max-w-3xl">
         <div className="grid justify-items-center gap-5 py-6 text-center">
-          <CheckCircle2 className="h-16 w-16 text-success-ink" aria-hidden="true" />
+          {completion?.all_work_handed_in && !completion.course_completed
+            ? <Clock3 className="h-16 w-16 text-warning-ink" aria-hidden="true" />
+            : <CheckCircle2 className="h-16 w-16 text-success-ink" aria-hidden="true" />}
           <h1 className="font-display text-3xl font-semibold text-ink lg:text-4xl">
-            Course complete: You’ve finished {outline?.course_title || 'your course'}.
+            {completion ? completionLabel : `Course complete: You’ve finished ${outline?.course_title || 'your course'}.`}
           </h1>
-          <p className="text-ink-secondary">
-            {navigation?.counts.completed_lessons} of {navigation?.counts.total_lessons} lessons finished. Any work
-            waiting for review will still receive instructor feedback.
-          </p>
+          {completion
+            ? <p className="text-ink-secondary">{completion.course_completed ? 'You’ve finished the required work. You can return to your lessons while you have access.' : completion.all_work_handed_in ? 'Your instructor will confirm completion after reviewing your work.' : 'View the certificate issued by your school.'}</p>
+            : <p className="text-ink-secondary">
+              {navigation?.counts.completed_lessons} of {navigation?.counts.total_lessons} lessons finished. Any work
+              waiting for review will still receive instructor feedback.
+            </p>}
           {lesson.instructor && lesson.cohort_id && lesson.capabilities?.support_mode === 'guided_help' && lesson.capabilities?.features?.help_requests === true && (
             <PersonActions person={lesson.instructor} cohortId={lesson.cohort_id} />
           )}
@@ -123,6 +131,7 @@ export function LessonExperience({
             Back to Today
           </LinkButton>
         </div>
+        {completion && <CourseCompletionCards completion={completion} />}
       </article>
     )
   return (
@@ -227,7 +236,7 @@ export function LessonExperience({
             <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           </LinkButton>
         )}
-        {navigation?.course_complete && !readOnly && (
+        {finished && !readOnly && (
           <Button
             onClick={() =>
               setSearch((current) => {
@@ -236,7 +245,7 @@ export function LessonExperience({
               })
             }
           >
-            Course complete
+            {completionLabel}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}

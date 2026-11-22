@@ -1,3 +1,4 @@
+import { CourseCompletionStatus } from '../../components/student/CourseCompletionCards'
 import { GithubRepositorySettings } from '../../components/shared/GithubRepositorySettings'
 import { PurchaseReceipt } from '../../components/student/PurchaseReceipt'
 import { ReminderPreference } from '../../components/student/ReminderPreference'
@@ -391,6 +392,9 @@ export function Profile() {
           </ul>
         )}
       </section>
+      {data.enrollments.map((enrollment) => (
+        <CourseCompletionStatus key={enrollment.id} completion={enrollment.course_completion} />
+      ))}
     </div>
   )
 }

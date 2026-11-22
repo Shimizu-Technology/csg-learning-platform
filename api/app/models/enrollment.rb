@@ -152,6 +152,8 @@ class Enrollment < ApplicationRecord
   has_many :private_meeting_bookings, dependent: :restrict_with_error
   has_many :progresses, dependent: :nullify
   has_many :submissions, dependent: :nullify
+  has_many :certificates
+  has_one :active_certificate, -> { active }, class_name: "Certificate"
   has_many :knowledge_check_attempts, dependent: :nullify
 
   validates :user_id, uniqueness: { scope: :cohort_id }

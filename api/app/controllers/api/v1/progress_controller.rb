@@ -46,6 +46,7 @@ module Api
           progress.status = params[:status]
 
           if progress.save
+            CourseCompletion.evaluate!(@learning_write_enrollment) if progress.completed?
             if previous_status != progress.status && (progress.completed? || previous_status == "completed")
               video = %w[video recording].include?(content_block.block_type)
               ActivityEvent.record!(
@@ -247,6 +248,7 @@ module Api
         next_lesson = learner_progress.next_lesson
 
         render json: {
+          **CourseCompletion.staff_summary(enrollment),
           personal_plan: LearningPlanProjection.new(enrollment, progress: learner_progress).call,
           continue_lesson: next_lesson && { id: next_lesson.id, title: next_lesson.title },
           status: attention && {

@@ -476,6 +476,16 @@ export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
 export type BulkEnrollmentResult = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
 export type BulkEnrollmentState = { enrolled: number; invited: number; results: BulkEnrollmentResult[] }
 export const api = {
+  verifyCertificate: (code: string) =>
+    fetchApi<components['schemas']['CertificateVerificationResponse']>(`/api/v1/certificates/${encodeURIComponent(code)}`, { cache: 'no-store' }, false),
+  updateCertificateName: (enrollmentId: number, holderName: string) =>
+    fetchApi<components['schemas']['CertificateVerificationResponse']>(`/api/v1/enrollments/${enrollmentId}/certificate`, {
+      method: 'PATCH', body: JSON.stringify({ holder_name: holderName }),
+    }),
+  manageCertificate: (enrollmentId: number, action: 'revoke' | 'reissue', reason: string) =>
+    fetchApi<components['schemas']['CertificateVerificationResponse']>(`/api/v1/enrollments/${enrollmentId}/certificate/${action}`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    }),
   getSubmissionAudit: () => fetchApi<components['schemas']['SubmissionAuditResponse']>('/api/v1/submission_audits', { cache: 'no-store' }),
   reviewSubmissionAudit: (id: number, content_digest: string) => fetchApi<components['schemas']['SubmissionAuditReviewResponse']>(`/api/v1/submission_audits/${id}`, { method: 'PATCH', body: JSON.stringify({ content_digest }) }),
   getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
@@ -1068,6 +1078,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   updateCohort: (id: number, data: { curriculum_id?: number; public_outcomes?: string; public_duration?: string; public_prerequisites?: string; public_preview?: string; public_title?: string; public_description?: string; public_image_url?: string;
+    settings?: { next_step: components['schemas']['CourseCompletionNextStep'] | null }
     name?: string
     start_date?: string
     end_date?: string

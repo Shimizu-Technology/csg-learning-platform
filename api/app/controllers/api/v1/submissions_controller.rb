@@ -95,6 +95,7 @@ module Api
             progress.update!(status: :completed)
             ActivityEvent.record!(event_type: "submission_created", actor: current_user,
               cohort: @learning_write_enrollment&.cohort, record: submission)
+            CourseCompletion.evaluate!(@learning_write_enrollment)
             SubmissionNotificationJob.perform_later("created", submission.id, submission.created_at.iso8601(6))
 
             render json: { submission: submission_json(submission, include_github_checks: true) }, status: :created
@@ -219,6 +220,7 @@ module Api
             progress.update!(status: @submission.grade == "R" ? :in_progress : :completed)
             ActivityEvent.record!(event_type: "submission_graded", actor: current_user,
               subject_user: @submission.user, cohort: enrollment&.cohort, record: @submission)
+            CourseCompletion.evaluate!(enrollment, actor: current_user) unless redo_grade
           end
         end
 

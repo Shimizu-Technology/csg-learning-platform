@@ -829,6 +829,7 @@ export type StudentCommunication = components['schemas']['StudentCommunicationRe
 
 /** Compatibility view model; the complete current wire contract is StudentWorkspaceProgressResponse. */
 export interface StudentProgressResponse {
+  course_certificate?: components['schemas']['StaffCourseCertificate'];
   can_message?: boolean
   weekly_plan?: WeeklyPlan | null;
   personal_plan?: PersonalLearningPlan | null;

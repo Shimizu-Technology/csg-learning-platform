@@ -14,7 +14,7 @@ module Api
         json[:status] = record.status unless record.is_a?(CurriculumModule)
         if record.is_a?(Cohort)
           json.merge!(start_date: record.start_date, end_date: record.end_date, enrolled_count: 0,
-            feature_overrides: record.settings.fetch("features", {}), features: FeatureSwitches.for(cohort: record))
+            feature_overrides: record.settings.fetch("features", {}), features: FeatureSwitches.for_client(FeatureSwitches.for(cohort: record)))
         end
         render json: { clone: json, replayed: result.replayed }, status: result.replayed ? :ok : :created
       rescue AuthoringCloneService::Invalid => error

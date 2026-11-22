@@ -20,6 +20,8 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
     setReviewResponseDraft,
     savedReviewResponse,
     setFeatureDraft,
+    editNextStep,
+    setEditNextStep,
     savedRevision,
     editCourseDelivery,
     setEditCourseDelivery,
@@ -112,6 +114,30 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             onDraftChange={setOfferingDraft}
           />
         )}
+        {user?.role === 'admin' && <section className="app-surface space-y-4 p-5" aria-labelledby="next-step-heading">
+          <h2 id="next-step-heading" className="text-lg font-bold text-ink">Next step after completion</h2>
+          <p className="text-sm text-ink-secondary">
+            Optional. With certificates on, learners see this card after they complete the course. Choose one destination.
+          </p>
+          <label className="block text-sm font-semibold">Title
+            <input className="app-control mt-1 block w-full" value={editNextStep.title} maxLength={120}
+              onChange={(event) => setEditNextStep({ ...editNextStep, title: event.target.value })} />
+          </label>
+          <label className="block text-sm font-semibold">Description
+            <textarea className="app-control mt-1 block w-full" rows={3} value={editNextStep.description} maxLength={500}
+              onChange={(event) => setEditNextStep({ ...editNextStep, description: event.target.value })} />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block min-w-0 text-sm font-semibold">Destination URL
+              <input type="url" className="app-control mt-1 block w-full" value={editNextStep.url} maxLength={2048} placeholder="https://…"
+                onChange={(event) => setEditNextStep({ ...editNextStep, url: event.target.value })} />
+            </label>
+            <label className="block min-w-0 text-sm font-semibold">Course offering slug
+              <input className="app-control mt-1 block w-full" value={editNextStep.offering_slug} maxLength={120} placeholder="python-foundations"
+                onChange={(event) => setEditNextStep({ ...editNextStep, offering_slug: event.target.value })} />
+            </label>
+          </div>
+        </section>}
         {editCourseDelivery !== 'program' && cohort.cohort_type !== 'alumni' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="learner-pace-heading">
             <h2 id="learner-pace-heading" className="text-base font-semibold text-ink">

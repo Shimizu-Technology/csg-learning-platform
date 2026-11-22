@@ -270,7 +270,12 @@ Rails.application.routes.draw do
       end
 
       # Enrollments with access overrides
+      get "certificates/:code", to: "certificates#show"
       resources :enrollments, only: [ :show, :update, :destroy ] do
+        resource :certificate, only: [ :show, :update ], controller: "enrollment_certificates" do
+          post :revoke
+          post :reissue
+        end
         resources :github_repository_bindings, only: [ :index, :create ] do
           post :verify, on: :member
         end

@@ -4,8 +4,8 @@ import { api, type FeatureSettingsData } from '../../lib/api'
 import { Button } from '../ui/Button'
 
 // A cohort gets these only by turning them on itself (FeatureSwitches::COHORT_OPT_IN).
-const cohortOptIn = new Set(['github_app', 'learner_nudges'])
-const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', github_app: 'GitHub App access', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans', student_experience_v2: 'New student experience', learner_nudges: 'Learner reminders' }
+const cohortOptIn = new Set(['github_app', 'learner_nudges', 'certificates'])
+const labels: Record<string, string> = { private_meetings: 'Meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class chat', knowledge_checks: 'Checkpoints', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', github_app: 'GitHub App access', announcements: 'Updates', interventions: 'Follow-up plans', learning_plans: 'Learning plans', student_experience_v2: 'New student experience', learner_nudges: 'Learner reminders', certificates: 'Certificates' }
 export function FeatureSettings({ cohortId, onDraftChange, showReviewResponse = true }: {
   cohortId?: number
   onDraftChange?: (values: Record<string, boolean | null> | null) => void
@@ -42,6 +42,7 @@ export function FeatureSettings({ cohortId, onDraftChange, showReviewResponse = 
   return <section className="app-surface space-y-4 p-5" aria-label={cohortId ? 'Cohort features' : 'School features'}>
     <h2 className="text-lg font-bold text-ink">Features</h2>
     <p className="text-sm text-ink-secondary">{cohortId ? 'Inherit school defaults or choose a different setting for this cohort.' : 'School defaults apply unless a cohort overrides them.'} Turning a feature off preserves its saved data.</p><p className="text-sm text-ink-secondary">GitHub App access requires the school switch and an explicit On setting for this cohort. Inherit keeps App access off.</p>
+    {cohortId && <p className="text-sm text-ink-secondary">Certificates require the school switch and an explicit On setting for this cohort.</p>}
     {data && <><div className="grid gap-4 sm:grid-cols-2">{Object.entries(labels).map(([key, label]) => <label key={key} className="flex flex-col gap-1 text-sm font-semibold text-ink">{label}<select disabled={saving} className="min-h-11 rounded-xl border border-line bg-surface-raised px-3" value={values[key] == null ? 'inherit' : values[key] ? 'on' : 'off'} onChange={e => setValues(v => ({ ...v, [key]: e.target.value === 'inherit' ? null : e.target.value === 'on' }))}>
       {cohortId && <option value="inherit">Inherit → {cohortOptIn.has(key) ? 'Off' : data.defaults[key] ? 'On' : 'Off'}</option>}<option value="on">On</option><option value="off">Off</option>
     </select></label>)}</div>
