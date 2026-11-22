@@ -48,7 +48,7 @@ class GithubCheckRunSyncService
     result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{fetched_sha}/check-runs", sha: fetched_sha)
     return failure(result[:error]) if result[:error]
 
-    runs = result[:runs]
+    runs = enrich_workflow_paths(result[:runs], sha: fetched_sha)
     merged = GithubCheckRunMerger.sync_snapshot!(
       submission: submission,
       runs: runs,
@@ -109,6 +109,36 @@ class GithubCheckRunSyncService
       page += 1
     end
     { runs: runs, error: nil }
+  end
+
+  def enrich_workflow_paths(runs, sha:)
+    return runs unless @app_binding && @app_client.respond_to?(:workflow_paths_by_check_suite)
+
+    needs_lookup = runs.any? do |attrs|
+      explicit = attrs["workflow_path"].presence || attrs.dig("check_suite", "workflow_path").presence
+      explicit.nil? && GithubCheckRunMerger.positive_integer(attrs.dig("check_suite", "id")).present?
+    end
+    return runs unless needs_lookup
+
+    suite_paths = @app_client.workflow_paths_by_check_suite(
+      installation: @app_binding.github_app_installation,
+      repository_id: @app_binding.repository_id,
+      full_name: @app_binding.full_name,
+      head_sha: sha
+    )
+    return runs if suite_paths.blank?
+
+    runs.map do |attrs|
+      explicit = attrs["workflow_path"].presence || attrs.dig("check_suite", "workflow_path").presence
+      next attrs if explicit.present?
+
+      suite_id = GithubCheckRunMerger.positive_integer(attrs.dig("check_suite", "id"))
+      resolved = suite_id ? suite_paths[suite_id] : nil
+      resolved.present? ? attrs.merge("workflow_path" => resolved) : attrs
+    end
+  rescue GithubAppClient::Error => error
+    Rails.logger.warn("GitHub Actions workflow_path lookup failed for submission #{submission.id}: #{error.class.name} (status=#{error.status})")
+    runs
   end
 
   def headers

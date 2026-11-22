@@ -376,11 +376,7 @@ module Api
           return
         end
 
-        active_policy = if suggestion.exercise_check_policy&.active?
-          suggestion.exercise_check_policy
-        else
-          ExerciseCheckPolicy.active.find_by(content_block_id: suggestion.content_block_id)
-        end
+        active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: suggestion.content_block_id)
         render json: { grade_suggestion: suggestion.to_staff_json(active_policy: active_policy) }
       end
 
