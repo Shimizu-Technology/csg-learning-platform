@@ -25,6 +25,10 @@ export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss 
   const choosesPace = Boolean(today.personal_pace?.available) && today.personal_pace?.status !== 'staff_plan'
   // A pace chosen before staff turned pace off stays, read-only, with its targets and firm date.
   const keptPace = !choosesPace && today.personal_pace?.plan_source === 'learner_pace' && today.personal_pace.weeks !== null
+  const hasSubmissionWindows = Boolean(
+    today.next_lesson?.submission_window?.submissions_close_at
+    || data.modules?.some((mod) => mod.lessons.some((lesson) => Boolean(lesson.submission_window?.submissions_close_at))),
+  )
   return <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="welcome-title">
     <p className="text-xs font-semibold text-primary-ink">Start here</p>
     <h2 id="welcome-title" className="mt-1 text-xl font-bold text-ink">Here’s how your course works</h2>
@@ -34,7 +38,11 @@ export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss 
           ? 'Every lesson is open, unless your instructor schedules one later. Your pace sets a target for each week, and Today shows how you’re doing. Only the final project has a firm date.'
           : keptPace
             ? 'Your plan keeps its weekly targets and one firm final-project date, shown on Today. Your instructor can change it.'
-          : today.mode === 'self_paced' ? 'Read or watch lessons, try the exercises, and submit your work. There are no class times or deadlines.' : 'Learn has your lessons and release dates. Today shows your next step and work that needs you.'}
+          : today.mode === 'self_paced'
+            ? hasSubmissionWindows
+              ? 'Read or watch lessons, try the exercises, and submit your work. There are no live class times; check Learn and each lesson for submission deadlines.'
+              : 'Read or watch lessons, try the exercises, and submit your work. There are no live class times; if a lesson has a submission deadline, you’ll see it in Learn and on the lesson.'
+            : 'Learn has your lessons and release dates. Today shows your next step and work that needs you.'}
       </Step>
       <Step number={2} title="Your instructor reviews your exercises">
         {today.reviewer?.full_name ?? 'Your instructor'} reviews your exercises, {reviewTiming(data.review_response_time)}.

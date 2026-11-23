@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 const brandKeys = [
   'EXPO_PUBLIC_LOGO_SVG', 'EXPO_PUBLIC_SCHOOL_NAME', 'EXPO_PUBLIC_PRODUCT_NAME',
   'EXPO_PUBLIC_SCHOOL_ABBREVIATION', 'EXPO_PUBLIC_SCHOOL_SHORT_NAME',
@@ -34,4 +37,29 @@ it('loads environment overrides in an isolated module registry', () => {
     const { brand } = require('../brand');
     expect(brand).toMatchObject({ schoolName: 'Example School', logoSvg: '<svg />' });
   });
+});
+
+it('keeps runtime school/product brand literals in brand.ts outside explicitly allowlisted modules', () => {
+  const srcRoot = resolve(__dirname, '../..');
+  const allowlisted = /\/(__tests__|test-utils)\/|\/lib\/(brand|brand-mark|school-time|hafa-starter-links|native-content-href|demo-[^/]+)\.ts$/;
+  const offenders: string[] = [];
+  function visit(dir: string) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== '__tests__' && entry.name !== 'test-utils') visit(fullPath);
+        continue;
+      }
+      if (!/\.tsx?$/.test(fullPath) || /\.test\.tsx?$/.test(fullPath) || allowlisted.test(fullPath)) continue;
+      if (fullPath.endsWith('/api.generated.ts')) continue;
+      const source = readFileSync(fullPath, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      if (/\bCode School\b|CSG Learn|codeschoolofguam\.com|codeschoolofguam@gmail\.com|https:\/\/shimizu-technology\.com/.test(source)) {
+        offenders.push(fullPath.slice(srcRoot.length + 1));
+      }
+    }
+  }
+  visit(srcRoot);
+  expect(offenders).toEqual([]);
 });

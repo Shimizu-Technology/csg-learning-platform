@@ -2,12 +2,14 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import { MeetingCohort, MeetingConfirmation } from '../private-meetings';
 import { booking, cohort, now } from '@/lib/meeting-test-fixtures';
+import { configureSchoolTime } from '@/lib/school-time';
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 const select = jest.fn();
 const message = jest.fn();
 const join = jest.fn();
 function show(c = cohort, disabled = false, time = now) { return render(<MeetingCohort cohort={c} now={time} disabled={disabled} onSelect={select} onMessage={message} onJoin={join} />); }
-beforeEach(() => { jest.clearAllMocks(); jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true); });
+beforeEach(() => { jest.clearAllMocks(); configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' }); jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true); });
+afterEach(() => { configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' }); });
 async function settle() { await act(async () => {}); }
 it('orders weeks and hides past meetings until expanded; completed meetings never join', async () => {
   const screen = show({ ...cohort, bookings: [{ ...booking, week_number: 1, starts_at: '2026-12-05T02:00:00Z', ends_at: '2026-12-05T03:00:00Z' }] });
@@ -100,4 +102,27 @@ it('uses a 30-minute configuration in the intro and actual slot duration for con
   const confirmation = render(<MeetingConfirmation action={{ kind: 'book', cohort: shortCohort, week: 2, slot: { ...cohort.slots[0], starts_at: shortBooking.starts_at, ends_at: shortBooking.ends_at } }} busy={false} disabled={false} onDismiss={jest.fn()} onConfirm={jest.fn()} />);
   expect(confirmation.getByText('30 minutes with Leon')).toBeTruthy();
   expect(confirmation.queryByText(/full hour|private hour/)).toBeNull();
+});
+
+it('renders slots, bookings, and confirmations in the cohort timezone over opposite school defaults', async () => {
+  configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' });
+  const chicagoSlot = { ...cohort.slots[0], starts_at: '2026-12-12T18:00:00Z', ends_at: '2026-12-12T19:00:00Z' };
+  const chicagoCohort = { ...cohort, timezone: 'America/Chicago', slots: [chicagoSlot], bookings: [] };
+  const screen = show(chicagoCohort);
+  await settle();
+  expect(screen.getByText(/All times are Central Time \(CT\)\./)).toBeTruthy();
+  expect(screen.queryByText(/CT time \(CT\)/)).toBeNull();
+  expect(screen.getByLabelText(/Choose Week 2, Sat, Dec 12, 12:00 PM – 1:00 PM CST/)).toBeTruthy();
+  screen.unmount();
+
+  const confirmation = render(<MeetingConfirmation action={{ kind: 'book', cohort: chicagoCohort, week: 2, slot: chicagoSlot }} busy={false} disabled={false} onDismiss={jest.fn()} onConfirm={jest.fn()} />);
+  expect(confirmation.getByText(/Sat, Dec 12, 12:00 PM – 1:00 PM CST/)).toBeTruthy();
+  confirmation.unmount();
+
+  configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CST' });
+  const guamCohort = { ...cohort, timezone: 'Pacific/Guam', slots: [{ ...cohort.slots[0], starts_at: '2026-12-12T02:00:00Z', ends_at: '2026-12-12T03:00:00Z' }], bookings: [] };
+  const guamScreen = show(guamCohort);
+  await settle();
+  expect(guamScreen.getByText(/All times are Guam time \(ChST\)\./)).toBeTruthy();
+  expect(guamScreen.getByLabelText(/Choose Week 2, Sat, Dec 12, 12:00 PM – 1:00 PM ChST/)).toBeTruthy();
 });

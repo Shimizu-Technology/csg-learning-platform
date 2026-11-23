@@ -369,7 +369,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               </h3>
               {derived.nextSubmissionDeadline ? (
                 <p className="mt-1 text-sm text-ink-secondary">
-                  Next close: <RecordLink record={{ type: 'lesson', id: derived.nextSubmissionDeadline.id, cohortId: selectedCohortId, view: 'learn' }} variant="plain" className="font-medium">{derived.nextSubmissionDeadline.title}</RecordLink> closes <span className="tabular-nums">{formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}</span>.
+                  Next close: <RecordLink record={{ type: 'lesson', id: derived.nextSubmissionDeadline.id, cohortId: selectedCohortId, view: 'learn' }} variant="plain" touchTarget className="font-medium">{derived.nextSubmissionDeadline.title}</RecordLink> closes <span className="tabular-nums">{formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}</span>.
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-ink-secondary">No upcoming submission close times right now.</p>

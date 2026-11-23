@@ -1,5 +1,5 @@
 import { useBackLink } from '../../lib/recordOrigin'
-import { schoolTimeDescription, schoolTimeGenericLabel, schoolWallTimeToIso } from '../../lib/schoolTime'
+import { schoolWallTimeToIso, timeZoneDescriptionWithLabel } from '../../lib/schoolTime'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { forwardReturnState } from '../../lib/navigationContext'
 import { cohortStudentPath, directMessagePath } from '../../lib/routes'
@@ -7,7 +7,7 @@ import { useMeetingDestination } from '../../lib/useMeetingDestination'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, CheckCircle2, ChevronDown, Clock3, ExternalLink, Link2, MessageSquareText, Plus, RefreshCw, Trash2, UserRound, Users, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
-import { formatGuamMeetingTime, isPastLearnerCutoff, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
+import { formatMeetingTime, isPastLearnerCutoff, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -22,9 +22,9 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import type { CohortSummary, PrivateMeetingBooking, StaffContact, StaffMeetingOtherCohort, StaffPrivateMeetingCohort, UserListItem } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 
-function asSchoolIso(localDateTime: string): string | null {
-  // The input is a school wall time, independent of the device zone.
-  return schoolWallTimeToIso(localDateTime)
+function asCohortIso(localDateTime: string, zone?: string | null): string | null {
+  // The input is wall time in the selected cohort's zone (falling back to school zone).
+  return schoolWallTimeToIso(localDateTime, zone)
 }
 
 export function StaffPrivateMeetingsRoute() {
@@ -110,8 +110,8 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   async function createSlot(event: React.FormEvent) {
     event.preventDefault()
     if (!selected || !slotStartsAt) return
-    const iso = asSchoolIso(slotStartsAt)
-    if (!iso) return toast.error(`Enter a valid ${schoolTimeDescription().replace(' time', '')} date and time.`)
+    const iso = asCohortIso(slotStartsAt, selected.timezone)
+    if (!iso) return toast.error(`Enter a valid ${timeZoneDescriptionWithLabel(selected.timezone)} date and time.`)
     setBusy('slot')
     const response = await api.createPrivateMeetingSlot(selected.id, iso, repeatWeeks)
     setBusy(null)
@@ -194,10 +194,10 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
           return (
             <div key={slot.id} className="flex min-h-12 items-center justify-between gap-2 rounded-xl bg-surface-sunken py-1.5 pl-3 pr-1">
               <div className="min-w-0">
-                <p className={`text-sm font-medium tabular-nums ${past || closedToLearners ? 'text-ink-muted' : 'text-ink'}`}>{formatGuamMeetingTime(slot.starts_at)}</p>
+                <p className={`text-sm font-medium tabular-nums ${past || closedToLearners ? 'text-ink-muted' : 'text-ink'}`}>{formatMeetingTime(slot.starts_at, selected.timezone)}</p>
                 <p className="text-xs text-ink-muted">{!slot.available ? 'Booked' : past ? 'Past — not booked' : closedToLearners ? `Past the ${selected.reschedule_cutoff_hours}-hour learner cutoff — learners can't book it; you can still move a booking here` : 'Open to learners'}</p>
               </div>
-              <IconButton label={`Remove ${formatGuamMeetingTime(slot.starts_at)}`} size="sm" disabled={!slot.available || busy !== null} onClick={() => void deleteSlot(slot.id)}><Trash2 className="h-4 w-4" /></IconButton>
+              <IconButton label={`Remove ${formatMeetingTime(slot.starts_at, selected.timezone)}`} size="sm" disabled={!slot.available || busy !== null} onClick={() => void deleteSlot(slot.id)}><Trash2 className="h-4 w-4" /></IconButton>
             </div>
           )
         })}</div>
@@ -217,7 +217,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
             <Avatar name={booking.student_name || 'Student'} size="sm" />
             <div className="min-w-0">
               <h3 className="truncate font-semibold text-ink" title={booking.student_name || 'Student'}>{booking.student_id ? <Link className="inline-flex min-h-11 items-center underline underline-offset-4" state={{ returnTo: `/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`, returnLabel: 'Meetings' }} to={`${cohortStudentPath(booking.cohort_id, booking.student_id)}?return_to=${encodeURIComponent(`/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`)}`}>{booking.student_name || 'Student'}</Link> : booking.student_name || 'Student'}</h3>
-              <p className="mt-0.5 text-sm tabular-nums text-ink-secondary"><RecordLink record={{ type: 'private_meeting', id: booking.id }} variant="plain" touchTarget returnLabel="Meetings" className="font-normal text-ink-secondary" aria-label={`Meeting details: ${booking.student_name || 'Student'}, week ${booking.week_number}`}>Week {booking.week_number} · {formatGuamMeetingTime(booking.starts_at)}</RecordLink></p>
+              <p className="mt-0.5 text-sm tabular-nums text-ink-secondary"><RecordLink record={{ type: 'private_meeting', id: booking.id }} variant="plain" touchTarget returnLabel="Meetings" className="font-normal text-ink-secondary" aria-label={`Meeting details: ${booking.student_name || 'Student'}, week ${booking.week_number}`}>Week {booking.week_number} · {formatMeetingTime(booking.starts_at, selected.timezone)}</RecordLink></p>
             </div>
           </div>
           {isPast
@@ -230,7 +230,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
             <Button variant={booking.zoom_url ? 'secondary' : 'primary'} disabled={busy !== null} onClick={() => void saveZoom(booking)}>{busy === `booking-${booking.id}` ? 'Saving...' : 'Save link'}</Button>
             {booking.zoom_url && <AnchorButton href={sanitizeUrl(booking.zoom_url)} target="_blank" rel="noopener noreferrer" aria-label={`Open ${booking.student_name}'s Zoom link`} className="w-11 px-0"><ExternalLink className="h-4 w-4" /></AnchorButton>}
           </div>
-          {moveOptions.length > 0 && <div className="mt-3 flex flex-wrap items-end gap-2"><label className="min-w-[13rem] flex-1 text-sm font-semibold text-ink-secondary">Move to another time<select value={moveDrafts[booking.id] || ''} onChange={(event) => setMoveDrafts((current) => ({ ...current, [booking.id]: event.target.value }))} className="app-control mt-1 w-full"><option value="">Choose available time</option>{moveOptions.map((slot) => <option key={slot.id} value={slot.id}>{formatGuamMeetingTime(slot.starts_at)}</option>)}</select></label><Button variant="secondary" disabled={busy !== null || !moveDrafts[booking.id]} onClick={() => void moveBooking(booking)}>Move</Button></div>}
+          {moveOptions.length > 0 && <div className="mt-3 flex flex-wrap items-end gap-2"><label className="min-w-[13rem] flex-1 text-sm font-semibold text-ink-secondary">Move to another time<select value={moveDrafts[booking.id] || ''} onChange={(event) => setMoveDrafts((current) => ({ ...current, [booking.id]: event.target.value }))} className="app-control mt-1 w-full"><option value="">Choose available time</option>{moveOptions.map((slot) => <option key={slot.id} value={slot.id}>{formatMeetingTime(slot.starts_at, selected.timezone)}</option>)}</select></label><Button variant="secondary" disabled={busy !== null || !moveDrafts[booking.id]} onClick={() => void moveBooking(booking)}>Move</Button></div>}
           <div className="mt-3 border-t border-line pt-3"><Button variant="danger" size="sm" disabled={busy !== null} onClick={() => void cancelBooking(booking)}>Cancel meeting</Button></div>
         </>}
       </article>
@@ -240,7 +240,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   return (
     <div className={cohortId ? "space-y-5 border-t border-line pt-6" : "app-page-wide space-y-8"}>
       {!cohortId && !back.fallback && <Link to={back.to} className="app-link mb-4 inline-flex min-h-11 items-center">{back.label}</Link>}
-      {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Meetings" description={`Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`} actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
+      {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Meetings" description={`Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in ${timeZoneDescriptionWithLabel(selected?.timezone)}.`} actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
       {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort doesn't have meetings.</p>}
       {destination.bookingId && selected && !selected.bookings.some((booking) => booking.id === destination.bookingId) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink">{error}</p>}
@@ -267,7 +267,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
                 <form onSubmit={(event) => void createSlot(event)} className="app-surface p-5">
                   <div className="flex items-start gap-3"><div className="rounded-xl bg-surface-sunken p-2 text-ink-secondary"><Clock3 className="h-5 w-5" /></div><div><h2 className="text-base font-semibold text-ink">Publish an available hour</h2><p className="mt-1 text-sm text-ink-secondary">Publishing a time commits you to it. Cross-check your calendar first.</p></div></div>
                   <div className="mt-5 flex flex-wrap items-end gap-3">
-                    <label className="min-w-[15rem] flex-1 text-sm font-semibold text-ink-secondary">Start in {schoolTimeDescription()} ({schoolTimeGenericLabel()})<input required type="datetime-local" value={slotStartsAt} onChange={(event) => setSlotStartsAt(event.target.value)} className="app-control mt-1 w-full" /></label>
+                    <label className="min-w-[15rem] flex-1 text-sm font-semibold text-ink-secondary">Start in {timeZoneDescriptionWithLabel(selected.timezone)}<input required type="datetime-local" value={slotStartsAt} onChange={(event) => setSlotStartsAt(event.target.value)} className="app-control mt-1 w-full" /></label>
                     <label className="text-sm font-semibold text-ink-secondary">Repeat weekly<select value={repeatWeeks} onChange={(event) => setRepeatWeeks(Number(event.target.value))} className="app-control mt-1 w-full"><option value={1}>Once</option><option value={2}>2 weeks</option><option value={3}>3 weeks</option></select></label>
                     <Button type="submit" disabled={busy !== null}>{busy === 'slot' ? 'Publishing...' : 'Publish time'}</Button>
                   </div>

@@ -74,7 +74,7 @@ export function MyWorkPage() {
   const tab: Tab = requested !== 'auto' ? requested : work.counts.needs_you > 0 ? 'needs_you' : work.counts.waiting > 0 ? 'waiting' : 'graded'
   return (
     <div className="app-page max-w-4xl" data-page="my-work">
-      <PageHeader title="My work" description={<>Everything you’ve submitted in <RecordLink record={{ type: 'cohort', id: work.cohort.id }} variant="plain" returnLabel="My work" className="font-semibold text-ink-secondary">{work.cohort.name}</RecordLink></>} />
+      <PageHeader title="My work" description={<>Everything you’ve submitted in <RecordLink record={{ type: 'cohort', id: work.cohort.id }} variant="plain" touchTarget returnLabel="My work" className="font-semibold text-ink-secondary">{work.cohort.name}</RecordLink></>} />
       <TabList label="My work" className="flex max-w-full overflow-x-auto border-b border-line">
         {TABS.map((key) => (
           <TabButton key={key} asTab selected={tab === key} count={work.counts[key]} id={`my-work-tab-${key}`} aria-controls={`my-work-panel-${key}`} onClick={() => setUrlState({ tab: key })} className="max-sm:flex-1 max-sm:px-2">
@@ -135,9 +135,9 @@ function WorkRow({ item, work }: { item: MyWorkItem; work: MyWork }) {
       <div className="flex items-start gap-3">
         {item.status === 'waiting' ? <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-sunken text-ink-muted"><Clock className="h-4 w-4" /></span> : <GradeChip grade={item.grade} />}
         <div className="min-w-0 flex-1">
-          <h2 className="text-[15px] font-semibold leading-5 text-ink [overflow-wrap:anywhere]">
-            <Link to={blockPath} className="hover:underline">{item.lesson_title}</Link>
-            {item.block_title !== item.lesson_title && <span className="font-normal text-ink-muted"> · {item.block_title}</span>}
+          <h2 className="flex flex-wrap items-center gap-x-1.5 text-[15px] font-semibold leading-5 text-ink [overflow-wrap:anywhere]">
+            <Link to={blockPath} className="inline-flex min-h-11 items-center hover:underline sm:min-h-0">{item.lesson_title}</Link>
+            {item.block_title !== item.lesson_title && <span className="font-normal text-ink-muted">· {item.block_title}</span>}
           </h2>
           <p className="mt-0.5 text-xs text-ink-muted [overflow-wrap:anywhere]">{meta.filter(Boolean).join(' · ')}{item.attempt > 1 ? ` · attempt ${item.attempt}` : ''}</p>
           {item.expected_review_on && <p className="mt-1 text-xs font-semibold text-ink-secondary">Feedback expected by <time dateTime={item.expected_review_on}>{formatShortDate(item.expected_review_on, '', { withYear: false, weekday: true })}</time></p>}

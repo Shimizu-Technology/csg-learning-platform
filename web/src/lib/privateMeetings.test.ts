@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { courseWeekForSlot, currentBookingForWeek, partitionMeetingWeeks, slotsForWeek } from './privateMeetings'
+import { afterEach, describe, expect, it } from 'vitest'
+import { courseWeekForSlot, currentBookingForWeek, formatMeetingTime, partitionMeetingWeeks, slotsForWeek } from './privateMeetings'
+import { configureSchoolTime, timeZoneDescriptionWithLabel } from './schoolTime'
 import type { PrivateMeetingBooking, PrivateMeetingSlot } from '../types/api'
+
+afterEach(() => {
+  configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' })
+})
 
 function slot(id: number, startsAt: string): PrivateMeetingSlot {
   return { id, starts_at: startsAt, ends_at: startsAt, instructor_id: 1, instructor_name: 'Leon', available: true }
@@ -66,5 +71,28 @@ describe('meeting week order', () => {
   it('handles a finished course and an unknown start date', () => {
     expect(partitionMeetingWeeks(start, 3, Date.parse('2026-12-01T00:00:00Z'))).toEqual({ current: [], past: [3, 2, 1] })
     expect(partitionMeetingWeeks('', 2, Date.now())).toEqual({ current: [1, 2], past: [] })
+  })
+})
+
+describe('cohort timezone overrides and DST boundaries', () => {
+  it('formats Chicago cohorts in CST/CDT even on a Guam school and groups local Chicago dates', () => {
+    configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' })
+    // 2026-11-30T05:30:00Z is Nov 29 11:30 PM CST in Chicago (Week 1) vs Nov 30 3:30 PM ChST in Guam (Week 2)
+    expect(courseWeekForSlot('2026-11-23', '2026-11-30T05:30:00Z', 3, 'America/Chicago')).toBe(1)
+    expect(courseWeekForSlot('2026-11-23', '2026-11-30T06:00:00Z', 3, 'America/Chicago')).toBe(2)
+    expect(formatMeetingTime('2026-11-30T05:30:00Z', 'America/Chicago')).toMatch(/^Sunday, November 29.*11:30 PM CST$/)
+    // Summer DST in Chicago: July 15 2026 18:00Z is 1:00 PM CDT
+    expect(formatMeetingTime('2026-07-15T18:00:00Z', 'America/Chicago')).toMatch(/^Wednesday, July 15.*1:00 PM CDT$/)
+    expect(timeZoneDescriptionWithLabel('America/Chicago')).toBe('Central Time (CT)')
+    expect(timeZoneDescriptionWithLabel('America/Chicago')).not.toContain('CT time (CT)')
+  })
+
+  it('formats Guam cohorts in ChST even on a Chicago school and falls back cleanly when cohort zone is missing or invalid', () => {
+    configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CST' })
+    expect(formatMeetingTime('2026-11-30T05:30:00Z', 'Pacific/Guam')).toMatch(/^Monday, November 30.*3:30 PM ChST$/)
+    expect(timeZoneDescriptionWithLabel('Pacific/Guam')).toBe('Guam time (ChST)')
+    // Missing or invalid cohort timezone falls back to school default (America/Chicago here)
+    expect(formatMeetingTime('2026-11-30T05:30:00Z', undefined)).toMatch(/^Sunday, November 29.*11:30 PM CST$/)
+    expect(formatMeetingTime('2026-11-30T05:30:00Z', 'Invalid/Zone')).toMatch(/^Sunday, November 29.*11:30 PM CST$/)
   })
 })

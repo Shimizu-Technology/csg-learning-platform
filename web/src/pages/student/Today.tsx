@@ -115,7 +115,7 @@ function TodayView({ data, today, saved, onDismissStartHere, onPaceSaved }: { da
       <header data-page-header="">
         <h1 className="app-title [overflow-wrap:anywhere]">{today.paused ? `Hi, ${firstName}` : firstRun ? `Welcome, ${firstName}` : `${greeting()}, ${firstName}`}</h1>
         <p className="app-description mt-1 tabular-nums" data-page-context="">
-          {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" returnLabel="Today" className="font-semibold text-ink-secondary">{data.cohort.name}</RecordLink>}
+          {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget returnLabel="Today" className="font-semibold text-ink-secondary">{data.cohort.name}</RecordLink>}
           {context && <> · {context}</>}
         </p>
       </header>
@@ -368,7 +368,7 @@ function NeedsYouRow({ item, cohortId, paths, readOnly }: { item: StudentTodayNe
     const when = item.graded_at ? shortAgo(item.graded_at) : null
     return (
       <div className="py-4" data-needs-you="redo">
-        <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink"><RotateCcw className="h-4 w-4 text-warning-ink" aria-hidden="true" />Redo requested: <RecordLink record={{ type: 'lesson', id: item.lesson_id, cohortId, view: 'learn' }} variant="plain" returnLabel="Today">{item.lesson_title}</RecordLink></p>
+        <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink"><RotateCcw className="h-4 w-4 text-warning-ink" aria-hidden="true" />Redo requested: <RecordLink record={{ type: 'lesson', id: item.lesson_id, cohortId, view: 'learn' }} variant="plain" touchTarget returnLabel="Today">{item.lesson_title}</RecordLink></p>
         <p className="mt-0.5 text-xs text-ink-muted">{[item.block_title !== item.lesson_title ? item.block_title : null, item.grader?.full_name, when && `${when} ago`.replace('now ago', 'just now')].filter(Boolean).join(' · ')}</p>
         {item.feedback && <blockquote className="mt-2 line-clamp-4 border-l-2 border-warning-line pl-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={item.feedback} /></blockquote>}
         {item.submissions_closed && <p className="mt-1 text-xs text-ink-muted">Submissions are closed for this week.</p>}

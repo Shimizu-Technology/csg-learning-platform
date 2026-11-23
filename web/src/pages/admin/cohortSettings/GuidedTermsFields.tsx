@@ -1,3 +1,4 @@
+import { schoolTimeLocation } from '../../../lib/schoolTime'
 import type { GuidedTermsDraft } from './settingsForm'
 
 const termGroups = [
@@ -22,7 +23,7 @@ export function GuidedTermsFields({ terms, onChange }: { terms: GuidedTermsDraft
     <div className="space-y-3">
       <p className="text-sm text-ink-secondary">
         Set a length from each learner’s start or a date for the whole cohort. A fixed date takes precedence and includes
-        the full day in Guam. Leave both blank for no expiry. Changes apply to new enrollments only.
+        the full day in {schoolTimeLocation()}. Leave both blank for no expiry. Changes apply to new enrollments only.
       </p>
       <div className="grid gap-3 lg:grid-cols-2">
         {termGroups.map(group => (

@@ -5,11 +5,12 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ meetings: vi.fn() }))
+const state = vi.hoisted(() => ({ meetings: vi.fn(), createSlot: vi.fn() }))
 
 vi.mock('../../lib/api', () => ({
   api: {
     getStaffPrivateMeetings: state.meetings,
+    createPrivateMeetingSlot: state.createSlot,
     getCohorts: vi.fn().mockResolvedValue({ data: { cohorts: [] }, error: null }),
     getUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
   },
@@ -19,6 +20,7 @@ vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.f
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
 
 import { StaffPrivateMeetings } from './PrivateMeetings'
+import { configureSchoolTime } from '../../lib/schoolTime'
 
 const iso = (value: string) => new Date(value).toISOString()
 
@@ -71,6 +73,7 @@ describe('staff meetings order', () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
+    configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' })
   })
 
   it('asks the server for the selected student and cohort full meeting list', async () => {
@@ -103,6 +106,34 @@ describe('staff meetings order', () => {
     const upcoming = container.textContent!.indexOf('Jose Cruz')
     expect(upcoming).toBeGreaterThan(-1)
     expect(upcoming).toBeLessThan(container.textContent!.indexOf('Past meetings'))
+  })
+
+  it('shows clean Central Time (CT) labels and converts published slot wall times in the selected cohort timezone', async () => {
+    configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' })
+    state.createSlot.mockResolvedValue({ data: { slots: [] }, error: null })
+    const result = await state.meetings()
+    result.data.cohorts[0].timezone = 'America/Chicago'
+    result.data.cohorts[0].slots[1].starts_at = '2026-10-22T15:00:00Z'
+    result.data.cohorts[0].bookings[1].starts_at = '2026-10-22T15:00:00Z'
+    state.meetings.mockResolvedValue(result)
+    await act(async () => root.render(<MemoryRouter><StaffPrivateMeetings /></MemoryRouter>))
+    expect(container.textContent).toContain('Start in Central Time (CT)')
+    expect(container.textContent).not.toContain('CT time (CT)')
+    expect(container.textContent).toContain('10:00 AM CDT')
+
+    const input = container.querySelector<HTMLInputElement>('input[type="datetime-local"]')!
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    await act(async () => {
+      valueSetter.call(input, '2026-11-12T10:00')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    const form = input.closest('form')!
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+    // Nov 12 2026 10:00 AM CST (Chicago, UTC-6) = 2026-11-12T16:00:00.000Z
+    expect(state.createSlot).toHaveBeenCalledWith(2, '2026-11-12T16:00:00.000Z', 1)
   })
 })
 

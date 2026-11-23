@@ -19,9 +19,10 @@ import { composerInputBehavior } from '@/lib/composer-input';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
 import { UPDATES_STALE_TIME, useUpdatesFocusRefresh } from '@/hooks/use-updates-focus-refresh';
+import { useNotificationsQuery } from '@/hooks/use-notifications';
 import { learningKeys } from '@/lib/learning';
 import { messagingKeys } from '@/lib/messaging-cache';
-import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
+import { demoAnnouncements } from '@/lib/demo-data';
 import { mobileNotificationPath, notificationTitle, routeForViewer } from '@/lib/notification-path';
 import type { components } from '@/lib/api.generated';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
@@ -86,17 +87,7 @@ export default function UpdatesScreen() {
     staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
     meta: { persist: true },
   });
-  const notificationQuery = useInfiniteQuery({
-    queryKey: notificationKey,
-    initialPageParam: 1,
-    getNextPageParam: (last: NotificationListPayload) => last.meta.has_next_page ? last.meta.page + 1 : undefined,
-    queryFn: ({ pageParam }): Promise<NotificationListPayload> => auth.demo
-      ? Promise.resolve({ notifications: demoNotifications, unread_count: demoNotifications.filter((item) => !item.read_at).length, meta: demoMeta(demoNotifications.length) })
-      : api.notifications({ page: pageParam, per_page: 50 }),
-    enabled: Boolean(user),
-    staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
-    meta: { persist: true },
-  });
+  const notificationQuery = useNotificationsQuery();
   const { data: announcementData, error: announcementError, isPending: announcementsPending, refetch: refetchAnnouncements } = announcementQuery;
   const { data: notificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = notificationQuery;
   const announcements = useMemo(() => uniqueUpdates(announcementData?.pages.map((page) => page.announcements) ?? []), [announcementData]);

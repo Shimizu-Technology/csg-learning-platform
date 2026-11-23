@@ -9,20 +9,56 @@ export function configureSchoolTime(school?: SchoolTimeConfig) {
   schoolTimeZoneLabel = school?.time_zone_label || 'ChST'
 }
 
-export function schoolTimeGenericLabel(zone = schoolTimeZone) {
-  if (zone === 'Pacific/Guam') return 'ChST'
-  return new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortGeneric' })
-    .formatToParts(new Date()).find((part) => part.type === 'timeZoneName')?.value || zone.split('/').pop()!.replaceAll('_', ' ')
+const supportedTimeZones: Set<string> | null = typeof Intl.supportedValuesOf === 'function'
+  ? new Set(Intl.supportedValuesOf('timeZone'))
+  : null
+const validatedTimeZones = new Set<string>(['Pacific/Guam', 'UTC', 'Etc/UTC'])
+
+export function isValidTimeZone(zone: string | null | undefined): zone is string {
+  if (!zone) return false
+  if (zone === schoolTimeZone || validatedTimeZones.has(zone) || supportedTimeZones?.has(zone)) return true
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone })
+    validatedTimeZones.add(zone)
+    return true
+  } catch {
+    return false
+  }
 }
 
-export function schoolTimeDescription() {
-  return schoolTimeZone === 'Pacific/Guam' ? 'Guam time' : `${schoolTimeGenericLabel()} time`
+export function resolveTimeZone(zone?: string | null): string {
+  return isValidTimeZone(zone) ? zone : schoolTimeZone
 }
 
-export function schoolTimeLabel(at = new Date()) {
-  if (schoolTimeZone === 'Pacific/Guam') return 'ChST'
-  return new Intl.DateTimeFormat('en-US', { timeZone: schoolTimeZone, timeZoneName: 'short' })
-    .formatToParts(at).find((part) => part.type === 'timeZoneName')?.value || schoolTimeZoneLabel
+export function schoolTimeGenericLabel(zone?: string | null) {
+  const resolved = resolveTimeZone(zone)
+  if (resolved === 'Pacific/Guam') return 'ChST'
+  return new Intl.DateTimeFormat('en-US', { timeZone: resolved, timeZoneName: 'shortGeneric' })
+    .formatToParts(new Date()).find((part) => part.type === 'timeZoneName')?.value || resolved.split('/').pop()!.replaceAll('_', ' ')
+}
+
+export function schoolTimeDescription(zone?: string | null) {
+  const resolved = resolveTimeZone(zone)
+  return resolved === 'Pacific/Guam' ? 'Guam time' : `${schoolTimeGenericLabel(resolved)} time`
+}
+
+export function timeZoneDescriptionWithLabel(zone?: string | null) {
+  const resolved = resolveTimeZone(zone)
+  if (resolved === 'Pacific/Guam') return 'Guam time (ChST)'
+  const shortGeneric = schoolTimeGenericLabel(resolved)
+  const longGeneric = new Intl.DateTimeFormat('en-US', { timeZone: resolved, timeZoneName: 'longGeneric' })
+    .formatToParts(new Date()).find((part) => part.type === 'timeZoneName')?.value
+  if (longGeneric && longGeneric !== shortGeneric && !longGeneric.includes(`(${shortGeneric})`)) {
+    return `${longGeneric} (${shortGeneric})`
+  }
+  return shortGeneric
+}
+
+export function schoolTimeLabel(at = new Date(), zone?: string | null) {
+  const resolved = resolveTimeZone(zone)
+  if (resolved === 'Pacific/Guam') return 'ChST'
+  return new Intl.DateTimeFormat('en-US', { timeZone: resolved, timeZoneName: 'short' })
+    .formatToParts(at).find((part) => part.type === 'timeZoneName')?.value || (resolved === schoolTimeZone ? schoolTimeZoneLabel : resolved)
 }
 
 // Reuse the expensive Intl formatter on Hermes; Guam has no DST and needs none.
@@ -44,8 +80,9 @@ function wallTime(at: number, zone: string) {
   return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second)
 }
 
-/** Convert school wall time, rejecting nonexistent DST times; choose the earlier fold. */
-export function schoolWallTimeToIso(value: string, zone = schoolTimeZone, rollForward = false): string | null {
+/** Convert wall time in the target or school zone, rejecting nonexistent DST times; choose the earlier fold. */
+export function schoolWallTimeToIso(value: string, zone?: string | null, rollForward = false): string | null {
+  const resolved = resolveTimeZone(zone)
   if (/[zZ]|[+-]\d{2}:\d{2}$/.test(value)) {
     const date = new Date(value)
     return Number.isNaN(date.getTime()) ? null : date.toISOString()
@@ -53,26 +90,26 @@ export function schoolWallTimeToIso(value: string, zone = schoolTimeZone, rollFo
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) return null
   const wall = Date.parse(`${value}Z`)
   if (!Number.isFinite(wall) || new Date(wall).toISOString().slice(0, 16) !== value.slice(0, 16)) return null
-  if (Object.hasOwn(fixedOffsets, zone)) return new Date(wall - fixedOffsets[zone]).toISOString()
+  if (Object.hasOwn(fixedOffsets, resolved)) return new Date(wall - fixedOffsets[resolved]).toISOString()
   // Sample both sides of a transition to find all possible offsets.
   const offsets = [-2, -1, 0, 1, 2].map((day) => {
     const at = wall + day * 86_400_000
-    return wallTime(at, zone) - at
+    return wallTime(at, resolved) - at
   })
-  const candidates = offsets.map((offset) => wall - offset).filter((at) => wallTime(at, zone) === wall)
+  const candidates = offsets.map((offset) => wall - offset).filter((at) => wallTime(at, resolved) === wall)
   if (candidates.length) return new Date(Math.min(...candidates)).toISOString()
   // Computed calendar boundaries roll through a midnight gap, like Rails zone.local.
   // Staff-typed times keep the strict default and are rejected in a gap.
   if (rollForward) {
-    const after = offsets.map((offset) => wall - offset).filter((at) => wallTime(at, zone) > wall)
+    const after = offsets.map((offset) => wall - offset).filter((at) => wallTime(at, resolved) > wall)
     if (after.length) return new Date(Math.min(...after)).toISOString()
   }
   return null
 }
 
-export function schoolWeekEndsAt(startDate: string, week: number, zone = schoolTimeZone) {
+export function schoolWeekEndsAt(startDate: string, week: number, zone?: string | null) {
   const day = new Date(Date.parse(`${startDate}T00:00:00Z`) + week * 7 * 86_400_000)
   if (Number.isNaN(day.getTime())) return NaN
-  const iso = schoolWallTimeToIso(`${day.toISOString().slice(0, 10)}T00:00:00`, zone, true)
+  const iso = schoolWallTimeToIso(`${day.toISOString().slice(0, 10)}T00:00:00`, resolveTimeZone(zone), true)
   return iso ? Date.parse(iso) : NaN
 }

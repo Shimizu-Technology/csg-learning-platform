@@ -33,7 +33,7 @@ it('advertises choosing a pace only when the learner can choose one', async () =
   expect(host.textContent).toContain('Follow the class schedule')
 })
 
-it('in a self-paced course, describes the pace to choose, a pace kept after pace was turned off, or no deadlines', async () => {
+it('in a self-paced course, describes the pace to choose, a pace kept after pace was turned off, or honest window-aware wording', async () => {
   await render(today({}, 'self_paced'))
   expect(host.textContent).toContain('Learn at the pace you choose')
   await render(today({ available: false, status: 'on_track', plan_source: 'learner_pace', weeks: 4 }, 'self_paced'))
@@ -41,5 +41,14 @@ it('in a self-paced course, describes the pace to choose, a pace kept after pace
   expect(host.textContent).toContain('one firm final-project date')
   expect(host.textContent).not.toContain('no class times or deadlines')
   await render(today(undefined, 'self_paced'))
-  expect(host.textContent).toContain('There are no class times or deadlines')
+  expect(host.textContent).not.toContain('There are no class times or deadlines')
+  expect(host.textContent).toContain('if a lesson has a submission deadline')
+
+  const withWindowData = {
+    ...data,
+    modules: [{ id: 1, name: 'Week 1', lessons: [{ id: 10, submission_window: { submissions_close_at: '2026-12-01T23:59:00-06:00', submissions_closed: false } }] }],
+  } as unknown as DashboardData
+  await act(async () => root.render(<MemoryRouter><FirstRunWelcome data={withWindowData} today={today(undefined, 'self_paced')} lessonPath={null} learnPath="/materials" onDismiss={vi.fn()} /></MemoryRouter>))
+  expect(host.textContent).not.toContain('There are no class times or deadlines')
+  expect(host.textContent).toContain('check Learn and each lesson for submission deadlines')
 })
