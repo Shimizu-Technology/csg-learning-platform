@@ -7,8 +7,13 @@ import { VideoPlayer } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
 
 export function VideoBlock({ controller, ...props }: ContentBlockRendererProps & { controller: ContentBlockController }) {
-  const { activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect } = controller
+  const { activeVideoSegment, completedRanges, saveNotice, rejectedSection, retryProgress, onPlaybackSample, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, onSaveProgress, handleVideoSegmentSelect } = controller
   const { block, isStaff, readOnly } = props
+  const sources = block.video_progress_sources
+  // Preserve the element while the learner switches between known versions.
+  // When the lesson refreshes with different files, never keep playing an
+  // old stream against the new source identity.
+  const hostedKey = JSON.stringify([block.id, props.cohortId, block.s3_video_key, sources?.default, Object.entries(sources?.versions ?? {}).sort()])
   return (
     <>
       {controller.versions.length >= 2 && (
@@ -19,15 +24,17 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
       {(block.block_type === 'video' || block.block_type === 'recording') && block.s3_video_key && (
         <VideoPlayer
           ref={s3VideoRef}
-          key={`s3-${block.id}`}
+          key={hostedKey}
           title={block.title || 'Video'}
           initialPosition={initialVideoPosition}
           initialTotalWatched={block.progress?.video_total_watched || 0}
           fetchStreamUrl={fetchBlockStreamUrl}
-          onSaveProgress={saveBlockProgress}
+          onSaveProgress={onSaveProgress}
+          onPlaybackSample={onPlaybackSample}
           stopAtSeconds={activeVideoSegment?.end_seconds ?? null}
           onStopAtReached={finishActiveVideoSegment}
           trackProgress={!isStaff && !readOnly}
+          anchorProgress={!!sources?.default}
         />
       )}
 
@@ -41,6 +48,7 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
                   ref={ytIframeRef}
                   src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${typeof window === 'undefined' ? '' : window.location.origin}&start=${initialVideoPosition}`}
                   className="w-full h-full"
+                  title={block.title || "YouTube video"}
                   allowFullScreen
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 />
@@ -71,7 +79,9 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
                   ref={ytIframeRef}
                   src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${typeof window === 'undefined' ? '' : window.location.origin}&start=${initialVideoPosition}`}
                   className="w-full h-full"
+                  title={block.title || "YouTube video"}
                   allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 />
               )
             }
@@ -85,8 +95,19 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
       )}
 
       {(block.block_type === 'video' || block.block_type === 'recording') && (
-        <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={handleVideoSegmentSelect} />
+        <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedRanges={completedRanges} onSelect={handleVideoSegmentSelect} />
       )}
+      {rejectedSection && <p role="status" className="mt-2 text-sm text-ink-secondary">A section could not be confirmed. Reload the lesson to check its current timestamps.</p>}
+      {saveNotice && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-secondary">
+        <p role="status">{{
+          retry: 'Recording progress could not be saved.',
+          waiting: 'Your watch time is still syncing.',
+          stale: 'The recording or class access changed. Reload the lesson before saving.',
+        }[saveNotice]}</p>
+        {(saveNotice === 'retry' || saveNotice === 'waiting') && (
+          <button type="button" className="min-h-11 rounded-lg px-2 font-semibold underline" onClick={retryProgress}>Retry saving progress</button>
+        )}
+      </div>}
     </>
   )
 }

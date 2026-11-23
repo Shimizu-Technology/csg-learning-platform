@@ -1,3 +1,4 @@
+import { sectionRange } from '@/lib/section-watch'
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Check, Clock3, Play } from 'lucide-react-native';
@@ -6,20 +7,19 @@ import { StyleSheet, Text, View } from 'react-native';
 import { fonts, monoFont } from '@/constants/csg-theme';
 import { formatVideoDuration, formatVideoTimestamp, totalVideoSegmentSeconds, type VideoSegment, videoSegmentKey } from '@/lib/video-segments';
 
-export function VideoSegmentControls({ segments, onSelect, activeSegment = null, completedSegment = null }: { segments: VideoSegment[]; onSelect: (segment: VideoSegment) => void; activeSegment?: VideoSegment | null; completedSegment?: VideoSegment | null }) {
+export function VideoSegmentControls({ segments, onSelect, activeSegment = null, completedRanges = [] }: { segments: VideoSegment[]; onSelect: (segment: VideoSegment) => void; activeSegment?: VideoSegment | null; completedRanges?: readonly string[] }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   if (!segments.length) return null;
   const requiredSeconds = totalVideoSegmentSeconds(segments, true);
   const totalSeconds = totalVideoSegmentSeconds(segments);
   const activeKey = activeSegment ? videoSegmentKey(activeSegment) : null;
-  const completedKey = completedSegment ? videoSegmentKey(completedSegment) : null;
   return <View accessibilityLabel="Recording sections" style={styles.shell}>
     <View style={styles.header}><View style={styles.icon}><Clock3 color={c.text.body} size={17} /></View><View style={styles.copy}><Text style={styles.title}>Watch the parts that matter</Text><Text style={styles.subtitle}>Tap a section to jump there. Playback pauses at its reviewed end time.</Text><Text style={styles.summary}>{requiredSeconds > 0 ? `${formatVideoDuration(requiredSeconds)} core viewing` : `${formatVideoDuration(totalSeconds)} optional viewing`}</Text></View></View>
     {segments.map((segment) => {
       const key = videoSegmentKey(segment);
       const isActive = key === activeKey;
-      const isCompleted = key === completedKey;
+      const isCompleted = completedRanges.includes(sectionRange(segment));
       return <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: isActive }} accessibilityLabel={`Play ${segment.label}, ${formatVideoTimestamp(segment.start_seconds)} to ${formatVideoTimestamp(segment.end_seconds)}${isCompleted ? ', section finished' : isActive ? ', playing this section' : ''}`} onPress={() => onSelect(segment)} style={[styles.row, isActive && styles.rowActive]}><View style={[styles.play, isCompleted && styles.playDone]}>{isCompleted ? <Check color={c.status.success.fg} size={16} strokeWidth={3} /> : <Play color={c.text.strong} fill={c.text.strong} size={15} />}</View><View style={styles.copy}><Text style={styles.label}>{segment.label}</Text><Text style={styles.time}>Start {formatVideoTimestamp(segment.start_seconds)} · stop {formatVideoTimestamp(segment.end_seconds)}</Text>{(isActive || isCompleted) && <Text accessibilityLiveRegion="polite" style={[styles.state, isCompleted && styles.stateDone]}>{isCompleted ? 'Section finished' : 'Playing this section'}</Text>}</View><Text style={[styles.badge, !segment.required && styles.optional]}>{segment.required ? 'CORE' : 'OPTIONAL'}</Text></Pressable>;
     })}
   </View>;

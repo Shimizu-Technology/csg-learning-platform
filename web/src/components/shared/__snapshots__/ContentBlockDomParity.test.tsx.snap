@@ -2108,7 +2108,7 @@ exports[`preserves pre-split DOM: recording:false:read-only 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="">
@@ -2138,7 +2138,7 @@ exports[`preserves pre-split DOM: recording:false:staff 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="">
@@ -2172,7 +2172,7 @@ exports[`preserves pre-split DOM: recording:false:student 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="">
@@ -2202,7 +2202,7 @@ exports[`preserves pre-split DOM: recording:true:read-only 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="">
@@ -2232,7 +2232,7 @@ exports[`preserves pre-split DOM: recording:true:staff 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="">
@@ -2266,7 +2266,7 @@ exports[`preserves pre-split DOM: recording:true:student 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="">
@@ -2992,7 +2992,7 @@ exports[`preserves pre-split DOM: youtube:false:read-only 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="mt-4">
@@ -3022,7 +3022,7 @@ exports[`preserves pre-split DOM: youtube:false:staff 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="mt-4">
@@ -3056,7 +3056,7 @@ exports[`preserves pre-split DOM: youtube:false:student 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="mt-4">
@@ -3086,7 +3086,7 @@ exports[`preserves pre-split DOM: youtube:true:read-only 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="mt-4">
@@ -3116,7 +3116,7 @@ exports[`preserves pre-split DOM: youtube:true:staff 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="mt-4">
@@ -3150,7 +3150,7 @@ exports[`preserves pre-split DOM: youtube:true:student 1`] = `
 </div>
 <div class="p-4 lg:p-6">
 <div class="aspect-video rounded-xl overflow-hidden bg-media">
-<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+<iframe src="https://www.youtube.com/embed/abcdefg?enablejsapi=1&amp;origin=http://localhost:3000&amp;start=0" class="w-full h-full" title="Example" allowfullscreen="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
 </iframe>
 </div>
 <div class="mt-4">

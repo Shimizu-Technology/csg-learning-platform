@@ -186,8 +186,11 @@ module Api
         url = S3Service.generate_presigned_url(version ? version["s3_video_key"] : @content_block.s3_video_key, expires_in: expiry)
         progress = current_user.progresses.find_by(enrollment: @learning_read_enrollment, content_block: @content_block) unless current_user.staff?
 
+        sources = LessonVideoSections.new(@content_block).sources
+        source = version ? sources.dig("versions", version["id"]) : sources["default"]
         render json: {
           stream_url: url,
+          **(source ? { video_source: source } : {}),
           expires_at: expires_at.iso8601,
           video_progress: progress ? {
             last_position: progress.video_last_position,
@@ -200,66 +203,42 @@ module Api
 
       # PATCH /api/v1/content_blocks/:id/video_progress
       def video_progress
-        # Refuse progress writes against blocks that aren't backed by an S3
-        # video. Without this, an enrolled student could call this endpoint on
-        # a text or code block and write through to its s3_video_duration_seconds
-        # via the first-reporter lock below, corrupting the authoritative
-        # duration the moment a real video is later attached.
-        linked_provider = Recording.source_kind_for(@content_block.video_url)
-        linked_video = @content_block.s3_video_key.blank? && %w[video recording].include?(@content_block.block_type) && %w[youtube vimeo].include?(linked_provider)
-        unless @content_block.s3_video_key.present? || linked_video
-          render json: { error: "Content block has no video to track" }, status: :unprocessable_entity
-          return
-        end
-
-        # Lock the authoritative duration on the content block once. The first reporter
-        # sets it; staff can override via update_content_block. This prevents per-user
-        # completion fabrication via tiny client-reported durations.
-        #
-        # The previous read-then-write pattern raced against itself: two concurrent
-        # first pings (different students or different tabs) both saw nil and both
-        # ran update_column, so a malicious client could lose the race against an
-        # honest one and overwrite the legitimate duration with a tiny value.
-        # Compare-and-swap via UPDATE ... WHERE s3_video_duration_seconds IS NULL
-        # makes only one writer succeed; the loser re-reads the winner's value.
         with_learning_write_guard(@learning_write_enrollment) do
-          authoritative_duration = linked_video ? params[:duration_seconds].to_i.clamp(0, 28_800) : @content_block.s3_video_duration_seconds
-          if !linked_video && @content_block.video_versions.empty? && authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
-            candidate = params[:duration_seconds].to_i
-            updated = ContentBlock.where(id: @content_block.id, s3_video_duration_seconds: nil)
-                                  .update_all(s3_video_duration_seconds: candidate)
-            authoritative_duration = if updated == 1
-              candidate
-            else
-              # Lost the CAS — another request set a value first. Trust theirs.
-              @content_block.reload.s3_video_duration_seconds
-            end
-            # Mirror onto the in-memory instance so downstream reads here and
-            # the eventual response match the row, not the stale @content_block.
-            @content_block.s3_video_duration_seconds = authoritative_duration
+          unless @learning_write_enrollment.active?
+            return render_forbidden("Not enrolled in this curriculum")
           end
 
-          # find_or_initialize_by + save races against the unique index
-          # index_progresses_on_user_id_and_content_block_id when the player
-          # fires its first progress ping concurrently with another tab or with
-          # the lesson view that lazily creates a not_started row. The second
-          # save would raise ActiveRecord::RecordNotUnique → unrescued 500. Try
-          # once, and on collision re-fetch the row the racing request inserted
-          # and merge our update into it.
-          progress = upsert_video_progress(authoritative_duration)
-          if progress.save
-            record_video_activity!(progress)
-            render_video_progress(progress)
-          else
-            render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          previous_media = ContentBlock.playable_media(@content_block.s3_video_key, @content_block.video_url)
+          reported_duration = params[:duration_seconds].to_i
+          source = params[:video_source]
+          # The one-time duration write must go before the learner lock. A
+          # conditional update cannot stamp a replaced asset or overwrite the
+          # first reporter. Skip a busy row and let a later ping try again.
+          stamped = establish_video_duration(reported_duration, source)
+          @content_block.reload(lock: "FOR KEY SHARE")
+          sections = LessonVideoSections.new(@content_block)
+          if previous_media != ContentBlock.playable_media(@content_block.s3_video_key, @content_block.video_url) ||
+              (params.key?(:video_source) && !sections.includes_source?(source))
+            render json: { error: "The recording source changed. Reload before saving progress.", code: "video_source_changed" }, status: :conflict
+            raise ActiveRecord::Rollback if stamped
+            return
           end
-        end
-      rescue ActiveRecord::RecordNotUnique
-        with_learning_write_guard(@learning_write_enrollment) do
-          progress = upsert_video_progress(authoritative_duration, force_existing: true)
+
+          hosted = @content_block.s3_video_key.present?
+          unless hosted || sections.sources.present?
+            return render json: { error: "Content block has no video to track" }, status: :unprocessable_entity
+          end
+          if params.key?(:completed_section_ranges) && !recheck_content_block_write!(@content_block, @learning_write_enrollment, block_locked: true)
+            raise ActiveRecord::Rollback if stamped
+            return
+          end
+
+          duration = hosted ? @content_block.s3_video_duration_seconds : reported_duration.clamp(0, 28_800)
+          progress = current_user.progresses.find_or_initialize_by(enrollment: @learning_write_enrollment, content_block: @content_block)
+          section_result = apply_video_progress(progress, duration, sections, source)
           if progress.save
             record_video_activity!(progress)
-            render_video_progress(progress)
+            render_video_progress(progress, sections, section_result)
           else
             render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
           end
@@ -267,6 +246,17 @@ module Api
       end
 
       private
+
+      def establish_video_duration(duration, source)
+        block = @content_block
+        return false unless block.s3_video_key.present? && block.s3_video_duration_seconds.nil? && block.video_versions.empty? && duration.positive?
+        return false if params.key?(:video_source) && !LessonVideoSections.new(block).includes_source?(source)
+
+        eligible = ContentBlock.where(id: block.id, s3_video_key: block.s3_video_key, s3_video_duration_seconds: nil)
+          .where("metadata->'video_versions' IS NULL OR metadata->'video_versions' IN ('[]'::jsonb, 'null'::jsonb)")
+        eligible.where(id: eligible.select(:id).lock("FOR NO KEY UPDATE SKIP LOCKED"))
+          .update_all(s3_video_duration_seconds: duration).positive?
+      end
 
       def record_video_activity!(progress)
         CourseCompletion.evaluate!(progress.enrollment) if progress.saved_change_to_status? && progress.completed?
@@ -283,17 +273,7 @@ module Api
           evidence: "player_reported")
       end
 
-      # Apply the param-derived video progress fields (capped last_position, capped
-      # total_watched, status transitions). Pass force_existing: true after a
-      # uniqueness collision to skip the build path and merge into the row the
-      # racing request just inserted instead of stacking another insert.
-      def upsert_video_progress(authoritative_duration, force_existing: false)
-        progress = if force_existing
-          current_user.progresses.find_by!(enrollment: @learning_write_enrollment, content_block: @content_block)
-        else
-          current_user.progresses.find_or_initialize_by(enrollment: @learning_write_enrollment, content_block: @content_block)
-        end
-
+      def apply_video_progress(progress, authoritative_duration, sections, source)
         progress.video_duration = authoritative_duration if authoritative_duration.present?
         new_position = params[:last_position_seconds].to_i
         if authoritative_duration&.positive?
@@ -304,17 +284,23 @@ module Api
         progress.video_total_watched = WatchCredit.apply(progress,
           stored: progress.video_total_watched, reported: params[:total_watched_seconds], version: params[:watch_credit_version], duration: authoritative_duration)
 
-        return progress if @content_block.evidence_controls_completion?(@learning_write_enrollment)
+        result = sections.record(progress, source: source, reported: params[:completed_section_ranges],
+          reported_total: params[:total_watched_seconds].to_i, duration: authoritative_duration)
 
-        if authoritative_duration&.positive? && progress.video_total_watched >= (authoritative_duration * 0.9)
+        return result if @content_block.evidence_controls_completion?(@learning_write_enrollment)
+
+        # Installed clients without section reporting keep their whole-video path.
+        whole_video = (!source || !sections.core?) && authoritative_duration&.positive? &&
+          progress.video_total_watched >= (authoritative_duration * 0.9)
+        if whole_video || sections.core_complete?(progress, duration: authoritative_duration)
           progress.status = :completed unless progress.completed?
         elsif progress.not_started?
           progress.status = :in_progress
         end
-        progress
+        result
       end
 
-      def render_video_progress(progress)
+      def render_video_progress(progress, sections, section_result)
         render json: {
           video_progress: {
             content_block_id: progress.content_block_id,
@@ -322,7 +308,9 @@ module Api
             total_watched: progress.video_total_watched,
             duration: progress.video_duration,
             status: progress.status,
-            completed: progress.completed?
+            completed: progress.completed?,
+            completed_video_sections: sections.completed(progress),
+            **section_result
           }
         }
       end

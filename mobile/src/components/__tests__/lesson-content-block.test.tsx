@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
-import type { ReactElement } from 'react';
+import type { ReactElement, Ref } from 'react';
 
 import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/types';
 
@@ -29,8 +29,15 @@ jest.mock('@/lib/submission-storage', () => ({
   loadSubmissionDraft: (...args: unknown[]) => mockLoadDraft(...args),
   saveSubmissionDraft: (...args: unknown[]) => mockSaveDraft(...args),
 }));
-jest.mock('../native-video-player', () => ({ NativeVideoPlayer: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'hosted-video', ...props }) }));
-jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'linked-video', ...props }) }));
+function mockPlayer(testID: string) {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return function MockPlayer({ ref, ...props }: { ref?: Ref<{ seekTo: () => void }> }) {
+    React.useImperativeHandle(ref, () => ({ seekTo: jest.fn() }));
+    return React.createElement(jest.requireActual('react-native').View, { testID, ...props });
+  };
+}
+jest.mock('../native-video-player', () => ({ NativeVideoPlayer: mockPlayer('hosted-video') }));
+jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: mockPlayer('linked-video') }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({
   useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: mockProgress, attemptKnowledgeCheck: mockAttempt, updateContentVideoProgress: mockVideoProgress }, user: { id: 4, is_staff: mockIsStaff, full_name: 'Maria Santos' } }),
@@ -462,4 +469,100 @@ it('gives every submission input on a lesson its own keyboard bar', async () => 
   const accessoryIds = screen.UNSAFE_getAllByType(InputAccessoryView).map((view) => view.props.nativeID);
   expect([...accessoryIds].sort()).toEqual([...inputIds].sort());
   expect(screen.getAllByLabelText('Submit work, above keyboard')).toHaveLength(13);
+});
+
+it.each([true, false])('ignores selected seeks and saves natural section coverage (hosted=%s)', async (hosted) => {
+  mockVideoProgress.mockClear();
+  const block = checkpoint({
+    block_type: 'recording', has_s3_video: hosted, video_url: hosted ? null : 'https://www.youtube.com/watch?v=abcdef12345',
+    video_progress_sources: { default: 'source' },
+    metadata: { video_segments: [
+      { label: 'First Core', start_seconds: 1, end_seconds: 3, required: true },
+      { label: 'Second Core', start_seconds: 5, end_seconds: 7, required: true },
+    ] },
+    progress: { status: 'in_progress', completed_at: null, video_last_position: 3, video_total_watched: 2, completed_video_sections: { source: ['1:3'] } },
+  });
+  mockVideoProgress
+    .mockResolvedValueOnce({ video_progress: { completed: false, status: 'in_progress', last_position: 7, total_watched: 2, completed_video_sections: { source: ['1:3'] } } })
+    .mockResolvedValueOnce({ video_progress: { completed: true, status: 'completed', last_position: 7, total_watched: 4, completed_video_sections: { source: ['1:3', '5:7'] } } });
+  const screen = renderWithQuery(<LessonContentBlockCard block={block} lesson={lesson} />);
+  const player = () => screen.getByTestId(hosted ? 'hosted-video' : 'linked-video').props;
+  const select = () => fireEvent.press(screen.getByRole('button', { name: /^Play Second Core/ }));
+  const payload = { last_position_seconds: 7, total_watched_seconds: 4, duration_seconds: 60 };
+  expect(screen.getByRole('button', { name: /First Core.*section finished/ })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Mark complete' })).toBeNull();
+
+  select();
+  await act(async () => {
+    player().onPlaybackSample(5, 7, 0);
+    player().onStopAtReached();
+    await player().saveProgress(payload);
+  });
+  expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source' }, 2);
+
+  await act(async () => {
+    player().onPlaybackSample(5.15, 6, 0.85);
+    player().onPlaybackSample(6, 7, 1);
+    await player().saveProgress(payload);
+  });
+  expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source', completed_section_ranges: ['5:7'] }, 2);
+  expect(screen.getByRole('button', { name: /First Core.*section finished/ })).toBeTruthy();
+});
+
+it.each([false, true])('retains pending native ranges across an edit and scopes delayed Retry to the active source (switch=%s)', async (switchSource) => {
+  const segments = [
+    { label: 'Core', start_seconds: 5, end_seconds: 7, required: true },
+    { label: 'Edited', start_seconds: 1, end_seconds: 3, required: true },
+  ];
+  const block = checkpoint({
+    block_type: 'recording', has_s3_video: true, video_progress_sources: { default: 'source' },
+    metadata: { video_segments: segments },
+  });
+  const payload = { last_position_seconds: 7, total_watched_seconds: 4, duration_seconds: 60 };
+  const saved = { completed: false, status: 'in_progress', last_position: 7, total_watched: 4 };
+  let failSave!: (reason: Error) => void;
+  mockVideoProgress.mockReset()
+    .mockImplementationOnce(() => new Promise((_resolve, reject) => { failSave = reject; }))
+    .mockResolvedValueOnce({
+      video_progress: { ...saved, completed_video_sections: {}, section_rejected_ranges: ['1:3'], section_retry_after_seconds: 2 },
+    })
+    .mockResolvedValueOnce({ video_progress: { ...saved, completed_video_sections: { source: ['5:7'] } } });
+  const screen = renderWithQuery(<LessonContentBlockCard block={block} lesson={lesson} />);
+  const client = queryClients.at(-1)!;
+  const player = () => screen.getByTestId('hosted-video').props;
+  let pending!: Promise<void>;
+  await act(async () => {
+    player().onPlaybackSample(1, 3, 2);
+    player().onPlaybackSample(5, 6, 1);
+    pending = player().saveProgress(payload).catch(() => undefined);
+  });
+  expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source', completed_section_ranges: ['1:3'] }, 2);
+  const edited = { ...block, metadata: { video_segments: [segments[0], { ...segments[1], end_seconds: 4 }] } };
+  const rerender = (current: LessonContentBlock) => screen.rerender(
+    <QueryClientProvider client={client}><LessonContentBlockCard block={current} lesson={lesson} /></QueryClientProvider>,
+  );
+  rerender(edited);
+  await act(async () => { failSave(new Error('Network unavailable')); await pending; });
+  expect(screen.getByText('Recording progress could not be saved.')).toBeTruthy();
+  await act(async () => {
+    player().onPlaybackSample(6, 7, 1);
+    await player().saveProgress(payload);
+  });
+  expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source', completed_section_ranges: ['1:3', '5:7'] }, 2);
+  expect(screen.getByText(/A section could not be confirmed/)).toBeTruthy();
+  expect(screen.getByText('Your watch time is still syncing.')).toBeTruthy();
+
+  await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Retry saving progress' })));
+  expect(mockVideoProgress).toHaveBeenCalledTimes(2);
+  if (switchSource) rerender({ ...edited, video_progress_sources: { default: 'replacement' } });
+  await act(async () => { await jest.advanceTimersByTimeAsync(2000); });
+  expect(screen.queryByRole('button', { name: 'Retry saving progress' })).toBeNull();
+  if (switchSource) {
+    expect(mockVideoProgress).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/A section could not be confirmed/)).toBeNull();
+  } else {
+    expect(mockVideoProgress).toHaveBeenCalledTimes(3);
+    expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source', completed_section_ranges: ['5:7'] }, 2);
+    expect(screen.getByText(/A section could not be confirmed/)).toBeTruthy();
+  }
 });
