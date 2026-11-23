@@ -6310,6 +6310,59 @@
             "$ref": "#/components/schemas/SubmissionWindowStatus",
             "description": "Present for students with an enrollment."
           },
+          "github_repository_status": {
+            "description": "Present for an active student reading a GitHub-sync lesson in an App-enabled cohort. Verification reflects saved Learn records. Revisions only describe accepted snapshots of the effective verified repository.",
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "needs_repository",
+                  "needs_verification",
+                  "verified"
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "module"
+                ]
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "revisions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "block_id": {
+                      "type": "integer"
+                    },
+                    "captured_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "short_sha": {
+                      "type": "string",
+                      "pattern": "^[0-9a-fA-F]{7}$"
+                    }
+                  },
+                  "required": [
+                    "block_id",
+                    "captured_at",
+                    "short_sha"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "additionalProperties": false
+          },
           "content_blocks": {
             "type": "array",
             "items": {

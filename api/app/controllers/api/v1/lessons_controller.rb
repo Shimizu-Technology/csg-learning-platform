@@ -61,6 +61,16 @@ module Api
           submission_map: submission_map,
           knowledge_check_attempt_map: knowledge_check_attempt_map
         )
+        if @lesson_enrollment&.active? && json.dig(:capabilities, :features, "github_app") == true
+          github_blocks = json[:content_blocks].select do |block|
+            %w[exercise code_challenge].include?(block[:block_type]) && block[:submission_type] == "prework_github_sync"
+          end
+          if github_blocks.any?
+            json[:github_repository_status] = GithubLessonStatus.for(
+              enrollment: @lesson_enrollment, lesson: @lesson, blocks: github_blocks, submissions: submission_map
+            )
+          end
+        end
         json[:moved_from] = moved_from_json if @lesson.id.to_s != params[:id].to_s
         render json: { lesson: json }
       end

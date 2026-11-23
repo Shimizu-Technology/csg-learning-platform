@@ -1,6 +1,7 @@
 import { StudentExperienceProvider, StudentExperienceSwitch } from '../../lib/studentExperience'
 import { LessonRecordings } from '../../components/student/LessonRecordings'
 import { LessonExperience } from '../../components/student/LessonExperience'
+import { LessonGithubStatus } from '../../components/student/LessonGithubStatus'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { activityReturnPath, learnerPaths, recordPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
@@ -224,11 +225,15 @@ export function LegacyLessonView() {
   const rows = related.related && related.related.id === lesson.id
     ? relatedRows(related.related, { viewer: user, returnTo: `${location.pathname}${location.search}`, learnerLesson: (lessonId, anchor) => paths.lesson(lessonId, anchor), actions: { scrollTo: scrollToSection } })
     : []
+  const githubSetupShown = Boolean(lesson.github_repository_status) && !user?.is_staff && loadedCohortId === selectedCohortId &&
+    (lesson.id === Number(id) || lesson.moved_from?.lesson_id === Number(id))
+  const githubStatus = githubSetupShown && <LessonGithubStatus lesson={lesson} unavailable={savedData || Boolean(loadError)} />
 
   const redesigned = lesson.learning_navigation && <LessonExperience key={`${lesson.id}:${lesson.cohort_id}`} lesson={lesson} readOnly={readOnly} savedData={savedData} error={loadError} reload={() => loadLesson({ silent: true })} helpRequests={helpRequests} helpRequestsLoading={helpRequestsLoading} setHelpRequests={setHelpRequests} refreshHelp={loadHelpRequests}>
+    {githubStatus}
     <div className="min-w-0 space-y-5">{visibleBlocks.map((block: any) => <section key={block.id} id={`block-${block.id}`} tabIndex={-1} className="min-w-0 scroll-mt-24 outline-none">
       <RubricPanel rubric={block.rubric} />
-      <ContentBlockRenderer block={block} cohortId={lesson.cohort_id} isStaff={user?.is_staff} requiresGithub={lesson.requires_github} requiresSubmission={lesson.requires_submission} repositoryName={lesson.repository_name} readOnly={readOnly} submissionsLocked={lesson.submission_window?.submissions_closed || false} submissionsCloseAt={lesson.submission_window?.submissions_close_at || null} submissionWeekNumber={lesson.submission_window?.week_number} analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }} lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }} onProgressUpdate={() => loadLesson({ silent: true })} completionInFooter reviewerName={lesson.instructor?.full_name} />
+      <ContentBlockRenderer block={block} cohortId={lesson.cohort_id} isStaff={user?.is_staff} requiresGithub={lesson.requires_github} requiresSubmission={lesson.requires_submission} repositoryName={lesson.repository_name} githubSetupShown={githubSetupShown} readOnly={readOnly} submissionsLocked={lesson.submission_window?.submissions_closed || false} submissionsCloseAt={lesson.submission_window?.submissions_close_at || null} submissionWeekNumber={lesson.submission_window?.week_number} analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }} lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }} onProgressUpdate={() => loadLesson({ silent: true })} completionInFooter reviewerName={lesson.instructor?.full_name} />
     </section>)}</div>
   </LessonExperience>
 
@@ -309,6 +314,7 @@ export function LegacyLessonView() {
       )}
 
       <LessonRecordings lesson={lesson} />
+      {githubStatus}
 
       {/* Content blocks */}
       <div className="space-y-4">
@@ -322,6 +328,7 @@ export function LegacyLessonView() {
               requiresGithub={lesson.requires_github}
               requiresSubmission={lesson.requires_submission}
               repositoryName={lesson.repository_name}
+              githubSetupShown={githubSetupShown}
               readOnly={readOnly}
               submissionsLocked={lesson.submission_window?.submissions_closed || false}
               submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}

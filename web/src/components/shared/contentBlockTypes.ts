@@ -44,6 +44,7 @@ export interface ContentBlockRendererProps {
   requiresGithub?: boolean
   requiresSubmission?: boolean
   repositoryName?: import('../../types/api').LessonDetail['repository_name']
+  githubSetupShown?: boolean
   readOnly?: boolean
   submissionsLocked?: boolean
   submissionsCloseAt?: string | null
