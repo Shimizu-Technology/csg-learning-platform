@@ -20,7 +20,10 @@ all deployed layers; a session response does not replace public build settings.
 | Sender display name | `EMAIL_SENDER_NAME` | — | — | No override; existing sender display name is preserved |
 | Sender mailbox | `RESEND_FROM_EMAIL`, then `MAILER_FROM_EMAIL` | — | — | Existing deployment setting, no new fallback mailbox |
 | Legal operator | — | `VITE_OPERATOR_NAME` | — | `Shimizu Technology` |
+| Legal operator URL | — | `VITE_OPERATOR_URL` | — | `https://shimizu-technology.com` when operator is `Shimizu Technology`; omitted for alternate operators unless set |
 | Privacy contact | — | `VITE_PRIVACY_EMAIL` | — | `shimizutechnology@gmail.com` |
+| SEO keywords | — | `VITE_META_KEYWORDS` | — | CSG default includes `guam`; alternate schools default to generic coding-school keywords without `guam` |
+| JSON-LD `areaServed` | — | `VITE_AREA_SERVED` | — | `Guam` for default CSG; omitted from JSON-LD for alternate schools unless set |
 | Legacy redirect source origin | — | `VITE_LEGACY_APP_URL` | — | `https://csg-learn.netlify.app` |
 | Web logo | — | `VITE_LOGO_SRC` | — | `/CSG-Logo.png` |
 | In-app mobile logo SVG | — | — | `EXPO_PUBLIC_LOGO_SVG` | Existing generated `assets/brand/csg-mark.svg` |
@@ -49,27 +52,49 @@ boot/no-script copy, manifest, offline page, push fallback title, robots, sitema
 and canonical redirect target. It serves generated assets during development too.
 Templates escape HTML, XML, JSON and single-quoted JavaScript values. Only Git-tracked, non-dotfiles are emitted. Keep placeholders in source templates.
 
-Replace `web/public/og-image.png` and the existing favicon/PWA icon assets when
-rebranding; their paths and dimensions remain unchanged. `VITE_LOGO_SRC` controls
-the displayed school mark, not those separate image assets. Set `VITE_LEGACY_APP_URL` when moving away from the CSG Netlify site;
-that hostname identifies an existing deployment, not display branding.
+Use `VITE_LOGO_SRC` for the in-app school mark. Keep the existing paths and dimensions for the separate metadata and PWA assets.
 
-## Native identity and artwork checklist
+- Supply `web/public/og-image.png` for Open Graph and Twitter previews. The HTML references this path and the file must be supplied with the deployment.
+- `web/public/favicon.ico`, `web/public/favicon-16x16.png`, `web/public/favicon-32x32.png`
+- `web/public/icon-180x180.png` (iOS `apple-touch-icon`)
+- `web/public/icon-192x192.png`, `web/public/icon-512x512.png` (PWA manifest icons)
 
-This PR deliberately preserves signing and store identities. A new school must:
+Set `VITE_LEGACY_APP_URL` to the old deployment origin when moving away from the CSG Netlify site. Set `VITE_OPERATOR_URL` to the HTTPS destination for the desktop sidebar credit. An alternate operator's name appears as plain text when its URL is unset.
 
-1. Register its own Apple bundle ID and Android package, provisioning profiles,
-   signing keys, store listings, and push credentials. Keep credentials private.
-2. Change `mobile/app.json` name, slug, scheme, `ios.bundleIdentifier`,
-   `ios.infoPlist.CFBundleName`, and `android.package` for the new app. Update
-   Clerk redirect/deep-link configuration to match its scheme and domains.
-3. Create its own EAS project and update project IDs/profiles in app/EAS config.
-   Regenerate native projects through the project's Expo workflow; review native
-   identifiers, entitlements, associated domains, and notification configuration.
-4. Replace source artwork under `mobile/assets/brand/`, adapt the asset generator
-   for the new mark, and run `npm run brand:generate` and `npm run brand:check`.
-   Review generated app icons, splash screens, notification icons and store art.
-   The in-app SVG override does not replace compiled native/store artwork.
+## Native identity, permissions, and artwork checklist
+
+Use this checklist when building a separate school's native app. CSG's current app and EAS configuration continues to identify its existing builds.
+
+1. Register the new school's Apple bundle ID, Android package, provisioning profiles, signing keys, store listings, and APNs/FCM push credentials. Keep credentials private and out of Git.
+2. Update these settings in `mobile/app.json`.
+   - `expo.name`, `expo.slug`, `expo.scheme`
+   - `expo.ios.bundleIdentifier`, `expo.ios.infoPlist.CFBundleName`, `expo.ios.appleTeamId`, `expo.ios.associatedDomains` (matching the new HTTPS app origin and its `/.well-known/apple-app-site-association` file)
+   - `expo.android.package` and `expo.android.googleServicesFile`
+   - Branding in the `expo-image-picker` `photosPermission` and `expo-audio` `microphonePermission` prompts
+   - Update Clerk redirect/deep-link allowlists to match the new scheme and domain.
+3. Create the new school's EAS project and update `expo.extra.eas.projectId`, `expo.updates.url`, `expo.owner`, and `mobile/eas.json` submission/profile IDs. Regenerate the native projects through the Expo workflow, verify entitlements and associated domains, and build new binaries for the new identity. Follow the runtime compatibility checks in [Mobile App](MOBILE_APP.md) before targeting an installed app with OTA updates.
+4. Replace source artwork under `mobile/assets/brand/`, adapt `mobile/scripts/generate-brand-assets.mjs` for the new mark, and run `npm run brand:generate` and `npm run brand:check`. Review generated app icons (`icon.png`, `icon-light.png`, `icon-dark.png`, `icon-tinted.png`, `icon-foreground.png`, `icon-monochrome.png`), splash screens (`splash-icon.png`, `splash-icon-dark.png`), notification icon (`notification-icon.png`), favicon, and store artwork. Use `EXPO_PUBLIC_LOGO_SVG` for the in-app vector mark and supply native and store artwork through the build and store configuration.
+
+## Palette source locations
+
+Update the palette in these source locations.
+
+- Web design tokens and public surface colors: `web/src/index.css`
+- Web browser chrome / `meta[name="theme-color"]`: `web/src/lib/themeColors.ts` and the pre-hydration inline script + `#boot-shell` styles + `msapplication-TileColor` in `web/index.html`
+- Web PWA / offline shell: `web/brand-public/manifest.json` (`theme_color`, `background_color`) and `web/brand-public/offline.html`
+- Mobile UI tokens: `mobile/src/constants/csg-theme.ts`
+- Mobile native shell colors: `mobile/app.json` (`android.adaptiveIcon.backgroundColor`, `expo-splash-screen` light/dark `backgroundColor`, `expo-notifications` `color`)
+- Transactional emails: inline styles in `api/app/services/*_email*.rb`
+
+## Alternate-brand verification
+
+1. **Web build check:** build `web/` with alternate `VITE_*` values and inspect `web/dist/index.html` plus `web/dist/{manifest.json,offline.html,robots.txt,sitemap.xml,sw.js,_redirects}`:
+   - Parse every `<script type="application/ld+json">` block and confirm valid JSON with no `"Guam"` `areaServed` unless `VITE_AREA_SERVED` was explicitly set.
+   - Confirm `<meta name="keywords">` omits `guam` unless `VITE_META_KEYWORDS` sets it.
+   - Confirm `<title>`, OG/Twitter tags, canonical URL, boot shell, and noscript copy reflect the alternate school/product/support email.
+   - Confirm desktop sidebar footer uses `VITE_OPERATOR_NAME` and omits any `shimizu-technology.com` link when `VITE_OPERATOR_URL` is unset for an alternate operator.
+2. **Mobile build check:** export `mobile/` with alternate `EXPO_PUBLIC_*` values (`npx expo config --type public --json`, `npx expo export --platform ios --clear`, `npx expo export --platform android --clear` — pass `--clear` whenever `EXPO_PUBLIC_*` values change so Metro does not reuse cached inline strings) and run `npm test` (`brand.test.ts` and `ota-update-notice.test.tsx`). For a rebranded native release, also verify `npm run brand:check` and signed archive entitlements/AASA per `docs/MOBILE_APP.md`.
+3. **API check:** verify `SCHOOL_*`, `PRODUCT_NAME`, `SUPPORT_EMAIL`, `SCHOOL_TIME_ZONE`, and `EMAIL_SENDER_NAME` via `bin/rails test test/lib_school_brand_test.rb`.
 
 The alumni GitHub organization `Code-School-of-Guam-Alumni` is an external data
 identifier, not a school label. Configure cohort GitHub organizations for the new
@@ -86,20 +111,12 @@ review existing alumni channels and edit their descriptions through the staff
 channel-management UI (Manage Communications), saving the desired school name
 or custom wording. Preserve any descriptions that should remain unchanged.
 
-## Remaining scope and checks
+## Remaining intentional static values and checks
 
-Colors are unchanged. Current web colors live in `web/src/index.css` and
-`web/src/lib/brand.ts` (surface chrome); native roles live in
-`mobile/src/constants/csg-theme.ts`. Email colors are inline in email services.
-
-The concurrent Messages refactor is excluded: `web/src/pages/shared/Messages.tsx`
-and `web/src/pages/shared/messages/*` remain untouched. Follow-up replacements:
-`useMessagesController.tsx` has “Report received. Code School staff will review
-it.” and “User report received. Code School staff will review it.”
-
-Web's brand configuration test scans source literals using the TypeScript parser;
-its explicit exceptions are brand.ts, tests, Markdown conformance fixtures, and
-those concurrent Messages paths. Comments are not UI literals. The API test scans
-application Ruby, ERB and Rake outside comments (curriculum seed data explicitly excluded). Both fail when school/product literals return.
-
-The mobile literal guard is deferred: generated SVG artwork and native identity strings need a separate allow-list.
+- External/data identifiers intentionally preserved: `Cohort::ALUMNI_GITHUB_ORGANIZATION` (`Code-School-of-Guam-Alumni`), `HAFA_CODE_ORIGIN` (`https://code.shimizu-technology.com`), `web/src/pages/admin/cohortSettings/SettingsFields.tsx` GitHub org placeholder, and `mobile/src/lib/native-content-href.ts` legacy CSG origin allowlist entry alongside `brand.appUrl`.
+- Technical storage/cache keys intentionally preserved for client upgrade compatibility (not user-visible): `csg-learn:*` `localStorage` keys, `csg-learn-shell-v4` / `csg-learn-runtime-v4` service worker cache names, `csg-learning-v1` mobile query cache buster.
+- Voice transcription prompt hint: `OpenaiVoiceProvider::VOCABULARY` (non-UI speech-to-text vocabulary).
+- Native identity in `mobile/app.json` and `mobile/eas.json` remains CSG's until a separate school's operator build is provisioned.
+- Web's brand configuration test (`web/src/lib/brandConfig.test.tsx`) scans source literals and `index.html` / `brand-public/` templates using the TypeScript parser; explicit exceptions are `brand.ts`, `markdownFixtures.ts`, `hafaStarterLinks.ts`, and tests.
+- Mobile's brand test (`mobile/src/lib/__tests__/brand.test.ts`) scans `mobile/src/` runtime files for hardcoded school/product literals outside its explicit allowlist (`brand.ts`, `brand-mark.ts`, `school-time.ts`, `hafa-starter-links.ts`, `native-content-href.ts`, `demo-*.ts`, tests, and test-utils).
+- API's brand test (`api/test/lib_school_brand_test.rb`) scans application Ruby, ERB, and Rake outside comments (curriculum seed data excluded).

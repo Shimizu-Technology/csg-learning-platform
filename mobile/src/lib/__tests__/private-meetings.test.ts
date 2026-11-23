@@ -1,6 +1,11 @@
 import { availableSlotsForWeek, beforeChangeCutoff, cancelConsequence, canReschedule, courseWeekForSlot, currentBookingForWeek, isWeekBookingClosed, meetingJoinUrl, partitionMeetingWeeks } from '../private-meetings';
 import { formatCourseTimeRange } from '../course-time';
+import { configureSchoolTime, timeZoneDescriptionWithLabel } from '../school-time';
 import { now, booking, cohort } from '../meeting-test-fixtures';
+
+afterEach(() => {
+  configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' });
+});
 describe('private meeting rules', () => {
   it('shows current/upcoming first, past weeks most recent first', () => {
     expect(partitionMeetingWeeks(cohort.start_date, 3, now)).toEqual({ current: [2, 3], past: [1] });
@@ -49,5 +54,26 @@ describe('course end date', () => {
     expect(courseWeekForSlot('2026-11-30', '2026-12-20T12:00:00+10:00', 3, '2026-12-19')).toBeNull();
     const ended = { ...cohort, end_date: '2026-12-12', slots: [{ ...cohort.slots[0], starts_at: '2026-12-13T13:00:00+10:00', ends_at: '2026-12-13T14:00:00+10:00' }] };
     expect(availableSlotsForWeek(ended, 2, now)).toEqual([]);
+  });
+});
+
+describe('cohort timezone formatting and day boundaries', () => {
+  it('formats opposite school/cohort zones, DST transitions, local midnight splits, and clean descriptions', () => {
+    configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' });
+    // Winter Chicago (CST): 2026-12-12T18:00:00Z -> Sat, Dec 12, 12:00 PM – 1:00 PM CST
+    expect(formatCourseTimeRange('2026-12-12T18:00:00Z', '2026-12-12T19:00:00Z', 'TBD', 'America/Chicago')).toBe('Sat, Dec 12, 12:00 PM – 1:00 PM CST');
+    // Summer Chicago (CDT): 2026-07-15T18:00:00Z -> Wed, Jul 15, 1:00 PM – 2:00 PM CDT
+    expect(formatCourseTimeRange('2026-07-15T18:00:00Z', '2026-07-15T19:00:00Z', 'TBD', 'America/Chicago')).toBe('Wed, Jul 15, 1:00 PM – 2:00 PM CDT');
+    // Crosses midnight in Chicago (11:30 PM CST -> 12:30 AM CST next day) even though same afternoon in Guam
+    expect(formatCourseTimeRange('2026-12-13T05:30:00Z', '2026-12-13T06:30:00Z', 'TBD', 'America/Chicago')).toBe('Sat, Dec 12, 11:30 PM CST – Sun, Dec 13, 12:30 AM CST');
+    expect(timeZoneDescriptionWithLabel('America/Chicago')).toBe('Central Time (CT)');
+
+    // Opposite: Chicago school + Guam cohort
+    configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CST' });
+    expect(formatCourseTimeRange('2026-12-12T02:00:00Z', '2026-12-12T03:00:00Z', 'TBD', 'Pacific/Guam')).toBe('Sat, Dec 12, 12:00 PM – 1:00 PM ChST');
+    expect(timeZoneDescriptionWithLabel('Pacific/Guam')).toBe('Guam time (ChST)');
+    // Missing or invalid cohort timezone falls back to school default (America/Chicago)
+    expect(formatCourseTimeRange('2026-12-12T18:00:00Z', '2026-12-12T19:00:00Z', 'TBD', undefined)).toBe('Sat, Dec 12, 12:00 PM – 1:00 PM CST');
+    expect(formatCourseTimeRange('2026-12-12T18:00:00Z', '2026-12-12T19:00:00Z', 'TBD', 'Invalid/Zone')).toBe('Sat, Dec 12, 12:00 PM – 1:00 PM CST');
   });
 });

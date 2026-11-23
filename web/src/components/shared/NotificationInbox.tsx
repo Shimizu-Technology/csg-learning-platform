@@ -68,7 +68,7 @@ export function NotificationInbox() {
     <div><p className="app-eyebrow">Communication</p><h1 className="app-title mt-2">Updates</h1></div>
     <UpdatesTabs selected="inbox" />
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-ink-secondary">{data?.unread_count || 0} unread notifications</p>
+      <p role="status" className="text-sm text-ink-secondary">{data && `${data.unread_count} unread ${data.unread_count === 1 ? 'notification' : 'notifications'}`}</p>
       <div className="flex flex-wrap gap-2">
         <select aria-label="Inbox read filter" className="app-control" value={read || 'all'} onChange={(event) => change({ inbox_read: event.target.value, inbox_page: '1' })}><option value="all">All notifications</option><option value="unread">Unread only</option></select>
         <Button variant="secondary" disabled={busy || !data?.unread_count} onClick={async () => { setBusy(true); const result = await api.markAllNotificationsRead(); setBusy(false); if (result.error) setError(result.error); else await load() }}><Check size={16} />Mark all read</Button>

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { fonts, typography } from '@/constants/csg-theme';
 import { useOtaUpdates } from '@/hooks/use-ota-updates';
+import { brand } from '@/lib/brand';
 import { makeStyles } from '@/providers/theme-provider';
 
 /** Nonmodal notice; dismissing it never restarts or navigates away from work. */
@@ -18,7 +19,7 @@ export function OtaUpdateNotice() {
   return <View testID="ota-update-overlay" pointerEvents="box-none" style={[styles.overlay, { top: insets.top + 8, left: insets.left + 12, right: insets.right + 12 }]}>
     <View accessibilityLiveRegion="polite" style={styles.content}>
       <Text accessibilityRole="header" style={styles.title}>Update ready</Text>
-      <Text style={styles.copy}>Finish any message, upload or submission first. {Platform.OS === 'ios' ? 'Swipe CSG Learn away in the app switcher, then reopen it.' : 'Close CSG Learn from recent apps, then reopen it.'}</Text>
+      <Text style={styles.copy}>Finish any message, upload or submission first. {Platform.OS === 'ios' ? `Swipe ${brand.productName} away in the app switcher, then reopen it.` : `Close ${brand.productName} from recent apps, then reopen it.`}</Text>
       <Button label="Later" variant="quiet" onPress={() => setDismissed(true)} />
     </View>
   </View>;

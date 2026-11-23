@@ -12,6 +12,7 @@ vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.f
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => state.confirm }))
 
 import { PrivateMeetings } from './PrivateMeetings'
+import { configureSchoolTime } from '../../lib/schoolTime'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -44,6 +45,7 @@ describe('learner meetings week order', () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
+    configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' })
   })
 
   it('shows a 30-minute configuration and actual booking/slot durations, including confirmation', async () => {
@@ -110,6 +112,42 @@ describe('learner meetings week order', () => {
     await act(async () => (container.querySelector('button')!).click())
     expect(container.querySelector('[aria-label="Choose your course instructor"]')).toBeTruthy()
     expect(state.createDirectConversation).not.toHaveBeenCalled()
+  })
+
+  it('uses each cohort timezone over school default for opposite Guam/Chicago combinations', async () => {
+    // 1. Guam school + Chicago cohort (Oct 23 is CDT, Nov 12 is CST)
+    configureSchoolTime({ time_zone: 'Pacific/Guam', time_zone_label: 'ChST' })
+    const response = await state.getPrivateMeetings()
+    const chicagoCohort = {
+      ...response.data.cohorts[0],
+      timezone: 'America/Chicago',
+      slots: [{ id: 19, starts_at: '2026-10-23T15:00:00Z', ends_at: '2026-10-23T16:00:00Z', available: true, instructor_id: 3, instructor_name: 'Audit Admin' }],
+      bookings: [],
+    }
+    state.getPrivateMeetings.mockResolvedValue({ data: { cohorts: [chicagoCohort] }, error: null })
+    state.confirm.mockResolvedValue(false)
+    await act(async () => root.render(<MemoryRouter><PrivateMeetings /></MemoryRouter>))
+    expect(container.textContent).toContain('Central Time (CT)')
+    expect(container.textContent).not.toContain('CT time (CT)')
+    expect(container.textContent).toContain('10:00 AM CDT')
+    const slotButton = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('10:00 AM CDT'))!
+    await act(async () => slotButton.click())
+    expect(state.confirm).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining('10:00 AM CDT') }))
+
+    // 2. Chicago school + Guam cohort
+    configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CST' })
+    const guamCohort = {
+      ...response.data.cohorts[0],
+      timezone: 'Pacific/Guam',
+      slots: [{ id: 20, starts_at: '2026-10-23T03:00:00Z', ends_at: '2026-10-23T04:00:00Z', available: true, instructor_id: 3, instructor_name: 'Audit Admin' }],
+      bookings: [],
+    }
+    state.getPrivateMeetings.mockResolvedValue({ data: { cohorts: [guamCohort] }, error: null })
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    await act(async () => root.render(<MemoryRouter><PrivateMeetings /></MemoryRouter>))
+    expect(container.textContent).toContain('Guam time (ChST)')
+    expect(container.textContent).toContain('1:00 PM ChST')
   })
 
 })

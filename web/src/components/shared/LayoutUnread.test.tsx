@@ -156,3 +156,45 @@ it.each(['admin', 'instructor'])('shows the notification bell with the unread co
   expect(bells).toHaveLength(2)
   expect(bells.every(bell => bell.getAttribute('aria-label') === 'Notifications, 3 unread')).toBe(true)
 })
+
+it('shows the phone notification bell for students with unread/zero states and a 44px logo target', async () => {
+  fixture.notifications = Promise.resolve({ data: { unread_count: 2 } })
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>))
+  const bell = container.querySelector('header a[href="/announcements?tab=inbox"]')
+  expect(bell).not.toBeNull()
+  expect(bell?.getAttribute('aria-label')).toBe('Notifications, 2 unread')
+  expect(bell?.className).toContain('min-h-11')
+  expect(bell?.className).toContain('min-w-11')
+  expect(bell?.textContent).toContain('2')
+
+  const logo = container.querySelector('header a[aria-label="Go to Today"]')
+  expect(logo?.className).toContain('min-h-11')
+  expect(logo?.className).toContain('min-w-11')
+
+  fixture.notifications = Promise.resolve({ data: { unread_count: 0 } })
+  await act(async () => fixture.refresh?.(() => true))
+  expect(bell?.getAttribute('aria-label')).toBe('Notifications')
+  expect(bell?.textContent).toBe('')
+})
+
+it('renders operator footer link only when operatorUrl is configured and avoids Shimizu link on alternate brands', async () => {
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>))
+  const defaultLink = container.querySelector('aside a[href="https://shimizu-technology.com"]')
+  expect(defaultLink?.textContent).toContain('Built by Shimizu Technology')
+
+  vi.stubEnv('VITE_OPERATOR_NAME', 'Actualize')
+  vi.resetModules()
+  const { Layout: PlainAltLayout } = await import('./Layout')
+  await act(async () => root.render(<MemoryRouter><PlainAltLayout /></MemoryRouter>))
+  expect(container.querySelector('aside')?.textContent).toContain('Built by Actualize')
+  expect(container.querySelector('aside a[href="https://shimizu-technology.com"]')).toBeNull()
+
+  vi.stubEnv('VITE_OPERATOR_URL', 'https://actualize.example')
+  vi.resetModules()
+  const { Layout: LinkedAltLayout } = await import('./Layout')
+  await act(async () => root.render(<MemoryRouter><LinkedAltLayout /></MemoryRouter>))
+  const customLink = container.querySelector('aside a[href="https://actualize.example"]')
+  expect(customLink?.textContent).toContain('Built by Actualize')
+  vi.unstubAllEnvs()
+  vi.resetModules()
+})

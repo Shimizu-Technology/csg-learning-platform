@@ -240,6 +240,7 @@ export function Layout({ children }: LayoutProps) {
     alumniOnly: isAlumniOnlyEnrollment(enrollments),
   })
   const navItems = [...primary, ...more, ...admin]
+  const showNotificationsBell = Boolean(isStaff) || navItems.some((item) => item.to.startsWith('/announcements'))
   const homePath = isStaff ? '/admin' : '/dashboard'
 
   useEffect(() => {
@@ -381,15 +382,17 @@ export function Layout({ children }: LayoutProps) {
         >
           <Menu className="h-6 w-6" aria-hidden="true" />
         </IconButton>
-        <Link to={homePath} className="pressable flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1" aria-label="Go to Today">
+        <Link to={homePath} className="pressable flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-xl px-1 sm:justify-start" aria-label="Go to Today">
           <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
           <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">{PRODUCT_NAME}</span>
         </Link>
         {/* The Messages list has its own workspace switcher in its header: one switcher per screen (U-4.11).
             A phone conversation view hides that list, so the top bar keeps its switcher there. */}
         {!isStaff && !isMessagesListRoute && <CohortSwitcher compact />}
-        {isStaff && <Link to="/announcements?tab=inbox" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken"><Bell className="h-5 w-5" aria-hidden="true" />{unreadCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-action-primary px-1.5 text-xs font-bold text-on-action">{unreadCount > 99 ? '99+' : unreadCount}</span>}</Link>}
-        <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)} className="ml-auto"><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {showNotificationsBell && <Link to="/announcements?tab=inbox" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} className="pressable relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken"><Bell className="h-5 w-5" aria-hidden="true" />{unreadCount > 0 && <span aria-hidden="true" className="absolute right-0.5 top-0.5 rounded-full bg-action-primary px-1.5 text-xs font-bold tabular-nums text-on-action">{unreadCount > 99 ? '99+' : unreadCount}</span>}</Link>}
+          <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)}><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
+        </div>
       </header>
 
       {/* Mobile sidebar overlay */}
@@ -442,7 +445,7 @@ export function Layout({ children }: LayoutProps) {
           <Link
             to={homePath}
             title="Go to Today"
-            className={`flex min-h-11 min-w-0 items-center rounded-lg text-ink ${collapsed ? 'justify-center' : 'gap-2'}`}
+            className={`flex min-h-11 items-center rounded-lg text-ink ${collapsed ? 'min-w-11 justify-center' : 'min-w-0 gap-2'}`}
             aria-label="Go to Today"
           >
             <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
@@ -486,14 +489,20 @@ export function Layout({ children }: LayoutProps) {
           </div>
           {!collapsed && (
             <div className="px-4 pb-3 text-center">
-              <a
-                href="https://shimizu-technology.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block py-2 text-xs text-ink-muted transition-colors hover:text-ink"
-              >
-                Built by <span className="font-medium">{brand.operatorName}</span>
-              </a>
+              {brand.operatorUrl ? (
+                <a
+                  href={brand.operatorUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block py-2 text-xs text-ink-muted transition-colors hover:text-ink"
+                >
+                  Built by <span className="font-medium">{brand.operatorName}</span>
+                </a>
+              ) : (
+                <span className="inline-block py-2 text-xs text-ink-muted">
+                  Built by <span className="font-medium">{brand.operatorName}</span>
+                </span>
+              )}
             </div>
           )}
         </aside>

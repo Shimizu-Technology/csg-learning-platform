@@ -29,7 +29,7 @@ class RecordDetail
         starts_at: iso(booking.starts_at),
         ends_at: iso(booking.ends_at),
         week_number: booking.week_number,
-        timezone: cohort.private_meeting_config&.timezone || OfficeHour::DEFAULT_TIMEZONE,
+        timezone: cohort.private_meeting_config&.timezone.presence || Rails.application.config.x.school.time_zone,
         zoom_url: booking.zoom_url,
         reschedule_count: booking.student_change_count,
         cohort: cohort_json(cohort),

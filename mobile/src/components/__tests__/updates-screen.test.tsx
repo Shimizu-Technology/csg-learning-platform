@@ -81,7 +81,7 @@ it.each(['announcement', 'notification', 'mark-all'])('refreshes persisted Today
   const initial = await mockApi.dashboard();
   for (const cohort of [undefined, 4, 9]) client.setQueryData(learningKeys.dashboard(7, cohort), initial);
   const view = render(<QueryClientProvider client={client}><TodayScreen /></QueryClientProvider>);
-  await view.findByText('1 updates');
+  await view.findByText('1 update');
   expect(view.getByTestId('announcement-unread-1')).toBeTruthy();
   if (operation === 'notification') mockApi.notifications.mockResolvedValue({ notifications: [{ id: 1, title: 'Notice 1', body: 'Details 1', notification_type: 'system', notifiable: { type: 'Enrollment', id: 1 }, path: '/dashboard', read_at: null }], unread_count: 1, meta: meta(1) });
   view.rerender(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
@@ -97,7 +97,7 @@ it.each(['announcement', 'notification', 'mark-all'])('refreshes persisted Today
     for (const cohort of [undefined, 4, 9]) expect(client.getQueryState(learningKeys.dashboard(7, cohort))?.isInvalidated).toBe(true);
   });
   view.rerender(<QueryClientProvider client={client}><TodayScreen /></QueryClientProvider>);
-  await waitFor(() => expect(view.queryByText('1 updates')).toBeNull(), { timeout: 5000 });
+  await waitFor(() => expect(view.queryByText('1 update')).toBeNull(), { timeout: 5000 });
   expect(mockApi.dashboard).toHaveBeenCalledTimes(2);
   view.unmount();
 });

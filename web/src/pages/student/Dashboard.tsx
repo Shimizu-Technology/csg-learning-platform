@@ -251,7 +251,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           Welcome back, {firstName}
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{data.cohort.name}</RecordLink>}
+          {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget linkClassName="min-w-11 sm:min-w-0" className="font-normal text-ink-muted">{data.cohort.name}</RecordLink>}
           {!library && !paused && !courseNotOpen && progress && (
             <> · <span className="tabular-nums">{lessonsDone} of {lessonTotal} {lessonTotal === 1 ? 'lesson' : 'lessons'} done</span></>
           )}
@@ -369,7 +369,8 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               </h3>
               {derived.nextSubmissionDeadline ? (
                 <p className="mt-1 text-sm text-ink-secondary">
-                  Next close: <RecordLink record={{ type: 'lesson', id: derived.nextSubmissionDeadline.id, cohortId: selectedCohortId, view: 'learn' }} variant="plain" className="font-medium">{derived.nextSubmissionDeadline.title}</RecordLink> closes <span className="tabular-nums">{formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}</span>.
+                  <RecordLink record={{ type: 'lesson', id: derived.nextSubmissionDeadline.id, cohortId: selectedCohortId, view: 'learn' }} variant="plain" touchTarget linkClassName="min-w-11 sm:min-w-0" className="font-medium">{derived.nextSubmissionDeadline.title}</RecordLink><br />
+                  Next close: <span className="tabular-nums">{formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}</span>
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-ink-secondary">No upcoming submission close times right now.</p>

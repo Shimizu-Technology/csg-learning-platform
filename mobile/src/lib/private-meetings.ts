@@ -1,5 +1,4 @@
-import { schoolWeekEndsAt } from './school-time';
-import { COURSE_TIME_ZONE } from './course-time';
+import { resolveTimeZone, schoolWeekEndsAt } from './school-time';
 import { safeExternalUrl } from './learning';
 
 export interface PrivateMeetingSlot {
@@ -19,21 +18,21 @@ export interface PrivateMeetingCohort {
 export interface PrivateMeetingsResponse { cohorts: PrivateMeetingCohort[] }
 const DAY = 86_400_000;
 
-export function courseWeekEndsAt(startDate: string, week: number, zone = COURSE_TIME_ZONE) {
-  return schoolWeekEndsAt(startDate, week, zone);
+export function courseWeekEndsAt(startDate: string, week: number, zone?: string | null) {
+  return schoolWeekEndsAt(startDate, week, resolveTimeZone(zone));
 }
 /** The course week of a slot, matching the API's `PrivateMeetingConfig#week_for`: null outside the weeks or after the cohort's end date. */
-export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number, endDate?: string | null, zone = COURSE_TIME_ZONE): number | null {
+export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number, endDate?: string | null, zone?: string | null): number | null {
   const date = new Date(startsAt);
   if (!Number.isFinite(date.getTime())) return null;
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map((p) => [p.type, p.value]));
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: resolveTimeZone(zone), year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map((p) => [p.type, p.value]));
   const slotDay = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
   const week = Math.floor((slotDay - Date.parse(`${startDate}T00:00:00Z`)) / (7 * DAY)) + 1;
   if (!Number.isFinite(week) || week < 1 || week > weeks) return null;
   if (endDate && slotDay > Date.parse(`${endDate}T00:00:00Z`)) return null;
   return week;
 }
-export function partitionMeetingWeeks(startDate: string, weeks: number, now = Date.now(), zone = COURSE_TIME_ZONE) {
+export function partitionMeetingWeeks(startDate: string, weeks: number, now = Date.now(), zone?: string | null) {
   const all = Array.from({ length: Math.max(0, weeks) }, (_, i) => i + 1);
   return { current: all.filter((w) => courseWeekEndsAt(startDate, w, zone) > now), past: all.filter((w) => courseWeekEndsAt(startDate, w, zone) <= now).reverse() };
 }

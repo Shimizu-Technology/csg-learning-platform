@@ -8,7 +8,7 @@ export function createBrand(env: Record<string, string | undefined> = {}) {
     const value = env[key] || fallback
     try {
       const parsed = new URL(value)
-      if (parsed.protocol !== 'https:' || parsed.username || parsed.password || /\s/.test(value)
+      if (!/^https:\/\//i.test(value) || parsed.protocol !== 'https:' || parsed.username || parsed.password || /\s/.test(value)
         || (origin && (parsed.search || parsed.hash || !['', '/'].includes(parsed.pathname)))) throw new Error()
       return value
     } catch {
@@ -16,11 +16,18 @@ export function createBrand(env: Record<string, string | undefined> = {}) {
     }
   }
   const siteUrl = url('VITE_SCHOOL_SITE_URL', 'https://codeschoolofguam.com/')
+  const schoolName = env.VITE_SCHOOL_NAME || 'Code School of Guam'
+  const isDefaultSchool = schoolName === 'Code School of Guam'
+  const operatorName = env.VITE_OPERATOR_NAME || 'Shimizu Technology'
+  const operatorUrl = env.VITE_OPERATOR_URL
+    ? url('VITE_OPERATOR_URL', '')
+    : operatorName === 'Shimizu Technology' ? 'https://shimizu-technology.com' : ''
   return {
-    operatorName: env.VITE_OPERATOR_NAME || 'Shimizu Technology',
+    operatorName,
+    operatorUrl,
     privacyEmail: env.VITE_PRIVACY_EMAIL || 'shimizutechnology@gmail.com',
     legacyAppUrl: url('VITE_LEGACY_APP_URL', 'https://csg-learn.netlify.app', true).replace(/\/$/, ''),
-    schoolName: env.VITE_SCHOOL_NAME || 'Code School of Guam',
+    schoolName,
     productName: env.VITE_PRODUCT_NAME || 'CSG Learn',
     schoolAbbreviation: env.VITE_SCHOOL_ABBREVIATION || 'CSG',
     schoolShortName: env.VITE_SCHOOL_SHORT_NAME || 'Code School',
@@ -30,6 +37,10 @@ export function createBrand(env: Record<string, string | undefined> = {}) {
     coursesUrl: url('VITE_SCHOOL_COURSES_URL', new URL('courses', siteUrl).href),
     appUrl: (url('VITE_APP_URL', 'https://learn.codeschoolofguam.com', true)).replace(/\/$/, ''),
     logoSrc: env.VITE_LOGO_SRC || '/CSG-Logo.png',
+    metaKeywords: env.VITE_META_KEYWORDS || (isDefaultSchool
+      ? 'coding bootcamp, learn to code, guam, programming, web development, code school'
+      : 'coding bootcamp, learn to code, programming, web development, code school'),
+    areaServed: env.VITE_AREA_SERVED || (isDefaultSchool ? 'Guam' : ''),
   }
 }
 export const brand = createBrand(import.meta.env)

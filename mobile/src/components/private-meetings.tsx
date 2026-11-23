@@ -1,4 +1,4 @@
-import { schoolTimeDescription, schoolTimeGenericLabel } from '@/lib/school-time'
+import { timeZoneDescriptionWithLabel } from '@/lib/school-time'
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useRef, useState, type PropsWithChildren } from 'react';
@@ -26,7 +26,7 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
   return <View style={styles.stack}>
     {targetBookingId && !targetBooking && <Text accessibilityRole="alert" style={styles.warning}>This booking is no longer available in this cohort. Any meetings shown below are your current bookings.</Text>}
     <Text accessibilityRole="header" style={styles.cohortTitle}>{cohort.name}</Text>
-    <Text style={styles.copy}>One private {cohort.duration_minutes ? `${cohort.duration_minutes}-minute ` : ''}Zoom meeting per course week with {cohort.instructor_name}. All times are {schoolTimeDescription()} ({schoolTimeGenericLabel()}).</Text>
+    <Text style={styles.copy}>One private {cohort.duration_minutes ? `${cohort.duration_minutes}-minute ` : ''}Zoom meeting per course week with {cohort.instructor_name}. All times are {timeZoneDescriptionWithLabel(cohort.timezone)}.</Text>
     <Text style={styles.copy}>Changes close {cohort.reschedule_cutoff_hours} hours before your meeting. You can change your time {cohort.max_student_changes === 1 ? 'once per week' : `up to ${cohort.max_student_changes} times per week`}.</Text>
     {weeks.current.length === 0 && <Text style={styles.copy}>All meeting weeks for this course are over.</Text>}
     {weeks.current.map(renderWeek)}
@@ -46,10 +46,10 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
     const status = booking ? canceled ? 'Canceled' : completed ? 'Completed' : 'Booked' : closed ? 'Booking closed' : 'To schedule';
     const join = booking && !completed ? meetingJoinUrl(booking, now) : null;
     return <View key={week} ref={focusWeek === week ? targetRef : undefined} onLayout={() => { if (focusWeek === week && targetRef.current) onTargetLayout?.(targetRef.current); }} style={[styles.card, focusWeek === week && { borderWidth: 2, borderColor: c.action.primary }]} testID={`meeting-week-${cohort.id}-${week}`}>
-      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>{focusWeek === week && <Text style={styles.info}>Meeting from your update</Text>}{targetBooking?.status === 'canceled' && <Text style={styles.info}>Canceled · {formatCourseTimeRange(targetBooking.starts_at, targetBooking.ends_at)}</Text>}
+      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>{focusWeek === week && <Text style={styles.info}>Meeting from your update</Text>}{targetBooking?.status === 'canceled' && <Text style={styles.info}>Canceled · {formatCourseTimeRange(targetBooking.starts_at, targetBooking.ends_at, 'TBD', cohort.timezone)}</Text>}
       <View style={[styles.badge, booking && !completed ? styles.success : styles.pending]}><Text style={[styles.badgeText, booking && !completed ? styles.successText : styles.pendingText]}>{status}</Text></View>
       {booking && <View style={styles.stack}>
-        <View style={styles.timeRow}><CalendarCheck size={20} color={c.text.body} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>
+        <View style={styles.timeRow}><CalendarCheck size={20} color={c.text.body} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at, 'TBD', cohort.timezone)}</Text></View>
         <Text style={styles.copy}>{meetingDurationMinutes(booking)} minutes with {booking.instructor_name}</Text>
         {join ? <MeetingButton primary disabled={joinDisabled} onPress={() => onJoin(join)} label={`Join Week ${week} meeting on Zoom`}>Join on Zoom</MeetingButton> : !completed && <Text style={styles.info}>{booking.zoom_url ? 'Join opens 15 minutes before your meeting.' : 'Your Zoom link is being prepared. It will appear here before your meeting.'}</Text>}
         {!completed && <>
@@ -60,7 +60,7 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
       {(!booking || isChanging) && <View style={styles.stack}>
         {closed ? <Text style={styles.copy}>Booking for Week {week} has closed — message your instructor.</Text> : !booking && !canBook ? <Text style={styles.warning}>You have used your schedule change for Week {week}. Message your instructor to arrange another time.</Text> : <>
           <Text style={styles.subheading}>{isChanging ? 'Choose a new time' : 'Available openings'}</Text>
-          {slots.length === 0 ? <Text style={styles.copy}>No openings are available for Week {week} yet. Message your instructor if you need help.</Text> : slots.map((slot, index) => <MeetingButton key={slot.id} disabled={disabled} label={`Choose Week ${week}, ${formatCourseTimeRange(slot.starts_at, slot.ends_at)}`} testID={`meeting-slot-${week}-${index}`} onPress={() => onSelect({ kind: isChanging ? 'reschedule' : 'book', cohort, week, slot, booking })}>{formatCourseTimeRange(slot.starts_at, slot.ends_at)}</MeetingButton>)}
+          {slots.length === 0 ? <Text style={styles.copy}>No openings are available for Week {week} yet. Message your instructor if you need help.</Text> : slots.map((slot, index) => <MeetingButton key={slot.id} disabled={disabled} label={`Choose Week ${week}, ${formatCourseTimeRange(slot.starts_at, slot.ends_at, 'TBD', cohort.timezone)}`} testID={`meeting-slot-${week}-${index}`} onPress={() => onSelect({ kind: isChanging ? 'reschedule' : 'book', cohort, week, slot, booking })}>{formatCourseTimeRange(slot.starts_at, slot.ends_at, 'TBD', cohort.timezone)}</MeetingButton>)}
         </>}
       </View>}
       {((!booking && (closed || !canBook || slots.length === 0)) || (booking && !completed && !canReschedule(cohort, booking, now))) && <MeetingButton disabled={disabled} onPress={onMessage} label={`Message your instructor about Week ${week}`}>Message your instructor</MeetingButton>}
@@ -79,7 +79,7 @@ export function MeetingConfirmation({ action, busy, disabled, blockedReason, onD
     <View style={styles.overlay}><View style={styles.sheet} accessibilityViewIsModal>
       <ScrollView contentContainerStyle={styles.stack}>
         <Text accessibilityRole="header" style={styles.cohortTitle}>{title}</Text>
-        <Text style={styles.time}>Week {action.week} · {formatCourseTimeRange(meeting.starts_at, meeting.ends_at)}</Text>
+        <Text style={styles.time}>Week {action.week} · {formatCourseTimeRange(meeting.starts_at, meeting.ends_at, 'TBD', action.cohort.timezone)}</Text>
         <Text style={styles.copy}>{meetingDurationMinutes(meeting)} minutes with {meeting.instructor_name}</Text>
         <Text style={cancelling ? styles.warning : styles.copy}>{cancelling ? cancelConsequence(action.week, action.booking!.reschedule_count, action.cohort.max_student_changes) : action.kind === 'reschedule' ? `This uses ${action.cohort.max_student_changes - action.booking!.reschedule_count === 1 ? 'your only remaining schedule change' : 'one schedule change'} for Week ${action.week}. Your current time stays booked until the new time is confirmed.` : meetingRebookWarning(action.cohort, action.week) || `This reserves ${meetingDurationMinutes(meeting)} minutes for you.`}</Text>
         {cancelling && <Text style={styles.copy}>Your time will be released for someone else.</Text>}
