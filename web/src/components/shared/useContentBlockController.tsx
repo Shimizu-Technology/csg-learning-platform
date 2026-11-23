@@ -15,6 +15,7 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useStudentExperience } from '../../lib/studentExperience'
 import { clearSubmissionDraft, readSubmissionDraft, submissionDraftKey, writeSubmissionDraft } from '../../lib/submissionDrafts'
 import { effectiveSubmissionType } from '../../lib/submissionType'
+import { PHONE_CODE_EDITOR_QUERY } from '../../lib/monacoLoader'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { Button } from '../ui/Button'
 import { detectLanguage } from './CodeEditor'
@@ -28,6 +29,7 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
   const studentExperience = useStudentExperience()
   const v2 = studentExperience.v2
   const touch = useMediaQuery('(pointer: coarse)')
+  const phone = useMediaQuery(PHONE_CODE_EDITOR_QUERY)
   const [revisionOpen, setRevisionOpen] = useState(false)
   const reviewResponseTime = enrollments?.find(entry => entry.cohort.id === cohortId)?.cohort.review_response_time || 'usually reviewed within 2 days'
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
@@ -419,7 +421,7 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
 
   // Shared state stays mounted across parent refreshes and block-id changes, as before.
   return {
-    studentExperience, v2, touch, setRevisionOpen, reviewResponseTime, submissions,
+    studentExperience, v2, touch, phone, setRevisionOpen, reviewResponseTime, submissions,
     latestSubmission, hasRedoRequest, canEditSubmission, isCompleted, showSolution, setShowSolution,
     submissionText, setSubmissionText, repoUrl, setRepoUrl, prUrl, setPrUrl,
     liveUrl, setLiveUrl, branchName, setBranchName, commitSha, setCommitSha,

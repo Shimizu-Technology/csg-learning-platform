@@ -254,7 +254,7 @@ export function BlockCard({
         )}
         {/* The code editor lives in a dialog: Monaco can't survive its card being moved in the DOM. */}
         <Modal open={solutionOpen} onClose={() => setSolutionOpen(false)} size="xl" title={`Solution for ${block.title.trim() || label.toLowerCase()}`} subtitle="Staff only. Students never see it." footer={<Button onClick={() => setSolutionOpen(false)}>Done</Button>}>
-          {solutionOpen && <CodeEditor value={block.solution} onChange={(solution) => onChange({ solution })} language={detectLanguage(block.filename)} minHeight={320} />}
+          {solutionOpen && <CodeEditor ariaLabel="Solution code" value={block.solution} onChange={(solution) => onChange({ solution })} language={detectLanguage(block.filename)} minHeight={320} />}
         </Modal>
 
         {block.block_type === 'checkpoint' && (
