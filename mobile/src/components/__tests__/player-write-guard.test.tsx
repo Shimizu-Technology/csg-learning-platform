@@ -22,22 +22,25 @@ it.each(['native', 'embedded'])('%s player stops cleanup, queued, and later even
     : <InAppMediaPlayer title="Test" url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" saveProgress={saveProgress} trackProgress={trackProgress} />;
   const screen = render(element(true));
   await act(async () => {});
-  const progress = () => {
+  const progress = (playing = false) => {
     if (kind === 'native') {
       mockListeners.sourceLoad({ duration: 100 } as never);
       mockListeners.playingChange({ isPlaying: false } as never);
     } else {
-      screen.getByLabelText('Test YouTube player').props.onMessage({ nativeEvent: { data: JSON.stringify({ type: 'progress', position: 12, duration: 100, playing: false }) } });
+      screen.getByLabelText('Test YouTube player').props.onMessage({ nativeEvent: { data: JSON.stringify({ type: 'progress', position: 12, duration: 100, playing }) } });
     }
   };
-  act(progress);
+  act(() => progress(true));
   expect(save).toHaveBeenCalledTimes(1);
-  act(progress);
+  act(() => progress());
   screen.rerender(element(false, nextSave));
   expect(save).toHaveBeenCalledTimes(1);
   expect(nextSave).not.toHaveBeenCalled();
   await act(async () => { finishSave(); });
-  act(progress);
+  act(() => {
+    progress(true);
+    progress();
+  });
   screen.unmount();
   expect(save).toHaveBeenCalledTimes(1);
   expect(nextSave).not.toHaveBeenCalled();
