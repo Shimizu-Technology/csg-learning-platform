@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 import { CohortSettings as CohortDetail } from './CohortDetail'
+import { configureSchoolTime } from '../../lib/schoolTime'
 
 const state = vi.hoisted(() => ({ confirm: vi.fn(), deleteOfficeHour: vi.fn(), getCohort: vi.fn(), updateCohort: vi.fn(), updateCohortModuleAccess: vi.fn(), updateCohortModuleSubmissionWindows: vi.fn(), updateCohortClassResources: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn(), saveFeatureSettings: vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { role: state.role } }) }))
@@ -35,7 +36,7 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
   state.getCohort.mockResolvedValue({ data: { cohort } }); state.updateCohort.mockImplementation(async (_id, patch) => ({ data: { cohort: { ...cohort, ...patch } } }))
 })
-afterEach(() => { act(() => root.unmount()); container.remove() })
+afterEach(() => { act(() => root.unmount()); container.remove(); configureSchoolTime(); vi.useRealTimers() })
 it('shows load errors and retries, including rejected requests', async () => {
   state.getCohort.mockRejectedValueOnce(new Error('offline')); await render()
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('Could not load')
@@ -134,4 +135,57 @@ it('guards and saves an unsaved response-time edit through Save settings', async
   expect(state.saveFeatureSettings).toHaveBeenCalledWith({ review_response_time: 'usually reviewed within 3 days' }, 1)
   const saved = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(saved)
   expect(saved.defaultPrevented).toBe(false)
+})
+
+it('prevents nonexistent Chicago cutoff times and sends only the changed week', async () => {
+  configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CST' })
+  const module = {
+    id: 2, name: 'Functions', module_type: 'prework', lessons_count: 2, assigned: true, unlocked_count: 0,
+    submission_windows: [
+      { week_number: 1, submissions_close_at: '2027-03-14T04:30:45Z', status: 'scheduled' },
+      { week_number: 2, submissions_close_at: '2027-11-07T07:30:42Z', status: 'scheduled' },
+    ],
+  }
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [module] } } })
+  state.updateCohortModuleSubmissionWindows.mockResolvedValue({ data: {} })
+  await render()
+  await act(async () => button('Configure').click())
+  expect(container.textContent).toContain('Nov 7, 2027, 1:30 AM CST')
+  await input('[aria-label^="Week 1 submissions close"]', '2027-03-14T02:30')
+  expect(container.textContent).toContain('Invalid time')
+  expect(container.querySelector('[aria-label^="Week 1 submissions close"]')?.getAttribute('aria-invalid')).toBe('true')
+  await act(async () => button('Done editing module').click())
+  await act(async () => button('Save settings').click())
+  expect(state.error).toHaveBeenCalledWith('Choose a valid submission close time in the school time zone.')
+  expect(state.updateCohortModuleSubmissionWindows).not.toHaveBeenCalled()
+
+  await act(async () => button('Configure').click())
+  await input('[aria-label^="Week 1 submissions close"]', '2027-03-14T03:30')
+  await act(async () => button('Done editing module').click())
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohortModuleSubmissionWindows).toHaveBeenCalledWith(1, 2, [
+    { week_number: 1, submissions_close_at: '2027-03-14T08:30:00.000Z' },
+  ])
+})
+
+it('locks at the exact instant when the saved cutoff has the same Chicago wall time', async () => {
+  configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CDT' })
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2027-11-07T06:30:10Z'))
+  const module = {
+    id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: true, unlocked_count: 0,
+    submission_windows: [{ week_number: 1, submissions_close_at: '2027-11-07T07:30:42Z', status: 'scheduled' }],
+  }
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [module] } } })
+  state.updateCohortModuleSubmissionWindows.mockResolvedValue({ data: {} })
+  await render()
+  await act(async () => button('Configure').click())
+  expect(container.textContent).toContain('Nov 7, 2027, 1:30 AM CST')
+  await act(async () => button('Lock now').click())
+  expect(container.textContent).toContain('Nov 7, 2027, 1:30 AM CDT')
+  await act(async () => button('Done editing windows').click())
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohortModuleSubmissionWindows).toHaveBeenCalledWith(1, 2, [
+    { week_number: 1, submissions_close_at: '2027-11-07T06:30:10.000Z' },
+  ])
 })

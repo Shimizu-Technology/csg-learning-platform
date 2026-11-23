@@ -30,7 +30,7 @@ class ScheduledTick
     Task.new(name: "daily_unlocks", daily_hour: daily_unlock_hour, call: ->(now, last_date, metrics) { DailyUnlockNotifications.new.call(now: now, last_date: last_date, metrics: metrics) }),
     Task.new(name: "expo_push_receipts", daily_hour: nil, call: ->(_now, _last_date, metrics) { ExpoPushReceiptJob.new.drain_due(metrics: metrics) }),
     # Hourly, so a 24h or 48h reminder lands within the hour it becomes due;
-    # it sends nothing 21:00-08:00 Guam time (W9.3).
+    # it sends nothing 21:00-08:00 school time (W9.3).
     Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) }),
     # Bounded batched pruning of expired webhook delivery receipts (X-6.5).
     Task.new(name: "github_webhook_retention", daily_hour: nil, call: ->(now, _last_date, metrics) { GithubWebhookDelivery.prune_for_tick!(now: now, metrics: metrics) }),

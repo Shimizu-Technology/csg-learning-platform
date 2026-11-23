@@ -12,7 +12,7 @@ export function configureSchoolTime(school?: SchoolTimeConfig) {
 export function schoolTimeGenericLabel(zone = schoolTimeZone) {
   if (zone === 'Pacific/Guam') return 'ChST'
   return new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortGeneric' })
-    .formatToParts(new Date()).find((part) => part.type === 'timeZoneName')?.value || zone.split('/').pop()!.replaceAll('_', ' ')
+    .formatToParts(new Date()).find((part) => part.type === 'timeZoneName')?.value || schoolTimeLocation(zone)
 }
 
 export function schoolTimeDescription() {
@@ -68,6 +68,16 @@ export function schoolWallTimeToIso(value: string, zone = schoolTimeZone, rollFo
     if (after.length) return new Date(Math.min(...after)).toISOString()
   }
   return null
+}
+
+export function schoolTimeLocation(zone = schoolTimeZone) {
+  return zone.split('/').at(-1)!.replaceAll('_', ' ')
+}
+
+/** A school calendar date suitable for a date input or date-only comparison. */
+export function schoolDateInputValue(at: string | Date, zone = schoolTimeZone) {
+  const instant = new Date(at).getTime()
+  return Number.isFinite(instant) ? new Date(wallTime(instant, zone)).toISOString().slice(0, 10) : ''
 }
 
 export function schoolWeekEndsAt(startDate: string, week: number, zone = schoolTimeZone) {

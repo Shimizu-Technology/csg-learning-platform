@@ -877,7 +877,7 @@ export const api = {
     fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { method: 'PUT', body: JSON.stringify({ learning_plan: data }) }),
   getLearnerExtensions: (enrollmentId: number) =>
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions`, { cache: 'no-store' }),
-  saveLearnerExtension: (enrollmentId: number, data: import('../types/api').LearnerExtensionInput, id?: number) =>
+  saveLearnerExtension: (enrollmentId: number, data: import('../types/api').LearnerExtensionInput | components['schemas']['LearnerExtensionUpdateInput'], id?: number) =>
     fetchApi<{ personal_pace: boolean; extensions: import('../types/api').LearnerExtension[] }>(`/api/v1/enrollments/${enrollmentId}/extensions${id ? `/${id}` : ''}`, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(data) }),
   getLearnerNudges: (enrollmentId: number) =>
     fetchApi<components['schemas']['LearnerNudgesResponse']>(`/api/v1/enrollments/${enrollmentId}/nudges`, { cache: 'no-store' }),

@@ -183,7 +183,7 @@ class LearnerPace
   def effective_final_date(plan, progress)
     lesson = self.class.final_project_lesson(progress)
     close_at = lesson && SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, enrollment: @enrollment)[:submissions_close_at]
-    close_at ? close_at.in_time_zone("Pacific/Guam").to_date : plan&.target_date
+    close_at ? LearningCalendar.today(at: close_at) : plan&.target_date
   end
 
   def final_project(plan, progress)
@@ -258,7 +258,7 @@ class LearnerPace
 
     extension = @enrollment.learner_extensions.select(&:effective?).select { |item| item.scope == "final" }.max_by(&:submissions_close_at)
     if extension
-      extended_target = extension.submissions_close_at.in_time_zone("Pacific/Guam").to_date
+      extended_target = LearningCalendar.today(at: extension.submissions_close_at)
       shift = (extended_target - target).to_i
       if shift.positive?
         milestones = milestones.map do |milestone|

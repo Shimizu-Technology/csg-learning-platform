@@ -159,7 +159,7 @@ class CourseOutline
       original = SubmissionWindowStatus.for_lesson(cohort: @enrollment.cohort, lesson: lesson)
       if effective != original
         json[:submission_window] = effective
-        json[:due_on] = effective[:submissions_close_at].in_time_zone("Pacific/Guam").to_date.iso8601 if effective[:submissions_close_at]
+        json[:due_on] = LearningCalendar.today(at: effective[:submissions_close_at]).iso8601 if effective[:submissions_close_at]
       end
     end
   end

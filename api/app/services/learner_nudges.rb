@@ -1,7 +1,7 @@
 # Learner reminders (W9.3, AS-4), run by the hourly `scheduled:tick`.
 #
 # What a learner can get, each once per event and threshold:
-# - due_soon: a plan milestone (24h before the end of its Guam due day) or the
+# - due_soon: a plan milestone (24h before the end of its school-local due day) or the
 #   final project (48h and 24h before its effective close time). Dates are the
 #   learner's effective ones: milestones from LearnerProgress#pace (which a
 #   final-date extension shifts) and the final project's close time from the
@@ -27,9 +27,9 @@
 # school switch off the task only settles old deliveries; cohorts that
 # haven't opted in get no rows.
 #
-# At most one reminder per learner per Guam day: the most urgent is sent and
+# At most one reminder per learner per school day: the most urgent is sent and
 # the rest are considered again on later ticks (a passed date simply drops
-# out). An access notice is never held back, and on its day optional ones wait. Nothing is sent from 21:00 to 08:00 Guam time; the first tick at
+# out). An access notice is never held back, and on its day optional ones wait. Nothing is sent from 21:00 to 08:00 school time; the first tick at
 # or after 08:00 evaluates everything again with current dates, so a deferred
 # reminder whose date moved overnight is not sent for the old date.
 #
@@ -43,7 +43,6 @@
 # failure while evaluating one learner is logged and skipped; the others still
 # get theirs, and the task reports failure so the next tick tries again.
 class LearnerNudges
-  GUAM = LearningCalendar::TIMEZONE
   BATCH_SIZE = 200
   TIME_BUDGET = 300 # seconds per run
   QUIET_FROM_HOUR = 21
@@ -70,7 +69,7 @@ class LearnerNudges
   Candidate = Data.define(:enrollment, :kind, :threshold, :key, :essential, :event_at, :title, :body, :path, :priority)
 
   def self.quiet_hours?(now)
-    hour = now.in_time_zone(GUAM).hour
+    hour = now.in_time_zone(LearningCalendar.time_zone).hour
     hour >= QUIET_FROM_HOUR || hour < QUIET_UNTIL_HOUR
   end
 
@@ -299,7 +298,7 @@ class LearnerNudges
       list << Candidate.new(enrollment: enrollment, kind: "due_soon", threshold: threshold, essential: false, event_at: close_at, priority: 1,
         key: "due_soon/#{enrollment.id}/final/#{close_at.utc.iso8601}/#{threshold}",
         title: "Final project due #{day_phrase(close_at, now)}",
-        body: "#{final.title} is due by #{close_at.in_time_zone(GUAM).strftime('%-l:%M %p')} Guam time.",
+        body: "#{final.title} is due by #{deadline_time(close_at)}.",
         path: LearningDestination.lesson(lesson_id: final.id, cohort_id: cohort.id))
     end
 
@@ -311,7 +310,7 @@ class LearnerNudges
       end
       next if open.empty?
 
-      due_at = ActiveSupport::TimeZone[GUAM].local(due_on.year, due_on.month, due_on.day).end_of_day
+      due_at = due_on.in_time_zone(LearningCalendar.time_zone).end_of_day
       threshold = before("milestone", due_at, now)
       next unless threshold
 
@@ -336,7 +335,7 @@ class LearnerNudges
     end
     return [] unless open_work
 
-    started_at = ActiveSupport::TimeZone[GUAM].local(starts_on.year, starts_on.month, starts_on.day)
+    started_at = starts_on.in_time_zone(LearningCalendar.time_zone)
     since = [ last_active_at, enrollment.first_opened_at, enrollment.enrolled_at || enrollment.created_at, started_at ].compact.max
     threshold, span = INACTIVE_AFTER.find { |_, length| now - since >= length }
     return [] unless threshold
@@ -365,7 +364,7 @@ class LearnerNudges
     [ Candidate.new(enrollment: enrollment, kind: "support_ending", threshold: threshold, essential: false, event_at: ends_at, priority: 3,
       key: "support_ending/#{enrollment.id}/#{ends_at.to_i}/#{threshold}",
       title: "Your help period ends #{day_phrase(last_moment(ends_at), now)}",
-      body: "Until then, use Ask for help on a lesson to reach #{cohort.name} staff. Your lessons stay open#{access ? " through #{last_moment(access).in_time_zone(GUAM).strftime('%b %-d, %Y')}" : ''}.",
+      body: "Until then, use Ask for help on a lesson to reach #{cohort.name} staff. Your lessons stay open#{access ? " through #{last_moment(access).in_time_zone(LearningCalendar.time_zone).strftime('%b %-d, %Y')}" : ''}.",
       path: "/cohorts/#{cohort.id}") ]
   end
 
@@ -391,13 +390,19 @@ class LearnerNudges
     BEFORE.fetch(type).find { |_, span| remaining <= span }&.first
   end
 
-  # The last moment something is still open. Guided terms end at 00:00 Guam
+  # The last moment something is still open. Guided terms end at 00:00 school time
   # on the day after the last day, so that midnight belongs to the day before.
   def last_moment(ends_at) = ends_at - 1.second
 
+  def deadline_time(at)
+    zone = LearningCalendar.time_zone
+    label = zone == "Pacific/Guam" ? "Guam time" : SchoolTime.label(TZInfo::Timezone.get(zone), at: at)
+    "#{at.in_time_zone(zone).strftime('%-l:%M %p')} #{label}"
+  end
+
   def day_phrase(at, now)
-    local = at.in_time_zone(GUAM)
-    case (local.to_date - now.in_time_zone(GUAM).to_date).to_i
+    local = at.in_time_zone(LearningCalendar.time_zone)
+    case (local.to_date - now.in_time_zone(LearningCalendar.time_zone).to_date).to_i
     when 0 then "today"
     when 1 then "tomorrow"
     else local.strftime("%a, %b %-d")

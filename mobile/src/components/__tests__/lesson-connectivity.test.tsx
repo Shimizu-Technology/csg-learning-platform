@@ -128,7 +128,7 @@ it.each([false, true])('shows the Guam deadline only when the learner payload op
   const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
   await waitFor(() => expect(screen.getByText('Connectivity lesson')).toBeTruthy());
   if (visible) {
-    expect(screen.getByText(/Submission deadline: Jan 15, 2030, 10:00 AM \(Guam\)/)).toBeTruthy();
+    expect(screen.getByText('Submission deadline: Jan 15, 2030, 10:00 AM ChST')).toBeTruthy();
     expect(screen.queryByText(/10:00:00/)).toBeNull();
   } else expect(screen.queryByText(/Submission deadline:/)).toBeNull();
 });

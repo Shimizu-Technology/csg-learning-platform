@@ -1,3 +1,4 @@
+import { schoolTimeDescription } from '../../lib/schoolTime'
 import { useEffect, useState } from 'react'
 import { CalendarClock, History, KeyRound, LifeBuoy, type LucideIcon } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -5,7 +6,7 @@ import { formatShortDateTime } from '../../lib/format'
 import { Button } from '../ui/Button'
 import type { LearnerNudge, LearnerNudgesResponse } from '../../types/api'
 
-const guamDate = (value: string) => formatShortDateTime(value, 'Not recorded', 'Pacific/Guam')
+const schoolDateTime = (value: string) => formatShortDateTime(value, 'Not recorded')
 
 const KINDS: Record<LearnerNudge['kind'], { label: string; icon: LucideIcon }> = {
   due_soon: { label: 'Due soon', icon: CalendarClock },
@@ -61,7 +62,7 @@ export function StudentNudges({ enrollmentId }: { enrollmentId: number }) {
   return <section className="app-surface space-y-4 p-5 sm:p-6" aria-labelledby={`nudges-${enrollmentId}`}>
     <div>
       <h2 id={`nudges-${enrollmentId}`} className="text-lg font-bold text-ink">Reminders</h2>
-      <p className="mt-1 text-sm text-ink-secondary">Sent by the hourly check, at most one a day unless access is ending. Nothing goes out between 9 pm and 8 am Guam time.</p>
+      <p className="mt-1 text-sm text-ink-secondary">Sent by the hourly check, at most one a day unless access is ending. Nothing goes out between 9 pm and 8 am {schoolTimeDescription()}.</p>
     </div>
     {data && !data.enabled && <p className="text-sm text-ink-secondary">Reminders are off for this cohort. Reminders already sent stay listed.</p>}
     {data?.learner_opted_out && <p className="text-sm text-ink-secondary">This learner turned off optional reminders.{data.enabled && ' Access-ending reminders still go out.'}</p>}
@@ -82,7 +83,7 @@ export function StudentNudges({ enrollmentId }: { enrollmentId: number }) {
             <p className="mt-0.5 font-semibold [overflow-wrap:anywhere]">{nudge.title}</p>
             {nudge.body && <p className="mt-1 text-ink-secondary [overflow-wrap:anywhere]">{nudge.body}</p>}
             <p className="mt-1 text-xs text-ink-muted">
-              Sent {guamDate(nudge.sent_at)} · {EMAIL[nudge.email_status]} · {PUSH[nudge.push_status]} · {nudge.read_at ? `Read ${guamDate(nudge.read_at)}` : 'Not read yet'}
+              Sent {schoolDateTime(nudge.sent_at)} · {EMAIL[nudge.email_status]} · {PUSH[nudge.push_status]} · {nudge.read_at ? `Read ${schoolDateTime(nudge.read_at)}` : 'Not read yet'}
             </p>
           </div>
         </li>

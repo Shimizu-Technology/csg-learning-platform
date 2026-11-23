@@ -11458,7 +11458,7 @@ export interface components {
             week_number?: number | null;
             /**
              * Format: date-time
-             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times.
+             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in the configured school time zone (Pacific/Guam by default); lesson and module grants support exact times.
              */
             submissions_close_at: string;
             reason: string;
@@ -11497,7 +11497,7 @@ export interface components {
             week_number?: number | null;
             /**
              * Format: date-time
-             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in Pacific/Guam (a calendar date); lesson and module grants support exact times.
+             * @description ISO timestamp with a UTC offset. For final-date grants, use 23:59:59 in the configured school time zone (Pacific/Guam by default); lesson and module grants support exact times.
              */
             submissions_close_at?: string;
             reason: string;

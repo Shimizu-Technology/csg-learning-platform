@@ -48,7 +48,7 @@ class SubmissionWindowContext
       # Weekly pace milestones never close submissions, even if a cohort
       # weekly close exists. Only the final project has a firm plan date.
       return nil unless lesson.project? && final_lesson&.id == lesson.id
-      return plan.target_date&.in_time_zone("Pacific/Guam")&.end_of_day
+      return plan.target_date&.in_time_zone(LearningCalendar.time_zone)&.end_of_day
     end
     cohort.submission_window_for(module_id: lesson.module_id,
       week_number: SubmissionWindowStatus.week_number_for_release_day(lesson.release_day))&.submissions_close_at

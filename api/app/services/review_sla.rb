@@ -1,4 +1,4 @@
-# Deadlines use Guam calendar dates. The submission day never counts, and
+# Deadlines use school calendar dates. The submission day never counts, and
 # feedback is on time through the end of the Nth eligible weekday.
 class ReviewSla
   def initialize(holidays:)
@@ -20,7 +20,7 @@ class ReviewSla
     }
   end
 
-  # Any submission before this Guam midnight is past the target. This lets
+  # Any submission before this school-local midnight is past the target. This lets
   # the grading queue count overdue rows in SQL across all its pages.
   def overdue_submitted_before(business_days:, now:)
     today = now.in_time_zone(LearningCalendar::TIMEZONE).to_date
