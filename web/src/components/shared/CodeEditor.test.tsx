@@ -1,18 +1,60 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const editorProps: Array<Record<string, unknown>> = []
+const { editorProps, loaderState, mediaState, throwOnMonaco } = vi.hoisted(() => ({
+  editorProps: [] as Array<Record<string, unknown>>,
+  loaderState: {
+    status: 'ready' as 'idle' | 'loading' | 'ready' | 'failed',
+    ensureMonacoLoaded: vi.fn<() => Promise<unknown>>(),
+  },
+  mediaState: {
+    coarse: false,
+    phone: false,
+  },
+  throwOnMonaco: { active: false },
+}))
+
 vi.mock('@monaco-editor/react', () => ({
   default: (props: Record<string, unknown>) => {
+    if (throwOnMonaco.active) throw new Error('Monaco render boom')
     editorProps.push(props)
-    return null
+    return <textarea data-fake-monaco="true" aria-label="Fake Monaco input" value={String(props.value ?? '')} onChange={(e) => (props.onChange as ((v: string) => void) | undefined)?.(e.target.value)} />
+  },
+}))
+
+vi.mock('../../lib/monacoLoader', () => ({
+  PHONE_CODE_EDITOR_QUERY: '(max-width: 639px)',
+  getMonacoLoadStatus: () => loaderState.status,
+  ensureMonacoLoaded: loaderState.ensureMonacoLoaded,
+}))
+
+vi.mock('../../lib/useMediaQuery', () => ({
+  useMediaQuery: (query: string) => {
+    if (query === '(pointer: coarse)') return mediaState.coarse
+    if (query === '(max-width: 639px)') return mediaState.phone
+    return false
   },
 }))
 
 import { CodeEditor, detectLanguage, indentSizeFor } from './CodeEditor'
+
+beforeEach(() => {
+  editorProps.length = 0
+  loaderState.status = 'ready'
+  loaderState.ensureMonacoLoaded.mockReset()
+  loaderState.ensureMonacoLoaded.mockResolvedValue({ editor: {} })
+  mediaState.coarse = false
+  mediaState.phone = false
+  throwOnMonaco.active = false
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  document.body.innerHTML = ''
+})
 
 describe('CodeEditor indentation', () => {
   it('indents Python with 4 spaces and web languages with 2', () => {
@@ -22,7 +64,6 @@ describe('CodeEditor indentation', () => {
   })
 
   it('passes the language indent to Monaco and labels it for learners', () => {
-    editorProps.length = 0
     const html = renderToStaticMarkup(<CodeEditor value="" language="python" showKeyboardHelp />)
     const options = editorProps[0].options as Record<string, unknown>
     expect(options.tabSize).toBe(4)
@@ -57,7 +98,6 @@ describe('CodeEditor keyboard escape', () => {
   }
 
   it('registers Escape, Tab, and Shift+Tab even for an editor that mounts read-only', async () => {
-    editorProps.length = 0
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -77,7 +117,6 @@ describe('CodeEditor keyboard escape', () => {
   })
 
   it('toggles Tab-moves-focus through the context key and aria-pressed', async () => {
-    editorProps.length = 0
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -94,8 +133,157 @@ describe('CodeEditor keyboard escape', () => {
   })
 })
 
+describe('CodeEditor resilience and fallbacks', () => {
+  it('falls back to an accessible textarea when Monaco initialization rejects', async () => {
+    loaderState.status = 'idle'
+    loaderState.ensureMonacoLoaded.mockRejectedValueOnce(new Error('CDN blocked'))
+
+    function Controlled() {
+      const [code, setCode] = useState('initial = 1')
+      return <CodeEditor ariaLabel="Your code" value={code} onChange={setCode} language="python" wordWrap="off" showKeyboardHelp />
+    }
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => { root.render(<Controlled />) })
+
+    const textarea = container.querySelector('textarea[aria-label="Your code"]') as HTMLTextAreaElement
+    expect(textarea).not.toBeNull()
+    expect(textarea.value).toBe('initial = 1')
+    expect(textarea.getAttribute('wrap')).toBe('off')
+    expect(container.textContent).toContain('Using the basic code editor')
+    expect(editorProps).toHaveLength(0)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('uses the textarea immediately without loading Monaco on coarse pointer or phone viewports', async () => {
+    loaderState.status = 'idle'
+    mediaState.coarse = true
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => { root.render(<CodeEditor ariaLabel="Solution code" value="puts 1" language="ruby" />) })
+
+    expect(container.querySelector('textarea[aria-label="Solution code"]')).not.toBeNull()
+    expect(loaderState.ensureMonacoLoaded).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('Using the basic code editor')
+
+    mediaState.coarse = false
+    mediaState.phone = true
+    await act(async () => { root.render(<CodeEditor ariaLabel="Solution code" value="puts 2" language="ruby" />) })
+    expect(container.querySelector('textarea[aria-label="Solution code"]')).not.toBeNull()
+    expect(loaderState.ensureMonacoLoaded).not.toHaveBeenCalled()
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('respects readOnly and busy on the fallback textarea', () => {
+    loaderState.status = 'failed'
+    const readOnlyHtml = renderToStaticMarkup(<CodeEditor ariaLabel="Your code" value="x = 1" readOnly />)
+    expect(readOnlyHtml).toContain('readOnly=""')
+    const busyHtml = renderToStaticMarkup(<CodeEditor ariaLabel="Your code" value="x = 1" busy />)
+    expect(busyHtml).toContain('disabled=""')
+  })
+
+  it('supports Tab indentation and Escape focus exit on the fallback textarea', async () => {
+    loaderState.status = 'failed'
+    const onChange = vi.fn()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <>
+          <CodeEditor ariaLabel="Your code" value="def f():" onChange={onChange} language="python" showKeyboardHelp />
+          <button type="button">After fallback</button>
+        </>,
+      )
+    })
+
+    const textarea = container.querySelector('textarea[aria-label="Your code"]') as HTMLTextAreaElement
+    textarea.focus()
+    textarea.setSelectionRange(8, 8)
+    await act(async () => {
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    })
+    expect(onChange).toHaveBeenCalledWith('def f():    ')
+
+    const toggle = container.querySelector('button[aria-pressed]') as HTMLButtonElement
+    Object.defineProperty(toggle, 'offsetParent', { configurable: true, get: () => document.body })
+    await act(async () => {
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(document.activeElement).toBe(toggle)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('catches a synchronous Monaco render failure and falls back to textarea', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    throwOnMonaco.active = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => { root.render(<CodeEditor ariaLabel="Your code" value="x = 1" language="python" />) })
+
+    expect(container.querySelector('textarea[aria-label="Your code"]')).not.toBeNull()
+    expect(container.textContent).toContain('Using the basic code editor')
+
+    act(() => root.unmount())
+    container.remove()
+    consoleError.mockRestore()
+  })
+
+  it('falls back immediately on consecutive mounts after a shared stall timeout without waiting again', async () => {
+    loaderState.status = 'failed'
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(<CodeEditor ariaLabel="Second editor" value="x = 2" language="python" />)
+    })
+
+    expect(container.querySelector('textarea[aria-label="Second editor"]')).not.toBeNull()
+    expect(container.textContent).toContain('Using the basic code editor')
+    expect(container.textContent).not.toContain('Loading code editor')
+    expect(loaderState.ensureMonacoLoaded).not.toHaveBeenCalled()
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('defers a change to a fine primary pointer until the textarea loses focus', async () => {
+    mediaState.coarse = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const render = () => root.render(<CodeEditor ariaLabel="Your code" value="alpha beta" />)
+    await act(render)
+
+    const textarea = container.querySelector('textarea')!
+    textarea.focus()
+    textarea.setSelectionRange(6, 10)
+    mediaState.coarse = false
+    await act(render)
+
+    expect(container.querySelector('textarea')).toBe(textarea)
+    expect(document.activeElement).toBe(textarea)
+    expect(textarea.value.slice(textarea.selectionStart, textarea.selectionEnd)).toBe('beta')
+
+    await act(() => textarea.blur())
+    expect(container.querySelector<HTMLTextAreaElement>('[data-fake-monaco]')?.value).toBe('alpha beta')
+    act(() => root.unmount())
+  })
+})
+
 it('preserves Off wrapping while the redesigned lesson uses unwrapped Monaco source', () => {
-  editorProps.length = 0
   renderToStaticMarkup(<CodeEditor value="very_long_python_identifier = 'source'" wordWrap="off" />)
   expect((editorProps[0].options as Record<string, unknown>).wordWrap).toBe('off')
   renderToStaticMarkup(<CodeEditor value="old experience" />)

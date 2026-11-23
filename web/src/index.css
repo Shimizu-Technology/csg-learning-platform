@@ -381,11 +381,15 @@ body {
   outline-offset: -2px;
 }
 
-/* An editor frame shows focus once, on its border (focus-within on
-   [data-md-editor]). The typing surfaces inside don't add a second ring. */
+/* A Markdown editor frame shows focus once, on its border. */
 [data-md-editor] .md-editor-surface:focus-visible,
 [data-md-editor] textarea:focus-visible,
 [data-md-editor] [role='region']:focus-visible {
+  outline: none;
+}
+
+/* The code editor frame also supplies the visible focus indicator. */
+[data-code-editor] textarea:focus-visible {
   outline: none;
 }
 
