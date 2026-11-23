@@ -115,3 +115,14 @@ it('labels a deleted lesson target, disables Edit, and keeps Remove and history 
   expect(host.textContent).toContain('Lesson removed')
   expect(host.textContent).toContain('Extension history (1)')
 })
+
+it('omits the close time when editing only the reason on an exact-time grant', async () => {
+  const exact = { ...item, submissions_close_at: '2030-01-15T07:27:42.123Z' }
+  vi.mocked(api.saveLearnerExtension).mockResolvedValue({ data: { personal_pace: false, extensions: [exact] }, error: null })
+  await mount(false, [exact])
+  await click('Edit')
+  await type(host.querySelector('textarea')!, 'Updated reason')
+  await click('Save extension change')
+  expect(api.saveLearnerExtension).toHaveBeenCalledWith(1, expect.objectContaining({ reason: 'Updated reason' }), 1)
+  expect(vi.mocked(api.saveLearnerExtension).mock.calls[0][1]).not.toHaveProperty('submissions_close_at')
+})

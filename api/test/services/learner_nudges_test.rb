@@ -60,6 +60,24 @@ class LearnerNudgesTest < ActiveSupport::TestCase
     assert_equal 2, LearnerNudge.where(kind: "due_soon").count
   end
 
+  test "Chicago reminders use the local morning and the deadline's CST or CDT" do
+    config = Rails.application.config.x.school
+    previous_zone = config.time_zone
+    config.time_zone = "America/Chicago"
+    [ [ 13, 14, "CST", "2027-03-14T05:59:59Z" ], [ 14, 13, "CDT", "2027-03-15T04:59:59Z" ] ].each do |day, hour, label, cutoff|
+      @enrollment.learning_plan.update!(target_date: Date.new(2027, 3, day))
+      travel_to(Time.utc(2027, 3, day, hour) - 1.minute) { assert tick![:quiet_hours] }
+      travel_to(Time.utc(2027, 3, day, hour)) { assert_not tick![:quiet_hours] }
+      nudge = @enrollment.learner_nudges.where(kind: "due_soon").order(:id).last
+      assert_equal Date.new(2027, 3, day), nudge.school_date
+      assert_equal cutoff, nudge.event_at.utc.iso8601
+      assert_equal "Final project due today", nudge.title
+      assert_includes nudge.body, "11:59 PM #{label}"
+    end
+  ensure
+    config.time_zone = previous_zone
+  end
+
   test "a weekly milestone gets one reminder on its due day, naming the open lessons" do
     at(2026, 12, 6, 8) { tick! }
     assert_equal 0, LearnerNudge.count # 40h before the end of Dec 7: only the 24h threshold is used

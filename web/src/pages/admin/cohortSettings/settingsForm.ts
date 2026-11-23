@@ -1,6 +1,6 @@
 import { toDateTimeInputValueInTimeZone } from '../../../lib/dateTime'
 import { formatShortDate } from '../../../lib/format'
-import { schoolTimeZone, schoolWallTimeToIso } from '../../../lib/schoolTime'
+import { schoolDateInputValue, schoolTimeZone, schoolWallTimeToIso } from '../../../lib/schoolTime'
 import type { CourseCompletionNextStep } from '../../../lib/certificates'
 import type { CourseOfferingTerms, InviteState, OfficeHour, OfficeHourOccurrence, ReviewAndGuidedTerms } from '../../../types/api'
 
@@ -32,6 +32,8 @@ export interface ClassResource {
 export interface SubmissionWindowForm {
   week_number: number
   submissions_close_at: string
+  saved_close_at?: string | null
+  exact_close_at?: string
   submissions_closed: boolean
   status: 'open' | 'scheduled' | 'closed'
   starts_on?: string | null
@@ -135,24 +137,11 @@ export function formatPaceWeeks(weeks?: number[] | null): string {
   return weeks?.length ? weeks.join(', ') : ''
 }
 
-export function padDatePart(value: number): string {
-  return String(value).padStart(2, '0')
-}
-
-export function formatDateInputValue(date: Date): string {
-  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`
-}
-
-export function dateFromDateOnly(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Date(year, month - 1, day)
-}
-
 export function toDateInputValue(dateStr?: string | null): string {
   if (!dateStr) return ''
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
 
-  return formatDateInputValue(new Date(dateStr))
+  return schoolDateInputValue(dateStr)
 }
 
 // Submission close times use the school zone, independent of the device zone.
@@ -166,17 +155,23 @@ export function formatDateLabel(value?: string | null) {
   return value ? formatShortDate(toDateInputValue(value), '') : ''
 }
 
-export function nowDateTimeInputValue(): string {
-  return toDateTimeInputValueInTimeZone(new Date().toISOString(), schoolTimeZone)
+export function submissionWindowCloseWasEdited(window: SubmissionWindowForm) {
+  return Boolean(window.exact_close_at) ||
+    window.submissions_close_at !== toDateTimeInputValueInTimeZone(window.saved_close_at, schoolTimeZone)
 }
 
-export function submissionWindowStatusForForm(window: SubmissionWindowForm): SubmissionWindowForm['status'] {
+export function submissionWindowCloseAt(window: SubmissionWindowForm) {
+  if (window.exact_close_at) return window.exact_close_at
+
+  return submissionWindowCloseWasEdited(window)
+    ? dateTimeInputToIso(window.submissions_close_at)
+    : window.saved_close_at ?? null
+}
+
+export function submissionWindowStatusForForm(window: SubmissionWindowForm, closeAt: string | null): SubmissionWindowForm['status'] | 'invalid' {
   if (!window.submissions_close_at) return 'open'
-
-  const closeAtIso = dateTimeInputToIso(window.submissions_close_at)
-  if (!closeAtIso) return 'scheduled'
-
-  return new Date(closeAtIso) <= new Date() ? 'closed' : 'scheduled'
+  if (!closeAt) return 'invalid'
+  return Date.parse(closeAt) <= Date.now() ? 'closed' : 'scheduled'
 }
 
 export const COHORT_STATUS_OPTIONS = [

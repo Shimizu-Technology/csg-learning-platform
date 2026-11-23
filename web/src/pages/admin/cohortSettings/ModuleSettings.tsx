@@ -7,7 +7,7 @@ import { listLinkState } from '../../../lib/navigationContext'
 import { originLabel } from '../../../lib/recordOrigin'
 import { cohortModuleGradingPath } from '../../../lib/routes'
 import { ModuleSettingsDialog } from './ModuleSettingsDialog'
-import { dateFromDateOnly } from './settingsForm'
+import { schoolDateInputValue } from '../../../lib/schoolTime'
 import type { CohortSettingsController } from './useCohortSettings'
 
 export function ModuleSettings({ settings }: { settings: CohortSettingsController }) {
@@ -23,6 +23,7 @@ export function ModuleSettings({ settings }: { settings: CohortSettingsControlle
     assignedChanges,
     assignModuleToCohort,
   } = settings
+  const schoolToday = schoolDateInputValue(new Date())
   return (
     <>
       <div className="space-y-6">
@@ -60,11 +61,11 @@ export function ModuleSettings({ settings }: { settings: CohortSettingsControlle
                     {(() => {
                       const isAccessible =
                         form.unlocked ||
-                        (form.module_start_date && dateFromDateOnly(form.module_start_date) <= new Date())
+                        (form.module_start_date && form.module_start_date <= schoolToday)
                       const isScheduled =
                         !form.unlocked &&
                         form.module_start_date &&
-                        dateFromDateOnly(form.module_start_date) > new Date()
+                        form.module_start_date > schoolToday
                       return (
                         <div
                           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${

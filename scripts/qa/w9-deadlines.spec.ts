@@ -15,7 +15,7 @@ test('grant, learner date, submission enforcement, Off parity and history', asyn
   const panel = page.getByRole('region', { name: 'Deadlines and extensions' })
   await expect(panel).toBeVisible()
   await panel.getByLabel('Applies to').selectOption(`lesson:${ids.lesson}`)
-  await panel.getByLabel('New deadline (Guam)').fill('2030-01-15')
+  await panel.getByLabel(/New deadline/).fill('2030-01-15')
   await panel.getByLabel('Reason', { exact: true }).fill('Travel approved by instructor')
   await panel.getByRole('button', { name: 'Grant extension', exact: true }).click()
   await expect(panel.getByRole('status')).toContainText('Extension saved')

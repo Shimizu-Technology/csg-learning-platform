@@ -8,6 +8,7 @@ import { ReviewTargetField } from '../../../components/admin/ReviewTargetField'
 import { FeatureSettings } from '../../../components/admin/FeatureSettings'
 import { SegmentButton, SegmentedControl } from '../../../components/ui/Choice'
 import { cohortPath } from '../../../lib/routes'
+import { schoolDateInputValue } from '../../../lib/schoolTime'
 import { COHORT_STATUS_OPTIONS, DEFAULT_PACE_WEEKS } from './settingsForm'
 import type { CohortSettingsController } from './useCohortSettings'
 
@@ -40,6 +41,7 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
     editStatus,
     chooseStatus,
   } = settings
+  const canMarkUpcoming = editStartDate > schoolDateInputValue(new Date())
   return (
     <>
       <div className="app-surface space-y-4 p-5">
@@ -52,16 +54,12 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             {COHORT_STATUS_OPTIONS.map((option) => (
               <SegmentButton
                 key={option.value}
-                disabled={
-                  option.value === 'upcoming' &&
-                  editStartDate <= new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam' }).format(new Date())
-                }
+                disabled={option.value === 'upcoming' && !canMarkUpcoming}
                 selected={editStatus === option.value}
                 onClick={() => void chooseStatus(option.value)}
                 className={option.value === 'archived' ? 'text-danger-ink' : undefined}
               >
-                {option.value === 'upcoming' &&
-                editStartDate <= new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam' }).format(new Date())
+                {option.value === 'upcoming' && !canMarkUpcoming
                   ? 'Upcoming (move start date)'
                   : option.label}
               </SegmentButton>
