@@ -720,6 +720,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The recording source changed (video_source_changed), or the enrollment changed in flight. Reload the lesson before saving."
           }
         },
         "parameters": [
@@ -6832,6 +6835,9 @@
                   "number",
                   "null"
                 ]
+              },
+              "completed_video_sections": {
+                "$ref": "#/components/schemas/CompletedVideoSections"
               }
             },
             "required": [
@@ -6887,6 +6893,9 @@
               "null"
             ],
             "description": "Authoritative duration of the original hosted upload (staff only)."
+          },
+          "video_progress_sources": {
+            "$ref": "#/components/schemas/VideoProgressSources"
           }
         },
         "required": [
@@ -8826,6 +8835,20 @@
           },
           "completed": {
             "type": "boolean"
+          },
+          "completed_video_sections": {
+            "$ref": "#/components/schemas/CompletedVideoSections"
+          },
+          "section_rejected_ranges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Reported ranges that no longer match the recording or lack observed watch time."
+          },
+          "section_retry_after_seconds": {
+            "type": "integer",
+            "description": "Wait this many seconds before resending pending ranges backed by sufficient observed watch time."
           }
         },
         "required": [
@@ -8868,6 +8891,10 @@
           },
           "expires_at": {
             "type": "string"
+          },
+          "video_source": {
+            "type": "string",
+            "description": "Opaque source for this signed stream."
           }
         },
         "required": [
@@ -9090,6 +9117,18 @@
           },
           "watch_credit_version": {
             "type": "number"
+          },
+          "video_source": {
+            "type": "string",
+            "description": "Opaque playback source returned by the lesson."
+          },
+          "completed_section_ranges": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string"
+            },
+            "description": "Timestamp pairs (start:end) played continuously on this source."
           }
         },
         "additionalProperties": false
@@ -29825,6 +29864,35 @@
             ]
           }
         }
+      },
+      "CompletedVideoSections": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": "Completed timestamp pairs (start:end) by opaque playback source."
+      },
+      "VideoProgressSources": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Opaque playback source for the default file and for each hosted version.",
+        "properties": {
+          "default": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "default"
+        ]
       }
     },
     "responses": {

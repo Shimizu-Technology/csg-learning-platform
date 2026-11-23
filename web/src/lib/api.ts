@@ -893,10 +893,10 @@ export const api = {
     fetchApi<import('../types/api').PersonalPaceResponse>(`/api/v1/enrollments/${enrollmentId}/pace`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Progress
-  updateProgress: (contentBlockId: number, status: string, cohortId?: number) =>
+  updateProgress: (contentBlockId: number, status: string, cohortId?: number, videoSource?: string) =>
     fetchApi<ProgressUpdateResponse>('/api/v1/progress', {
       method: 'PATCH',
-      body: JSON.stringify({ content_block_id: contentBlockId, status, cohort_id: cohortId }),
+      body: JSON.stringify({ content_block_id: contentBlockId, status, cohort_id: cohortId, video_source: videoSource }),
     }),
 
   // Submissions

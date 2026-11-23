@@ -28,6 +28,7 @@ class ContentBlock < ApplicationRecord
   before_validation :clear_replaced_video_version_duration
   before_validation :establish_video_version_duration
   validate :video_versions_are_valid
+  before_update :lock_against_learner_writes!, if: :removing_video_version_source?
   after_update_commit :cleanup_removed_video_versions
   validate :video_url_is_http
   validate :rubric_matches_curriculum
@@ -227,7 +228,7 @@ class ContentBlock < ApplicationRecord
 
   def reset_video_progress!
     progresses.includes(enrollment: :cohort).find_each do |progress|
-      attributes = { video_last_position: 0, video_total_watched: 0, video_duration: nil, watch_credit_at: nil, watch_credit_fraction: 0, updated_at: Time.current }
+      attributes = { video_last_position: 0, video_total_watched: 0, video_duration: nil, completed_video_sections: {}, watch_credit_at: nil, watch_credit_fraction: 0, updated_at: Time.current }
       unless evidence_controls_completion?(progress.enrollment)
         attributes.merge!(status: Progress.statuses[:not_started], completed_at: nil)
       end
@@ -272,6 +273,10 @@ class ContentBlock < ApplicationRecord
 
   def video_version_keys(value = metadata)
     Array(value.to_h["video_versions"]).filter_map { |item| item["s3_video_key"] if item.is_a?(Hash) }.uniq
+  end
+
+  def removing_video_version_source?(new_metadata = metadata)
+    (video_version_keys(metadata_in_database) - video_version_keys(new_metadata)).any?
   end
 
   private

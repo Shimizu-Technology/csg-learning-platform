@@ -10,6 +10,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { AppState, StyleSheet, Text, View } from 'react-native';
 
 import { fonts } from '@/constants/csg-theme';
+import { observedSectionSeconds, SeekSettlement, type PlaybackSample } from '@/lib/section-watch';
 import type { VideoProgressInput } from '@/lib/types';
 import { creditedPlaybackSeconds, formatVideoTime, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS, resumePosition, streamRefreshDelay } from '@/lib/video-progress';
 
@@ -24,14 +25,16 @@ interface NativeVideoPlayerProps {
   onProgressSaved?: (progress: VideoProgressInput) => void;
   stopAtSeconds?: number | null;
   onStopAtReached?: () => void;
+  onPlaybackSample?: PlaybackSample;
+  completionSaved?: boolean;
   trackProgress?: boolean;
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
-export interface NativeVideoPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
+export interface NativeVideoPlayerHandle { seekTo: (seconds: number, play?: boolean, stopAt?: number) => void }
 
-export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
+export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, stopAtSeconds = null, onStopAtReached, onPlaybackSample, completionSaved, trackProgress = true }, ref) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -53,9 +56,13 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const lastTickAtRef = useRef(0);
   const lastSavedAtRef = useRef(0);
   const pendingRestoreRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
+  const pendingSectionSeek = useRef<SeekSettlement | null>(null);
+  const skipPauseSave = useRef(false);
+  const anchored = useRef(false);
   const pendingSeekRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
   const pendingSaveRef = useRef<VideoProgressInput | null>(null);
   const savingRef = useRef(false);
+  const lastEnqueued = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const pipActiveRef = useRef(false);
   const recoveryAtRef = useRef(0);
@@ -71,11 +78,13 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const onProgressSavedRef = useRef(onProgressSaved);
   const stopAtSecondsRef = useRef(stopAtSeconds);
   const onStopAtReachedRef = useRef(onStopAtReached);
+  const onPlaybackSampleRef = useRef(onPlaybackSample);
   useEffect(() => {
     onProgressSavedRef.current = onProgressSaved;
     stopAtSecondsRef.current = stopAtSeconds;
+    onPlaybackSampleRef.current = onPlaybackSample;
     onStopAtReachedRef.current = onStopAtReached;
-  }, [onProgressSaved, onStopAtReached, saveProgress, stopAtSeconds]);
+  }, [onPlaybackSample, onProgressSaved, onStopAtReached, stopAtSeconds]);
 
   const player = useVideoPlayer(null, (instance) => {
     instance.timeUpdateEventInterval = 1;
@@ -97,6 +106,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
           if (mountedRef.current) setSyncError(false);
           onProgressSavedRef.current?.(next);
         } catch {
+          if (lastEnqueued.current === JSON.stringify(next)) lastEnqueued.current = null;
           if (mountedRef.current) setSyncError(true);
         }
       }
@@ -109,6 +119,10 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     if (!trackProgressRef.current) return;
     const payload = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current, ended);
     if (!payload) return;
+    const key = JSON.stringify(payload);
+    // Section coverage can change without changing the rounded progress payload.
+    if (!onPlaybackSampleRef.current && lastEnqueued.current === key) return;
+    lastEnqueued.current = key;
     pendingSaveRef.current = payload;
     void drainSaves();
   }, [drainSaves]);
@@ -147,6 +161,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     durationRef.current = loadedDuration;
     const restore = pendingSeekRef.current || pendingRestoreRef.current;
     const position = resumePosition(restore?.position ?? initialPositionRef.current, loadedDuration);
+    if (pendingSectionSeek.current) pendingSectionSeek.current = new SeekSettlement(position);
     player.currentTime = position;
     currentTimeRef.current = position;
     lastTimeRef.current = position;
@@ -156,48 +171,82 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     if (restore?.shouldPlay) player.play();
   });
 
-  useEventListener(player, 'playingChange', ({ isPlaying }) => {
-    setPlaying(isPlaying);
-    playingRef.current = isPlaying;
-    if (isPlaying) lastPlayingAtRef.current = Date.now();
-    lastTimeRef.current = currentTimeRef.current;
-    lastTickAtRef.current = Date.now();
-    if (!isPlaying) enqueueProgress(false);
-  });
-
   useEventListener(player, 'playbackRateChange', ({ playbackRate }) => {
     rateRef.current = playbackRate;
     setRate(playbackRate);
   });
 
-  useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => {
+  const observePlayback = (nextTime: number, ended = false) => {
     const now = Date.now();
-    totalWatchedRef.current += creditedPlaybackSeconds({
+    const wait = pendingSectionSeek.current?.sample(nextTime, now);
+    if (wait === 'landed' || wait === 'expired') pendingSectionSeek.current = null;
+    if (wait === 'expired') {
+      stopAtSecondsRef.current = null;
+      player.timeUpdateEventInterval = 1;
+      onStopAtReachedRef.current?.();
+    }
+    const elapsed = Math.max(0, (now - lastTickAtRef.current) / 1000);
+    const observed = creditedPlaybackSeconds({
       previousTime: lastTimeRef.current,
       currentTime: nextTime,
-      elapsedWallSeconds: Math.max(0, (now - lastTickAtRef.current) / 1000),
+      elapsedWallSeconds: elapsed,
       playbackRate: rateRef.current,
-      playing: playingRef.current,
+      playing: !wait && (playingRef.current || ended),
     });
+    const watched = observedSectionSeconds(observed, elapsed, rateRef.current);
+    totalWatchedRef.current += onPlaybackSampleRef.current ? watched : observed;
+    onPlaybackSampleRef.current?.(lastTimeRef.current, nextTime, watched);
     lastTimeRef.current = nextTime;
     currentTimeRef.current = nextTime;
     lastTickAtRef.current = now;
     setCurrentTime(nextTime);
     const stopAt = stopAtSecondsRef.current;
-    if (stopAt !== null && nextTime >= stopAt) {
+    if (!wait && stopAt !== null && nextTime >= stopAt) {
       stopAtSecondsRef.current = null;
-      player.pause();
+      player.timeUpdateEventInterval = 1;
       onStopAtReachedRef.current?.();
+      if (!ended && playingRef.current) {
+        skipPauseSave.current = true;
+        player.pause();
+      }
+      enqueueProgress(ended);
+      return true;
     }
-    if (now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
+    if (!ended && !wait && playingRef.current && now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
       lastSavedAtRef.current = now;
       enqueueProgress(false);
     }
+  };
+
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    setPlaying(isPlaying);
+    playingRef.current = isPlaying;
+    if (isPlaying) {
+      lastPlayingAtRef.current = Date.now();
+      skipPauseSave.current = false;
+      lastTimeRef.current = player.currentTime;
+      if (onPlaybackSampleRef.current && !anchored.current && durationRef.current > 0) {
+        anchored.current = true;
+        lastSavedAtRef.current = Date.now();
+        enqueueProgress(false);
+      }
+      lastTickAtRef.current = Date.now();
+    }
+    if (!isPlaying && skipPauseSave.current) skipPauseSave.current = false;
+    else if (!isPlaying) enqueueProgress(false);
   });
 
+  useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => observePlayback(nextTime));
+
   useEventListener(player, 'playToEnd', () => {
+    const saved = observePlayback(durationRef.current || player.currentTime, true);
+    if (stopAtSecondsRef.current !== null) {
+      stopAtSecondsRef.current = null;
+      player.timeUpdateEventInterval = 1;
+      onStopAtReachedRef.current?.();
+    }
     if (trackProgress) setCompleted(true);
-    enqueueProgress(true);
+    if (!saved) enqueueProgress(true);
   });
 
   useEventListener(player, 'statusChange', ({ status, error: playerError }) => {
@@ -239,14 +288,20 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   };
 
   useImperativeHandle(ref, () => ({
-    seekTo(seconds: number, shouldPlay = true) {
+    seekTo(seconds: number, shouldPlay = true, stopAt?: number) {
       const requested = Math.max(0, Math.floor(seconds));
+      if (stopAt !== undefined) {
+        stopAtSecondsRef.current = stopAt;
+        pendingSectionSeek.current = new SeekSettlement(requested);
+        player.timeUpdateEventInterval = 0.25;
+      }
       if (durationRef.current <= 0) {
         pendingSeekRef.current = { position: requested, shouldPlay };
         setCurrentTime(requested);
         return;
       }
       const target = Math.max(0, Math.min(durationRef.current, requested));
+      if (pendingSectionSeek.current) pendingSectionSeek.current = new SeekSettlement(target);
       player.currentTime = target;
       currentTimeRef.current = target;
       lastTimeRef.current = target;
@@ -275,7 +330,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
       {loading && <View style={styles.overlay}><RefreshCw color={c.text.body} size={24} /><Text style={styles.overlayText}>Preparing secure playback…</Text></View>}
       {error && !loading && <View style={styles.overlay}><AlertCircle color={c.text.body} size={26} /><Text style={styles.errorTitle}>Playback needs a reconnect</Text><Text numberOfLines={3} style={styles.errorCopy}>{error}</Text><Button variant="secondary" accessibilityRole="button" accessibilityLabel="Retry playback" onPress={() => void loadSource()} style={styles.retry}><RefreshCw color={c.text.strong} size={16} /><Text style={styles.retryText}>Retry</Text></Button></View>}
     </View>
-    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : completed ? <View style={styles.synced}><Check color={c.status.success.fg} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
+    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : (completionSaved ?? completed) ? <View style={styles.synced}><Check color={c.status.success.fg} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && !onPlaybackSample && styles.syncError]}>{syncError && !onPlaybackSample ? 'Progress will retry' : playing ? 'Watching' : onPlaybackSample ? 'Paused' : 'Progress saved'}</Text>}</View>
     <View accessibilityRole="radiogroup" accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="radio" accessibilityState={{ checked: rate === speed, selected: rate === speed }} accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
   </View>;
 });

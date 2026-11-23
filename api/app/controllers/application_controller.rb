@@ -138,12 +138,13 @@ class ApplicationController < ActionController::API
   # learner may no longer open. Call this first inside the learning write
   # guard: it takes the block lock (held to commit), then decides again from
   # fresh rows. Renders 403 and returns false when access is gone.
-  def recheck_content_block_write!(content_block, enrollment)
+  def recheck_content_block_write!(content_block, enrollment, block_locked: false)
     return true if current_user.staff? || enrollment.nil?
 
     denial = ActiveRecord::Base.uncached do
-      ContentBlock.lock_for_learner_write!(content_block.id)
-      lesson = Lesson.includes(:curriculum_module).find(ContentBlock.where(id: content_block.id).pick(:lesson_id))
+      ContentBlock.lock_for_learner_write!(content_block.id) unless block_locked
+      lesson_id = block_locked ? content_block.lesson_id : ContentBlock.where(id: content_block.id).pick(:lesson_id)
+      lesson = Lesson.includes(:curriculum_module).find(lesson_id)
       assignment = ModuleAssignment.find_by(enrollment_id: enrollment.id, module_id: lesson.module_id)
       lesson_assignment = LessonAssignment.find_by(enrollment_id: enrollment.id, lesson_id: lesson.id)
       content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)

@@ -55,6 +55,8 @@ export function ContentBlockRenderer(props: ContentBlockRendererProps) {
             isCompleted || knowledgeCheck.latest_attempt?.correct
               ? <span role="img" aria-label="Check complete"><CheckCircle2 className="h-5 w-5 text-success-ink" aria-hidden="true" /></span>
               : <span role="img" aria-label="Check not answered yet"><Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" /></span>
+          ) : controller.hasCore ? (
+            <span className="text-xs font-semibold text-ink-muted">{isCompleted ? 'Completed' : 'Watch Core sections'}</span>
           ) : (
             <button
               type="button"

@@ -32,6 +32,16 @@ module Api
         with_learning_write_guard(@learning_write_enrollment) do
           return unless recheck_content_block_write!(content_block, @learning_write_enrollment)
 
+          if params.key?(:video_source) && params[:status].to_s == "completed"
+            sections = LessonVideoSections.new(content_block.reload)
+            unless sections.includes_source?(params[:video_source])
+              return render json: { error: "The recording source changed. Reload before saving progress.", code: "video_source_changed" }, status: :conflict
+            end
+            if sections.core?
+              return render json: { error: "Watch the Core sections to complete this recording." }, status: :unprocessable_entity
+            end
+          end
+
           if params[:status].to_s == "completed" && content_block.student_work_block?
             authorize_submission_window_open!(content_block, enrollment: @learning_write_enrollment, fresh: true)
             return if performed?

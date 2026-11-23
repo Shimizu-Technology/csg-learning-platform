@@ -1,3 +1,4 @@
+import { sectionRange } from '../../lib/sectionWatch'
 import { Check, Clock3, Play } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { formatVideoDuration, formatVideoTimestamp, totalVideoSegmentSeconds, type VideoSegment, videoSegmentKey } from '../../lib/videoSegments'
@@ -6,16 +7,17 @@ interface VideoSegmentControlsProps {
   segments: VideoSegment[]
   onSelect: (segment: VideoSegment) => void
   activeSegment?: VideoSegment | null
-  completedSegment?: VideoSegment | null
+  completedRanges?: readonly string[]
 }
 
-export function VideoSegmentControls({ segments, onSelect, activeSegment = null, completedSegment = null }: VideoSegmentControlsProps) {
+export function VideoSegmentControls({ segments, onSelect, activeSegment = null, completedRanges = [] }: VideoSegmentControlsProps) {
   if (!segments.length) return null
 
   const requiredSeconds = totalVideoSegmentSeconds(segments, true)
   const totalSeconds = totalVideoSegmentSeconds(segments)
   const activeKey = activeSegment ? videoSegmentKey(activeSegment) : null
-  const completedKey = completedSegment ? videoSegmentKey(completedSegment) : null
+  const completed = new Set(completedRanges)
+  const completedCount = segments.filter((segment) => completed.has(sectionRange(segment))).length
 
   return (
     <section className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface-sunken" aria-label="Recording sections">
@@ -29,12 +31,12 @@ export function VideoSegmentControls({ segments, onSelect, activeSegment = null,
           <p className="mt-1 text-xs font-semibold tabular-nums text-ink">{requiredSeconds > 0 ? `${formatVideoDuration(requiredSeconds)} core viewing` : `${formatVideoDuration(totalSeconds)} optional viewing`}</p>
         </div>
       </div>
-      {completedSegment && <p className="sr-only" role="status" aria-live="polite">Finished {completedSegment.label}</p>}
+      <p className="sr-only" role="status" aria-live="polite">{completedCount > 0 ? `${completedCount} ${completedCount === 1 ? 'section' : 'sections'} finished` : null}</p>
       <ol className="divide-y divide-line">
         {segments.map((segment, index) => {
           const key = videoSegmentKey(segment)
           const isActive = key === activeKey
-          const isCompleted = key === completedKey
+          const isCompleted = completed.has(sectionRange(segment))
           return <li key={`${key}-${index}`}>
             <button
               type="button"

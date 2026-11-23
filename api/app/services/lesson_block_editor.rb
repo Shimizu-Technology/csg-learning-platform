@@ -189,6 +189,10 @@ class LessonBlockEditor
       block = @existing.fetch(payload[:id].to_i)
       ids << block.id if payload[:block_type].to_s != block.block_type
       ids << block.id if block.knowledge_check && payload[:knowledge_check].blank?
+      if payload[:metadata].is_a?(Hash) && payload[:metadata].key?(:video_versions) &&
+          block.removing_video_version_source?(payload[:metadata].stringify_keys)
+        ids << block.id
+      end
       if media_replaced?(block, payload)
         ids << block.id
         @guarded_media_ids << block.id

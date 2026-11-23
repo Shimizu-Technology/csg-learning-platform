@@ -31,7 +31,13 @@ For new material, record three to five focused clips of roughly 10–15 minutes 
 
 ## Student behavior
 
-The lesson shows the focused sections under the player. Each row includes its exact start and stop time and the total Core viewing time. Selecting a row seeks and plays inside the existing YouTube, Vimeo, or hosted player. The player pauses at the reviewed end time and marks that section finished. Students can still use the full player controls when they intentionally want more context.
+The lesson shows the focused sections under the player. Each row includes its exact start and stop time and the total Core viewing time. Selecting a row seeks and plays inside the existing YouTube, Vimeo, or hosted player. The player pauses at the reviewed end time. The section gets a saved check after playback covers the range, including during ordinary playback without selecting a row. Scrubbing past the end can stop playback without earning a check. Students can still use the full player controls for more context.
+
+A lesson recording completes when all Core sections are checked on one playback source. Optional checks are saved too. When a recording has no Core sections, the existing whole-video completion rules apply. During an API-first release, older installed players can still earn whole-video credit. Existing completed lessons keep their status.
+
+Checks are saved for the learner's enrollment, lesson block, source, and timestamp pair. Switching hosted versions shows the checks for that version. Renaming a section keeps its check. Editing its timestamps requires watching the new range. A confirmed replacement follows the existing video progress reset.
+
+If a save fails, **Retry saving progress** resends the observed coverage for that recording. A delayed first save can hit the normal watch-credit cap. The API returns `section_retry_after_seconds` when the client has enough observed time and needs to wait for server credit. It returns `section_rejected_ranges` when a reported range no longer matches the recording or lacks enough observed time. A replaced source returns HTTP 409 with code `video_source_changed`. Reload the lesson in that case.
 
 Saved watch progress and an explicit `?t=` deep link still control the initial resume point. Auto-stop applies only after the student selects a section.
 

@@ -20,7 +20,7 @@ describe('VideoSegmentControls', () => {
   it('shows the active and most recently finished section', () => {
     const active = { label: 'Active', start_seconds: 10, end_seconds: 70, required: true }
     const completed = { label: 'Done', start_seconds: 80, end_seconds: 140, required: true }
-    const markup = renderToStaticMarkup(<VideoSegmentControls segments={[active, completed]} activeSegment={active} completedSegment={completed} onSelect={vi.fn()} />)
+    const markup = renderToStaticMarkup(<VideoSegmentControls segments={[active, completed]} activeSegment={active} completedRanges={[`${completed.start_seconds}:${completed.end_seconds}`]} onSelect={vi.fn()} />)
 
     expect(markup).toContain('Playing this section')
     expect(markup).toContain('Section finished')

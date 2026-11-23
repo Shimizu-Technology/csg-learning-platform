@@ -1,3 +1,4 @@
+import type { components } from '../../types/api.generated'
 import type { LessonReturn } from '../../lib/hafaStarterLinks'
 export interface ContentBlock {
   id: number
@@ -15,7 +16,8 @@ export interface ContentBlock {
   knowledge_check?: import('../../types/api').KnowledgeCheck | null
   s3_video_key?: string | null
   learner_state?: string
-  progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number }
+  video_progress_sources?: components['schemas']['VideoProgressSources']
+  progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number; completed_video_sections?: components['schemas']['CompletedVideoSections'] }
   submissions?: Array<{
     id: number
     submission_type?: string | null

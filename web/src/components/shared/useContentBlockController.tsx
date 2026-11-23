@@ -74,7 +74,7 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
   }, [analyticsContext, latestSubmission?.grade, latestSubmission?.graded_at, latestSubmission?.id])
 
   const { knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError, handleKnowledgeCheck } = useKnowledgeCheckBlock({ block, cohortId, isStaff, readOnly, onProgressUpdate, setIsCompleted })
-  const { versions, versionId, selectVideoVersion, activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect } = useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsContext, onProgressUpdate, isCompleted, setIsCompleted })
+  const video = useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsContext, onProgressUpdate, isCompleted, setIsCompleted })
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   // Checkpoints with an explicit reviewed submission type (the Python pilot's
@@ -229,14 +229,14 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
   }
 
   const handleToggleComplete = async () => {
-    if (isStaff || readOnly) return
+    if (isStaff || readOnly || video.hasCore) return
     if (workLocked && !isCompleted) {
       toast.error(`${lockCopy}. You can still review the lesson, but new work cannot be marked complete.`)
       return
     }
 
     const newStatus = isCompleted ? 'not_started' : 'completed'
-    const res = await api.updateProgress(block.id, newStatus, cohortId)
+    const res = video.source ? await api.updateProgress(block.id, newStatus, cohortId, video.source) : await api.updateProgress(block.id, newStatus, cohortId)
     if (!res.error) {
       setIsCompleted(!isCompleted)
       if (newStatus === 'completed' && analyticsContext) captureProductEvent('learning_step_completed', {
@@ -423,11 +423,11 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
     liveUrl, setLiveUrl, branchName, setBranchName, commitSha, setCommitSha,
     submissionNotes, setSubmissionNotes, showAdvancedRepoFields, setShowAdvancedRepoFields, isSubmitting, hasEditedSubmissionDraft,
     knowledgeCheck, selectedCheckOption, setSelectedCheckOption, checkingAnswer, checkError, setCheckError,
-    versions, versionId, selectVideoVersion, activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, isSubmissionCheckpoint,
+    ...video, isSubmissionCheckpoint,
     isWorkBlock, detectedLang, runnerConfig, writtenSubmission, submissionType, usesManualExerciseCompletion,
     usesGithubSyncSubmission, usesTextSubmission, usesRepoArtifactSubmission, requiresLiveUrl, workLocked, starterLinks,
-    latestStatus, editAnswer, lockCopy, videoSegments, initialVideoPosition, finishActiveVideoSegment,
-    handleDraftChange, blockIcons, handleToggleComplete, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect,
+    latestStatus, editAnswer, lockCopy,
+    handleDraftChange, blockIcons, handleToggleComplete,
     handleSubmit, handleKnowledgeCheck, submissionArtifacts, submissionStatusMessage, header,
   }
 }

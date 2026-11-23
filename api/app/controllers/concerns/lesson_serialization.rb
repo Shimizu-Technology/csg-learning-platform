@@ -91,6 +91,10 @@ module LessonSerialization
         # Include solution only for staff
         block[:solution] = cb.solution if current_user.staff?
 
+        sections = LessonVideoSections.new(cb)
+        sources = sections.sources
+        block[:video_progress_sources] = sources if sources.present?
+
         # Include progress for students
         if progress_map[cb.id]
           p = progress_map[cb.id]
@@ -98,7 +102,8 @@ module LessonSerialization
             status: p.status,
             completed_at: p.completed_at,
             video_last_position: p.video_last_position,
-            video_total_watched: p.video_total_watched
+            video_total_watched: p.video_total_watched,
+            completed_video_sections: sources.present? ? sections.completed(p) : {}
           }
         end
 
