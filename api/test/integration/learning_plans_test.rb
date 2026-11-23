@@ -152,13 +152,14 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
   end
 
   test "staff preview includes the selected learner support without starting their support clock" do
-    @enrollment.create_learning_plan!(plan_input)
-    reviewed_work(@second)
-    block = @second.content_blocks.first
-    submission = Submission.create!(user: @learner, enrollment: @enrollment, content_block: block, grade: :R, feedback: "Recheck ownership", graded_at: Time.current)
     now = Time.find_zone!("Pacific/Guam").local(2026, 10, 24, 10)
-    event = @cohort.office_hours.create!(title: "Next session", starts_at: now + 1.hour, ends_at: now + 2.hours, meeting_url: "https://meet.example.com/class", timezone: "Pacific/Guam", recurrence: :once, created_by: @teacher)
     travel_to(now) do
+      @cohort.update!(start_date: now.to_date - @second.release_day)
+      @enrollment.create_learning_plan!(plan_input)
+      reviewed_work(@second)
+      block = @second.content_blocks.first
+      submission = Submission.create!(user: @learner, enrollment: @enrollment, content_block: block, grade: :R, feedback: "Recheck ownership", graded_at: Time.current)
+      event = @cohort.office_hours.create!(title: "Next session", starts_at: now + 1.hour, ends_at: now + 2.hours, meeting_url: "https://meet.example.com/class", timezone: "Pacific/Guam", recurrence: :once, created_by: @teacher)
       get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
       assert_response :success
       weekly = response.parsed_body["weekly_plan"]
