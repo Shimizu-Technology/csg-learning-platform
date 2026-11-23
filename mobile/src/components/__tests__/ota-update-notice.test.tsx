@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react-native';
 import { Platform } from 'react-native';
+import { OtaUpdateNotice } from '../ota-update-notice';
 
 const mockBrand = { productName: 'CSG Learn' };
 
@@ -14,8 +15,6 @@ jest.mock('@/lib/brand', () => ({
     return mockBrand;
   },
 }));
-
-import { OtaUpdateNotice } from '../ota-update-notice';
 
 describe('OtaUpdateNotice branding', () => {
   const originalOs = Platform.OS;

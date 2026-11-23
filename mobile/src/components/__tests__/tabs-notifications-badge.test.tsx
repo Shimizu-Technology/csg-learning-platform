@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, waitFor } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
+import TabsLayout from '@/app/(app)/(tabs)/_layout';
 
 import { readAllNotifications, updatesKeys, type NotificationListPayload, type PagedUpdates } from '@/lib/updates-cache';
 
@@ -30,8 +31,6 @@ jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: mockS
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: mockState.user }) }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohort: mockState.selectedCohort }) }));
 
-import TabsLayout from '@/app/(app)/(tabs)/_layout';
-
 function notificationsPage(unreadCount: number): NotificationListPayload {
   return {
     notifications: [],
@@ -57,7 +56,7 @@ describe('TabsLayout unread notifications badge', () => {
       appStateListener = handler;
       return { remove: jest.fn() };
     });
-    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   });
 
   afterEach(() => {
