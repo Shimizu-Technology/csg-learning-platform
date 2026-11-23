@@ -14,7 +14,7 @@ import type { ContentBlockController } from './useContentBlockController'
 
 export function SubmissionBlock({ controller, ...props }: ContentBlockRendererProps & { controller: ContentBlockController }) {
   const { v2, setRevisionOpen, reviewResponseTime, submissions, latestSubmission, hasRedoRequest, canEditSubmission, submissionText, setSubmissionText, repoUrl, setRepoUrl, prUrl, setPrUrl, liveUrl, setLiveUrl, branchName, setBranchName, commitSha, setCommitSha, submissionNotes, setSubmissionNotes, showAdvancedRepoFields, setShowAdvancedRepoFields, isSubmitting, isSubmissionCheckpoint, isWorkBlock, detectedLang, runnerConfig, writtenSubmission, submissionType, usesGithubSyncSubmission, usesTextSubmission, usesRepoArtifactSubmission, requiresLiveUrl, workLocked, latestStatus, editAnswer, lockCopy, handleDraftChange, handleSubmit, submissionArtifacts, submissionStatusMessage } = controller
-  const { block, isStaff, repositoryName, readOnly, submissionsCloseAt, reviewerName } = props
+  const { block, isStaff, repositoryName, githubSetupShown, readOnly, submissionsCloseAt, reviewerName } = props
   return (
     <>
       {!isStaff && ((isWorkBlock && submissionType !== 'manual_complete') || submissions.some((submission) => submission.grade)) && (
@@ -104,10 +104,12 @@ export function SubmissionBlock({ controller, ...props }: ContentBlockRendererPr
           {readOnly ? <p className="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p> : usesGithubSyncSubmission ? (
             <div className="space-y-2 rounded-xl border border-line bg-surface-sunken/60 p-4">
               <p className="text-sm font-semibold text-ink">Submit via GitHub</p>
-              <p className="text-sm text-ink-secondary">
+              {githubSetupShown ? <p className="text-sm text-ink-secondary">
+                Write your solution{block.filename && <> in <strong>{block.filename}</strong></>}. Check GitHub submission status above for where to push your work.
+              </p> : <p className="text-sm text-ink-secondary">
                 Complete this exercise in your local environment{block.filename ? ` in the file ${block.filename}` : ''}, then push your changes to your{' '}
                 <span className="font-semibold text-ink">{repositoryName || 'exercises'}</span> repository on GitHub.
-              </p>
+              </p>}
               <p className="text-sm text-ink-muted">
                 {workLocked ? (readOnly ? 'This lesson is available for review. GitHub sync is disabled.' : 'GitHub sync is disabled after the submission window closes.') : 'Your instructor will sync and review your code from GitHub.'}
               </p>

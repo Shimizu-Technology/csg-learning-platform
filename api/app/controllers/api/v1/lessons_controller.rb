@@ -43,7 +43,7 @@ module Api
 
           submission_map = current_user.submissions
             .where(enrollment_id: @lesson_enrollment.id, content_block_id: block_ids)
-            .order(created_at: :desc)
+            .order(Submission::LATEST_FIRST)
             .group_by(&:content_block_id)
 
           check_ids = KnowledgeCheck.where(content_block_id: block_ids).pluck(:id)
@@ -61,6 +61,16 @@ module Api
           submission_map: submission_map,
           knowledge_check_attempt_map: knowledge_check_attempt_map
         )
+        if @lesson_enrollment&.active? && json.dig(:capabilities, :features, "github_app") == true
+          github_blocks = json[:content_blocks].select do |block|
+            %w[exercise code_challenge].include?(block[:block_type]) && block[:submission_type] == "prework_github_sync"
+          end
+          if github_blocks.any?
+            json[:github_repository_status] = GithubLessonStatus.for(
+              enrollment: @lesson_enrollment, lesson: @lesson, blocks: github_blocks, submissions: submission_map
+            )
+          end
+        end
         json[:moved_from] = moved_from_json if @lesson.id.to_s != params[:id].to_s
         render json: { lesson: json }
       end

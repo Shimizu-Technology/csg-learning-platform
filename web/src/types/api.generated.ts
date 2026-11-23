@@ -6763,6 +6763,20 @@ export interface components {
             objectives: components["schemas"]["LessonObjective"][];
             /** @description Present for students with an enrollment. */
             submission_window?: components["schemas"]["SubmissionWindowStatus"];
+            /** @description Present for an active student reading a GitHub-sync lesson in an App-enabled cohort. Verification reflects saved Learn records. Revisions only describe accepted snapshots of the effective verified repository. */
+            github_repository_status?: {
+                /** @enum {string} */
+                state: "needs_repository" | "needs_verification" | "verified";
+                /** @enum {string} */
+                scope?: "course" | "module";
+                full_name?: string;
+                revisions?: {
+                    block_id: number;
+                    /** Format: date-time */
+                    captured_at: string;
+                    short_sha: string;
+                }[];
+            };
             content_blocks: components["schemas"]["ContentBlockSummary"][];
             prev_lesson: null | {
                 id: number;

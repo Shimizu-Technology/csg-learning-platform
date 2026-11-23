@@ -5,7 +5,7 @@ import { ReminderPreference } from '../../components/student/ReminderPreference'
 import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { AtSign, Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Palette, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
 import { ThemeChoice } from '../../components/shared/ThemeChoice'
 import { useClerk } from '@clerk/clerk-react'
@@ -20,6 +20,7 @@ import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { scrollToSection } from '../../components/shared/RelatedPanel'
 import { formatShortDate } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import type { ProfileResponse as ProfileData, BlockedUser } from '../../types/api'
@@ -34,6 +35,7 @@ const ENROLLMENT_TONES: Record<string, BadgeTone> = { active: 'success', complet
 const ENROLLMENT_LABELS: Record<string, string> = { dropped: 'Withdrawn' }
 
 export function Profile() {
+  const { hash } = useLocation()
   const { v2 } = useStudentExperience()
   const toast = useToast()
   const confirmAction = useConfirm()
@@ -100,6 +102,11 @@ export function Profile() {
   }, [])
 
   useEffect(() => { void loadProfile(); return () => { profileRequest.current += 1 } }, [loadProfile])
+  const githubSectionReady = Boolean(data)
+  useEffect(() => {
+    if (!githubSectionReady || !/^#github-repository-\d+$/.test(hash)) return
+    scrollToSection(hash.slice(1))
+  }, [githubSectionReady, hash])
   useEffect(() => {
     loadNotificationPreference()
     api.getBlockedUsers().then((res) => { if (res.data) setBlockedUsers(res.data.blocked_users) })
@@ -224,7 +231,7 @@ export function Profile() {
           </div>
         </div>
 
-        {data.user.github_identity?.id && <p className="text-sm text-ink-secondary">Your GitHub username is verified. {canReconnectGithub ? 'Use Reconnect GitHub below to change it.' : 'Contact your instructor or an administrator if you need to reconnect. GitHub connections are unavailable for your current enrollments.'}</p>}
+        {data.user.github_identity?.id && <p className="text-sm text-ink-secondary">{loadError ? 'Reload your profile to check your GitHub account.' : `Your GitHub username is verified. ${canReconnectGithub ? 'Use Reconnect GitHub below to change it.' : 'Contact your instructor or an administrator if you need to reconnect.'}`}</p>}
 
         {/* Handle (M-13): tells same-name people apart without showing emails */}
         <div>
@@ -333,7 +340,7 @@ export function Profile() {
         </div>
       </section>
 
-      {githubEnrollments.map(enrollment => <GithubRepositorySettings key={enrollment.id} enrollmentId={enrollment.id} onReconnectAvailabilityChange={onGithubReconnectAvailabilityChange} title={`${enrollment.cohort_name} · GitHub repository`} />)}
+      {githubEnrollments.map(enrollment => <GithubRepositorySettings key={enrollment.id} enrollmentId={enrollment.id} studentCohortId={enrollment.cohort_id} onReconnectAvailabilityChange={onGithubReconnectAvailabilityChange} title={`${enrollment.cohort_name} · GitHub repository`} />)}
 
       {sessionUser?.role === 'admin' && <><FeatureSettings />
             <AgentPostingTokens /></>}
