@@ -12,6 +12,16 @@ class GithubRepositoryAccess
     rows.find { |row| row.curriculum_module_id == curriculum_module_id } || rows.find { |row| row.curriculum_module_id.nil? }
   end
 
+  # A local read of saved verification. Source sync still checks GitHub before
+  # using a repository and checks the operation generation again before writing.
+  def saved_verification_current?
+    check_gate!
+    @binding.verification_state == "verified" && @binding.repository_id.present? &&
+      @binding.verified_at.present? && @binding.identity_current?
+  rescue GithubAppClient::Error
+    false
+  end
+
   def initialize(binding, client: GithubAppClient.new)
     @binding, @client = binding, client
     @operation = nil
