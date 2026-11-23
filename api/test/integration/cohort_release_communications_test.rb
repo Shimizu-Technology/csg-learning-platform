@@ -74,6 +74,23 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
     config.time_zone = previous_zone
   end
 
+  test "Chicago pending release uses the abbreviation at send time on DST transition day" do
+    config = Rails.application.config.x.school
+    previous_zone = config.time_zone
+    config.time_zone = "America/Chicago"
+    travel_to Time.utc(2027, 3, 14, 7) # 01:00 CST; the 07:00 release is in CDT.
+    @cohort.update!(start_date: Date.new(2027, 3, 14), status: :active)
+
+    as_user(@instructor) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+    assert_response :success
+    payload = response.parsed_body.fetch("release_communications")
+    assert_equal "CST", payload.dig("configuration", "school_time_zone_label")
+    pending = payload.fetch("recent_deliveries").find { |row| row.fetch("status") == "pending" }
+    assert_equal "Unclaimed deliveries scheduled for 07:00 CDT.", pending.fetch("note")
+  ensure
+    config.time_zone = previous_zone
+  end
+
   test "returns configuration, recipient breakdown, anonymous single-digest preview, and safe deep links without leaking secrets or learner names" do
     SchoolSetting.delete_all
 

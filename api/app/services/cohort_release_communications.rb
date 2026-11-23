@@ -469,7 +469,7 @@ class CohortReleaseCommunications
           recipient_count: today_release[:eligible_recipient_count],
           lesson_claim_count: today_release[:lessons].size * today_release[:eligible_recipient_count],
           attempted_at: nil,
-          note: "Unclaimed deliveries scheduled for #{formatted_unlock_hour} #{time_zone_label}."
+          note: "Unclaimed deliveries scheduled for #{formatted_unlock_hour} #{time_zone_label(scheduled_time_on(@today))}."
         }
       )
     end
