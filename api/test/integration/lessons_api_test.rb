@@ -1275,6 +1275,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_response :success
     body = JSON.parse(response.body)
     assert_equal "https://signed.example/lesson.mp4", body.fetch("stream_url")
+    assert_equal LessonVideoSections.new(@video_block).sources.fetch("default"), body.fetch("video_source")
     assert_equal S3Service::VIDEO_STREAM_EXPIRY, expires_in
     assert_in_delta S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now.to_i, Time.iso8601(body.fetch("expires_at")).to_i, 2
   end

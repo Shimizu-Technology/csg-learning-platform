@@ -465,3 +465,21 @@ start with `QA_SYNTHETIC_VIDEO=1 scripts/qa/run start`. Vite then answers every
 (`-f lavfi -i testsrc=s=640x360:r=10`) so the position is readable after a switch or
 full screen. iPhone Safari has no element full screen, so the player's expand button
 opens the native video player there; check that path on a simulator, not by resizing.
+
+
+### Recording section progress
+
+Start a fresh harness with `QA_SYNTHETIC_VIDEO=1 scripts/qa/run start`, then run
+`recording-sections-fixtures.rb` from `api/` with the exact local database URL
+printed by startup. Generate the synthetic clip in the repo root:
+
+```sh
+ffmpeg -f lavfi -i testsrc=size=640x360:rate=10 -t 20 -c:v libx264 -pix_fmt yuv420p .qa-local/synthetic.mp4
+QA_SPEC=recording-sections.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+scripts/qa/run clean
+```
+
+The Chromium run uses separate synthetic enrollments at 1280px and 390px, with
+touch enabled at 390px. It checks real playback, jump rejection, persisted Core
+and Optional checks, keyboard and touch seeking, speed and skip boundaries,
+version and deep-link resume, and whole-video completion through the local API.

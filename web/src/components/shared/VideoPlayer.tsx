@@ -1,6 +1,7 @@
+import type { PlaybackSample } from '../../lib/sectionWatch'
 import { creditedPlaybackSeconds, normalizedProgress } from '../../lib/playbackCredit'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react'
-import { Play, Pause, Maximize, Volume2, VolumeX, RotateCcw, Loader2 } from 'lucide-react'
+import { Play, Pause, Maximize, Volume2, VolumeX, RotateCcw, Loader2, Undo2, Redo2 } from 'lucide-react'
 
 export interface VideoProgressData {
   last_position_seconds: number
@@ -15,14 +16,17 @@ interface VideoPlayerProps {
   fetchStreamUrl: () => Promise<string | null>
   onSaveProgress: (data: VideoProgressData, ended: boolean) => void
   stopAtSeconds?: number | null
-  onStopAtReached?: () => void
+  onStopAtReached?: (progress: VideoProgressData | null) => void
+  onPlaybackSample?: PlaybackSample
   trackProgress?: boolean
 }
 
 export interface VideoPlayerHandle {
   prepareSourceChange: () => void
-  seekTo: (seconds: number, play?: boolean) => void
+  seekTo: (seconds: number, play?: boolean, stopAt?: number) => void
 }
+
+const controlClass = 'inline-flex size-11 items-center justify-center rounded-xl text-on-media hover:bg-on-media/10 active:bg-on-media/20 focus-visible:outline-2 focus-visible:outline-on-media disabled:opacity-50'
 
 const URL_REFRESH_MS = 90 * 60 * 1000
 
@@ -31,7 +35,7 @@ type FullscreenDocument = Document & { webkitFullscreenElement?: Element | null;
 type FullscreenContainer = HTMLDivElement & { webkitRequestFullscreen?: () => void }
 type FullscreenVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void }
 
-export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, onPlaybackSample, trackProgress = true }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -45,17 +49,21 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const pendingSeekRef = useRef<{ seconds: number; play: boolean } | null>(null)
   const stopAtSecondsRef = useRef(stopAtSeconds)
   const onStopAtReachedRef = useRef(onStopAtReached)
+  const onPlaybackSampleRef = useRef(onPlaybackSample)
+  const playbackRateRef = useRef(1)
 
   useEffect(() => {
     stopAtSecondsRef.current = stopAtSeconds
     onStopAtReachedRef.current = onStopAtReached
-  }, [onStopAtReached, stopAtSeconds])
+    onPlaybackSampleRef.current = onPlaybackSample
+  }, [onPlaybackSample, onStopAtReached, stopAtSeconds])
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [bufferedEnd, setBufferedEnd] = useState(0)
@@ -154,7 +162,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     if (!video || !streamUrl) return
 
     const handleLoaded = () => {
-      setDuration(video.duration)
+      setDuration(Number.isFinite(video.duration) ? video.duration : 0)
+      video.playbackRate = playbackRateRef.current
       sourceChangePendingRef.current = false
       const pendingSeek = pendingSeekRef.current
       if (pendingSeek) {
@@ -178,11 +187,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       const now = video.currentTime
       const tickNow = performance.now()
       const elapsedSinceLastTick = lastTickAtRef.current ? (tickNow - lastTickAtRef.current) / 1000 : 0
-      totalWatchedRef.current += creditedPlaybackSeconds({
+      const watched = creditedPlaybackSeconds({
         previousTime: lastTimeRef.current, currentTime: now,
         elapsedWallSeconds: elapsedSinceLastTick, playbackRate: video.playbackRate,
-        playing: !video.paused && !video.seeking,
+        playing: (!video.paused || video.ended) && !video.seeking,
       })
+      totalWatchedRef.current += watched
+      onPlaybackSampleRef.current?.(lastTimeRef.current, now, watched)
       lastTimeRef.current = now
       lastTickAtRef.current = tickNow
       setCurrentTime(now)
@@ -190,7 +201,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (stopAt !== null && now >= stopAt) {
         stopAtSecondsRef.current = null
         video.pause()
-        onStopAtReachedRef.current?.()
+        onStopAtReachedRef.current?.(normalizedProgress(now, totalWatchedRef.current, video.duration))
       }
     }
     const handlePlay = () => {
@@ -249,6 +260,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handleCanPlay = () => hideBuffering()
     // The native fullscreen player has its own mute control; keep ours in step.
     const handleVolumeChange = () => setMuted(video.muted)
+    const handleRateChange = () => {
+      playbackRateRef.current = video.playbackRate
+      setPlaybackRate(video.playbackRate)
+    }
 
     video.addEventListener('loadedmetadata', handleLoaded)
     video.addEventListener('timeupdate', handleTimeUpdate)
@@ -263,6 +278,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     video.addEventListener('seeked', handleSeeked)
     video.addEventListener('canplay', handleCanPlay)
     video.addEventListener('volumechange', handleVolumeChange)
+    video.addEventListener('ratechange', handleRateChange)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoaded)
@@ -278,6 +294,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener('seeked', handleSeeked)
       video.removeEventListener('canplay', handleCanPlay)
       video.removeEventListener('volumechange', handleVolumeChange)
+      video.removeEventListener('ratechange', handleRateChange)
     }
   }, [streamUrl, error, loading, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
 
@@ -344,6 +361,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (sourceChangePendingRef.current) return
       const video = videoRef.current
       sourceChangePendingRef.current = true
+      stopAtSecondsRef.current = null
       pendingSeekRef.current = { seconds: video?.currentTime ?? lastTimeRef.current, play: video ? !video.paused : false }
       lastTimeRef.current = pendingSeekRef.current.seconds
       video?.pause()
@@ -353,7 +371,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setLoading(true)
       setStreamUrl(null)
     },
-    seekTo(seconds: number, play = true) {
+    seekTo(seconds: number, play = true, stopAt?: number) {
+      if (stopAt !== undefined) stopAtSecondsRef.current = stopAt
       const video = videoRef.current
       const requested = Math.max(0, Math.floor(seconds))
       if (!video || video.readyState < HTMLMediaElement.HAVE_METADATA) {
@@ -372,15 +391,24 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     },
   }), [showBufferingSoon, sendProgress])
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const seek = (seconds: number) => {
     const video = videoRef.current
     if (!video || !duration) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-    const target = pct * duration
-    setCurrentTime(target)
-    showBufferingSoon()
+    const target = Math.min(duration, Math.max(0, seconds))
+    lastTimeRef.current = target
+    lastTickAtRef.current = performance.now()
     video.currentTime = target
+    setCurrentTime(target)
+  }
+
+  const skip = (seconds: number) => {
+    const video = videoRef.current
+    if (video) seek(video.currentTime + seconds)
+  }
+
+  const changeRate = (rate: number) => {
+    const video = videoRef.current
+    if (video) video.playbackRate = rate
   }
 
   const handleMouseMove = () => {
@@ -394,8 +422,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const restart = () => {
     const video = videoRef.current
     if (!video) return
-    video.currentTime = 0
-    video.play()
+    seek(0)
+    void video.play()
   }
 
   const formatTime = (seconds: number) => {
@@ -468,41 +496,57 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         </div>
       )}
 
-      <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-media/80 to-transparent pt-10 pb-3 px-3 sm:px-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-        <div
-          className="relative w-full h-1.5 bg-on-media/20 rounded-full cursor-pointer mb-3 group/progress"
-          onClick={handleSeek}
-        >
-          <div
-            className="absolute inset-y-0 left-0 bg-on-media/30 rounded-full pointer-events-none"
-            style={{ width: `${bufferedPct}%` }}
-          />
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-on-media"
-            style={{ width: `${progressPct}%` }}
-          >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-on-media rounded-full shadow-lg opacity-0 group-hover/progress:opacity-100 transition-opacity" />
+      <div className={`pointer-events-none absolute bottom-0 inset-x-0 bg-linear-to-t from-media/95 to-transparent px-2 pb-1 sm:px-4 sm:pb-3 transition-opacity duration-300 focus-within:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <div aria-hidden="true" className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-on-media/20">
+              <div className="absolute inset-y-0 left-0 bg-on-media/30" style={{ width: `${bufferedPct}%` }} />
+              <div className="absolute inset-y-0 left-0 bg-on-media" style={{ width: `${progressPct}%` }} />
+            </div>
+            <input
+              type="range"
+              aria-label="Seek video"
+              aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+              min={0}
+              max={duration}
+              step="any"
+              value={Math.min(currentTime, duration)}
+              disabled={duration <= 0}
+              onChange={(event) => seek(Number(event.currentTarget.value))}
+              className="pointer-events-auto relative block h-11 w-full cursor-pointer appearance-none rounded-md bg-transparent accent-on-media focus-visible:outline-2 focus-visible:outline-on-media [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-on-media [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-on-media"
+            />
           </div>
+          <span className="shrink-0 text-xs tabular-nums text-on-media">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-0.5 sm:gap-1">
-            <button type="button" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
+        <div className="pointer-events-auto flex flex-wrap items-center justify-between">
+          <div className="flex items-center">
+            <button type="button" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} className={controlClass}>
               {playing ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" fill="currentColor" aria-hidden="true" />}
             </button>
-            <button type="button" onClick={restart} aria-label="Restart" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
+            <button type="button" onClick={() => skip(-10)} aria-label="Back 10 seconds" title="Back 10 seconds" disabled={duration <= 0} className={controlClass}>
+              <Undo2 className="size-4" aria-hidden="true" /><span className="text-[10px]" aria-hidden="true">10</span>
+            </button>
+            <button type="button" onClick={() => skip(10)} aria-label="Forward 10 seconds" title="Forward 10 seconds" disabled={duration <= 0} className={controlClass}>
+              <Redo2 className="size-4" aria-hidden="true" /><span className="text-[10px]" aria-hidden="true">10</span>
+            </button>
+            <button type="button" onClick={restart} aria-label="Restart" className={controlClass}>
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
             </button>
-            <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
+            <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className={controlClass}>
               {muted ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
             </button>
-            <span className="ml-1 text-xs tabular-nums text-on-media/80">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
           </div>
-          <button type="button" onClick={toggleFullscreen} aria-label="Full screen" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
-            <Maximize className="h-4 w-4" aria-hidden="true" />
-          </button>
+          <div className="ml-auto flex items-center">
+            <select aria-label="Playback speed" value={playbackRate} onChange={(event) => changeRate(Number(event.currentTarget.value))} className={`${controlClass} w-auto bg-media px-1 text-xs tabular-nums`}>
+              {[0.75, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}
+            </select>
+            <button type="button" onClick={toggleFullscreen} aria-label="Full screen" className={controlClass}>
+              <Maximize className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

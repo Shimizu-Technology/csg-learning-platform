@@ -11,7 +11,7 @@ import { fonts } from '@/constants/csg-theme';
 import { openExternalPage } from '@/lib/external-links';
 import { embeddedMediaHtml, isAllowedMediaNavigation, resolveMediaSource } from '@/lib/media-source';
 import type { VideoProgressInput } from '@/lib/types';
-import { isVideoSegmentSeekPosition } from '@/lib/video-segments';
+import { observedSectionSeconds, type PlaybackSample } from '@/lib/section-watch';
 import { creditedPlaybackSeconds, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS } from '@/lib/video-progress';
 import { NativeVideoPlayer, type NativeVideoPlayerHandle } from './native-video-player';
 
@@ -21,14 +21,16 @@ interface InAppMediaPlayerProps {
   saveProgress?: (progress: VideoProgressInput) => Promise<void>;
   stopAtSeconds?: number | null;
   onStopAtReached?: () => void;
+  onPlaybackSample?: PlaybackSample;
   title: string;
+  completionSaved?: boolean;
   trackProgress?: boolean;
   url: string;
 }
 
 export interface InAppMediaPlayerHandle { seekTo: (seconds: number, play?: boolean, stopAtSeconds?: number) => void }
 
-export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPlayerProps>(function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0, saveProgress, stopAtSeconds = null, onStopAtReached, title, trackProgress = false, url }, ref) {
+export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPlayerProps>(function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0, saveProgress, stopAtSeconds = null, onStopAtReached, onPlaybackSample, title, completionSaved, trackProgress = false, url }, ref) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const source = useMemo(() => resolveMediaSource(url), [url]);
@@ -38,6 +40,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const [playing, setPlaying] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [syncError, setSyncError] = useState(false);
+  const [initialEmbedPosition] = useState(initialPosition);
   const currentTimeRef = useRef(initialPosition);
   const durationRef = useRef(0);
   const totalWatchedRef = useRef(initialTotalWatched);
@@ -60,12 +63,14 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const pendingStopStartRef = useRef<number | null>(null);
   const stopAtSecondsRef = useRef(stopAtSeconds);
   const onStopAtReachedRef = useRef(onStopAtReached);
+  const onPlaybackSampleRef = useRef(onPlaybackSample);
   const openOriginal = useCallback(() => void openExternalPage(source?.originalUrl).catch(() => undefined), [source?.originalUrl]);
 
   useEffect(() => {
     stopAtSecondsRef.current = stopAtSeconds;
     onStopAtReachedRef.current = onStopAtReached;
-  }, [onStopAtReached, saveProgress, stopAtSeconds]);
+    onPlaybackSampleRef.current = onPlaybackSample;
+  }, [onPlaybackSample, onStopAtReached, stopAtSeconds]);
 
   const drainSaves = useCallback(async () => {
     if (savingRef.current || !saveProgressRef.current) return;
@@ -95,7 +100,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   }, [drainSaves]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
-    let message: { type?: string; position?: number; duration?: number; playing?: boolean; ended?: boolean };
+    let message: { type?: string; position?: number; duration?: number; playing?: boolean; ended?: boolean; rate?: number; seeking?: boolean };
     try {
       message = JSON.parse(event.nativeEvent.data) as typeof message;
     } catch {
@@ -106,14 +111,24 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
     const position = Math.max(0, Number(message.position));
     const duration = Math.max(0, Number(message.duration));
     const now = Date.now();
-    if (lastTickAtRef.current > 0) {
-      totalWatchedRef.current += creditedPlaybackSeconds({
-        previousTime: lastTimeRef.current,
-        currentTime: position,
-        elapsedWallSeconds: Math.max(0, (now - lastTickAtRef.current) / 1000),
-        playbackRate: 1,
-        playing: Boolean(message.playing),
-      });
+    const elapsed = lastTickAtRef.current ? Math.max(0, (now - lastTickAtRef.current) / 1000) : 0;
+    const watched = creditedPlaybackSeconds({
+      previousTime: lastTimeRef.current,
+      currentTime: position,
+      elapsedWallSeconds: elapsed,
+      playbackRate: message.rate ?? 1,
+      playing: !message.seeking && Boolean(message.playing || message.ended),
+    });
+    if (pendingStopStartRef.current === null) {
+      totalWatchedRef.current += watched;
+      onPlaybackSampleRef.current?.(lastTimeRef.current, position, observedSectionSeconds(watched, elapsed, message.rate ?? 1));
+    } else if (Math.abs(position - pendingStopStartRef.current) <= 0.6) {
+      // The first near-start report acknowledges the asynchronous provider seek.
+      // Subsequent reports must cover the rest of the selected range.
+      const initial = message.playing ? Math.max(0, position - pendingStopStartRef.current) : 0;
+      totalWatchedRef.current += initial;
+      onPlaybackSampleRef.current?.(pendingStopStartRef.current, position, initial);
+      pendingStopStartRef.current = null;
     }
     currentTimeRef.current = position;
     durationRef.current = duration;
@@ -121,15 +136,12 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
     lastTickAtRef.current = now;
     setPlaying(Boolean(message.playing));
     const stopAt = stopAtSecondsRef.current;
-    const pendingStopStart = pendingStopStartRef.current;
-    if (pendingStopStart !== null && stopAt !== null && isVideoSegmentSeekPosition(position, { label: '', start_seconds: pendingStopStart, end_seconds: stopAt, required: true })) {
-      pendingStopStartRef.current = null;
-    }
     if (stopAt !== null && pendingStopStartRef.current === null && position >= stopAt) {
       stopAtSecondsRef.current = null;
       pendingStopStartRef.current = null;
       webViewRef.current?.injectJavaScript('window.csgPause && window.csgPause(); true;');
       onStopAtReachedRef.current?.();
+      enqueueProgress();
     }
     if (message.ended) setCompleted(true);
     if (message.ended || !message.playing || now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
@@ -147,7 +159,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
     seekTo(seconds: number, play = true, selectedStopAt?: number) {
       const requested = Math.max(0, Math.floor(seconds));
       if (source?.type === 'direct') {
-        nativeVideoRef.current?.seekTo(requested, play);
+        nativeVideoRef.current?.seekTo(requested, play, selectedStopAt);
         return;
       }
       if (source?.type !== 'embed') return;
@@ -172,7 +184,9 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
         saveProgress={saveProgress || (() => Promise.resolve())}
         stopAtSeconds={stopAtSeconds}
         onStopAtReached={onStopAtReached}
+        onPlaybackSample={onPlaybackSample}
         title={title}
+        completionSaved={completionSaved}
         trackProgress={trackProgress && Boolean(saveProgress)}
       />
       <OriginalLink label="Open original video" onPress={openOriginal} />
@@ -180,7 +194,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   }
   if (source.type === 'external' || !source.playbackUrl) return <UnsupportedMedia title={title} url={source.originalUrl} />;
   const supportsProgress = source.provider === 'youtube' || source.provider === 'vimeo';
-  const html = embeddedMediaHtml(source, Math.max(initialPosition, source.startSeconds));
+  const html = embeddedMediaHtml(source, Math.max(initialEmbedPosition, source.startSeconds));
 
   return <View style={styles.shell}>
     <View style={styles.webWrap}>
@@ -211,7 +225,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
       {loading && <View pointerEvents="none" style={styles.overlay}><RefreshCw color={c.text.body} size={24} /><Text style={styles.overlayText}>Loading {source.providerLabel}…</Text></View>}
       {error && <View style={styles.overlay}><AlertCircle color={c.text.body} size={27} /><Text style={styles.errorTitle}>This video could not load here</Text><Text style={styles.errorCopy}>The host may have disabled embedded playback. You can retry or open the original.</Text><Button variant="secondary" accessibilityRole="button" accessibilityLabel="Retry in-app playback" onPress={() => setReloadKey((value) => value + 1)} style={styles.retry}><RefreshCw color={c.text.strong} size={16} /><Text style={styles.retryText}>Retry</Text></Button></View>}
     </View>
-    <View style={styles.footer}><View><Text style={styles.provider}>{source.providerLabel.toUpperCase()}</Text><Text style={[styles.inline, syncError && styles.syncError]}>{!trackProgress || !supportsProgress ? 'Plays securely inside the app' : syncError ? 'Progress will retry' : completed ? 'Watched' : playing ? 'Watching' : 'Progress saved'}</Text></View><OriginalLink label="Open original" onPress={openOriginal} /></View>
+    <View style={styles.footer}><View><Text style={styles.provider}>{source.providerLabel.toUpperCase()}</Text><Text style={[styles.inline, syncError && styles.syncError]}>{!trackProgress || !supportsProgress ? 'Plays securely inside the app' : syncError ? 'Progress will retry' : (completionSaved ?? completed) ? 'Watched' : playing ? 'Watching' : 'Progress saved'}</Text></View><OriginalLink label="Open original" onPress={openOriginal} /></View>
   </View>;
 });
 

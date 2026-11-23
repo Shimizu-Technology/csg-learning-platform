@@ -11,7 +11,7 @@ it('overrides every active row edge, including the base bottom hairline', () => 
   expect(ui.getByRole('button').props.accessibilityState.selected).toBe(true);
 });
 it('pairs completed section text with the success surface', () => {
-  const ui = render(<VideoSegmentControls segments={[segment]} completedSegment={segment} onSelect={jest.fn()} />);
+  const ui = render(<VideoSegmentControls segments={[segment]} completedRanges={[`${segment.start_seconds}:${segment.end_seconds}`]} onSelect={jest.fn()} />);
   const c = themes.light.colors;
   expect(ui.getByText('Section finished')).toHaveStyle({ color: c.status.success.fg, backgroundColor: c.status.success.bg });
   expect(contrastRatio(c.status.success.fg, c.status.success.bg)).toBeGreaterThanOrEqual(4.5);

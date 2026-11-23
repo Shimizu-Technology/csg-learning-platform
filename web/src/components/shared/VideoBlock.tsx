@@ -7,8 +7,13 @@ import { VideoPlayer } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
 
 export function VideoBlock({ controller, ...props }: ContentBlockRendererProps & { controller: ContentBlockController }) {
-  const { activeVideoSegment, completedVideoSegment, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, saveBlockProgress, handleVideoSegmentSelect } = controller
+  const { activeVideoSegment, completedRanges, saveFailed, onPlaybackSample, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, onSaveProgress, handleVideoSegmentSelect } = controller
   const { block, isStaff, readOnly } = props
+  const sources = block.video_progress_sources
+  // Preserve the element while the learner switches between known versions.
+  // When the lesson refreshes with different files, never keep playing an
+  // old stream against the new source identity.
+  const hostedKey = JSON.stringify([block.id, props.cohortId, block.s3_video_key, sources?.default, Object.entries(sources?.versions ?? {}).sort()])
   return (
     <>
       {controller.versions.length >= 2 && (
@@ -19,12 +24,13 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
       {(block.block_type === 'video' || block.block_type === 'recording') && block.s3_video_key && (
         <VideoPlayer
           ref={s3VideoRef}
-          key={`s3-${block.id}`}
+          key={hostedKey}
           title={block.title || 'Video'}
           initialPosition={initialVideoPosition}
           initialTotalWatched={block.progress?.video_total_watched || 0}
           fetchStreamUrl={fetchBlockStreamUrl}
-          onSaveProgress={saveBlockProgress}
+          onSaveProgress={onSaveProgress}
+          onPlaybackSample={onPlaybackSample}
           stopAtSeconds={activeVideoSegment?.end_seconds ?? null}
           onStopAtReached={finishActiveVideoSegment}
           trackProgress={!isStaff && !readOnly}
@@ -85,8 +91,9 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
       )}
 
       {(block.block_type === 'video' || block.block_type === 'recording') && (
-        <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={handleVideoSegmentSelect} />
+        <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedRanges={completedRanges} onSelect={handleVideoSegmentSelect} />
       )}
+      {saveFailed && <p className="mt-2 text-sm text-danger-ink" role="status">Section progress could not be saved. Play the section again to retry.</p>}
     </>
   )
 }

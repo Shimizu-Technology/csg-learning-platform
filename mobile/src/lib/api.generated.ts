@@ -6882,6 +6882,7 @@ export interface components {
                 completed_at: null | string;
                 video_last_position: number | null;
                 video_total_watched: number | null;
+                completed_video_sections?: components["schemas"]["CompletedVideoSections"];
             };
             /** @description Present for students with submissions for this block. */
             submissions?: components["schemas"]["SubmissionBrief"][];
@@ -6898,6 +6899,7 @@ export interface components {
             learner_state?: "not_started" | "in_progress" | "submitted" | "redo_requested" | "complete";
             /** @description Authoritative duration of the original hosted upload (staff only). */
             s3_video_duration_seconds?: number | null;
+            video_progress_sources?: components["schemas"]["VideoProgressSources"];
         };
         Rubric: {
             id: number;
@@ -7305,6 +7307,7 @@ export interface components {
             duration: null | number;
             status: string;
             completed: boolean;
+            completed_video_sections?: components["schemas"]["CompletedVideoSections"];
         };
         VideoProgressResponse: {
             video_progress: components["schemas"]["VideoProgressEntry"];
@@ -7313,6 +7316,8 @@ export interface components {
             stream_url: string;
             video_progress: components["schemas"]["VideoStreamProgress"] | null;
             expires_at: string;
+            /** @description Opaque source for this signed stream. */
+            video_source?: string;
         };
         RecordDestination: {
             kind: string;
@@ -7359,6 +7364,10 @@ export interface components {
             duration_seconds?: number;
             cohort_id?: number;
             watch_credit_version?: number;
+            /** @description Opaque playback source returned by the lesson. */
+            video_source?: string;
+            /** @description Timestamp pairs (start:end) played continuously on this source. */
+            completed_section_ranges?: string[];
         };
         WatchProgressInput: {
             last_position_seconds: number;
@@ -11825,6 +11834,17 @@ export interface components {
             purchase_id: number;
             cohort: components["schemas"]["CourseCheckoutStatusCohort"];
             enrollment_id: number | null;
+        };
+        /** @description Completed timestamp pairs (start:end) by opaque playback source. */
+        CompletedVideoSections: {
+            [key: string]: string[];
+        };
+        /** @description Opaque playback source for the default file and for each hosted version. */
+        VideoProgressSources: {
+            default: string;
+            versions?: {
+                [key: string]: string;
+            };
         };
     };
     responses: {

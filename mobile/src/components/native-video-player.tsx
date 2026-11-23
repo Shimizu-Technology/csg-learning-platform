@@ -10,6 +10,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { AppState, StyleSheet, Text, View } from 'react-native';
 
 import { fonts } from '@/constants/csg-theme';
+import { observedSectionSeconds, type PlaybackSample } from '@/lib/section-watch';
 import type { VideoProgressInput } from '@/lib/types';
 import { creditedPlaybackSeconds, formatVideoTime, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS, resumePosition, streamRefreshDelay } from '@/lib/video-progress';
 
@@ -24,14 +25,16 @@ interface NativeVideoPlayerProps {
   onProgressSaved?: (progress: VideoProgressInput) => void;
   stopAtSeconds?: number | null;
   onStopAtReached?: () => void;
+  onPlaybackSample?: PlaybackSample;
+  completionSaved?: boolean;
   trackProgress?: boolean;
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
-export interface NativeVideoPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
+export interface NativeVideoPlayerHandle { seekTo: (seconds: number, play?: boolean, stopAt?: number) => void }
 
-export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
+export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, stopAtSeconds = null, onStopAtReached, onPlaybackSample, completionSaved, trackProgress = true }, ref) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -53,6 +56,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const lastTickAtRef = useRef(0);
   const lastSavedAtRef = useRef(0);
   const pendingRestoreRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
+  const pendingSectionStartRef = useRef<number | null>(null);
   const pendingSeekRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
   const pendingSaveRef = useRef<VideoProgressInput | null>(null);
   const savingRef = useRef(false);
@@ -71,11 +75,13 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const onProgressSavedRef = useRef(onProgressSaved);
   const stopAtSecondsRef = useRef(stopAtSeconds);
   const onStopAtReachedRef = useRef(onStopAtReached);
+  const onPlaybackSampleRef = useRef(onPlaybackSample);
   useEffect(() => {
     onProgressSavedRef.current = onProgressSaved;
     stopAtSecondsRef.current = stopAtSeconds;
+    onPlaybackSampleRef.current = onPlaybackSample;
     onStopAtReachedRef.current = onStopAtReached;
-  }, [onProgressSaved, onStopAtReached, saveProgress, stopAtSeconds]);
+  }, [onPlaybackSample, onProgressSaved, onStopAtReached, stopAtSeconds]);
 
   const player = useVideoPlayer(null, (instance) => {
     instance.timeUpdateEventInterval = 1;
@@ -159,9 +165,11 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
     setPlaying(isPlaying);
     playingRef.current = isPlaying;
-    if (isPlaying) lastPlayingAtRef.current = Date.now();
-    lastTimeRef.current = currentTimeRef.current;
-    lastTickAtRef.current = Date.now();
+    if (isPlaying) {
+      lastPlayingAtRef.current = Date.now();
+      lastTimeRef.current = currentTimeRef.current;
+      lastTickAtRef.current = Date.now();
+    }
     if (!isPlaying) enqueueProgress(false);
   });
 
@@ -170,15 +178,24 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     setRate(playbackRate);
   });
 
-  useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => {
+  const observePlayback = (nextTime: number, ended = false) => {
     const now = Date.now();
-    totalWatchedRef.current += creditedPlaybackSeconds({
+    const pendingStart = pendingSectionStartRef.current;
+    if (pendingStart !== null) {
+      // The native time event can still carry a sample from before seekTo.
+      if (Math.abs(nextTime - pendingStart) > 0.6) return;
+      pendingSectionStartRef.current = null;
+    }
+    const elapsed = Math.max(0, (now - lastTickAtRef.current) / 1000);
+    const watched = creditedPlaybackSeconds({
       previousTime: lastTimeRef.current,
       currentTime: nextTime,
-      elapsedWallSeconds: Math.max(0, (now - lastTickAtRef.current) / 1000),
+      elapsedWallSeconds: elapsed,
       playbackRate: rateRef.current,
-      playing: playingRef.current,
+      playing: playingRef.current || ended,
     });
+    totalWatchedRef.current += watched;
+    onPlaybackSampleRef.current?.(lastTimeRef.current, nextTime, observedSectionSeconds(watched, elapsed, rateRef.current));
     lastTimeRef.current = nextTime;
     currentTimeRef.current = nextTime;
     lastTickAtRef.current = now;
@@ -186,16 +203,21 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     const stopAt = stopAtSecondsRef.current;
     if (stopAt !== null && nextTime >= stopAt) {
       stopAtSecondsRef.current = null;
-      player.pause();
+      player.timeUpdateEventInterval = 1;
       onStopAtReachedRef.current?.();
+      player.pause();
+      enqueueProgress();
     }
     if (now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
       lastSavedAtRef.current = now;
       enqueueProgress(false);
     }
-  });
+  };
+
+  useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => observePlayback(nextTime));
 
   useEventListener(player, 'playToEnd', () => {
+    observePlayback(player.currentTime, true);
     if (trackProgress) setCompleted(true);
     enqueueProgress(true);
   });
@@ -239,8 +261,13 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   };
 
   useImperativeHandle(ref, () => ({
-    seekTo(seconds: number, shouldPlay = true) {
+    seekTo(seconds: number, shouldPlay = true, stopAt?: number) {
       const requested = Math.max(0, Math.floor(seconds));
+      if (stopAt !== undefined) {
+        stopAtSecondsRef.current = stopAt;
+        pendingSectionStartRef.current = requested;
+        player.timeUpdateEventInterval = 0.25;
+      }
       if (durationRef.current <= 0) {
         pendingSeekRef.current = { position: requested, shouldPlay };
         setCurrentTime(requested);
@@ -275,7 +302,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
       {loading && <View style={styles.overlay}><RefreshCw color={c.text.body} size={24} /><Text style={styles.overlayText}>Preparing secure playback…</Text></View>}
       {error && !loading && <View style={styles.overlay}><AlertCircle color={c.text.body} size={26} /><Text style={styles.errorTitle}>Playback needs a reconnect</Text><Text numberOfLines={3} style={styles.errorCopy}>{error}</Text><Button variant="secondary" accessibilityRole="button" accessibilityLabel="Retry playback" onPress={() => void loadSource()} style={styles.retry}><RefreshCw color={c.text.strong} size={16} /><Text style={styles.retryText}>Retry</Text></Button></View>}
     </View>
-    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : completed ? <View style={styles.synced}><Check color={c.status.success.fg} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
+    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : (completionSaved ?? completed) ? <View style={styles.synced}><Check color={c.status.success.fg} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
     <View accessibilityRole="radiogroup" accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="radio" accessibilityState={{ checked: rate === speed, selected: rate === speed }} accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
   </View>;
 });

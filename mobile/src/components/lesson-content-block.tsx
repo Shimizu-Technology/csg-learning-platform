@@ -28,6 +28,7 @@ import { MessageCodeBlock } from './message-code-block';
 import { InAppMediaPlayer, type InAppMediaPlayerHandle } from './in-app-media-player';
 import { NativeVideoPlayer, type NativeVideoPlayerHandle } from './native-video-player';
 import { VideoSegmentControls } from './video-segment-controls';
+import { sectionRange, SectionWatch, type PlaybackSample } from '@/lib/section-watch';
 import { normalizeVideoSegments, segmentPlaybackStart, type VideoSegment } from '@/lib/video-segments';
 
 interface LessonContentBlockProps {
@@ -350,17 +351,30 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
   const savedVideoStateRef = useRef({ status: block.progress?.status || 'not_started', completed: block.progress?.status === 'completed' });
   const hostedPlayerRef = useRef<NativeVideoPlayerHandle>(null);
   const linkedPlayerRef = useRef<InAppMediaPlayerHandle>(null);
-  const [activeVideoSegment, setActiveVideoSegment] = useState<VideoSegment | null>(null);
-  const [completedVideoSegment, setCompletedVideoSegment] = useState<VideoSegment | null>(null);
+  const source = block.video_progress_sources?.default;
+  const [selection, setSelection] = useState<{ segment: VideoSegment; source?: string } | null>(null);
+  const activeVideoSegment = selection && selection.source === source ? selection.segment : null;
+  const sectionWatchRef = useRef<{ watch: SectionWatch; source?: string } | null>(null);
+  const pendingRangesRef = useRef(new Map<string, Set<string>>());
+  const completedRanges = source ? block.progress?.completed_video_sections?.[source] ?? [] : [];
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata]);
   const initialPosition = segmentPlaybackStart(videoSegments, block.progress?.video_last_position || 0);
   const fetchStream = useCallback(async () => {
     const response = await api.contentVideoStream(block.id, undefined, cohortId);
+    if (source && response.video_source && response.video_source !== source) throw new Error('The recording changed. Reopen the lesson to load it.');
     return { stream_url: response.stream_url, expires_at: response.expires_at };
-  }, [api, block.id, cohortId]);
+  }, [api, block.id, cohortId, source]);
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
     if (!trackProgressRef.current) return;
-    const response = await api.updateContentVideoProgress(block.id, progress, cohortId);
+    const pending = source ? pendingRangesRef.current.get(source) : undefined;
+    const response = await api.updateContentVideoProgress(block.id, {
+      ...progress,
+      ...(source ? { video_source: source } : {}),
+      ...(pending?.size ? { completed_section_ranges: [...pending] } : {}),
+    }, cohortId);
+    if (source && pending) {
+      for (const range of response.video_progress.completed_video_sections?.[source] ?? []) pending.delete(range);
+    }
     if (response.video_progress.completed && !trackedCompletionRef.current) {
       trackedCompletionRef.current = true;
       captureProductEvent('learning_step_completed', {
@@ -372,25 +386,62 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
     const transitioned = previous.status !== next.status || previous.completed !== next.completed;
     savedVideoStateRef.current = next;
     if (!userId) return;
-    queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id, cohortId), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
+    queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id, cohortId), (current) => current ? {
+      lesson: {
+        ...current.lesson,
+        content_blocks: current.lesson.content_blocks.map((candidate) => {
+          if (candidate.id !== block.id || candidate.video_progress_sources?.default !== source) return candidate;
+          const saved = response.video_progress;
+          const completed = candidate.progress?.status === 'completed' || saved.completed;
+          const sections = { ...candidate.progress?.completed_video_sections };
+          for (const [asset, ranges] of Object.entries(saved.completed_video_sections ?? {})) {
+            sections[asset] = [...new Set([...(sections[asset] ?? []), ...ranges])];
+          }
+          return { ...candidate, progress: {
+            status: completed ? 'completed' : saved.status,
+            completed_at: candidate.progress?.completed_at ?? (completed ? new Date().toISOString() : null),
+            video_last_position: saved.last_position,
+            video_total_watched: Math.max(candidate.progress?.video_total_watched ?? 0, saved.total_watched),
+            completed_video_sections: sections,
+          } };
+        }),
+      },
+    } : current);
     if (transitioned) void queryClient.invalidateQueries({ predicate: (query) => isLearnerOverviewQuery(query.queryKey, userId) });
-  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, userId]);
+  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, source, userId]);
 
-  if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
+  const onPlaybackSample = useCallback<PlaybackSample>((from, to, watched) => {
+    const attempt = sectionWatchRef.current;
+    if (attempt && attempt.source === source) attempt.watch.observe(from, to, watched);
+  }, [source]);
   const seekToSegment = (segment: VideoSegment) => {
-    setActiveVideoSegment(segment);
-    setCompletedVideoSegment(null);
-    hostedPlayerRef.current?.seekTo(segment.start_seconds, true);
+    sectionWatchRef.current = { watch: new SectionWatch(segment), source };
+    setSelection({ segment, source });
+    hostedPlayerRef.current?.seekTo(segment.start_seconds, true, segment.end_seconds);
     linkedPlayerRef.current?.seekTo(segment.start_seconds, true, segment.end_seconds);
   };
   const finishSegment = () => {
-    if (!activeVideoSegment) return;
-    setCompletedVideoSegment(activeVideoSegment);
-    setActiveVideoSegment(null);
+    const attempt = sectionWatchRef.current;
+    if (!attempt || attempt.source !== source) return;
+    sectionWatchRef.current = null;
+    setSelection(null);
+    if (!attempt.watch.finished || !source || !trackProgressRef.current) return;
+    const pending = pendingRangesRef.current.get(source) ?? new Set<string>();
+    pending.add(sectionRange(attempt.watch.segment));
+    pendingRangesRef.current.set(source, pending);
   };
-  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer ref={hostedPlayerRef} fetchStream={fetchStream} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={trackProgress} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
+
+  if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
+  const sectionControls = <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedRanges={completedRanges} onSelect={seekToSegment} />;
+  const tracking = {
+    initialPosition, initialTotalWatched: block.progress?.video_total_watched || 0, saveProgress,
+    stopAtSeconds: activeVideoSegment?.end_seconds ?? null, onStopAtReached: finishSegment, onPlaybackSample,
+    title: block.title || lesson.title, trackProgress, completionSaved: block.progress?.status === 'completed',
+  };
+  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer key={source} ref={hostedPlayerRef} fetchStream={fetchStream} {...tracking} />{sectionControls}</View>;
   if (!block.video_url) return user?.is_staff ? <View style={styles.stagedVideo}><Film color={c.text.muted} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>No video source attached</Text><Text style={styles.stagedVideoCopy}>Add a link or hosted file in the editor.</Text></View></View> : null;
-  return <View style={styles.nativeVideo}><InAppMediaPlayer ref={linkedPlayerRef} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={trackProgress} url={block.video_url} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
+  return <View style={styles.nativeVideo}><InAppMediaPlayer key={source ?? block.video_url} ref={linkedPlayerRef} url={block.video_url} {...tracking} />{sectionControls}</View>;
+
 }
 
 /** The latest review: one card with the status and the instructor's formatted feedback. */

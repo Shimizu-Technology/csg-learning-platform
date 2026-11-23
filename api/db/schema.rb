@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -1217,6 +1217,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.integer "video_total_watched", default: 0
     t.datetime "watch_credit_at"
     t.float "watch_credit_fraction", default: 0.0, null: false
+    t.jsonb "completed_video_sections", default: {}, null: false
     t.index ["content_block_id"], name: "index_progresses_on_content_block_id"
     t.index ["enrollment_id", "content_block_id"], name: "idx_progresses_enrollment_block", unique: true, where: "(enrollment_id IS NOT NULL)"
     t.index ["enrollment_id"], name: "index_progresses_on_enrollment_id"

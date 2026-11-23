@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
-import type { ReactElement } from 'react';
+import type { ReactElement, Ref } from 'react';
 
 import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/types';
 
@@ -29,8 +29,15 @@ jest.mock('@/lib/submission-storage', () => ({
   loadSubmissionDraft: (...args: unknown[]) => mockLoadDraft(...args),
   saveSubmissionDraft: (...args: unknown[]) => mockSaveDraft(...args),
 }));
-jest.mock('../native-video-player', () => ({ NativeVideoPlayer: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'hosted-video', ...props }) }));
-jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'linked-video', ...props }) }));
+function mockPlayer(testID: string) {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return function MockPlayer({ ref, ...props }: { ref?: Ref<{ seekTo: () => void }> }) {
+    React.useImperativeHandle(ref, () => ({ seekTo: jest.fn() }));
+    return React.createElement(jest.requireActual('react-native').View, { testID, ...props });
+  };
+}
+jest.mock('../native-video-player', () => ({ NativeVideoPlayer: mockPlayer('hosted-video') }));
+jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: mockPlayer('linked-video') }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({
   useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: mockProgress, attemptKnowledgeCheck: mockAttempt, updateContentVideoProgress: mockVideoProgress }, user: { id: 4, is_staff: mockIsStaff, full_name: 'Maria Santos' } }),
@@ -462,4 +469,43 @@ it('gives every submission input on a lesson its own keyboard bar', async () => 
   const accessoryIds = screen.UNSAFE_getAllByType(InputAccessoryView).map((view) => view.props.nativeID);
   expect([...accessoryIds].sort()).toEqual([...inputIds].sort());
   expect(screen.getAllByLabelText('Submit work, above keyboard')).toHaveLength(13);
+});
+
+it.each([true, false])('reports checked sections through the selected player (hosted=%s)', async (hosted) => {
+  mockVideoProgress.mockClear();
+  const block = checkpoint({
+    block_type: 'recording', has_s3_video: hosted, video_url: hosted ? null : 'https://www.youtube.com/watch?v=abcdef12345',
+    video_progress_sources: { default: 'source' },
+    metadata: { video_segments: [
+      { label: 'First Core', start_seconds: 1, end_seconds: 3, required: true },
+      { label: 'Second Core', start_seconds: 5, end_seconds: 7, required: true },
+    ] },
+    progress: { status: 'in_progress', completed_at: null, video_last_position: 3, video_total_watched: 2, completed_video_sections: { source: ['1:3'] } },
+  });
+  mockVideoProgress
+    .mockResolvedValueOnce({ video_progress: { completed: false, status: 'in_progress', last_position: 7, total_watched: 2, completed_video_sections: { source: ['1:3'] } } })
+    .mockResolvedValueOnce({ video_progress: { completed: true, status: 'completed', last_position: 7, total_watched: 4, completed_video_sections: { source: ['1:3', '5:7'] } } });
+  const screen = renderWithQuery(<LessonContentBlockCard block={block} lesson={lesson} />);
+  const player = () => screen.getByTestId(hosted ? 'hosted-video' : 'linked-video').props;
+  const select = () => fireEvent.press(screen.getByRole('button', { name: /^Play Second Core/ }));
+  const payload = { last_position_seconds: 7, total_watched_seconds: 4, duration_seconds: 60 };
+  expect(screen.getByRole('button', { name: /First Core.*section finished/ })).toBeTruthy();
+
+  select();
+  await act(async () => {
+    player().onPlaybackSample(5, 7, 0);
+    player().onStopAtReached();
+    await player().saveProgress(payload);
+  });
+  expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source' }, 2);
+
+  select();
+  await act(async () => {
+    player().onPlaybackSample(5, 6, 1);
+    player().onPlaybackSample(6, 7, 1);
+    player().onStopAtReached();
+    await player().saveProgress(payload);
+  });
+  expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source', completed_section_ranges: ['5:7'] }, 2);
+  expect(screen.getByRole('button', { name: /First Core.*section finished/ })).toBeTruthy();
 });
