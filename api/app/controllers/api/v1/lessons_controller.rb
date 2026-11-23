@@ -456,18 +456,17 @@ module Api
           @editor_video_content_type = validated_video_content_type(payload[:s3_video_content_type])
           return false if performed?
         end
-        if payload[:s3_video_size].present?
-          @editor_video_size = Integer(payload[:s3_video_size].to_s, 10)
-          unless @editor_video_size.between?(1, S3Service::MAX_UPLOAD_SIZE)
-            render json: { error: "s3_video_size must be between 1 byte and 5 GB" }, status: :unprocessable_entity
-            return false
-          end
+        @editor_video_size = Integer(payload[:s3_video_size].to_s, 10, exception: false)
+        if @editor_video_size.nil?
+          render json: { error: "s3_video_size must be a whole number" }, status: :unprocessable_entity
+          return false
+        end
+        unless @editor_video_size.between?(1, S3Service::MAX_UPLOAD_SIZE)
+          render json: { error: "s3_video_size must be between 1 byte and 5 GB" }, status: :unprocessable_entity
+          return false
         end
 
         true
-      rescue ArgumentError, TypeError
-        render json: { error: "s3_video_size must be a whole number" }, status: :unprocessable_entity
-        false
       end
 
       # Locks the blocks this save writes in one ascending id pass, the order

@@ -480,6 +480,26 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal original_metadata, @video_block.reload.metadata
   end
 
+  test "legacy editor reports malformed recording sections without changing the lesson" do
+    original_title = @lesson.title
+    original_metadata = @video_block.metadata
+
+    [ nil, "bad", [ "bad" ], {} ].each do |segments|
+      as_user(@admin) do
+        patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: {
+          base_updated_at: @lesson.reload.updated_at.iso8601(6), title: "Updated lesson",
+          video: { id: @video_block.id, video_segments: segments }
+        } }, headers: auth_headers, as: :json
+      end
+
+      assert_response :unprocessable_entity
+      assert_equal({ "errors" => [ "Recording sections must be a list of sections with a start and end" ] },
+        JSON.parse(response.body))
+      assert_equal original_title, @lesson.reload.title
+      assert_equal original_metadata, @video_block.reload.metadata
+    end
+  end
+
   test "legacy editor uses the hosted duration and rolls back the lesson update" do
     @video_block.update!(s3_video_key: "content_videos/11111111-1111-4111-8111-111111111111/original.mp4",
       s3_video_duration_seconds: 120, metadata: { "archive_role" => "keep" })
