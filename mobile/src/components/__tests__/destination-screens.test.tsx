@@ -1,6 +1,7 @@
 import type { SessionEnrollment } from '@/lib/types';
 import { ApiError } from '@/lib/api';
 import { learningKeys } from '@/lib/learning';
+import { configureSchoolTime } from '@/lib/school-time';
 import { parseCachedSession, serializeCachedSession } from '@/lib/session-access';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CohortProvider, useCohort } from '@/providers/cohort-provider';
@@ -72,6 +73,24 @@ it('uses the source cohort before querying and highlights the notified exercise'
   expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2);
 
   expect(screen.getByTestId('lesson-block-8')).toBeTruthy();
+});
+it.each([
+  ['Pacific/Guam', 'ChST', '2027-01-15T13:59:59Z', 'Jan 15, 2027, 11:59 PM ChST'],
+  ['America/Chicago', 'CST', '2027-03-14T05:59:59Z', 'Mar 13, 2027, 11:59 PM CST'],
+  ['America/Chicago', 'CST', '2027-03-15T04:59:59Z', 'Mar 14, 2027, 11:59 PM CDT'],
+])('shows personal lesson deadlines in %s', async (time_zone, time_zone_label, submissions_close_at, label) => {
+  configureSchoolTime({ time_zone, time_zone_label });
+  try {
+    mockParams = { id: '42', cohort_id: '2' };
+    mockApi.lesson.mockResolvedValue({ lesson: {
+      id: 42, cohort_id: 2, module_id: 1, title: 'Final project', lesson_type: 'project', content_blocks: [],
+      show_personal_deadline: true, submission_window: { submissions_close_at, submissions_closed: false },
+    } });
+    const screen = render(<LessonScreen />, { wrapper: Wrapper });
+    expect(await screen.findByText(`Submission deadline: ${label}`)).toBeTruthy();
+  } finally {
+    configureSchoolTime();
+  }
 });
 it('shows inaccessible cohort recovery without fetching under the selected cohort', () => {
   mockParams = { id: '42', cohort_id: '99', block_id: '8' };

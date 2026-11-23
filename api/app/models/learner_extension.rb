@@ -11,7 +11,7 @@ class LearnerExtension < ApplicationRecord
   validate :target_in_enrollment
   validate :target_immutable
   validate :deadline_does_not_shorten_window
-  validate :final_deadline_is_guam_end_of_day
+  validate :final_deadline_is_school_end_of_day
 
   # Lesson deletion nullifies the FK while preserving this row and its history.
   # Such a grant has no effective target and must not opt learners into UI.
@@ -31,7 +31,7 @@ class LearnerExtension < ApplicationRecord
     self.removed_at = removing ? Time.current : nil
     self.revisions = revisions + [ attributes.slice("scope", "lesson_id", "module_id", "week_number", "submissions_close_at", "reason", "granted_by_id", "granted_at", "removed_at").merge("granted_by_name" => actor.full_name) ]
     save!
-    move_plan!(actor, removing) if scope == "final"
+    move_plan!(actor, removing) if scope == "final" && (removing || saved_change_to_submissions_close_at?)
   end
 
   def staff_json
@@ -48,7 +48,7 @@ class LearnerExtension < ApplicationRecord
       return
     end
 
-    target = enrollment.learner_extensions.reload.select(&:effective?).select { |item| item.scope == "final" }.map { |item| item.submissions_close_at.in_time_zone("Pacific/Guam").to_date }.max
+    target = enrollment.learner_extensions.reload.select(&:effective?).select { |item| item.scope == "final" }.map { |item| LearningCalendar.today(at: item.submissions_close_at) }.max
     shift = (target - plan.target_date).to_i
     return unless shift.positive?
 
@@ -61,13 +61,16 @@ class LearnerExtension < ApplicationRecord
     plan.revisions.create!(author: actor, snapshot: plan.snapshot)
   end
 
-  # Firm final grants are calendar dates, represented as Guam end of day.
+  # Firm final grants are calendar dates, represented as school-local end of day.
   # Lesson and module grants may use an exact cutoff time.
-  def final_deadline_is_guam_end_of_day
+  def final_deadline_is_school_end_of_day
     return unless scope == "final" && submissions_close_at && !removed_at
 
-    local = submissions_close_at.in_time_zone("Pacific/Guam")
-    errors.add(:submissions_close_at, "must be end of day (23:59:59) in Guam for a final-date grant") unless [ local.hour, local.min, local.sec ] == [ 23, 59, 59 ]
+    return if persisted? && !will_save_change_to_submissions_close_at?
+
+    zone = LearningCalendar.time_zone
+    local = submissions_close_at.in_time_zone(zone)
+    errors.add(:submissions_close_at, "must be end of day (23:59:59) in #{zone} for a final-date grant") unless [ local.hour, local.min, local.sec ] == [ 23, 59, 59 ]
   end
 
   def deadline_does_not_shorten_window

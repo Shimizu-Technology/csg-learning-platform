@@ -3,10 +3,11 @@ import { api } from '../../lib/api'
 import { Button } from '../ui/Button'
 import { Modal } from '../shared/Modal'
 import { formatShortDateTime } from '../../lib/format'
+import { schoolDateInputValue, schoolTimeDescription, schoolWallTimeToIso } from '../../lib/schoolTime'
 import type { LearnerExtension } from '../../types/api'
 
 type Module = { id: number; name: string; lessons: { id: number; title: string; release_day: number }[] }
-const guamDate = (value: string) => formatShortDateTime(value, 'Not recorded', 'Pacific/Guam')
+const schoolDateTime = (value: string) => formatShortDateTime(value, 'Not recorded')
 
 export function StudentExtensions({ enrollmentId, modules, onSaved }: {
   enrollmentId: number; modules: Module[]; onSaved: () => void
@@ -59,13 +60,21 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
   async function save(event: FormEvent) {
     event.preventDefault()
     if (writesDisabled) return
+    const original = items.find((item) => item.id === editing)?.submissions_close_at
+    // A reason-only edit must keep the exact instant, including legacy grants.
+    const dateChanged = !original || schoolDateInputValue(original) !== date
+    const closeAt = dateChanged ? schoolWallTimeToIso(`${date}T23:59:59`) : null
+    if (dateChanged && !closeAt) {
+      setError('Choose a valid deadline date in the school time zone.')
+      return
+    }
     setBusy(true); setError(''); setNotice('')
     const [scope, targetId, week] = target.split(':')
     try {
       const result = await api.saveLearnerExtension(enrollmentId, {
         scope: scope as 'final' | 'lesson' | 'module', lesson_id: scope === 'lesson' ? Number(targetId) : null,
         module_id: scope === 'module' ? Number(targetId) : null, week_number: scope === 'module' ? Number(week) : null,
-        submissions_close_at: `${date}T23:59:59+10:00`, reason,
+        ...(closeAt && { submissions_close_at: closeAt }), reason,
       }, editing)
       if (result.data && !result.error) {
         setItems(result.data.extensions); setReason(''); setEditing(undefined)
@@ -93,7 +102,7 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
   function edit(item: LearnerExtension) {
     setEditing(item.id)
     setTarget(item.scope === 'final' ? 'final' : `${item.scope}:${item.scope === 'lesson' ? item.lesson_id : item.module_id}${item.scope === 'module' ? `:${item.week_number}` : ''}`)
-    setDate(new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam' }).format(new Date(item.submissions_close_at)))
+    setDate(schoolDateInputValue(item.submissions_close_at))
     setReason(''); setError(''); setNotice('')
   }
 
@@ -113,7 +122,7 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
           ])}
         </select>
       </label>
-      <label className="text-sm font-semibold text-ink">New deadline (Guam)
+      <label className="text-sm font-semibold text-ink">New deadline ({schoolTimeDescription()})
         <input type="date" required className="app-control mt-1 w-full" value={date} onChange={(event) => setDate(event.target.value)} disabled={writesDisabled} />
       </label>
       <div>
@@ -130,16 +139,16 @@ export function StudentExtensions({ enrollmentId, modules, onSaved }: {
       <Button variant="secondary" disabled={busy || loading} onClick={() => setLoadVersion((value) => value + 1)}>Reload extensions</Button>
     </div>}
     <ul className="space-y-3" aria-label="Extensions">{items.map((item) => <li key={item.id} className="rounded-xl border border-line p-3 text-sm text-ink">
-      <p className="font-semibold">{targetLabel(item)} · {guamDate(item.submissions_close_at)}{item.removed_at ? ' · Removed' : ''}</p>
+      <p className="font-semibold">{targetLabel(item)} · {schoolDateTime(item.submissions_close_at)}{item.removed_at ? ' · Removed' : ''}</p>
       <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{item.reason}</p>
-      <p className="text-ink-muted">Granted by {item.granted_by_name} · {guamDate(item.granted_at)}</p>
+      <p className="text-ink-muted">Granted by {item.granted_by_name} · {schoolDateTime(item.granted_at)}</p>
       {!item.removed_at && <div className="mt-2 flex gap-2">
         <Button variant="secondary" disabled={writesDisabled || (item.scope === 'lesson' && item.lesson_id === null)} onClick={() => edit(item)}>Edit</Button>
         <Button variant="secondary" disabled={writesDisabled} onClick={() => { setRemoving(item); setRemovalReason(''); setRemovalError('') }}>Remove</Button>
       </div>}
       <details className="mt-2"><summary className="min-h-11 cursor-pointer py-3">Extension history ({item.revisions.length})</summary>
         <ol className="space-y-2">{item.revisions.map((entry, index) => <li key={index} className="[overflow-wrap:anywhere]">
-          {guamDate(String(entry.granted_at))} · {String(entry.reason)} · {entry.removed_at ? 'Removed' : guamDate(String(entry.submissions_close_at))}
+          {schoolDateTime(String(entry.granted_at))} · {String(entry.reason)} · {entry.removed_at ? 'Removed' : schoolDateTime(String(entry.submissions_close_at))}
         </li>)}</ol>
       </details>
     </li>)}</ul>

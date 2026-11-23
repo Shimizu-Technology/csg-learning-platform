@@ -186,7 +186,7 @@ export function LessonExperience({
         </div>
       </header>
       <LearningObjectivesPanel objectives={lesson.objectives || []} />
-      {lesson.show_personal_deadline && lesson.submission_window?.submissions_close_at && <p className="text-sm text-ink-secondary">Submission deadline: {formatShortDateTime(lesson.submission_window.submissions_close_at, undefined, 'Pacific/Guam')}</p>}
+      {lesson.show_personal_deadline && lesson.submission_window?.submissions_close_at && <p className="text-sm text-ink-secondary">Submission deadline: {formatShortDateTime(lesson.submission_window.submissions_close_at)}</p>}
       {lesson.submission_window?.submissions_closed && (
         <p className="rounded-xl border border-line bg-surface-sunken p-4 text-sm text-ink-secondary">
           Submissions are closed for this week. Your work and feedback are saved.

@@ -89,7 +89,7 @@ module Api
         raw = raw_value.to_s.strip
         unless Iso8601TimeInput.explicit_offset?(raw)
           raise InvalidSubmissionWindow,
-            "Submission close time must include a UTC offset (for example, Z or +10:00)"
+            "Submission close time must include a UTC offset (for example, Z or -05:00)"
         end
 
         Time.iso8601(raw)
