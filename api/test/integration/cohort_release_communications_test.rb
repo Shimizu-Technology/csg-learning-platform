@@ -58,6 +58,22 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
     assert_equal @cohort.id, response.parsed_body.dig("release_communications", "cohort_id")
   end
 
+  test "Chicago release dates use the offset on the send day across DST" do
+    config = Rails.application.config.x.school
+    previous_zone = config.time_zone
+    config.time_zone = "America/Chicago"
+    travel_to Time.utc(2027, 3, 13, 12)
+    @cohort.update!(start_date: Date.new(2027, 3, 13), status: :active)
+
+    as_user(@instructor) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+    assert_response :success
+    payload = response.parsed_body.fetch("release_communications")
+    assert_equal "CST", payload.dig("configuration", "school_time_zone_label")
+    assert_equal [ "2027-03-13T13:00:00Z", "2027-03-14T12:00:00Z" ], payload.fetch("upcoming_releases").map { |row| Time.iso8601(row.fetch("scheduled_send_at")).utc.iso8601 }
+  ensure
+    config.time_zone = previous_zone
+  end
+
   test "returns configuration, recipient breakdown, anonymous single-digest preview, and safe deep links without leaking secrets or learner names" do
     SchoolSetting.delete_all
 

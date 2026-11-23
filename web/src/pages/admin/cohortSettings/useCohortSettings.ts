@@ -13,7 +13,8 @@ import {
   type ClassResource,
   COHORT_STATUS_OPTIONS,
   type CohortData,
-  dateTimeInputToIso,
+  submissionWindowCloseAt,
+  submissionWindowCloseWasEdited,
   emptyGuidedTerms,
   guidedTermParams,
   type SubmissionWindowForm,
@@ -96,6 +97,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
       nextWindows[mod.id] = (mod.submission_windows || []).map((window) => ({
         week_number: window.week_number,
+        saved_close_at: window.submissions_close_at,
         submissions_close_at: toDateTimeInputValueInTimeZone(window.submissions_close_at, schoolTimeZone),
         submissions_closed: window.submissions_closed,
         status: window.status,
@@ -170,6 +172,13 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         return
       }
     }
+    const editedWindows = Object.fromEntries(cohort.modules.map((mod) => [
+      mod.id, (submissionWindows[mod.id] || []).filter(submissionWindowCloseWasEdited),
+    ]))
+    if (Object.values(editedWindows).flat().some((window) => window.submissions_close_at && !submissionWindowCloseAt(window))) {
+      notifyError('Choose a valid submission close time in the school time zone.')
+      return
+    }
     setSaving(true)
     try {
       const candidates = {
@@ -235,16 +244,13 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
             })
             if (result.error) throw new Error(result.error)
           }
-          if (
-            JSON.stringify(submissionWindows[mod.id]) !==
-            JSON.stringify(buildSubmissionWindowsFromCohort(cohort)[mod.id])
-          ) {
+          if (editedWindows[mod.id].length) {
             const result = await api.updateCohortModuleSubmissionWindows(
               Number(id),
               mod.id,
-              (submissionWindows[mod.id] || []).map((window) => ({
+              editedWindows[mod.id].map((window) => ({
                 week_number: window.week_number,
-                submissions_close_at: dateTimeInputToIso(window.submissions_close_at),
+                submissions_close_at: submissionWindowCloseAt(window),
               })),
             )
             if (result.error) throw new Error(result.error)

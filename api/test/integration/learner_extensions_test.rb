@@ -361,6 +361,83 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     assert_includes response.parsed_body.fetch("errors").join, "end of day"
   end
 
+  test "Chicago personal deadlines are enforced at school end of day on both sides of DST" do
+    with_school_time_zone("America/Chicago") do
+      @cohort.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 6 ], start_date: Date.new(2026, 12, 21))
+      @lesson.update!(lesson_type: :project)
+      travel_to(Time.utc(2027, 1, 1, 16)) { LearnerPace.new(@enrollment).choose!(weeks: 3, actor: @teacher) }
+
+      { "2027-01-15" => "2027-01-16T05:59:59Z",
+        "2027-03-13" => "2027-03-14T05:59:59Z",
+        "2027-03-14" => "2027-03-15T04:59:59Z" }.each do |date, iso|
+        @enrollment.learning_plan.update!(target_date: Date.iso8601(date))
+        close_at = SubmissionWindowContext.new(@enrollment.reload).close_at(@lesson)
+        assert_equal iso, close_at.utc.iso8601
+        assert_not SubmissionWindowStatus.closed_for_lesson?(cohort: @cohort, lesson: @lesson, enrollment: @enrollment, at: Time.iso8601(iso) - 1.second)
+        assert SubmissionWindowStatus.closed_for_lesson?(cohort: @cohort, lesson: @lesson, enrollment: @enrollment, at: Time.iso8601(iso) + 1.second)
+      end
+      travel_to(Time.utc(2027, 3, 15, 4, 59, 58)) { submit; assert_response :created }
+      Submission.where(enrollment: @enrollment).delete_all
+      travel_to(Time.utc(2027, 3, 15, 5)) { submit; assert_response :forbidden }
+    end
+  end
+
+  test "Chicago final grants validate local end of day and project the saved school dates" do
+    with_school_time_zone("America/Chicago") do
+      travel_to(Time.utc(2027, 3, 1, 16)) do
+        @cohort.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 6 ], start_date: Date.new(2027, 2, 15))
+        @lesson.update!(lesson_type: :project)
+        LearnerPace.new(@enrollment).choose!(weeks: 3, actor: @teacher)
+        grant_params = { scope: "final", reason: "Approved extension" }
+        post @path, params: grant_params.merge(submissions_close_at: "2027-03-13T23:59:59+10:00"), headers: headers(@teacher), as: :json
+        assert_response :unprocessable_entity
+        assert_includes response.parsed_body.fetch("errors").join, "America/Chicago"
+
+        post @path, params: grant_params.merge(submissions_close_at: "2027-03-13T23:59:59-06:00"), headers: headers(@teacher), as: :json
+        assert_response :success
+        extension = @enrollment.learner_extensions.reload.sole
+        assert_equal "2027-03-14T05:59:59Z", extension.submissions_close_at.utc.iso8601
+        patch "#{@path}/#{extension.id}", params: grant_params.merge(submissions_close_at: "2027-03-15T04:59:59Z"), headers: headers(@teacher), as: :json
+        assert_response :success
+        assert_equal "2027-03-15T04:59:59Z", extension.reload.submissions_close_at.utc.iso8601
+        assert_equal Date.new(2027, 3, 14), @enrollment.learning_plan.reload.target_date
+        outline = CourseOutline.new(@enrollment.reload).call
+        assert_equal "2027-03-14", outline.fetch(:next_lesson).fetch(:due_on)
+        pace = LearnerPace.new(@enrollment).as_json(LearnerProgress.new(@enrollment))
+        assert_equal Date.new(2027, 3, 14), pace.fetch(:final_project).fetch(:due_on)
+        assert_equal Date.new(2027, 3, 14), pace.fetch(:milestones).last.fetch(:due_on)
+      end
+    end
+  end
+
+  test "explicit lesson and module offsets keep both instants in a fall fold" do
+    with_school_time_zone("America/Chicago") do
+      travel_to(Time.utc(2027, 10, 30, 16)) do
+        @cohort.cohort_module_submission_windows.sole.update!(submissions_close_at: Time.current - 1.day)
+        [ input.merge(submissions_close_at: "2027-11-07T01:30:42-05:00"),
+          input.except(:lesson_id).merge(scope: "module", module_id: @mod.id, week_number: 1, submissions_close_at: "2027-11-07T01:30:42-06:00") ].each do |params|
+          post @path, params: params, headers: headers(@teacher), as: :json
+          assert_response :success
+        end
+        assert_equal %w[2027-11-07T06:30:42Z 2027-11-07T07:30:42Z], @enrollment.learner_extensions.order(:id).map { |grant| grant.submissions_close_at.utc.iso8601 }
+      end
+    end
+  end
+
+  test "reason-only edits keep a legacy final grant at its saved instant" do
+    @cohort.update!(course_delivery: "guided", learner_pace_weeks: [ 3, 6 ])
+    @lesson.update!(lesson_type: :project)
+    LearnerPace.new(@enrollment.reload).choose!(weeks: 3, actor: @teacher)
+    legacy = @enrollment.learner_extensions.new(scope: "final", submissions_close_at: (LearningCalendar.today + 60).in_time_zone("Pacific/Guam").end_of_day.change(usec: 0), reason: "Travel")
+    legacy.record_change!(actor: @teacher)
+    original = legacy.submissions_close_at
+    with_school_time_zone("America/Chicago") do
+      patch "#{@path}/#{legacy.id}", params: { reason: "Clarified", submissions_close_at: original.iso8601 }, headers: headers(@teacher), as: :json
+      assert_response :success
+      assert_equal original, legacy.reload.submissions_close_at
+    end
+  end
+
   test "hard deletion nullifies a lesson target while retaining its grant history" do
     grant
     extension = @enrollment.learner_extensions.first
@@ -472,5 +549,14 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
   def headers(user) = { "Authorization" => "Bearer test_token_#{user.id}" }
   def input = { scope: "lesson", lesson_id: @lesson.id, submissions_close_at: 2.days.from_now.iso8601, reason: "Travel" }
   def grant = post(@path, params: input, headers: headers(@teacher), as: :json)
+  def with_school_time_zone(zone)
+    config = Rails.application.config.x.school
+    previous = config.time_zone
+    config.time_zone = zone
+    yield
+  ensure
+    config.time_zone = previous
+  end
+
   def submit = post("/api/v1/submissions", params: { content_block_id: @block.id, cohort_id: @cohort.id, text: "Answer" }, headers: headers(@student), as: :json)
 end

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
+import { formatTime, timeZoneLabel } from '../../lib/format'
 import type { ReleaseCommunications, ReleaseCommunicationsDelivery } from '../../types/api'
 import { RecordLink } from '../shared/RecordLink'
 import { Badge, type BadgeTone } from '../ui/Badge'
@@ -353,6 +354,7 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-bold text-ink">{formatSchoolDate(release.release_date)}</p>
+                          <span className="text-xs text-ink-secondary">{formatTime(release.scheduled_send_at, 'Time unavailable', config.school_time_zone)}</span>
                           {release.is_today && <Badge tone="info">Today</Badge>}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
@@ -574,12 +576,12 @@ export function ReleaseCommunicationsPanel({ cohortId }: { cohortId: number }) {
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
               <span>
                 Last run: {formatTimestamp(schedulerHealth.last_run_at, config.school_time_zone)}
-                {schedulerHealth.last_run_at ? ` ${config.school_time_zone_label}` : ''}
+                {schedulerHealth.last_run_at ? ` ${timeZoneLabel(config.school_time_zone, new Date(schedulerHealth.last_run_at))}` : ''}
               </span>
               {schedulerHealth.last_succeeded_at && (
                 <span>
                   Last success: {formatTimestamp(schedulerHealth.last_succeeded_at, config.school_time_zone)}{' '}
-                  {config.school_time_zone_label}
+                  {timeZoneLabel(config.school_time_zone, new Date(schedulerHealth.last_succeeded_at))}
                 </span>
               )}
               {schedulerHealth.error_class && (

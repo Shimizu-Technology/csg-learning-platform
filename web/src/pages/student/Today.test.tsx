@@ -393,14 +393,14 @@ it.each([false, true])('first-run support date describes whether support ended (
   expect(welcome.textContent).not.toContain(ended ? 'Support until' : 'Support ended on')
 })
 
-it('formats a Guam deadline in Guam even when the school zone is Honolulu', async () => {
-  configureSchoolTime({ time_zone: 'Pacific/Honolulu', time_zone_label: 'HST' })
+it('formats the deadline in the configured school zone', async () => {
+  configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CDT' })
   try {
     state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
     mocks.getDashboard.mockResolvedValue({ data: { dashboard: onDashboard(studentToday({
-      next_lesson: { ...studentToday().next_lesson, submission_window: { week_number: 1, submissions_close_at: '2030-01-15T00:00:00Z', submissions_closed: false, status: 'scheduled' } },
+      next_lesson: { ...studentToday().next_lesson, submission_window: { week_number: 1, submissions_close_at: '2030-01-16T05:59:59Z', submissions_closed: false, status: 'scheduled' } },
     })) } })
     await render('/dashboard?cohort_id=9', <TodayRoute />)
-    expect(text()).toContain('Submission deadline: Jan 15, 2030, 10:00 AM ChST (Guam)')
+    expect(text()).toContain('Submission deadline: Jan 15, 2030, 11:59 PM CST')
   } finally { configureSchoolTime() }
 })

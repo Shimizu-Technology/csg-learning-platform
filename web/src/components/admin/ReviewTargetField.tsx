@@ -1,3 +1,4 @@
+import { schoolTimeLocation } from '../../lib/schoolTime'
 import { useId } from 'react'
 
 export function ReviewTargetField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -19,7 +20,7 @@ export function ReviewTargetField({ value, onChange }: { value: string; onChange
         />
       </label>
       <p id={help} className="mt-1 text-sm text-ink-secondary">
-        Learners see a feedback date and staff see when a review is late. Counts weekdays in Guam, excluding school holidays. Leave blank to turn off.
+        Learners see a feedback date and staff see when a review is late. Counts weekdays in {schoolTimeLocation()}, excluding school holidays. Leave blank to turn off.
       </p>
     </div>
   )

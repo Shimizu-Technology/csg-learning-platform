@@ -1,4 +1,4 @@
-# Deadlines use Guam calendar dates. The submission day never counts, and
+# Deadlines use school calendar dates. The submission day never counts, and
 # feedback is on time through the end of the Nth eligible weekday.
 class ReviewSla
   def initialize(holidays:)

@@ -83,8 +83,8 @@ class CohortReleaseCommunications
     "scheduled_daily_unlock"
   end
 
-  def time_zone_label
-    SchoolTime.label(TZInfo::Timezone.get(@time_zone_name), at: @now)
+  def time_zone_label(at = @now)
+    SchoolTime.label(TZInfo::Timezone.get(@time_zone_name), at: at)
   end
 
   def eligibility_reason
@@ -95,9 +95,9 @@ class CohortReleaseCommunications
     elsif !%w[active upcoming].include?(effective_cohort_status)
       "Completed and archived cohorts do not send scheduled daily unlock emails."
     elsif effective_cohort_status == "upcoming"
-      "Scheduled daily unlock emails will start on #{@cohort.start_date.iso8601} at #{formatted_unlock_hour} #{time_zone_label}."
+      "Scheduled daily unlock emails will start on #{@cohort.start_date.iso8601} at #{formatted_unlock_hour} #{time_zone_label(scheduled_time_on(@cohort.start_date))}."
     else
-      "Active learners receive one daily email digest at #{formatted_unlock_hour} #{time_zone_label} when lessons unlock (up to #{DailyUnlockNotifications::CATCH_UP_DAYS} school days of catch-up)."
+      "Active learners receive one daily email digest at #{formatted_unlock_hour} #{@time_zone_name == "Pacific/Guam" ? time_zone_label : "school time"} when lessons unlock (up to #{DailyUnlockNotifications::CATCH_UP_DAYS} school days of catch-up)."
     end
   end
 

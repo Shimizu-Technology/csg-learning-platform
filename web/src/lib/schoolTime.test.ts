@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { schoolTimeLabel, schoolTimeGenericLabel, schoolTimeDescription, configureSchoolTime, schoolTimeZone, schoolTimeZoneLabel, schoolWallTimeToIso, schoolWeekEndsAt } from './schoolTime'
+import { schoolDateInputValue, schoolTimeLabel, schoolTimeGenericLabel, schoolTimeDescription, configureSchoolTime, schoolTimeZone, schoolTimeZoneLabel, schoolWallTimeToIso, schoolWeekEndsAt } from './schoolTime'
 import { formatShortDateTime } from './format'
 import { partitionMeetingWeeks, formatGuamMeetingTime } from './privateMeetings'
 
@@ -67,4 +67,17 @@ it('uses dated DST labels and generic undated labels', () => {
   expect(schoolTimeLabel(new Date('2026-01-01T12:00:00Z'))).toBe('EST')
   expect(schoolTimeGenericLabel()).toBe('ET')
   expect(schoolTimeDescription()).toBe('ET time')
+})
+
+
+it('round-trips Chicago end-of-day dates with the offset and label on each side of DST', () => {
+  configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CST' })
+  const before = schoolWallTimeToIso('2027-03-13T23:59:59')
+  const after = schoolWallTimeToIso('2027-03-14T23:59:59')
+  expect(before).toBe('2027-03-14T05:59:59.000Z')
+  expect(after).toBe('2027-03-15T04:59:59.000Z')
+  expect(schoolDateInputValue(before!)).toBe('2027-03-13')
+  expect(schoolDateInputValue(after!)).toBe('2027-03-14')
+  expect(formatShortDateTime(before)).toBe('Mar 13, 2027, 11:59 PM CST')
+  expect(formatShortDateTime(after)).toBe('Mar 14, 2027, 11:59 PM CDT')
 })

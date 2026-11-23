@@ -6,7 +6,7 @@ import { Button } from '../../../components/ui/Button'
 import { formatShortDateTime } from '../../../lib/format'
 import { schoolTimeDescription, schoolTimeGenericLabel, schoolTimeLabel } from '../../../lib/schoolTime'
 import {
-  dateTimeInputToIso,
+  submissionWindowCloseAt,
   formatDateLabel,
   nowDateTimeInputValue,
   submissionWindowStatusForForm,
@@ -187,6 +187,7 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                 ) : (
                   <div className="mt-4 space-y-3">
                     {windowForms.map((window) => {
+                      const closeAt = submissionWindowCloseAt(window)
                       const displayStatus = submissionWindowStatusForForm(window)
                       const statusTone: BadgeTone =
                         displayStatus === 'closed' ? 'warning' : displayStatus === 'scheduled' ? 'info' : 'success'
@@ -210,9 +211,8 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                                   : ''}
                               </p>
                               <p className="mt-1 text-xs tabular-nums text-ink-muted">
-                                {window.submissions_close_at
-                                  ? `Closes ${formatShortDateTime(dateTimeInputToIso(window.submissions_close_at), 'Not scheduled')}`
-                                  : 'No close time set'}
+                                {closeAt ? `Closes ${formatShortDateTime(closeAt)}`
+                                  : window.submissions_close_at ? 'Choose a valid time in the school time zone' : 'No close time set'}
                               </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -228,8 +228,8 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                                   ' submissions close (' +
                                   schoolTimeDescription() +
                                   ', ' +
-                                  (window.submissions_close_at && dateTimeInputToIso(window.submissions_close_at)
-                                    ? schoolTimeLabel(new Date(dateTimeInputToIso(window.submissions_close_at)!))
+                                  (closeAt
+                                    ? schoolTimeLabel(new Date(closeAt))
                                     : schoolTimeGenericLabel()) +
                                   ')'
                                 }
