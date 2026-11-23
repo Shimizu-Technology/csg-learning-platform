@@ -6,11 +6,14 @@ describe('YouTube URLs', () => {
     'https://youtu.be/abc_DEF-123?t=30',
     'https://www.youtube.com/embed/abc_DEF-123?start=30',
     'https://www.youtube.com/watch?v=abc_DEF-123&feature=share',
+    'https://www.youtube.com/watch?feature=share&v=abc_DEF-123',
+    'https://youtube.com/shorts/abc_DEF-123',
+    'https://www.youtube.com/live/abc_DEF-123',
+    'https://www.youtube-nocookie.com/embed/abc_DEF-123',
   ])('uses the same ID for rendering and tracking: %s', url => {
     expect(getYouTubeId(url)).toBe('abc_DEF-123')
   })
-  it.each(['https://youtube.com/shorts/abc_DEF-123', 'https://example.invalid/video', '', 'https://vimeo.com/123'])('preserves unsupported-format fallback: %s', url => {
-    // Shorts were not supported before extraction; this follow-up keeps Off behavior unchanged.
+  it.each(['https://youtube.com/shorts/', 'https://example.invalid/video', '', 'https://vimeo.com/123'])('preserves unsupported-format fallback: %s', url => {
     expect(getYouTubeId(url)).toBeNull()
   })
 })
