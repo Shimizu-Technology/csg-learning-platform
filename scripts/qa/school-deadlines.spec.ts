@@ -10,6 +10,7 @@ const chicago = zone === 'America/Chicago'
 const session = process.env.DEV_LIFECYCLE_SESSION
 
 test('staff grants and reopens the school date, and the learner sees the persisted cutoff', async ({ browser }, info) => {
+  test.setTimeout(90_000)
   const viewport = info.project.use.viewport!
   const phone = viewport.width === 390
   const context = await browser.newContext({ viewport, isMobile: phone, hasTouch: phone, timezoneId: 'America/Los_Angeles' })
@@ -28,7 +29,7 @@ test('staff grants and reopens the school date, and the learner sees the persist
       env: { ...process.env, DATABASE_URL: qaDb },
     })
     const ids = JSON.parse(readFileSync(new URL('w9-deadlines-review.json', qaDir), 'utf8'))
-    const { base, first, second } = JSON.parse(readFileSync(new URL('school-deadlines.json', qaDir), 'utf8'))
+    const { base, first, second, fold_lock_at } = JSON.parse(readFileSync(new URL('school-deadlines.json', qaDir), 'utf8'))
     async function showLearner(browserPage: Page, date: string, label: string) {
       await browserPage.goto(`/lessons/${ids.project}?cohort_id=${ids.paced}&qa_user=953`)
       const day = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${date}T00:00:00Z`))
@@ -76,8 +77,46 @@ test('staff grants and reopens the school date, and the learner sees the persist
     expect(new Date(grant.submissions_close_at).toISOString()).toBe(expectedIso)
     expect(grant.revisions).toHaveLength(2)
     await showLearner(page, second, chicago ? 'CDT' : 'ChST')
+
+    if (chicago) {
+      await page.goto(`/admin/cohorts/${ids.program}?tab=settings&qa_user=1`)
+      await page.getByRole('button', { name: 'Configure', exact: true }).click()
+      const settings = page.getByRole('dialog')
+      const springInput = settings.getByLabel(/^Week 1 submissions close/)
+      const savedSpringValue = await springInput.inputValue()
+      await springInput.fill(`${second}T02:30`)
+      await expect(springInput).toHaveAttribute('aria-invalid', 'true')
+      await expect(settings.getByText('Invalid time', { exact: true })).toBeVisible()
+      await springInput.fill(savedSpringValue)
+
+      const foldInput = settings.getByLabel(/^Week 2 submissions close/)
+      const savedFoldValue = await foldInput.inputValue()
+      await expect(foldInput).toHaveAccessibleName(/CST/)
+      await page.clock.setFixedTime(new Date(fold_lock_at))
+      await settings.getByRole('button', { name: 'Lock now', exact: true }).nth(1).click()
+      await expect(foldInput).toHaveValue(savedFoldValue)
+      await expect(foldInput).toHaveAccessibleName(/CDT/)
+      await settings.getByRole('button', { name: 'Done editing windows', exact: true }).click()
+
+      const patchSaved = page.waitForResponse((response) =>
+        response.request().method() === 'PATCH' && response.url().includes('/submission_windows'),
+      )
+      await page.getByRole('button', { name: 'Save settings', exact: true }).click()
+      const patchResponse = await patchSaved
+      expect(patchResponse.ok()).toBe(true)
+      const savedWeek = (await patchResponse.json()).submission_windows.find((window: { week_number: number }) => window.week_number === 2)
+      expect(new Date(savedWeek.submissions_close_at).toISOString()).toBe(new Date(fold_lock_at).toISOString())
+      await expect(page.getByRole('main').getByText('Cohort settings saved', { exact: true })).toBeVisible()
+      await page.reload()
+      await page.getByRole('button', { name: 'Configure', exact: true }).click()
+      await expect(foldInput).toHaveValue(savedFoldValue)
+      await expect(foldInput).toHaveAccessibleName(/CDT/)
+    }
   } finally {
-    await context.close()
-    if (session && claimed) checkedLifecycle(session, 'release', tab)
+    try {
+      await context.close()
+    } finally {
+      if (session && claimed) checkedLifecycle(session, 'release', tab)
+    }
   }
 })
