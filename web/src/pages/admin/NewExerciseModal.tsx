@@ -168,7 +168,6 @@ export function NewExerciseModal({
               onChange={e => setTitle(e.target.value)}
               placeholder="Custom methods"
               className="app-control w-full"
-              autoFocus
             />
           </div>
 
@@ -264,6 +263,7 @@ export function NewExerciseModal({
               <span className="ml-1 text-sm font-normal text-ink-muted">(optional, staff only)</span>
             </div>
             <CodeEditor
+              ariaLabel="Solution code"
               value={solution}
               onChange={setSolution}
               language={detectLanguage(filename)}

@@ -13,7 +13,7 @@ import { MarkdownRenderer } from './MarkdownRenderer'
 import type { ContentBlockController } from './useContentBlockController'
 
 export function SubmissionBlock({ controller, ...props }: ContentBlockRendererProps & { controller: ContentBlockController }) {
-  const { v2, touch, setRevisionOpen, reviewResponseTime, submissions, latestSubmission, hasRedoRequest, canEditSubmission, submissionText, setSubmissionText, repoUrl, setRepoUrl, prUrl, setPrUrl, liveUrl, setLiveUrl, branchName, setBranchName, commitSha, setCommitSha, submissionNotes, setSubmissionNotes, showAdvancedRepoFields, setShowAdvancedRepoFields, isSubmitting, isSubmissionCheckpoint, isWorkBlock, detectedLang, runnerConfig, writtenSubmission, submissionType, usesGithubSyncSubmission, usesTextSubmission, usesRepoArtifactSubmission, requiresLiveUrl, workLocked, latestStatus, editAnswer, lockCopy, handleDraftChange, handleSubmit, submissionArtifacts, submissionStatusMessage } = controller
+  const { v2, setRevisionOpen, reviewResponseTime, submissions, latestSubmission, hasRedoRequest, canEditSubmission, submissionText, setSubmissionText, repoUrl, setRepoUrl, prUrl, setPrUrl, liveUrl, setLiveUrl, branchName, setBranchName, commitSha, setCommitSha, submissionNotes, setSubmissionNotes, showAdvancedRepoFields, setShowAdvancedRepoFields, isSubmitting, isSubmissionCheckpoint, isWorkBlock, detectedLang, runnerConfig, writtenSubmission, submissionType, usesGithubSyncSubmission, usesTextSubmission, usesRepoArtifactSubmission, requiresLiveUrl, workLocked, latestStatus, editAnswer, lockCopy, handleDraftChange, handleSubmit, submissionArtifacts, submissionStatusMessage } = controller
   const { block, isStaff, repositoryName, readOnly, submissionsCloseAt, reviewerName } = props
   return (
     <>
@@ -138,10 +138,9 @@ export function SubmissionBlock({ controller, ...props }: ContentBlockRendererPr
                   minHeight={200}
                   maxHeight={560}
                 />
-              ) : v2 && touch ? (
-                <label className="block text-sm font-semibold text-ink">Your code<textarea aria-label="Your code" value={submissionText} onChange={(event) => handleDraftChange(() => setSubmissionText(event.target.value))} disabled={workLocked || isSubmitting} autoCapitalize="off" autoCorrect="off" spellCheck={false} wrap="off" className="mt-2 min-h-60 w-full min-w-0 overflow-x-auto rounded-xl border border-code-line bg-code-bg p-3 font-mono text-base leading-relaxed text-code-ink" /></label>
               ) : (
                 <CodeEditor
+                  ariaLabel="Your code"
                   value={submissionText}
                   onChange={(value) => handleDraftChange(() => setSubmissionText(value))}
                   language={detectedLang}

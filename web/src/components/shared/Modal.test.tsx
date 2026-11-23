@@ -89,4 +89,15 @@ describe('Modal close animation', () => {
     act(() => document.querySelector<HTMLButtonElement>('[data-app-modal] [aria-label="Close Delete this time?"]')!.click())
     expect(document.activeElement).toBe(opener)
   })
+
+  it('ignores a defaultPrevented Escape and closes on a subsequent Escape', () => {
+    act(() => root.render(<Harness />))
+    const prevented = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    prevented.preventDefault()
+    act(() => document.dispatchEvent(prevented))
+    expect(document.querySelector('[data-app-modal]')).not.toBeNull()
+
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
+    expect(document.querySelector('[data-app-modal]')).toBeNull()
+  })
 })
