@@ -53,14 +53,14 @@ it('omits Guam metadata on alternate schools by default and supports explicit ov
     VITE_SCHOOL_NAME: 'Actualize',
     VITE_OPERATOR_NAME: 'Actualize',
     VITE_OPERATOR_URL: 'https://actualize.example',
-    VITE_AREA_SERVED: 'Chicago "IL" <Midwest>',
+    VITE_AREA_SERVED: 'Chicago "IL" </script> %%productName%%',
     VITE_META_KEYWORDS: 'actualize, coding bootcamp, chicago',
   })
   expect(configured.operatorUrl).toBe('https://actualize.example')
   const cfgHtml = renderBrandTemplate(indexSource, configured)
   expect(cfgHtml).toContain('content="actualize, coding bootcamp, chicago"')
   const cfgOrg = parseJsonLd(cfgHtml).find((item) => item['@type'] === 'EducationalOrganization')
-  expect(cfgOrg.areaServed).toEqual({ '@type': 'Place', name: 'Chicago "IL" <Midwest>' })
+  expect(cfgOrg.areaServed).toEqual({ '@type': 'Place', name: 'Chicago "IL" </script> %%productName%%' })
 })
 it('renders a component using build overrides', async () => {
   vi.stubEnv('VITE_PRODUCT_NAME', 'Example Learn')
@@ -98,7 +98,7 @@ it('keeps application brand literals in brand.ts (fixtures explicitly allowed)',
 it('validates URLs, trims values and escapes each output context', () => {
   expect(createBrand({ VITE_SCHOOL_NAME: ' Example ', VITE_APP_URL: ' https://example.org/ ' })).toMatchObject({ schoolName: 'Example', appUrl: 'https://example.org' })
   for (const key of ['VITE_APP_URL', 'VITE_LEGACY_APP_URL', 'VITE_SCHOOL_SITE_URL', 'VITE_SCHOOL_COURSES_URL', 'VITE_OPERATOR_URL']) {
-    for (const value of ['not a URL', 'javascript:alert(1)', 'http://example.org', 'https://example.org/\n/evil']) {
+    for (const value of ['not a URL', 'javascript:alert(1)', 'http://example.org', 'https:example.org', 'https://user@example.org', 'https://example.org/\n/evil']) {
       expect(() => createBrand({ [key]: value })).toThrow(key)
     }
     expect(() => createBrand({ [key]: '   ' })).not.toThrow()

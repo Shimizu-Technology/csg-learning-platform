@@ -24,7 +24,8 @@ window_close = (Time.current + 14.days).change(hour: 23, min: 59, sec: 0)
 self_paced.cohort_module_submission_windows.create!(curriculum_module: sp_mod, week_number: 1, submissions_close_at: window_close)
 
 # Seed a deterministic set of 2 unread notifications for Persona 3 (distinct notifiables).
-student.notifications.delete_all
+student.notifications.where(title: [ "QA Unread Notice 1", "QA Unread Notice 2" ]).delete_all
+student.notifications.where(read_at: nil).update_all(read_at: Time.current)
 announcements = (1..2).map do |i|
   Announcement.find_or_create_by!(cohort: program, title: "QA Unread Notice #{i}") do |a|
     a.author = admin
@@ -46,13 +47,21 @@ announcements.each_with_index do |announcement, i|
 end
 
 # Create/reset an opposite-timezone cohort with private meetings for Persona 3.
-opp_name = opposite_zone == "America/Chicago" ? "QA Chicago Meetings" : "QA Guam Meetings"
+chicago = opposite_zone == "America/Chicago"
+opp_name = chicago ? "QA Chicago Meetings" : "QA Guam Meetings"
+tz = Time.find_zone!(opposite_zone)
+target_date = Time.current.in_time_zone(tz).to_date + 3
+# The same instant lands in a different course week if grouped in the school zone.
+# Chicago: last night of week 1, already week 2 in Guam. Guam: first morning
+# of week 2, still week 1 in Chicago.
+expected_week = chicago ? 1 : 2
+course_start = target_date - (chicago ? 6 : 7)
 opp_cohort = Cohort.find_by(name: opp_name)
 unless opp_cohort
   opp_cohort = Cohort.create!(
     name: opp_name,
     curriculum: program.curriculum,
-    start_date: Date.current - 7,
+    start_date: course_start,
     status: :active,
     cohort_type: :bootcamp,
     course_delivery: "program",
@@ -60,6 +69,8 @@ unless opp_cohort
   )
   opp_cohort.instructors << instructor
 end
+
+opp_cohort.update!(start_date: course_start)
 
 opp_enrollment = Enrollment.find_or_create_by!(user: student, cohort: opp_cohort) do |e|
   e.status = :active
@@ -80,11 +91,9 @@ PrivateMeetingBookingEvent.where(private_meeting_booking_id: PrivateMeetingBooki
 PrivateMeetingBooking.where(cohort: opp_cohort).delete_all
 PrivateMeetingSlot.where(private_meeting_config_id: config.id).delete_all
 
-# Choose a future instant in week 2 that crosses midnight between Guam (+10) and Chicago (-6/-5).
-# 11:00 PM in opposite_zone on day 10 of the cohort (week 2, at least 3 days in the future).
-target_date = [ opp_cohort.start_date + 10, Date.current + 3 ].max
-tz = ActiveSupport::TimeZone[opposite_zone]
-slot_start = tz.local(target_date.year, target_date.month, target_date.day, 23, 0, 0) # 11:00 PM local -> next day in opposite zone!
+slot_start = tz.local(target_date.year, target_date.month, target_date.day, chicago ? 22 : 0, 30)
+publish_date = target_date + 1
+publish_start = tz.local(publish_date.year, publish_date.month, publish_date.day, 10)
 slot = config.private_meeting_slots.create!(
   instructor: admin,
   starts_at: slot_start,
@@ -117,9 +126,9 @@ out = {
   opp_cohort_id: opp_cohort.id,
   opp_cohort_name: opp_cohort.name,
   slot_id: slot.id,
+  slot_week: expected_week,
   slot_starts_at: slot.starts_at.utc.iso8601,
-  staff_entry_local: (target_date + 1).strftime("%Y-%m-%dT10:00"),
-  staff_entry_expected_utc: tz.local((target_date + 1).year, (target_date + 1).month, (target_date + 1).day, 10, 0, 0).utc.iso8601
+  staff_entry_local: publish_start.strftime("%Y-%m-%dT%H:%M"),
+  staff_entry_expected_utc: publish_start.utc.iso8601
 }
-Rails.root.join("..", ".qa-local", "branding-student-polish.json").write(JSON.pretty_generate(out))
-puts JSON.pretty_generate(out)
+puts JSON.generate(out)

@@ -9,8 +9,8 @@ function toDate(value: string | Date | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function format(date: Date, options: Intl.DateTimeFormatOptions, timeZone?: string | null) {
-  return new Intl.DateTimeFormat('en-US', { ...options, timeZone: resolveTimeZone(timeZone) }).format(date);
+function format(date: Date, options: Intl.DateTimeFormatOptions, timeZone: string) {
+  return new Intl.DateTimeFormat('en-US', { ...options, timeZone }).format(date);
 }
 
 /** "Oct 21, 6:00 PM ChST" (add `withYear` for "Oct 21, 2026, 6:00 PM ChST"). */
@@ -45,7 +45,7 @@ export function formatCourseTime(value: string | Date | null | undefined, fallba
   return `${format(date, { hour: 'numeric', minute: '2-digit' }, zone)} ${schoolTimeLabel(date, zone)}`;
 }
 
-/** "Wed, Oct 21, 6:00 – 7:30 PM ChST", or two full times when the range crosses days. */
+/** "Wed, Oct 21, 6:00 – 7:30 PM ChST", or two full times across a day or offset change. */
 export function formatCourseTimeRange(start: string | Date | null | undefined, end: string | Date | null | undefined, fallback = 'TBD', timeZone?: string | null) {
   const startDate = toDate(start);
   if (!startDate) return fallback;
@@ -53,9 +53,10 @@ export function formatCourseTimeRange(start: string | Date | null | undefined, e
   const endDate = toDate(end);
   if (!endDate) return formatCourseDateTime(startDate, { fallback, weekday: true, timeZone: zone });
   const day = (date: Date) => format(date, { year: 'numeric', month: '2-digit', day: '2-digit' }, zone);
-  if (day(startDate) !== day(endDate)) return `${formatCourseDateTime(startDate, { weekday: true, timeZone: zone })} – ${formatCourseDateTime(endDate, { weekday: true, timeZone: zone })}`;
+  const startLabel = schoolTimeLabel(startDate, zone);
+  if (day(startDate) !== day(endDate) || startLabel !== schoolTimeLabel(endDate, zone)) return `${formatCourseDateTime(startDate, { weekday: true, timeZone: zone })} – ${formatCourseDateTime(endDate, { weekday: true, timeZone: zone })}`;
   const time = (date: Date) => format(date, { hour: 'numeric', minute: '2-digit' }, zone);
-  return `${format(startDate, { weekday: 'short', month: 'short', day: 'numeric' }, zone)}, ${time(startDate)} – ${time(endDate)} ${schoolTimeLabel(startDate, zone)}`;
+  return `${format(startDate, { weekday: 'short', month: 'short', day: 'numeric' }, zone)}, ${time(startDate)} – ${time(endDate)} ${startLabel}`;
 }
 
 /**

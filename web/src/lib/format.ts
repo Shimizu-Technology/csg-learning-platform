@@ -65,7 +65,7 @@ export function formatTime(value: string | Date | null | undefined, fallback = '
   return `${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: zone })} ${timeZoneLabel(zone, date)}`
 }
 
-/** "Oct 21, 2026, 6:00 – 7:30 PM ChST", or both full times when the range crosses days. */
+/** "Oct 21, 2026, 6:00 – 7:30 PM ChST", or both full times across a day or offset change. */
 export function formatDateTimeRange(
   start: string | Date | null | undefined,
   end: string | Date | null | undefined,
@@ -78,12 +78,13 @@ export function formatDateTimeRange(
   if (!endDate) return formatShortDateTime(startDate, fallback, timeZone)
   const zone = safeZone(timeZone)
   const day = (date: Date) => date.toLocaleDateString('en-CA', { timeZone: zone })
-  if (day(startDate) !== day(endDate)) {
+  const startLabel = timeZoneLabel(zone, startDate)
+  if (day(startDate) !== day(endDate) || startLabel !== timeZoneLabel(zone, endDate)) {
     return `${formatShortDateTime(startDate, fallback, zone)} – ${formatShortDateTime(endDate, fallback, zone)}`
   }
   const datePart = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: zone })
   const time = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: zone })
-  return `${datePart}, ${time(startDate)} – ${time(endDate)} ${timeZoneLabel(zone, startDate)}`
+  return `${datePart}, ${time(startDate)} – ${time(endDate)} ${startLabel}`
 }
 
 /**

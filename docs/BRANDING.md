@@ -52,32 +52,32 @@ boot/no-script copy, manifest, offline page, push fallback title, robots, sitema
 and canonical redirect target. It serves generated assets during development too.
 Templates escape HTML, XML, JSON and single-quoted JavaScript values. Only Git-tracked, non-dotfiles are emitted. Keep placeholders in source templates.
 
-Replace these web static image assets when rebranding (their paths and dimensions remain unchanged; `VITE_LOGO_SRC` controls the displayed in-app school mark, not these separate metadata/PWA assets):
+Use `VITE_LOGO_SRC` for the in-app school mark. Keep the existing paths and dimensions for the separate metadata and PWA assets.
 
-- `web/public/og-image.png` (Open Graph / social preview card)
+- Supply `web/public/og-image.png` for Open Graph and Twitter previews. The HTML references this path and the file must be supplied with the deployment.
 - `web/public/favicon.ico`, `web/public/favicon-16x16.png`, `web/public/favicon-32x32.png`
 - `web/public/icon-180x180.png` (iOS `apple-touch-icon`)
 - `web/public/icon-192x192.png`, `web/public/icon-512x512.png` (PWA manifest icons)
 
-Set `VITE_LEGACY_APP_URL` when moving away from the CSG Netlify site; that hostname identifies an existing deployment, not display branding. Set `VITE_OPERATOR_URL` only if you want the desktop sidebar footer (`Built by <operatorName>`) to link to an external HTTPS site; changing `VITE_OPERATOR_NAME` without `VITE_OPERATOR_URL` renders plain text rather than linking to Shimizu Technology.
+Set `VITE_LEGACY_APP_URL` to the old deployment origin when moving away from the CSG Netlify site. Set `VITE_OPERATOR_URL` to the HTTPS destination for the desktop sidebar credit. An alternate operator's name appears as plain text when its URL is unset.
 
 ## Native identity, permissions, and artwork checklist
 
-CSG's signing, bundle IDs, EAS project, and current `mobile/app.json` / `mobile/eas.json` outputs are deliberately preserved so existing native builds and EAS Update runtime fingerprints remain compatible. Launching a separate school's native app is an operator build checklist, not a CSG provisioning change:
+Use this checklist when building a separate school's native app. CSG's current app and EAS configuration continues to identify its existing builds.
 
 1. Register the new school's Apple bundle ID, Android package, provisioning profiles, signing keys, store listings, and APNs/FCM push credentials. Keep credentials private and out of Git.
-2. Update `mobile/app.json` for the new school:
+2. Update these settings in `mobile/app.json`.
    - `expo.name`, `expo.slug`, `expo.scheme`
    - `expo.ios.bundleIdentifier`, `expo.ios.infoPlist.CFBundleName`, `expo.ios.appleTeamId`, `expo.ios.associatedDomains` (matching the new HTTPS app origin and its `/.well-known/apple-app-site-association` file)
    - `expo.android.package` and `expo.android.googleServicesFile`
-   - Plugin permission copy: `expo-image-picker` `photosPermission` and `expo-audio` `microphonePermission` (currently name `CSG Learn`)
+   - Branding in the `expo-image-picker` `photosPermission` and `expo-audio` `microphonePermission` prompts
    - Update Clerk redirect/deep-link allowlists to match the new scheme and domain.
-3. Create the new school's EAS project and update `expo.extra.eas.projectId`, `expo.updates.url`, `expo.owner`, and `mobile/eas.json` submission/profile IDs. Any change to `mobile/app.json` or `mobile/eas.json` changes the Expo fingerprint runtime and requires a new native binary (never OTA to an older binary).
-4. Replace source artwork under `mobile/assets/brand/`, adapt `mobile/scripts/generate-brand-assets.mjs` for the new mark, and run `npm run brand:generate` and `npm run brand:check`. Review generated app icons (`icon.png`, `icon-light.png`, `icon-dark.png`, `icon-tinted.png`, `icon-foreground.png`, `icon-monochrome.png`), splash screens (`splash-icon.png`, `splash-icon-dark.png`), notification icon (`notification-icon.png`), favicon, and store artwork. The `EXPO_PUBLIC_LOGO_SVG` override replaces only the in-app vector mark, not compiled native/store artwork.
+3. Create the new school's EAS project and update `expo.extra.eas.projectId`, `expo.updates.url`, `expo.owner`, and `mobile/eas.json` submission/profile IDs. Regenerate the native projects through the Expo workflow, verify entitlements and associated domains, and build new binaries for the new identity. Follow the runtime compatibility checks in [Mobile App](MOBILE_APP.md) before targeting an installed app with OTA updates.
+4. Replace source artwork under `mobile/assets/brand/`, adapt `mobile/scripts/generate-brand-assets.mjs` for the new mark, and run `npm run brand:generate` and `npm run brand:check`. Review generated app icons (`icon.png`, `icon-light.png`, `icon-dark.png`, `icon-tinted.png`, `icon-foreground.png`, `icon-monochrome.png`), splash screens (`splash-icon.png`, `splash-icon-dark.png`), notification icon (`notification-icon.png`), favicon, and store artwork. Use `EXPO_PUBLIC_LOGO_SVG` for the in-app vector mark and supply native and store artwork through the build and store configuration.
 
 ## Palette source locations
 
-Colors are not controlled by environment variables. When rebranding the visual palette, update these source locations together:
+Update the palette in these source locations.
 
 - Web design tokens and public surface colors: `web/src/index.css`
 - Web browser chrome / `meta[name="theme-color"]`: `web/src/lib/themeColors.ts` and the pre-hydration inline script + `#boot-shell` styles + `msapplication-TileColor` in `web/index.html`

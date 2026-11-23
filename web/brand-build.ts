@@ -19,18 +19,18 @@ export function renderBrandTemplate(source: string, brand: Brand, kind = 'html')
     }
   }
   if (kind !== 'html') return replace(source, (s) => s)
-  return replace(source.replace(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
-    (_, json: string) => {
-      const rendered = replace(json, jsonEscape)
-      if (brand.areaServed) return `<script type="application/ld+json">${rendered}</script>`
-      const parsed = JSON.parse(rendered) as Record<string, unknown>
-      if (parsed.areaServed && typeof parsed.areaServed === 'object' && (parsed.areaServed as { name?: string }).name === '') {
-        delete parsed.areaServed
-        const serialized = JSON.stringify(parsed, null, 2).replaceAll('<', '\\u003c').replaceAll('\n', '\n    ')
-        return `<script type="application/ld+json">\n    ${serialized}\n    </script>`
-      }
-      return `<script type="application/ld+json">${rendered}</script>`
-    }), htmlEscape)
+  const opening = '<script type="application/ld+json">'
+  return source.split(/(<script type="application\/ld\+json">[\s\S]*?<\/script>)/g).map((part) => {
+    if (!part.startsWith(opening)) return replace(part, htmlEscape)
+    const json = part.slice(opening.length, -'</script>'.length)
+    const rendered = replace(json, jsonEscape)
+    if (brand.areaServed || !json.includes('%%areaServed%%')) return `${opening}${rendered}</script>`
+
+    const parsed = JSON.parse(rendered) as { areaServed?: unknown }
+    delete parsed.areaServed
+    const serialized = JSON.stringify(parsed, null, 2).replaceAll('<', '\\u003c').replaceAll('\n', '\n    ')
+    return `${opening}\n    ${serialized}\n    </script>`
+  }).join('')
 }
 export function schoolBrandPlugin(env: Record<string, string>): Plugin {
   const brand = createBrand(env)

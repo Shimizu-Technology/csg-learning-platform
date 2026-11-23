@@ -9,17 +9,11 @@ export function configureSchoolTime(school?: SchoolTimeConfig) {
   schoolTimeZoneLabel = school?.time_zone_label || 'ChST'
 }
 
-const supportedTimeZones: Set<string> | null = typeof Intl.supportedValuesOf === 'function'
-  ? new Set(Intl.supportedValuesOf('timeZone'))
-  : null
-const validatedTimeZones = new Set<string>(['Pacific/Guam', 'UTC', 'Etc/UTC'])
-
 export function isValidTimeZone(zone: string | null | undefined): zone is string {
   if (!zone) return false
-  if (zone === schoolTimeZone || validatedTimeZones.has(zone) || supportedTimeZones?.has(zone)) return true
+  if (zone === schoolTimeZone || Object.hasOwn(fixedOffsets, zone)) return true
   try {
-    new Intl.DateTimeFormat('en-US', { timeZone: zone })
-    validatedTimeZones.add(zone)
+    wallFormatter(zone)
     return true
   } catch {
     return false
@@ -65,8 +59,7 @@ export function schoolTimeLabel(at = new Date(), zone?: string | null) {
 const wallFormatters = new Map<string, Intl.DateTimeFormat>()
 const fixedOffsets: Record<string, number> = { 'Pacific/Guam': 10 * 3_600_000, UTC: 0, 'Etc/UTC': 0 }
 
-function wallTime(at: number, zone: string) {
-  if (Object.hasOwn(fixedOffsets, zone)) return at + fixedOffsets[zone]
+function wallFormatter(zone: string) {
   let formatter = wallFormatters.get(zone)
   if (!formatter) {
     formatter = new Intl.DateTimeFormat('en-CA', {
@@ -75,7 +68,12 @@ function wallTime(at: number, zone: string) {
     })
     wallFormatters.set(zone, formatter)
   }
-  const parts = Object.fromEntries(formatter.formatToParts(at).map((part) => [part.type, part.value]))
+  return formatter
+}
+
+function wallTime(at: number, zone: string) {
+  if (Object.hasOwn(fixedOffsets, zone)) return at + fixedOffsets[zone]
+  const parts = Object.fromEntries(wallFormatter(zone).formatToParts(at).map((part) => [part.type, part.value]))
   // Some engines emit 24 even with h23: it denotes midnight on this date.
   return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second)
 }
@@ -120,6 +118,6 @@ export function schoolDateInputValue(at: string | Date, zone?: string | null) {
 export function schoolWeekEndsAt(startDate: string, week: number, zone?: string | null) {
   const day = new Date(Date.parse(`${startDate}T00:00:00Z`) + week * 7 * 86_400_000)
   if (Number.isNaN(day.getTime())) return NaN
-  const iso = schoolWallTimeToIso(`${day.toISOString().slice(0, 10)}T00:00:00`, resolveTimeZone(zone), true)
+  const iso = schoolWallTimeToIso(`${day.toISOString().slice(0, 10)}T00:00:00`, zone, true)
   return iso ? Date.parse(iso) : NaN
 }

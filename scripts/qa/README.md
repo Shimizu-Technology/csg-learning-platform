@@ -144,6 +144,28 @@ check the new staff record pages and exact Back paths, milestone/media lesson
 links, preview module/lesson containment and all six normal student personas.
 The separate 16-case media matrix retains the lesson-only assignment fixture.
 
+### Branding and student polish
+
+Run the following from the repository root using the active lifecycle session.
+Use a fresh harness for each zone. The spec resets its synthetic fixture between
+viewport runs, so keep the browser runner at one worker.
+
+```sh
+export SCHOOL_TIME_ZONE=Pacific/Guam # Repeat with America/Chicago
+scripts/qa/run start
+QA_SPEC=branding-student-polish.spec.ts node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts --workers=1
+scripts/qa/run clean
+```
+
+The two Chromium projects cover the signed-in web flows at 1280 and at 390 with
+touch enabled. They check the persisted inbox count, both self-paced welcome
+states, the live legacy weekly plan and its simulated unavailable-plan fallback,
+and meeting publishing and booking in a cohort whose zone differs from the school.
+The fixture places a meeting at an instant that belongs to different course weeks
+in the two zones. At 390 the spec checks hit areas and keyboard focus on the phone
+header and student links. This run uses the harness's synthetic identity adapter
+and isolated Rails database.
+
 ### Staff record pages (L-5.2)
 
 After `start`, load the fixture once from `api/`:

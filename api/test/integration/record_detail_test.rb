@@ -154,11 +154,14 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
 
   test "a booking opens for its host and admins, not for another instructor in the same cohort" do
     booking = book(@enrollment, host: @instructor)
+    booking.cohort.private_meeting_config.update!(timezone: "America/Chicago")
     PrivateMeetingScheduler.event!(booking, @instructor, "link_updated")
 
     detail = fetch(@instructor, "private_meeting", booking.id)
     assert_response :success
     assert_equal [ "confirmed", @student.id, @instructor.id, 1 ], [ detail["status"], detail.dig("student", "id"), detail.dig("host", "id"), detail["week_number"] ]
+    assert_equal "America/Chicago", detail["timezone"]
+    assert_equal booking.starts_at, Time.iso8601(detail["starts_at"])
     assert_equal [ "link_updated" ], detail["history"].map { |row| row["action"] }
     assert_equal @instructor.id, detail["history"].first.dig("actor", "id")
 
@@ -166,6 +169,8 @@ class RecordDetailTest < ActionDispatch::IntegrationTest
     assert_response :success
     fetch(@co_teacher, "private_meeting", booking.id)
     assert_response :not_found, "Another host's booking stays private, as on Meetings"
+    fetch(@student, "private_meeting", booking.id)
+    assert_response :not_found, "Students use their own meeting list rather than the staff record"
   end
 
   # --- Learning plans --------------------------------------------------------

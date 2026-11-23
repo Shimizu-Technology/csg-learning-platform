@@ -35,3 +35,8 @@ describe('course time (ChST)', () => {
     expect(formatCourseDateTime('not a date', { fallback: 'TBD' })).toBe('TBD');
   });
 });
+
+it('labels both ends of a range across a Chicago DST offset change', () => {
+  expect(formatCourseTimeRange('2026-11-01T06:30:00Z', '2026-11-01T07:30:00Z', 'TBD', 'America/Chicago'))
+    .toBe('Sun, Nov 1, 1:30 AM CDT – Sun, Nov 1, 1:30 AM CST');
+});

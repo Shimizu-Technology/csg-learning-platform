@@ -8,7 +8,7 @@ export function createBrand(env: Record<string, string | undefined> = {}) {
     const value = env[key] || fallback
     try {
       const parsed = new URL(value)
-      if (parsed.protocol !== 'https:' || parsed.username || parsed.password || /\s/.test(value)
+      if (!/^https:\/\//i.test(value) || parsed.protocol !== 'https:' || parsed.username || parsed.password || /\s/.test(value)
         || (origin && (parsed.search || parsed.hash || !['', '/'].includes(parsed.pathname)))) throw new Error()
       return value
     } catch {
@@ -20,7 +20,7 @@ export function createBrand(env: Record<string, string | undefined> = {}) {
   const isDefaultSchool = schoolName === 'Code School of Guam'
   const operatorName = env.VITE_OPERATOR_NAME || 'Shimizu Technology'
   const operatorUrl = env.VITE_OPERATOR_URL
-    ? url('VITE_OPERATOR_URL', 'https://shimizu-technology.com')
+    ? url('VITE_OPERATOR_URL', '')
     : operatorName === 'Shimizu Technology' ? 'https://shimizu-technology.com' : ''
   return {
     operatorName,
