@@ -382,10 +382,11 @@ body {
 }
 
 /* An editor frame shows focus once, on its border (focus-within on
-   [data-md-editor]). The typing surfaces inside don't add a second ring. */
+   [data-md-editor] / [data-code-editor]). The typing surfaces inside don't add a second ring. */
 [data-md-editor] .md-editor-surface:focus-visible,
 [data-md-editor] textarea:focus-visible,
-[data-md-editor] [role='region']:focus-visible {
+[data-md-editor] [role='region']:focus-visible,
+[data-code-editor] textarea:focus-visible {
   outline: none;
 }
 

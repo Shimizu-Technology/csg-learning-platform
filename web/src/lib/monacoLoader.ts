@@ -5,7 +5,6 @@ export const MONACO_LOAD_TIMEOUT_MS = 6000
 export const PHONE_CODE_EDITOR_QUERY = '(max-width: 639px)'
 
 export type MonacoLoadStatus = 'idle' | 'loading' | 'ready' | 'failed'
-
 type MonacoLike = {
   editor: Record<string, unknown>
 }
@@ -23,7 +22,8 @@ type MonacoWindow = Window & {
 let status: MonacoLoadStatus = 'idle'
 let monacoInstance: MonacoLike | null = null
 let loadPromise: Promise<MonacoLike> | null = null
-let lastError: unknown = null
+let activeTimeoutId: number | null = null
+let attemptId = 0
 
 function isValidMonaco(value: unknown): value is MonacoLike {
   return Boolean(
@@ -51,8 +51,8 @@ function registerWithReactLoader(monaco: MonacoLike) {
   }
 }
 
-export function getLoadedMonaco(): MonacoLike | null {
-  if (monacoInstance) return monacoInstance
+function getLoadedMonaco(): MonacoLike | null {
+  if (status !== 'idle') return monacoInstance
   const existing =
     (typeof loader?.__getMonacoInstance === 'function' ? loader.__getMonacoInstance() : null) ??
     getWindowMonaco()
@@ -70,39 +70,45 @@ export function getMonacoLoadStatus(): MonacoLoadStatus {
   return status
 }
 
-export function ensureMonacoLoaded(): Promise<MonacoLike> {
+export function ensureMonacoLoaded(timeoutMs = MONACO_LOAD_TIMEOUT_MS): Promise<MonacoLike> {
   const loaded = getLoadedMonaco()
   if (loaded) return Promise.resolve(loaded)
-  if (status === 'failed') return Promise.reject(lastError ?? new Error('Monaco editor failed to load'))
   if (loadPromise) return loadPromise
 
   if (typeof document === 'undefined' || typeof window === 'undefined') {
-    status = 'failed'
-    lastError = new Error('Monaco editor requires a browser environment')
-    return Promise.reject(lastError)
+    return Promise.reject(new Error('Monaco editor requires a browser environment'))
   }
 
+  const currentAttempt = ++attemptId
   status = 'loading'
   loadPromise = new Promise<MonacoLike>((resolve, reject) => {
-    let settled = false
+    // Cache either result for this document. Late AMD callbacks (or a late
+    // window.monaco assignment) cannot revive an attempt that timed out.
+    const isPending = () => currentAttempt === attemptId && status === 'loading'
     const finishOk = (monaco: MonacoLike) => {
-      if (settled) return
-      settled = true
+      if (!isPending()) return
+      registerWithReactLoader(monaco)
       monacoInstance = monaco
       status = 'ready'
-      lastError = null
-      registerWithReactLoader(monaco)
+      window.clearTimeout(timer)
+      activeTimeoutId = null
       resolve(monaco)
     }
     const finishErr = (error: unknown) => {
-      if (settled) return
-      settled = true
+      if (!isPending()) return
       status = 'failed'
-      lastError = error
+      window.clearTimeout(timer)
+      activeTimeoutId = null
       reject(error)
     }
 
+    const timer = window.setTimeout(() => {
+      finishErr(new Error('Monaco editor load timed out'))
+    }, timeoutMs)
+    activeTimeoutId = timer
+
     const loadEditorMain = () => {
+      if (!isPending()) return
       try {
         const win = getMonacoWindow()
         const amdRequire = win.require
@@ -114,6 +120,7 @@ export function ensureMonacoLoaded(): Promise<MonacoLike> {
         amdRequire(
           ['vs/editor/editor.main'],
           (loadedModule) => {
+            if (!isPending()) return
             const candidate = (loadedModule as { m?: unknown } | null)?.m ?? loadedModule ?? win.monaco
             if (isValidMonaco(candidate)) {
               finishOk(candidate)
@@ -153,8 +160,12 @@ export function ensureMonacoLoaded(): Promise<MonacoLike> {
 }
 
 export function __resetMonacoLoaderForTests() {
+  attemptId += 1
+  if (activeTimeoutId !== null && typeof window !== 'undefined') {
+    window.clearTimeout(activeTimeoutId)
+  }
+  activeTimeoutId = null
   status = 'idle'
   monacoInstance = null
   loadPromise = null
-  lastError = null
 }

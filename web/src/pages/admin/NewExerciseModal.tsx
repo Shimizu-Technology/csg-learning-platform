@@ -168,7 +168,6 @@ export function NewExerciseModal({
               onChange={e => setTitle(e.target.value)}
               placeholder="Custom methods"
               className="app-control w-full"
-              autoFocus
             />
           </div>
 

@@ -21,15 +21,14 @@ vi.mock('@monaco-editor/react', () => ({
   default: (props: Record<string, unknown>) => {
     if (throwOnMonaco.active) throw new Error('Monaco render boom')
     editorProps.push(props)
-    return null
+    return <textarea data-fake-monaco="true" aria-label="Fake Monaco input" value={String(props.value ?? '')} onChange={(e) => (props.onChange as ((v: string) => void) | undefined)?.(e.target.value)} />
   },
 }))
 
 vi.mock('../../lib/monacoLoader', () => ({
-  MONACO_LOAD_TIMEOUT_MS: 6000,
   PHONE_CODE_EDITOR_QUERY: '(max-width: 639px)',
   getMonacoLoadStatus: () => loaderState.status,
-  ensureMonacoLoaded: () => loaderState.ensureMonacoLoaded(),
+  ensureMonacoLoaded: loaderState.ensureMonacoLoaded,
 }))
 
 vi.mock('../../lib/useMediaQuery', () => ({
@@ -160,40 +159,6 @@ describe('CodeEditor resilience and fallbacks', () => {
     container.remove()
   })
 
-  it('recovers from a stalled load after the timeout and prevents late Monaco takeover', async () => {
-    vi.useFakeTimers()
-    loaderState.status = 'idle'
-    let resolveLate!: (value: unknown) => void
-    loaderState.ensureMonacoLoaded.mockReturnValueOnce(new Promise((resolve) => { resolveLate = resolve }))
-
-    const onChange = vi.fn()
-    const container = document.createElement('div')
-    document.body.appendChild(container)
-    const root = createRoot(container)
-    await act(async () => { root.render(<CodeEditor ariaLabel="Your code" value="" onChange={onChange} language="python" loadTimeoutMs={500} />) })
-
-    expect(container.textContent).toContain('Loading code editor')
-    expect(container.querySelector('textarea')).toBeNull()
-
-    await act(async () => { vi.advanceTimersByTime(500) })
-
-    const textarea = container.querySelector('textarea[aria-label="Your code"]') as HTMLTextAreaElement
-    expect(textarea).not.toBeNull()
-    expect(editorProps).toHaveLength(0)
-
-    // Even if the stalled CDN finishes later while the student is typing, Monaco must not take over.
-    await act(async () => {
-      resolveLate({ editor: {} })
-      await Promise.resolve()
-    })
-
-    expect(container.querySelector('textarea[aria-label="Your code"]')).toBe(textarea)
-    expect(editorProps).toHaveLength(0)
-
-    act(() => root.unmount())
-    container.remove()
-  })
-
   it('uses the textarea immediately without loading Monaco on coarse pointer or phone viewports', async () => {
     loaderState.status = 'idle'
     mediaState.coarse = true
@@ -273,6 +238,48 @@ describe('CodeEditor resilience and fallbacks', () => {
     act(() => root.unmount())
     container.remove()
     consoleError.mockRestore()
+  })
+
+  it('falls back immediately on consecutive mounts after a shared stall timeout without waiting again', async () => {
+    loaderState.status = 'failed'
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(<CodeEditor ariaLabel="Second editor" value="x = 2" language="python" />)
+    })
+
+    expect(container.querySelector('textarea[aria-label="Second editor"]')).not.toBeNull()
+    expect(container.textContent).toContain('Using the basic code editor')
+    expect(container.textContent).not.toContain('Loading code editor')
+    expect(loaderState.ensureMonacoLoaded).not.toHaveBeenCalled()
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('defers a change to a fine primary pointer until the textarea loses focus', async () => {
+    mediaState.coarse = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const render = () => root.render(<CodeEditor ariaLabel="Your code" value="alpha beta" />)
+    await act(render)
+
+    const textarea = container.querySelector('textarea')!
+    textarea.focus()
+    textarea.setSelectionRange(6, 10)
+    mediaState.coarse = false
+    await act(render)
+
+    expect(container.querySelector('textarea')).toBe(textarea)
+    expect(document.activeElement).toBe(textarea)
+    expect(textarea.value.slice(textarea.selectionStart, textarea.selectionEnd)).toBe('beta')
+
+    await act(() => textarea.blur())
+    expect(container.querySelector<HTMLTextAreaElement>('[data-fake-monaco]')?.value).toBe('alpha beta')
+    act(() => root.unmount())
   })
 })
 

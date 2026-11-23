@@ -13,7 +13,12 @@ vi.mock('@monaco-editor/react', () => ({
   },
 }))
 
-import { __resetMonacoLoaderForTests, ensureMonacoLoaded, getMonacoLoadStatus, MONACO_VS_PATH } from './monacoLoader'
+import {
+  __resetMonacoLoaderForTests,
+  ensureMonacoLoaded,
+  getMonacoLoadStatus,
+  MONACO_VS_PATH,
+} from './monacoLoader'
 
 type TestWindow = Window & {
   monaco?: unknown
@@ -21,6 +26,7 @@ type TestWindow = Window & {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   __resetMonacoLoaderForTests()
   configMock.mockReset()
   getInstanceMock.mockReset()
@@ -84,5 +90,58 @@ describe('monacoLoader', () => {
 
     await expect(promise).rejects.toThrow('editor.main aborted')
     expect(getMonacoLoadStatus()).toBe('failed')
+  })
+
+  it('bounds and settles a stalled loader.js once so subsequent calls fast-fail immediately', async () => {
+    vi.useFakeTimers()
+    const first = ensureMonacoLoaded(500)
+    const second = ensureMonacoLoaded(500)
+    expect(first).toBe(second)
+    expect(document.body.querySelectorAll('script')).toHaveLength(1)
+
+    const caught = first.catch((error) => error)
+    await vi.advanceTimersByTimeAsync(500)
+
+    const err = await caught
+    expect(err).toMatchObject({ message: 'Monaco editor load timed out' })
+    expect(getMonacoLoadStatus()).toBe('failed')
+
+    // Subsequent calls reject immediately without re-injecting loader.js or waiting again.
+    const thirdError = await ensureMonacoLoaded(500).catch((error) => error)
+    expect(thirdError).toBe(err)
+    expect(document.body.querySelectorAll('script')).toHaveLength(1)
+  })
+
+  it('bounds a stalled AMD require, fast-fails later callers, and ignores late AMD success and global assignment', async () => {
+    vi.useFakeTimers()
+    const fakeMonaco = { editor: { create: vi.fn() } }
+    let deliverLate!: (mod: unknown) => void
+    const amdRequire = Object.assign(
+      vi.fn((_deps: string[], onSuccess: (mod: unknown) => void) => {
+        deliverLate = onSuccess
+      }),
+      { config: vi.fn() },
+    )
+    ;(window as TestWindow).require = amdRequire
+
+    const first = ensureMonacoLoaded(500)
+    const firstResult = first.catch((error) => error)
+    expect(amdRequire).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(500)
+    const timeout = await firstResult
+    expect(timeout).toMatchObject({ message: 'Monaco editor load timed out' })
+    expect(getMonacoLoadStatus()).toBe('failed')
+
+    // Subsequent mount immediately rejects without invoking AMD require again.
+    const secondResult = await ensureMonacoLoaded(500).catch((error) => error)
+    expect(secondResult).toBe(timeout)
+    expect(amdRequire).toHaveBeenCalledTimes(1)
+
+    ;(window as TestWindow).monaco = fakeMonaco
+    deliverLate({ m: fakeMonaco })
+    expect(getMonacoLoadStatus()).toBe('failed')
+    expect(configMock).not.toHaveBeenCalled()
+    await expect(ensureMonacoLoaded()).rejects.toBe(timeout)
   })
 })
