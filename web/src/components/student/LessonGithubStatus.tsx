@@ -37,7 +37,7 @@ export function LessonGithubStatus({ lesson, unavailable }: { lesson: LessonDeta
         <p className="text-sm text-ink-secondary">{status.state === 'needs_repository'
           ? 'Choose a repository for this lesson before Learn can sync your work.'
           : `Verify your repository ${scope} before Learn can sync your work.`}</p>
-        <LinkButton variant="quiet" to={`/profile#github-repository-${lesson.cohort_id}`}>Set up GitHub in Profile</LinkButton>
+        <LinkButton variant="quiet" to={lesson.cohort_id ? `/profile#github-repository-${lesson.cohort_id}` : '/profile'}>Set up GitHub in your profile</LinkButton>
       </>}
   </section>
 }

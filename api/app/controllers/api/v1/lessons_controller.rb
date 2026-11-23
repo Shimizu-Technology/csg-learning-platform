@@ -43,7 +43,7 @@ module Api
 
           submission_map = current_user.submissions
             .where(enrollment_id: @lesson_enrollment.id, content_block_id: block_ids)
-            .order(created_at: :desc)
+            .order(Submission::LATEST_FIRST)
             .group_by(&:content_block_id)
 
           check_ids = KnowledgeCheck.where(content_block_id: block_ids).pluck(:id)

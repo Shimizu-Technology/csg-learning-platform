@@ -64,6 +64,42 @@ class LessonGithubRepositoryStatusTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a latest legacy sync without provenance hides a superseded snapshot" do
+    verify(@binding, repository_id: 101)
+    snapshot(@block, @binding, sha: "a" * 40, captured_at: 2.hours.ago, created_at: 2.hours.ago)
+    Submission.create!(content_block: @block, user: @student, enrollment: @enrollment,
+      submission_type: :prework_github_sync, commit_sha: "b" * 40, github_repository_id: @binding.repository_id)
+
+    status = lesson_status
+    assert_equal "verified", status.fetch("state")
+    assert_empty status.fetch("revisions")
+  end
+
+  test "a newer module sync hides an older course snapshot when the override is removed" do
+    verify(@binding, repository_id: 101)
+    snapshot(@block, @binding, sha: "a" * 40, captured_at: 2.hours.ago, created_at: 2.hours.ago)
+    override = @enrollment.github_repository_bindings.create!(github_app_installation: @installation,
+      full_name: "app-learner/module-work", curriculum_module: @mod)
+    verify(override, repository_id: 102)
+    snapshot(@block, override, sha: "b" * 40, captured_at: Time.current)
+    override.destroy!
+
+    status = lesson_status
+    assert_equal "course", status.fetch("scope")
+    assert_empty status.fetch("revisions")
+  end
+
+  test "the latest attempt wins a created at tie even with an earlier capture time" do
+    verify(@binding, repository_id: 101)
+    created_at = Time.current
+    snapshot(@block, @binding, sha: "a" * 40, captured_at: 1.hour.ago, created_at: created_at)
+    captured_at = 2.hours.ago
+    snapshot(@block, @binding, sha: "b" * 64, captured_at: captured_at, created_at: created_at)
+
+    assert_equal [ { "block_id" => @block.id, "captured_at" => captured_at.utc.iso8601(6), "short_sha" => "bbbbbbb" } ],
+      lesson_status.fetch("revisions")
+  end
+
   private
 
   def lesson_path(cohort)
@@ -81,8 +117,8 @@ class LessonGithubRepositoryStatusTest < ActionDispatch::IntegrationTest
       github_user_id: @student.github_user_id, github_username: @student.github_verified_login)
   end
 
-  def snapshot(block, binding, sha:, captured_at:)
-    Submission.create!(content_block: block, user: @student, enrollment: @enrollment, submission_type: :prework_github_sync,
+  def snapshot(block, binding, sha:, captured_at:, created_at: Time.current)
+    Submission.create!(content_block: block, user: @student, enrollment: @enrollment, submission_type: :prework_github_sync, created_at: created_at,
       commit_sha: sha, github_repository_id: binding.repository_id, github_revision: {
         version: 1, binding_id: binding.id, repository_id: binding.repository_id, repository_full_name: binding.full_name,
         captured_at: captured_at.iso8601(6)
