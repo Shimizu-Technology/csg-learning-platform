@@ -2,6 +2,7 @@ export const ALL_DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 
 export const SCHEDULE_DAY_INDICES: Record<string, number[]> = {
   weekdays: [0, 1, 2, 3, 4],
+  mon_thu: [0, 1, 2, 3],
   weekdays_sat: [0, 1, 2, 3, 4, 5],
   mwf: [0, 2, 4],
   tth: [1, 3],

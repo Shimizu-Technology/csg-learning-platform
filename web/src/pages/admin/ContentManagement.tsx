@@ -85,6 +85,7 @@ function groupLessonsByDay(lessons: Lesson[]) {
 
 const SCHEDULE_PATTERN_OPTIONS = [
   { value: 'weekdays', label: 'MTWTF / Mon–Fri' },
+  { value: 'mon_thu', label: 'Mon–Thu' },
   { value: 'weekdays_sat', label: 'Mon–Sat' },
   { value: 'mwf', label: 'MWF' },
   { value: 'tth', label: 'Tue/Thu' },

@@ -13,6 +13,7 @@ class CurriculumModule < ApplicationRecord
 
   SCHEDULE_PATTERNS = {
     "weekdays" => [ 0, 1, 2, 3, 4 ],       # Mon-Fri
+    "mon_thu" => [ 0, 1, 2, 3 ],         # Mon-Thu
     "weekdays_sat" => [ 0, 1, 2, 3, 4, 5 ], # Mon-Sat (prework with overview day)
     "mwf" => [ 0, 2, 4 ],                   # Mon, Wed, Fri
     "tth" => [ 1, 3 ],                      # Tue, Thu

@@ -74,6 +74,31 @@ class CohortReleaseCommunicationsTest < ActionDispatch::IntegrationTest
     config.time_zone = previous_zone
   end
 
+  test "Mon–Thu preview honors the module start override in Guam and Central" do
+    config = Rails.application.config.x.school
+    previous_zone = config.time_zone
+    @cohort.update!(start_date: Date.new(2027, 3, 1), status: :active)
+    [ @today_a, @today_b, @tomorrow ].each { |lesson| lesson.update!(archived_at: Time.current) }
+    @mod.update!(schedule_days: "mon_thu")
+    @cohort.cohort_module_schedules.create!(curriculum_module: @mod, start_date: Date.new(2027, 3, 8))
+    thursday = @mod.lessons.create!(title: "Thursday lesson", position: 4, release_day: 3)
+    monday = @mod.lessons.create!(title: "Following Monday lesson", position: 5, release_day: 7)
+    travel_to Time.utc(2027, 3, 10, 23)
+
+    { "Pacific/Guam" => [ 21, 21 ], "America/Chicago" => [ 13, 12 ] }.each do |zone, utc_hours|
+      config.time_zone = zone
+      as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/release_communications", headers: auth_headers }
+      assert_response :success
+      upcoming = response.parsed_body.dig("release_communications", "upcoming_releases")
+      target_days = upcoming.select { |day| day.fetch("release_date") >= "2027-03-11" }
+      assert_equal %w[2027-03-11 2027-03-15], target_days.pluck("release_date")
+      assert_equal [ [ thursday.id ], [ monday.id ] ], target_days.map { |day| day.fetch("lessons").pluck("id") }
+      assert_equal utc_hours, target_days.map { |day| Time.iso8601(day.fetch("scheduled_send_at")).utc.hour }
+    end
+  ensure
+    config.time_zone = previous_zone
+  end
+
   test "Chicago pending release uses the abbreviation at send time on DST transition day" do
     config = Rails.application.config.x.school
     previous_zone = config.time_zone

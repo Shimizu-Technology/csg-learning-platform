@@ -8,6 +8,8 @@ Admins can use **Content → Import course package** to preview a JSON file, con
 
 A schema-v1 package contains `key`, `revision`, `title`, `description`, `total_weeks` and `modules`. Each module has `key`, `title`, `description`, `total_days`, `schedule_days`, optional `module_type` (defaults to `workshop`; supports `prework`, `live_class`, `capstone`, `advanced`, `workshop`, `recording`) and `lessons`. Each lesson has `key`, `title`, `lesson_type`, `release_day`, `required` and `blocks`. Each block has `key`, `block_type`, optional `title`, `body`, `solution`, `filename` and `submission_type`. Use stable keys; release days are zero-based module offsets and must fit the selected schedule.
 
+Use `mon_thu` for Monday through Thursday. The first week uses offsets 0 through 3, and the second week starts at offset 7.
+
 A project block can include `rubric: { title, description, criteria: [{ title, description }] }`. Criteria appear in the existing learner self-review and staff grading flow. Put public acceptance criteria there; keep private solutions in `solution`. Rubrics allow 1–12 criteria. Point weights can be stated in each criterion’s title/description; the importer does not invent numeric scoring rules or entitlements.
 
 Limits: 2 MB JSON, 20 modules, 250 total lessons, 20 blocks per lesson, 100,000 characters per body/solution. An empty `video` block is a recording placeholder. Media URLs and S3 keys are rejected; attach media in the normal authenticated upload flow.

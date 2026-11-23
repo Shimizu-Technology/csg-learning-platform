@@ -244,6 +244,21 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
     end
   end
 
+  test "converts a Mon–Thu package without accepting a Friday release" do
+    Dir.mktmpdir do |dir|
+      write_minimal_course(dir, schedule_days: "mon_thu", total_days: 14)
+      write_repo_file(dir, "modules/01-core/01-thu.md", minimal_lesson(key: "thu", release_day: 3))
+      write_repo_file(dir, "modules/01-core/02-mon.md", minimal_lesson(key: "mon", release_day: 7))
+      mod = CoursePackageMarkdownConverter.new(dir).call.fetch("modules").first
+      assert_equal "mon_thu", mod["schedule_days"]
+      assert_equal [ 3, 7 ], mod.fetch("lessons").pluck("release_day")
+
+      write_repo_file(dir, "modules/01-core/03-fri.md", minimal_lesson(key: "fri", release_day: 4))
+      error = assert_raises(CoursePackageMarkdownConverter::Error) { CoursePackageMarkdownConverter.new(dir).call }
+      assert_includes error.message, "Invalid release_day 4 for schedule_days 'mon_thu'"
+    end
+  end
+
   test "rejects invalid release_day for module schedule_days and non-boolean required" do
     Dir.mktmpdir do |dir|
       write_minimal_course(dir, schedule_days: "weekdays")
@@ -1246,18 +1261,18 @@ class CoursePackageMarkdownConverterTest < ActiveSupport::TestCase
     end
   end
 
-  def write_minimal_course(dir, schedule_days: "daily")
+  def write_minimal_course(dir, schedule_days: "daily", total_days: 7)
     write_repo_file(dir, "course.yml", <<~YAML)
       key: sample-course
       revision: "2026-10-04"
       title: Sample Course
-      total_weeks: 1
+      total_weeks: #{total_days.fdiv(7).ceil}
     YAML
 
     write_repo_file(dir, "modules/01-core/module.yml", <<~YAML)
       key: core
       title: Core
-      total_days: 7
+      total_days: #{total_days}
       schedule_days: #{schedule_days}
     YAML
   end

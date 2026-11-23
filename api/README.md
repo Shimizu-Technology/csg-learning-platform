@@ -92,7 +92,7 @@ For direct browser uploads to S3, `AWS_REGION` must match the bucket’s real re
 Curriculum (e.g., "CSG Full-Stack Bootcamp 2026")
   └── CurriculumModule (table: modules)
         ├── module_type: prework | live_class | capstone | advanced | workshop | recording
-        ├── schedule_days: weekdays | mwf | tth | daily | weekdays_sat
+        ├── schedule_days: weekdays | mon_thu | mwf | tth | daily | weekdays_sat
         ├── day_offset: start day relative to curriculum
         └── Lesson
               ├── release_day: day relative to module start

@@ -9,6 +9,7 @@ import { VideoVersionsEditor } from '../../../components/admin/VideoVersionsEdit
 import { VideoUploadField } from '../../../components/admin/VideoUploadField'
 import { AdminVideoPreview } from '../../../components/admin/AdminVideoPreview'
 import { VideoSegmentEditor } from '../../../components/admin/VideoSegmentEditor'
+import { sectionDuration, videoSectionErrors } from '../../../lib/videoSectionDraft'
 import { Badge } from '../../../components/ui/Badge'
 import { Button, IconButton } from '../../../components/ui/Button'
 import { OverflowMenu } from '../../../components/ui/OverflowMenu'
@@ -67,6 +68,8 @@ export function BlockCard({
   const work = hasLearnerWork(activity)
   const workSummary = learnerWorkSummary(activity)
   const isVideo = block.block_type === 'video' || block.block_type === 'recording'
+  const duration = sectionDuration(block)
+  const sectionsNeedReview = block.video_segments.some((section) => Object.values(videoSectionErrors(section, duration)).some(Boolean))
   const isExercise = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   const position = `${label} block, ${index + 1} of ${total}`
 
@@ -236,8 +239,13 @@ export function BlockCard({
             )}
             {!readOnly && (
               <details className="rounded-xl border border-line px-3 py-2">
-                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink-secondary">Sections{block.video_segments.length ? ` (${block.video_segments.length})` : ''}</summary>
-                <div className="pb-2 pt-1"><VideoSegmentEditor value={block.video_segments} onChange={(segments) => onChange({ video_segments: segments })} /></div>
+                <summary className="flex min-h-11 cursor-pointer flex-wrap items-center gap-x-2 text-sm font-semibold text-ink-secondary">
+                  <span>Sections{block.video_segments.length ? ` (${block.video_segments.length})` : ''}</span>
+                  {sectionsNeedReview && <span className="text-xs text-danger-ink">Review section fields</span>}
+                </summary>
+                <div className="pb-2 pt-1"><VideoSegmentEditor value={block.video_segments} duration={duration}
+                  hasVersions={Array.isArray(block.metadata.video_versions) && block.metadata.video_versions.length > 0}
+                  onChange={(segments) => onChange({ video_segments: segments })} /></div>
               </details>
             )}
           </div>

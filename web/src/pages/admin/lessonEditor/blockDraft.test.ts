@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LessonDetail } from '../../../types/api'
 import {
-  applySavedIds, baselineFor, blockProblem, draftFromLesson, draftPayload, draftSignature, duplicateBlock, emptyCheck, insertBlock, moveBlock,
+  applySavedIds, baselineFor, blockProblem, draftFromLesson, draftPayload, draftProblems, draftSignature, duplicateBlock, emptyCheck, insertBlock, moveBlock,
   newBlock, rekeyNewBlocks, removeBlock,
 } from './blockDraft'
 
@@ -78,6 +78,48 @@ describe('block lesson draft', () => {
     const options = { baseUpdatedAt: 'x', baseline: baselineFor(draft) }
     expect(draftPayload(changed, { ...options, pendingUploads: new Set([20]) }).blocks[0].s3_video_key).toBeUndefined()
     expect(draftPayload(changed, options).blocks[0]).toMatchObject({ s3_video_key: 'content_videos/new.mp4', s3_video_size: 9 })
+  })
+
+  it('keeps malformed legacy section text and sends only a validated repair', () => {
+    const draft = draftFromLesson({ ...lesson, content_blocks: [block(20, 'recording', {
+      s3_video_key: 'original.mp4', s3_video_duration_seconds: 120,
+      metadata: { video_segments: [{ label: 'Example', start_seconds: 'bad', end_seconds: 20, required: true }] },
+    })] } as unknown as LessonDetail)
+    const baseline = baselineFor(draft)
+    const options = { baseUpdatedAt: 'x', baseline }
+    const recording = draft.blocks[0]
+    expect(recording.video_segments[0].start_seconds).toBe('bad')
+    expect(draftProblems(draft, baseline).size).toBe(0)
+    expect(draftPayload(draft, options).blocks[0]).not.toHaveProperty('video_segments')
+
+    const edit = (start: string, end: string) => ({
+      ...draft,
+      blocks: [{ ...recording, video_segments: [{ ...recording.video_segments[0], start_seconds: start, end_seconds: end }] }],
+    })
+    expect(draftProblems(edit('', '2:00'), baseline).size).toBe(1)
+    expect(draftProblems(edit('0:12', '2:01'), baseline).size).toBe(1)
+    const repaired = edit('0:12', '2:00')
+    expect(draftProblems(repaired, baseline).size).toBe(0)
+    expect(draftPayload(repaired, options).blocks[0].video_segments).toEqual([
+      { label: 'Example', start_seconds: 12, end_seconds: 120, required: true },
+    ])
+  })
+
+  it('requires re-entry when a saved timestamp was incorrectly stored as clock text', () => {
+    const draft = draftFromLesson({ ...lesson, content_blocks: [block(20, 'recording', {
+      metadata: { video_segments: [{ label: 'Example', start_seconds: '0:12', end_seconds: 20, required: true }] },
+    })] } as unknown as LessonDetail)
+    const baseline = baselineFor(draft)
+    const options = { baseUpdatedAt: 'x', baseline }
+    const recording = draft.blocks[0]
+    const section = recording.video_segments[0]
+    expect(section).toMatchObject({ start_seconds: '0:12', invalidStoredTimestamps: ['start_seconds'] })
+    expect(draftPayload(draft, options).blocks[0]).not.toHaveProperty('video_segments')
+    const repaired = { ...draft, blocks: [{ ...recording, video_segments: [{ ...section, invalidStoredTimestamps: undefined }] }] }
+    expect(draftProblems(repaired, baseline).size).toBe(0)
+    expect(draftPayload(repaired, options).blocks[0].video_segments).toEqual([
+      { label: 'Example', start_seconds: 12, end_seconds: 20, required: true },
+    ])
   })
 
   it('gives saved ids to new blocks after a save and keeps their keys', () => {

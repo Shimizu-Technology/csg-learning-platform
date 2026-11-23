@@ -98,6 +98,21 @@ it('preselects the expanded empty day in the exercise editor', () => {
   expect(screen.getByRole('radio', { name: 'Friday', checked: true })).toBeTruthy();
 });
 
+it('reopens Mon–Thu and shows only its four days in week two', () => {
+  const module = { ...demoStaffCurriculum.modules[0], schedule_days: 'mon_thu' };
+  const props = { visible: true, module, onClose: jest.fn(), onSave: jest.fn() };
+  const screen = render(<ModuleEditorModal {...props} defaultPosition={1} />);
+  fireEvent(screen.UNSAFE_getByType(Modal), 'show');
+  expect(screen.getByRole('radio', { name: 'Mon–Thu', checked: true })).toBeTruthy();
+
+  screen.unmount();
+  const exercise = render(<ExerciseEditorModal {...props} defaultWeek={2} />);
+  fireEvent(exercise.UNSAFE_getByType(Modal), 'show');
+  expect(exercise.getByRole('radio', { name: 'Monday', checked: true })).toBeTruthy();
+  expect(exercise.getByRole('radio', { name: 'Thursday' })).toBeTruthy();
+  expect(exercise.queryByRole('radio', { name: 'Friday' })).toBeNull();
+});
+
 it('creates a lesson whose instructions are only a Markdown autolink', async () => {
   const onSave = jest.fn(async () => undefined);
   const screen = render(<ExerciseEditorModal visible module={demoStaffCurriculum.modules[0]} defaultWeek={2} onClose={jest.fn()} onSave={onSave} />);

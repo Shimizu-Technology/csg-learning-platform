@@ -63,6 +63,14 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors").join, "would exclude 2 restorable lessons"
     assert_equal "weekdays", @curriculum_module.reload.schedule_days
     assert_equal before_days, @curriculum_module.lessons.order(:id).pluck(:release_day)
+
+    as_user(@admin) do
+      patch "/api/v1/modules/#{@curriculum_module.id}", params: { schedule_days: "mon_thu", base_updated_at: @curriculum_module.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_includes response.parsed_body.fetch("errors").join, "would exclude 1 restorable lesson"
+    assert_equal "weekdays", @curriculum_module.reload.schedule_days
+    assert_equal before_days, @curriculum_module.lessons.order(:id).pluck(:release_day)
   end
 
   test "staff curriculum detail includes exact resource versions for safe mobile edits" do

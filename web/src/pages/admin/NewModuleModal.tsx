@@ -21,6 +21,7 @@ const MODULE_TYPES = [
 
 const SCHEDULE_PATTERNS = [
   { value: 'weekdays', label: 'MTWTF / Mon – Fri (5 days/week)' },
+  { value: 'mon_thu', label: 'Mon–Thu (4 days/week)' },
   { value: 'weekdays_sat', label: 'Mon – Sat (6 days/week)' },
   { value: 'mwf', label: 'Mon / Wed / Fri' },
   { value: 'tth', label: 'Tue / Thu' },

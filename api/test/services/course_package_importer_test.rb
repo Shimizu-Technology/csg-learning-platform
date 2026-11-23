@@ -4,6 +4,21 @@ require_relative "../support/course_package_fixture"
 class CoursePackageImporterTest < ActiveSupport::TestCase
   include CoursePackageFixture
 
+  test "Mon–Thu package previews and imports the Thursday to Monday boundary" do
+    data = package
+    mod = data.fetch("modules").first
+    mod["schedule_days"] = "mon_thu"
+    mod.fetch("lessons").zip([ 3, 7 ]) { |lesson, day| lesson["release_day"] = day }
+    importer = CoursePackageImporter.new(data)
+    assert_equal 2, importer.preview[:lessons]
+    saved = Curriculum.find(importer.call[:curriculum_id]).modules.first
+    assert_equal "mon_thu", saved.schedule_days
+    assert_equal [ 3, 7 ], saved.lessons.pluck(:release_day)
+
+    mod.fetch("lessons").first["release_day"] = 4
+    assert_raises(CoursePackageImporter::InvalidPackage) { CoursePackageImporter.new(data).preview }
+  end
+
   test "preview is read only and imported answers stay separate from body" do
     data = package
     assert_no_difference [ "Curriculum.count", "Lesson.count", "ContentBlock.count" ] do
