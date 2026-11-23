@@ -33,6 +33,7 @@ export interface SubmissionWindowForm {
   week_number: number
   submissions_close_at: string
   saved_close_at?: string | null
+  exact_close_at?: string
   submissions_closed: boolean
   status: 'open' | 'scheduled' | 'closed'
   starts_on?: string | null
@@ -154,27 +155,23 @@ export function formatDateLabel(value?: string | null) {
   return value ? formatShortDate(toDateInputValue(value), '') : ''
 }
 
-export function nowDateTimeInputValue(): string {
-  return toDateTimeInputValueInTimeZone(new Date().toISOString(), schoolTimeZone)
-}
-
 export function submissionWindowCloseWasEdited(window: SubmissionWindowForm) {
-  return window.submissions_close_at !== toDateTimeInputValueInTimeZone(window.saved_close_at, schoolTimeZone)
+  return Boolean(window.exact_close_at) ||
+    window.submissions_close_at !== toDateTimeInputValueInTimeZone(window.saved_close_at, schoolTimeZone)
 }
 
 export function submissionWindowCloseAt(window: SubmissionWindowForm) {
+  if (window.exact_close_at) return window.exact_close_at
+
   return submissionWindowCloseWasEdited(window)
     ? dateTimeInputToIso(window.submissions_close_at)
     : window.saved_close_at ?? null
 }
 
-export function submissionWindowStatusForForm(window: SubmissionWindowForm): SubmissionWindowForm['status'] {
+export function submissionWindowStatusForForm(window: SubmissionWindowForm, closeAt: string | null): SubmissionWindowForm['status'] | 'invalid' {
   if (!window.submissions_close_at) return 'open'
-
-  const closeAtIso = submissionWindowCloseAt(window)
-  if (!closeAtIso) return 'scheduled'
-
-  return new Date(closeAtIso) <= new Date() ? 'closed' : 'scheduled'
+  if (!closeAt) return 'invalid'
+  return Date.parse(closeAt) <= Date.now() ? 'closed' : 'scheduled'
 }
 
 export const COHORT_STATUS_OPTIONS = [

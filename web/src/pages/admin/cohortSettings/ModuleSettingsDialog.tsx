@@ -3,15 +3,22 @@ import { CalendarDays, Github, Save, Trash2 } from 'lucide-react'
 import { Modal } from '../../../components/shared/Modal'
 import { Badge, type BadgeTone } from '../../../components/ui/Badge'
 import { Button } from '../../../components/ui/Button'
+import { toDateTimeInputValueInTimeZone } from '../../../lib/dateTime'
 import { formatShortDateTime } from '../../../lib/format'
-import { schoolTimeDescription, schoolTimeGenericLabel, schoolTimeLabel } from '../../../lib/schoolTime'
+import { schoolTimeDescription, schoolTimeGenericLabel, schoolTimeLabel, schoolTimeZone } from '../../../lib/schoolTime'
 import {
   submissionWindowCloseAt,
   formatDateLabel,
-  nowDateTimeInputValue,
   submissionWindowStatusForForm,
 } from './settingsForm'
 import type { CohortSettingsController } from './useCohortSettings'
+
+const windowStatus = {
+  open: { label: 'Open', tone: 'success' },
+  scheduled: { label: 'Scheduled', tone: 'info' },
+  closed: { label: 'Closed', tone: 'warning' },
+  invalid: { label: 'Invalid time', tone: 'warning' },
+} satisfies Record<ReturnType<typeof submissionWindowStatusForForm>, { label: string; tone: BadgeTone }>
 
 export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsController }) {
   const fieldId = useId()
@@ -188,11 +195,8 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                   <div className="mt-4 space-y-3">
                     {windowForms.map((window) => {
                       const closeAt = submissionWindowCloseAt(window)
-                      const displayStatus = submissionWindowStatusForForm(window)
-                      const statusTone: BadgeTone =
-                        displayStatus === 'closed' ? 'warning' : displayStatus === 'scheduled' ? 'info' : 'success'
-                      const statusLabel =
-                        displayStatus === 'closed' ? 'Closed' : displayStatus === 'scheduled' ? 'Scheduled' : 'Open'
+                      const displayStatus = submissionWindowStatusForForm(window, closeAt)
+                      const status = windowStatus[displayStatus]
 
                       return (
                         <div key={window.week_number} className="rounded-xl border border-line bg-surface-sunken p-3">
@@ -200,7 +204,7 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-sm font-semibold tabular-nums text-ink">Week {window.week_number}</p>
-                                <Badge tone={statusTone}>{statusLabel}</Badge>
+                                <Badge tone={status.tone}>{status.label}</Badge>
                               </div>
                               <p className="mt-1 text-xs tabular-nums text-ink-muted">
                                 {window.starts_on
@@ -222,6 +226,7 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                                 onChange={(event) =>
                                   updateSubmissionWindow(configureMod.id, window.week_number, event.target.value)
                                 }
+                                aria-invalid={displayStatus === 'invalid' || undefined}
                                 aria-label={
                                   'Week ' +
                                   window.week_number +
@@ -238,9 +243,11 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() =>
-                                  updateSubmissionWindow(configureMod.id, window.week_number, nowDateTimeInputValue())
-                                }
+                                onClick={() => {
+                                  const now = new Date().toISOString()
+                                  const schoolTime = toDateTimeInputValueInTimeZone(now, schoolTimeZone)
+                                  updateSubmissionWindow(configureMod.id, window.week_number, schoolTime, now)
+                                }}
                               >
                                 Lock now
                               </Button>

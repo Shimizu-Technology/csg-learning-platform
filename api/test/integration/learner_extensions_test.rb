@@ -431,10 +431,15 @@ class LearnerExtensionsTest < ActionDispatch::IntegrationTest
     legacy = @enrollment.learner_extensions.new(scope: "final", submissions_close_at: (LearningCalendar.today + 60).in_time_zone("Pacific/Guam").end_of_day.change(usec: 0), reason: "Travel")
     legacy.record_change!(actor: @teacher)
     original = legacy.submissions_close_at
+    plan = @enrollment.learning_plan.reload
+    original_target = plan.target_date
     with_school_time_zone("America/Chicago") do
-      patch "#{@path}/#{legacy.id}", params: { reason: "Clarified", submissions_close_at: original.iso8601 }, headers: headers(@teacher), as: :json
+      assert_no_difference -> { plan.revisions.count } do
+        patch "#{@path}/#{legacy.id}", params: { reason: "Clarified" }, headers: headers(@teacher), as: :json
+      end
       assert_response :success
       assert_equal original, legacy.reload.submissions_close_at
+      assert_equal original_target, plan.reload.target_date
     end
   end
 

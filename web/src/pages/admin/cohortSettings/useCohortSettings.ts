@@ -324,11 +324,11 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     setShowResourcesModal(false)
   }
 
-  const updateSubmissionWindow = (moduleId: number, weekNumber: number, closeAt: string) => {
+  const updateSubmissionWindow = (moduleId: number, weekNumber: number, closeAt: string, exactCloseAt?: string) => {
     setSubmissionWindows((prev) => ({
       ...prev,
       [moduleId]: (prev[moduleId] || []).map((window) =>
-        window.week_number === weekNumber ? { ...window, submissions_close_at: closeAt } : window,
+        window.week_number === weekNumber ? { ...window, submissions_close_at: closeAt, exact_close_at: exactCloseAt } : window,
       ),
     }))
   }

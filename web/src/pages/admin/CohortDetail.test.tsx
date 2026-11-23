@@ -36,7 +36,7 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
   state.getCohort.mockResolvedValue({ data: { cohort } }); state.updateCohort.mockImplementation(async (_id, patch) => ({ data: { cohort: { ...cohort, ...patch } } }))
 })
-afterEach(() => { act(() => root.unmount()); container.remove(); configureSchoolTime() })
+afterEach(() => { act(() => root.unmount()); container.remove(); configureSchoolTime(); vi.useRealTimers() })
 it('shows load errors and retries, including rejected requests', async () => {
   state.getCohort.mockRejectedValueOnce(new Error('offline')); await render()
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('Could not load')
@@ -152,6 +152,8 @@ it('prevents nonexistent Chicago cutoff times and sends only the changed week', 
   await act(async () => button('Configure').click())
   expect(container.textContent).toContain('Nov 7, 2027, 1:30 AM CST')
   await input('[aria-label^="Week 1 submissions close"]', '2027-03-14T02:30')
+  expect(container.textContent).toContain('Invalid time')
+  expect(container.querySelector('[aria-label^="Week 1 submissions close"]')?.getAttribute('aria-invalid')).toBe('true')
   await act(async () => button('Done editing module').click())
   await act(async () => button('Save settings').click())
   expect(state.error).toHaveBeenCalledWith('Choose a valid submission close time in the school time zone.')
@@ -163,5 +165,27 @@ it('prevents nonexistent Chicago cutoff times and sends only the changed week', 
   await act(async () => button('Save settings').click())
   expect(state.updateCohortModuleSubmissionWindows).toHaveBeenCalledWith(1, 2, [
     { week_number: 1, submissions_close_at: '2027-03-14T08:30:00.000Z' },
+  ])
+})
+
+it('locks at the exact instant when the saved cutoff has the same Chicago wall time', async () => {
+  configureSchoolTime({ time_zone: 'America/Chicago', time_zone_label: 'CDT' })
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2027-11-07T06:30:10Z'))
+  const module = {
+    id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: true, unlocked_count: 0,
+    submission_windows: [{ week_number: 1, submissions_close_at: '2027-11-07T07:30:42Z', status: 'scheduled' }],
+  }
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [module] } } })
+  state.updateCohortModuleSubmissionWindows.mockResolvedValue({ data: {} })
+  await render()
+  await act(async () => button('Configure').click())
+  expect(container.textContent).toContain('Nov 7, 2027, 1:30 AM CST')
+  await act(async () => button('Lock now').click())
+  expect(container.textContent).toContain('Nov 7, 2027, 1:30 AM CDT')
+  await act(async () => button('Done editing windows').click())
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohortModuleSubmissionWindows).toHaveBeenCalledWith(1, 2, [
+    { week_number: 1, submissions_close_at: '2027-11-07T06:30:10.000Z' },
   ])
 })
