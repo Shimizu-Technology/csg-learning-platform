@@ -27,18 +27,24 @@ class LessonVideoSections
 
     current = progress.completed_video_sections
     credited = current.fetch(source, [])
+    credited_core = credited.select do |key|
+      finish = core_ranges.dig(key, 0)
+      finish && (!duration&.positive? || finish <= duration)
+    end
     accepted = []
     rejected = []
     missing_credit = 0
     reported.uniq.each do |key|
       next unless key.is_a?(String)
 
-      finish, _required, length = ranges[key]
+      finish, required, length = ranges[key]
       next if finish && credited.include?(key)
 
-      # Integer transport plus limited keyframe/sample loss. Keep the
-      # allowance at 2% for long sections, capped at five seconds.
-      minimum = length && [ length - (length * 0.02).clamp(1, 5), 1 ].max.ceil
+      minimum = if required
+        core_minimum(credited_core + [ key ])
+      elsif length
+        range_minimum(length)
+      end
       if !finish || reported_total < minimum || (duration&.positive? && finish > duration)
         rejected << key
       elsif !duration&.positive?
@@ -47,6 +53,7 @@ class LessonVideoSections
         missing_credit = [ missing_credit, minimum - progress.video_total_watched ].max
       else
         accepted << key
+        credited_core << key if required
       end
     end
 
@@ -66,10 +73,46 @@ class LessonVideoSections
   def core_complete?(progress, duration:)
     return false unless duration&.positive? && core? && core_ranges.values.all? { |end_seconds, _| end_seconds <= duration }
 
-    completed(progress).values.any? { |keys| (core_ranges.keys - keys).empty? }
+    keys = core_ranges.keys
+    completed(progress).values.any? { |credited| (keys - credited).empty? } &&
+      progress.video_total_watched >= core_minimum(keys)
   end
 
   private
+
+  def range_minimum(length)
+    # Integer transport plus limited keyframe/sample loss, capped at five seconds.
+    [ length - (length * 0.02).clamp(1, 5), 1 ].max.ceil
+  end
+
+  def core_minimum(keys)
+    spans = keys.map do |key|
+      finish, _, length = core_ranges.fetch(key)
+      [ finish, finish - length ]
+    end
+
+    # Allocate the minimum for each range from its right edge. Visiting
+    # earliest finishes first maximizes reuse by all later overlapping ranges.
+    covered = []
+    spans.sort.each do |finish, start|
+      within = covered.filter_map do |left, right|
+        [ [ start, left ].max, right ] if right > start
+      end
+      needed = range_minimum(finish - start) - within.sum { |left, right| right - left }
+      cursor = finish
+      within.reverse_each do |left, right|
+        break unless needed.positive?
+
+        take = [ cursor - right, needed ].min
+        covered << [ cursor - take, cursor ] if take.positive?
+        needed -= take
+        cursor = left
+      end
+      covered << [ cursor - needed, cursor ] if needed.positive?
+      covered.sort!
+    end
+    covered.sum { |left, right| right - left }
+  end
 
   def playback_sources
     return {} unless @block.video? || @block.recording?
@@ -103,7 +146,11 @@ class LessonVideoSections
       return candidate&.match?(/\A[A-Za-z0-9_-]{6,20}\z/)
     end
     if host == "vimeo.com" || host.end_with?(".vimeo.com")
-      candidate = parts.first == "video" ? parts[1] : parts.reverse.find { |part| part.match?(/\A[0-9]+\z/) }
+      candidate = case parts.first
+      when "video" then parts[1]
+      when "channels" then parts[2]
+      else parts.first
+      end
       return candidate&.match?(/\A[0-9]+\z/)
     end
     false

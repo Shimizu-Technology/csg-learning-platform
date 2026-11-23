@@ -40,13 +40,11 @@ export function resolveMediaSource(value: string | null | undefined): MediaSourc
     return { originalUrl, provider: 'youtube', providerLabel: 'YouTube', playbackUrl: playback.toString(), startSeconds, type: 'embed' };
   }
 
-  const vimeoId = vimeoVideoId(url, host);
-  if (vimeoId) {
-    const playback = new URL(`https://player.vimeo.com/video/${vimeoId}`);
+  const vimeo = vimeoVideo(url, host);
+  if (vimeo) {
+    const playback = new URL(`https://player.vimeo.com/video/${vimeo.id}`);
     playback.searchParams.set('playsinline', '1');
-    const parts = url.pathname.split('/').filter(Boolean);
-    const hash = url.searchParams.get('h') || parts[parts.lastIndexOf(vimeoId) + 1];
-    if (hash && /^[A-Za-z0-9]+$/.test(hash)) playback.searchParams.set('h', hash);
+    if (vimeo.hash) playback.searchParams.set('h', vimeo.hash);
     if (startSeconds > 0) playback.hash = `t=${startSeconds}s`;
     return { originalUrl, provider: 'vimeo', providerLabel: 'Vimeo', playbackUrl: playback.toString(), startSeconds, type: 'embed' };
   }
@@ -191,11 +189,14 @@ function youtubeVideoId(url: URL, host: string) {
   return candidate && YOUTUBE_ID.test(candidate) ? candidate : null;
 }
 
-function vimeoVideoId(url: URL, host: string) {
+function vimeoVideo(url: URL, host: string) {
   if (host !== 'vimeo.com' && !host.endsWith('.vimeo.com')) return null;
   const parts = url.pathname.split('/').filter(Boolean);
-  const candidate = parts[0] === 'video' ? parts[1] : [...parts].reverse().find((part) => /^\d+$/.test(part));
-  return candidate && /^\d+$/.test(candidate) ? candidate : null;
+  const idIndex = parts[0] === 'video' ? 1 : parts[0] === 'channels' ? 2 : 0;
+  const id = parts[idIndex];
+  if (!id || !/^\d+$/.test(id)) return null;
+  const hash = url.searchParams.get('h') || parts[idIndex + 1];
+  return { id, hash: hash && /^[A-Za-z0-9]+$/.test(hash) ? hash : undefined };
 }
 
 function loomVideoId(url: URL, host: string) {

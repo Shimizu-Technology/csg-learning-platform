@@ -7,7 +7,7 @@ import { VideoPlayer } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
 
 export function VideoBlock({ controller, ...props }: ContentBlockRendererProps & { controller: ContentBlockController }) {
-  const { activeVideoSegment, completedRanges, saveNotice, retryProgress, onPlaybackSample, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, onSaveProgress, handleVideoSegmentSelect } = controller
+  const { activeVideoSegment, completedRanges, saveNotice, rejectedSection, retryProgress, onPlaybackSample, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, onSaveProgress, handleVideoSegmentSelect } = controller
   const { block, isStaff, readOnly } = props
   const sources = block.video_progress_sources
   // Preserve the element while the learner switches between known versions.
@@ -97,11 +97,11 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
       {(block.block_type === 'video' || block.block_type === 'recording') && (
         <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedRanges={completedRanges} onSelect={handleVideoSegmentSelect} />
       )}
+      {rejectedSection && <p role="status" className="mt-2 text-sm text-ink-secondary">A section could not be confirmed. Reload the lesson to check its current timestamps.</p>}
       {saveNotice && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-secondary">
         <p role="status">{{
           retry: 'Recording progress could not be saved.',
           waiting: 'Your watch time is still syncing.',
-          rejected: 'A section could not be confirmed. Reload the lesson to check its current timestamps.',
           stale: 'The recording or class access changed. Reload the lesson before saving.',
         }[saveNotice]}</p>
         {(saveNotice === 'retry' || saveNotice === 'waiting') && (

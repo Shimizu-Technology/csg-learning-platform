@@ -20,6 +20,24 @@ vi.mock('./VideoPlayer', () => ({ VideoPlayer: ({ trackProgress, onSaveProgress 
   onSaveProgress({ last_position_seconds: position, total_watched_seconds: position, duration_seconds: 20 })
 }}>Simulate video progress</button></div> }))
 vi.mock('./GradeDisplay', () => ({ GradeDisplay: () => null }))
+const vimeo = vi.hoisted(() => ({
+  create: vi.fn(),
+  handlers: new Map<string, (event: { seconds: number; duration: number; playbackRate: number }) => void>(),
+  pause: vi.fn(async () => undefined),
+  destroy: vi.fn(async () => undefined),
+}))
+vi.mock('@vimeo/player', () => ({
+  default: class {
+    constructor(_element: HTMLElement, options: { url: string }) { vimeo.create(options.url) }
+    on(event: string, callback: (event: { seconds: number; duration: number; playbackRate: number }) => void) { vimeo.handlers.set(event, callback) }
+    getDuration = async () => 60
+    setCurrentTime = async () => undefined
+    ready = async () => undefined
+    play = async () => undefined
+    pause = vimeo.pause
+    destroy = vimeo.destroy
+  },
+}))
 
 import { ContentBlockRenderer } from './ContentBlockRenderer'
 import { api } from '../../lib/api'
@@ -425,6 +443,153 @@ describe('hosted video completion in flight', () => {
     await act(async () => { resolvers[1](completed) })
     expect(refresh).toHaveBeenCalledOnce()
     act(() => root.unmount())
+  })
+})
+
+describe('linked recording compatibility and recovery', () => {
+  const segments = [
+    { label: 'Core', start_seconds: 5, end_seconds: 7, required: true },
+    { label: 'Edited', start_seconds: 1, end_seconds: 3, required: true },
+  ]
+  const emit = (event: string, seconds = 0) => vimeo.handlers.get(event)?.({ seconds, duration: 60, playbackRate: 2 })
+  const block = checkpoint({ block_type: 'recording', video_url: 'https://vimeo.com/123456/98765',
+    metadata: { video_segments: segments } })
+  afterEach(() => {
+    vimeo.create.mockClear()
+    vimeo.handlers.clear()
+    vimeo.pause.mockClear()
+    vimeo.destroy.mockClear()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it.each([['http', false], ['http', true], ['https', false]])('preserves source-less Vimeo completion (%s, readOnly=%s)', async (protocol, readOnly) => {
+    const update = vi.spyOn(api, 'updateProgress').mockResolvedValue({ data: null, error: null })
+    const save = vi.spyOn(api, 'updateContentBlockVideoProgress')
+    const refresh = vi.fn()
+    const root = createRoot(document.createElement('div'))
+    try {
+      await act(async () => root.render(<ContentBlockRenderer block={{ ...block, video_url: protocol + '://vimeo.com/123456/98765' }} cohortId={2} readOnly={readOnly} onProgressUpdate={refresh} />))
+      expect(vimeo.create).toHaveBeenCalledWith('https://vimeo.com/123456/98765')
+      await act(async () => emit('ended', 60))
+      expect(update).toHaveBeenCalledTimes(readOnly ? 0 : 1)
+      if (!readOnly) expect(update).toHaveBeenCalledWith(block.id, 'completed', 2)
+      expect(refresh).toHaveBeenCalledTimes(readOnly ? 0 : 1)
+      expect(save).not.toHaveBeenCalled()
+    } finally { act(() => root.unmount()) }
+  })
+
+  it.each([false, true])('handles authenticated YouTube ended events with the correct completion path (source=%s)', async (withSource) => {
+    const update = vi.spyOn(api, 'updateProgress').mockResolvedValue({ data: null, error: null })
+    const save = vi.spyOn(api, 'updateContentBlockVideoProgress').mockResolvedValue({ data: null, error: 'Unavailable', status: 503 })
+    const container = document.body.appendChild(document.createElement('div'))
+    const root = createRoot(container)
+    try {
+      const youtube = { ...block, video_url: withSource ? 'https://youtu.be/abcdef12345' : 'http://youtu.be/abcdef12345',
+        ...(withSource ? { video_progress_sources: { default: 'source' } } : {}) }
+      await act(async () => root.render(<ContentBlockRenderer block={youtube} cohortId={2} />))
+      const frame = container.querySelector('iframe')!
+      expect(frame.src).toMatch(/^https:\/\/www\.youtube\.com\/embed\/abcdef12345\?/u)
+      const deliver = (origin: string, data: object) => window.dispatchEvent(new MessageEvent('message', { origin, source: frame.contentWindow, data }))
+      const ended = { event: 'onStateChange', id: block.id, info: 0 }
+      await act(async () => deliver('https://not-youtube.invalid', ended))
+      expect(update).not.toHaveBeenCalled()
+      expect(save).not.toHaveBeenCalled()
+      await act(async () => {
+        if (withSource) deliver('https://www.youtube.com', { event: 'infoDelivery', info: { duration: 60 } })
+        deliver('https://www.youtube.com', ended)
+      })
+      expect(update).toHaveBeenCalledTimes(withSource ? 0 : 1)
+      expect(save).toHaveBeenCalledTimes(withSource ? 1 : 0)
+      if (withSource) expect(save).toHaveBeenCalledWith(block.id, expect.objectContaining({ video_source: 'source', total_watched_seconds: 0 }), 2)
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+    }
+  })
+
+  it('settles a fast Vimeo seek without awarding the jump', async () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0)
+    const save = vi.spyOn(api, 'updateContentBlockVideoProgress').mockResolvedValue({ data: null, error: 'Unavailable', status: 503 })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(<ContentBlockRenderer block={{ ...block, video_progress_sources: { default: 'source' } }} />))
+      await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label^="Play Core"]')!.click())
+      await act(async () => {
+        emit('play')
+        emit('playbackratechange')
+        emit('timeupdate', 0)
+        emit('seeking')
+        clock.mockReturnValue(100)
+        emit('seeked', 5.35)
+        clock.mockReturnValue(550)
+        emit('timeupdate', 6.2)
+        clock.mockReturnValue(950)
+        emit('timeupdate', 7)
+      })
+      expect(vimeo.pause).toHaveBeenCalledOnce()
+      expect(save).toHaveBeenLastCalledWith(block.id, expect.objectContaining({ total_watched_seconds: 1, completed_section_ranges: ['5:7'] }), undefined)
+    } finally { act(() => root.unmount()) }
+  })
+
+  it('retains coverage across an in-flight metadata refresh and retries a valid range alongside a rejection', async () => {
+    vi.useFakeTimers()
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0)
+    type Response = Awaited<ReturnType<typeof api.updateContentBlockVideoProgress>>
+    const result = (fields: NonNullable<Response['data']>['video_progress']): Response => ({ data: { video_progress: fields }, error: null })
+    const progress = { content_block_id: block.id, last_position: 7, total_watched: 4, duration: 60, status: 'in_progress', completed: false }
+    let finishFailedSave!: (response: Response) => void
+    const save = vi.spyOn(api, 'updateContentBlockVideoProgress')
+      .mockResolvedValueOnce(result({ ...progress, completed_video_sections: {} }))
+      .mockImplementationOnce(() => new Promise(resolve => { finishFailedSave = resolve }))
+      .mockResolvedValueOnce(result({ ...progress, completed_video_sections: {}, section_rejected_ranges: ['1:3'], section_retry_after_seconds: 2 }))
+      .mockResolvedValueOnce(result({ ...progress, completed_video_sections: { source: ['5:7'] } }))
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const render = (videoSegments: typeof segments) => root.render(<ContentBlockRenderer block={{
+      ...block, video_progress_sources: { default: 'source' }, metadata: { video_segments: videoSegments },
+    }} cohortId={2} />)
+    const sample = (event: string, position: number, time: number) => {
+      clock.mockReturnValue(time)
+      emit(event, position)
+    }
+    const retry = () => Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Retry saving progress')
+    try {
+      await act(async () => render(segments))
+      await act(async () => {
+        emit('play')
+        emit('playbackratechange')
+        sample('timeupdate', 1, 100)
+        sample('timeupdate', 3, 1100)
+        emit('seeking')
+        sample('seeked', 5, 1200)
+        sample('pause', 6, 1700)
+      })
+      expect(save).toHaveBeenLastCalledWith(block.id, expect.objectContaining({ completed_section_ranges: ['1:3'] }), 2)
+      await act(async () => render([segments[0], { ...segments[1], end_seconds: 4 }]))
+      expect(vimeo.create).toHaveBeenCalledOnce()
+      expect(vimeo.destroy).not.toHaveBeenCalled()
+      await act(async () => finishFailedSave({ data: null, error: 'Unavailable', status: 503 }))
+      expect(container.textContent).toContain('Recording progress could not be saved.')
+      expect(retry()).toBeDefined()
+      await act(async () => {
+        emit('play')
+        sample('timeupdate', 6, 1800)
+        sample('pause', 7, 2300)
+      })
+      expect(save).toHaveBeenLastCalledWith(block.id, expect.objectContaining({ completed_section_ranges: ['1:3', '5:7'] }), 2)
+      expect(container.textContent).toContain('A section could not be confirmed.')
+      expect(container.textContent).toContain('Your watch time is still syncing.')
+      await act(async () => retry()!.click())
+      expect(save).toHaveBeenCalledTimes(3)
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+      expect(save).toHaveBeenCalledTimes(4)
+      expect(save).toHaveBeenLastCalledWith(block.id, expect.objectContaining({ completed_section_ranges: ['5:7'] }), 2)
+      expect(container.querySelector('button[aria-label^="Play Core"]')?.getAttribute('aria-label')).toContain('section finished')
+      expect(container.textContent).toContain('A section could not be confirmed.')
+      expect(retry()).toBeUndefined()
+    } finally { act(() => root.unmount()) }
   })
 })
 

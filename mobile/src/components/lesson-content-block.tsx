@@ -29,7 +29,7 @@ import { MessageCodeBlock } from './message-code-block';
 import { InAppMediaPlayer, type InAppMediaPlayerHandle } from './in-app-media-player';
 import { NativeVideoPlayer, type NativeVideoPlayerHandle } from './native-video-player';
 import { VideoSegmentControls } from './video-segment-controls';
-import { sectionRange, SectionCoverage, type PlaybackSample } from '@/lib/section-watch';
+import { SectionCoverage, type PlaybackSample } from '@/lib/section-watch';
 import { normalizeVideoSegments, segmentPlaybackStart, type VideoSegment } from '@/lib/video-segments';
 
 interface LessonContentBlockProps {
@@ -364,21 +364,27 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
   const retryAt = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const stale = useRef(false);
-  const [saveNotice, setSaveNotice] = useState<'retry' | 'waiting' | 'rejected' | 'stale' | null>(null);
-  useEffect(() => () => clearTimeout(retryTimer.current), []);
+  const mounted = useRef(false);
+  const [saveNotice, setSaveNotice] = useState<'retry' | 'waiting' | 'stale' | null>(null);
+  const [rejectedSection, setRejectedSection] = useState(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(retryTimer.current);
+    };
+  }, []);
   const completedRanges = source ? block.progress?.completed_video_sections?.[source] ?? [] : [];
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata]);
-  const signature = JSON.stringify(videoSegments.map(sectionRange));
-  const coverage = useMemo(() => new SectionCoverage(videoSegments),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [signature]);
+  const [coverage] = useState(() => new SectionCoverage(videoSegments));
+  useLayoutEffect(() => { coverage.updateSegments(videoSegments); }, [coverage, videoSegments]);
   const initialPosition = segmentPlaybackStart(videoSegments, block.progress?.video_last_position || 0);
   const fetchStream = useCallback(async () => {
     const response = await api.contentVideoStream(block.id, undefined, cohortId);
     if (source && response.video_source && response.video_source !== source) throw new Error('The recording changed. Reopen the lesson to load it.');
     return { stream_url: response.stream_url, expires_at: response.expires_at };
   }, [api, block.id, cohortId, source]);
-  const saveProgress = useCallback((progress: VideoProgressInput, retry = false) => {
+  const saveProgress = useCallback(function save(progress: VideoProgressInput, retry = false) {
     if (!trackProgressRef.current || stale.current) return Promise.resolve();
     const previous = lastProgressRef.current;
     lastProgressRef.current = progress;
@@ -391,9 +397,16 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
       return queueRef.current;
     }
     const send = async () => {
-      if (!trackProgressRef.current || stale.current) return;
+      if (!trackProgressRef.current || stale.current || (retry && !mounted.current)) return;
       const pending = offered.filter((range) => pendingRangesRef.current.has(range));
       const ready = Date.now() >= retryAt.current;
+      if (retry && !ready) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(() => {
+          if (lastProgressRef.current) void save(lastProgressRef.current, true).catch(() => undefined);
+        }, Math.max(1, retryAt.current - Date.now()));
+        return;
+      }
       const response = await api.updateContentVideoProgress(block.id, {
         ...progress,
         ...(source ? { video_source: source } : {}),
@@ -403,10 +416,12 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
       for (const range of (source && saved.completed_video_sections?.[source]) || []) pendingRangesRef.current.delete(range);
       for (const range of saved.section_rejected_ranges ?? []) pendingRangesRef.current.delete(range);
       if (ready) retryAt.current = saved.section_retry_after_seconds ? Date.now() + saved.section_retry_after_seconds * 1000 : 0;
-      if (saved.section_rejected_ranges?.length) setSaveNotice('rejected');
-      else if (pendingRangesRef.current.size && (!ready || saved.section_retry_after_seconds)) setSaveNotice('waiting');
-      else if (pendingRangesRef.current.size && pending.length) setSaveNotice('retry');
-      else setSaveNotice((current) => current === 'rejected' ? current : null);
+      if (mounted.current) {
+        if (saved.section_rejected_ranges?.length) setRejectedSection(true);
+        if (pendingRangesRef.current.size && (!ready || saved.section_retry_after_seconds)) setSaveNotice('waiting');
+        else if (pendingRangesRef.current.size && pending.length) setSaveNotice('retry');
+        else setSaveNotice(null);
+      }
       if (response.video_progress.completed && !trackedCompletionRef.current) {
         trackedCompletionRef.current = true;
         captureProductEvent('learning_step_completed', {
@@ -422,7 +437,8 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
         lesson: {
           ...current.lesson,
           content_blocks: current.lesson.content_blocks.map((candidate) => {
-            if (candidate.id !== block.id || candidate.video_progress_sources?.default !== source) return candidate;
+            if (candidate.id !== block.id || candidate.video_progress_sources?.default !== source ||
+                (!source && candidate.video_url !== block.video_url)) return candidate;
             const saved = response.video_progress;
             const completed = candidate.progress?.status === 'completed' || saved.completed;
             const sections = { ...candidate.progress?.completed_video_sections };
@@ -443,18 +459,16 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
     };
     const delivery = queueRef.current.then(send).catch((error: unknown) => {
       stale.current = error instanceof ApiError && [403, 404, 409, 422].includes(error.status ?? 0);
-      setSaveNotice(stale.current ? 'stale' : 'retry');
+      if (mounted.current) setSaveNotice(stale.current ? 'stale' : 'retry');
       throw error;
     });
     queueRef.current = delivery.catch(() => undefined);
     return delivery;
-  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, source, userId]);
+  }, [api, block.block_type, block.id, block.video_url, cohortId, lesson.id, lesson.module_id, queryClient, source, userId]);
 
   const retryProgress = () => {
     clearTimeout(retryTimer.current);
-    retryTimer.current = setTimeout(() => {
-      if (lastProgressRef.current) void saveProgress(lastProgressRef.current, true).catch(() => undefined);
-    }, Math.max(0, retryAt.current - Date.now()));
+    if (lastProgressRef.current) void saveProgress(lastProgressRef.current, true).catch(() => undefined);
   };
   const onPlaybackSample = useCallback<PlaybackSample>((from, to, watched) => {
     if (!source || !trackProgressRef.current) return;
@@ -470,11 +484,11 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
   if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
   const sectionControls = <>
     <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedRanges={completedRanges} onSelect={seekToSegment} />
+    {rejectedSection && <Text accessibilityLiveRegion="polite" style={styles.draftNoticeText}>A section could not be confirmed. Reopen the lesson to check its timestamps.</Text>}
     {saveNotice && <View style={styles.draftNotice}>
       <Text accessibilityLiveRegion="polite" style={styles.draftNoticeText}>{{
         retry: 'Recording progress could not be saved.',
         waiting: 'Your watch time is still syncing.',
-        rejected: 'A section could not be confirmed. Reopen the lesson to check its timestamps.',
         stale: 'The recording or class access changed. Reopen the lesson before saving.',
       }[saveNotice]}</Text>
       {(saveNotice === 'retry' || saveNotice === 'waiting') && <Button variant="secondary" onPress={retryProgress}><Text style={styles.outlineText}>Retry saving progress</Text></Button>}

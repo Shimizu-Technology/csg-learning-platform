@@ -64,3 +64,24 @@ it('lets lesson section saves through when rounded native progress has not chang
   expect(saveProgress.mock.calls[1]).toEqual(saveProgress.mock.calls[0]);
   screen.unmount();
 });
+
+it('keeps a direct native stream loaded through progress refreshes', async () => {
+  mockPlayer.replaceAsync.mockClear();
+  const saveProgress = jest.fn().mockResolvedValue(undefined);
+  const element = (url: string, position: number) => <InAppMediaPlayer
+    title="Test" url={url} initialPosition={position} initialTotalWatched={position} saveProgress={saveProgress} trackProgress
+  />;
+  const url = 'https://example.com/video.mp4';
+  const screen = render(element(url, 0));
+  await act(async () => {});
+  expect(mockPlayer.replaceAsync).toHaveBeenCalledTimes(1);
+  screen.rerender(element(url, 8));
+  await act(async () => {});
+  expect(mockPlayer.replaceAsync).toHaveBeenCalledTimes(1);
+
+  const nextUrl = 'https://example.com/alternate.mp4';
+  screen.rerender(element(nextUrl, 8));
+  await act(async () => {});
+  expect(mockPlayer.replaceAsync).toHaveBeenCalledTimes(2);
+  expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith(expect.objectContaining({ uri: nextUrl }));
+});

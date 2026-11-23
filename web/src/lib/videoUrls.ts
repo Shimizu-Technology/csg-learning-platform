@@ -1,14 +1,15 @@
-function httpsUrl(value: string) {
+// Only provider IDs/hashes leave these parsers. The players build HTTPS URLs.
+function embedUrl(value: string) {
   try {
     const url = new URL(value)
-    return url.protocol === 'https:' ? url : null
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null
   } catch {
     return null
   }
 }
 
 export function getYouTubeId(value: string): string | null {
-  const url = httpsUrl(value)
+  const url = embedUrl(value)
   if (!url) return null
   const host = url.hostname
   const parts = url.pathname.split('/').filter(Boolean)
@@ -20,11 +21,12 @@ export function getYouTubeId(value: string): string | null {
 }
 
 export function getVimeoEmbed(value: string): { id: string; hash?: string } | null {
-  const url = httpsUrl(value)
+  const url = embedUrl(value)
   if (!url || (url.hostname !== 'vimeo.com' && !url.hostname.endsWith('.vimeo.com'))) return null
   const parts = url.pathname.split('/').filter(Boolean)
-  const id = parts[0] === 'video' ? parts[1] : [...parts].reverse().find((part) => /^\d+$/.test(part))
+  const idIndex = parts[0] === 'video' ? 1 : parts[0] === 'channels' ? 2 : 0
+  const id = parts[idIndex]
   if (!id || !/^\d+$/.test(id)) return null
-  const hash = url.searchParams.get('h') || parts[parts.lastIndexOf(id) + 1]
+  const hash = url.searchParams.get('h') || parts[idIndex + 1]
   return { id, hash: hash && /^[A-Za-z0-9]+$/.test(hash) ? hash : undefined }
 }

@@ -52,18 +52,25 @@ export class SectionWatch {
 }
 
 export class SectionCoverage {
-  private readonly watches: SectionWatch[]
+  private watches = new Map<string, SectionWatch>()
 
   constructor(segments: VideoSegment[]) {
-    this.watches = segments.map((segment) => new SectionWatch(segment))
+    this.updateSegments(segments)
+  }
+
+  updateSegments(segments: VideoSegment[]) {
+    this.watches = new Map(segments.map((segment) => {
+      const key = sectionRange(segment)
+      return [key, this.watches.get(key) ?? new SectionWatch(segment)]
+    }))
   }
 
   observe(from: number, to: number, watched: number) {
     const finished: string[] = []
-    for (const watch of this.watches) {
+    for (const [key, watch] of this.watches) {
       if (watch.finished) continue
       watch.observe(from, to, watched)
-      if (watch.finished) finished.push(sectionRange(watch.segment))
+      if (watch.finished) finished.push(key)
     }
     return finished
   }

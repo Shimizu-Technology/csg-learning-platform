@@ -10,7 +10,7 @@ import { creditedPlaybackSeconds, normalizedProgress } from '../../lib/playbackC
 import type { ContentBlockRendererProps } from './contentBlockTypes'
 import type { VideoPlayerHandle, VideoProgressData } from './VideoPlayer'
 
-type SaveNotice = 'retry' | 'waiting' | 'rejected' | 'stale'
+type SaveNotice = 'retry' | 'waiting' | 'stale'
 type SourceReport = {
   signature: string
   coverage: SectionCoverage
@@ -18,6 +18,7 @@ type SourceReport = {
   last?: VideoProgressData
   lastOffered?: string
   notice?: SaveNotice
+  rejected?: boolean
   retryAt?: number
 }
 
@@ -30,7 +31,7 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   const [selection, setSelection] = useState<{ segment: VideoSegment; scope: string; source?: string } | null>(null)
   const activeVideoSegment = selection?.scope === scope && selection.source === source ? selection.segment : null
   const [savedSections, setSavedSections] = useState<{ scope: string; ranges: Record<string, string[]> }>({ scope, ranges: {} })
-  const [notices, setNotices] = useState<Record<string, SaveNotice | undefined>>({})
+  const [notices, setNotices] = useState<Record<string, { notice?: SaveNotice; rejected?: boolean }>>({})
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
   const vimeoPlayerRef = useRef<Player | null>(null)
   const ytIframeRef = useRef<HTMLIFrameElement>(null)
@@ -51,8 +52,8 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   const rangeSignature = JSON.stringify(videoSegments.map(sectionRange))
   const reports = useMemo(() => new Map<string, SourceReport>(), [scope])
   // The source and its timestamp list jointly identify observed coverage.
-  // A changed timestamp starts a fresh tracker while retaining pending data
-  // for the API to acknowledge or reject.
+  // Preserve coverage for unchanged timestamps and let the API acknowledge
+  // or reject ranges that were pending before an edit.
   const report = useMemo<SourceReport>(() => reports.get(assetKey) ?? {
     signature: rangeSignature,
     pending: new Set<string>(),
@@ -61,7 +62,7 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   useLayoutEffect(() => {
     if (report.signature !== rangeSignature) {
       report.signature = rangeSignature
-      report.coverage = new SectionCoverage(videoSegments)
+      report.coverage.updateSegments(videoSegments)
     }
     reports.set(assetKey, report)
   }, [reports, assetKey, rangeSignature, report, videoSegments])
@@ -114,6 +115,12 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
     onProgressUpdate?.()
   }, [block.block_type, block.id, scope, setIsCompleted])
 
+  const completeLegacyLinkedVideo = useCallback(async () => {
+    if (source || completedRef.current || !latestRef.current.canTrack || latestRef.current.assetKey !== assetKey) return
+    const result = await api.updateProgress(block.id, 'completed', cohortId)
+    if (!result.error && latestRef.current.assetKey === assetKey) recordCompletion()
+  }, [assetKey, block.id, cohortId, recordCompletion, source])
+
   const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const activeRetryKey = useRef<string | null>(null)
   useLayoutEffect(() => {
@@ -142,7 +149,7 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
 
     const notify = (notice?: SaveNotice) => {
       report.notice = notice
-      setNotices((current) => ({ ...current, [assetKey]: notice }))
+      setNotices((current) => ({ ...current, [assetKey]: { notice, rejected: report.rejected } }))
     }
     saveQueueRef.current = saveQueueRef.current.then(async () => {
       if (!allowed() || report.notice === 'stale' || (retry && activeRetryKey.current !== assetKey)) return
@@ -172,10 +179,10 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
         for (const range of ranges) report.pending.delete(range)
         for (const range of saved.section_rejected_ranges ?? []) report.pending.delete(range)
         if (ready) report.retryAt = saved.section_retry_after_seconds ? Date.now() + saved.section_retry_after_seconds * 1000 : undefined
-        if (saved.section_rejected_ranges?.length) notify('rejected')
-        else if (report.pending.size && (!ready || saved.section_retry_after_seconds)) notify('waiting')
+        if (saved.section_rejected_ranges?.length) report.rejected = true
+        if (report.pending.size && (!ready || saved.section_retry_after_seconds)) notify('waiting')
         else if (report.pending.size && pending.length) notify('retry')
-        else if (report.notice !== 'rejected') notify()
+        else notify()
         setSavedSections((previous) => ({
           scope,
           ranges: { ...(previous.scope === scope ? previous.ranges : {}), [source]: ranges },
@@ -230,7 +237,7 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
         linkedPauseAt.current = at
         pause()
       }
-      finishActiveVideoSegment(progress)
+      finishActiveVideoSegment(source ? progress : null)
       return
     }
     if (playing && !linkedAnchored.current && source) {
@@ -279,7 +286,10 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
     player.on('bufferend', () => { buffering = false })
     player.on('playbackratechange', ({ playbackRate }) => { rate = playbackRate })
     player.on('timeupdate', sample)
-    player.on('ended', (event) => sample(event, true))
+    player.on('ended', (event) => {
+      sample(event, true)
+      if (!source) void completeLegacyLinkedVideo()
+    })
     if (initialVideoPosition > 0) {
       void player.ready().then(() => player.setCurrentTime(initialVideoPosition)).catch(() => undefined)
     }
@@ -287,7 +297,7 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
       vimeoPlayerRef.current = null
       void player.destroy()
     }
-  }, [block.s3_video_key, block.video_url, initialVideoPosition, sampleLinkedVideo, saveBlockProgress, source])
+  }, [block.s3_video_key, block.video_url, completeLegacyLinkedVideo, initialVideoPosition, sampleLinkedVideo, saveBlockProgress, source])
 
   useEffect(() => {
     if (block.s3_video_key || !block.video_url || !getYouTubeId(block.video_url)) return
@@ -302,9 +312,10 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
     const stateChanged = (next: number) => {
       const wasPlaying = state === 1
       state = next
-      if (next === 0 && duration > 0 && !finalized) {
+      if (next === 0 && (!source || duration > 0) && !finalized) {
         finalized = true
-        sampleLinkedVideo(duration, duration, false, rate, pause, true)
+        if (duration > 0) sampleLinkedVideo(duration, duration, false, rate, pause, true)
+        if (!source) void completeLegacyLinkedVideo()
       } else if (next === 2 && wasPlaying && linkedBaselineRef.current) {
         const automatic = linkedPauseAt.current !== null && performance.now() - linkedPauseAt.current < 2000
         if (!automatic && source) {
@@ -344,7 +355,7 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
       window.removeEventListener('message', handleMessage)
       iframe?.removeEventListener('load', listen)
     }
-  }, [block.id, block.s3_video_key, block.video_url, sampleLinkedVideo, saveBlockProgress, source])
+  }, [block.id, block.s3_video_key, block.video_url, completeLegacyLinkedVideo, sampleLinkedVideo, saveBlockProgress, source])
 
   const fetchBlockStreamUrl = useCallback(async () => {
     const res = await api.getContentBlockVideoStream(block.id, cohortId, versionId)
@@ -354,6 +365,13 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
 
   const handleVideoSegmentSelect = useCallback((segment: VideoSegment) => {
     const seconds = segment.start_seconds
+    // An explicit seek supersedes the incoming deep link. Let a reload
+    // resume the actual saved playhead instead of either section's start.
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('t')) {
+      url.searchParams.delete('t')
+      window.history.replaceState(window.history.state, '', url)
+    }
     const attempt = { segment, scope, source }
     selectionRef.current = attempt
     linkedBaselineRef.current = null
@@ -377,7 +395,9 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   }, [block.s3_video_key, scope, source])
 
   return {
-    versions, versionId, source, selectVideoVersion, activeVideoSegment, completedRanges, hasCore, saveNotice: notices[assetKey], retryProgress, vimeoContainerRef, ytIframeRef, s3VideoRef,
+    versions, versionId, source, selectVideoVersion, activeVideoSegment, completedRanges, hasCore,
+    saveNotice: notices[assetKey]?.notice, rejectedSection: notices[assetKey]?.rejected,
+    retryProgress, vimeoContainerRef, ytIframeRef, s3VideoRef,
     videoSegments, initialVideoPosition, finishActiveVideoSegment, onPlaybackSample, fetchBlockStreamUrl, onSaveProgress, handleVideoSegmentSelect,
   }
 }

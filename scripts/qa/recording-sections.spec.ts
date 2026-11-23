@@ -179,6 +179,12 @@ test('plays and saves independent sections, keeps controls operable and retains 
       await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
       await page.setViewportSize({ width: 1280, height: 844 })
     }
+    await playSection('Second Core', 7)
+    expect(new URL(page.url()).searchParams.has('t')).toBe(false)
+    await expect.poll(async () => (await read()).progress?.video_last_position).toBe(7)
+    await page.reload()
+    await ready()
+    await expect.poll(time).toBeCloseTo(7, 0)
     await click(page.getByRole('button', { name: 'Restart', exact: true }))
     await expect.poll(time).toBeLessThan(2)
     await expect.poll(paused).toBe(false)

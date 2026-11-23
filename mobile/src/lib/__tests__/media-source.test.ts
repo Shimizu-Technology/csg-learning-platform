@@ -120,3 +120,14 @@ it.each(['www', 'm'])('normalizes a %s-prefixed configured application hostname'
     }
   });
 });
+
+it.each([
+  ['https://vimeo.com/123456/98765', '98765'],
+  ['https://player.vimeo.com/video/123456?h=aBc123', 'aBc123'],
+  ['https://player.vimeo.com/video/123456?h=98765', '98765'],
+  ['https://vimeo.com/channels/1234/123456', null],
+])('keeps the Vimeo route ID separate from its privacy hash: %s', (url, hash) => {
+  const playback = new URL(resolveMediaSource(url)!.playbackUrl!);
+  expect(playback.pathname).toBe('/video/123456');
+  expect(playback.searchParams.get('h')).toBe(hash);
+});

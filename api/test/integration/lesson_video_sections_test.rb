@@ -54,9 +54,9 @@ class LessonVideoSectionsTest < ActionDispatch::IntegrationTest
   end
 
   test "legacy pings retain the 90 percent path on Core and modern pings retain it without Core" do
-    report(source: nil, total: 1)
+    report(source: nil, total: 1, version: 1)
     travel 30.seconds
-    assert report(source: nil, total: 54).fetch("completed")
+    assert report(source: nil, total: 54, version: 1).fetch("completed")
     @block.update!(metadata: { video_segments: segments.map { |segment| segment.merge(required: false) } })
     assert report(total: 1).fetch("completed")
     @enrollment.progresses.delete_all
@@ -140,6 +140,42 @@ class LessonVideoSectionsTest < ActionDispatch::IntegrationTest
     refute accepted.key?("section_retry_after_seconds")
   end
 
+  test "Core budgets disjoint ranges across requests while Optional can earn its own check" do
+    first = report(ranges: [ "5:8" ], total: 2)
+    assert_equal [ "5:8" ], first.fetch("completed_video_sections").fetch(@source)
+    partial = report(ranges: %w[5:8 15:18 30:33], total: 2)
+    assert_equal %w[5:8 30:33], partial.fetch("completed_video_sections").fetch(@source)
+    assert_equal [ "15:18" ], partial.fetch("section_rejected_ranges")
+    refute partial.key?("section_retry_after_seconds")
+    refute partial.fetch("completed")
+
+    final = report(ranges: %w[15:18 15:18], total: 4)
+    assert_equal %w[5:8 30:33 15:18], final.fetch("completed_video_sections").fetch(@source)
+    assert_equal 4, final.fetch("total_watched")
+    assert final.fetch("completed")
+  end
+
+  test "one save partially accepts Core and distinguishes a late valid range from an obsolete one" do
+    freeze_time
+    @block.update!(metadata: { video_segments: [
+      { label: "First Core", start_seconds: 0, end_seconds: 12 },
+      { label: "Second Core", start_seconds: 20, end_seconds: 32 }
+    ] })
+    partial = report(ranges: %w[0:12 20:32 20:31], total: 22)
+    assert_equal 20, partial.fetch("total_watched")
+    assert_equal [ "0:12" ], partial.fetch("completed_video_sections").fetch(@source)
+    assert_equal [ "20:31" ], partial.fetch("section_rejected_ranges")
+    assert_equal 1, partial.fetch("section_retry_after_seconds")
+    refute partial.fetch("completed")
+
+    travel 1.second
+    final = report(ranges: %w[0:12 20:32], total: 22)
+    assert_equal 22, final.fetch("total_watched")
+    assert_equal %w[0:12 20:32], final.fetch("completed_video_sections").fetch(@source)
+    assert final.fetch("completed")
+    refute final.key?("section_retry_after_seconds")
+  end
+
   test "anchoring starts the credit clock and the first hosted duration stays authoritative" do
     @block.update!(s3_video_duration_seconds: nil,
       metadata: { video_segments: [ { label: "Long Core", start_seconds: 0, end_seconds: 55, required: true } ] })
@@ -202,8 +238,8 @@ class LessonVideoSectionsTest < ActionDispatch::IntegrationTest
     ]
   end
 
-  def report(source: @source, ranges: nil, position: 33, total:, duration: 60, cohort: @cohort, expected: :success)
-    payload = { cohort_id: cohort.id, last_position_seconds: position, total_watched_seconds: total, duration_seconds: duration, watch_credit_version: 2 }
+  def report(source: @source, ranges: nil, position: 33, total:, duration: 60, cohort: @cohort, expected: :success, version: 2)
+    payload = { cohort_id: cohort.id, last_position_seconds: position, total_watched_seconds: total, duration_seconds: duration, watch_credit_version: version }
     payload[:video_source] = source if source
     payload[:completed_section_ranges] = ranges if ranges
     as_user(@student) do

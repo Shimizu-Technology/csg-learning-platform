@@ -22,3 +22,21 @@ describe('Vimeo URLs', () => {
   it('preserves the private embed hash', () => expect(getVimeoEmbed('https://vimeo.com/123456/abcDEF123?share=copy')).toEqual({ id: '123456', hash: 'abcDEF123' }))
   it.each(['https://vimeo.com/not-a-video', 'https://example.invalid/video', ''])('rejects unsupported IDs: %s', url => expect(getVimeoEmbed(url)).toBeNull())
 })
+
+describe('legacy provider embeds', () => {
+  it('recognizes HTTP YouTube only on its provider host', () => {
+    expect(getYouTubeId('http://youtu.be/abc_DEF-123')).toBe('abc_DEF-123')
+    expect(getYouTubeId('http://youtube.com.example.invalid/watch?v=abc_DEF-123')).toBeNull()
+    expect(getYouTubeId('ftp://youtube.com/watch?v=abc_DEF-123')).toBeNull()
+  })
+
+  it.each([
+    ['http://vimeo.com/123456/98765', '98765'],
+    ['https://vimeo.com/123456/98765', '98765'],
+    ['https://player.vimeo.com/video/123456?h=aBc123', 'aBc123'],
+    ['https://player.vimeo.com/video/123456?h=98765', '98765'],
+    ['https://vimeo.com/channels/1234/123456', undefined],
+  ])('keeps the route ID separate from its privacy hash: %s', (url, hash) => {
+    expect(getVimeoEmbed(url)).toEqual({ id: '123456', hash })
+  })
+})
