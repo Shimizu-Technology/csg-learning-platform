@@ -7,22 +7,28 @@ const session = process.env.DEV_LIFECYCLE_SESSION!
 test.setTimeout(90_000)
 
 test('plays and saves independent sections, keeps controls operable and retains whole-video credit', async ({ browser, baseURL }, info) => {
-  const touch = info.project.name.endsWith('390')
-  const user = touch ? 4 : 3
+  const width = info.project.use.viewport!.width
+  const touch = width !== 1280
+  const user = { 1280: 3, 390: 4, 430: 9 }[width]!
   const tab = `recording-sections-${info.project.name}`
-  const context = await browser.newContext({ baseURL, viewport: { width: touch ? 390 : 1280, height: 844 }, hasTouch: touch })
+  const context = await browser.newContext({ baseURL, viewport: { width, height: 844 }, hasTouch: touch })
   const page = await context.newPage()
   checkedLifecycle(session, 'claim', tab)
   try {
-    let failedSave = false
+    let blockSaves = true
+    let failedSaves = 0
+    let retriedSaves = 0
     await page.route('**/*', route => {
       return ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort()
     })
     await page.route('**/video_progress', async route => {
       const payload = route.request().postDataJSON()
-      if (!failedSave && payload.completed_section_ranges?.includes('10:12')) {
-        failedSave = true
-        return route.fulfill({ status: 503, json: { error: 'Synthetic retry check' } })
+      if (payload.completed_section_ranges?.includes('10:12') && route.request().url().includes(`/${ids.core.block}/video_progress`)) {
+        if (blockSaves) {
+          failedSaves++
+          return route.fulfill({ status: 503, json: { error: 'Synthetic retry check' } })
+        }
+        retriedSaves++
       }
       return route.continue()
     })
@@ -71,9 +77,26 @@ test('plays and saves independent sections, keeps controls operable and retains 
     await expect(section('First Core')).not.toHaveAccessibleName(/section finished/)
     expect(await saved()).toEqual([])
 
-    await playSection('Optional practice', 12)
+    await click(section('Optional practice'))
+    await expect.poll(time).toBeGreaterThanOrEqual(12)
+    await expect.poll(paused).toBe(true)
+    const retry = page.getByRole('button', { name: 'Retry saving progress' })
+    await expect(retry).toBeVisible()
+    expect(await saved()).toEqual([])
+    await click(page.getByRole('button', { name: 'Real desktop', exact: true }))
+    await ready()
+    await expect(retry).toHaveCount(0)
+    await click(page.getByRole('button', { name: 'Studio', exact: true }))
+    await ready()
+    await expect(retry).toBeVisible()
+    expect(await saved()).toEqual([])
+    expect(failedSaves).toBe(1)
+    blockSaves = false
+    await click(retry)
+    await check('Optional practice')
     await expect.poll(saved).toEqual(['10:12'])
-    expect(failedSave).toBe(true)
+    await expect(retry).toHaveCount(0)
+    expect(retriedSaves).toBe(1)
     expect((await read()).progress.status).toBe('in_progress')
     await playSection('First Core', 3)
     await expect.poll(saved).toEqual(['10:12', '1:3'])
@@ -99,11 +122,20 @@ test('plays and saves independent sections, keeps controls operable and retains 
     await video.scrollIntoViewIfNeeded()
     await page.screenshot({ path: `.qa-local/recording-sections-${info.project.name}.png` })
 
+    expect((await speed.boundingBox())!.width).toBeGreaterThanOrEqual(68)
     if (touch) {
       await slider.tap({ position: { x: 10, y: 22 } })
       await expect.poll(time).toBeLessThan(3)
     } else {
       await slider.focus()
+      await expect(slider).toBeFocused()
+      await page.keyboard.press('Home')
+      await page.keyboard.press('ArrowRight')
+      await expect.poll(time).toBeCloseTo(1, 1)
+      await page.keyboard.press('Shift+ArrowRight')
+      await expect.poll(time).toBeCloseTo(6, 1)
+      await page.keyboard.press('ArrowLeft')
+      await expect.poll(time).toBeCloseTo(5, 1)
       await page.keyboard.press('End')
       await expect.poll(time).toBeCloseTo(20, 0)
       await page.keyboard.press('Home')
@@ -135,17 +167,33 @@ test('plays and saves independent sections, keeps controls operable and retains 
     await expect.poll(time).toBeCloseTo(15, 0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     if (!touch) {
+      await page.setViewportSize({ width: 1280, height: 400 })
       const fullscreen = page.getByRole('button', { name: 'Full screen' })
       await click(fullscreen)
       await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement?.querySelector('video')))).toBe(true)
-      expect((await video.boundingBox())!.height).toBeGreaterThan(500)
+      await expect.poll(async () => (await video.boundingBox())?.height ?? 0).toBeGreaterThan(200)
+      const fullVideo = (await video.boundingBox())!
+      expect((await slider.boundingBox())!.y).toBeGreaterThanOrEqual(fullVideo.y + fullVideo.height)
+      await expect(fullscreen).toBeInViewport()
       await click(fullscreen)
       await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
+      await page.setViewportSize({ width: 1280, height: 844 })
     }
     await click(page.getByRole('button', { name: 'Restart', exact: true }))
     await expect.poll(time).toBeLessThan(2)
     await expect.poll(paused).toBe(false)
     await click(page.getByRole('button', { name: 'Pause', exact: true }))
+
+    await page.goto(`/lessons/${ids.natural.lesson}?cohort_id=${ids.cohort}&qa_user=${user}`)
+    await ready()
+    await speed.selectOption('2')
+    await click(page.getByRole('button', { name: 'Play', exact: true }))
+    await expect.poll(time, { timeout: 15_000 }).toBeGreaterThanOrEqual(19.9)
+    await expect.poll(async () => (await read(ids.natural)).progress?.status).toBe('completed')
+    for (const label of ['First Core', 'Second Core', 'Optional practice', 'Finish the recording']) await check(label)
+    await page.reload()
+    await ready()
+    await check('Finish the recording')
 
     await page.goto(`/lessons/${ids.whole.lesson}?cohort_id=${ids.cohort}&qa_user=${user}`)
     await ready()

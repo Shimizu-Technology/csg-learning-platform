@@ -14,7 +14,11 @@ vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ starterLinks, conten
 vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, busy, onChange }: { value: string; readOnly?: boolean; busy?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly || busy ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('./FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
 vi.mock('./CodeRunner', () => ({ CodeRunner: () => null }))
-vi.mock('./VideoPlayer', () => ({ VideoPlayer: ({ trackProgress, onSaveProgress, onCompleted }: { trackProgress?: boolean; onSaveProgress: (data: object) => void; onCompleted: () => void }) => <div data-video="playable" data-tracking={String(trackProgress)}><button onClick={() => onSaveProgress({ last_position_seconds: 10, total_watched_seconds: 10, duration_seconds: 20 })}>Simulate video progress</button><button onClick={onCompleted}>Simulate video ended</button></div> }))
+vi.mock('./VideoPlayer', () => ({ VideoPlayer: ({ trackProgress, onSaveProgress }: { trackProgress?: boolean; onSaveProgress: (data: object) => void }) => <div data-video="playable" data-tracking={String(trackProgress)}><button onClick={(event) => {
+  const position = Number(event.currentTarget.dataset.position ?? 9) + 1
+  event.currentTarget.dataset.position = String(position)
+  onSaveProgress({ last_position_seconds: position, total_watched_seconds: position, duration_seconds: 20 })
+}}>Simulate video progress</button></div> }))
 vi.mock('./GradeDisplay', () => ({ GradeDisplay: () => null }))
 
 import { ContentBlockRenderer } from './ContentBlockRenderer'
@@ -405,7 +409,7 @@ describe('hosted video completion', () => {
 describe('hosted video completion in flight', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('refreshes the lesson once when two saves in flight both report completion', async () => {
+  it('refreshes the lesson once when two queued saves both report completion', async () => {
     const resolvers: Array<(value: Awaited<ReturnType<typeof api.updateContentBlockVideoProgress>>) => void> = []
     vi.spyOn(api, 'updateContentBlockVideoProgress').mockImplementation(() => new Promise((resolve) => { resolvers.push(resolve) }))
     const refresh = vi.fn()
@@ -415,8 +419,10 @@ describe('hosted video completion in flight', () => {
     const progress = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Simulate video progress')!
     await act(async () => { progress.click(); progress.click() })
     const completed = { data: { video_progress: { content_block_id: 1, last_position: 10, total_watched: 10, duration: 20, status: 'completed', completed: true } } } as Awaited<ReturnType<typeof api.updateContentBlockVideoProgress>>
-    await act(async () => { resolvers.forEach((resolve) => resolve(completed)) })
+    expect(resolvers).toHaveLength(1)
+    await act(async () => { resolvers[0](completed) })
     expect(resolvers).toHaveLength(2)
+    await act(async () => { resolvers[1](completed) })
     expect(refresh).toHaveBeenCalledOnce()
     act(() => root.unmount())
   })

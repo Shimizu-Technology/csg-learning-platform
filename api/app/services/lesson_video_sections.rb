@@ -23,22 +23,40 @@ class LessonVideoSections
   end
 
   def record(progress, source:, reported:, reported_total:, duration:)
-    return unless includes_source?(source) && reported.is_a?(Array) && reported.size <= VideoSegmentSet::MAX_SEGMENTS
-    return unless duration&.positive?
-
-    watched = [ progress.video_total_watched, reported_total ].min
-    accepted = reported.select do |key|
-      next false unless key.is_a?(String) && ranges.key?(key)
-
-      finish, _required, length = ranges.fetch(key)
-      # A section report also needs player-reported watch time accepted by
-      # WatchCredit. Allow one second for the whole-second transport.
-      finish <= duration && watched >= [ length - 1, 1 ].max
-    end
-    return if accepted.empty?
+    return {} unless includes_source?(source) && reported.is_a?(Array) && reported.size <= VideoSegmentSet::MAX_SEGMENTS
 
     current = progress.completed_video_sections
-    progress.completed_video_sections = current.merge(source => (current.fetch(source, []) | accepted))
+    credited = current.fetch(source, [])
+    accepted = []
+    rejected = []
+    missing_credit = 0
+    reported.uniq.each do |key|
+      next unless key.is_a?(String)
+
+      finish, _required, length = ranges[key]
+      next if finish && credited.include?(key)
+
+      # Integer transport plus limited keyframe/sample loss. Keep the
+      # allowance at 2% for long sections, capped at five seconds.
+      minimum = length && [ length - (length * 0.02).clamp(1, 5), 1 ].max.ceil
+      if !finish || reported_total < minimum || (duration&.positive? && finish > duration)
+        rejected << key
+      elsif !duration&.positive?
+        missing_credit = [ missing_credit, 1 ].max
+      elsif progress.video_total_watched < minimum
+        missing_credit = [ missing_credit, minimum - progress.video_total_watched ].max
+      else
+        accepted << key
+      end
+    end
+
+    progress.completed_video_sections = current.merge(source => (credited | accepted)) if accepted.any?
+    {}.tap do |result|
+      result[:section_rejected_ranges] = rejected if rejected.any?
+      if missing_credit.positive?
+        result[:section_retry_after_seconds] = (missing_credit / WatchCredit::REFILL_RATE).ceil
+      end
+    end
   end
 
   def core?
@@ -63,11 +81,34 @@ class LessonVideoSections
         "default" => source_id("hosted", default),
         "versions" => versions.to_h { |version| [ version.fetch("id"), source_id("hosted", version.fetch("s3_video_key")) ] }
       }
-    elsif %w[youtube vimeo].include?(Recording.source_kind_for(@block.video_url))
+    elsif supported_link?(@block.video_url)
       { "default" => source_id("linked", @block.video_url) }
     else
       {}
     end
+  end
+
+  def supported_link?(value)
+    url = URI.parse(value.to_s)
+    return false unless url.is_a?(URI::HTTPS)
+
+    host = url.host.to_s.downcase
+    parts = url.path.to_s.split("/").reject(&:empty?)
+    if host.delete_prefix("www.").delete_prefix("m.") == "youtu.be"
+      return parts.first&.match?(/\A[A-Za-z0-9_-]{6,20}\z/)
+    end
+    if host == "youtube.com" || host.end_with?(".youtube.com") || host == "youtube-nocookie.com" || host.end_with?(".youtube-nocookie.com")
+      candidate = URI.decode_www_form(url.query.to_s).assoc("v")&.last.presence
+      candidate ||= parts[1] if %w[embed shorts live].include?(parts.first)
+      return candidate&.match?(/\A[A-Za-z0-9_-]{6,20}\z/)
+    end
+    if host == "vimeo.com" || host.end_with?(".vimeo.com")
+      candidate = parts.first == "video" ? parts[1] : parts.reverse.find { |part| part.match?(/\A[0-9]+\z/) }
+      return candidate&.match?(/\A[0-9]+\z/)
+    end
+    false
+  rescue URI::InvalidURIError, ArgumentError
+    false
   end
 
   def active_sources

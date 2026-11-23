@@ -6,28 +6,84 @@ export function sectionRange(segment: VideoSegment) {
   return `${segment.start_seconds}:${segment.end_seconds}`
 }
 
-// Embedded/native players do not always emit a seek event. Constrain their
-// sampled playback to the media time that could have passed between reports.
+// Sampled players without seek events can have sparse updates during stalls.
+// Accept normal observed movement after a stall, with a fixed ceiling on
+// how much movement a single unconfirmed sample can account for.
 export function observedSectionSeconds(watched: number, elapsed: number, rate: number) {
-  return elapsed <= 1 && watched <= elapsed * rate + 0.15 ? watched : 0
+  const limit = Math.min(elapsed, 2.5) * rate + 0.2
+  return elapsed > 0 && watched <= limit ? watched : 0
 }
 
-// The playhead can cross the end on a seek. Only consecutive playback
-// samples can advance the covered edge of the selected range.
 export class SectionWatch {
-  private covered: number
+  private intervals: [number, number][] = []
+
   readonly segment: VideoSegment
 
   constructor(segment: VideoSegment) {
     this.segment = segment
-    this.covered = segment.start_seconds
   }
 
   observe(from: number, to: number, watched: number) {
-    if (watched > 0 && from <= this.covered + 0.05) this.covered = Math.max(this.covered, to)
+    const start = Math.max(from, this.segment.start_seconds)
+    const end = Math.min(to, this.segment.end_seconds)
+    if (!(watched > 0 && end > start)) return
+
+    const merged: [number, number][] = []
+    let interval: [number, number] = [start, end]
+    for (const next of this.intervals) {
+      // Media clocks can advance slightly between a sample and a state event.
+      if (next[1] + 0.025 < interval[0]) merged.push(next)
+      else if (interval[1] + 0.025 < next[0]) {
+        merged.push(interval)
+        interval = next
+      } else {
+        interval = [Math.min(interval[0], next[0]), Math.max(interval[1], next[1])]
+      }
+    }
+    merged.push(interval)
+    // Keep the interval that can reach the start and the most recent spans.
+    this.intervals = merged.length > 128 ? [merged[0], ...merged.slice(-127)] : merged
   }
 
   get finished() {
-    return this.covered >= this.segment.end_seconds
+    const first = this.intervals[0]
+    return Boolean(first && first[0] <= this.segment.start_seconds + 0.6 && first[1] >= this.segment.end_seconds)
+  }
+}
+
+export class SectionCoverage {
+  private readonly watches: SectionWatch[]
+
+  constructor(segments: VideoSegment[]) {
+    this.watches = segments.map((segment) => new SectionWatch(segment))
+  }
+
+  observe(from: number, to: number, watched: number) {
+    const finished: string[] = []
+    for (const watch of this.watches) {
+      if (watch.finished) continue
+      watch.observe(from, to, watched)
+      if (watch.finished) finished.push(sectionRange(watch.segment))
+    }
+    return finished
+  }
+}
+
+// Providers can send queued samples after a requested seek. Suppress credit
+// while it settles, including the landing sample. A failed or capped seek
+// expires so time updates and autosave can resume at the actual playhead.
+export class SeekSettlement {
+  private deadline: number | null = null
+
+  private readonly target: number
+
+  constructor(target: number) {
+    this.target = target
+  }
+
+  sample(position: number, now: number, seeking = false): 'waiting' | 'landed' | 'expired' {
+    this.deadline ??= now + 2_000
+    if (!seeking && Math.abs(position - this.target) <= 0.6) return 'landed'
+    return now >= this.deadline ? 'expired' : 'waiting'
   }
 }

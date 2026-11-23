@@ -479,7 +479,10 @@ QA_SPEC=recording-sections.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node
 scripts/qa/run clean
 ```
 
-The Chromium run uses separate synthetic enrollments at 1280px and 390px, with
-touch enabled at 390px. It checks real playback, jump rejection, persisted Core
-and Optional checks, keyboard and touch seeking, speed and skip boundaries,
-version and deep-link resume, and whole-video completion through the local API.
+The Chromium run uses separate synthetic enrollments at 1280px, 390px, and 430px,
+with touch enabled at 390px and 430px. It checks ordinary playback through the
+final Core boundary, selected-range auto-stop, jump rejection, persisted Core and
+Optional checks, keyboard and touch seeking, speed and skip boundaries, source
+switching, deep-link resume, and whole-video completion through the local API.
+The failure case rejects every attempt until the learner explicitly retries and
+checks the saved range against Rails. Desktop also checks fullscreen at 1280 × 400.

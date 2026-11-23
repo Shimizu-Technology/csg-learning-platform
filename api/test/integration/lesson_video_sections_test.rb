@@ -71,6 +71,7 @@ class LessonVideoSectionsTest < ActionDispatch::IntegrationTest
     stale = report(ranges: [ "15:18" ], total: 10)
     assert_equal({ @source => [ "5:8" ] }, stale.fetch("completed_video_sections"))
     assert stale.fetch("completed")
+    assert_equal [ "15:18" ], stale.fetch("section_rejected_ranges")
     assert_equal({ @source => [ "5:8", "15:19" ] }, report(ranges: [ "15:19" ], total: 10).fetch("completed_video_sections"))
   end
 
@@ -124,6 +125,53 @@ class LessonVideoSectionsTest < ActionDispatch::IntegrationTest
     assert_equal({ linked => [ "5:8", "15:18" ] }, result.fetch("completed_video_sections"))
   end
 
+  test "a late first save keeps the watch cap and tells the client when the range can be retried" do
+    freeze_time
+    @block.update!(metadata: { video_segments: [ { label: "Long Core", start_seconds: 0, end_seconds: 55, required: true } ] })
+    capped = report(ranges: [ "0:55" ], total: 54, position: 55)
+    assert_equal 20, capped.fetch("total_watched")
+    assert_equal 14, capped.fetch("section_retry_after_seconds")
+    assert_empty capped.fetch("completed_video_sections")
+    refute report(ranges: [ "0:55" ], total: 54, position: 55).fetch("completed")
+    travel 14.seconds
+    accepted = report(ranges: [ "0:55" ], total: 54, position: 55)
+    assert accepted.fetch("completed")
+    assert_equal [ "0:55" ], accepted.fetch("completed_video_sections").fetch(@source)
+    refute accepted.key?("section_retry_after_seconds")
+  end
+
+  test "anchoring starts the credit clock and the first hosted duration stays authoritative" do
+    @block.update!(s3_video_duration_seconds: nil,
+      metadata: { video_segments: [ { label: "Long Core", start_seconds: 0, end_seconds: 55, required: true } ] })
+    assert_equal 0, report(total: 0, position: 0).fetch("total_watched")
+    assert_equal 60, @block.reload.s3_video_duration_seconds
+    travel 27.seconds
+    saved = report(ranges: [ "0:55" ], total: 54, position: 55, duration: 90)
+    assert saved.fetch("completed")
+    assert_equal 60, saved.fetch("duration")
+    assert_equal 60, @block.reload.s3_video_duration_seconds
+  end
+
+  test "current linked clients cannot manually complete Core but legacy clients and no-Core still can" do
+    @block.update!(s3_video_key: nil, video_url: "https://youtube.com/shorts/abcdef12345")
+    linked = lesson_block.dig("video_progress_sources", "default")
+    assert linked.present?
+    as_user(@student) do
+      payload = { content_block_id: @block.id, cohort_id: @cohort.id, status: "completed" }
+      patch "/api/v1/progress", params: payload.merge(video_source: linked), headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      assert_empty @enrollment.progresses
+      patch "/api/v1/progress", params: payload.merge(video_source: @source), headers: auth_headers, as: :json
+      assert_response :conflict
+      assert_equal "video_source_changed", response.parsed_body["code"]
+      patch "/api/v1/progress", params: payload, headers: auth_headers, as: :json
+      assert_response :success
+      @block.update!(metadata: {})
+      patch "/api/v1/progress", params: payload.merge(video_source: linked), headers: auth_headers, as: :json
+      assert_response :success
+    end
+  end
+
   private
 
   def auth_headers
@@ -154,8 +202,8 @@ class LessonVideoSectionsTest < ActionDispatch::IntegrationTest
     ]
   end
 
-  def report(source: @source, ranges: nil, position: 33, total:, cohort: @cohort, expected: :success)
-    payload = { cohort_id: cohort.id, last_position_seconds: position, total_watched_seconds: total, duration_seconds: 60, watch_credit_version: 2 }
+  def report(source: @source, ranges: nil, position: 33, total:, duration: 60, cohort: @cohort, expected: :success)
+    payload = { cohort_id: cohort.id, last_position_seconds: position, total_watched_seconds: total, duration_seconds: duration, watch_credit_version: 2 }
     payload[:video_source] = source if source
     payload[:completed_section_ranges] = ranges if ranges
     as_user(@student) do

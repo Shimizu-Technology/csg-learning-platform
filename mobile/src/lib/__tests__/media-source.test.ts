@@ -1,3 +1,4 @@
+import { runInNewContext } from 'node:vm';
 import { embeddedMediaHtml, isAllowedMediaNavigation, resolveMediaSource } from '../media-source';
 
 describe('resolveMediaSource', () => {
@@ -51,7 +52,6 @@ describe('embeddedMediaHtml', () => {
     expect(html).toContain('window.csgSeekTo');
     expect(html).toContain('window.csgPause');
     expect(html).toContain('pendingSeek');
-    expect(html).toContain('if(applySeek(pendingSeek))pendingSeek=null');
     expect(html).not.toContain('javascript:');
   });
 
@@ -62,7 +62,36 @@ describe('embeddedMediaHtml', () => {
     expect(html).toContain('pendingSeek');
     expect(html).toContain('player.ready().then');
     expect(html).toContain('window.csgPause');
-    expect(html).toContain('if(applySeek(pendingSeek))pendingSeek=null');
+  });
+
+  it('reports YouTube buffering state and the last sample from the provider duration', () => {
+    const html = embeddedMediaHtml(resolveMediaSource('https://youtu.be/abcdef12345')!);
+    const script = html.match(/<script nonce="csg-player">([\s\S]*?)<\/script>/)![1];
+    const postMessage = jest.fn();
+    const events: Record<string, (event?: { data: number }) => void> = {};
+    const seekTo = jest.fn();
+    const playVideo = jest.fn();
+    const context = {
+      YT: {
+        Player: jest.fn((_id, options) => {
+          Object.assign(events, options.events);
+          return { getDuration: () => 20, getCurrentTime: () => 8, getPlayerState: () => 2, getPlaybackRate: () => 2, seekTo, playVideo };
+        }),
+        PlayerState: { ENDED: 0, PLAYING: 1, BUFFERING: 3 },
+      },
+      window: { ReactNativeWebView: { postMessage } },
+      setInterval: jest.fn(),
+      clearInterval: jest.fn(),
+    };
+    runInNewContext(script + '\nwindow.csgSeekTo(25, true); onYouTubeIframeAPIReady();', context);
+    expect(seekTo).not.toHaveBeenCalled();
+    events.onReady();
+    expect(seekTo).toHaveBeenCalledWith(20, true);
+    expect(playVideo).toHaveBeenCalledTimes(1);
+    events.onStateChange({ data: 3 });
+    expect(JSON.parse(postMessage.mock.lastCall![0])).toMatchObject({ buffering: true, playing: false, position: 8 });
+    events.onStateChange({ data: 0 });
+    expect(JSON.parse(postMessage.mock.lastCall![0])).toMatchObject({ ended: true, playing: false, position: 20 });
   });
 
   it('uses synchronized progress as the resume point', () => {

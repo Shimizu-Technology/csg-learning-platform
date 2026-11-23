@@ -19,6 +19,7 @@ interface VideoPlayerProps {
   onStopAtReached?: (progress: VideoProgressData | null) => void
   onPlaybackSample?: PlaybackSample
   trackProgress?: boolean
+  anchorProgress?: boolean
 }
 
 export interface VideoPlayerHandle {
@@ -35,7 +36,7 @@ type FullscreenDocument = Document & { webkitFullscreenElement?: Element | null;
 type FullscreenContainer = HTMLDivElement & { webkitRequestFullscreen?: () => void }
 type FullscreenVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void }
 
-export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, onPlaybackSample, trackProgress = true }, ref) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, onPlaybackSample, trackProgress = true, anchorProgress = false }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -51,6 +52,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const onStopAtReachedRef = useRef(onStopAtReached)
   const onPlaybackSampleRef = useRef(onPlaybackSample)
   const playbackRateRef = useRef(1)
+  const anchoredRef = useRef(false)
+  const skipPauseSaveRef = useRef(false)
 
   useEffect(() => {
     stopAtSecondsRef.current = stopAtSeconds
@@ -183,14 +186,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setCurrentTime(video.currentTime)
       if (pendingSeek?.play) void video.play()
     }
-    const handleTimeUpdate = () => {
+    const sample = (playing: boolean) => {
       const now = video.currentTime
       const tickNow = performance.now()
       const elapsedSinceLastTick = lastTickAtRef.current ? (tickNow - lastTickAtRef.current) / 1000 : 0
       const watched = creditedPlaybackSeconds({
         previousTime: lastTimeRef.current, currentTime: now,
         elapsedWallSeconds: elapsedSinceLastTick, playbackRate: video.playbackRate,
-        playing: (!video.paused || video.ended) && !video.seeking,
+        playing: playing && !video.seeking,
       })
       totalWatchedRef.current += watched
       onPlaybackSampleRef.current?.(lastTimeRef.current, now, watched)
@@ -198,13 +201,24 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       lastTickAtRef.current = tickNow
       setCurrentTime(now)
       const stopAt = stopAtSecondsRef.current
-      if (stopAt !== null && now >= stopAt) {
+      if (stopAt !== null && !video.seeking && now >= stopAt) {
         stopAtSecondsRef.current = null
-        video.pause()
+        if (!video.paused) {
+          skipPauseSaveRef.current = true
+          video.pause()
+        }
         onStopAtReachedRef.current?.(normalizedProgress(now, totalWatchedRef.current, video.duration))
+        return true
       }
     }
+    const handleTimeUpdate = () => sample(!video.paused || video.ended)
     const handlePlay = () => {
+      skipPauseSaveRef.current = false
+      lastTimeRef.current = video.currentTime
+      if (anchorProgress && !anchoredRef.current && video.duration) {
+        anchoredRef.current = true
+        sendProgress(false)
+      }
       lastTickAtRef.current = performance.now()
       setPlaying(true)
     }
@@ -212,7 +226,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setPlaying(false)
       // Persist immediately on pause so closing the tab or navigating away
       // right after stopping doesn't lose up to one full 10s autosave window.
-      sendProgress(false)
+      if (skipPauseSaveRef.current || video.ended || sourceChangePendingRef.current) {
+        skipPauseSaveRef.current = false
+        return
+      }
+      if (!sample(true)) sendProgress(false)
     }
     const handleError = () => {
       // Expired presigned URLs, missing objects, and mid-stream S3 failures all
@@ -233,10 +251,17 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       lastTimeRef.current = video.currentTime
       lastTickAtRef.current = performance.now()
       hideBuffering()
+      sample(false)
     }
     const handleEnded = () => {
       setPlaying(false)
-      sendProgress(true)
+      if (!sample(true)) {
+        if (stopAtSecondsRef.current !== null) {
+          stopAtSecondsRef.current = null
+          onStopAtReachedRef.current?.(null)
+        }
+        sendProgress(true)
+      }
     }
     const handleProgress = () => {
       try {
@@ -256,7 +281,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     }
     const handleWaiting = () => showBufferingSoon()
     const handlePlaying = () => hideBuffering()
-    const handleSeeking = () => showBufferingSoon()
+    const handleSeeking = () => {
+      lastTickAtRef.current = null
+      showBufferingSoon()
+    }
     const handleCanPlay = () => hideBuffering()
     // The native fullscreen player has its own mute control; keep ours in step.
     const handleVolumeChange = () => setMuted(video.muted)
@@ -296,7 +324,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener('volumechange', handleVolumeChange)
       video.removeEventListener('ratechange', handleRateChange)
     }
-  }, [streamUrl, error, loading, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
+  }, [streamUrl, error, loading, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress, anchorProgress])
 
   useEffect(() => {
     return () => {
@@ -361,6 +389,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (sourceChangePendingRef.current) return
       const video = videoRef.current
       sourceChangePendingRef.current = true
+      anchoredRef.current = false
       stopAtSecondsRef.current = null
       pendingSeekRef.current = { seconds: video?.currentTime ?? lastTimeRef.current, play: video ? !video.paused : false }
       lastTimeRef.current = pendingSeekRef.current.seconds
@@ -461,11 +490,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   return (
     <div
       ref={containerRef}
-      className="@container group relative w-full overflow-hidden rounded-2xl bg-media fullscreen:flex fullscreen:flex-col"
+      className="@container group relative w-full overflow-hidden rounded-2xl bg-media [&:fullscreen]:grid [&:fullscreen]:h-dvh [&:fullscreen]:w-dvw [&:fullscreen]:grid-rows-[minmax(0,1fr)_auto]"
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { if (playing) setShowControls(false) }}
     >
-      <div className="relative aspect-video w-full group-[:fullscreen]:flex-1">
+      <div className="relative aspect-video w-full group-[:fullscreen]:aspect-auto group-[:fullscreen]:min-h-0">
         <video
           ref={videoRef}
           src={streamUrl}
@@ -497,7 +526,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         )}
       </div>
 
-      <div className={`relative px-2 pb-1 @min-[24rem]:pointer-events-none @min-[24rem]:absolute @min-[24rem]:inset-x-0 @min-[24rem]:bottom-0 @min-[24rem]:bg-linear-to-t @min-[24rem]:from-media/95 @min-[24rem]:to-transparent @min-[24rem]:px-4 @min-[24rem]:pb-3 transition-opacity duration-300 focus-within:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none ${showControls || !playing ? 'opacity-100' : '@min-[24rem]:opacity-0'}`}>
+      <div className={`relative px-2 pb-1 pointer-fine:@min-[24rem]:group-not-[:fullscreen]:pointer-events-none pointer-fine:@min-[24rem]:group-not-[:fullscreen]:absolute pointer-fine:@min-[24rem]:group-not-[:fullscreen]:inset-x-0 pointer-fine:@min-[24rem]:group-not-[:fullscreen]:bottom-0 pointer-fine:@min-[24rem]:group-not-[:fullscreen]:bg-linear-to-t pointer-fine:@min-[24rem]:group-not-[:fullscreen]:from-media/95 pointer-fine:@min-[24rem]:group-not-[:fullscreen]:to-transparent pointer-fine:@min-[24rem]:group-not-[:fullscreen]:px-4 pointer-fine:@min-[24rem]:group-not-[:fullscreen]:pb-3 transition-opacity duration-300 focus-within:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none ${showControls || !playing ? 'opacity-100' : 'pointer-fine:@min-[24rem]:group-not-[:fullscreen]:opacity-0'}`}>
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <div aria-hidden="true" className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-on-media/20">
@@ -514,6 +543,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               value={Math.min(currentTime, duration)}
               disabled={duration <= 0}
               onChange={(event) => seek(Number(event.currentTarget.value))}
+              onKeyDown={(event) => {
+                const direction = ['ArrowRight', 'ArrowUp'].includes(event.key) ? 1
+                  : ['ArrowLeft', 'ArrowDown'].includes(event.key) ? -1 : 0
+                if (!direction) return
+                event.preventDefault()
+                skip(direction * (event.shiftKey ? 5 : 1))
+              }}
               className="pointer-events-auto relative block h-11 w-full cursor-pointer appearance-none rounded-md bg-transparent accent-on-media focus-visible:outline-2 focus-visible:outline-on-media [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-on-media [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-on-media"
             />
           </div>
@@ -541,7 +577,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             </button>
           </div>
           <div className="ml-auto flex items-center">
-            <select aria-label="Playback speed" value={playbackRate} onChange={(event) => changeRate(Number(event.currentTarget.value))} className={`${controlClass} bg-media text-xs tabular-nums @min-[24rem]:w-auto @min-[24rem]:px-1`}>
+            <select aria-label="Playback speed" value={playbackRate} onChange={(event) => changeRate(Number(event.currentTarget.value))} className="h-11 min-w-[4.25rem] rounded-xl bg-media px-2 text-xs tabular-nums text-on-media focus-visible:outline-2 focus-visible:outline-on-media">
               {[0.75, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}
             </select>
             <button type="button" onClick={toggleFullscreen} aria-label="Full screen" className={controlClass}>

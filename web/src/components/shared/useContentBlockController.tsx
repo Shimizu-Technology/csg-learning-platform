@@ -231,14 +231,14 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
   }
 
   const handleToggleComplete = async () => {
-    if (isStaff || readOnly) return
+    if (isStaff || readOnly || video.hasCore) return
     if (workLocked && !isCompleted) {
       toast.error(`${lockCopy}. You can still review the lesson, but new work cannot be marked complete.`)
       return
     }
 
     const newStatus = isCompleted ? 'not_started' : 'completed'
-    const res = await api.updateProgress(block.id, newStatus, cohortId)
+    const res = video.source ? await api.updateProgress(block.id, newStatus, cohortId, video.source) : await api.updateProgress(block.id, newStatus, cohortId)
     if (!res.error) {
       setIsCompleted(!isCompleted)
       if (newStatus === 'completed' && analyticsContext) captureProductEvent('learning_step_completed', {

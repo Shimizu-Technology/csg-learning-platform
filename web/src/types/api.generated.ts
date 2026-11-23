@@ -995,6 +995,13 @@ export interface paths {
                         "application/json": components["schemas"]["VideoProgressResponse"];
                     };
                 };
+                /** @description The recording source changed (video_source_changed), or the enrollment changed in flight. Reload the lesson before saving. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         trace?: never;
@@ -7308,6 +7315,10 @@ export interface components {
             status: string;
             completed: boolean;
             completed_video_sections?: components["schemas"]["CompletedVideoSections"];
+            /** @description Reported ranges that no longer match the recording or lack observed watch time. */
+            section_rejected_ranges?: string[];
+            /** @description Wait this many seconds before resending pending ranges backed by sufficient observed watch time. */
+            section_retry_after_seconds?: number;
         };
         VideoProgressResponse: {
             video_progress: components["schemas"]["VideoProgressEntry"];

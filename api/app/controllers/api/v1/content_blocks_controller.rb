@@ -204,41 +204,41 @@ module Api
       # PATCH /api/v1/content_blocks/:id/video_progress
       def video_progress
         with_learning_write_guard(@learning_write_enrollment) do
-          # Read the current source and section ranges under the block lock.
-          # This also serializes the first authoritative hosted duration report.
-          previous_media = ContentBlock.playable_media(@content_block.s3_video_key, @content_block.video_url)
-          @content_block.reload(lock: "FOR NO KEY UPDATE")
           unless @learning_write_enrollment.active?
             return render_forbidden("Not enrolled in this curriculum")
           end
 
-          sections = LessonVideoSections.new(@content_block)
+          previous_media = ContentBlock.playable_media(@content_block.s3_video_key, @content_block.video_url)
+          reported_duration = params[:duration_seconds].to_i
           source = params[:video_source]
+          # The one-time duration write must go before the learner lock. A
+          # conditional update cannot stamp a replaced asset or overwrite the
+          # first reporter. Skip a busy row and let a later ping try again.
+          stamped = establish_video_duration(reported_duration, source)
+          @content_block.reload(lock: "FOR KEY SHARE")
+          sections = LessonVideoSections.new(@content_block)
           if previous_media != ContentBlock.playable_media(@content_block.s3_video_key, @content_block.video_url) ||
               (params.key?(:video_source) && !sections.includes_source?(source))
-            return render json: { error: "The recording source changed. Reload before saving progress." }, status: :conflict
+            render json: { error: "The recording source changed. Reload before saving progress.", code: "video_source_changed" }, status: :conflict
+            raise ActiveRecord::Rollback if stamped
+            return
           end
 
           hosted = @content_block.s3_video_key.present?
           unless hosted || sections.sources.present?
             return render json: { error: "Content block has no video to track" }, status: :unprocessable_entity
           end
-          if params.key?(:completed_section_ranges) && !recheck_content_block_write!(@content_block, @learning_write_enrollment)
+          if params.key?(:completed_section_ranges) && !recheck_content_block_write!(@content_block, @learning_write_enrollment, block_locked: true)
+            raise ActiveRecord::Rollback if stamped
             return
           end
 
-          reported_duration = params[:duration_seconds].to_i
           duration = hosted ? @content_block.s3_video_duration_seconds : reported_duration.clamp(0, 28_800)
-          if hosted && @content_block.video_versions.empty? && duration.blank? && reported_duration.positive?
-            @content_block.update_columns(s3_video_duration_seconds: reported_duration)
-            duration = reported_duration
-          end
-
           progress = current_user.progresses.find_or_initialize_by(enrollment: @learning_write_enrollment, content_block: @content_block)
-          apply_video_progress(progress, duration, sections, source)
+          section_result = apply_video_progress(progress, duration, sections, source)
           if progress.save
             record_video_activity!(progress)
-            render_video_progress(progress, sections)
+            render_video_progress(progress, sections, section_result)
           else
             render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
           end
@@ -246,6 +246,17 @@ module Api
       end
 
       private
+
+      def establish_video_duration(duration, source)
+        block = @content_block
+        return false unless block.s3_video_key.present? && block.s3_video_duration_seconds.nil? && block.video_versions.empty? && duration.positive?
+        return false if params.key?(:video_source) && !LessonVideoSections.new(block).includes_source?(source)
+
+        eligible = ContentBlock.where(id: block.id, s3_video_key: block.s3_video_key, s3_video_duration_seconds: nil)
+          .where("metadata->'video_versions' IS NULL OR metadata->'video_versions' IN ('[]'::jsonb, 'null'::jsonb)")
+        eligible.where(id: eligible.select(:id).lock("FOR NO KEY UPDATE SKIP LOCKED"))
+          .update_all(s3_video_duration_seconds: duration).positive?
+      end
 
       def record_video_activity!(progress)
         CourseCompletion.evaluate!(progress.enrollment) if progress.saved_change_to_status? && progress.completed?
@@ -273,10 +284,10 @@ module Api
         progress.video_total_watched = WatchCredit.apply(progress,
           stored: progress.video_total_watched, reported: params[:total_watched_seconds], version: params[:watch_credit_version], duration: authoritative_duration)
 
-        sections.record(progress, source: source, reported: params[:completed_section_ranges],
+        result = sections.record(progress, source: source, reported: params[:completed_section_ranges],
           reported_total: params[:total_watched_seconds].to_i, duration: authoritative_duration)
 
-        return if @content_block.evidence_controls_completion?(@learning_write_enrollment)
+        return result if @content_block.evidence_controls_completion?(@learning_write_enrollment)
 
         # Installed clients without section reporting keep their whole-video path.
         whole_video = (!source || !sections.core?) && authoritative_duration&.positive? &&
@@ -286,9 +297,10 @@ module Api
         elsif progress.not_started?
           progress.status = :in_progress
         end
+        result
       end
 
-      def render_video_progress(progress, sections)
+      def render_video_progress(progress, sections, section_result)
         render json: {
           video_progress: {
             content_block_id: progress.content_block_id,
@@ -297,7 +309,8 @@ module Api
             duration: progress.video_duration,
             status: progress.status,
             completed: progress.completed?,
-            completed_video_sections: sections.completed(progress)
+            completed_video_sections: sections.completed(progress),
+            **section_result
           }
         }
       end

@@ -44,8 +44,9 @@ export function resolveMediaSource(value: string | null | undefined): MediaSourc
   if (vimeoId) {
     const playback = new URL(`https://player.vimeo.com/video/${vimeoId}`);
     playback.searchParams.set('playsinline', '1');
-    const hash = url.searchParams.get('h');
-    if (hash) playback.searchParams.set('h', hash);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const hash = url.searchParams.get('h') || parts[parts.lastIndexOf(vimeoId) + 1];
+    if (hash && /^[A-Za-z0-9]+$/.test(hash)) playback.searchParams.set('h', hash);
     if (startSeconds > 0) playback.hash = `t=${startSeconds}s`;
     return { originalUrl, provider: 'vimeo', providerLabel: 'Vimeo', playbackUrl: playback.toString(), startSeconds, type: 'embed' };
   }
@@ -96,12 +97,85 @@ export function embeddedMediaHtml(source: MediaSource, initialPosition = source.
   const frameSource = escapeHtmlAttribute(playbackUrl.toString());
   const title = escapeHtmlAttribute(`${source.providerLabel} video player`);
   const bridge = source.provider === 'youtube'
-    ? `<script nonce="csg-player" src="https://www.youtube.com/iframe_api"></script><script nonce="csg-player">var timer=null;var player=null;var playerReady=false;var pendingSeek=null;function emit(player,ended){try{var position=player.getCurrentTime()||0;var duration=player.getDuration()||0;window.ReactNativeWebView.postMessage(JSON.stringify({type:'progress',position:position,duration:duration,playing:player.getPlayerState()===1,rate:player.getPlaybackRate(),ended:!!ended}));}catch(e){}}function applySeek(request){if(!request||!playerReady||!player)return false;player.seekTo(request.seconds,true);if(request.play)player.playVideo();return true;}window.csgSeekTo=function(seconds,play){pendingSeek={seconds:seconds,play:play};if(applySeek(pendingSeek))pendingSeek=null;};window.csgPause=function(){if(playerReady&&player)player.pauseVideo();};function onYouTubeIframeAPIReady(){player=new YT.Player('player-frame',{events:{onReady:function(){playerReady=true;if(applySeek(pendingSeek))pendingSeek=null;emit(player,false);},onStateChange:function(event){var ended=event.data===YT.PlayerState.ENDED;emit(player,ended);if(event.data===YT.PlayerState.PLAYING&&!timer){timer=setInterval(function(){emit(player,false);},250);}if(event.data!==YT.PlayerState.PLAYING&&timer){clearInterval(timer);timer=null;}}}});}</script>`
-    : source.provider === 'vimeo'
-      ? `<script nonce="csg-player" src="https://player.vimeo.com/api/player.js"></script><script nonce="csg-player">var player=new Vimeo.Player(document.getElementById('player-frame'));var playerReady=false;var pendingSeek=null;function applySeek(request){if(!request||!playerReady)return false;player.setCurrentTime(request.seconds).then(function(){if(request.play)return player.play();});return true;}window.csgSeekTo=function(seconds,play){pendingSeek={seconds:seconds,play:play};if(applySeek(pendingSeek))pendingSeek=null;};window.csgPause=function(){if(playerReady)player.pause();};player.ready().then(function(){playerReady=true;if(applySeek(pendingSeek))pendingSeek=null;});var rate=1;var playing=false;var seeking=false;function emit(data,isPlaying,ended){window.ReactNativeWebView.postMessage(JSON.stringify({type:'progress',position:data.seconds||0,duration:data.duration||0,playing:isPlaying,rate:rate,seeking:seeking,ended:!!ended}));}player.on('play',function(){playing=true;});player.on('seeking',function(data){seeking=true;emit(data,false,false);});player.on('seeked',function(data){emit(data,false,false);seeking=false;});player.on('playbackratechange',function(data){rate=data.playbackRate;});player.on('timeupdate',function(data){emit(data,playing,false);});player.on('pause',function(data){playing=false;emit(data,false,false);});player.on('ended',function(data){emit(data,false,true);});</script>`
-      : '';
+    ? youtubeBridge
+    : source.provider === 'vimeo' ? vimeoBridge : '';
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; script-src 'nonce-csg-player' https://www.youtube.com https://player.vimeo.com; style-src 'unsafe-inline'"><style>html,body,iframe{width:100%;height:100%;margin:0;padding:0;border:0;background:${themes.light.colors.media.bg};overflow:hidden}</style></head><body><iframe id="player-frame" src="${frameSource}" title="${title}" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>${bridge}</body></html>`;
 }
+
+const youtubeBridge = `
+<script nonce="csg-player" src="https://www.youtube.com/iframe_api"></script>
+<script nonce="csg-player">
+  var timer, player, playerReady, pendingSeek;
+  function emit(state) {
+    var duration = player.getDuration() || 0;
+    var ended = state === YT.PlayerState.ENDED;
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'progress', position: ended ? duration : player.getCurrentTime() || 0, duration: duration,
+      playing: state === YT.PlayerState.PLAYING, rate: player.getPlaybackRate(),
+      buffering: state === YT.PlayerState.BUFFERING, ended: ended
+    }));
+  }
+  function applySeek() {
+    if (!playerReady || !pendingSeek) return;
+    var request = pendingSeek;
+    pendingSeek = null;
+    var duration = player.getDuration() || request.seconds;
+    player.seekTo(Math.min(request.seconds, duration), true);
+    if (request.play) player.playVideo();
+  }
+  window.csgSeekTo = function(seconds, play) { pendingSeek = { seconds: seconds, play: play }; applySeek(); };
+  window.csgPause = function() { if (playerReady) player.pauseVideo(); };
+  function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player-frame', { events: {
+      onReady: function() { playerReady = true; applySeek(); emit(player.getPlayerState()); },
+      onStateChange: function(event) {
+        emit(event.data);
+        clearInterval(timer);
+        if (event.data === YT.PlayerState.PLAYING) {
+          timer = setInterval(function() { emit(player.getPlayerState()); }, 250);
+        }
+      }
+    } });
+  }
+</script>`;
+
+const vimeoBridge = `
+<script nonce="csg-player" src="https://player.vimeo.com/api/player.js"></script>
+<script nonce="csg-player">
+  var player = new Vimeo.Player(document.getElementById('player-frame'));
+  var playerReady, pendingSeek, playing, seeking, buffering, last;
+  var rate = 1;
+  function emit(data, ended, settled) {
+    last = data;
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'progress', position: data.seconds || 0, duration: data.duration || 0,
+      playing: !!playing && !seeking && !buffering, rate: rate,
+      seeking: !!seeking, buffering: !!buffering, ended: !!ended, settled: !!settled
+    }));
+  }
+  function applySeek() {
+    if (!pendingSeek || !playerReady) return;
+    var request = pendingSeek;
+    pendingSeek = null;
+    player.getDuration().then(function(duration) {
+      return player.setCurrentTime(Math.min(request.seconds, duration));
+    }).then(function() {
+      if (request.play) return player.play();
+    }).catch(function() {});
+  }
+  window.csgSeekTo = function(seconds, play) { pendingSeek = { seconds: seconds, play: play }; applySeek(); };
+  window.csgPause = function() { if (playerReady) player.pause().catch(function() {}); };
+  player.ready().then(function() { playerReady = true; applySeek(); }).catch(function() {});
+  player.on('play', function(data) { playing = true; emit(data); });
+  player.on('seeking', function(data) { seeking = true; emit(data); });
+  player.on('seeked', function(data) { emit(data, false, true); seeking = false; });
+  player.on('bufferstart', function() { buffering = true; if (last) emit(last); });
+  player.on('bufferend', function() { buffering = false; });
+  player.on('playbackratechange', function(data) { rate = data.playbackRate; });
+  player.on('timeupdate', function(data) { emit(data); });
+  player.on('pause', function(data) { playing = false; emit(data); });
+  player.on('ended', function(data) { playing = false; emit(data, true); });
+</script>`;
 
 function normalizedHost(value: string) {
   return value.toLowerCase().replace(/^www\./, '').replace(/^m\./, '');

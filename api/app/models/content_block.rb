@@ -28,6 +28,7 @@ class ContentBlock < ApplicationRecord
   before_validation :clear_replaced_video_version_duration
   before_validation :establish_video_version_duration
   validate :video_versions_are_valid
+  before_update :lock_against_learner_writes!, if: :removing_video_version_source?
   after_update_commit :cleanup_removed_video_versions
   validate :video_url_is_http
   validate :rubric_matches_curriculum
@@ -272,6 +273,10 @@ class ContentBlock < ApplicationRecord
 
   def video_version_keys(value = metadata)
     Array(value.to_h["video_versions"]).filter_map { |item| item["s3_video_key"] if item.is_a?(Hash) }.uniq
+  end
+
+  def removing_video_version_source?(new_metadata = metadata)
+    (video_version_keys(metadata_in_database) - video_version_keys(new_metadata)).any?
   end
 
   private

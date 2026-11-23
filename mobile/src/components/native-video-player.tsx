@@ -10,7 +10,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { AppState, StyleSheet, Text, View } from 'react-native';
 
 import { fonts } from '@/constants/csg-theme';
-import { observedSectionSeconds, type PlaybackSample } from '@/lib/section-watch';
+import { observedSectionSeconds, SeekSettlement, type PlaybackSample } from '@/lib/section-watch';
 import type { VideoProgressInput } from '@/lib/types';
 import { creditedPlaybackSeconds, formatVideoTime, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS, resumePosition, streamRefreshDelay } from '@/lib/video-progress';
 
@@ -56,10 +56,13 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const lastTickAtRef = useRef(0);
   const lastSavedAtRef = useRef(0);
   const pendingRestoreRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
-  const pendingSectionStartRef = useRef<number | null>(null);
+  const pendingSectionSeek = useRef<SeekSettlement | null>(null);
+  const skipPauseSave = useRef(false);
+  const anchored = useRef(false);
   const pendingSeekRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
   const pendingSaveRef = useRef<VideoProgressInput | null>(null);
   const savingRef = useRef(false);
+  const lastEnqueued = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const pipActiveRef = useRef(false);
   const recoveryAtRef = useRef(0);
@@ -115,6 +118,9 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     if (!trackProgressRef.current) return;
     const payload = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current, ended);
     if (!payload) return;
+    const key = JSON.stringify(payload);
+    if (lastEnqueued.current === key) return;
+    lastEnqueued.current = key;
     pendingSaveRef.current = payload;
     void drainSaves();
   }, [drainSaves]);
@@ -153,6 +159,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     durationRef.current = loadedDuration;
     const restore = pendingSeekRef.current || pendingRestoreRef.current;
     const position = resumePosition(restore?.position ?? initialPositionRef.current, loadedDuration);
+    if (pendingSectionSeek.current) pendingSectionSeek.current = new SeekSettlement(position);
     player.currentTime = position;
     currentTimeRef.current = position;
     lastTimeRef.current = position;
@@ -162,17 +169,6 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     if (restore?.shouldPlay) player.play();
   });
 
-  useEventListener(player, 'playingChange', ({ isPlaying }) => {
-    setPlaying(isPlaying);
-    playingRef.current = isPlaying;
-    if (isPlaying) {
-      lastPlayingAtRef.current = Date.now();
-      lastTimeRef.current = currentTimeRef.current;
-      lastTickAtRef.current = Date.now();
-    }
-    if (!isPlaying) enqueueProgress(false);
-  });
-
   useEventListener(player, 'playbackRateChange', ({ playbackRate }) => {
     rateRef.current = playbackRate;
     setRate(playbackRate);
@@ -180,46 +176,75 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
 
   const observePlayback = (nextTime: number, ended = false) => {
     const now = Date.now();
-    const pendingStart = pendingSectionStartRef.current;
-    if (pendingStart !== null) {
-      // The native time event can still carry a sample from before seekTo.
-      if (Math.abs(nextTime - pendingStart) > 0.6) return;
-      pendingSectionStartRef.current = null;
+    const wait = pendingSectionSeek.current?.sample(nextTime, now);
+    if (wait === 'landed' || wait === 'expired') pendingSectionSeek.current = null;
+    if (wait === 'expired') {
+      stopAtSecondsRef.current = null;
+      player.timeUpdateEventInterval = 1;
+      onStopAtReachedRef.current?.();
     }
     const elapsed = Math.max(0, (now - lastTickAtRef.current) / 1000);
-    const watched = creditedPlaybackSeconds({
+    const observed = creditedPlaybackSeconds({
       previousTime: lastTimeRef.current,
       currentTime: nextTime,
       elapsedWallSeconds: elapsed,
       playbackRate: rateRef.current,
-      playing: playingRef.current || ended,
+      playing: !wait && (playingRef.current || ended),
     });
-    totalWatchedRef.current += watched;
-    onPlaybackSampleRef.current?.(lastTimeRef.current, nextTime, observedSectionSeconds(watched, elapsed, rateRef.current));
+    const watched = observedSectionSeconds(observed, elapsed, rateRef.current);
+    totalWatchedRef.current += onPlaybackSampleRef.current ? watched : observed;
+    onPlaybackSampleRef.current?.(lastTimeRef.current, nextTime, watched);
     lastTimeRef.current = nextTime;
     currentTimeRef.current = nextTime;
     lastTickAtRef.current = now;
     setCurrentTime(nextTime);
     const stopAt = stopAtSecondsRef.current;
-    if (stopAt !== null && nextTime >= stopAt) {
+    if (!wait && stopAt !== null && nextTime >= stopAt) {
       stopAtSecondsRef.current = null;
       player.timeUpdateEventInterval = 1;
       onStopAtReachedRef.current?.();
-      player.pause();
-      enqueueProgress();
+      if (!ended && playingRef.current) {
+        skipPauseSave.current = true;
+        player.pause();
+      }
+      enqueueProgress(ended);
+      return true;
     }
-    if (now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
+    if (!ended && !wait && playingRef.current && now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
       lastSavedAtRef.current = now;
       enqueueProgress(false);
     }
   };
 
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    setPlaying(isPlaying);
+    playingRef.current = isPlaying;
+    if (isPlaying) {
+      lastPlayingAtRef.current = Date.now();
+      skipPauseSave.current = false;
+      lastTimeRef.current = player.currentTime;
+      if (onPlaybackSampleRef.current && !anchored.current && durationRef.current > 0) {
+        anchored.current = true;
+        lastSavedAtRef.current = Date.now();
+        enqueueProgress(false);
+      }
+      lastTickAtRef.current = Date.now();
+    }
+    if (!isPlaying && skipPauseSave.current) skipPauseSave.current = false;
+    else if (!isPlaying) enqueueProgress(false);
+  });
+
   useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => observePlayback(nextTime));
 
   useEventListener(player, 'playToEnd', () => {
-    observePlayback(player.currentTime, true);
+    const saved = observePlayback(durationRef.current || player.currentTime, true);
+    if (stopAtSecondsRef.current !== null) {
+      stopAtSecondsRef.current = null;
+      player.timeUpdateEventInterval = 1;
+      onStopAtReachedRef.current?.();
+    }
     if (trackProgress) setCompleted(true);
-    enqueueProgress(true);
+    if (!saved) enqueueProgress(true);
   });
 
   useEventListener(player, 'statusChange', ({ status, error: playerError }) => {
@@ -265,7 +290,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
       const requested = Math.max(0, Math.floor(seconds));
       if (stopAt !== undefined) {
         stopAtSecondsRef.current = stopAt;
-        pendingSectionStartRef.current = requested;
+        pendingSectionSeek.current = new SeekSettlement(requested);
         player.timeUpdateEventInterval = 0.25;
       }
       if (durationRef.current <= 0) {
@@ -274,6 +299,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
         return;
       }
       const target = Math.max(0, Math.min(durationRef.current, requested));
+      if (pendingSectionSeek.current) pendingSectionSeek.current = new SeekSettlement(target);
       player.currentTime = target;
       currentTimeRef.current = target;
       lastTimeRef.current = target;
@@ -302,7 +328,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
       {loading && <View style={styles.overlay}><RefreshCw color={c.text.body} size={24} /><Text style={styles.overlayText}>Preparing secure playback…</Text></View>}
       {error && !loading && <View style={styles.overlay}><AlertCircle color={c.text.body} size={26} /><Text style={styles.errorTitle}>Playback needs a reconnect</Text><Text numberOfLines={3} style={styles.errorCopy}>{error}</Text><Button variant="secondary" accessibilityRole="button" accessibilityLabel="Retry playback" onPress={() => void loadSource()} style={styles.retry}><RefreshCw color={c.text.strong} size={16} /><Text style={styles.retryText}>Retry</Text></Button></View>}
     </View>
-    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : (completionSaved ?? completed) ? <View style={styles.synced}><Check color={c.status.success.fg} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
+    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : (completionSaved ?? completed) ? <View style={styles.synced}><Check color={c.status.success.fg} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && !onPlaybackSample && styles.syncError]}>{syncError && !onPlaybackSample ? 'Progress will retry' : playing ? 'Watching' : onPlaybackSample ? 'Paused' : 'Progress saved'}</Text>}</View>
     <View accessibilityRole="radiogroup" accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="radio" accessibilityState={{ checked: rate === speed, selected: rate === speed }} accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
   </View>;
 });

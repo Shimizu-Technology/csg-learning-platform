@@ -11,7 +11,7 @@ import { fonts } from '@/constants/csg-theme';
 import { openExternalPage } from '@/lib/external-links';
 import { embeddedMediaHtml, isAllowedMediaNavigation, resolveMediaSource } from '@/lib/media-source';
 import type { VideoProgressInput } from '@/lib/types';
-import { observedSectionSeconds, type PlaybackSample } from '@/lib/section-watch';
+import { observedSectionSeconds, SeekSettlement, type PlaybackSample } from '@/lib/section-watch';
 import { creditedPlaybackSeconds, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS } from '@/lib/video-progress';
 import { NativeVideoPlayer, type NativeVideoPlayerHandle } from './native-video-player';
 
@@ -38,6 +38,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const playingRef = useRef(false);
   const [completed, setCompleted] = useState(false);
   const [syncError, setSyncError] = useState(false);
   const [initialEmbedPosition] = useState(initialPosition);
@@ -60,7 +61,9 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const webViewRef = useRef<WebView>(null);
   const nativeVideoRef = useRef<NativeVideoPlayerHandle>(null);
   const pendingWebSeekRef = useRef<{ seconds: number; play: boolean } | null>(null);
-  const pendingStopStartRef = useRef<number | null>(null);
+  const pendingSectionSeek = useRef<SeekSettlement | null>(null);
+  const autoPauseAt = useRef<number | null>(null);
+  const anchored = useRef(false);
   const stopAtSecondsRef = useRef(stopAtSeconds);
   const onStopAtReachedRef = useRef(onStopAtReached);
   const onPlaybackSampleRef = useRef(onPlaybackSample);
@@ -100,7 +103,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   }, [drainSaves]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
-    let message: { type?: string; position?: number; duration?: number; playing?: boolean; ended?: boolean; rate?: number; seeking?: boolean };
+    let message: { type?: string; position?: number; duration?: number; playing?: boolean; ended?: boolean; rate?: number; seeking?: boolean; settled?: boolean; buffering?: boolean };
     try {
       message = JSON.parse(event.nativeEvent.data) as typeof message;
     } catch {
@@ -112,39 +115,58 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
     const duration = Math.max(0, Number(message.duration));
     const now = Date.now();
     const elapsed = lastTickAtRef.current ? Math.max(0, (now - lastTickAtRef.current) / 1000) : 0;
-    const watched = creditedPlaybackSeconds({
+    const previousPlaying = playingRef.current;
+    const playing = Boolean(message.playing && !message.buffering && !message.seeking);
+    playingRef.current = playing;
+    const wait = pendingSectionSeek.current?.sample(position, now, Boolean(message.seeking && !message.settled));
+    if (wait === 'landed' || wait === 'expired') pendingSectionSeek.current = null;
+    if (wait === 'expired') {
+      stopAtSecondsRef.current = null;
+      onStopAtReachedRef.current?.();
+    }
+    const observed = creditedPlaybackSeconds({
       previousTime: lastTimeRef.current,
       currentTime: position,
       elapsedWallSeconds: elapsed,
       playbackRate: message.rate ?? 1,
-      playing: !message.seeking && Boolean(message.playing || message.ended),
+      playing: !wait && !message.seeking && !message.buffering && (playing || previousPlaying || Boolean(message.ended)),
     });
-    if (pendingStopStartRef.current === null) {
-      totalWatchedRef.current += watched;
-      onPlaybackSampleRef.current?.(lastTimeRef.current, position, observedSectionSeconds(watched, elapsed, message.rate ?? 1));
-    } else if (Math.abs(position - pendingStopStartRef.current) <= 0.6) {
-      // The first near-start report acknowledges the asynchronous provider seek.
-      // Subsequent reports must cover the rest of the selected range.
-      const initial = message.playing ? Math.max(0, position - pendingStopStartRef.current) : 0;
-      totalWatchedRef.current += initial;
-      onPlaybackSampleRef.current?.(pendingStopStartRef.current, position, initial);
-      pendingStopStartRef.current = null;
-    }
+    const watched = observedSectionSeconds(observed, elapsed, message.rate ?? 1);
+    totalWatchedRef.current += onPlaybackSampleRef.current ? watched : observed;
+    onPlaybackSampleRef.current?.(lastTimeRef.current, position, watched);
     currentTimeRef.current = position;
     durationRef.current = duration;
     lastTimeRef.current = position;
     lastTickAtRef.current = now;
-    setPlaying(Boolean(message.playing));
+    setPlaying(playing);
     const stopAt = stopAtSecondsRef.current;
-    if (stopAt !== null && pendingStopStartRef.current === null && position >= stopAt) {
+    if (stopAt !== null && !wait && !message.seeking && position >= stopAt) {
       stopAtSecondsRef.current = null;
-      pendingStopStartRef.current = null;
-      webViewRef.current?.injectJavaScript('window.csgPause && window.csgPause(); true;');
+      if (!message.ended && playing) {
+        autoPauseAt.current = now;
+        webViewRef.current?.injectJavaScript('window.csgPause && window.csgPause(); true;');
+      }
       onStopAtReachedRef.current?.();
-      enqueueProgress();
+      lastSavedAtRef.current = now;
+      enqueueProgress(Boolean(message.ended));
+      return;
     }
-    if (message.ended) setCompleted(true);
-    if (message.ended || !message.playing || now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
+    if (message.ended) {
+      if (stopAtSecondsRef.current !== null) {
+        stopAtSecondsRef.current = null;
+        onStopAtReachedRef.current?.();
+      }
+      setCompleted(true);
+    }
+    if (!playing && autoPauseAt.current !== null) {
+      const automatic = now - autoPauseAt.current < 2_000;
+      autoPauseAt.current = null;
+      if (automatic && !message.ended) return;
+    }
+    const firstPlay = playing && !anchored.current && duration > 0;
+    if (firstPlay) anchored.current = true;
+    const paused = previousPlaying && !playing && !message.seeking && !message.buffering;
+    if (firstPlay || message.ended || paused || (playing && now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS)) {
       lastSavedAtRef.current = now;
       enqueueProgress(Boolean(message.ended));
     }
@@ -165,7 +187,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
       if (source?.type !== 'embed') return;
       if (selectedStopAt !== undefined) {
         stopAtSecondsRef.current = selectedStopAt;
-        pendingStopStartRef.current = requested;
+        pendingSectionSeek.current = new SeekSettlement(durationRef.current > 0 ? Math.min(requested, durationRef.current) : requested);
       }
       pendingWebSeekRef.current = { seconds: requested, play };
       webViewRef.current?.injectJavaScript(`window.csgSeekTo && window.csgSeekTo(${requested}, ${play ? 'true' : 'false'}); true;`);
@@ -225,7 +247,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
       {loading && <View pointerEvents="none" style={styles.overlay}><RefreshCw color={c.text.body} size={24} /><Text style={styles.overlayText}>Loading {source.providerLabel}…</Text></View>}
       {error && <View style={styles.overlay}><AlertCircle color={c.text.body} size={27} /><Text style={styles.errorTitle}>This video could not load here</Text><Text style={styles.errorCopy}>The host may have disabled embedded playback. You can retry or open the original.</Text><Button variant="secondary" accessibilityRole="button" accessibilityLabel="Retry in-app playback" onPress={() => setReloadKey((value) => value + 1)} style={styles.retry}><RefreshCw color={c.text.strong} size={16} /><Text style={styles.retryText}>Retry</Text></Button></View>}
     </View>
-    <View style={styles.footer}><View><Text style={styles.provider}>{source.providerLabel.toUpperCase()}</Text><Text style={[styles.inline, syncError && styles.syncError]}>{!trackProgress || !supportsProgress ? 'Plays securely inside the app' : syncError ? 'Progress will retry' : (completionSaved ?? completed) ? 'Watched' : playing ? 'Watching' : 'Progress saved'}</Text></View><OriginalLink label="Open original" onPress={openOriginal} /></View>
+    <View style={styles.footer}><View><Text style={styles.provider}>{source.providerLabel.toUpperCase()}</Text><Text style={[styles.inline, syncError && !onPlaybackSample && styles.syncError]}>{!trackProgress || !supportsProgress ? 'Plays securely inside the app' : syncError && !onPlaybackSample ? 'Progress will retry' : (completionSaved ?? completed) ? 'Watched' : playing ? 'Watching' : onPlaybackSample ? 'Paused' : 'Progress saved'}</Text></View><OriginalLink label="Open original" onPress={openOriginal} /></View>
   </View>;
 });
 

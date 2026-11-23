@@ -471,7 +471,7 @@ it('gives every submission input on a lesson its own keyboard bar', async () => 
   expect(screen.getAllByLabelText('Submit work, above keyboard')).toHaveLength(13);
 });
 
-it.each([true, false])('reports checked sections through the selected player (hosted=%s)', async (hosted) => {
+it.each([true, false])('ignores selected seeks and saves natural section coverage (hosted=%s)', async (hosted) => {
   mockVideoProgress.mockClear();
   const block = checkpoint({
     block_type: 'recording', has_s3_video: hosted, video_url: hosted ? null : 'https://www.youtube.com/watch?v=abcdef12345',
@@ -490,6 +490,7 @@ it.each([true, false])('reports checked sections through the selected player (ho
   const select = () => fireEvent.press(screen.getByRole('button', { name: /^Play Second Core/ }));
   const payload = { last_position_seconds: 7, total_watched_seconds: 4, duration_seconds: 60 };
   expect(screen.getByRole('button', { name: /First Core.*section finished/ })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Mark complete' })).toBeNull();
 
   select();
   await act(async () => {
@@ -499,11 +500,9 @@ it.each([true, false])('reports checked sections through the selected player (ho
   });
   expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source' }, 2);
 
-  select();
   await act(async () => {
-    player().onPlaybackSample(5, 6, 1);
+    player().onPlaybackSample(5.15, 6, 0.85);
     player().onPlaybackSample(6, 7, 1);
-    player().onStopAtReached();
     await player().saveProgress(payload);
   });
   expect(mockVideoProgress).toHaveBeenLastCalledWith(204, { ...payload, video_source: 'source', completed_section_ranges: ['5:7'] }, 2);

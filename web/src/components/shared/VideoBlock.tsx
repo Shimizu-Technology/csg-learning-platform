@@ -7,7 +7,7 @@ import { VideoPlayer } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
 
 export function VideoBlock({ controller, ...props }: ContentBlockRendererProps & { controller: ContentBlockController }) {
-  const { activeVideoSegment, completedRanges, saveFailed, onPlaybackSample, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, onSaveProgress, handleVideoSegmentSelect } = controller
+  const { activeVideoSegment, completedRanges, saveNotice, retryProgress, onPlaybackSample, vimeoContainerRef, ytIframeRef, s3VideoRef, videoSegments, initialVideoPosition, finishActiveVideoSegment, fetchBlockStreamUrl, onSaveProgress, handleVideoSegmentSelect } = controller
   const { block, isStaff, readOnly } = props
   const sources = block.video_progress_sources
   // Preserve the element while the learner switches between known versions.
@@ -34,6 +34,7 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
           stopAtSeconds={activeVideoSegment?.end_seconds ?? null}
           onStopAtReached={finishActiveVideoSegment}
           trackProgress={!isStaff && !readOnly}
+          anchorProgress={!!sources?.default}
         />
       )}
 
@@ -47,6 +48,7 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
                   ref={ytIframeRef}
                   src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${typeof window === 'undefined' ? '' : window.location.origin}&start=${initialVideoPosition}`}
                   className="w-full h-full"
+                  title={block.title || "YouTube video"}
                   allowFullScreen
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 />
@@ -77,7 +79,9 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
                   ref={ytIframeRef}
                   src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${typeof window === 'undefined' ? '' : window.location.origin}&start=${initialVideoPosition}`}
                   className="w-full h-full"
+                  title={block.title || "YouTube video"}
                   allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 />
               )
             }
@@ -93,7 +97,17 @@ export function VideoBlock({ controller, ...props }: ContentBlockRendererProps &
       {(block.block_type === 'video' || block.block_type === 'recording') && (
         <VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedRanges={completedRanges} onSelect={handleVideoSegmentSelect} />
       )}
-      {saveFailed && <p className="mt-2 text-sm text-danger-ink" role="status">Section progress could not be saved. Play the section again to retry.</p>}
+      {saveNotice && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-secondary">
+        <p role="status">{{
+          retry: 'Recording progress could not be saved.',
+          waiting: 'Your watch time is still syncing.',
+          rejected: 'A section could not be confirmed. Reload the lesson to check its current timestamps.',
+          stale: 'The recording or class access changed. Reload the lesson before saving.',
+        }[saveNotice]}</p>
+        {(saveNotice === 'retry' || saveNotice === 'waiting') && (
+          <button type="button" className="min-h-11 rounded-lg px-2 font-semibold underline" onClick={retryProgress}>Retry saving progress</button>
+        )}
+      </div>}
     </>
   )
 }

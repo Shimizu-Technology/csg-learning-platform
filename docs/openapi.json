@@ -720,6 +720,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The recording source changed (video_source_changed), or the enrollment changed in flight. Reload the lesson before saving."
           }
         },
         "parameters": [
@@ -8835,6 +8838,17 @@
           },
           "completed_video_sections": {
             "$ref": "#/components/schemas/CompletedVideoSections"
+          },
+          "section_rejected_ranges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Reported ranges that no longer match the recording or lack observed watch time."
+          },
+          "section_retry_after_seconds": {
+            "type": "integer",
+            "description": "Wait this many seconds before resending pending ranges backed by sufficient observed watch time."
           }
         },
         "required": [
