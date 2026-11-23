@@ -34,6 +34,11 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const styles = useStyles();
   const { colors: c } = useTheme();
   const source = useMemo(() => resolveMediaSource(url), [url]);
+  const directPlaybackUrl = source?.type === 'direct' ? source.playbackUrl : null;
+  const fetchDirectStream = useCallback(async () => {
+    if (!directPlaybackUrl) throw new Error('Video is unavailable.');
+    return { stream_url: directPlaybackUrl, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() };
+  }, [directPlaybackUrl]);
   const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -195,12 +200,11 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   }), [source?.type]);
 
   if (!source) return <UnsupportedMedia title={title} url={url} />;
-  if (source.type === 'direct' && source.playbackUrl) {
-    const playbackUrl = source.playbackUrl;
+  if (source.type === 'direct' && directPlaybackUrl) {
     return <View style={styles.stack}>
       <NativeVideoPlayer
         ref={nativeVideoRef}
-        fetchStream={() => Promise.resolve({ stream_url: playbackUrl, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() })}
+        fetchStream={fetchDirectStream}
         initialPosition={initialPosition || source.startSeconds}
         initialTotalWatched={initialTotalWatched}
         saveProgress={saveProgress || (() => Promise.resolve())}

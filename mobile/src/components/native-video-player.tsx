@@ -106,6 +106,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
           if (mountedRef.current) setSyncError(false);
           onProgressSavedRef.current?.(next);
         } catch {
+          if (lastEnqueued.current === JSON.stringify(next)) lastEnqueued.current = null;
           if (mountedRef.current) setSyncError(true);
         }
       }
@@ -119,7 +120,8 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     const payload = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current, ended);
     if (!payload) return;
     const key = JSON.stringify(payload);
-    if (lastEnqueued.current === key) return;
+    // Section coverage can change without changing the rounded progress payload.
+    if (!onPlaybackSampleRef.current && lastEnqueued.current === key) return;
     lastEnqueued.current = key;
     pendingSaveRef.current = payload;
     void drainSaves();

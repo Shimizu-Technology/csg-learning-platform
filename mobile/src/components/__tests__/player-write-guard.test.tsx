@@ -45,3 +45,22 @@ it.each(['native', 'embedded'])('%s player stops cleanup, queued, and later even
   expect(save).toHaveBeenCalledTimes(1);
   expect(nextSave).not.toHaveBeenCalled();
 });
+
+it('lets lesson section saves through when rounded native progress has not changed', async () => {
+  const saveProgress = jest.fn().mockResolvedValue(undefined);
+  const screen = render(<NativeVideoPlayer title="Test" fetchStream={fetchStream} saveProgress={saveProgress} onPlaybackSample={jest.fn()} trackProgress />);
+  await act(async () => {});
+
+  await act(async () => {
+    mockListeners.sourceLoad({ duration: 100 } as never);
+    mockListeners.playingChange({ isPlaying: true } as never);
+  });
+  await act(async () => {
+    mockListeners.timeUpdate({ currentTime: 0.2 } as never);
+    mockListeners.playingChange({ isPlaying: false } as never);
+  });
+
+  expect(saveProgress).toHaveBeenCalledTimes(2);
+  expect(saveProgress.mock.calls[1]).toEqual(saveProgress.mock.calls[0]);
+  screen.unmount();
+});

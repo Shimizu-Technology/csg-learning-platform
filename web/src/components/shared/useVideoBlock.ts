@@ -53,13 +53,18 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   // The source and its timestamp list jointly identify observed coverage.
   // A changed timestamp starts a fresh tracker while retaining pending data
   // for the API to acknowledge or reject.
-  const report = useMemo(() => {
-    const next = reports.get(assetKey)
-    if (next?.signature === rangeSignature) return next
-    return { ...next, signature: rangeSignature, pending: next?.pending ?? new Set<string>(), coverage: new SectionCoverage(videoSegments) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reports, assetKey, rangeSignature])
-  useLayoutEffect(() => { reports.set(assetKey, report) }, [reports, assetKey, report])
+  const report = useMemo<SourceReport>(() => reports.get(assetKey) ?? {
+    signature: rangeSignature,
+    pending: new Set<string>(),
+    coverage: new SectionCoverage(videoSegments),
+  }, [reports, assetKey, rangeSignature, videoSegments])
+  useLayoutEffect(() => {
+    if (report.signature !== rangeSignature) {
+      report.signature = rangeSignature
+      report.coverage = new SectionCoverage(videoSegments)
+    }
+    reports.set(assetKey, report)
+  }, [reports, assetKey, rangeSignature, report, videoSegments])
   useLayoutEffect(() => {
     linkedTotalRef.current = initialLinkedTotal.current
     linkedBaselineRef.current = null
@@ -109,6 +114,15 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
     onProgressUpdate?.()
   }, [block.block_type, block.id, scope, setIsCompleted])
 
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const activeRetryKey = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    activeRetryKey.current = assetKey
+    return () => {
+      activeRetryKey.current = null
+      clearTimeout(retryTimer.current)
+    }
+  }, [assetKey])
   const saveBlockProgress = useCallback((data: VideoProgressData, retry = false) => {
     const allowed = () => {
       const latest = latestRef.current
@@ -131,10 +145,16 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
       setNotices((current) => ({ ...current, [assetKey]: notice }))
     }
     saveQueueRef.current = saveQueueRef.current.then(async () => {
-      if (!allowed() || report.notice === 'stale') return
+      if (!allowed() || report.notice === 'stale' || (retry && activeRetryKey.current !== assetKey)) return
       const pending = offered.filter((range) => report.pending.has(range))
       const ready = Date.now() >= (report.retryAt ?? 0)
-      if (retry && !ready) return
+      if (retry && !ready) {
+        clearTimeout(retryTimer.current)
+        retryTimer.current = setTimeout(() => {
+          if (report.last && activeRetryKey.current === assetKey) saveBlockProgress(report.last, true)
+        }, Math.max(1, (report.retryAt ?? 0) - Date.now()))
+        return
+      }
       const res = await api.updateContentBlockVideoProgress(block.id, {
         ...data,
         ...(source ? { video_source: source } : {}),
@@ -166,13 +186,9 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
   }, [assetKey, block.id, cohortId, recordCompletion, report, scope, source])
 
   const onSaveProgress = useCallback((data: VideoProgressData) => saveBlockProgress(data), [saveBlockProgress])
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(retryTimer.current), [assetKey])
   const retryProgress = useCallback(() => {
     clearTimeout(retryTimer.current)
-    retryTimer.current = setTimeout(() => {
-      if (report.last && latestRef.current.assetKey === assetKey) saveBlockProgress(report.last, true)
-    }, Math.max(0, (report.retryAt ?? 0) - Date.now()))
+    if (report.last && activeRetryKey.current === assetKey) saveBlockProgress(report.last, true)
   }, [assetKey, report, saveBlockProgress])
 
   const onPlaybackSample = useCallback<PlaybackSample>((from, to, watched) => {
@@ -254,7 +270,11 @@ export function useVideoBlock({ block, cohortId, isStaff, readOnly, analyticsCon
       linkedPauseAt.current = null
     })
     player.on('seeking', () => { seeking = true; linkedBaselineRef.current = null })
-    player.on('seeked', (event) => { sample(event); seeking = false })
+    player.on('seeked', (event) => {
+      seeking = false
+      linkedBaselineRef.current = null
+      sample(event)
+    })
     player.on('bufferstart', () => { buffering = true })
     player.on('bufferend', () => { buffering = false })
     player.on('playbackratechange', ({ playbackRate }) => { rate = playbackRate })

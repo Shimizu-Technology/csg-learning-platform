@@ -513,7 +513,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             onClick={togglePlay}
             className="group/play absolute inset-0 flex items-center justify-center bg-media/30 transition-colors duration-150 hover:bg-media/40"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-on-media/90 shadow-overlay transition-transform duration-150 ease-out group-active/play:scale-95 sm:h-20 sm:w-20">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-on-media/90 shadow-overlay transition-transform duration-150 ease-out motion-safe:group-active/play:scale-95 motion-reduce:transition-none sm:h-20 sm:w-20">
               <Play className="ml-1 h-8 w-8 text-media sm:h-10 sm:w-10" fill="currentColor" aria-hidden="true" />
             </div>
           </button>
@@ -521,7 +521,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
         {buffering && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-media/20">
-            <Loader2 className="h-10 w-10 text-on-media/90 animate-spin" aria-hidden="true" />
+            <Loader2 className="h-10 w-10 text-on-media/90 motion-safe:animate-spin" aria-hidden="true" />
           </div>
         )}
       </div>
