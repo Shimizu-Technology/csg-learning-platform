@@ -461,42 +461,43 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden rounded-2xl bg-media group"
-      style={{ paddingBottom: '56.25%' }}
+      className="@container group relative w-full overflow-hidden rounded-2xl bg-media fullscreen:flex fullscreen:flex-col"
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { if (playing) setShowControls(false) }}
     >
-      <video
-        ref={videoRef}
-        src={streamUrl}
-        muted={muted}
-        className="absolute inset-0 w-full h-full object-contain"
-        onClick={togglePlay}
-        playsInline
-        preload="metadata"
-        title={title}
-      />
-
-      {!playing && !buffering && (
-        <button
-          type="button"
-          aria-label={`Play ${title}`}
+      <div className="relative aspect-video w-full group-[:fullscreen]:flex-1">
+        <video
+          ref={videoRef}
+          src={streamUrl}
+          muted={muted}
+          className="absolute inset-0 w-full h-full object-contain"
           onClick={togglePlay}
-          className="group/play absolute inset-0 flex items-center justify-center bg-media/30 transition-colors duration-150 hover:bg-media/40"
-        >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-on-media/90 shadow-overlay transition-transform duration-150 ease-out group-active/play:scale-95 sm:h-20 sm:w-20">
-            <Play className="ml-1 h-8 w-8 text-media sm:h-10 sm:w-10" fill="currentColor" aria-hidden="true" />
+          playsInline
+          preload="metadata"
+          title={title}
+        />
+
+        {!playing && !buffering && (
+          <button
+            type="button"
+            aria-label={`Play ${title}`}
+            onClick={togglePlay}
+            className="group/play absolute inset-0 flex items-center justify-center bg-media/30 transition-colors duration-150 hover:bg-media/40"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-on-media/90 shadow-overlay transition-transform duration-150 ease-out group-active/play:scale-95 sm:h-20 sm:w-20">
+              <Play className="ml-1 h-8 w-8 text-media sm:h-10 sm:w-10" fill="currentColor" aria-hidden="true" />
+            </div>
+          </button>
+        )}
+
+        {buffering && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-media/20">
+            <Loader2 className="h-10 w-10 text-on-media/90 animate-spin" aria-hidden="true" />
           </div>
-        </button>
-      )}
+        )}
+      </div>
 
-      {buffering && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-media/20">
-          <Loader2 className="h-10 w-10 text-on-media/90 animate-spin" aria-hidden="true" />
-        </div>
-      )}
-
-      <div className={`pointer-events-none absolute bottom-0 inset-x-0 bg-linear-to-t from-media/95 to-transparent px-2 pb-1 sm:px-4 sm:pb-3 transition-opacity duration-300 focus-within:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`relative px-2 pb-1 @min-[24rem]:pointer-events-none @min-[24rem]:absolute @min-[24rem]:inset-x-0 @min-[24rem]:bottom-0 @min-[24rem]:bg-linear-to-t @min-[24rem]:from-media/95 @min-[24rem]:to-transparent @min-[24rem]:px-4 @min-[24rem]:pb-3 transition-opacity duration-300 focus-within:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none ${showControls || !playing ? 'opacity-100' : '@min-[24rem]:opacity-0'}`}>
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <div aria-hidden="true" className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-on-media/20">
@@ -540,7 +541,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             </button>
           </div>
           <div className="ml-auto flex items-center">
-            <select aria-label="Playback speed" value={playbackRate} onChange={(event) => changeRate(Number(event.currentTarget.value))} className={`${controlClass} w-auto bg-media px-1 text-xs tabular-nums`}>
+            <select aria-label="Playback speed" value={playbackRate} onChange={(event) => changeRate(Number(event.currentTarget.value))} className={`${controlClass} bg-media text-xs tabular-nums @min-[24rem]:w-auto @min-[24rem]:px-1`}>
               {[0.75, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}
             </select>
             <button type="button" onClick={toggleFullscreen} aria-label="Full screen" className={controlClass}>

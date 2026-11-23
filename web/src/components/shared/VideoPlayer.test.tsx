@@ -160,7 +160,7 @@ describe('VideoPlayer full screen', () => {
     roots.push(root)
     await act(async () => root.render(<VideoPlayer title="Versions" fetchStreamUrl={async () => '/studio.mp4'} onSaveProgress={vi.fn()} />))
     const video = container.querySelector('video')!
-    const frame = video.parentElement!
+    const frame = container.firstElementChild as HTMLDivElement
     const button = container.querySelector('button[aria-label="Full screen"]') as HTMLButtonElement
     return { video, frame, button }
   }
@@ -199,17 +199,19 @@ describe('VideoPlayer full screen', () => {
 
   it('falls back to the native video player when the element request is refused', async () => {
     const { video, frame, button } = await renderPlayer()
-    Object.defineProperty(frame, 'requestFullscreen', { configurable: true, value: vi.fn().mockRejectedValue(new TypeError('not allowed')) })
+    const request = vi.fn().mockRejectedValue(new TypeError('not allowed'))
+    Object.defineProperty(frame, 'requestFullscreen', { configurable: true, value: request })
     const enter = vi.fn()
     Object.defineProperty(video, 'webkitEnterFullscreen', { configurable: true, value: enter })
     await act(async () => button.click())
+    expect(request).toHaveBeenCalledOnce()
     expect(enter).toHaveBeenCalledOnce()
   })
 
   it('keeps the mute button in step with the native player', async () => {
-    const { video } = await renderPlayer()
+    const { video, frame } = await renderPlayer()
     video.muted = true
     act(() => video.dispatchEvent(new Event('volumechange')))
-    expect(video.parentElement!.querySelector('button[aria-label="Unmute"]')).not.toBeNull()
+    expect(frame.querySelector('button[aria-label="Unmute"]')).not.toBeNull()
   })
 })

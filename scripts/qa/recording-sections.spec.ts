@@ -54,7 +54,12 @@ test('plays and saves independent sections, keeps controls operable and retains 
     await ready()
     const source = (await read()).video_progress_sources.default
     const saved = async () => (await read()).progress?.completed_video_sections?.[source] ?? []
-    expect(await slider.boundingBox()).toMatchObject({ height: 44 })
+    const sliderBox = await slider.boundingBox()
+    expect(sliderBox).toMatchObject({ height: 44 })
+    if (touch) {
+      const videoBox = (await video.boundingBox())!
+      expect(sliderBox!.y).toBeGreaterThanOrEqual(videoBox.y + videoBox.height)
+    }
     await speed.selectOption('2')
     await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.playbackRate)).toBe(2)
 
@@ -129,6 +134,18 @@ test('plays and saves independent sections, keeps controls operable and retains 
     await ready()
     await expect.poll(time).toBeCloseTo(15, 0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    if (!touch) {
+      const fullscreen = page.getByRole('button', { name: 'Full screen' })
+      await click(fullscreen)
+      await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement?.querySelector('video')))).toBe(true)
+      expect((await video.boundingBox())!.height).toBeGreaterThan(500)
+      await click(fullscreen)
+      await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
+    }
+    await click(page.getByRole('button', { name: 'Restart', exact: true }))
+    await expect.poll(time).toBeLessThan(2)
+    await expect.poll(paused).toBe(false)
+    await click(page.getByRole('button', { name: 'Pause', exact: true }))
 
     await page.goto(`/lessons/${ids.whole.lesson}?cohort_id=${ids.cohort}&qa_user=${user}`)
     await ready()
