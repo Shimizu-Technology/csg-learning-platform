@@ -40,6 +40,7 @@ class CoursePackageMarkdownConverter
 
   SCHEDULE_PATTERNS = {
     "weekdays" => [ 0, 1, 2, 3, 4 ],
+    "mon_thu" => [ 0, 1, 2, 3 ],
     "weekdays_sat" => [ 0, 1, 2, 3, 4, 5 ],
     "mwf" => [ 0, 2, 4 ],
     "tth" => [ 1, 3 ],

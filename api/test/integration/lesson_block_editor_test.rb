@@ -33,11 +33,99 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
       video_versions_duration_seconds: 300,
       video_versions: [ { id: "studio", label: "Studio", s3_video_key: key }, { id: "desktop", label: "Real desktop", s3_video_key: other } ]
     }
+    video = blocks.find { |block| block[:id] == @video.id }
+    video[:video_segments] = [ { label: "Shared timeline", start_seconds: 200, end_seconds: 301 } ]
+    put_editor(@admin, payload(blocks: blocks))
+    assert_response :unprocessable_entity
+    assert_nil @video.reload.s3_video_duration_seconds
+    assert_empty @video.video_versions
+
+    video[:video_segments].first[:end_seconds] = 300
     put_editor(@admin, payload(blocks: blocks))
     assert_response :success
     assert_equal 300, @video.reload.s3_video_duration_seconds
     assert_equal "studio", @video.video_versions.first["id"]
     assert_equal before, progress.reload.attributes
+  end
+
+  test "section validation rolls back a bulk save and allows an exact duration boundary" do
+    key = "content_videos/11111111-1111-4111-8111-111111111111/original.mp4"
+    @video.update!(s3_video_key: key, s3_video_duration_seconds: 120, metadata: { "archive_role" => "keep" })
+    before_version = @lesson.reload.updated_at
+    before_text = @text.body
+    invalid_ranges = [
+      nil, "bad", [ "bad" ],
+      *[ "", -1, 1.5, "1_0", "bad", 119 ].map { |start| [ { label: "Practice", start_seconds: start, end_seconds: 119 } ] },
+      [ { label: "Practice", start_seconds: 10, end_seconds: 121 } ]
+    ]
+    invalid_ranges.each do |sections|
+      body = payload(title: "Do not save this")
+      body[:blocks].find { |block| block[:id] == @text.id }[:body] = "Do not update"
+      body[:blocks].find { |block| block[:id] == @video.id }[:video_segments] = sections
+      put_editor(@admin, body)
+      assert_response :unprocessable_entity, "Unexpected response for #{sections.inspect}"
+      assert_match(/Recording section/, response.parsed_body.fetch("error"))
+      assert_equal({ "archive_role" => "keep" }, @video.reload.metadata)
+      assert_equal before_version, @lesson.reload.updated_at
+      assert_equal before_text, @text.reload.body
+    end
+
+    body = payload
+    body[:blocks].find { |block| block[:id] == @video.id }[:video_segments] = [ { label: "Practice", start_seconds: 10, end_seconds: 120, required: false } ]
+    put_editor(@admin, body)
+    assert_response :success
+    assert_equal [ { "label" => "Practice", "start_seconds" => 10, "end_seconds" => 120, "required" => false } ], @video.reload.metadata["video_segments"]
+    assert_equal "keep", @video.metadata["archive_role"]
+  end
+
+  test "sections on a replacement do not use the old hosted duration" do
+    old_key = "content_videos/11111111-1111-4111-8111-111111111111/original.mp4"
+    next_key = "content_videos/22222222-2222-4222-8222-222222222222/replacement.mp4"
+    @video.update!(s3_video_key: old_key, s3_video_duration_seconds: 60)
+
+    body = payload
+    body[:blocks].find { |block| block[:id] == @video.id }.merge!(
+      s3_video_key: next_key, s3_video_size: 20, s3_video_content_type: "video/mp4",
+      video_segments: [ { label: "New range", start_seconds: 30, end_seconds: 90 } ]
+    )
+    put_editor(@admin, body)
+    assert_response :success
+    assert_nil @video.reload.s3_video_duration_seconds
+    assert_equal next_key, @video.s3_video_key
+    assert_equal 90, @video.metadata.fetch("video_segments").first.fetch("end_seconds")
+  end
+
+  test "existing invalid sections survive unrelated edits and can be repaired" do
+    raw_sections = [ { "label" => "Needs repair", "start_seconds" => "?", "end_seconds" => 90 } ]
+    @video.update!(metadata: { "archive_role" => "keep", "video_segments" => raw_sections })
+    put_editor(@admin, payload(title: "New title"))
+    assert_response :success
+    assert_equal raw_sections, @video.reload.metadata["video_segments"]
+
+    body = payload
+    body[:blocks].find { |block| block[:id] == @video.id }[:video_segments] = [ { label: "Repaired", start_seconds: 10, end_seconds: 90 } ]
+    put_editor(@admin, body)
+    assert_response :success
+    assert_equal 10, @video.reload.metadata.fetch("video_segments").first.fetch("start_seconds")
+  end
+
+  test "sections in new block metadata go through the same validation" do
+    body = payload
+    sections = [ { label: "Practice", start_seconds: -10, end_seconds: 60 } ]
+    body[:blocks] << { client_id: "new", block_type: "recording", video_url: "https://example.invalid/new",
+      metadata: { video_segments: sections, archive_role: "keep" } }
+    assert_no_difference -> { @lesson.content_blocks.count } do
+      put_editor(@admin, body)
+      assert_response :unprocessable_entity
+    end
+
+    sections.first[:start_seconds] = 10
+    put_editor(@admin, body)
+    assert_response :success
+    created = @lesson.content_blocks.order(:position).last
+    assert_equal "keep", created.metadata["archive_role"]
+    assert_equal "staff_authored", created.metadata["video_segments_review_method"]
+    assert_equal 10, created.metadata.fetch("video_segments").first.fetch("start_seconds")
   end
 
   test "admin reads every block in order with editor context" do

@@ -1,5 +1,5 @@
 import type { ContentBlockSummary, LessonBlockEditorInput, LessonBlockInput, LessonDetail } from '../../../types/api'
-import { normalizeVideoSegments, type VideoSegment } from '../../../lib/videoSegments'
+import { parseSectionTimestamp, readVideoSectionDrafts, sectionDuration, sectionPayload, videoSectionErrors, type VideoSectionDraft } from '../../../lib/videoSectionDraft'
 
 /*
  * The block lesson editor's draft: every block in order, plus the lesson
@@ -55,7 +55,7 @@ export interface BlockDraft {
   submission_type: string | null
   submission_config: Record<string, unknown>
   rubric_id: number | null
-  video_segments: VideoSegment[]
+  video_segments: VideoSectionDraft[]
   /** Carried into duplicates (language, imported ids). Existing blocks keep theirs on the server. */
   metadata: Record<string, unknown>
   check: CheckDraft | null
@@ -114,7 +114,7 @@ export function blockFromServer(block: ContentBlockSummary, key = savedKey(block
     submission_type: block.submission_type_explicit || null,
     submission_config: (block.submission_config || {}) as Record<string, unknown>,
     rubric_id: block.rubric?.id ?? null,
-    video_segments: normalizeVideoSegments(block.metadata),
+    video_segments: readVideoSectionDrafts(block.metadata?.video_segments),
     metadata: carriedMetadata(block.metadata),
     check: check ? {
       prompt: check.prompt,
@@ -225,11 +225,27 @@ export function blockProblem(block: BlockDraft): string | null {
   return null
 }
 
-export function draftProblems(draft: LessonDraft) {
+function sectionsChanged(block: BlockDraft, saved?: BlockDraft) {
+  const comparison = (sections: VideoSectionDraft[]) => JSON.stringify(sections.map((section) => ({
+    ...section,
+    start_seconds: parseSectionTimestamp(section.start_seconds) ?? section.start_seconds,
+    end_seconds: parseSectionTimestamp(section.end_seconds) ?? section.end_seconds,
+  })))
+  return comparison(block.video_segments) !== comparison(saved?.video_segments || [])
+}
+
+export function draftProblems(draft: LessonDraft, baseline: Map<number, BlockDraft>) {
   const problems = new Map<string, string>()
   draft.blocks.forEach((block) => {
     const problem = blockProblem(block)
     if (problem) problems.set(block.key, problem)
+    if (block.block_type !== 'video' && block.block_type !== 'recording') return
+    if (!sectionsChanged(block, block.id ? baseline.get(block.id) : undefined)) return
+    if (block.video_segments.length > 40) {
+      problems.set(block.key, 'Keep at most 40 recording sections.')
+    } else if (block.video_segments.some((section) => Object.values(videoSectionErrors(section, sectionDuration(block))).some(Boolean))) {
+      problems.set(block.key, 'Fix the highlighted fields in Recording sections before saving.')
+    }
   })
   return problems
 }
@@ -276,9 +292,8 @@ export function draftPayload(
       payload.s3_video_content_type = block.s3_video_content_type
       payload.s3_video_size = block.s3_video_size
     }
-    if ((block.block_type === 'video' || block.block_type === 'recording') &&
-      JSON.stringify(block.video_segments) !== JSON.stringify(saved?.video_segments || [])) {
-      payload.video_segments = block.video_segments
+    if ((block.block_type === 'video' || block.block_type === 'recording') && sectionsChanged(block, saved)) {
+      payload.video_segments = sectionPayload(block.video_segments)
     }
     return payload
   })
@@ -371,7 +386,7 @@ export function previewBlock(block: BlockDraft, index: number, objectiveCode: (i
     effective_submission_type: block.submission_type,
     submission_config: block.submission_config,
     solution: null,
-    metadata: { ...block.metadata, video_segments: block.video_segments },
+    metadata: { ...block.metadata, video_segments: sectionPayload(block.video_segments.filter((section) => !Object.values(videoSectionErrors(section, null)).some(Boolean))) },
     s3_video_key: block.s3_video_key,
     knowledge_check: block.block_type === 'checkpoint' && block.check?.prompt.trim() ? {
       id: block.id ?? -(index + 1),

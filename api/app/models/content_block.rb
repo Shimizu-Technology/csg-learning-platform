@@ -28,6 +28,7 @@ class ContentBlock < ApplicationRecord
   before_validation :clear_replaced_video_version_duration
   before_validation :establish_video_version_duration
   validate :video_versions_are_valid
+  validate :authored_video_sections_fit_duration
   before_update :lock_against_learner_writes!, if: :removing_video_version_source?
   after_update_commit :cleanup_removed_video_versions
   validate :video_url_is_http
@@ -279,7 +280,29 @@ class ContentBlock < ApplicationRecord
     (video_version_keys(metadata_in_database) - video_version_keys(new_metadata)).any?
   end
 
+  def author_video_sections(raw_sections)
+    @authored_video_sections = VideoSegmentSet.normalize_for_authoring(raw_sections)
+    self.metadata = metadata.to_h.merge(
+      "video_segments" => @authored_video_sections,
+      "video_segments_version" => VideoSegmentSet::CURRENT_VERSION,
+      "video_segments_review_method" => "staff_authored",
+      "video_segments_reviewed_at" => Date.current.iso8601
+    )
+  end
+
   private
+
+  def authored_video_sections_fit_duration
+    return unless @authored_video_sections && s3_video_key.present? && s3_video_duration_seconds.to_i.positive?
+
+    # Only the hosted anchor has a stored duration. Equivalent versions share
+    # its section timeline, and staff must check any shorter alternate.
+    @authored_video_sections.each do |section|
+      next if section.fetch("end_seconds") <= s3_video_duration_seconds
+
+      errors.add(:base, "Recording section \"#{section.fetch('label')}\" must end at or before the recording duration (#{s3_video_duration_seconds} seconds)")
+    end
+  end
 
   def clear_replaced_video_version_duration
     return unless persisted? && will_save_change_to_s3_video_key?

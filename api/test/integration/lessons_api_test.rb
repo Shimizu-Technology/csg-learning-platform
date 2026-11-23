@@ -480,6 +480,27 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal original_metadata, @video_block.reload.metadata
   end
 
+  test "legacy editor uses the hosted duration and rolls back the lesson update" do
+    @video_block.update!(s3_video_key: "content_videos/11111111-1111-4111-8111-111111111111/original.mp4",
+      s3_video_duration_seconds: 120, metadata: { "archive_role" => "keep" })
+    [ 121, 120 ].each do |finish|
+      as_user(@admin) do
+        patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: {
+          base_updated_at: @lesson.reload.updated_at.iso8601(6), title: "Updated lesson",
+          video: { id: @video_block.id, video_segments: [ { label: "Example", start_seconds: 10, end_seconds: finish } ] }
+        } }, headers: auth_headers, as: :json
+      end
+      if finish > 120
+        assert_response :unprocessable_entity
+        refute_equal "Updated lesson", @lesson.reload.title
+        assert_equal({ "archive_role" => "keep" }, @video_block.reload.metadata)
+      else
+        assert_response :success
+        assert_equal 120, @video_block.reload.metadata.fetch("video_segments").first.fetch("end_seconds")
+      end
+    end
+  end
+
   test "instructor can read reusable curriculum resources but cannot permanently delete exercise content" do
     objective = LearningObjective.create!(
       curriculum: @curriculum,

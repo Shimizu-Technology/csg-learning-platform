@@ -3,7 +3,7 @@
 import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { VideoSegment } from '../../lib/videoSegments'
+import type { VideoSectionDraft } from '../../lib/videoSectionDraft'
 import { VideoSegmentEditor } from './VideoSegmentEditor'
 
 describe('VideoSegmentEditor', () => {
@@ -14,7 +14,7 @@ describe('VideoSegmentEditor', () => {
   })
 
   it('keeps the surviving row timestamps when an earlier row is removed', () => {
-    const initial: VideoSegment[] = [
+    const initial: VideoSectionDraft[] = [
       { label: 'Intro', start_seconds: 10, end_seconds: 19, required: false },
       { label: 'Core lesson', start_seconds: 20, end_seconds: 40, required: true },
     ]

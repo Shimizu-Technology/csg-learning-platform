@@ -283,6 +283,9 @@ class LessonBlockEditor
   end
 
   def update_existing_block(block, payload)
+    # Watch progress can establish the duration without advancing the lesson
+    # version. Re-read it under the block lock before applying a section edit.
+    block.reload if payload.key?(:video_segments)
     if payload[:block_type].to_s != block.block_type && ContentBlock.learner_evidence?(evidence_for(block))
       raise Invalid.new(
         "\"#{block.display_title(fallback: block.block_type.humanize)}\" has learner work (#{ContentBlock.describe_learner_evidence(evidence_for(block))}), so its type can't change.",
@@ -305,20 +308,23 @@ class LessonBlockEditor
     end
     block.submission_config = payload[:submission_config].to_h if payload.key?(:submission_config)
     block.rubric_id = payload[:rubric_id].presence if payload.key?(:rubric_id)
+    section_input = payload
     if payload[:metadata].is_a?(Hash)
-      block.metadata = payload[:metadata] if block.new_record?
+      if block.new_record?
+        section_input = payload[:metadata] unless payload.key?(:video_segments)
+        block.metadata = payload[:metadata].reject { |key, _| key.start_with?("video_segments") }
+      end
       editable = payload[:metadata].slice(:video_versions, :video_versions_duration_seconds, :final_project)
       block.metadata = block.metadata.to_h.merge(editable.stringify_keys) if editable.present?
     end
-    if payload.key?(:video_segments)
-      block.metadata = (block.metadata || {}).merge(
-        "video_segments" => VideoSegmentSet.normalize(Array(payload[:video_segments])),
-        "video_segments_version" => VideoSegmentSet::CURRENT_VERSION,
-        "video_segments_review_method" => "staff_authored",
-        "video_segments_reviewed_at" => Date.current.iso8601
-      )
-    end
     assign_video_key(block, payload) if payload.key?(:s3_video_key)
+    if section_input.key?(:video_segments)
+      raise Invalid.new("Recording sections need a video or recording block") unless VIDEO_TYPES.include?(block.block_type)
+
+      block.author_video_sections(section_input[:video_segments])
+    end
+  rescue ArgumentError => error
+    raise Invalid.new(error.message)
   end
 
   # Same rule ContentBlock enforces, asked here first so the editor gets a

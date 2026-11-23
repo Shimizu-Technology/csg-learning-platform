@@ -4,6 +4,7 @@ export const curriculumDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday',
 
 export const curriculumSchedulePatterns = [
   { value: 'weekdays', label: 'Mon–Fri', days: [0, 1, 2, 3, 4] },
+  { value: 'mon_thu', label: 'Mon–Thu', days: [0, 1, 2, 3] },
   { value: 'weekdays_sat', label: 'Mon–Sat', days: [0, 1, 2, 3, 4, 5] },
   { value: 'mwf', label: 'Mon / Wed / Fri', days: [0, 2, 4] },
   { value: 'tth', label: 'Tue / Thu', days: [1, 3] },

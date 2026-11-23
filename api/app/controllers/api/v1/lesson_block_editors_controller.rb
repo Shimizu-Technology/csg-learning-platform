@@ -52,7 +52,12 @@ module Api
       end
 
       def editor_params
-        params.require(:lesson).permit(
+        raw = params.require(:lesson)
+        # Check before strong parameters can discard an invalid section shape.
+        if raw[:blocks].is_a?(Array)
+          raw[:blocks].grep(ActionController::Parameters).each { |block| VideoSegmentSet.validate_authoring_shape!(block) }
+        end
+        raw.permit(
           :base_updated_at, :title, :required, :release_day, :confirm_reopen_completed_count,
           removed_block_ids: [],
           confirm_watch_reset_block_ids: [],
@@ -65,6 +70,8 @@ module Api
           ],
           alignments: [ :learning_objective_id, :content_block_id, :block_client_id ]
         )
+      rescue ArgumentError => error
+        raise LessonBlockEditor::Invalid.new(error.message)
       end
 
       def editor_json

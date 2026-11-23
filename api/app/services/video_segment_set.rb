@@ -2,6 +2,30 @@ class VideoSegmentSet
   CURRENT_VERSION = 2
   MAX_SEGMENTS = 40
   MAX_LABEL_LENGTH = 120
+  MAX_SAFE_SECONDS = (2**53) - 1
+
+  def self.validate_authoring_shape!(payload)
+    return unless payload.key?(:video_segments)
+
+    segments = payload[:video_segments]
+    unless segments.is_a?(Array) && segments.all? { |row| row.is_a?(Hash) || row.is_a?(ActionController::Parameters) }
+      raise ArgumentError, "Recording sections must be a list of sections with a start and end"
+    end
+  end
+
+  def self.normalize_for_authoring(segments)
+    validate_authoring_shape!(video_segments: segments)
+    segments.each_with_index do |segment, index|
+      values = segment.to_h.stringify_keys
+      %w[start_seconds end_seconds].each do |field|
+        raw = values[field].to_s
+        next if raw.match?(/\A[0-9]+\z/) && raw.to_i <= MAX_SAFE_SECONDS
+
+        raise ArgumentError, "Recording section #{index + 1} #{field.delete_suffix('_seconds')} must be a non-negative whole number of seconds"
+      end
+    end
+    normalize(segments)
+  end
 
   def self.normalize(raw_segments)
     segments = Array(raw_segments)

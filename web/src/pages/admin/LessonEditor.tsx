@@ -232,7 +232,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     previousVersionKeys.current = keys
   }, [draft, uploads, cancelUpload, status])
 
-  const problems = useMemo(() => (draft ? draftProblems(draft) : new Map<string, string>()), [draft])
+  const problems = draft ? draftProblems(draft, baselineRef.current) : new Map<string, string>()
   const firstProblem = problems.size ? [...problems.values()][0] : null
   const signature = useMemo(() => (draft ? draftSignature(draft) : ''), [draft])
   const pendingUploads = useMemo(() => new Set(uploads
@@ -268,7 +268,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     if (!sent) return false
     if (statusRef.current === 'conflict') return false
     if (!confirmWatchReset?.length && draftSignature(sent) === savedSigRef.current) return true
-    const blockingProblem = [...draftProblems(sent).values()][0]
+    const blockingProblem = [...draftProblems(sent, baselineRef.current).values()][0]
     if (blockingProblem) {
       setSaveError(blockingProblem)
       return false

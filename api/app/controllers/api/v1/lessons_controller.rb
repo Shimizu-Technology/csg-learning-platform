@@ -324,7 +324,9 @@ module Api
       end
 
       def editor_params
-        params.require(:editor).permit(
+        raw = params.require(:editor)
+        VideoSegmentSet.validate_authoring_shape!(raw[:video]) if raw[:video].is_a?(ActionController::Parameters)
+        raw.permit(
           :title,
           :required,
           :requires_submission,
@@ -390,21 +392,17 @@ module Api
         block = if payload[:id].present?
           @lesson.content_blocks.where(block_type: %i[video recording]).find(payload[:id])
         else
-          return [ nil, nil, false ] if payload[:video_url].blank? && payload[:s3_video_key].blank?
+          if payload[:video_url].blank? && payload[:s3_video_key].blank?
+            raise ArgumentError, "Add a video before saving recording sections" if payload[:video_segments].present?
+
+            return [ nil, nil, false ]
+          end
 
           @lesson.content_blocks.new(block_type: :video, position: next_editor_block_position)
         end
 
         old_s3_key = block.s3_video_key
         attributes = payload.slice(:title, :video_url)
-        if payload.key?(:video_segments)
-          attributes[:metadata] = (block.metadata || {}).merge(
-            "video_segments" => VideoSegmentSet.normalize(payload[:video_segments]),
-            "video_segments_version" => VideoSegmentSet::CURRENT_VERSION,
-            "video_segments_review_method" => "staff_authored",
-            "video_segments_reviewed_at" => Date.current.iso8601
-          )
-        end
         if payload.key?(:s3_video_key) && payload[:s3_video_key] != old_s3_key
           attributes[:s3_video_key] = payload[:s3_video_key]
           attributes[:s3_video_content_type] = payload[:s3_video_key].present? ? @editor_video_content_type : nil
@@ -424,6 +422,7 @@ module Api
             block.s3_video_uploaded_at = nil
           end
         end
+        block.author_video_sections(payload[:video_segments]) if payload.key?(:video_segments)
         # A confirmed replacement resets watch progress in ContentBlock.
         block.save!
 

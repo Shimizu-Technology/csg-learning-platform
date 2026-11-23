@@ -67,6 +67,8 @@ Production receives reviewed catalog changes through a versioned data migration.
 
 An instructor can also edit sections in the lesson editor. Saving there records the sections as `staff_authored` with the current date and metadata version.
 
+Enter whole seconds, `M:SS`, or `H:MM:SS`. The end must follow the start and can equal the stored hosted recording duration. If the duration is unknown, verify the end against the recording before saving. Hosted versions share section timestamps and use the original video's stored duration for validation. Check the shortest version before saving when lengths differ. Existing sections are preserved on unrelated saves. To repair a flagged section, edit its fields or remove the row.
+
 ## Release check
 
 Before merging a recording-section change:
