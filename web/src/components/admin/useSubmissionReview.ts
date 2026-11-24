@@ -32,6 +32,8 @@ export function useSubmissionReview(
   const toast = useToast()
   const generation = useRef(0)
   const saving = useRef(false)
+  // Counts saved grades, so a GitHub refresh that started before one can tell it is out of date.
+  const saves = useRef(0)
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [feedback, setFeedback] = useState('')
   const [criteria, setCriteria] = useState<CriteriaDraft>({})
@@ -97,8 +99,10 @@ export function useSubmissionReview(
   }, [load])
 
   // Every way out (links, browser Back, a query change that swaps the review) asks first.
+  // A chosen grade is a draft too: Save is the only way to keep it (UX-1).
   const guard = useLeaveGuard({
     dirty:
+      selectedGrade !== null ||
       feedbackDraftDiffers(submission, feedback, criteria) ||
       overrideReason.trim() !== (submission?.grade_suggestion?.override_reason || ''),
     blocks: leaves,
@@ -169,6 +173,7 @@ export function useSubmissionReview(
         else if (result.status === 409) setConflict(true)
         return 'not_saved'
       }
+      saves.current += 1
       setSubmission(result.data.submission)
       setFeedback(result.data.submission.feedback || '')
       setCriteria(criteriaFor(result.data.submission))
@@ -214,5 +219,7 @@ export function useSubmissionReview(
     confirmLeave,
     keepGuarding: guard.rearm,
     grade,
+    /** How many grades this review has saved; compare before and after an async refresh. */
+    saveGeneration: () => saves.current,
   }
 }

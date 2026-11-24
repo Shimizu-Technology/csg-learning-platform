@@ -69,6 +69,38 @@ const LEGEND: Array<{ tone: keyof typeof CELL_TONES; icon?: LucideIcon; text?: s
   { tone: 'empty', icon: Minus, label: 'Not submitted' },
 ]
 
+/** The outcome of a GitHub sync, naming each student it could not finish and why. */
+interface SyncNotice {
+  failed: boolean
+  text: string
+  /** user_id is null only for an older server's message that names no student. */
+  students: { user_id: number | null; name: string; errors: string[] }[]
+}
+
+type SyncFailure = { user_id: number; full_name?: string | null; errors: string[] }
+
+/**
+ * Students a module sync could not finish. Servers before failed_students only sent flat
+ * "User 21: reason" strings, so those are grouped by id during a staggered deploy.
+ */
+export function syncFailures(data: { failed_students?: SyncFailure[]; errors?: string[] } | null | undefined): SyncFailure[] {
+  if (Array.isArray(data?.failed_students)) return data.failed_students
+  const byUser = new Map<number, SyncFailure>()
+  const unmatched: string[] = []
+  for (const line of data?.errors || []) {
+    const match = /^User (\d+): (.*)$/s.exec(line)
+    if (!match) {
+      unmatched.push(line)
+      continue
+    }
+    const id = Number(match[1])
+    const entry = byUser.get(id) || { user_id: id, errors: [] }
+    entry.errors.push(match[2])
+    byUser.set(id, entry)
+  }
+  return [...byUser.values(), ...(unmatched.length ? [{ user_id: 0, errors: unmatched }] : [])]
+}
+
 interface StudentSummary {
   user_id: number
   full_name: string
@@ -116,6 +148,8 @@ interface GradingData {
   module_name: string
   requires_github: boolean
   github_sync_enabled?: boolean
+  /** Verified GitHub App repositories are synced by the hourly scheduled run. */
+  github_auto_sync?: boolean
   supports_github_sync?: boolean
   open_github_sync_count?: number
   repository_name: string
@@ -146,7 +180,17 @@ export function CohortModuleGrading() {
   const guardLeave = useGuardedLinkClick(() => panel.current?.confirmLeave())
   const [syncing, setSyncing] = useState(false)
   const [syncingStudentId, setSyncingStudentId] = useState<number | null>(null)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState<SyncNotice | null>(null)
+  // A sync notice (and its student links) belongs to one cohort and module: moving to another
+  // clears it, and a sync that answers after the move is ignored.
+  const scope = `${cohortId}:${moduleId}`
+  const currentScope = useRef(scope)
+  useEffect(() => {
+    currentScope.current = scope
+    setMessage(null)
+    setSyncing(false)
+    setSyncingStudentId(null)
+  }, [scope])
   const viewMode: ViewMode =
     params.get('view') === 'queue'
       ? 'queue'
@@ -190,19 +234,29 @@ export function CohortModuleGrading() {
     void guarded(() => update({ review: String(submission.id) }))
   }
 
+  const studentName = (userId: number) =>
+    data?.students.find((student) => student.user_id === userId)?.full_name || 'A student'
+  const synced = (count: number) => `Synced ${count} new submission${count !== 1 ? 's' : ''}`
+
   const handleSyncAll = async () => {
     if (!cohortId || !moduleId) return
+    const requested = scope
     setSyncing(true)
-    setMessage('')
+    setMessage(null)
     const res = await api.syncCohortModuleGithub(Number(cohortId), Number(moduleId))
+    if (currentScope.current !== requested) return
     if (res.error) {
-      setMessage(`Sync failed: ${res.error}`)
+      setMessage({ failed: true, text: `Sync failed: ${res.error}`, students: [] })
     } else {
-      const synced = res.data?.synced || 0
-      const errors = res.data?.errors || []
-      setMessage(
-        `Synced ${synced} new submission${synced !== 1 ? 's' : ''}${errors.length > 0 ? ` (${errors.length} error${errors.length !== 1 ? 's' : ''})` : ''}`,
-      )
+      const failures = syncFailures(res.data)
+      const named = failures.filter((failure) => failure.user_id > 0).length
+      setMessage({
+        failed: false,
+        text: `${synced(res.data?.synced || 0)}${failures.length ? `. ${named ? `Could not sync ${named === 1 ? '1 student' : `${named} students`}` : 'Some work could not sync'}:` : ''}`,
+        students: failures.map((failure) => failure.user_id > 0
+          ? { user_id: failure.user_id, name: failure.full_name || studentName(failure.user_id), errors: failure.errors }
+          : { user_id: null, name: 'Other', errors: failure.errors }),
+      })
       await loadData()
     }
     setSyncing(false)
@@ -210,17 +264,20 @@ export function CohortModuleGrading() {
 
   const handleSyncStudent = async (userId: number) => {
     if (!cohortId || !moduleId) return
+    const requested = scope
     setSyncingStudentId(userId)
-    setMessage('')
+    setMessage(null)
     const res = await api.syncStudentGithub(Number(cohortId), Number(moduleId), userId)
+    if (currentScope.current !== requested) return
     if (res.error) {
-      setMessage(`Sync failed: ${res.error}`)
+      setMessage({ failed: true, text: `Sync failed for ${studentName(userId)}: ${res.error}`, students: [] })
     } else {
-      const synced = res.data?.synced || 0
-      const errors = res.data?.errors || []
-      setMessage(
-        `Synced ${synced} submission${synced !== 1 ? 's' : ''}${errors.length > 0 ? ` — ${errors.join(', ')}` : ''}`,
-      )
+      const errors: string[] = res.data?.errors || []
+      setMessage({
+        failed: false,
+        text: `${synced(res.data?.synced || 0)} for ${studentName(userId)}${errors.length ? '. Some work could not sync:' : ''}`,
+        students: errors.length ? [{ user_id: userId, name: studentName(userId), errors }] : [],
+      })
       await loadData()
     }
     setSyncingStudentId(null)
@@ -325,6 +382,12 @@ export function CohortModuleGrading() {
     [data, viewMode, queueFilter, selectedStudentId],
   )
   const reviewIndex = reviewQueue.findIndex((item) => item.id === selectedId)
+  // Only the Waiting queue (and a non-Redo grade in the Redo queue) moves on after Save; the grid,
+  // students and All views keep the saved item open. The Save label reads this too.
+  const followingAfterSave = (grade: string | null) =>
+    viewMode === 'queue' && (queueFilter === 'ungraded' || (queueFilter === 'redo' && grade !== 'R'))
+      ? reviewQueue[reviewIndex + 1] || reviewQueue[reviewIndex - 1] || null
+      : undefined
   const reviewPanel = selectedId ? (
     <SubmissionReviewPanel
       selectionParam="review"
@@ -339,6 +402,7 @@ export function CohortModuleGrading() {
       }}
       previousId={reviewQueue[reviewIndex - 1]?.id}
       nextId={reviewIndex >= 0 ? reviewQueue[reviewIndex + 1]?.id : null}
+      followingAfterSave={(grade) => followingAfterSave(grade)?.id}
       position={reviewIndex >= 0 ? `${reviewIndex + 1} of ${reviewQueue.length}` : undefined}
       onNavigate={(id) => {
         // In the matrix, keep the return anchor on the cell now under review.
@@ -348,13 +412,9 @@ export function CohortModuleGrading() {
       onReturn={() => update({ review: null })}
       returnLabel={viewMode === 'grid' ? 'Back to matrix cell' : 'Back to list'}
       onSaved={(saved) => {
-        if (
-          viewMode === 'queue' &&
-          (queueFilter === 'ungraded' || (queueFilter === 'redo' && saved.grade !== 'R'))
-        ) {
-          const following = reviewQueue[reviewIndex + 1] || reviewQueue[reviewIndex - 1]
-          update({ review: following ? String(following.id) : null })
-        }
+        const following = followingAfterSave(saved.grade)
+        // undefined: this view keeps the review open; null: the queue is done, so it closes.
+        if (following !== undefined) update({ review: following ? String(following.id) : null })
         void loadData()
       }}
     />
@@ -384,6 +444,7 @@ export function CohortModuleGrading() {
         title={`${data.module_name} — Grading`}
         context={<><RecordLink record={{ type: 'cohort', id: data.cohort_id }} variant="plain" touchTarget onClick={guardLeave} className="font-normal text-ink-muted">{data.cohort_name}</RecordLink><span aria-hidden="true">·</span><span className="tabular-nums">{data.students.length} student{data.students.length !== 1 ? 's' : ''}</span></>}
         actions={data.github_sync_enabled !== false && data.supports_github_sync ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Button
             variant="secondary"
             size="sm"
@@ -398,6 +459,8 @@ export function CohortModuleGrading() {
                 ? 'Syncing...'
                 : 'Sync all from GitHub'}
           </Button>
+          {data.github_auto_sync && <span className="text-xs text-ink-muted">Verified GitHub repositories also sync automatically every hour.</span>}
+          </div>
         ) : null}
         menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadData() }]}
       />
@@ -406,9 +469,25 @@ export function CohortModuleGrading() {
       {message && (
         <div
           role="status"
-          className={`rounded-xl border px-4 py-3 text-sm ${message.startsWith('Sync failed') ? 'border-danger-line bg-danger-soft text-danger-ink' : 'border-line bg-surface-sunken text-ink-secondary'}`}
+          className={`space-y-2 rounded-xl border px-4 py-3 text-sm ${message.failed || message.students.length ? 'border-danger-line bg-danger-soft text-danger-ink' : 'border-line bg-surface-sunken text-ink-secondary'}`}
         >
-          {message}
+          <p>{message.text}</p>
+          {message.students.length > 0 && (
+            <ul className="list-disc space-y-1 pl-5">
+              {message.students.map((student) => (
+                <li key={student.user_id ?? 'other'} className="break-words">
+                  {student.user_id ? (
+                    <RecordLink record={{ type: 'student', id: student.user_id, cohortId: data.cohort_id }} variant="plain" onClick={guardLeave} className="font-semibold">
+                      {student.name}
+                    </RecordLink>
+                  ) : (
+                    <span className="font-semibold">{student.name}</span>
+                  )}
+                  : {student.errors.join('; ')}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -430,7 +509,7 @@ export function CohortModuleGrading() {
           }}
         >
           <Filter className="h-4 w-4" aria-hidden="true" />
-          Ungraded queue
+          Waiting
         </FilterChip>
         <FilterChip
           selected={viewMode === 'queue' && queueFilter === 'redo'}
@@ -442,7 +521,7 @@ export function CohortModuleGrading() {
           }}
         >
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Redo requested
+          Redo
         </FilterChip>
         <FilterChip
           selected={viewMode === 'queue' && queueFilter === 'all'}
@@ -454,7 +533,7 @@ export function CohortModuleGrading() {
           }}
         >
           <Clock className="h-4 w-4" aria-hidden="true" />
-          All submissions
+          All
         </FilterChip>
       </div>
 

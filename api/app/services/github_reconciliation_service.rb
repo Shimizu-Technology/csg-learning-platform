@@ -94,12 +94,79 @@ class GithubReconciliationService
       .map(&:id)
   end
 
+  # Whether the hourly run keeps this cohort's module in sync: the school and cohort opted in,
+  # the cohort is active today with GitHub sync on, and at least one verified binding it would
+  # reconcile covers the module. Module grading only promises hourly sync when this is true.
+  def self.covers_module?(cohort, curriculum_module, now: Time.current)
+    school = FeatureSwitches.school(read_only: true)
+    return false unless school["github_app"] == true && school["github_reconciliation"] == true
+    return false unless enabled_for?(cohort, school: school) && FeatureSwitches.for(cohort: cohort, school: school)["github_sync"] == true
+    return false unless Cohort.active(on: now.in_time_zone(Rails.application.config.x.school.time_zone).to_date).where(id: cohort.id).exists?
+
+    # The worker's own coverage rules: a module with a module-specific binding (verified or not)
+    # is never synced by the enrollment's default binding.
+    eligible_bindings_relation(cohort_ids: [ cohort.id ], now: now)
+      .where(github_repository_bindings: { curriculum_module_id: [ curriculum_module.id, nil ] })
+      .includes(:curriculum_module, enrollment: :cohort)
+      .any? { |binding| covered_modules_for(binding)[:modules].any? { |mod| mod.id == curriculum_module.id } }
+  end
+
+  # The modules a binding's hourly run syncs: its own module, or (a default binding) every module
+  # without a module-specific binding of its own, limited to what the enrollment is assigned.
+  def self.covered_modules_for(binding)
+    enrollment = binding.enrollment
+    cohort = enrollment.cohort
+    candidates = if binding.curriculum_module_id.present?
+      [ binding.curriculum_module ]
+    else
+      overridden_ids = GithubRepositoryBinding
+        .where(enrollment_id: binding.enrollment_id)
+        .where.not(curriculum_module_id: nil)
+        .pluck(:curriculum_module_id)
+      scope = cohort.curriculum.modules.order(:position, :id)
+      overridden_ids.any? ? scope.where.not(id: overridden_ids).to_a : scope.to_a
+    end
+
+    has_defaults_snapshot = cohort.content_defaults.is_a?(Hash) && !cohort.alumni?
+    assigned_module_ids = enrollment.module_assignments.pluck(:module_id).to_set
+    lesson_ids_by_module = enrollment.lesson_assignments
+      .joins(:lesson)
+      .pluck("lessons.module_id", :lesson_id)
+      .group_by(&:first)
+      .transform_values { |pairs| pairs.map(&:last).to_set }
+
+    modules = []
+    lesson_restrictions = {}
+    candidates.each do |mod|
+      default_entry = has_defaults_snapshot ? cohort.content_defaults[mod.id.to_s] : nil
+      default_assigned = !has_defaults_snapshot || (default_entry.is_a?(Hash) && default_entry["assigned"] == true)
+      if !default_assigned && !assigned_module_ids.include?(mod.id)
+        assigned_lessons = lesson_ids_by_module[mod.id]
+        next if assigned_lessons.blank?
+
+        lesson_restrictions[mod.id] = assigned_lessons
+      end
+      modules << mod
+    end
+
+    { modules: modules, lesson_restrictions: lesson_restrictions }
+  end
+
   # Push user/identity/cohort/curriculum eligibility checks into SQL so
   # ineligible rows cannot crowd out healthy bindings behind pre-filter limits.
   def self.due_bindings_relation(cohort_ids:, now:)
+    eligible_bindings_relation(cohort_ids: cohort_ids, now: now)
+      .left_outer_joins(:github_reconciliation_state)
+      .where("github_reconciliation_states.claimed_until IS NULL OR github_reconciliation_states.claimed_until <= ?", now)
+      .where("github_reconciliation_states.next_reconcile_at IS NULL OR github_reconciliation_states.next_reconcile_at <= ?", now)
+      .order(Arel.sql("github_reconciliation_states.next_reconcile_at ASC NULLS FIRST, github_reconciliation_states.last_reconciled_at ASC NULLS FIRST, github_repository_bindings.id ASC"))
+  end
+
+  # Bindings the hourly run would ever reconcile, whether or not they are due right now.
+  def self.eligible_bindings_relation(cohort_ids:, now:)
     GithubRepositoryBinding
       .joins(:github_app_installation, enrollment: [ :user, :cohort ])
-      .left_outer_joins(:curriculum_module, :github_reconciliation_state)
+      .left_outer_joins(:curriculum_module)
       .where(
         verification_state: "verified",
         github_app_installations: { connection_state: "connected" },
@@ -114,9 +181,6 @@ class GithubReconciliationService
       .where("github_app_installations.cohort_id = enrollments.cohort_id")
       .where("github_repository_bindings.curriculum_module_id IS NULL OR modules.curriculum_id = cohorts.curriculum_id")
       .where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", now)
-      .where("github_reconciliation_states.claimed_until IS NULL OR github_reconciliation_states.claimed_until <= ?", now)
-      .where("github_reconciliation_states.next_reconcile_at IS NULL OR github_reconciliation_states.next_reconcile_at <= ?", now)
-      .order(Arel.sql("github_reconciliation_states.next_reconcile_at ASC NULLS FIRST, github_reconciliation_states.last_reconciled_at ASC NULLS FIRST, github_repository_bindings.id ASC"))
   end
 
   def self.binding_eligible?(binding, school:, now:)
@@ -513,42 +577,7 @@ class GithubReconciliationService
   end
 
   def covered_modules_for(binding)
-    enrollment = binding.enrollment
-    cohort = enrollment.cohort
-    candidates = if binding.curriculum_module_id.present?
-      [ binding.curriculum_module ]
-    else
-      overridden_ids = GithubRepositoryBinding
-        .where(enrollment_id: binding.enrollment_id)
-        .where.not(curriculum_module_id: nil)
-        .pluck(:curriculum_module_id)
-      scope = cohort.curriculum.modules.order(:position, :id)
-      overridden_ids.any? ? scope.where.not(id: overridden_ids).to_a : scope.to_a
-    end
-
-    has_defaults_snapshot = cohort.content_defaults.is_a?(Hash) && !cohort.alumni?
-    assigned_module_ids = enrollment.module_assignments.pluck(:module_id).to_set
-    lesson_ids_by_module = enrollment.lesson_assignments
-      .joins(:lesson)
-      .pluck("lessons.module_id", :lesson_id)
-      .group_by(&:first)
-      .transform_values { |pairs| pairs.map(&:last).to_set }
-
-    modules = []
-    lesson_restrictions = {}
-    candidates.each do |mod|
-      default_entry = has_defaults_snapshot ? cohort.content_defaults[mod.id.to_s] : nil
-      default_assigned = !has_defaults_snapshot || (default_entry.is_a?(Hash) && default_entry["assigned"] == true)
-      if !default_assigned && !assigned_module_ids.include?(mod.id)
-        assigned_lessons = lesson_ids_by_module[mod.id]
-        next if assigned_lessons.blank?
-
-        lesson_restrictions[mod.id] = assigned_lessons
-      end
-      modules << mod
-    end
-
-    { modules: modules, lesson_restrictions: lesson_restrictions }
+    self.class.covered_modules_for(binding)
   end
 
   def sync_exact_sha_files!(access:, binding:, repository:, client:, head_sha:, head_branch:, covered_modules:, lesson_restrictions:, features:, school:, claim:, now:, request_started_at:, deadline:)

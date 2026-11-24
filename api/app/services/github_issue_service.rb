@@ -122,7 +122,45 @@ class GithubIssueService
       nil
     end
 
+    # The one rule for whether a Redo's feedback goes to GitHub as an issue. The review's
+    # warning (redo_posts_to_github), the grade writer and the delivery drain all use it, so
+    # an instructor is warned exactly when feedback will be posted, and never otherwise.
+    #
+    # Only work synced from GitHub (prework_github_sync) in a cohort whose effective
+    # github_sync is on qualifies; text and URL exercises keep Redo feedback in Learn.
+    def redo_issue_allowed?(submission)
+      cohort = redo_issue_cohort(submission)
+      return false unless cohort && FeatureSwitches.for(cohort: cohort)["github_sync"] == true
+
+      submission.effective_submission_type == "prework_github_sync"
+    end
+
+    # :v2 (a durable delivery to a verified GitHub App binding), :legacy (the organization
+    # token path in handle_grade, with a repository or earlier issue to post to) or nil.
+    # Reads saved state only; never calls GitHub.
+    def redo_issue_route(submission, token: ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"])
+      return nil unless redo_issue_allowed?(submission)
+
+      cohort = redo_issue_cohort(submission)
+      if GithubIssueDeliveryPlanner.enabled_for?(cohort)
+        return nil unless submission.enrollment
+
+        binding = GithubRepositoryAccess.binding_for(enrollment: submission.enrollment, curriculum_module_id: submission.content_block.lesson.module_id)
+        return binding&.verification_state == "verified" && binding.repository_id.present? ? :v2 : nil
+      end
+      return nil if token.blank? || submission.user.github_username.blank?
+
+      legacy_target = submission.github_issue_url.present? ||
+        resolve_repo(cohort, submission.content_block.lesson.curriculum_module).present? ||
+        find_prior_issue_url(submission).present?
+      legacy_target ? :legacy : nil
+    end
+
     private
+
+    def redo_issue_cohort(submission)
+      submission.enrollment&.cohort || submission.user.cohorts.active.first
+    end
 
     def handle_redo_grade(submission, user, repo, lesson, content_block, feedback, token)
       title = "Redo: #{content_block.display_title}"

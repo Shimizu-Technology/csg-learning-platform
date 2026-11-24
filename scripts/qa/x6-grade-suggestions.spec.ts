@@ -71,7 +71,7 @@ async function expectTouchTarget(page: Page, locator: ReturnType<Page['locator']
   expect(box && box.height, `${label} height >= 44px`).toBeGreaterThanOrEqual(44)
 }
 
-test.describe.configure({ mode: 'serial' })
+test.describe.configure({ mode: 'serial', timeout: 90_000 })
 
 for (const theme of ['light', 'dark'] as const) {
   test.describe(theme, () => {
@@ -86,6 +86,16 @@ for (const theme of ['light', 'dark'] as const) {
       page.on('console', (msg) => {
         if (msg.type() === 'error') errors.push(msg.text())
       })
+      // This harness never reaches GitHub, so Check GitHub again's refresh is refused (422) and
+      // the suggestion is scored again from saved checks. Chrome logs each refusal; allow only those.
+      let refusedRefreshes = 0
+      page.on('response', (res) => {
+        if (res.status() === 422 && res.request().method() === 'POST' && /\/submissions\/\d+\/github_checks$/.test(new URL(res.url()).pathname)) refusedRefreshes += 1
+      })
+      const unexpectedErrors = () => {
+        let allowed = refusedRefreshes
+        return errors.filter((text) => !(allowed > 0 && text.includes('status of 422') && allowed-- > 0))
+      }
 
       const run = fixtures.runs[`${info.project.name}:${theme}`]
       expect(run).toBeTruthy()
@@ -97,7 +107,7 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(acceptRow).toBeVisible({ timeout: 15000 })
       await expect(acceptRow).toContainText('B suggested')
       await expect(page.locator(`#submission-row-${run.redo_id}`)).toContainText('Review for Redo')
-      await expect(page.locator(`#submission-row-${run.stale_id}`)).toContainText('Stale evidence')
+      await expect(page.locator(`#submission-row-${run.stale_id}`)).toContainText('Out of date')
       await evidence(page, 'queue-badges', info.project.name, theme, '[aria-label="Grading queue"]')
 
       // 2. Open suggest_b item: verify card, 44px touch targets, Select B does NOT auto-save
@@ -108,9 +118,9 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(card).toContainText('instructors confirm every final grade')
 
       const selectB = card.getByRole('button', { name: 'Select B' })
-      const reEval = card.getByRole('button', { name: 'Re-evaluate' })
+      const checkGithub = card.getByRole('button', { name: 'Check GitHub again' })
       await expectTouchTarget(page, selectB, 'Select B')
-      await expectTouchTarget(page, reEval, 'Re-evaluate')
+      await expectTouchTarget(page, checkGithub, 'Check GitHub again')
 
       let gradeCalls = 0
       page.on('request', (req) => {
@@ -166,42 +176,39 @@ for (const theme of ['light', 'dark'] as const) {
       await page.locator('[data-grade-bar]').getByRole('button', { name: 'Save and next' }).click()
       await expect(page.locator('[data-grade-bar] [role="alert"]')).toContainText('Write feedback before choosing Redo')
 
-      // 6. Navigate to stale item, write unsaved feedback draft, click Re-evaluate -> draft preserved!
+      // 6. Navigate to stale item, write unsaved feedback draft, click Check GitHub again -> draft preserved!
       if (phone) {
         await open(page, `/admin/grading?cohort_id=${fixtures.opted_in_cohort_id}&module_id=${fixtures.module_id}&submission=${run.stale_id}`, 2)
       } else {
         await page.locator(`#submission-row-${run.stale_id}`).click()
+        // Redo is still chosen but unsaved from step 5: moving on asks first (UX-1).
+        const discard = page.getByRole('dialog', { name: 'Discard your unsaved review?' })
+        await expect(discard).toBeVisible()
+        await discard.getByRole('button', { name: 'Discard and move on' }).click()
       }
       const staleCard = page.locator('[data-grade-suggestion][data-grade-suggestion-stale="true"]')
       await expect(staleCard).toBeVisible()
-      await expect(staleCard).toContainText('Stale evidence')
+      await expect(staleCard).toContainText('Out of date')
       await expect(staleCard.getByRole('button', { name: 'Select B' })).toHaveCount(0)
 
-      if (phone) {
-        const fbToggle = page.locator('[data-grade-bar] button[aria-label="Feedback"]')
-        if ((await fbToggle.getAttribute('aria-expanded')) !== 'true') await fbToggle.click()
-      }
+      // The feedback box is always in view, phones included (UX-1).
       const feedbackBox = page.locator('[data-grade-bar] [contenteditable="true"], [data-grade-bar] textarea').first()
-      await feedbackBox.click()
-      await page.keyboard.type('Draft kept across re-evaluate')
-      if (phone) {
-        await page.locator('[data-grade-bar] button[aria-label="Feedback"]').click()
-      }
+      // fill() is one edit: a burst of key events right as the review opens can race its first focus.
+      await feedbackBox.fill('Draft kept across re-evaluate')
 
-      const evalRes = page.waitForResponse((res) => res.url().includes(`/submissions/${run.stale_id}/evaluate_grade_suggestion`) && res.request().method() === 'POST')
-      await staleCard.getByRole('button', { name: 'Re-evaluate' }).click()
-      expect((await evalRes).status()).toBe(200)
+      // One click: fetch the commit's checks, and score the suggestion again (also when GitHub can't be reached).
+      // The card's top sits above the pinned grade bar, which now always holds the feedback box.
+      await staleCard.evaluate((element) => element.scrollIntoView({ block: 'start' }))
+      await staleCard.getByRole('button', { name: 'Check GitHub again' }).click()
 
       const refreshedCard = page.locator('[data-grade-suggestion="suggest_b"][data-grade-suggestion-stale="false"]')
       await expect(refreshedCard).toBeVisible()
       await expect(refreshedCard.getByRole('button', { name: 'Select B' })).toBeVisible()
-      if (phone) {
-        await page.locator('[data-grade-bar] button[aria-label="Feedback"]').click()
-      }
       await expect(feedbackBox).toContainText('Draft kept across re-evaluate')
       await evidence(page, 'reevaluated-draft-kept', info.project.name, theme, '[aria-label="Submission review"]')
 
-      expect(errors).toEqual([])
+      expect(refusedRefreshes).toBeLessThanOrEqual(1)
+      expect(unexpectedErrors()).toEqual([])
     })
 
     test('GS02 Checks passed · Grade R displays side-by-side and Off cohort (Cohort 3) stays untouched', async ({ page }, info) => {

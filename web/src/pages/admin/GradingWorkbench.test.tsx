@@ -90,6 +90,11 @@ const settle = () => act(async () => new Promise<void>((resolve) => setTimeout(r
 const rows = () => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Grading queue"] li button')]
 const buttonNamed = (name: string) => [...container.querySelectorAll('button')].find((item) => item.textContent?.trim() === name)!
 const query = (router: ReturnType<typeof createMemoryRouter>) => new URLSearchParams(router.state.location.search)
+/** Grade buttons only choose; the Save button saves. */
+const chooseAndSave = async (name: string) => {
+  await act(async () => buttonNamed(name).click())
+  await act(async () => [...container.querySelectorAll('button')].find((item) => /^(Save grade|Save and next)$/.test(item.textContent?.trim() || ''))!.click())
+}
 
 describe('Grading workbench', () => {
   it('lists compact rows oldest first: student, item, cohort with week or self-paced, and waiting time', async () => {
@@ -136,6 +141,11 @@ describe('Grading workbench', () => {
     scrolled.length = 0
     await act(async () => buttonNamed('A').click())
     await settle()
+    // Choosing a grade never saves it.
+    expect(api.gradeSubmission).not.toHaveBeenCalled()
+    expect(buttonNamed('A').getAttribute('aria-pressed')).toBe('true')
+    await act(async () => buttonNamed('Save and next').click())
+    await settle()
     expect(api.gradeSubmission).toHaveBeenCalledWith(1, expect.objectContaining({ grade: 'A' }))
     expect(query(router).get('submission')).toBe('2')
     // Save and next starts the next review at its top (U-4.1): the review area scrolls into view.
@@ -151,7 +161,7 @@ describe('Grading workbench', () => {
 
   it('blocks Redo without feedback in the pinned grade bar', async () => {
     await render('/admin/grading?submission=1')
-    await act(async () => buttonNamed('Redo').click())
+    await chooseAndSave('Redo')
     await settle()
     expect(api.gradeSubmission).not.toHaveBeenCalled()
     const bar = container.querySelector('[data-grade-bar]')!
@@ -165,7 +175,7 @@ describe('Grading workbench', () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, '\u200B\u00A0\u2003\uFEFF')
       textarea.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    await act(async () => buttonNamed('Redo').click())
+    await chooseAndSave('Redo')
     await settle()
     expect(api.gradeSubmission).not.toHaveBeenCalled()
     expect(container.querySelector('[data-grade-bar] [role="alert"]')?.textContent).toContain('Write feedback before choosing Redo')
@@ -295,27 +305,42 @@ describe('Grading workbench: held keys and paging', () => {
   const key = (type: 'keydown' | 'keyup', name: string, repeat = false) =>
     act(async () => { panel().dispatchEvent(new KeyboardEvent(type, { key: name, repeat, bubbles: true })) })
 
-  it('grades one student for a held key: repeats and the still-held key wait for a fresh press on the next review', async () => {
+  const saveKey = (repeat = false) =>
+    act(async () => { panel().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, repeat, bubbles: true })) })
+
+  it('a grade key only chooses, and held keys never choose or save on the next review', async () => {
     const router = await render('/admin/grading?submission=1')
     await key('keydown', 'a')
     await settle()
+    expect(api.gradeSubmission).not.toHaveBeenCalled()
+    expect(buttonNamed('A').getAttribute('aria-pressed')).toBe('true')
+    // Cmd/Ctrl+Enter is the keyboard Save.
+    await saveKey()
+    await settle()
     expect(query(router).get('submission')).toBe('2')
     expect(api.gradeSubmission).toHaveBeenCalledTimes(1)
-    // The browser auto-repeats the held key onto the next review.
+    // The browser auto-repeats the held keys onto the next review.
     await key('keydown', 'a', true)
     await key('keydown', 'a', true)
+    await saveKey(true)
     await settle()
     // Some platforms send repeats without the flag: still the same press until the key comes up.
     await key('keydown', 'a')
     await settle()
+    expect(buttonNamed('A').getAttribute('aria-pressed')).toBe('false')
+    // A save with nothing chosen says so and saves nothing.
+    await saveKey()
+    expect(container.querySelector('[data-grade-bar] [role="alert"]')?.textContent).toContain('Choose A, B, C or Redo, then save.')
     // J/K repeats do not skip ahead either.
     await key('keydown', 'j', true)
     await settle()
     expect(api.gradeSubmission).toHaveBeenCalledTimes(1)
     expect(query(router).get('submission')).toBe('2')
-    // Released and pressed again: that grades this student.
+    // Released and pressed again: that chooses for this student, and Save grades them.
     await key('keyup', 'a')
     await key('keydown', 'a')
+    expect(container.querySelector('[data-grade-bar] [role="alert"]')).toBeNull()
+    await saveKey()
     await settle()
     expect(api.gradeSubmission).toHaveBeenCalledTimes(2)
     expect(api.gradeSubmission).toHaveBeenLastCalledWith(2, expect.objectContaining({ grade: 'A' }))
@@ -348,7 +373,7 @@ describe('Grading workbench: held keys and paging', () => {
     const router = await render('/admin/grading?submission=50')
     expect(query(router).get('page')).toBeNull()
     expect(container.querySelector('[data-record-header]')!.textContent).toContain('50 of 53')
-    await act(async () => buttonNamed('A').click())
+    await chooseAndSave('A')
     await settle()
     expect(query(router).get('submission')).toBe('51')
     // 50 left the Waiting list, so 51 is now the last item on page 1.

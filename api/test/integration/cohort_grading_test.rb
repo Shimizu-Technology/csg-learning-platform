@@ -60,6 +60,32 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "sync all names each student it could not finish and why" do
+    @student.update!(github_username: "student-one")
+    # Each student's sync refuses with a reason, without any GitHub HTTP.
+    @cohort.update!(settings: { features: { github_sync: false } })
+    previous_token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = "test-token"
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/sync_github", headers: auth_headers
+      assert_response :success
+      body = response.parsed_body
+      assert_equal 0, body.fetch("synced")
+      assert_equal [ "User #{@student.id}: GitHub sync is disabled for this course" ], body.fetch("errors")
+      assert_equal [ { "user_id" => @student.id, "full_name" => "Student One", "errors" => [ "GitHub sync is disabled for this course" ] } ], body.fetch("failed_students")
+    end
+  ensure
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = previous_token
+  end
+
+  test "index makes no hourly sync promise without the GitHub App" do
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions", headers: auth_headers
+      assert_response :success
+      assert_equal false, response.parsed_body.fetch("github_auto_sync")
+    end
+  end
+
   test "index includes non submission exercises and progress state for grading views" do
     as_user(@admin) do
       get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions",

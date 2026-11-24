@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '../../web/node_modules/@playwright/test/index.mjs'
+import { test, expect, type Locator, type Page } from '../../web/node_modules/@playwright/test/index.mjs'
 import { readFileSync, mkdirSync, appendFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -52,15 +52,46 @@ async function attempts(page: Page, key: 'on' | 'off') {
   expect(response.status()).toBe(200)
   return (await response.json()).submissions.filter((item: { content_block_id: number }) => item.content_block_id === row.block_id)
 }
+/**
+ * Scroll a control into the band between the top header (and toasts) and the pinned grade bar:
+ * on phones that bar now always holds the feedback box (UX-1), so a target scrolled only to the
+ * screen's bottom edge stays covered.
+ */
+async function reveal(locator: Locator) {
+  await locator.evaluate((element) => {
+    // Instant: the app scrolls smoothly, and a target still moving is re-scrolled by the click.
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    let node = element.parentElement
+    while (node && !(node.scrollHeight > node.clientHeight && /(auto|scroll)/.test(getComputedStyle(node).overflowY))) node = node.parentElement
+    ;(node ?? document.scrollingElement)?.scrollBy({ top: 200, behavior: 'instant' })
+  })
+  return locator
+}
+
+/**
+ * At 390 the targets below sit visibly between the sticky header and the pinned grade bar (see
+ * the history evidence), but Playwright's own re-scroll on click keeps pushing them under one or
+ * the other. On touch widths press them as DOM clicks after revealing; desktop keeps real clicks.
+ */
+async function press(locator: Locator, touch: boolean) {
+  await reveal(locator)
+  if (touch) await locator.dispatchEvent('click')
+  else await locator.click()
+}
+
+/** The commit and paths, folded away from non-technical graders (UX-1). */
+const technicalDetails = (page: Page) => page.locator('details', { has: page.getByText('Technical details', { exact: true }) }).first().locator('dl')
+
 async function grade(page: Page, id: number, value: 'B' | 'C') {
   await open(page, `/admin/submissions/${id}`)
   const bar = page.locator('[data-grade-bar]')
   await expect(bar).toBeVisible()
+  // Feedback is always in view; a grade button only chooses, and Save grade saves (UX-1).
   const feedback = page.getByRole('textbox', { name: 'Overall feedback, rich text', exact: true })
-  if (!await feedback.isVisible()) await bar.getByRole('button', { name: 'Feedback', exact: true }).click()
   await feedback.fill(`Reviewed source ${value}`)
+  await bar.getByRole('group', { name: 'Grade' }).getByRole('button', { name: value, exact: true }).click()
   const saved = page.waitForResponse(res => res.request().method() === 'PATCH' && res.url().endsWith('/grade'))
-  await bar.locator(`button[title="Grade ${value} and save (${value})"]`).click()
+  await bar.getByRole('button', { name: 'Save grade' }).click()
   expect((await saved).status()).toBe(200)
   await expect(page.getByRole('heading', { name: /Saved feedback/ })).toBeVisible()
 }
@@ -72,6 +103,9 @@ async function evidence(page: Page, name: string, project: string, theme: string
   appendFileSync(`${output}ledger.jsonl`, JSON.stringify({ name, project, theme, overflow, data }) + '\n')
 }
 
+// Each run syncs, grades and reloads several times; the dev server can be slow on a cold start.
+test.describe.configure({ timeout: 90_000 })
+
 for (const theme of ['light', 'dark']) {
   test.describe(theme, () => {
     test.beforeEach(async ({ page }) => {
@@ -82,7 +116,8 @@ for (const theme of ['light', 'dark']) {
       const first = (await attempts(page, 'on'))[0]
       expect(first.commit_sha).toBe('a'.repeat(40))
       await grade(page, first.id, 'B')
-      await expect(page.getByText(/^Submitted revision /)).toContainText('aaaaaaaa')
+      await expect(page.getByText(/^Synced from GitHub /)).toBeVisible()
+      await expect(technicalDetails(page)).toContainText('a'.repeat(40))
       const gradedFirst = (await attempts(page, 'on'))[0]
       stage('changed')
       expect((await sync(page, 'on')).synced).toBe(1)
@@ -93,17 +128,21 @@ for (const theme of ['light', 'dark']) {
       expect(historical).toMatchObject({ grade: 'B', feedback: 'Reviewed source B', commit_sha: 'a'.repeat(40), updated_at: gradedFirst.updated_at, github_revision: gradedFirst.github_revision })
       expect(current).toMatchObject({ grade: null, feedback: null, commit_sha: 'b'.repeat(40), num_submissions: 2 })
       await grade(page, current.id, 'C')
-      if (info.project.name.endsWith('390')) await page.locator('[data-grade-bar]').getByRole('button', { name: 'Feedback', exact: true }).click()
-      await page.getByText('Attempt history', { exact: true }).click()
-      await page.getByRole('button', { name: 'Load attempts', exact: true }).click()
-      const prior = page.getByRole('link', { name: /Attempt 1 · Previous · B · aaaaaaaa/ })
+      // On a phone the "Saved C" toast sits over the top of the narrow band above the grade bar.
+      await expect(page.getByText(/^Saved [A-Z]+ for /)).toHaveCount(0, { timeout: 15_000 })
+      // Touch screens have no hover; on a desktop, show the row's hover state in the evidence.
+      const touch = info.project.name.endsWith('390')
+      await press(page.getByText('Attempt history', { exact: true }), touch)
+      await press(page.getByRole('button', { name: 'Load attempts', exact: true }), touch)
+      const prior = page.getByRole('link', { name: /Attempt 1 · Previous · B · Synced / })
       await expect(prior).toBeVisible()
-      await prior.hover()
+      await reveal(prior)
+      if (!touch) await prior.hover()
       await evidence(page, 'history', info.project.name, theme, changed)
-      await prior.click()
+      await press(prior, touch)
       await expect(page.getByRole('heading', { name: /Saved feedback/ })).toBeVisible()
       await expect(page.getByRole('heading', { name: /Saved feedback/ }).locator('..').getByText('Reviewed source B', { exact: true })).toBeVisible()
-      await expect(page.locator('[data-grade-bar] button[title="Grade B and save (B)"]')).toBeDisabled()
+      await expect(page.locator('[data-grade-bar]').getByRole('group', { name: 'Grade' }).getByRole('button', { name: 'B', exact: true })).toBeDisabled()
       const beforeIdentical = (await attempts(page, 'on')).find((row: { id: number }) => row.id === current.id)
       stage('identical')
       expect((await sync(page, 'on')).synced).toBe(0)
@@ -111,14 +150,15 @@ for (const theme of ['light', 'dark']) {
       expect(identical).toHaveLength(2)
       expect(identical.find((row: { id: number }) => row.id === current.id)).toEqual(beforeIdentical)
       await open(page, `/admin/submissions/${current.id}`)
-      await expect(page.getByText(/^Submitted revision /)).toContainText('bbbbbbbb')
+      await expect(page.getByText(/^Synced from GitHub /)).toBeVisible()
+      await expect(technicalDetails(page)).toContainText('b'.repeat(40))
       await evidence(page, 'identical', info.project.name, theme, identical)
     })
     test('R02 Off cohort retains legacy row and grade behavior without revision UI', async ({ page }, info) => {
       expect((await sync(page, 'off')).synced).toBe(1)
       const first = (await attempts(page, 'off'))[0]
       await grade(page, first.id, 'B')
-      await expect(page.getByText(/^Submitted revision /)).toHaveCount(0)
+      await expect(page.getByText(/^Synced from GitHub /)).toHaveCount(0)
       stage('changed')
       expect((await sync(page, 'off')).synced).toBe(1)
       stage('identical')
@@ -129,7 +169,7 @@ for (const theme of ['light', 'dark']) {
       expect(rows[0]).not.toHaveProperty('github_revision')
       await open(page, `/admin/submissions/${first.id}`)
       await expect(page.getByRole('heading', { name: /Saved feedback/ })).toBeVisible()
-      await expect(page.getByText(/^Submitted revision /)).toHaveCount(0)
+      await expect(page.getByText(/^Synced from GitHub /)).toHaveCount(0)
       await evidence(page, 'off', info.project.name, theme, rows)
     })
   })

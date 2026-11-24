@@ -101,8 +101,8 @@ export function feedbackDraftDiffers(
 }
 
 export const DISCARD_DRAFT_CONFIRMATION = {
-  title: 'Discard your feedback draft?',
-  description: 'Your unsaved feedback and rubric ratings for this submission will be lost.',
+  title: 'Discard your unsaved review?',
+  description: 'The grade you chose, your feedback, rubric ratings and override note for this submission are not saved yet and will be lost.',
   confirmLabel: 'Discard and move on',
   cancelLabel: 'Keep editing',
   tone: 'danger' as const,
