@@ -7,7 +7,13 @@ class OfferingPriceVerificationTest < ActionDispatch::IntegrationTest
   setup do
     @admin = User.create!(email: "price-admin@example.test", clerk_id: "price-admin", role: :admin)
     @instructor = User.create!(email: "price-instructor@example.test", clerk_id: "price-instructor", role: :instructor)
-    @student = User.create!(email: "price-student@example.test", clerk_id: "price-student", role: :student)
+    @student = User.create!(
+      email: "price-student@example.test",
+      clerk_id: "price-student",
+      role: :student,
+      community_terms_accepted_at: Time.current,
+      community_terms_version: CommunityPolicy::VERSION
+    )
     curriculum = Curriculum.create!(name: "Verified offering", status: :active)
     mod = curriculum.modules.create!(name: "Module", position: 0)
     lesson = mod.lessons.create!(title: "Lesson", position: 0)
