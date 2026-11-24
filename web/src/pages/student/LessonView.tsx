@@ -1,3 +1,4 @@
+import { githubRedoInstruction, GithubRedoIssue } from '../../components/shared/GithubRedo'
 import { StudentExperienceProvider, StudentExperienceSwitch } from '../../lib/studentExperience'
 import { LessonRecordings } from '../../components/student/LessonRecordings'
 import { LessonExperience } from '../../components/student/LessonExperience'
@@ -229,11 +230,35 @@ export function LegacyLessonView() {
     (lesson.id === Number(id) || lesson.moved_from?.lesson_id === Number(id))
   const githubStatus = githubSetupShown && <LessonGithubStatus lesson={lesson} unavailable={savedData || Boolean(loadError)} />
 
+  const redoBanner = redoBlocks.length > 0 && (
+    <div className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3">
+        <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink" aria-hidden="true" />
+        <div>
+          <h2 className="text-sm font-semibold text-warning-ink">Redo requested</h2>
+          <p className="mt-0.5 text-sm text-warning-ink">
+            {(readOnly || lesson.submission_window?.submissions_closed) ? 'Review your previous feedback below.' : redoBlocks.length === 1 ? (redoBlocks[0].submission_type === 'prework_github_sync' ? githubRedoInstruction(redoBlocks[0].filename, lesson.github_repository_status?.full_name || lesson.repository_name) : redoBlocks[0].submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : 'One exercise needs an updated submission.') : 'Read the feedback below for each exercise that needs attention.'}
+          </p>
+          {redoBlocks.length === 1 && redoBlocks[0].submission_type === 'prework_github_sync' && <GithubRedoIssue url={redoBlocks[0].submissions?.[0]?.github_issue_url} />}
+        </div>
+      </div>
+      <a
+        href={`#block-${redoBlocks[0].id}`}
+        onClick={(event) => { event.preventDefault(); scrollToBlock(redoBlocks[0].id) }}
+        className={buttonClasses({ variant: 'secondary', size: 'sm', className: 'shrink-0' })}
+      >
+        Go to the feedback
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </a>
+    </div>
+  )
+
   const redesigned = lesson.learning_navigation && <LessonExperience key={`${lesson.id}:${lesson.cohort_id}`} lesson={lesson} readOnly={readOnly} savedData={savedData} error={loadError} reload={() => loadLesson({ silent: true })} helpRequests={helpRequests} helpRequestsLoading={helpRequestsLoading} setHelpRequests={setHelpRequests} refreshHelp={loadHelpRequests}>
+    {redoBanner}
     {githubStatus}
     <div className="min-w-0 space-y-5">{visibleBlocks.map((block: any) => <section key={block.id} id={`block-${block.id}`} tabIndex={-1} className="min-w-0 scroll-mt-24 outline-none">
       <RubricPanel rubric={block.rubric} />
-      <ContentBlockRenderer block={block} cohortId={lesson.cohort_id} isStaff={user?.is_staff} requiresGithub={lesson.requires_github} requiresSubmission={lesson.requires_submission} repositoryName={lesson.repository_name} githubSetupShown={githubSetupShown} readOnly={readOnly} submissionsLocked={lesson.submission_window?.submissions_closed || false} submissionsCloseAt={lesson.submission_window?.submissions_close_at || null} submissionWeekNumber={lesson.submission_window?.week_number} analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }} lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }} onProgressUpdate={() => loadLesson({ silent: true })} completionInFooter reviewerName={lesson.instructor?.full_name} />
+      <ContentBlockRenderer block={block} cohortId={lesson.cohort_id} isStaff={user?.is_staff} requiresGithub={lesson.requires_github} requiresSubmission={lesson.requires_submission} repositoryName={lesson.github_repository_status?.full_name || lesson.repository_name} githubSetupShown={githubSetupShown} readOnly={readOnly} submissionsLocked={lesson.submission_window?.submissions_closed || false} submissionsCloseAt={lesson.submission_window?.submissions_close_at || null} submissionWeekNumber={lesson.submission_window?.week_number} analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }} lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }} onProgressUpdate={() => loadLesson({ silent: true })} completionInFooter reviewerName={lesson.instructor?.full_name} />
     </section>)}</div>
   </LessonExperience>
 
@@ -291,27 +316,7 @@ export function LegacyLessonView() {
         </div>
       )}
 
-      {redoBlocks.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink" aria-hidden="true" />
-            <div>
-              <h2 className="text-sm font-semibold text-warning-ink">Redo requested</h2>
-              <p className="mt-0.5 text-sm text-warning-ink">
-                {readOnly ? 'Review your previous feedback below.' : redoBlocks.length === 1 ? (redoBlocks[0].submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : redoBlocks[0].submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : 'One exercise needs an updated submission.') : 'Read the feedback below for each exercise that needs attention.'}
-              </p>
-            </div>
-          </div>
-          <a
-            href={`#block-${redoBlocks[0].id}`}
-            onClick={(event) => { event.preventDefault(); scrollToBlock(redoBlocks[0].id) }}
-            className={buttonClasses({ variant: 'secondary', size: 'sm', className: 'shrink-0' })}
-          >
-            Go to the feedback
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </a>
-        </div>
-      )}
+      {redoBanner}
 
       <LessonRecordings lesson={lesson} />
       {githubStatus}
@@ -327,7 +332,7 @@ export function LegacyLessonView() {
               isStaff={user?.is_staff}
               requiresGithub={lesson.requires_github}
               requiresSubmission={lesson.requires_submission}
-              repositoryName={lesson.repository_name}
+              repositoryName={lesson.github_repository_status?.full_name || lesson.repository_name}
               githubSetupShown={githubSetupShown}
               readOnly={readOnly}
               submissionsLocked={lesson.submission_window?.submissions_closed || false}

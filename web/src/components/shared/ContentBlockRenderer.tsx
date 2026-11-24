@@ -1,3 +1,4 @@
+import { githubRedoInstruction, GithubRedoIssue } from './GithubRedo'
 import { CheckCircle2, ChevronDown, ChevronUp, Circle, Code, RotateCcw } from 'lucide-react'
 import { SubmissionDraftGuard } from '../student/SubmissionDraftGuard'
 import { Button } from '../ui/Button'
@@ -17,6 +18,15 @@ export function ContentBlockRenderer(props: ContentBlockRendererProps) {
   const controller = useContentBlockController(props)
   const { studentExperience, v2, latestSubmission, hasRedoRequest, canEditSubmission, isCompleted, showSolution, setShowSolution, hasEditedSubmissionDraft, knowledgeCheck, isWorkBlock, detectedLang, submissionType, usesManualExerciseCompletion, usesTextSubmission, usesRepoArtifactSubmission, workLocked, starterLinks, latestStatus, blockIcons, handleToggleComplete, header } = controller
   const { block, isStaff, readOnly, completionInFooter } = props
+  const redoInstruction = (() => {
+    if (!hasRedoRequest) return null
+    if (readOnly || workLocked) return 'Redo requested. You can still read your feedback.'
+    if (submissionType === 'prework_github_sync') return githubRedoInstruction(block.filename, props.repositoryName)
+    if (submissionType === 'manual_complete') return 'Redo requested. Read the feedback — your instructor will re-check this.'
+    if (canEditSubmission && (usesTextSubmission || usesRepoArtifactSubmission)) return 'Redo requested. Read the feedback, then resubmit below.'
+    return 'Redo requested. Read the feedback and update your work.'
+  })()
+
   return (
     <div className="app-surface overflow-hidden">
       <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
@@ -86,8 +96,9 @@ export function ContentBlockRenderer(props: ContentBlockRendererProps) {
           >
             <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-ink' : 'text-success-ink'}`}>
               {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
-              {hasRedoRequest ? (readOnly ? 'Your instructor asked for a redo. Your feedback remains available below.' : submissionType === 'prework_github_sync' ? 'Redo requested (R). Update your code on GitHub — your instructor will re-check it' : submissionType === 'manual_complete' ? 'Your instructor asked for a redo (R). Read the feedback — your instructor will re-check this' : canEditSubmission && !workLocked && (usesTextSubmission || usesRepoArtifactSubmission) ? 'Your instructor asked for a redo (R). Read the feedback, then resubmit below.' : 'Your instructor asked for a redo (R). Read the feedback and revise your work.') : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
+              {hasRedoRequest ? redoInstruction : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
             </p>
+            {hasRedoRequest && submissionType === 'prework_github_sync' && <GithubRedoIssue url={latestSubmission.github_issue_url} />}
             {latestSubmission.feedback ? (
               <FeedbackBody feedback={latestSubmission.feedback} className="mt-2 text-ink" />
             ) : hasRedoRequest ? (

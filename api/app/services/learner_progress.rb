@@ -254,10 +254,11 @@ class LearnerProgress
 
   def course_completed?
     return false unless all_required_work_handed_in?
-    return false if @latest_submissions.values.any? { |submission| submission.grade == "R" }
+    required_blocks = required_lessons.flat_map(&:completion_blocks)
+    return false if required_blocks.any? { |block| block.gradable_work_block? && @latest_submissions[block.id]&.grade == "R" }
 
-    final_projects = required_lessons.flat_map(&:content_blocks).select { |block| block.metadata.to_h["final_project"] == true }
-    reviewed = final_projects.presence || required_lessons.flat_map(&:completion_blocks).select do |block|
+    final_projects = required_blocks.select { |block| block.metadata.to_h["final_project"] == true }
+    reviewed = final_projects.presence || required_blocks.select do |block|
       block.gradable_work_block? && (@latest_submissions.key?(block.id) ||
         ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(block.submission_type_for(enrollment)))
     end

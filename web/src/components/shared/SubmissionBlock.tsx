@@ -39,7 +39,7 @@ export function SubmissionBlock({ controller, ...props }: ContentBlockRendererPr
             </div>
           )}
           {v2 && submissions.length > 0 && <div className="min-w-0 space-y-2">{submissions.map((sub, index) => <details key={sub.id} className="min-w-0 rounded-xl border border-line bg-surface-raised">
-            <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-ink">View submission #{sub.num_submissions}</summary>
+            <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-ink">View attempt {sub.num_submissions}</summary>
             <div className="min-w-0 space-y-3 px-4 pb-4">{sub.text && (writtenSubmission ? <MarkdownRenderer content={sub.text} variant="written" /> : <CodeBlock code={sub.text} language={detectedLang} surface="submission" lineNumbers className="my-0" />)}{submissionArtifacts(sub)}{index > 0 && sub.feedback && <FeedbackBody feedback={sub.feedback} />}</div>
           </details>)}{canEditSubmission && !workLocked && !editAnswer && (usesTextSubmission || usesRepoArtifactSubmission) && <Button variant="secondary" onClick={() => setRevisionOpen(true)}>Edit and resubmit</Button>}</div>}
           {!v2 && block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (
@@ -57,7 +57,7 @@ export function SubmissionBlock({ controller, ...props }: ContentBlockRendererPr
                     className={`rounded-xl border border-line p-4 ${isLatest ? 'bg-surface-raised' : 'bg-surface-sunken/60'}`}
                   >
                     <p className="mb-3 text-xs text-ink-muted">
-                      <span className="font-semibold text-ink-secondary tabular-nums">Submission #{sub.num_submissions}</span>
+                      <span className="font-semibold text-ink-secondary tabular-nums">Attempt {sub.num_submissions}</span>
                       {' · '}<span className="tabular-nums">{formatShortDate(sub.created_at)}</span>
                       {' · '}{isLatest ? 'Latest' : 'Earlier'}
                       {isGraded && <>{' · '}{isRedo ? 'Redo requested' : `Grade ${sub.grade}`}</>}
@@ -226,7 +226,7 @@ export function SubmissionBlock({ controller, ...props }: ContentBlockRendererPr
                   className="-ml-2"
                 >
                   {showAdvancedRepoFields ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
-                  {showAdvancedRepoFields ? 'Hide extra Git details' : 'Add PR / branch / commit details'}
+                  Technical details
                 </Button>
                 {showAdvancedRepoFields && (
                   <div className="grid gap-3 md:grid-cols-2">

@@ -1,3 +1,4 @@
+import { PausedLearningBanner } from '../../components/student/PausedLearningBanner'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
@@ -203,12 +204,11 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
 
       <PageHeader title={library ? `${brand.schoolAbbreviation} Alumni library` : outline.course_title} description={<>{context.map((item, index) => <span key={index}>{index > 0 && ' · '}{item}</span>)}</>} />
 
-      {outline.read_only && (
+      {outline.enrollment_status === 'paused' && <PausedLearningBanner cohortId={cohortId} pausedSince={outline.paused_since} />}
+      {outline.read_only && outline.enrollment_status !== 'paused' && (
         <div className="flex items-start gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink" role="status">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>{outline.enrollment_status === 'paused'
-            ? <>Your enrollment is paused{outline.paused_since ? ` since ${formatShortDate(outline.paused_since, '', { withYear: false })}` : ''}. Your work is saved. Past lessons and feedback stay open to read; submitting and new lessons come back when you resume.</>
-            : 'This course is read-only. Past lessons and feedback stay open to read.'}</p>
+          <p>This course is read-only. Past lessons and feedback stay open to read.</p>
         </div>
       )}
 
@@ -348,7 +348,7 @@ function paceLabel(pace: NonNullable<Outline['personal_pace']>) {
 /** The lesson's soft milestone date in the learner's plan, until it's handed in. */
 function dueText(lesson: CourseOutlineLesson) {
   if (!lesson.due_on || lesson.status === 'done' || lesson.status === 'awaiting_review') return null
-  return `Due ${formatShortDate(lesson.due_on, '', { withYear: false, weekday: true })}`
+  return `Weekly target ${formatShortDate(lesson.due_on, '', { withYear: false, weekday: true })}`
 }
 
 function statusText(lesson: CourseOutlineLesson) {

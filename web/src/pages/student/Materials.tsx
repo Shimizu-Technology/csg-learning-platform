@@ -1,3 +1,4 @@
+import { PausedLearningBanner } from '../../components/student/PausedLearningBanner'
 import { useStudentExperience } from '../../lib/studentExperience'
 import { InstructorMessageAction } from '../../components/student/InstructorMessageAction'
 import { schoolTimeDescription } from '../../lib/schoolTime'
@@ -280,6 +281,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
 
   return (
     <div className="app-page">
+      {data.enrollment_status === 'paused' && <PausedLearningBanner cohortId={data.cohort?.id} pausedSince={data.paused_since} />}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           Showing saved lessons while your connection catches up.

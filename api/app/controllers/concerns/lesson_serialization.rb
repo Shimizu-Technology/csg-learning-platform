@@ -188,15 +188,9 @@ module LessonSerialization
   end
 
   def attached_recordings_json(lesson, enrollment)
-    # The recording library uses school dates. New lesson attachments also
-    # respect the exact publication cutoff when a learner pauses mid-day.
-    pause_cutoff = enrollment.paused_at || enrollment.read_cutoff_at if enrollment.paused?
     recordings = lesson.recordings.student_visible.where(cohort_id: enrollment.cohort_id)
       .order(LessonRecording.arel_table[:position], LessonRecording.arel_table[:id])
-      .select do |recording|
-        enrollment.recording_available_for_read?(recording) &&
-          (pause_cutoff.nil? || (recording.published_at || recording.updated_at) <= pause_cutoff)
-      end
+      .select { |recording| enrollment.recording_available_for_read?(recording) }
     return [] if recordings.empty?
 
     progress = current_user.watch_progresses.where(recording_id: recordings.map(&:id)).index_by(&:recording_id)

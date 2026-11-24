@@ -29,7 +29,7 @@ describe('blockHeaderParts', () => {
   it('keeps the type for other titles', () => {
     expect(blockHeaderParts('exercise', 'E3 — two-item receipt')).toEqual({ typeLabel: 'Exercise', title: 'E3 — two-item receipt' })
     // A longer word that only begins with the type is not a repeat.
-    expect(blockHeaderParts('text', 'Textbook reading')).toEqual({ typeLabel: 'Text', title: 'Textbook reading' })
+    expect(blockHeaderParts('text', 'Textbook reading')).toEqual({ typeLabel: 'Reading', title: 'Textbook reading' })
   })
 
   it('shows only the type when there is no title', () => {
