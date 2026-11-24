@@ -290,8 +290,8 @@ export function LessonContentBlockCard({ block, lesson, lessonWritesPaused = fal
   if (studentMode && isEmptyVideoStep(block)) return null;
 
   return <View style={styles.card} testID={`lesson-block-${block.id}`}>
-    <View style={styles.header}><View style={styles.icon}><Icon color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.kicker}>{blockKicker(block.block_type, isCheckpointWork)}</Text>{(showBlockTitle || !blockTitle) && <Text style={styles.title}>{blockTitle || blockLabel(block.block_type)}</Text>}</View>{studentMode && completed && (!reviewedWork || (submissionType === 'prework_github_sync' && !latest)) && <StatusBadge status="done" short />}</View>
-    {latest && <SubmissionStatus submission={latest} readOnly={readOnly} canResubmit={reviewedWork && submissionType !== 'prework_github_sync'} submissionType={submissionType} filename={block.filename} />}
+    <View style={styles.header}><View style={styles.icon}><Icon color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.kicker}>{blockKicker(block.block_type, isCheckpointWork)}</Text>{(showBlockTitle || !blockTitle) && <Text style={styles.title}>{blockTitle || blockLabel(block.block_type)}</Text>}</View>{!hideProgress && studentMode && completed && (!reviewedWork || (submissionType === 'prework_github_sync' && !latest)) && <StatusBadge status="done" short />}</View>
+    {!hideProgress && latest && <SubmissionStatus submission={latest} readOnly={readOnly} canResubmit={reviewedWork && submissionType !== 'prework_github_sync'} submissionType={submissionType} filename={block.filename} />}
     {block.body && <View style={styles.body}><AuthoredContent body={block.body} starterLinks={starterLinks} /></View>}
     {!studentMode && block.solution && <View style={styles.solution}><Pressable accessibilityRole="button" accessibilityState={{ expanded: showSolution }} onPress={() => setShowSolution((value) => !value)} style={styles.solutionButton}><Text style={styles.solutionButtonText}>Instructor solution</Text>{showSolution ? <ChevronUp color={c.text.body} size={18} /> : <ChevronDown color={c.text.body} size={18} />}</Pressable>{showSolution && <View style={styles.solutionBody}><LessonMarkdown body={block.solution} /></View>}</View>}
     {knowledgeCheck && <View accessibilityLabel="Quick retrieval check" style={styles.checkCard}>
@@ -338,7 +338,7 @@ export function LessonContentBlockCard({ block, lesson, lessonWritesPaused = fal
       <Button variant="primary" accessibilityRole="button" accessibilityLabel={submitLabel} disabled={!canSubmit} onPress={() => submissionMutation.mutate()} style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}>{submissionMutation.isPending ? <ActivityIndicator color={c.text.strong} /> : <><Send color={c.text.strong} size={17} /><Text style={styles.primaryText}>{submitLabel}</Text></>}</Button>
       {Platform.OS === 'ios' && keyboardFields.map((field) => <InputAccessoryView key={field} nativeID={keyboardBarFor(field)} backgroundColor={c.surface.raised}><View style={styles.keyboardBar}><Button variant="quiet" label="Hide keyboard" onPress={() => Keyboard.dismiss()} style={styles.keyboardBarButton} textStyle={styles.keyboardBarText} /><Button variant="primary" accessibilityLabel={`${submitLabel}, above keyboard`} disabled={!canSubmit} onPress={() => { Keyboard.dismiss(); submissionMutation.mutate(); }} style={[styles.keyboardBarButton, !canSubmit && styles.buttonDisabled]}><Send color={c.text.onAction} size={15} /><Text style={styles.keyboardBarText}>{editable ? 'Update' : 'Submit'}</Text></Button></View></InputAccessoryView>)}
     </View>}
-    {(reviewedWork || submissions.some((submission) => submission.grade)) && <SubmissionHistory submissions={submissions} latestId={latest?.id ?? null} showLatest={!(studentMode && editable && !locked)} />}
+    {(reviewedWork || submissions.some((submission) => submission.grade)) && <SubmissionHistory hideProgress={hideProgress} submissions={submissions} latestId={latest?.id ?? null} showLatest={!(studentMode && editable && !locked)} />}
     {showMarkComplete ? <>{markCompleteCopy && !completed && <Text style={styles.markCompleteCopy}>{markCompleteCopy}</Text>}<Button variant={completed ? "success" : "primary"} accessibilityRole="button" accessibilityLabel={completed ? 'Mark not done' : 'Mark complete'} disabled={locked || progressMutation.isPending} onPress={() => progressMutation.mutate(completed ? 'not_started' : 'completed')} style={[styles.completeButton, completed && styles.completeButtonDone, (locked || progressMutation.isPending) && styles.buttonDisabled]}>{progressMutation.isPending ? <ActivityIndicator color={c.text.strong} /> : <>{completed ? <Check color={c.status.success.fg} size={18} /> : <Circle color={c.text.body} size={18} />}<Text style={[styles.completeButtonText, completed && styles.completeButtonTextDone]}>{completed ? 'Done · tap to undo' : 'Mark complete'}</Text></>}</Button></> : null}
   </View>;
 }
@@ -519,7 +519,7 @@ function SubmissionStatus({ submission, readOnly, canResubmit, submissionType, f
 }
 
 /** Every attempt the learner sent, newest first, with its exact text. Earlier attempts stay folded. */
-function SubmissionHistory({ submissions, latestId, showLatest }: { submissions: SubmissionBrief[]; latestId: number | null; showLatest: boolean }) {
+function SubmissionHistory({ submissions, latestId, showLatest, hideProgress }: { hideProgress: boolean; submissions: SubmissionBrief[]; latestId: number | null; showLatest: boolean }) {
   const styles = useStyles();
   const [showEarlier, setShowEarlier] = useState(false);
   const ordered = useMemo(() => [...submissions].sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id - a.id), [submissions]);
@@ -533,7 +533,7 @@ function SubmissionHistory({ submissions, latestId, showLatest }: { submissions:
     {visible.map((item) => {
       const status = submissionStatus(item);
       return <View key={item.id} style={styles.historyItem}>
-        <View style={styles.historyMeta}><Text style={styles.historyMetaText}>Attempt {item.num_submissions || 1} · {formatCourseDateTime(item.created_at, { fallback: item.created_at })}</Text>{status && <StatusBadge status={status} short />}</View>
+        <View style={styles.historyMeta}><Text style={styles.historyMetaText}>Attempt {item.num_submissions || 1} · {formatCourseDateTime(item.created_at, { fallback: item.created_at })}</Text>{!hideProgress && status && <StatusBadge status={status} short />}</View>
         {item.text ? <MessageCodeBlock code={item.text} language="Submitted" surface="lesson" testID="submitted-text" /> : null}
         {[item.repo_url, item.live_url, item.pr_url].filter(Boolean).map((url) => <Text key={url} selectable style={styles.historyLink}>{url}</Text>)}
         {item.id !== latestId && item.feedback ? <View style={styles.feedbackBody}><Text style={styles.historyFeedbackLabel}>Feedback</Text><AuthoredContent body={item.feedback} compact written /></View> : null}

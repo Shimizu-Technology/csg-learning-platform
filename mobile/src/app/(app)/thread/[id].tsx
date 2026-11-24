@@ -639,7 +639,7 @@ export default function ThreadScreen() {
     if (user?.is_staff && message.id > 0) actions.push({ label: message.pinned_at ? 'Unpin message' : 'Pin message', onPress: () => void updateAction(() => api.pinMessage(message.id, Boolean(message.pinned_at))) });
     if (message.mine && message.id > 0) {
       if (canPost && !message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });
-      actions.push({ label: 'Delete message', destructive: true, onPress: () => { close(); Alert.alert('Remove message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => void updateAction(() => api.deleteMessage(message.id)) }]); } });
+      actions.push({ label: 'Delete message', destructive: true, onPress: () => { close(); Alert.alert('Delete message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void updateAction(() => api.deleteMessage(message.id)) }]); } });
     }
     if (!message.mine && message.id > 0) {
       actions.push({ label: 'Report message', onPress: () => { close(); void reportMessage(message); } });

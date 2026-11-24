@@ -31,6 +31,7 @@ jest.mock('expo-router', () => {
 });
 let mockDashboard: unknown;
 let mockGithubApp = false;
+let mockBindingState: 'success' | 'loading' | 'error' = 'success';
 const mockReloadBindings = jest.fn();
 let mockDashboardError = false;
 let mockProfile: unknown;
@@ -40,7 +41,8 @@ jest.mock('@tanstack/react-query', () => ({
   useQuery: ({ queryKey, enabled }: { queryKey: unknown[]; enabled?: boolean }) => {
     if (queryKey[2] === 'dashboard') return { data: mockDashboard ? { dashboard: mockDashboard } : undefined, isError: mockDashboardError };
     if (queryKey[2] === 'profile') return { data: mockProfile, isError: false };
-    if (queryKey[0] === 'github-bindings' && enabled) return { data: { bindings: [{ id: 1, full_name: 'school/practice', verification_state: 'verified' }] }, refetch: mockReloadBindings };
+    if (queryKey[0] === 'github-bindings' && enabled && mockBindingState !== 'success') return { isSuccess: false, isFetching: mockBindingState === 'loading' };
+    if (queryKey[0] === 'github-bindings' && enabled) return { isSuccess: true, data: { bindings: [{ id: 1, full_name: 'school/practice', verification_state: 'verified' }] }, refetch: mockReloadBindings };
     if (queryKey[0] === 'nudge-preference') { mockReminderQueries.push(enabled); return enabled ? mockReminder : { data: undefined, isError: false, refetch: jest.fn() }; }
     return { data: undefined, isError: false };
   },
@@ -79,6 +81,7 @@ beforeEach(() => {
   mockFocusEffectCleanup = null;
   mockProfile = undefined;
   mockGithubApp = false;
+  mockBindingState = 'success';
   mockReminder = { data: undefined, isError: false, refetch: jest.fn() };
   mockReminderQueries.length = 0;
   mockApi = {
@@ -371,4 +374,15 @@ it('shows the verified App repository and opens its exact settings instead of ed
   expect(screen.queryByText('GitHub username')).toBeNull();
   fireEvent.press(screen.getByText('Manage GitHub repositories on web'));
   await waitFor(() => expect(mockOpenWebPage).toHaveBeenCalledWith(mockApi, '/profile#github-repository-1'));
+});
+
+it.each([
+  ['loading', 'Checking GitHub connection…'],
+  ['error', 'GitHub connection status unavailable.'],
+] as const)('keeps GitHub status neutral while %s', (state, copy) => {
+  mockGithubApp = true;
+  mockBindingState = state;
+  const screen = render(<ProfileScreen />);
+  expect(screen.getByText(copy)).toBeTruthy();
+  expect(screen.queryByText('Connect GitHub on web')).toBeNull();
 });

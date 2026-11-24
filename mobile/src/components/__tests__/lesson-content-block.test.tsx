@@ -566,3 +566,14 @@ it.each([false, true])('retains pending native ranges across an edit and scopes 
     expect(screen.getByText(/A section could not be confirmed/)).toBeTruthy();
   }
 });
+
+it('hides completion and submission status in alumni browsing', () => {
+  const complete = checkpoint({ submission_type: 'manual_complete', progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: null } });
+  const reviewed = checkpoint({ id: 205, submissions: [submission({ grade: 'A' })] });
+  const screen = renderWithQuery(<>
+    <LessonContentBlockCard lesson={lesson} block={complete} hideProgress lessonLevelCompletion />
+    <LessonContentBlockCard lesson={lesson} block={reviewed} hideProgress lessonLevelCompletion />
+  </>);
+  expect(screen.queryByText('Done')).toBeNull();
+  expect(screen.queryByTestId('submission-status')).toBeNull();
+});

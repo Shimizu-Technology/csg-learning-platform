@@ -212,3 +212,12 @@ it('shows a browsing library with lesson links and hides progress for alumni', (
   expect(screen.queryByText('0 of 1 lessons')).toBeNull();
   expect(screen.getByLabelText('Open Individual assignments')).toBeTruthy();
 });
+
+it('preserves the learning path for alumni with an active personal plan', () => {
+  mockDashboard.cohort = { ...initialCohort!, cohort_type: 'alumni' };
+  mockDashboard.personal_plan = { title: 'Catch-up plan', description: null, target_date: null, next_check_in_on: null, updated_at: '2026-11-14', required_count: 1, completed_count: 0, awaiting_review_count: 0, milestones: [], next_lesson: null, requirement_changes: [] };
+  const screen = render(<LearnScreen />);
+  expect(screen.getByText('Learning path')).toBeTruthy();
+  expect(screen.getByText('0 of 1 lessons')).toBeTruthy();
+  expect(screen.queryByText('Alumni library')).toBeNull();
+});

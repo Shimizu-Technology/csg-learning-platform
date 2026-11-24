@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useWorkspace, WorkspaceProvider } from '@/providers/workspace-provider';
-import { Keyboard, Pressable, Text } from 'react-native';
+import { Alert, Keyboard, Pressable, Text } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 import ConversationScreen from '../../app/(app)/conversation/[kind]/[id]';
@@ -455,7 +455,13 @@ it('hides the composer and shows the read-only notice on a read-only channel con
   expect(screen.queryByLabelText('Send message')).toBeNull();
   fireEvent.press(screen.getByLabelText('Actions 200'));
   expect(screen.queryByText('Edit message')).toBeNull();
-  expect(screen.getByText('Delete message')).toBeTruthy();
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  try {
+    fireEvent.press(screen.getByText('Delete message'));
+    expect(alert).toHaveBeenCalledWith('Delete message?', expect.any(String), expect.arrayContaining([expect.objectContaining({ text: 'Delete', style: 'destructive' })]), expect.anything());
+  } finally {
+    alert.mockRestore();
+  }
 });
 
 it('keeps the conversation composer active when can_post is undefined', async () => {
@@ -487,7 +493,13 @@ it('hides the reply composer and shows the read-only notice on a read-only chann
   expect(screen.queryByLabelText('Send reply')).toBeNull();
   fireEvent.press(screen.getByLabelText('Actions 1'));
   expect(screen.queryByText('Edit message')).toBeNull();
-  expect(screen.getByText('Delete message')).toBeTruthy();
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  try {
+    fireEvent.press(screen.getByText('Delete message'));
+    expect(alert).toHaveBeenCalledWith('Delete message?', expect.any(String), expect.arrayContaining([expect.objectContaining({ text: 'Delete', style: 'destructive' })]), expect.anything());
+  } finally {
+    alert.mockRestore();
+  }
 });
 
 it('keeps the thread reply composer active when can_post is undefined', async () => {

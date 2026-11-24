@@ -26,7 +26,7 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useCohort } from '@/providers/cohort-provider';
 
-export default function StaffSupportScreen() {
+export default function StaffSupportScreen({ rootTab = false }: { rootTab?: boolean }) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const router = useRouter();
@@ -113,10 +113,10 @@ export default function StaffSupportScreen() {
 
   if (!user?.is_staff) return <StaffOnlyScreen message="Support is available to instructors and admins." />;
   if (query.isPending && !queue) return <SafeAreaView style={styles.safe}><LoadingState label="Loading Support" /></SafeAreaView>;
-  if (!queue) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'Support is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!queue) return <SafeAreaView style={styles.safe}>{!rootTab && <View style={styles.backRow}><BackButton style={styles.back} /></View>}<ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'Support is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>STAFF</Text><Text style={styles.headerTitle}>Support</Text></View><View style={styles.headerIcon}><LifeBuoy color={c.text.body} size={20} /></View></View>
+    <View style={styles.header}>{!rootTab && <BackButton style={styles.back} />}<View style={styles.flex}><Text style={styles.kicker}>STAFF</Text><Text style={styles.headerTitle}>Support</Text></View><View style={styles.headerIcon}><LifeBuoy color={c.text.body} size={20} /></View></View>
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing the saved queue. Actions need a connection.</Text></View>}
       <Text style={styles.heroTitle}>Start with the follow-up that is due.</Text><Text style={styles.heroCopy}>Each follow-up plan has an owner and connects the reason, next step, student, and support history.</Text>

@@ -58,7 +58,7 @@ export default function LearnScreen() {
   });
   const dashboard = studentQuery.data?.dashboard;
   const student = dashboard && isStudentDashboard(dashboard) ? dashboard : null;
-  const isAlumniOnly = alumniCohort || student?.cohort?.cohort_type === 'alumni';
+  const isAlumniOnly = (alumniCohort || student?.cohort?.cohort_type === 'alumni') && !student?.personal_plan;
   const modules = useMemo(() => [...(student?.modules || [])].filter((module) => module.lessons.length > 0).sort((a, b) => (a.position || 0) - (b.position || 0)), [student?.modules]);
   const search = filter.trim().toLowerCase();
   const matches = modules.flatMap((module) => module.lessons

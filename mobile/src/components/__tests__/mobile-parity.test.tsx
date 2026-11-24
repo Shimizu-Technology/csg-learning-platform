@@ -1,3 +1,6 @@
+import { StyleSheet } from 'react-native';
+import { CohortSwitcher } from '../cohort-switcher';
+import { PausedLearningCard } from '../paused-learning-card';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { GithubReviewCards } from '../github-review-cards';
@@ -6,12 +9,17 @@ import { SearchHeaderButton } from '../search-header-button';
 import type { StudentDashboard, Submission } from '@/lib/types';
 
 const mockPush = jest.fn();
+const mockDashboard = jest.fn();
+let mockDemo = false;
+const mockCohort = { id: 3, name: 'Web Dev', enrollment_status: 'paused' };
+jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: mockDemo }) }));
+jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohort: mockCohort, selectedCohortId: 3, cohorts: [mockCohort] }) }));
 const mockChoosePace = jest.fn();
 const mockGithubBindings = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({
   user: { id: 12 }, enrollments: [{ id: 8, cohort: { id: 3 } }],
-  api: { choosePace: mockChoosePace, githubBindings: mockGithubBindings },
+  api: { dashboard: mockDashboard, choosePace: mockChoosePace, githubBindings: mockGithubBindings },
 }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 
@@ -39,7 +47,7 @@ test('Today shows welcome and GitHub setup before pace, and routes the redo and 
   } as unknown as StudentDashboard;
   const screen = withQuery(<StudentTodayV2 dashboard={dashboard} githubApp refresh={refresh} />);
   expect(screen.getByText('Welcome to your course')).toBeTruthy();
-  expect(screen.getByText('Connect GitHub')).toBeTruthy();
+  expect(await screen.findByText('Connect GitHub')).toBeTruthy();
   fireEvent.press(screen.getByText(/4 weeks/));
   await waitFor(() => expect(mockChoosePace).toHaveBeenCalledWith(8, 4));
   await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -64,4 +72,36 @@ test('the header Search action opens global search', () => {
   const screen = render(<SearchHeaderButton />);
   fireEvent.press(screen.getByLabelText('Search'));
   expect(mockPush).toHaveBeenLastCalledWith('/search');
+});
+
+test('Today does not offer GitHub setup before checking the connection', async () => {
+  mockGithubBindings.mockRejectedValueOnce(new Error('No connection'));
+  const dashboard = {
+    cohort: { id: 3 },
+    student_today: { first_run: true, needs_you: { count: 0, items: [] }, waiting: { count: 0, items: [] } },
+  } as unknown as StudentDashboard;
+  const screen = withQuery(<StudentTodayV2 dashboard={dashboard} githubApp refresh={jest.fn()} />);
+  expect(screen.getByText('Checking GitHub connection…')).toBeTruthy();
+  expect(screen.queryByText('Connect GitHub')).toBeNull();
+  expect(await screen.findByText('GitHub connection status unavailable.')).toBeTruthy();
+  expect(screen.queryByText('Connect GitHub')).toBeNull();
+});
+
+test('demo pause cards never load a live dashboard', async () => {
+  mockDemo = true;
+  try {
+    const screen = withQuery(<PausedLearningCard cohortId={3} />);
+    expect(screen.queryByText('Enrollment paused')).toBeNull();
+    expect(mockDashboard).not.toHaveBeenCalled();
+  } finally {
+    mockDemo = false;
+  }
+});
+
+test('the My cohort button can grow to fit its label', () => {
+  const screen = render(<CohortSwitcher />);
+  const button = screen.getByRole('button', { name: 'Open Web Dev home' });
+  const style = StyleSheet.flatten(button.props.style);
+  expect(style).toMatchObject({ minWidth: 48, paddingHorizontal: 10 });
+  expect(style.width).toBeUndefined();
 });

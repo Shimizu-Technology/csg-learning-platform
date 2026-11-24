@@ -707,7 +707,7 @@ export default function ConversationScreen() {
     }
   };
 
-  const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); setPinnedMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
+  const deleteMessage = (message: Message) => Alert.alert('Delete message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); setPinnedMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
   // The message's web address (L-5.2), which opens this conversation at the message for anyone who can read it.
   const copyMessageLink = async (messageId: number) => {
     const link = messagePermalink(kind, id, messageId);

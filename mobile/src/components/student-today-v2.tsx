@@ -37,7 +37,8 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
 
   return <View style={{ gap: 12 }}>
     {today.first_run && <LearningCard><SectionHeading title="Welcome to your course" /><Text style={body}>Start in Learn, hand in your work as you go, and return here for feedback and your next lesson.</Text>
-      {githubApp && !binding.data?.bindings.some(item => item.verification_state === 'verified') && <Button label="Connect GitHub" variant="secondary" onPress={() => void openWebTask(api, `/profile#github-repository-${cohortId}`).then(() => binding.refetch()).catch(() => Alert.alert('Could not open GitHub setup'))} />}
+      {githubApp && !binding.isSuccess && <Text style={body}>{binding.isFetching ? 'Checking GitHub connection…' : 'GitHub connection status unavailable.'}</Text>}
+      {githubApp && binding.isSuccess && !binding.data.bindings.some(item => item.verification_state === 'verified') && <Button label="Connect GitHub" variant="secondary" onPress={() => void openWebTask(api, `/profile#github-repository-${cohortId}`).then(() => binding.refetch()).catch(() => Alert.alert('Could not open GitHub setup'))} />}
     </LearningCard>}
     {pace?.available && pace.status === 'not_chosen' && <LearningCard><SectionHeading title="Choose your pace" /><Text style={body}>Pick how many weeks you want to spend on the course.</Text>{pace.choices.map(choice => <Button key={choice.weeks} variant="secondary" label={`${choice.weeks} weeks · finish ${choice.ends_on}`} disabled={savePace.isPending} onPress={() => savePace.mutate(choice.weeks)} />)}</LearningCard>}
     {next && <LearningCard><SectionHeading title={next.title} />{next.status === 'redo' && <Text style={body}>Redo requested</Text>}<Button label={next.status === 'redo' ? 'Fix your redo' : 'Continue'} onPress={() => openLesson(next.id)} /></LearningCard>}
