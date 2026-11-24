@@ -33,7 +33,7 @@ jest.mock('@/lib/cable', () => ({ subscribeToMessages: (_api: unknown, _kind: un
 jest.mock('@/hooks/use-voice-draft', () => ({ useVoiceDraft: () => ({ state: 'idle', cancel: async () => {}, markSent: jest.fn() }) }));
 jest.mock('@/lib/attachments', () => ({ pendingAttachment: jest.fn(), uploadAttachment: jest.fn() }));
 jest.mock('expo-clipboard', () => ({}));
-jest.mock('expo-document-picker', () => ({}));
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-image-picker', () => ({}));
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
@@ -455,7 +455,7 @@ it('hides the composer and shows the read-only notice on a read-only channel con
   expect(screen.queryByLabelText('Send message')).toBeNull();
   fireEvent.press(screen.getByLabelText('Actions 200'));
   expect(screen.queryByText('Edit message')).toBeNull();
-  expect(screen.getByText('Remove message')).toBeTruthy();
+  expect(screen.getByText('Delete message')).toBeTruthy();
 });
 
 it('keeps the conversation composer active when can_post is undefined', async () => {
@@ -487,7 +487,7 @@ it('hides the reply composer and shows the read-only notice on a read-only chann
   expect(screen.queryByLabelText('Send reply')).toBeNull();
   fireEvent.press(screen.getByLabelText('Actions 1'));
   expect(screen.queryByText('Edit message')).toBeNull();
-  expect(screen.getByText('Remove message')).toBeTruthy();
+  expect(screen.getByText('Delete message')).toBeTruthy();
 });
 
 it('keeps the thread reply composer active when can_post is undefined', async () => {
@@ -502,4 +502,35 @@ it('keeps the thread reply composer active when can_post is undefined', async ()
   const screen = render(<ThreadScreen />, { wrapper: Wrapper });
   await waitFor(() => expect(screen.getByLabelText('Reply to thread')).toBeTruthy());
   expect(screen.queryByTestId('thread-readonly-notice')).toBeNull();
+});
+
+it('sends a thread attachment with an autocompleted mention', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+  mockApi.messageThread.mockResolvedValue({ root_message: message(1), replies: [] });
+  mockApi.workspace.mockResolvedValue({ workspace: { members: [{ id: 42, full_name: 'Maya Santos', role: 'student' }] } });
+  mockApi.sendMessage.mockResolvedValue({ message: message(2, 1) });
+  const { Alert } = require('react-native');
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  const { getDocumentAsync } = jest.requireMock('expo-document-picker');
+  const { pendingAttachment, uploadAttachment } = jest.requireMock('@/lib/attachments');
+  const file = { uri: 'file:///notes.txt', name: 'notes.txt', size: 12, mimeType: 'text/plain' };
+  const payload = { s3_key: 'uploads/notes.txt', filename: 'notes.txt', content_type: 'text/plain', byte_size: 12 };
+  getDocumentAsync.mockResolvedValue({ canceled: false, assets: [file] });
+  pendingAttachment.mockReturnValue({ ...payload, local_id: 'notes', uri: file.uri, image: false });
+  uploadAttachment.mockResolvedValue(payload);
+  try {
+    const screen = render(<ThreadScreen />, { wrapper: Wrapper });
+    const composer = await screen.findByLabelText('Reply to thread');
+    fireEvent.changeText(composer, '@May');
+    fireEvent(composer, 'selectionChange', { nativeEvent: { selection: { start: 4, end: 4 } } });
+    fireEvent.press(await screen.findByText('Maya Santos'));
+    fireEvent.press(screen.getByLabelText('Attach'));
+    const actions = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => void }[];
+    await act(async () => { actions.find(item => item.text === 'Choose a file')?.onPress?.(); });
+    expect(screen.getByText('Remove notes.txt')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Send reply'));
+    await waitFor(() => expect(mockApi.sendMessage).toHaveBeenCalledWith('channel', 4, expect.objectContaining({ parent_message_id: 1, mention_user_ids: [42], attachments: [payload] })));
+  } finally {
+    alert.mockRestore();
+  }
 });

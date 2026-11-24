@@ -87,7 +87,6 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
 
   return (
     <>
-      <FormatButton label="Formatting help" Icon={CircleHelp} onPress={() => setHelpOpen(true)} />
       <Modal visible={helpOpen} transparent animationType="fade" onRequestClose={() => setHelpOpen(false)}>
         <View style={[styles.modalRoot, { justifyContent: 'flex-end' }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Close formatting help" style={StyleSheet.absoluteFill} onPress={() => setHelpOpen(false)} />
@@ -108,6 +107,7 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
       >
         <View style={styles.bar} accessibilityRole="toolbar" accessibilityLabel="Message formatting">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.actions}>
+            <FormatButton label="Formatting help" Icon={CircleHelp} onPress={() => setHelpOpen(true)} />
             {ACTIONS.map(({ action, label, Icon }) => (
               <FormatButton key={action} label={label} Icon={Icon} active={active.has(action)} disabled={disabled || showPreview} onPress={() => format(action)} />
             ))}

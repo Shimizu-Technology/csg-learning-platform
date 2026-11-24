@@ -1,3 +1,4 @@
+import { Button } from './ui/button';
 import { useRouter, type Href } from 'expo-router';
 import { Text, View } from 'react-native';
 import { PressableScale as Pressable } from './ui/pressable-scale';
@@ -7,7 +8,7 @@ import { useSession } from '@/providers/session-provider';
 import { themedAlert as Alert } from '@/lib/alerts';
 import type { components } from '@/lib/api.generated';
 
-export function InstructorToday({ today }: { today: components['schemas']['InstructorToday'] }) {
+export function InstructorToday({ today, redoCount = 0 }: { redoCount?: number; today: components['schemas']['InstructorToday'] }) {
   const router = useRouter();
   const { api } = useSession();
   const { colors: c } = useTheme();
@@ -15,7 +16,8 @@ export function InstructorToday({ today }: { today: components['schemas']['Instr
   return <View style={{ gap: 12 }}><SectionHeading title="Today" />
     <Text style={{ color: c.text.body }}>{total === 1 ? '1 thing needs you' : `${total} things need you`}</Text>
     {total === 0 && !today.attention_remaining && <LearningCard><Text style={{ color: c.text.strong }}>You&apos;re caught up</Text><Text style={{ color: c.text.body }}>Check your cohorts or come back when new work arrives.</Text></LearningCard>}
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{Object.entries(today.counts).map(([kind, count]) => <Text key={kind} style={{ color: c.text.body, borderWidth: 1, borderRadius: 12, padding: 8 }}>{({ help: 'Help requests', review: 'Waiting for review', message: 'Unread conversations', quiet: 'Going quiet', follow_up: 'Follow-ups' } as Record<string, string>)[kind]} · {count}</Text>)}</View>
+    <Button variant="secondary" label={`Redo requests · ${redoCount}`} onPress={() => router.push('/(app)/(tabs)/grading?filter=redo')} />
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{Object.entries(today.counts).map(([kind, count]) => <Pressable key={kind} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }} onPress={() => router.push((kind === 'review' ? '/(app)/(tabs)/grading?filter=ungraded' : kind === 'message' ? '/messages' : kind === 'help' ? '/(app)/(tabs)/support?filter=help' : kind === 'follow_up' ? '/(app)/(tabs)/support?filter=follow_up' : '/(app)/(tabs)/support') as Href)}><Text style={{ color: c.text.body, borderWidth: 1, borderRadius: 12, padding: 8 }}>{({ help: 'Open help requests', review: 'Waiting for review', message: 'Unread conversations', quiet: 'Going quiet', follow_up: 'Follow-ups' } as Record<string, string>)[kind]} · {count}</Text></Pressable>)}</View>
     {today.attention_remaining > 0 && <Pressable onPress={() => router.push('/staff/support' as Href)} style={{ minHeight: 44 }}><Text style={{ color: c.text.body }}>{today.attention_remaining} more {today.attention_remaining === 1 ? 'learner needs' : 'learners need'} attention → Support</Text></Pressable>}
     {today.items.map(item => <LearningCard key={`${item.kind}-${item.id}`}>
       <Pressable disabled={item.student_record === false || !item.cohort_id} accessibilityRole={item.student_record === false ? undefined : "link"} onPress={() => router.push(`/staff/student/${item.user_id}?cohort_id=${item.cohort_id}` as Href)} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: c.text.strong, fontWeight: '700' }}>{item.full_name}</Text></Pressable>

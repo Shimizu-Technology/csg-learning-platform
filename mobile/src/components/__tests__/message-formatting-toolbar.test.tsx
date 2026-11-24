@@ -42,7 +42,10 @@ describe('MessageFormattingToolbar Preview (Markdown mode)', () => {
 });
 
 it('opens and dismisses phone formatting help', () => {
-  const screen = render(<MessageFormattingToolbar value="" selection={{ start: 0, end: 0 }} visible={false} onChange={jest.fn()} onSelectionChange={jest.fn()} onComposerFocus={jest.fn()} onLimitExceeded={jest.fn()} />);
+  const props = { value: '', selection: { start: 0, end: 0 }, onChange: jest.fn(), onSelectionChange: jest.fn(), onComposerFocus: jest.fn(), onLimitExceeded: jest.fn() };
+  const screen = render(<MessageFormattingToolbar {...props} visible={false} />);
+  expect(screen.queryByLabelText('Formatting help')).toBeNull();
+  screen.rerender(<MessageFormattingToolbar {...props} visible />);
   fireEvent.press(screen.getByLabelText('Formatting help'));
   expect(screen.getByText('**bold** · bold')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Close formatting help'));

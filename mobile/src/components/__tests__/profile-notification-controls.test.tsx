@@ -30,6 +30,8 @@ jest.mock('expo-router', () => {
   };
 });
 let mockDashboard: unknown;
+let mockGithubApp = false;
+const mockReloadBindings = jest.fn();
 let mockDashboardError = false;
 let mockProfile: unknown;
 let mockReminder: { data?: { learner_nudges_enabled: boolean }; isError: boolean; refetch: jest.Mock } = { data: undefined, isError: false, refetch: jest.fn() };
@@ -38,6 +40,7 @@ jest.mock('@tanstack/react-query', () => ({
   useQuery: ({ queryKey, enabled }: { queryKey: unknown[]; enabled?: boolean }) => {
     if (queryKey[2] === 'dashboard') return { data: mockDashboard ? { dashboard: mockDashboard } : undefined, isError: mockDashboardError };
     if (queryKey[2] === 'profile') return { data: mockProfile, isError: false };
+    if (queryKey[0] === 'github-bindings' && enabled) return { data: { bindings: [{ id: 1, full_name: 'school/practice', verification_state: 'verified' }] }, refetch: mockReloadBindings };
     if (queryKey[0] === 'nudge-preference') { mockReminderQueries.push(enabled); return enabled ? mockReminder : { data: undefined, isError: false, refetch: jest.fn() }; }
     return { data: undefined, isError: false };
   },
@@ -55,12 +58,12 @@ jest.mock('../../lib/push-notifications', () => ({
   pushPermissionAllowsDelivery: (status: string) => ['granted', 'provisional', 'ephemeral'].includes(status),
   requestPushPermission: jest.fn(),
 }));
-jest.mock('../../providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: 1 }) }));
+jest.mock('../../providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: 1, selectedCohort: { features: { github_app: mockGithubApp } } }) }));
 const mockOpenWebPage = jest.fn();
-jest.mock('../../lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockOpenWebPage(...args) }));
+jest.mock('../../lib/external-links', () => ({ openWebTask: (...args: unknown[]) => mockOpenWebPage(...args), openAuthenticatedWebPage: (...args: unknown[]) => mockOpenWebPage(...args) }));
 jest.mock('../../providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('../../providers/session-provider', () => ({
-  useSession: () => ({ api: mockApi, user: mockUser, refresh: jest.fn().mockResolvedValue(undefined), signOut: jest.fn() }),
+  useSession: () => ({ api: mockApi, user: mockUser, enrollments: [{ id: 2, cohort: { id: 1 } }], refresh: jest.fn().mockResolvedValue(undefined), signOut: jest.fn() }),
 }));
 
 function continueThroughPrimer() {
@@ -75,6 +78,7 @@ beforeEach(() => {
   mockFocusEffectCallback = null;
   mockFocusEffectCleanup = null;
   mockProfile = undefined;
+  mockGithubApp = false;
   mockReminder = { data: undefined, isError: false, refetch: jest.fn() };
   mockReminderQueries.length = 0;
   mockApi = {
@@ -357,4 +361,14 @@ describe('ProfileScreen course-specific controls', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/meetings');
     expect(mockOpenWebPage).not.toHaveBeenCalled();
   });
+});
+
+it('shows the verified App repository and opens its exact settings instead of editing the username', async () => {
+  mockGithubApp = true;
+  mockOpenWebPage.mockResolvedValue(undefined);
+  const screen = render(<ProfileScreen />);
+  expect(screen.getByText('school/practice · Verified')).toBeTruthy();
+  expect(screen.queryByText('GitHub username')).toBeNull();
+  fireEvent.press(screen.getByText('Manage GitHub repositories on web'));
+  await waitFor(() => expect(mockOpenWebPage).toHaveBeenCalledWith(mockApi, '/profile#github-repository-1'));
 });

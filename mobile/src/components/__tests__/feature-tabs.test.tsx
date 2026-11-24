@@ -12,13 +12,16 @@ jest.mock('expo-router', () => {
 });
 jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => mockQueryClient }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ user: { role: mockRole } }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ user: { role: mockRole, is_staff: mockRole !== 'student' } }) }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohort: { features: { announcements: false } } }) }));
 jest.mock('@/hooks/use-inbox', () => ({ useInboxQuery: () => ({}), inboxUnreadCount: () => 0, tabBadgeLabel: () => undefined }));
 jest.mock('@/hooks/use-notifications', () => ({ useNotificationsQuery: () => ({}), notificationsUnreadCount: () => 0 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
-it.each(['student', 'instructor', 'admin'])('applies learner announcement switch for %s tabs', (role) => {
+it.each(['student', 'instructor', 'admin'])('shows the correct work tabs for %s', (role) => {
   mockRole = role;
   render(<TabsLayout />);
   expect(mockScreens.updates.href).toBe(role === 'student' ? null : undefined);
+  expect(mockScreens.learn.href).toBe(role === 'student' ? undefined : null);
+  expect(mockScreens.grading.href).toBe(role === 'student' ? null : undefined);
+  expect(mockScreens.support.href).toBe(role === 'student' ? null : undefined);
 });

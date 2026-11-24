@@ -22,7 +22,7 @@ const mockLoadDraft = jest.fn().mockResolvedValue(null);
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('@/lib/analytics', () => ({ analyticsAgeBucket: () => 'recent', analyticsLanguage: () => 'other', captureProductEvent: jest.fn() }));
-jest.mock('@/lib/external-links', () => ({ openExternalPage: jest.fn(), openAuthenticatedWebLesson: jest.fn() }));
+jest.mock('@/lib/external-links', () => ({ ...jest.requireActual('@/lib/external-links'), openExternalPage: jest.fn(), openAuthenticatedWebLesson: jest.fn() }));
 jest.mock('@/lib/submission-storage', () => ({
   ...jest.requireActual('@/lib/submission-storage'),
   clearSubmissionDraft: jest.fn().mockResolvedValue(undefined),
@@ -440,8 +440,8 @@ it.each(['R', 'A'])('shows manual completion grade %s and feedback', (grade) => 
 
 it.each([
   ['text_submission', 'then resubmit below'],
-  ['manual_complete', 'Read the feedback — your instructor will re-check this'],
-  ['prework_github_sync', 'Update your code on GitHub — your instructor will re-check it'],
+  ['manual_complete', 'Read the feedback from your instructor'],
+  ['prework_github_sync', 'then commit and push again'],
 ])('uses accurate redo copy for %s', (submission_type, copy) => {
   const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type, submissions: [submission({ grade: 'R', feedback: 'Unique redo feedback.' })] })} lesson={lesson} />);
   expect(screen.getByText(new RegExp(copy))).toBeTruthy();

@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/back-button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -15,7 +16,7 @@ import { StaffOnlyScreen } from '@/components/staff-only-screen';
 import { fonts } from '@/constants/csg-theme';
 import { demoStaffSubmissions } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
-import { learningKeys } from '@/lib/learning';
+import type { components } from '@/lib/api.generated';
 import type { Submission } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -27,21 +28,24 @@ export default function StaffGradingScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
-  const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
+  const { cohort_id, filter: requestedFilter, page: requestedPage } = useLocalSearchParams<{ cohort_id?: string; filter?: string; page?: string }>();
   const { selectedCohortId, selectedCohort } = useCohort();
   const cohortId = cohort_id ? Number(cohort_id) : selectedCohortId;
+  const filter = requestedFilter === 'redo' ? 'redo' : 'ungraded';
+  const page = Math.max(1, Number(requestedPage) || 1);
   const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: learningKeys.submissions(user?.id || 0, undefined, cohortId),
-    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ submissions: demoStaffSubmissions.filter((item) => item.grade === null && (!cohortId || item.cohort_id === cohortId)) }) : api.submissions({ ungraded: true, ...(cohortId ? { cohort_id: cohortId } : {}) }, signal),
+  type Row = Pick<Submission, 'id' | 'cohort_id' | 'user_id' | 'user_name' | 'content_block_type' | 'lesson_title' | 'cohort_name' | 'content_block_title' | 'num_submissions' | 'created_at'>;
+  type Page = { submissions: Row[]; previous: components['schemas']['GradingQueueItem'] | null; next: components['schemas']['GradingQueueItem'] | null };
+  const query = useQuery<Page>({
+    queryKey: ['staff-grading-queue', user?.id, cohortId, filter, page],
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ next: null, previous: null, submissions: demoStaffSubmissions.filter((item) => item.grade === (filter === 'redo' ? 'R' : null) && (!cohortId || item.cohort_id === cohortId)) }) : api.gradingQueue(filter, cohortId, page, signal),
     enabled: Boolean(user?.is_staff),
   });
 
-  function openSubmission(submission: Submission) {
-    queryClient.setQueryData(learningKeys.submission(user!.id, submission.id), { submission });
+  function openSubmission(submission: Pick<Submission, 'id' | 'cohort_id' | 'user_id'>) {
     const queue = nextGradingQueueToken();
     queryClient.setQueryDefaults(gradingQueueKey(user!.id, queue), { gcTime: 30 * 60 * 1000, meta: { persist: false } });
-    queryClient.setQueryData(gradingQueueKey(user!.id, queue), { submissions: query.data?.submissions || [], cohortId });
+    queryClient.setQueryData(gradingQueueKey(user!.id, queue), { submissions: [...(query.data?.previous ? [query.data.previous] : []), ...(query.data?.submissions || []), ...(query.data?.next ? [query.data.next] : [])], cohortId, filter });
     router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), queue, ...(submission.cohort_id ? { cohort_id: String(submission.cohort_id), student_id: String(submission.user_id) } : {}) } });
   }
 
@@ -51,8 +55,10 @@ export default function StaffGradingScreen() {
     <View style={styles.header}><BackButton style={styles.back} /><View style={styles.headerCopy}><Text style={styles.kicker}>STAFF WORKFLOW</Text><Text style={styles.headerTitle}>Grading queue</Text></View><View style={styles.count}><Text style={styles.countText}>{submissions.length}</Text></View></View>
     {query.isPending && !query.data ? <LoadingState label="Loading grading queue" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved submissions. Pull to reconnect.</Text></View>}
-      <Text style={styles.title}>Review what is ready now.</Text><Text style={styles.subtitle}>{cohortId ? `${selectedCohort?.name || 'This cohort'} · ` : 'All cohorts · '}Quick feedback from your phone.</Text>
-      <View style={styles.stack}>{submissions.map((submission) => <LearningCard key={submission.id} onPress={() => openSubmission(submission)} label={`Review ${submission.user_name}'s submission`}><View style={styles.row}><View style={styles.icon}>{submission.repo_url || submission.pr_url ? <GitPullRequest color={c.text.body} size={20} /> : <ClipboardCheck color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.student}>{submission.user_name}</Text><Text style={styles.lesson}>{submission.lesson_title}{submission.cohort_name ? ` · ${submission.cohort_name}` : ''}</Text><Text numberOfLines={2} style={styles.exercise}>{submission.content_block_title} · attempt {submission.num_submissions}</Text><Text style={styles.time}>{formatRelative(submission.created_at)}</Text></View><ArrowRight color={c.text.muted} size={18} /></View></LearningCard>)}</View>
+      <Text style={styles.title}>{filter === 'redo' ? 'Redo requests' : 'Waiting for review'}</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}><Button variant="secondary" label="Waiting" onPress={() => router.setParams({ filter: 'ungraded', page: '1' })} /><Button variant="secondary" label="Redos" onPress={() => router.setParams({ filter: 'redo', page: '1' })} /></View><Text style={styles.subtitle}>{cohortId ? `${selectedCohort?.name || 'This cohort'} · ` : 'All cohorts · '}Quick feedback from your phone.</Text>
+      <View style={styles.stack}>{submissions.map((submission) => <LearningCard key={submission.id} onPress={() => openSubmission(submission)} label={`Review ${submission.user_name}'s submission`}><View style={styles.row}><View style={styles.icon}>{submission.content_block_type === 'code_challenge' ? <GitPullRequest color={c.text.body} size={20} /> : <ClipboardCheck color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.student}>{submission.user_name}</Text><Text style={styles.lesson}>{submission.lesson_title}{submission.cohort_name ? ` · ${submission.cohort_name}` : ''}</Text><Text numberOfLines={2} style={styles.exercise}>{submission.content_block_title} · attempt {submission.num_submissions}</Text><Text style={styles.time}>{formatRelative(submission.created_at)}</Text></View><ArrowRight color={c.text.muted} size={18} /></View></LearningCard>)}</View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>{query.data?.previous && <Button label="Previous page" onPress={() => router.setParams({ page: String(page - 1) })} />}{query.data?.next && <Button label="Next page" onPress={() => router.setParams({ page: String(page + 1) })} />}</View>
       {!submissions.length && <View style={styles.empty}><View style={styles.emptyIcon}><Inbox color={c.status.success.fg} size={28} /></View><Text style={styles.emptyTitle}>Queue cleared</Text><Text style={styles.emptyCopy}>There is no ungraded work waiting right now.</Text></View>}
       <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/grading${cohortId ? `?cohort_id=${cohortId}` : ''}`).catch((error) => Alert.alert('Could not open full grading', (error as Error).message))} style={styles.handoff}><ExternalLink color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.handoffTitle}>Open full grading</Text><Text style={styles.handoffCopy}>Bulk grading, cohort filters, and dense progress views</Text></View><ArrowRight color={c.text.muted} size={17} /></Pressable>
     </ScrollView>}

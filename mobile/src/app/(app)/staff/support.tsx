@@ -33,7 +33,7 @@ export default function StaffSupportScreen() {
   const auth = useCsgAuth();
   const queryClient = useQueryClient();
   const { api, user } = useSession();
-  const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
+  const { cohort_id, filter } = useLocalSearchParams<{ cohort_id?: string; filter?: string }>();
   const { selectedCohortId } = useCohort();
   const cohortId = cohort_id ? Number(cohort_id) : selectedCohortId;
   const [resolving, setResolving] = useState<HelpRequest | null>(null);
@@ -83,6 +83,18 @@ export default function StaffSupportScreen() {
   }
 
   async function closeResponse() {
+    if (savingId) return;
+    if (response.trim()) {
+      Alert.alert('Discard this reply?', 'Your draft reply will be lost.', [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard reply', style: 'destructive', onPress: () => void discardResponse() },
+      ]);
+      return;
+    }
+    await discardResponse();
+  }
+
+  async function discardResponse() {
     await voiceDraft.cancel();
     attemptId.current = null;
     setResolving(null);
@@ -110,18 +122,19 @@ export default function StaffSupportScreen() {
       <Text style={styles.heroTitle}>Start with the follow-up that is due.</Text><Text style={styles.heroCopy}>Each follow-up plan has an owner and connects the reason, next step, student, and support history.</Text>
       <View style={styles.metrics}><Metric value={queue.summary.open_help_count} label="open requests" tone="ruby" /><Metric value={queue.summary.active_intervention_count} label="follow-up plans" tone="warning" /><Metric value={queue.summary.due_follow_up_count} label="due" tone="warning" /></View>
 
-      <View style={styles.section}><Text style={styles.sectionKicker}>ASSIGNED TO STAFF</Text><Text style={styles.sectionTitle}>Follow-up plans</Text><Text style={styles.sectionCopy}>Open a plan to acknowledge contact, message the student, update its status, or continue on the web.</Text>
+      {filter !== 'help' && <View style={styles.section}><Text style={styles.sectionKicker}>ASSIGNED TO STAFF</Text><Text style={styles.sectionTitle}>Follow-up plans</Text><Text style={styles.sectionCopy}>Open a plan to acknowledge contact, message the student, update its status, or continue on the web.</Text>
         {!queue.interventions.length ? <View style={styles.clearCard}><CheckCircle2 color={c.status.success.fg} size={21} /><View style={styles.flex}><Text style={styles.clearTitle}>No active follow-up plans</Text><Text style={styles.clearCopy}>Start one from Support on the web.</Text></View></View> : <View style={styles.stack}>{queue.interventions.map((intervention) => <Pressable key={intervention.id} accessibilityRole="button" accessibilityLabel={`Open follow-up plan for ${intervention.enrollment.student.full_name}`} onPress={() => openIntervention(intervention)} style={[styles.caseCard, intervention.follow_up_due && styles.caseDue]}><View style={styles.pills}><Pill label={humanize(intervention.status, FOLLOW_UP_STATUS_LABELS).toUpperCase()} tone="ruby" />{intervention.severity === 'urgent' && <Pill label="URGENT" tone="danger" />}{intervention.follow_up_due && <Pill label="FOLLOW-UP DUE" tone="warning" />}</View><Text style={styles.studentName}>{intervention.enrollment.student.full_name}</Text><Text style={styles.context}>{intervention.enrollment.cohort.name} · {humanize(intervention.trigger_type, FOLLOW_UP_REASON_LABELS)}</Text><Text numberOfLines={2} style={styles.caseAction}>{intervention.action_summary || 'Open to document the next action.'}</Text><View style={styles.caseFooter}><CalendarClock color={intervention.follow_up_due ? c.status.warning.fg : c.text.muted} size={15} /><Text style={[styles.metaText, intervention.follow_up_due && styles.dueText]}>{intervention.follow_up_due ? 'Due now' : formatRelative(intervention.next_follow_up_at || intervention.created_at)}</Text><Text style={styles.caseOwner}>{intervention.owner.full_name}</Text><ArrowRight color={c.text.muted} size={17} /></View></Pressable>)}</View>}
-      </View>
+      </View>}
 
-      <View style={styles.section}><Text style={styles.sectionKicker}>DIRECT REQUESTS</Text><Text style={styles.sectionTitle}>Students who asked for help</Text>
+      {filter !== 'follow_up' && <View style={styles.section}><Text style={styles.sectionKicker}>DIRECT REQUESTS</Text><Text style={styles.sectionTitle}>Students who asked for help</Text>
         {!queue.help_requests.length ? <View style={styles.clearCard}><CheckCircle2 color={c.status.success.fg} size={21} /><View style={styles.flex}><Text style={styles.clearTitle}>No active requests</Text><Text style={styles.clearCopy}>New requests will appear here.</Text></View></View> : <View style={styles.stack}>{queue.help_requests.map((request) => <View key={request.id} style={[styles.requestCard, request.urgency === 'urgent' && styles.requestUrgent]}>
           <View style={styles.pills}>{request.urgency === 'urgent' && <Pill label="URGENT" tone="danger" />}<Pill label={request.status === 'acknowledged' ? 'ACKNOWLEDGED' : 'OPEN'} tone={request.status === 'acknowledged' ? 'warning' : 'ruby'} /><Pill label={request.category.toUpperCase()} tone="quiet" /></View>
           <Text style={styles.studentName}>{request.student?.full_name}</Text><Text style={styles.context}>{request.cohort.name} · {request.context_label}</Text><Text style={styles.question}>{request.message}</Text><View style={styles.requestMeta}><Clock3 color={c.text.muted} size={13} /><Text style={styles.metaText}>{formatRelative(request.created_at)}</Text>{request.owner && <Text style={styles.metaText}>· {request.owner.full_name}</Text>}</View>
           <View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${request.student?.full_name}'s help request`} onPress={() => openHelpRequest(request)} style={styles.secondaryButton}><ArrowRight color={c.text.strong} size={16} /><Text style={styles.secondaryText}>Open</Text></Pressable><Button variant="primary" accessibilityRole="button" onPress={() => { attemptId.current = null; setResolving(request); setResponse(''); }} style={styles.primaryButton}><MessageSquareReply color={c.text.strong} size={16} /><Text style={styles.primaryText}>Reply</Text></Button></View>
         </View>)}</View>}
-      </View>
+      </View>}
 
+      {filter && <Button label="Show all support" variant="secondary" onPress={() => router.setParams({ filter: '' })} />}
       <StaffAttention students={queue.students} cohortId={cohortId} />
     </ScrollView>
 

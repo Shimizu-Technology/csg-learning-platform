@@ -1,5 +1,6 @@
+import { GithubReviewCards } from '@/components/github-review-cards';
 import { usePreventRemove } from 'expo-router/react-navigation';
-import { gradingQueueKey, gradingQueuePosition, type GradingQueue } from '@/lib/grading-queue';
+import { gradingQueueKey, gradingQueuePosition, type GradingQueue, type GradingQueueTarget } from '@/lib/grading-queue';
 import { BackButton } from '@/components/back-button';
 import { haptic } from '@/lib/haptics';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -55,7 +56,7 @@ export default function StaffSubmissionScreen() {
   });
   const queueData = queue && user?.is_staff ? queueQuery.data : undefined;
   const position = gradingQueuePosition(queueData, submissionId);
-  const moveInQueue = (target: Submission | undefined) => {
+  const moveInQueue = (target: GradingQueueTarget | undefined) => {
     if (!target) return;
     router.replace({ pathname: '/staff/submission/[id]', params: { id: String(target.id), queue, ...(target.cohort_id ? { cohort_id: String(target.cohort_id), student_id: String(target.user_id) } : {}) } });
   };
@@ -69,18 +70,11 @@ export default function StaffSubmissionScreen() {
   const submission = query.data?.submission;
   useEffect(() => {
     if (!queue || !user?.is_staff || !submission?.grade) return;
-    const key = gradingQueueKey(user.id, queue);
-    const snapshot = queryClient.getQueryData<GradingQueue>(key);
-    if (!snapshot?.submissions.some(item => item.id === submission.id)) return;
-    let cancelled = false;
-    const refresh = auth.demo
-      ? Promise.resolve({ submissions: demoStaffSubmissions.filter(item => item.grade === null && item.id !== submission.id && (!snapshot.cohortId || item.cohort_id === snapshot.cohortId)) })
-      : api.submissions({ ungraded: true, ...(snapshot.cohortId ? { cohort_id: snapshot.cohortId } : {}) });
-    void refresh.then(result => {
-      if (!cancelled) queryClient.setQueryData(key, { ...snapshot, submissions: result.submissions });
-    }).catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [api, auth.demo, queryClient, queue, submission?.grade, submission?.id, user?.id, user?.is_staff]);
+    queryClient.setQueryData<GradingQueue>(gradingQueueKey(user.id, queue), current => {
+      if (!current || !current.submissions.some(item => item.id === submission.id) || (current.filter === 'redo' && submission.grade === 'R')) return current;
+      return { ...current, submissions: current.submissions.filter(item => item.id !== submission.id) };
+    });
+  }, [queryClient, queue, submission?.grade, submission?.id, user?.id, user?.is_staff]);
   const previousAttempt = Boolean(submission?.latest_submission_id && submission.latest_submission_id !== submission.id);
   const submissionLoaded = Boolean(submission);
   const submissionUpdatedAt = submission?.updated_at || null;
@@ -234,10 +228,12 @@ export default function StaffSubmissionScreen() {
       setStaleReviewVersion(null);
       if (user?.id) await clearGradingDraft(user.id, submissionId).catch(() => undefined);
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['staff-grading-queue', user?.id] }),
         queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) }),
         queryClient.invalidateQueries({ queryKey: learningKeys.submissions(user?.id || 0), refetchType: 'none' }),
         submission && validatedCohortId ? queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user?.id || 0, submission.user_id, validatedCohortId) }) : Promise.resolve(),
       ]);
+      moveInQueue(position.next);
     },
     onError: (error) => {
       haptic('error');
@@ -346,6 +342,11 @@ export default function StaffSubmissionScreen() {
         {submission.solution && <LearningCard><View style={styles.cardHeading}><CheckCircle2 color={c.status.success.fg} size={18} /><Text style={styles.cardHeadingText}>Instructor solution</Text></View><View style={styles.responseCode}>{isRawCode(submission.solution) ? <MessageCodeBlock code={submission.solution} language={submission.language_hint || 'Solution'} surface="lesson" /> : <AuthoredContent body={submission.solution} compact />}</View></LearningCard>}
         {submission.rubric && <LearningCard><Text style={styles.feedbackLabel}>CRITERION REVIEW</Text><Text style={styles.rubricTitle}>{submission.rubric.title}</Text><View style={styles.rubricList}>{submission.rubric.criteria.map((criterion) => <View key={criterion.id} style={styles.rubricCriterion}><Text style={styles.cardHeadingText}>{criterion.title}</Text><Text style={styles.detailValue}>{criterion.description}</Text><View style={styles.ratingGrid}>{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as [RubricRating, string][]).map(([rating, label]) => <Button key={rating} accessibilityRole="button" accessibilityState={{ selected: criterionResults[criterion.id]?.rating === rating, disabled: previousAttempt || draftRestoring || mutation.isPending }} disabled={previousAttempt || draftRestoring || mutation.isPending} onPress={() => setCriterionDraft({ submissionId, values: { ...criterionResults, [criterion.id]: { rating, feedback: criterionResults[criterion.id]?.feedback || '' } } })} style={[styles.ratingButton, criterionResults[criterion.id]?.rating === rating && styles.ratingButtonActive, (previousAttempt || draftRestoring || mutation.isPending) && styles.disabled]} variant="secondary" label={label} textStyle={styles.ratingButtonText} />)}</View><TextInput keyboardAppearance={scheme} accessibilityLabel={`Feedback for ${criterion.title}`} editable={!previousAttempt && !draftRestoring && !mutation.isPending} value={criterionResults[criterion.id]?.feedback || ''} onChangeText={(value) => setCriterionDraft({ submissionId, values: { ...criterionResults, [criterion.id]: { rating: criterionResults[criterion.id]?.rating || null, feedback: value } } })} placeholder="Optional focused feedback" placeholderTextColor={c.text.body} multiline style={styles.criterionFeedback} /></View>)}</View></LearningCard>}
         <View style={styles.feedbackSection}><Text style={styles.feedbackLabel}>FEEDBACK</Text>{Boolean(snippetsQuery.data?.feedback_snippets.length) && <View style={styles.snippetPanel}><View style={styles.snippetHeading}><MessageSquareText color={c.text.body} size={16} /><Text style={styles.snippetHeadingText}>REUSABLE SNIPPETS</Text></View><View style={styles.snippetList}>{snippetsQuery.data!.feedback_snippets.map((snippet) => <Button key={snippet.id} accessibilityRole="button" accessibilityHint="Inserts editable text into the feedback draft" accessibilityState={{ disabled: previousAttempt || draftRestoring || mutation.isPending }} disabled={previousAttempt || draftRestoring || mutation.isPending} onPress={() => applySnippet(snippet)} style={[styles.snippetButton, (previousAttempt || draftRestoring || mutation.isPending) && styles.disabled]} variant="secondary" label={snippet.title} textStyle={styles.snippetButtonText} />)}</View><Text style={styles.feedbackHint}>Tap to insert, then personalize the draft for this student.</Text></View>}<TextInput keyboardAppearance={scheme} accessibilityLabel="Feedback for student" editable={!previousAttempt && !draftRestoring && !mutation.isPending} value={feedback} selection={feedbackSelection} onSelectionChange={(event) => setFeedbackSelection(event.nativeEvent.selection)} onChangeText={(value) => setFeedbackDraft({ submissionId, value })} onFocus={() => { feedbackFocusedRef.current = true; requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true })); }} onBlur={() => { feedbackFocusedRef.current = false; }} placeholder="Give one clear next step or reinforce what worked…" placeholderTextColor={c.text.body} multiline textAlignVertical="top" style={styles.feedbackInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={previousAttempt || draftRestoring || mutation.isPending} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Dictate a draft, then review and personalize it before saving.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.feedbackHint}>A redo needs written feedback so the student knows what to change. Passing grades may include concise feedback.</Text><Button variant="secondary" accessibilityRole="button" disabled={previousAttempt || draftRestoring || mutation.isPending || !feedback.trim() || snippetMutation.isPending} onPress={() => snippetMutation.mutate(feedback.trim())} style={({ pressed }) => [styles.saveSnippet, pressed && styles.pressed, (previousAttempt || draftRestoring || mutation.isPending || !feedback.trim() || snippetMutation.isPending) && styles.disabled]}><BookmarkPlus color={c.text.body} size={16} /><Text style={styles.saveSnippetText}>{snippetMutation.isPending ? 'Saving snippet…' : 'Save draft as reusable snippet'}</Text></Button></View>
+        <GithubReviewCards submission={submission} retry={async () => {
+          const result = await api.retryGithubIssue(submissionId);
+          queryClient.setQueryData(learningKeys.submission(user?.id || 0, submissionId), { submission: { ...result.submission, github_issue_delivery: result.github_issue_delivery } });
+        }} />
+        {selectedGrade === 'R' && (submission.submission_type === 'prework_github_sync' || submission.github_issue_url) && <Text style={styles.draftNotice}>Saving Redo can post your feedback to the student’s GitHub issue.</Text>}
         <View><GradingReviewActions previousAttempt={previousAttempt} onLatest={() => router.push(staffSubmissionPath(submission.latest_submission_id!, validatedCohortId ? { cohortId: validatedCohortId, studentId: submission.user_id } : undefined))} selected={selectedGrade} changed={reviewChanged} saving={mutation.isPending} disabled={previousAttempt || draftRestoring} saveBlocked={Boolean(staleReview)} onSelect={(grade) => setGradeDraft({ submissionId, value: grade })} onSave={submitGrade} />{reviewChanged && <Text style={[styles.draftStatus, visibleDraftSaveState === 'error' && styles.draftStatusError]}>{visibleDraftSaveState === 'error' ? 'Draft could not be saved on this device. Keep this screen open and try another edit.' : visibleDraftSaveState === 'saved' ? 'Review draft saved on this device.' : 'Saving review draft…'}</Text>}{visibleDraftNotice && <Text style={styles.draftNotice}>{visibleDraftNotice}</Text>}{staleReview && !previousAttempt && <Pressable accessibilityRole="button" accessibilityLabel={staleReview.value ? 'Use latest submission and keep draft' : 'Refresh latest submission'} accessibilityState={{ disabled: query.isFetching }} disabled={query.isFetching} onPress={acceptLatestSubmission} style={({ pressed }) => [styles.latestSubmissionButton, pressed && styles.pressed, query.isFetching && styles.disabled]}><RefreshCw color={c.status.warning.fg} size={17} /><Text style={styles.latestSubmissionButtonText}>{query.isFetching ? 'Refreshing latest submission…' : staleReview.value ? 'I reviewed the latest work — keep my draft' : 'Refresh latest submission'}</Text></Pressable>}</View>
         {mutation.isSuccess && <View style={styles.saved}><CheckCircle2 color={c.status.success.fg} size={18} /><Text style={styles.savedText}>Review saved and student notification queued.</Text></View>}
         <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, validatedCohortId ? `/admin/submissions/${submission.id}?cohort_id=${validatedCohortId}&student_id=${submission.user_id}` : `/admin/submissions/${submission.id}`).catch((error) => Alert.alert('Could not open full grading', (error as Error).message))} style={styles.handoff}><ExternalLink color={c.text.body} size={17} /><View style={styles.linkCopy}><Text style={styles.handoffTitle}>Open full submission</Text><Text style={styles.handoffCopy}>{validatedCohortId ? 'Continue on the web with student, cohort, and grading context intact.' : 'Continue on the web in the full submission.'}</Text></View></Pressable>

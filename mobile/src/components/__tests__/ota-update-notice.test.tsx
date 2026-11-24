@@ -1,6 +1,6 @@
-import { render } from '@testing-library/react-native';
-import { Platform } from 'react-native';
-import { OtaUpdateNotice } from '../ota-update-notice';
+import { fireEvent, render } from '@testing-library/react-native';
+import { Platform, StyleSheet } from 'react-native';
+import { OtaRestartRow, OtaUpdateNotice, OtaUpdateProvider } from '../ota-update-notice';
 
 const mockBrand = { productName: 'CSG Learn' };
 
@@ -48,4 +48,12 @@ describe('OtaUpdateNotice branding', () => {
     expect(android.getByText(/Close Actualize Learn from recent apps, then reopen it\./)).toBeTruthy();
     expect(android.queryByText(/CSG Learn/)).toBeNull();
   });
+});
+
+it('puts the notice in layout and keeps the restart row after dismissal', () => {
+  const screen = render(<OtaUpdateProvider><OtaRestartRow /></OtaUpdateProvider>);
+  expect(StyleSheet.flatten(screen.getByTestId('ota-update-overlay').props.style).position).toBeUndefined();
+  fireEvent.press(screen.getByText('Later'));
+  expect(screen.queryByText('Update ready')).toBeNull();
+  expect(screen.getByText('Update ready — tap to restart')).toBeTruthy();
 });

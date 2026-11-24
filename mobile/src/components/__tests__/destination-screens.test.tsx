@@ -29,7 +29,7 @@ const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { learnerModule: jest.fn(), setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn(), replyToHelpRequest: jest.fn() };
+const mockApi = { learnerModule: jest.fn(), setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), gradingQueue: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn(), replyToHelpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ get router() { return mockRouter; }, useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -64,7 +64,7 @@ beforeEach(() => {
   mockApi.lesson.mockResolvedValue({ lesson: { id: 42, cohort_id: 2, module_id: 1, title: 'Source lesson', lesson_type: 'exercise', content_blocks: [{ id: 8, block_type: 'exercise', position: 0, submissions: [] }], objectives: [] } });
   mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
   mockApi.notifications.mockResolvedValue({ notifications: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
-  mockApi.submissions.mockResolvedValue({ submissions: [] });
+  mockApi.gradingQueue.mockResolvedValue({ submissions: [] });
 });
 it('uses the source cohort before querying and highlights the notified exercise', async () => {
   mockParams = { id: '42', cohort_id: '2', block_id: '8' };
