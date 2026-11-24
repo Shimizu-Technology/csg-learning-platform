@@ -257,32 +257,37 @@ export function SubmissionReviewPanel({
     // A grade saved while GitHub answers carries the decision the instructor just made; keep it.
     const generation = review.saveGeneration()
     const fresh = () => review.saveGeneration() === generation
+    // When GitHub can't be reached, a suggestion is still scored again against the saved checks.
+    let unreachable: string | null = null
     try {
       if (submission.commit_sha) {
         const result = await api.refreshSubmissionGithubChecks(submissionId)
         if (!alive.current) return
         if (!result.data || result.error) {
-          setCheckError(result.error || 'Could not check GitHub.')
-          return
+          unreachable = result.error || 'Could not check GitHub.'
+          setCheckError(unreachable)
+          if (!submission.grade_suggestion) return
+        } else {
+          const data = result.data
+          review.setSubmission((current) =>
+            current
+              ? {
+                  ...current,
+                  github_checks: data.github_checks,
+                  ...(data.grade_suggestion !== undefined && fresh() ? { grade_suggestion: data.grade_suggestion } : {}),
+                }
+              : current,
+          )
+          if (data.grade_suggestion !== undefined || !submission.grade_suggestion) return
         }
-        const data = result.data
-        review.setSubmission((current) =>
-          current
-            ? {
-                ...current,
-                github_checks: data.github_checks,
-                ...(data.grade_suggestion !== undefined && fresh() ? { grade_suggestion: data.grade_suggestion } : {}),
-              }
-            : current,
-        )
-        if (data.grade_suggestion !== undefined || !submission.grade_suggestion) return
       }
       const result = await api.evaluateSubmissionGradeSuggestion(submissionId)
       if (!alive.current) return
       if (result.data && !result.error) {
         const suggestion = result.data.grade_suggestion
         if (fresh()) review.setSubmission((current) => (current ? { ...current, grade_suggestion: suggestion } : current))
-      } else setCheckError(result.error || 'Could not check GitHub.')
+        if (unreachable) setCheckError(`${unreachable} The suggestion was checked again against the last saved results.`)
+      } else setCheckError(unreachable || result.error || 'Could not check GitHub.')
     } catch {
       if (alive.current) setCheckError('Could not check GitHub.')
     } finally {

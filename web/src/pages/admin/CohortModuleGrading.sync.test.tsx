@@ -45,6 +45,8 @@ it('names each student a sync could not finish, and why', async () => {
   const status = [...container.querySelectorAll('[role="status"]')].find((node) => node.textContent?.startsWith('Synced'))!
   expect(status.textContent).toContain('Synced 3 new submissions. Could not sync 1 student:')
   expect(status.querySelector('li')?.textContent).toBe('Blair Cruz: Verify a repository binding before syncing this module')
+  // Each named student opens their record in this cohort.
+  expect(status.querySelector('li a')?.getAttribute('href')).toContain('/admin/cohorts/4/students/21')
   expect(status.className).toContain('bg-danger-soft')
 })
 
@@ -70,11 +72,11 @@ it('reports a clean sync calmly', async () => {
 
 it('says GitHub also syncs every hour only where it really does', async () => {
   await render()
-  expect(container.textContent).not.toContain('GitHub also syncs automatically every hour.')
+  expect(container.textContent).not.toContain('sync automatically every hour')
   act(() => root.unmount())
   root = createRoot(container)
   await render(matrix({ github_auto_sync: true }))
-  expect(container.textContent).toContain('GitHub also syncs automatically every hour.')
+  expect(container.textContent).toContain('Verified GitHub repositories also sync automatically every hour.')
 })
 
 it('uses the Grading workbench chip names: Waiting, Redo, All', async () => {

@@ -417,16 +417,10 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.locator('[data-grade-bar] [role="alert"]')).toContainText('Write feedback before choosing Redo')
 
       // Write specific Redo feedback and save R
-      if (isPhone) {
-        const fbToggle = page.locator('[data-grade-bar] button[aria-label="Feedback"]')
-        if ((await fbToggle.getAttribute('aria-expanded')) !== 'true') await fbToggle.click()
-      }
+      // The feedback box is always in view, phones included (UX-1).
       const feedbackBox = page.locator('[data-grade-bar] [contenteditable="true"], [data-grade-bar] textarea').first()
       await feedbackBox.click()
       await page.keyboard.type('Guard empty scores array before dividing so score_summary([]) returns 0.')
-      if (isPhone) {
-        await page.locator('[data-grade-bar] button[aria-label="Feedback"]').click()
-      }
 
       const saveRResp = page.waitForResponse(
         (res) => res.url().includes(`/submissions/${behind112v1.id}/grade`) && res.request().method() === 'PATCH',

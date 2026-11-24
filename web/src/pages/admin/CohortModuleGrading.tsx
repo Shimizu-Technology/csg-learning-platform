@@ -445,7 +445,7 @@ export function CohortModuleGrading() {
                 ? 'Syncing...'
                 : 'Sync all from GitHub'}
           </Button>
-          {data.github_auto_sync && <span className="text-xs text-ink-muted">GitHub also syncs automatically every hour.</span>}
+          {data.github_auto_sync && <span className="text-xs text-ink-muted">Verified GitHub repositories also sync automatically every hour.</span>}
           </div>
         ) : null}
         menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadData() }]}
@@ -462,7 +462,14 @@ export function CohortModuleGrading() {
             <ul className="list-disc space-y-1 pl-5">
               {message.students.map((student) => (
                 <li key={student.user_id ?? 'other'} className="break-words">
-                  <span className="font-semibold">{student.name}</span>: {student.errors.join('; ')}
+                  {student.user_id ? (
+                    <RecordLink record={{ type: 'student', id: student.user_id, cohortId: data.cohort_id }} variant="plain" onClick={guardLeave} className="font-semibold">
+                      {student.name}
+                    </RecordLink>
+                  ) : (
+                    <span className="font-semibold">{student.name}</span>
+                  )}
+                  : {student.errors.join('; ')}
                 </li>
               ))}
             </ul>

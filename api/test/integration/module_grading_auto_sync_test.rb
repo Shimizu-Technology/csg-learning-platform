@@ -25,6 +25,14 @@ class ModuleGradingAutoSyncTest < ActionDispatch::IntegrationTest
     assert_equal true, auto_sync?
   end
 
+  test "a module with its own unverified binding is not covered by the verified default binding" do
+    @enrollment.github_repository_bindings.create!(github_app_installation: @installation, full_name: "app-learner/module-repo", curriculum_module: @mod)
+    assert_equal false, auto_sync?
+    other = @curriculum.modules.create!(name: "Other module", position: 1)
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: other, unlocked: true)
+    assert_equal true, auto_sync_for?(other)
+  end
+
   test "no hourly promise without a verified binding" do
     @binding.update_columns(verification_state: "pending")
     assert_equal false, auto_sync?
@@ -47,10 +55,12 @@ class ModuleGradingAutoSyncTest < ActionDispatch::IntegrationTest
 
   private
 
-  def auto_sync?
+  def auto_sync? = auto_sync_for?(@mod)
+
+  def auto_sync_for?(curriculum_module)
     with_app_provider do
       as_app_user(@instructor) do
-        get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions", headers: app_headers
+        get "/api/v1/cohorts/#{@cohort.id}/modules/#{curriculum_module.id}/submissions", headers: app_headers
       end
     end
     assert_response :success

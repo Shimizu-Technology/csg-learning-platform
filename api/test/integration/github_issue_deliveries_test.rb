@@ -128,6 +128,21 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
     assert_redo_stays_in_learn(@submission)
   end
 
+  test "a Redo that stays in Learn retires an earlier queued Redo so it never posts later" do
+    earlier = GithubIssueDelivery.create!(
+      submission: @submission, enrollment: @enrollment, content_block: @block, github_repository_binding: @binding,
+      repository_id: 98765, repository_full_name: "app-learner/prework-exercises", action: "open_or_comment", grade: "R",
+      feedback_body: "Older feedback", dedupe_token: SecureRandom.hex(16), status: "pending", attempts: 0
+    )
+    @binding.update_columns(verification_state: "pending")
+    assert_redo_stays_in_learn(@submission)
+    assert_equal "obsolete", earlier.reload.status
+    # Verified again later: nothing from before posts.
+    GithubRepositoryAccess.new(@binding.reload, client: @fake).verify!
+    GithubIssueDeliveryDrain.new(client: @fake).call(now: Time.current)
+    assert_empty @fake.calls.select { |call| call.first.to_s.include?("issue") || call.first.to_s.include?("comment") }
+  end
+
   test "the drain retires a queued Redo for work that may not post, without calling GitHub" do
     @submission.update_columns(grade: "R", feedback: "Learn-only feedback", graded_at: Time.current)
     delivery = GithubIssueDelivery.create!(
@@ -851,7 +866,7 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
         assert_response :success
       end
     end
-    assert_equal 0, GithubIssueDelivery.where(submission_id: submission.id).count
+    assert_equal 0, GithubIssueDelivery.where(submission_id: submission.id).where.not(status: "obsolete").count
     assert_not legacy_called, "an ineligible Redo must never reach the legacy GitHub path"
     assert_empty @fake.calls.select { |call| call.first.to_s.include?("issue") || call.first.to_s.include?("comment") }
   ensure

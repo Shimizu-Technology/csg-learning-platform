@@ -758,6 +758,19 @@ describe('SubmissionReviewPanel grading safety (UX-1)', () => {
     expect(findButton('Select B')).toBeTruthy()
   })
 
+  it('still scores a suggestion again when GitHub cannot be reached, and says so', async () => {
+    vi.spyOn(api, 'refreshSubmissionGithubChecks').mockResolvedValue({ data: null, error: 'GitHub checks are temporarily unavailable' } as never)
+    const evalSpy = vi.spyOn(api, 'evaluateSubmissionGradeSuggestion').mockResolvedValue({ data: { grade_suggestion: makeSuggestion({ outcome: 'suggest_b' }) }, error: null })
+    await renderPanel(makeSubmission({ grade_suggestion: makeSuggestion({ stale: true, stale_for_current_policy: true }) }))
+    await act(async () => findButton('Check GitHub again')!.click())
+    await settle()
+    expect(evalSpy).toHaveBeenCalledExactlyOnceWith(50)
+    expect(findButton('Select B')).toBeTruthy()
+    expect(container.querySelector('[data-grade-suggestion] [role="alert"]')?.textContent).toBe(
+      'GitHub checks are temporarily unavailable The suggestion was checked again against the last saved results.',
+    )
+  })
+
   it('shows a Check GitHub again failure beside the button, leaving the grade bar alone', async () => {
     vi.spyOn(api, 'refreshSubmissionGithubChecks').mockResolvedValue({ data: null, error: 'Verify a repository binding before refreshing checks' } as never)
     await renderPanel(plain())

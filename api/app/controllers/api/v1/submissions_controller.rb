@@ -271,6 +271,13 @@ module Api
                 grade: @submission.grade,
                 feedback: @submission.feedback
               )
+            elsif use_v2_issue_delivery && redo_grade
+              # This Redo stays in Learn; an earlier queued Redo (with older feedback) must not
+              # post later if the repository is verified after all.
+              GithubIssueDeliveryPlanner.obsolete_pending!(
+                enrollment_id: @submission.enrollment_id,
+                content_block_id: @submission.content_block_id
+              )
             end
           end
         end

@@ -95,8 +95,15 @@ for (const theme of ['light', 'dark'] as const) {
       const bar = page.locator('[data-grade-bar]')
       const gradeGroup = bar.getByRole('group', { name: 'Grade' })
       await expect(gradeGroup).toBeVisible({ timeout: 15000 })
-      // The feedback box is in view without tapping anything, at every width.
-      await expect(bar.getByRole('textbox').first()).toBeVisible()
+      // The feedback box is on screen as the review opens, before any scrolling or tapping, at
+      // every width: the pinned grade bar holds it right above the grades and Save.
+      const feedbackBox = bar.getByRole('textbox').first()
+      await expect(feedbackBox).toBeVisible()
+      await expect(feedbackBox).toBeInViewport()
+      await expect(gradeGroup).toBeInViewport()
+      await expect(bar.getByRole('button', { name: /^Save/ })).toBeInViewport()
+      const [feedbackTop, gradesTop] = await Promise.all([feedbackBox.boundingBox(), gradeGroup.boundingBox()])
+      expect(feedbackTop!.y).toBeLessThan(gradesTop!.y)
       await expect(bar.getByRole('button', { name: 'Feedback', exact: true })).toHaveCount(0)
 
       // A click and a key only choose.
