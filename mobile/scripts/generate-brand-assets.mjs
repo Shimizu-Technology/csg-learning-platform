@@ -15,31 +15,39 @@ const evidenceIndex = process.argv.indexOf('--evidence');
 const evidence = evidenceIndex < 0 ? null : path.resolve(process.argv[evidenceIndex + 1]);
 const checkOnly = process.argv.includes('--check');
 const read = (name) => readFile(path.join(brand, name), 'utf8');
-const body = (svg) => svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<title>[\s\S]*?<\/title>/g, '').replace(/<\/svg>\s*$/, '');
+const body = (svg) => svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<(?:title|desc)>[\s\S]*?<\/(?:title|desc)>/g, '').replace(/<\/svg>\s*$/, '');
 const svg = (content, title, viewBox = '0 0 1024 1024') => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"><title>${title}</title>${content}</svg>\n`;
-const tile = '<rect width="1024" height="1024" fill="#191920"/>';
+const white = (content) => content.replace(/fill="(?:#[0-9a-f]{6}|url\([^)]+\))"/gi, 'fill="#ffffff"');
 const mark = body(await read('csg-mark.svg'));
 const lettering = body(await read('csg-lettering.svg'));
+const sansLettering = body(await read('csg-sans-lettering.svg'));
 const lockup = body(await read('csg-lockup.svg'));
-const gearAt = (x, y, scale) => `<g transform="translate(${x} ${y}) scale(${scale}) translate(-87 -157)">${mark}</g>`;
+const tileDef = '<radialGradient id="tile-bg" cx="50%" cy="20%" r="82%"><stop offset="0%" stop-color="#272936"/><stop offset="100%" stop-color="#14151c"/></radialGradient>';
+const gearGradientDefs = `<linearGradient id="gear-sage" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#9aae81"/><stop offset="100%" stop-color="#76855f"/></linearGradient><mask id="gear-mask" maskUnits="userSpaceOnUse" x="87" y="157" width="122" height="177">${white(mark)}</mask>`;
+const tile = '<rect width="1024" height="1024" fill="url(#tile-bg)"/>';
+const gearAt = (x, y, scale, gradient = true) => `<g transform="translate(${x} ${y}) scale(${scale}) translate(-87 -157)">${gradient ? '<rect x="87" y="157" width="122" height="177" fill="url(#gear-sage)" mask="url(#gear-mask)"/>' : mark}</g>`;
 const lettersAt = (x, y, scale) => `<g transform="translate(${x} ${y}) scale(${scale}) translate(-238 -173)">${lettering}</g>`;
-const sg = `<defs><clipPath id="sg"><rect x="285" y="165" width="100" height="65"/></clipPath></defs><g transform="translate(492 422) scale(4) translate(-285 -173)" clip-path="url(#sg)">${lettering}</g>`;
-const candidates = { a: gearAt(168, 132, 4.3) + sg, b: gearAt(259, 146, 4.15), c: gearAt(346, 138, 2.7) + lettersAt(281, 697, 3.3) };
-// A is the approved default. Keep the complete glyph inside r=300 (< 1024*66/108/2).
+const sansLettersAt = (x, y, scale) => `<g transform="translate(${x} ${y}) scale(${scale}) translate(-60 0)">${sansLettering}</g>`;
+const crest = (gradient = true) => gearAt(336, 108, 3.12, gradient) + sansLettersAt(264, 724, 0.112);
+const candidates = { a: crest(true), b: gearAt(259, 146, 4.15, true), c: gearAt(336, 108, 3.12, true) + lettersAt(267, 728, 3.52) };
+// Option 5B (candidate A: enlarged sage gear-C + bold Manrope ExtraBold CSG) is the approved default.
+// Keep the complete adaptive glyph inside r=312.88 (< 1024*66/108/2).
 const glyph = candidates.a;
-const safeGlyph = `<g transform="translate(512 512) scale(.67) translate(-512 -512)">${glyph}</g>`;
-const white = (content) => content.replace(/fill="#[0-9a-f]{6}"/gi, 'fill="#ffffff"');
+const monoGlyph = white(crest(false));
+const adaptiveTransform = (content) => `<g transform="translate(512 512) scale(.66) translate(-512 -501)">${content}</g>`;
+const safeGlyph = adaptiveTransform(glyph);
+const safeMonoGlyph = adaptiveTransform(monoGlyph);
 const sources = {
-  'icon-light.svg': svg(tile + glyph, 'CSG Learn app icon'),
-  'icon-dark.svg': svg(glyph, 'CSG Learn transparent dark icon'),
-  'icon-tinted.svg': svg('<rect width="1024" height="1024" fill="#000000"/>' + white(glyph), 'CSG Learn tinted icon'),
-  'icon-foreground.svg': svg(safeGlyph, 'CSG Learn Android adaptive foreground'),
-  'icon-monochrome.svg': svg(white(safeGlyph), 'CSG Learn Android monochrome icon'),
-  'notification.svg': svg(white(gearAt(170, 20, 5.6)), 'CSG Learn notification silhouette'),
+  'icon-light.svg': svg(`<defs>${tileDef}${gearGradientDefs}</defs>${tile}${glyph}`, 'CSG Learn app icon'),
+  'icon-dark.svg': svg(`<defs>${gearGradientDefs}</defs>${glyph}`, 'CSG Learn transparent dark icon'),
+  'icon-tinted.svg': svg('<rect width="1024" height="1024" fill="#000000"/>' + monoGlyph, 'CSG Learn tinted icon'),
+  'icon-foreground.svg': svg(`<defs>${gearGradientDefs}</defs>${safeGlyph}`, 'CSG Learn Android adaptive foreground'),
+  'icon-monochrome.svg': svg(safeMonoGlyph, 'CSG Learn Android monochrome icon'),
+  'notification.svg': svg(white(gearAt(170, 20, 5.6, false)), 'CSG Learn notification silhouette'),
   'splash-light.svg': svg(lockup.replace(/#fcfbfc/gi, '#0f172a'), 'CSG Learn light splash lockup', '72 148 392 196'),
   'splash-dark.svg': svg(lockup, 'CSG Learn dark splash lockup', '72 148 392 196'),
 };
-for (const [key, content] of Object.entries(candidates)) sources[`icon-candidate-${key}.svg`] = svg(tile + content, `CSG Learn candidate ${key.toUpperCase()}`);
+for (const [key, content] of Object.entries(candidates)) sources[`icon-candidate-${key}.svg`] = svg(`<defs>${tileDef}${gearGradientDefs}</defs>${tile}${content}`, `CSG Learn candidate ${key.toUpperCase()}`);
 const outputs = [
   ['icon.png', 'icon-light.svg', 1024, 1024, false],
   ['icon-light.png', 'icon-light.svg', 1024, 1024, false],
@@ -56,14 +64,14 @@ const render = (source, width, height, alpha = true) => {
   const pipeline = sharp(Buffer.from(source)).resize(width, height);
   return (alpha ? pipeline : pipeline.removeAlpha()).png();
 };
-const feature = svg(`${tile}<g transform="translate(15 7) scale(.33)">${glyph}</g>${body(await read('play-feature-copy.svg'))}`, 'CSG Learn Google Play feature graphic', '0 0 1024 500');
+const feature = svg(`<defs>${tileDef}${gearGradientDefs}</defs><rect width="1024" height="500" fill="url(#tile-bg)"/><g transform="translate(22 72) scale(.35)">${glyph}</g>${body(await read('play-feature-copy.svg'))}`, 'CSG Learn Google Play feature graphic', '0 0 1024 500');
 const store = path.join(repo, 'docs/app-store/android/assets');
 const docs = path.join(repo, 'docs/brand');
 const textArtifacts = new Map([
   [path.join(store, 'feature-graphic.svg'), feature],
   [path.join(docs, 'csg-learn-app-icon.svg'), sources['icon-light.svg']],
   [path.join(docs, 'csg-learn-mark.svg'), await read('csg-mark.svg')],
-  [path.join(docs, 'csg-learn-icon-study.svg'), svg(Object.entries(candidates).map(([key, content], i) => `<g transform="translate(${i * 1024} 0)">${tile}${content}</g>`).join(''), 'CSG Learn icon candidates A, B, C', '0 0 3072 1024')],
+  [path.join(docs, 'csg-learn-icon-study.svg'), svg(`<defs>${tileDef}${gearGradientDefs}</defs>` + Object.entries(candidates).map(([key, content], i) => `<g transform="translate(${i * 1024} 0)">${tile}${content}</g>`).join(''), 'CSG Learn icon candidates A, B, C', '0 0 3072 1024')],
 ]);
 const releaseImages = [
   { file: path.join(store, 'feature-graphic-1024x500.png'), source: feature, width: 1024, height: 500 },
@@ -144,7 +152,7 @@ if (evidence) {
   const labels = svg(`<rect width="1320" height="920" fill="#e6ddd0"/><rect y="920" width="1320" height="920" fill="#242638"/>${[0,920].map(top => `<g fill="${top ? '#fff' : '#191920'}" font-family="sans-serif"><text x="30" y="${top + 30}" font-size="22">${top ? 'Dark' : 'Light'} wallpaper · A / B / C rows · 1024 (scaled to230), 180, 120, 60, 29px</text>${['A','B','C'].map((key, row) => `<text x="30" y="${top + 60 + row * 275}" font-size="18">${key}</text>${sizes.map((size, col) => `<text x="${30 + col * 258}" y="${top + 318 + row * 275}" font-size="16">CSG Learn · ${size}px</text>`).join('')}`).join('')}</g>`).join('')}`, 'CSG Learn icon candidate sizes', '0 0 1320 1840');
   await sharp(await render(labels, 1320, 1840).toBuffer()).composite(overlays).png().toFile(path.join(evidence, 'icon-candidates.png'));
   for (const key of Object.keys(candidates)) await render(sources[`icon-candidate-${key}.svg`], 1024, 1024, false).toFile(path.join(evidence, `icon-candidate-${key}-1024.png`));
-  const maskPreview = svg(`<rect width="1100" height="600" fill="#faf7f0"/><defs><clipPath id="circle"><circle cx="0" cy="0" r="220"/></clipPath><clipPath id="squircle"><rect x="-220" y="-220" width="440" height="440" rx="100"/></clipPath></defs>${['circle','squircle'].map((id, i) => `<g transform="translate(${270+i*550} 280)" clip-path="url(#${id})"><g transform="translate(-220 -220) scale(.4296875)">${tile}${safeGlyph}</g></g><text x="${200+i*550}" y="550" fill="#191920" font-size="22" font-family="sans-serif">${id}</text>`).join('')}`, 'Android adaptive icon mask previews', '0 0 1100 600');
+  const maskPreview = svg(`<rect width="1100" height="600" fill="#faf7f0"/><defs>${tileDef}${gearGradientDefs}<clipPath id="circle"><circle cx="0" cy="0" r="220"/></clipPath><clipPath id="squircle"><rect x="-220" y="-220" width="440" height="440" rx="100"/></clipPath></defs>${['circle','squircle'].map((id, i) => `<g transform="translate(${270+i*550} 280)" clip-path="url(#${id})"><g transform="translate(-220 -220) scale(.4296875)">${tile}${safeGlyph}</g></g><text x="${200+i*550}" y="550" fill="#191920" font-size="22" font-family="sans-serif">${id}</text>`).join('')}`, 'Android adaptive icon mask previews', '0 0 1100 600');
   await render(maskPreview, 1100, 600, false).toFile(path.join(evidence, 'android-adaptive-masks.png'));
   const original = await sharp(path.join(repo, 'web/public/CSG-Logo.png')).removeAlpha().raw().toBuffer();
   const rebuilt = await render(svg('<rect width="500" height="500" fill="#191920"/>'+lockup, 'Logo reconstruction', '0 0 500 500'), 500, 500, false).raw().toBuffer();
