@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { PRODUCT_NAME, SCHOOL_NAME } from './brand'
-import { offeringIdFrom } from './courseIntent'
+import { hasCourseIntent } from './courseIntent'
 
 /**
  * Clerk components use the same colour roles as the rest of CSG Learn so the
@@ -170,7 +170,7 @@ export function clerkLocalizationFor(mode: ClerkAuthMode) {
 
 export const clerkLocalization = clerkLocalizationFor('invite')
 
-let clerkAuthMode: ClerkAuthMode = typeof window !== 'undefined' && offeringIdFrom(window.location.search) !== null ? 'course' : 'invite'
+let clerkAuthMode: ClerkAuthMode = typeof window !== 'undefined' && hasCourseIntent(window.location.search) ? 'course' : 'invite'
 const authModeListeners = new Set<() => void>()
 
 export function setClerkAuthMode(mode: ClerkAuthMode) {

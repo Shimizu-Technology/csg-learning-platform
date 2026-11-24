@@ -1,6 +1,8 @@
 import type { SessionEnrollment } from '@/lib/types';
 import { ApiError } from '@/lib/api';
+import { openAuthenticatedWebPage } from '@/lib/external-links';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as WebBrowser from 'expo-web-browser';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { AccessibilityInfo, AppState, Platform, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
@@ -449,5 +451,32 @@ it('restarts the notice clock for a second link that arrives while the first not
     screen.unmount();
     write.mockImplementation(realWrite);
     jest.useRealTimers();
+  }
+});
+
+it('revalidates accessible cohorts and selects a newly purchased course when a web handoff browser closes', async () => {
+  mockParams = {}; mockPath = '/';
+  mockEnrollments = [];
+  await AsyncStorage.clear();
+  mockApi.accessibleCohorts.mockClear();
+  mockApi.accessibleCohorts.mockResolvedValueOnce({ cohorts: [] });
+  const browserSpy = jest.spyOn(WebBrowser, 'openBrowserAsync').mockResolvedValue({ type: 'dismiss' } as WebBrowser.WebBrowserResult);
+  const screen = render(<CohortProvider><Surface /></CohortProvider>);
+  try {
+    await waitFor(() => expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('selection').props.children).toBe('Loading');
+
+    mockApi.accessibleCohorts.mockResolvedValueOnce({
+      cohorts: [{ id: 13, name: 'Python Fundamentals', status: 'active' }],
+    });
+    const handoffApi = { webHandoff: jest.fn().mockResolvedValue({ url: 'https://learn.codeschoolofguam.com/courses' }) };
+    await act(async () => {
+      await openAuthenticatedWebPage(handoffApi as never, '/courses');
+    });
+
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Python Fundamentals'));
+  } finally {
+    screen.unmount();
+    browserSpy.mockRestore();
   }
 });

@@ -3,17 +3,33 @@ import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { validOfferingSlug } from '../../lib/courseIntent'
+import { CommunityStandardsGate } from '../auth/CommunityStandardsGate'
 import { Button, LinkButton } from '../ui/Button'
 
 type Status = NonNullable<Awaited<ReturnType<typeof api.getCourseCheckoutStatus>>['data']>
 
-export function CourseCheckoutStatus({ purchaseId, canceled = false, slug }: { purchaseId: string; canceled?: boolean; slug?: string }) {
-  const { isSignedIn, syncSession } = useAuthContext()
+interface CourseCheckoutStatusProps {
+  purchaseId: string
+  canceled?: boolean
+  slug?: string
+  offeringId?: number | null
+  onRequireCommunityStandards?: (cohortId: number, version: string) => void
+}
+
+export function CourseCheckoutStatus({
+  purchaseId,
+  canceled = false,
+  slug,
+  offeringId = null,
+  onRequireCommunityStandards,
+}: CourseCheckoutStatusProps) {
+  const { isSignedIn, user, syncSession, signOut } = useAuthContext()
   const [result, setResult] = useState<Status | null>(null)
   const [stopped, setStopped] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [resuming, setResuming] = useState(false)
   const [resumeError, setResumeError] = useState('')
+  const [communityGateVersion, setCommunityGateVersion] = useState<string | null>(null)
   useEffect(() => {
     if (!isSignedIn || !purchaseId) return
     let active = true
@@ -45,15 +61,54 @@ export function CourseCheckoutStatus({ purchaseId, canceled = false, slug }: { p
     return () => { active = false; clearTimeout(timer); clearTimeout(timeout) }
   }, [isSignedIn, purchaseId, canceled, attempt, syncSession])
 
-  async function resumeCheckout() {
-    if (!result || resuming) return
+  async function runResumeCheckout(cohortId: number) {
     setResuming(true); setResumeError('')
     try {
-      const response = await api.startCourseCheckout(result.cohort.id)
-      if (response.data?.url) window.location.assign(response.data.url)
-      else setResumeError(response.error || 'We couldn’t reopen checkout yet. Contact support before trying another payment.')
+      const response = await api.startCourseCheckout(cohortId)
+      if (response.data?.url) {
+        window.location.assign(response.data.url)
+        return
+      }
+      if (response.errorCode === 'community_terms_required') {
+        const version = user?.community_policy?.version || '2026-08-17'
+        if (onRequireCommunityStandards) {
+          onRequireCommunityStandards(cohortId, version)
+        } else {
+          setCommunityGateVersion(version)
+        }
+        return
+      }
+      setResumeError(response.error || 'We couldn’t reopen checkout yet. Contact support before trying another payment.')
     } catch { setResumeError('We couldn’t reopen checkout yet. Contact support before trying another payment.') }
     finally { setResuming(false) }
+  }
+
+  async function resumeCheckout() {
+    if (!result || resuming) return
+    if (user?.community_policy && !user.community_policy.accepted) {
+      if (onRequireCommunityStandards) {
+        onRequireCommunityStandards(result.cohort.id, user.community_policy.version)
+      } else {
+        setCommunityGateVersion(user.community_policy.version)
+      }
+      return
+    }
+    await runResumeCheckout(result.cohort.id)
+  }
+
+  if (communityGateVersion && result) {
+    return (
+      <CommunityStandardsGate
+        version={communityGateVersion}
+        accountEmail={user?.email}
+        onSignOut={signOut}
+        onAccepted={async () => {
+          const synced = await syncSession()
+          setCommunityGateVersion(null)
+          if (synced) await runResumeCheckout(result.cohort.id)
+        }}
+      />
+    )
   }
 
   const canContinue = result?.can_continue === true
@@ -62,7 +117,9 @@ export function CourseCheckoutStatus({ purchaseId, canceled = false, slug }: { p
   const fulfilled = result?.status === 'fulfilled'
   const problem = result?.status === 'failed' || result?.status === 'refunded'
   const validatedSlug = validOfferingSlug(slug)
+  const validOfferingId = typeof offeringId === 'number' && Number.isSafeInteger(offeringId) && offeringId > 0 ? offeringId : null
   const signInParams = new URLSearchParams({ checkout: 'return', purchase_id: purchaseId })
+  if (validOfferingId) signInParams.set('offering_id', String(validOfferingId))
   if (validatedSlug) signInParams.set('offering_slug', validatedSlug)
   const retrySlug = validOfferingSlug(result?.cohort.slug)
   const supportSubject = purchaseId ? `Enrollment help (reference #${purchaseId})` : 'Enrollment help'
@@ -89,9 +146,9 @@ export function CourseCheckoutStatus({ purchaseId, canceled = false, slug }: { p
   const description = !isSignedIn
     ? 'Sign in with the account you used at checkout so we can confirm your seat. Please check here before making another payment.'
     : canContinue
-      ? 'You haven’t been charged yet. Continue to checkout whenever you’re ready to finish enrolling.'
+      ? 'Checkout wasn’t confirmed yet — if you already completed payment, give it a moment or contact support before trying again.'
       : setupFailed
-        ? 'You weren’t charged. Return to your course to try again.'
+        ? 'No checkout session was started. Return to your course to try again.'
         : starting
           ? result.can_resume
             ? 'Your checkout didn’t finish opening. Resume it below or contact support before making another payment.'

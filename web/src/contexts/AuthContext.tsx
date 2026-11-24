@@ -94,9 +94,6 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const syncSession = useCallback(async () => {
     if (!isSignedIn) return false
     const requestGeneration = ++sessionRequestGenerationRef.current
-    setSessionError(null)
-    setSessionErrorCode(null)
-    setAccessDenied(false)
 
     try {
       const res = await api.createSession()
@@ -114,6 +111,9 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         applyServerEditorPreferences(res.data.user.id, res.data.user.editor_preferences)
         setUser(res.data.user)
         setEnrollments(res.data.enrollments)
+        setAccessDenied(false)
+        setSessionError(null)
+        setSessionErrorCode(null)
         if (isPostHogEnabled) {
           const activeCohortId = res.data.enrollments.find((enrollment) => enrollment.status === 'active')?.cohort.id
           setPostHogIdentity({

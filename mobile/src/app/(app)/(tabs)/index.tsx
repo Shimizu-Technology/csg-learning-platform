@@ -38,7 +38,7 @@ export default function TodayScreen() {
   const largeText = fontScale >= 1.5;
   const auth = useCsgAuth();
   const { api, user } = useSession();
-  const { selectedCohortId } = useCohort();
+  const { selectedCohortId, refresh: refreshCohorts } = useCohort();
   const [openingWebPath, setOpeningWebPath] = useState<string | null>(null);
   const query = useQuery({
     queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
@@ -53,7 +53,7 @@ export default function TodayScreen() {
   });
   const weeklyPlan = weeklyQuery.data?.weekly_plan;
 
-  const refresh = () => void Promise.all([query.refetch(), user?.is_staff ? Promise.resolve() : weeklyQuery.refetch()]);
+  const refresh = () => void Promise.all([refreshCohorts(), query.refetch(), user?.is_staff ? Promise.resolve() : weeklyQuery.refetch()]);
 
   if (query.isPending && !dashboard) return <SafeAreaView style={styles.safe}><LoadingState label="Loading today" /></SafeAreaView>;
   if (query.error && !dashboard) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;

@@ -9,6 +9,7 @@ export default function AuthLayout() {
   const { loading, accessDenied } = useSession();
   const pathname = usePathname();
   if (!loaded || (signedIn && loading)) return null;
+  if (!signedIn && pathname === '/access-denied') return <Redirect href="/(auth)/sign-in" />;
   if (signedIn && accessDenied && pathname !== '/access-denied') return <Redirect href={'/(auth)/access-denied' as Href} />;
   if (signedIn && !accessDenied) return <Redirect href="/(app)/(tabs)" />;
   return <Stack screenOptions={{ headerShown: false, statusBarStyle: dark ? 'light' : 'dark' }} />;

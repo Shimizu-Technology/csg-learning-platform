@@ -778,6 +778,18 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     ENV["STRIPE_WEBHOOK_SECRET"] = previous
   end
 
+  test "requires community standards acceptance before starting self-paced checkout" do
+    @student.update!(community_terms_accepted_at: nil, community_terms_version: nil)
+
+    as_user(@student) { get "/api/v1/course_checkouts", headers: auth_headers }
+    assert_response :success
+
+    as_user(@student) { post "/api/v1/course_checkouts", params: { cohort_id: @cohort.id }, headers: auth_headers, as: :json }
+    assert_response :forbidden
+    assert_equal "community_terms_required", response.parsed_body["code"]
+    assert_equal false, response.parsed_body.dig("community_policy", "accepted")
+  end
+
   private
 
   def purchase_record
@@ -814,7 +826,14 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     ENV["FRONTEND_URL"] = previous
   end
   def user(name, role)
-    User.create!(clerk_id: "clerk_self_paced_#{name}", email: "self_paced_#{name}@example.com", first_name: name.capitalize, role: role)
+    User.create!(
+      clerk_id: "clerk_self_paced_#{name}",
+      email: "self_paced_#{name}@example.com",
+      first_name: name.capitalize,
+      role: role,
+      community_terms_accepted_at: Time.current,
+      community_terms_version: CommunityPolicy::VERSION
+    )
   end
 
   def auth_headers

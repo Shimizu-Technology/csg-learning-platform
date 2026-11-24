@@ -591,10 +591,27 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     assert_equal false, updated.fetch("unlisted")
   end
 
+  test "blocks checkout creation until community standards are accepted" do
+    @learner_a.update!(community_terms_accepted_at: nil, community_terms_version: nil)
+    as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
+    assert_response :forbidden
+    assert_equal "community_terms_required", response.parsed_body["code"]
+    assert_equal false, response.parsed_body.dig("community_policy", "accepted")
+    assert_equal 0, CoursePurchase.where(user: @learner_a, cohort: @guided).count
+  end
+
   private
 
   def person(name, role)
-    User.create!(clerk_id: "guided_cap_#{name}", email: "guided-cap-#{name}@example.invalid", first_name: name.capitalize, last_name: "Tester", role: role)
+    User.create!(
+      clerk_id: "guided_cap_#{name}",
+      email: "guided-cap-#{name}@example.invalid",
+      first_name: name.capitalize,
+      last_name: "Tester",
+      role: role,
+      community_terms_accepted_at: Time.current,
+      community_terms_version: CommunityPolicy::VERSION
+    )
   end
 
   def auth_headers

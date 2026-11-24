@@ -3,12 +3,14 @@ import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useUser } from '@clerk/expo';
+import { Redirect, useRouter } from 'expo-router';
 import { LogOut, Mail, RefreshCw, ShieldX } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fonts } from '@/constants/csg-theme';
+import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 const SUPPORT_MAILTO = `mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${brand.productName} account access help`)}`;
@@ -16,6 +18,8 @@ const SUPPORT_MAILTO = `mailto:${brand.supportEmail}?subject=${encodeURIComponen
 export default function AccessDeniedScreen() {
   const styles = useStyles();
   const { colors: c } = useTheme();
+  const router = useRouter();
+  const { loaded, signedIn } = useCsgAuth();
   const { user: clerkUser } = useUser();
   const { error, loading, refresh, signOut } = useSession();
   const [signingOut, setSigningOut] = useState(false);
@@ -24,13 +28,20 @@ export default function AccessDeniedScreen() {
 
   const handleSignOut = async () => {
     setSigningOut(true);
-    try { await signOut(); } finally { setSigningOut(false); }
+    try {
+      await signOut();
+      router.replace('/(auth)/sign-in');
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const handleContactSupport = () => {
     setSupportFallback(false);
     void Linking.openURL(SUPPORT_MAILTO).catch(() => setSupportFallback(true));
   };
+
+  if (loaded && !signedIn) return <Redirect href="/(auth)/sign-in" />;
 
   return (
     <SafeAreaView style={styles.safe}>

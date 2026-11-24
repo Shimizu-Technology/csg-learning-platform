@@ -4,6 +4,7 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :require_student!
+      before_action :require_community_terms!, only: :create
       before_action -> { response.headers["Cache-Control"] = "no-store" }
 
       def index

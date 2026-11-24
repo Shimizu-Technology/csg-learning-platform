@@ -10,6 +10,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { fonts } from '@/constants/csg-theme';
 import { demoDashboard } from '@/lib/demo-learning';
 import { demoStaffDashboard } from '@/lib/demo-staff';
+import { onWebHandoffClosed } from '@/lib/external-links';
 import type { AccessibleCohort, SessionEnrollment } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
 import { useSession } from './session-provider';
@@ -186,6 +187,11 @@ export function CohortProvider({ children }: PropsWithChildren) {
     });
     return () => { cancelAnimationFrame(frame); validationGenerationRef.current += 1; };
   }, [api, refresh, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    return onWebHandoffClosed(() => { void refresh(); });
+  }, [refresh, userId]);
 
   useEffect(() => {
     if (!needsRevalidation) return;

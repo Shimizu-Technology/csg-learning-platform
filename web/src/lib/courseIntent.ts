@@ -17,15 +17,22 @@ export function offeringSlugFrom(search: string): string | null {
   return validOfferingSlug(new URLSearchParams(search).get('offering_slug'))
 }
 
+export function hasCourseIntent(search: string): boolean {
+  return offeringIdFrom(search) !== null || offeringSlugFrom(search) !== null
+}
+
 export function courseIntentDestination(search: string, fallback = '/dashboard'): string {
   const params = new URLSearchParams(search)
   const purchaseId = params.get('purchase_id') || ''
   const slug = offeringSlugFrom(search)
-  if (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(purchaseId)) {
-    return slug ? `/courses/${slug}?checkout=return&purchase_id=${purchaseId}` : `/courses?checkout=return&purchase_id=${purchaseId}`
-  }
   const id = offeringIdFrom(search)
-  if (id) return slug ? `/courses/${slug}` : `/courses?offering_id=${id}`
+  if (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(purchaseId)) {
+    const next = new URLSearchParams({ checkout: 'return', purchase_id: purchaseId })
+    if (id) next.set('offering_id', String(id))
+    return slug ? `/courses/${slug}?${next}` : `/courses?${next}`
+  }
+  if (slug) return `/courses/${slug}`
+  if (id) return `/courses?offering_id=${id}`
   return safeInternalReturnPath(params.get('redirect_url'), '') || safeInternalReturnPath(params.get('redirect'), fallback)
 }
 
@@ -38,11 +45,13 @@ export function courseAuthPath(path: '/sign-in' | '/sign-up', search: string): s
   const purchaseId = params.get('purchase_id') || ''
   if (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(purchaseId)) {
     const next = new URLSearchParams({ checkout: 'return', purchase_id: purchaseId })
+    if (id) next.set('offering_id', String(id))
     if (slug) next.set('offering_slug', slug)
     return `${path}?${next}`
   }
-  if (id) {
-    const next = new URLSearchParams({ offering_id: String(id) })
+  if (id || slug) {
+    const next = new URLSearchParams()
+    if (id) next.set('offering_id', String(id))
     if (slug) next.set('offering_slug', slug)
     return `${path}?${next}`
   }

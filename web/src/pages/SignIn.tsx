@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { AuthWidgetStatus } from '../components/auth/AuthWidgetStatus'
 import { AnchorButton, Button, LinkButton } from '../components/ui/Button'
-import { courseAuthPath, courseIntentDestination, offeringIdFrom } from '../lib/courseIntent'
+import { courseAuthPath, courseIntentDestination, hasCourseIntent } from '../lib/courseIntent'
 import { hasInvitationTicket, PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
 const SUPPORT_EMAIL = `${brand.supportEmail}`
@@ -200,7 +200,7 @@ function useAuthAppearance() {
 export function SignInPage() {
   const authAppearance = useAuthAppearance()
   const { search } = useLocation()
-  const courseIntent = offeringIdFrom(search) !== null
+  const courseIntent = hasCourseIntent(search)
   const { accessDenied } = useAuthContext()
 
   useEffect(() => {
@@ -245,7 +245,7 @@ export function SignUpPage() {
   const search = location.search
   const clerk = useClerk()
   const fromInvitation = hasInvitationTicket(location.search)
-  const hasOffering = offeringIdFrom(search) !== null
+  const hasOffering = hasCourseIntent(search)
   // Production Clerk is invitation-only: without a ticket, guide the learner to their email link.
   const needsInvitationLink = !fromInvitation && clerk.loaded && signUpModeFrom(clerk) === 'restricted'
 

@@ -161,6 +161,51 @@ describe('AuthProvider session lifecycle', () => {
     expect(seenErrors.at(-1)).toBeNull()
     expect(seenErrors).not.toContain('Late network failure')
   })
+
+  it('keeps accessDenied visible while a retry syncSession is in flight and clears it only after success', async () => {
+    createSession.mockResolvedValueOnce({
+      data: null,
+      error: 'Not invited yet',
+      status: 403,
+      errorCode: 'account_not_authorized',
+    })
+    let resolveRetry: ((value: unknown) => void) | undefined
+    createSession.mockReturnValueOnce(new Promise((resolve) => { resolveRetry = resolve }))
+
+    const seenDenied: boolean[] = []
+    let triggerSync: (() => Promise<boolean>) | undefined
+    function AccessDeniedProbe() {
+      const { accessDenied, syncSession } = useAuthContext()
+      useEffect(() => { seenDenied.push(accessDenied) }, [accessDenied])
+      useEffect(() => { triggerSync = syncSession }, [syncSession])
+      return null
+    }
+
+    container = document.createElement('div')
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<AuthProvider><AccessDeniedProbe /></AuthProvider>)
+      await Promise.resolve()
+    })
+    expect(seenDenied.at(-1)).toBe(true)
+
+    let retryPromise: Promise<boolean> | undefined
+    await act(async () => {
+      retryPromise = triggerSync?.()
+      await Promise.resolve()
+    })
+    // Denial must stay true while retry is in flight so AccessDeniedCard never unmounts prematurely.
+    expect(seenDenied.at(-1)).toBe(true)
+
+    await act(async () => {
+      resolveRetry?.({
+        data: { user: { id: 41, role: 'student' }, enrollments: [] },
+        error: null,
+      })
+      await retryPromise
+    })
+    expect(seenDenied.at(-1)).toBe(false)
+  })
 })
 
 describe('AuthProvider analytics identity', () => {

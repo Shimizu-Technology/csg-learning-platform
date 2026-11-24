@@ -10,6 +10,7 @@ import { Button, LinkButton } from '../components/ui/Button'
 import { api } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { CourseCheckoutStatus } from '../components/courses/CourseCheckoutStatus'
+import { CommunityStandardsGate } from '../components/auth/CommunityStandardsGate'
 import { courseAuthPath, offeringIdFrom, validOfferingSlug } from '../lib/courseIntent'
 import { SCHOOL_COURSES_URL } from '../lib/brand'
 import { hasCourseAccess } from '../lib/courseAccess'
@@ -23,13 +24,14 @@ function CourseUnavailable() {
 }
 
 export function CourseCatalog() {
-  const { isSignedIn, user, enrollments } = useAuthContext()
+  const { isSignedIn, user, enrollments, syncSession, signOut } = useAuthContext()
   const [searchParams] = useSearchParams()
   const { slug } = useParams()
   const [offerings, setOfferings] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [checkingOut, setCheckingOut] = useState<number | null>(null)
+  const [pendingCommunityCheckout, setPendingCommunityCheckout] = useState<{ cohortId: number; version: string } | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [pending, setPending] = useState<Array<{ id: number; cohort_id: number }> | null>(null)
@@ -94,13 +96,24 @@ export function CourseCatalog() {
     }
   }, [isUnlistedOffering])
 
-  const startCheckout = async (cohortId: number) => {
+  const requireCommunityStandardsForCheckout = (cohortId: number, version: string) => {
+    setPendingCommunityCheckout({ cohortId, version })
+  }
+
+  const runCheckout = async (cohortId: number) => {
     setCheckingOut(cohortId)
     setError(null)
     try {
       const result = await api.startCourseCheckout(cohortId)
       if (result.data?.url) {
         window.location.assign(result.data.url)
+        return
+      }
+      if (result.errorCode === 'community_terms_required') {
+        setPendingCommunityCheckout({
+          cohortId,
+          version: user?.community_policy?.version || '2026-08-17',
+        })
         return
       }
       setError(result.error || 'Checkout could not start. Please try again.')
@@ -110,18 +123,43 @@ export function CourseCatalog() {
     }
   }
 
+  const startCheckout = async (cohortId: number) => {
+    if (user?.community_policy && !user.community_policy.accepted) {
+      setPendingCommunityCheckout({ cohortId, version: user.community_policy.version })
+      return
+    }
+    await runCheckout(cohortId)
+  }
+
+  if (pendingCommunityCheckout && user) {
+    return (
+      <CommunityStandardsGate
+        version={pendingCommunityCheckout.version}
+        accountEmail={user.email}
+        onSignOut={signOut}
+        onAccepted={async () => {
+          const synced = await syncSession()
+          const cohortId = pendingCommunityCheckout.cohortId
+          setPendingCommunityCheckout(null)
+          if (synced) await runCheckout(cohortId)
+        }}
+      />
+    )
+  }
+
   if (slug && notFound && !returning) return <CourseUnavailable />
 
   const validatedSlug = validOfferingSlug(slug)
   const signInParams = new URLSearchParams(searchParams)
+  if (validatedSlug) {
+    signInParams.set('offering_slug', validatedSlug)
+  }
   if (slug && offerings[0]) {
     signInParams.set('offering_id', String(offerings[0].id))
     const offeringSlug = validOfferingSlug(offerings[0].slug)
     if (offeringSlug) signInParams.set('offering_slug', offeringSlug)
-  } else if (returning && validatedSlug) {
-    signInParams.set('offering_slug', validatedSlug)
   }
-  const signInPath = (slug && offerings[0]) || (returning && validatedSlug)
+  const signInPath = validatedSlug || (slug && offerings[0])
     ? `/sign-in?${signInParams}`
     : courseAuthPath('/sign-in', searchParams.toString())
   const visibleOfferings = offerings.filter((offering) => !selectedId || !offerings.some((entry) => entry.id === selectedId) || offering.id === selectedId)
@@ -141,7 +179,14 @@ export function CourseCatalog() {
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">{slug ? (returning && notFound ? 'Enrollment confirmation' : offerings[0]?.name || 'Course') : 'Learn one useful skill at a time.'}</h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, practice what you learn, and get feedback from a real instructor.</p>
         {((slug && offerings[0] && !offerings[0].unlisted) || (!slug && selectedId)) && <LinkButton to="/courses" variant="quiet" className="mt-4">Back to courses</LinkButton>}
-        {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} slug={validatedSlug ?? undefined} />}
+        {returning && (
+          <CourseCheckoutStatus
+            purchaseId={searchParams.get('purchase_id') || ''}
+            slug={validatedSlug ?? undefined}
+            offeringId={selectedId ?? offerings[0]?.id ?? null}
+            onRequireCommunityStandards={requireCommunityStandardsForCheckout}
+          />
+        )}
         {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && (
           <p role="status" className="mt-8 rounded-2xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">
             This course is not currently listed.{' '}
@@ -151,7 +196,7 @@ export function CourseCatalog() {
             if you need help enrolling.
           </p>
         )}
-        {isCanceled && !hasInlineCanceledStatus && <p role="status" className="mt-8 rounded-2xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">Checkout wasn’t finished — you haven’t been charged. Review your course below whenever you’re ready to enroll.</p>}
+        {isCanceled && !hasInlineCanceledStatus && <p role="status" className="mt-8 rounded-2xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">Checkout wasn’t completed. If you were charged, contact support before trying again. Otherwise, review your course below whenever you’re ready.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-2xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">{error}</p>}
         <div className={`mt-12 grid gap-6 ${slug ? 'max-w-4xl' : 'md:grid-cols-2'}`}>
           {loading && offerings.length === 0 && <p role="status" className="text-sm text-ink-secondary md:col-span-2">Loading courses…</p>}
@@ -218,7 +263,7 @@ export function CourseCatalog() {
                 {user?.is_staff ? <p className="text-sm text-ink-secondary">Staff preview — students see the enrollment button here.</p>
                   : enrolled ? <LinkButton to={`/dashboard?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : returning ? null
-                  : pendingPurchase && isCanceled ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled slug={validatedSlug ?? offeringSlug ?? undefined} />
+                  : pendingPurchase && isCanceled ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled slug={validatedSlug ?? offeringSlug ?? undefined} offeringId={offering.id} onRequireCommunityStandards={requireCommunityStandardsForCheckout} />
                   : pendingPurchase ? <LinkButton to={`${returnCoursePath}?checkout=return&purchase_id=${pendingPurchase.id}&offering_id=${offering.id}`} variant="secondary">Check enrollment confirmation</LinkButton>
                   : isSignedIn && (!pending || purchaseError) ? (
                     <div role="status" className="space-y-3 text-sm text-ink-secondary">

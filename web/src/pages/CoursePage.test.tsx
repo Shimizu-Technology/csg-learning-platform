@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseCatalog } from './CourseCatalog'
-const state = vi.hoisted(() => ({ api: { getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn() }, auth: { isSignedIn: false, user: null as unknown, enrollments: [] as unknown[], syncSession: vi.fn() } }))
+const state = vi.hoisted(() => ({ api: { acceptCommunityPolicy: vi.fn(), getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn() }, auth: { isSignedIn: false, user: null as unknown, enrollments: [] as unknown[], syncSession: vi.fn() } }))
 vi.mock('../lib/api', () => ({ api: state.api }))
 vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 let host: HTMLDivElement, root: ReturnType<typeof createRoot>
@@ -21,7 +21,16 @@ it.each(['', '?utm_source=school&checkout=canceled'])('keeps the slug-selected c
   const href = host.querySelector('header a[href^="/sign-in"]')!.getAttribute('href')!
   const params = new URLSearchParams(href.split('?')[1])
   expect(params.get('offering_id')).toBe('13')
+  expect(params.get('offering_slug')).toBe('course-counter')
   if (search) { expect(params.get('utm_source')).toBe('school'); expect(params.get('checkout')).toBe('canceled') }
+})
+
+it('preserves validated offering_slug on the header Sign in link before the offering finishes loading', async () => {
+  state.api.getCourseOffering.mockReturnValue(new Promise(() => undefined))
+  await render()
+  const href = host.querySelector('header a[href^="/sign-in"]')!.getAttribute('href')!
+  const params = new URLSearchParams(href.split('?')[1])
+  expect(params.get('offering_slug')).toBe('course-counter')
 })
 it('shows public marketing, derived syllabus and a course-specific signup intent', async () => {
   state.api.getCourseOffering.mockResolvedValue({ data: { offering: course } })
@@ -131,9 +140,10 @@ it('renders checkout confirmation on Stripe return even when the offering is clo
   expect(host.textContent).toContain('Sign in to confirm your enrollment')
   expect(host.textContent).not.toContain('Confirming your enrollment')
   const statusSignIn = host.querySelector('main a[href^="/sign-in"]')!
-  expect(statusSignIn.getAttribute('href')).toBe('/sign-in?checkout=return&purchase_id=20&offering_slug=course-counter')
+  expect(statusSignIn.getAttribute('href')).toBe('/sign-in?checkout=return&purchase_id=20&offering_id=13&offering_slug=course-counter')
   const headerSignIn = host.querySelector('header a[href^="/sign-in"]')!
   expect(headerSignIn.getAttribute('href')).toContain('offering_slug=course-counter')
+  expect(headerSignIn.getAttribute('href')).toContain('offering_id=13')
 
   await act(async () => root.unmount())
   host.remove()
@@ -167,5 +177,18 @@ it('deduplicates canceled-checkout notices when inline checkout status is shown'
   })
   await render('?checkout=canceled&offering_id=13')
   expect(host.textContent).toContain('Checkout wasn’t finished')
+  expect(host.textContent).not.toContain('haven’t been charged')
   expect(host.querySelectorAll('main [role="status"]').length).toBe(0)
+})
+
+it('gates checkout on /courses/:slug behind community standards acceptance when not yet accepted', async () => {
+  state.auth.isSignedIn = true
+  state.auth.user = { id: 1, email: 'buyer@example.com', community_policy: { version: '2026-08-17', accepted: false } }
+  state.api.getCourseOffering.mockResolvedValue({ data: { offering: course } })
+  state.api.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [] } })
+  await render()
+  const btn = [...host.querySelectorAll('main button')].find(el => el.textContent?.includes('Continue to secure checkout')) as HTMLButtonElement
+  await act(async () => btn.click())
+  expect(state.api.startCourseCheckout).not.toHaveBeenCalled()
+  expect(host.textContent).toContain('Before class: our community guidelines')
 })

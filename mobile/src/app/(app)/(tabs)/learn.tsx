@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
-import { AlertTriangle, ArrowRight, BookMarked, BookOpen, ClipboardCheck, ExternalLink, Film, FolderOpen, Lock, Mail, Search } from 'lucide-react-native';
+import { AlertTriangle, ArrowRight, BookMarked, BookOpen, ClipboardCheck, ExternalLink, Film, FolderOpen, Lock, Mail, RefreshCw, Search } from 'lucide-react-native';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Linking, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -76,6 +76,10 @@ export default function LearnScreen() {
             <Text style={styles.staffCopy}>Open Today to check a pending enrollment, or contact {brand.schoolName} for help getting started.</Text>
             <View style={styles.emptyActions}>
               <Button label="Go to Today" onPress={() => router.navigate('/(tabs)' as Href)} />
+              <Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.supportButton}>
+                <RefreshCw color={c.text.strong} size={17} />
+                <Text style={styles.supportButtonText}>Refresh status</Text>
+              </Pressable>
               <Pressable accessibilityRole="button" onPress={() => void Linking.openURL(`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${brand.productName} enrollment help`)}`).catch(() => Alert.alert('Contact support', `Email ${brand.supportEmail} for help.`))} style={styles.supportButton}>
                 <Mail color={c.text.strong} size={17} />
                 <Text style={styles.supportButtonText}>Contact support ({brand.supportEmail})</Text>
@@ -89,7 +93,7 @@ export default function LearnScreen() {
   if ((!isStaff && cohortLoading) || (activeQuery.isPending && !activeQuery.data)) return <SafeAreaView style={styles.safe}><LoadingState label={isStaff ? 'Loading curriculum library' : 'Loading learning path'} /></SafeAreaView>;
   if (activeQuery.error && !activeQuery.data) return <SafeAreaView style={styles.safe}><ErrorState message={(activeQuery.error as Error).message} retry={() => void activeQuery.refetch()} /></SafeAreaView>;
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void activeQuery.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+  return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void Promise.all([refresh(), activeQuery.refetch()])} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     <CohortSwitcher />
     <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>{isStaff ? 'CONTENT' : 'YOUR CURRICULUM'}</Text>
     <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
