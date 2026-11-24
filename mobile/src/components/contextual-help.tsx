@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleHelp, Clock3, Send, ShieldAlert, X } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,9 +16,29 @@ import { fonts } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { captureProductEvent } from '@/lib/analytics';
 import { learningKeys } from '@/lib/learning';
-import type { EnrollmentCapabilities, HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpUrgency } from '@/lib/types';
+import { newReplyRequestId } from '@/lib/reply-attempt';
+import type { EnrollmentCapabilities, HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpRequestReply, HelpUrgency } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+
+const HELP_REPLY_LIMIT = 2_000;
+
+function isStudentReply(reply: HelpRequestReply, studentId?: number) {
+  return reply.from_student ?? reply.author.id === studentId;
+}
+
+function helpReplies(request: HelpRequest, studentId?: number) {
+  const replies = (request.replies ?? []).map((reply) => ({
+    key: String(reply.id),
+    label: isStudentReply(reply, studentId) ? 'You replied' : `${reply.author.full_name} replied`,
+    body: reply.body,
+  }));
+  const hasStaffReply = (request.replies ?? []).some((reply) => !isStudentReply(reply, studentId));
+  if (request.staff_response && !hasStaffReply) {
+    return [{ key: 'response', label: 'Your instructor replied', body: request.staff_response }, ...replies];
+  }
+  return replies;
+}
 
 const categories: { value: HelpCategory; label: string }[] = [
   { value: 'concept', label: 'Concept' },
@@ -52,6 +72,8 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
   const [message, setMessage] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [saving, setSaving] = useState(false);
+  const [replyDrafts, setReplyDrafts] = useState<Partial<Record<number, string>>>({});
+  const replyAttempts = useRef(new Map<number, { body: string; id: string }>());
   const queryKey = learningKeys.helpRequests(user?.id || 0, cohortId, contextType);
   const query = useQuery({
     queryKey,
@@ -76,6 +98,46 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
   });
 
   const canAsk = capabilities?.support_mode === 'guided_help';
+
+  const staffReplied = Boolean(active?.staff_response || active?.replies?.some(reply => !isStudentReply(reply, user?.id)));
+  const canReply = canAsk && staffReplied && (active?.status === 'open' || active?.status === 'acknowledged');
+  const replyDraft = active ? replyDrafts[active.id] ?? '' : '';
+
+  async function sendReply() {
+    const cleanBody = replyDraft.trim();
+    if (!canReply || !active || saving || auth.demo || !cleanBody) return;
+    const id = active.id;
+    const existingAttempt = replyAttempts.current.get(id);
+    const attempt = existingAttempt?.body === cleanBody ? existingAttempt.id : newReplyRequestId();
+    replyAttempts.current.set(id, { body: cleanBody, id: attempt });
+    setSaving(true);
+    try {
+      const result = await api.replyToHelpRequest(id, {
+        body: cleanBody,
+        resolve: false,
+        client_request_id: attempt,
+      });
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<{ help_requests: HelpRequest[] }>(queryKey, (current) => {
+        const requests = current?.help_requests ?? [];
+        const updated = result.help_request;
+        return { help_requests: requests.some(item => item.id === updated.id)
+          ? requests.map(item => item.id === updated.id ? updated : item)
+          : [updated, ...requests] };
+      });
+      replyAttempts.current.delete(id);
+      setReplyDrafts((drafts) => {
+        if (drafts[id] !== replyDraft) return drafts;
+        const remaining = { ...drafts };
+        delete remaining[id];
+        return remaining;
+      });
+    } catch {
+      Alert.alert('Could not send your reply', 'Your draft is still here. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function submit() {
     if (!canAsk) return;
@@ -119,10 +181,14 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
     }
   }
 
-  const status = active?.replies?.length || active?.staff_response ? 'Your instructor replied' : active?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor';
+  const latestReply = active?.replies?.at(-1);
+  const awaitingInstructor = latestReply && isStudentReply(latestReply, user?.id);
+  const status = awaitingInstructor ? 'Waiting for your instructor' : staffReplied ? 'Your instructor replied' : active?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor';
   if (capabilities?.features?.help_requests === false) return null;
-  const answered = [active, resolved].find(request => request?.replies?.length || request?.staff_response);
-  const replyAuthor = answered?.replies?.at(-1)?.author || answered?.owner;
+  const answered = [active, resolved].find(request => request?.staff_response || request?.replies?.some(reply => !isStudentReply(reply, user?.id)));
+  const instructorReply = answered?.replies?.slice().reverse().find(reply => !isStudentReply(reply, user?.id) && reply.author.id !== user?.id);
+  const recipient = instructorReply?.author ?? answered?.owner;
+  const replyAuthor = recipient?.id === user?.id ? undefined : recipient;
   const followUp = async () => {
     if (!answered || !replyAuthor) return;
     try {
@@ -146,12 +212,28 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
         <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           {replyAuthor && <Button variant="secondary" label="Message your instructor about this" onPress={() => void followUp()} />}
           {query.isPending && !auth.demo ? <Text style={styles.loading}>Checking your requests…</Text> : active ? <View style={styles.stack}>
-            <View style={styles.statusCard}><Clock3 color={c.status.warning.fg} size={20} /><View style={styles.flex}><Text style={styles.statusTitle}>{status}</Text><Text style={styles.statusCopy}>{active.status === 'acknowledged' ? `${active.owner?.full_name || 'An instructor'} acknowledged your request.` : 'Your instructor has your question.'}</Text></View></View>
+            <View style={styles.statusCard}><Clock3 color={c.status.warning.fg} size={20} /><View style={styles.flex}><Text style={styles.statusTitle}>{status}</Text><Text style={styles.statusCopy}>{awaitingInstructor ? 'Your instructor will see your reply here.' : active.status === 'acknowledged' ? `${active.owner?.full_name || 'An instructor'} acknowledged your request.` : 'Your instructor has your question.'}</Text></View></View>
             <View style={styles.requestCard}><Text style={styles.fieldLabel}>YOUR QUESTION</Text><Text style={styles.requestText}>{active.message}</Text><View style={styles.pills}><Text style={styles.pill}>{active.category.toUpperCase()}</Text>{active.urgency === 'urgent' && <Text style={styles.urgentPill}>URGENT</Text>}</View></View>
-            {(active.replies?.length ? active.replies.map((item) => ({ key: String(item.id), author: item.author.full_name, body: item.body })) : active.staff_response ? [{ key: 'response', author: 'Your instructor', body: active.staff_response }] : []).map((item) => <View key={item.key} style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{`${item.author} replied`}</Text><View style={styles.resolvedText}><AuthoredContent body={item.body} compact written /></View></View></View>)}
+            {helpReplies(active, user?.id).map((item) => <View key={item.key} style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{item.label}</Text><View style={styles.resolvedText}><AuthoredContent body={item.body} compact written /></View></View></View>)}
+            {canReply && <View style={styles.replyComposer}>
+              <Text style={styles.fieldLabel}>Reply to your instructor</Text>
+              <TextInput
+                accessibilityLabel="Reply to your instructor"
+                editable={!saving}
+                keyboardAppearance={scheme}
+                maxLength={HELP_REPLY_LIMIT}
+                multiline
+                value={replyDraft}
+                onChangeText={(value) => setReplyDrafts((drafts) => ({ ...drafts, [active.id]: value }))}
+                placeholder="Answer their question or share what happened when you tried it."
+                placeholderTextColor={c.text.body}
+                style={[styles.messageInput, styles.replyInput]}
+              />
+              <Button label="Send reply" loading={saving} disabled={saving || !replyDraft.trim()} onPress={() => void sendReply()} />
+            </View>}
             {canAsk && <Button accessibilityRole="button" disabled={saving} onPress={() => void cancel()} style={styles.cancelButton} variant="secondary" label={saving ? 'Canceling…' : 'Cancel request'} textStyle={styles.cancelText} />}
           </View> : <View style={styles.stack}>
-            {resolved && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{(resolved.replies?.length ?? 0) > 1 ? 'Previous instructor replies' : 'Previous instructor response'}</Text>{/* Every reply, so a hint sent before resolving isn't lost. */}{(resolved.replies?.length ? resolved.replies.map((item) => ({ key: String(item.id), body: item.body })) : [{ key: 'response', body: resolved.staff_response || '' }]).map((item) => <View key={item.key} style={styles.resolvedText}><AuthoredContent body={item.body} compact written /></View>)}<Text style={styles.resolvedHint}>{canAsk ? 'You can ask again if you still need help.' : 'Your previous response remains available.'}</Text></View></View>}
+            {resolved && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{helpReplies(resolved, user?.id).length > 1 ? 'Previous replies' : 'Previous response'}</Text>{helpReplies(resolved, user?.id).map((item) => <View key={item.key} style={styles.resolvedText}><Text style={styles.resolvedTitle}>{item.label}</Text><AuthoredContent body={item.body} compact written /></View>)}<Text style={styles.resolvedHint}>{canAsk ? 'You can ask again if you still need help.' : 'Your previous response remains available.'}</Text></View></View>}
             {canAsk && <>
             <View><Text style={styles.fieldLabel}>WHAT KIND OF HELP?</Text><View style={styles.choices}>{categories.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: category === item.value }} onPress={() => setCategory(item.value)} style={[styles.choice, category === item.value && styles.choiceActive]}><Text style={[styles.choiceText, category === item.value && styles.choiceTextActive]}>{item.label}</Text></Pressable>)}</View></View>
             <View><Text style={styles.fieldLabel}>WHAT HAVE YOU TRIED?</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Describe where you are stuck" value={message} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setMessage} maxLength={2000} multiline placeholder="Share the step you reached, what you expected, and what happened instead." placeholderTextColor={c.text.body} style={styles.messageInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={saving} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Speak a draft, then review and edit it before sending.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.counter}>{message.length}/2,000</Text></View>
@@ -167,5 +249,6 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   launcher: { minHeight: 44, alignSelf: 'flex-start', borderRadius: 14, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, launcherActive: { borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg}, launcherText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, launcherTextActive: { color: c.status.warning.fg }, safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 70, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 11 }, headerIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, marginTop: 2 }, content: { padding: 20, paddingBottom: 50 }, loading: { color: c.text.body, fontFamily: fonts.medium, fontSize: 13, textAlign: 'center', paddingVertical: 40 }, stack: { gap: 16 }, statusCard: { borderRadius: 18, borderWidth: 1, borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg, padding: 16, flexDirection: 'row', gap: 11 }, statusTitle: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 14 }, statusCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 19, marginTop: 4 }, requestCard: { borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16 }, requestText: { color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, marginTop: 8 }, pills: { flexDirection: 'row', gap: 7, marginTop: 13 }, pill: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, backgroundColor: c.surface.sunken, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 5 }, urgentPill: { color: c.status.danger.fg, fontFamily: fonts.bold, fontSize: 12, backgroundColor: c.status.danger.bg, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 5, borderColor: c.status.danger.border, borderWidth: 1 }, cancelButton: { minHeight: 48, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }, cancelText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, resolvedCard: { borderRadius: 18, borderWidth: 1, borderColor: c.status.success.border, backgroundColor: c.status.success.bg, padding: 16, flexDirection: 'row', gap: 11 }, resolvedTitle: { color: c.status.success.fg, fontFamily: fonts.bold, fontSize: 13 }, resolvedText: { marginTop: 6, minWidth: 0 }, resolvedHint: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12, marginTop: 8 }, fieldLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.1, marginBottom: 8 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { minHeight: 44, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' }, choiceActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 }, choiceText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, choiceTextActive: { color: c.text.strong, fontFamily: fonts.extraBold }, messageInput: { minHeight: 150, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, padding: 14, textAlignVertical: 'top' }, counter: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, textAlign: 'right', marginTop: 5 }, urgentChoice: { minHeight: 76, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 11 }, urgentChoiceActive: { borderColor: c.status.danger.border, backgroundColor: c.status.danger.bg, borderWidth: 2 }, urgentTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 }, urgentCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 4 }, sendButton: { minHeight: 50, borderRadius: 16,  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, sendText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 13 }, disabled: { opacity: 0.45 },
+  replyComposer: { gap: 8 }, replyInput: { minHeight: 96 },
   voiceRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }, voiceHint: { flex: 1, color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 },
 }));
