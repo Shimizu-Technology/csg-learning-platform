@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { expect, it } from 'vitest'
-import { courseAuthPath, courseIntentDestination, offeringIdFrom } from './courseIntent'
+import { courseAuthPath, courseIntentDestination, hasCourseIntent, offeringIdFrom } from './courseIntent'
 it('keeps course identity across both auth screens', () => {
   expect(courseAuthPath('/sign-in', '?offering_id=13')).toBe('/sign-in?offering_id=13')
   expect(courseAuthPath('/sign-up', '?offering_id=13')).toBe('/sign-up?offering_id=13')
@@ -36,10 +36,21 @@ it('supports the mobile ClerkWebHandoffService absolute URL shape', () => {
   expect(courseAuthPath('/sign-up', search)).toBe('/sign-up?redirect_url=%2Flessons%2F3')
   expect(courseIntentDestination('', '')).toBe('')
 })
-it('returns unlisted course learners directly to their slug page across auth screens', () => {
+it('returns unlisted course learners directly to their slug page across auth screens with offering_id preserved', () => {
   expect(courseAuthPath('/sign-in', '?offering_id=13&offering_slug=python-pilot')).toBe('/sign-in?offering_id=13&offering_slug=python-pilot')
   expect(courseAuthPath('/sign-up', '?offering_id=13&offering_slug=python-pilot')).toBe('/sign-up?offering_id=13&offering_slug=python-pilot')
-  expect(courseIntentDestination('?offering_id=13&offering_slug=python-pilot')).toBe('/courses/python-pilot')
+  expect(courseIntentDestination('?offering_id=13&offering_slug=python-pilot')).toBe('/courses/python-pilot?offering_id=13')
   expect(courseIntentDestination('?checkout=return&purchase_id=20&offering_slug=python-pilot')).toBe('/courses/python-pilot?checkout=return&purchase_id=20')
   expect(courseIntentDestination('?offering_id=13&offering_slug=../evil')).toBe('/courses?offering_id=13')
+})
+
+it('preserves slug-only course intent and offering_id on checkout return across auth screens', () => {
+  expect(hasCourseIntent('?offering_slug=python-pilot')).toBe(true)
+  expect(hasCourseIntent('?offering_slug=../evil')).toBe(false)
+  expect(courseAuthPath('/sign-in', '?offering_slug=python-pilot')).toBe('/sign-in?offering_slug=python-pilot')
+  expect(courseAuthPath('/sign-up', '?offering_slug=python-pilot')).toBe('/sign-up?offering_slug=python-pilot')
+  expect(courseIntentDestination('?offering_slug=python-pilot')).toBe('/courses/python-pilot')
+  expect(courseAuthPath('/sign-in', '?checkout=return&purchase_id=20&offering_id=13&offering_slug=python-pilot')).toBe('/sign-in?checkout=return&purchase_id=20&offering_id=13&offering_slug=python-pilot')
+  expect(courseIntentDestination('?checkout=return&purchase_id=20&offering_id=13&offering_slug=python-pilot')).toBe('/courses/python-pilot?checkout=return&purchase_id=20&offering_id=13')
+  expect(courseIntentDestination('?checkout=return&purchase_id=20&offering_id=13')).toBe('/courses?checkout=return&purchase_id=20&offering_id=13')
 })

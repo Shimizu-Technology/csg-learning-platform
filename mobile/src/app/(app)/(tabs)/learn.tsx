@@ -1,11 +1,13 @@
 import { themedAlert as Alert } from '@/lib/alerts';
+import { brand } from '../../../lib/brand';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
-import { AlertTriangle, ArrowRight, BookMarked, ClipboardCheck, ExternalLink, Film, FolderOpen, Lock, Search } from 'lucide-react-native';
+import { AlertTriangle, ArrowRight, BookMarked, BookOpen, ClipboardCheck, ExternalLink, Film, FolderOpen, Lock, Mail, RefreshCw, Search } from 'lucide-react-native';
 import { useMemo, useState, type ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LearningCard, ProgressBar, SectionHeading, StatusBadge, StatusPill } from '@/components/learning-ui';
@@ -62,11 +64,36 @@ export default function LearnScreen() {
     .map((lesson) => ({ module, lesson })));
   const activeQuery = isStaff ? curriculumQuery : studentQuery;
 
-  if (!isStaff && !cohortLoading && ((cohortError && !cohortStale) || selectedCohortId == null)) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError || 'Choose a cohort to see your learning path.'} retry={() => void refresh()} /></SafeAreaView>;
+  if (!isStaff && !cohortLoading && cohortError && !cohortStale) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError} retry={() => void refresh()} /></SafeAreaView>;
+  if (!isStaff && !cohortLoading && selectedCohortId == null) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safe}>
+        <ScrollView refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+          <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR CURRICULUM</Text>
+          <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
+          <LearningCard>
+            <View style={styles.emptyHeader}><BookOpen color={c.text.body} size={22} /><Text style={styles.staffTitle}>No course yet</Text></View>
+            <Text style={styles.staffCopy}>Open Today to check a pending enrollment, or contact {brand.schoolName} for help getting started.</Text>
+            <View style={styles.emptyActions}>
+              <Button label="Go to Today" onPress={() => router.navigate('/(tabs)' as Href)} />
+              <Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.supportButton}>
+                <RefreshCw color={c.text.strong} size={17} />
+                <Text style={styles.supportButtonText}>Refresh status</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => void Linking.openURL(`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${brand.productName} enrollment help`)}`).catch(() => Alert.alert('Contact support', `Email ${brand.supportEmail} for help.`))} style={styles.supportButton}>
+                <Mail color={c.text.strong} size={17} />
+                <Text style={styles.supportButtonText}>Contact support ({brand.supportEmail})</Text>
+              </Pressable>
+            </View>
+          </LearningCard>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
   if ((!isStaff && cohortLoading) || (activeQuery.isPending && !activeQuery.data)) return <SafeAreaView style={styles.safe}><LoadingState label={isStaff ? 'Loading curriculum library' : 'Loading learning path'} /></SafeAreaView>;
   if (activeQuery.error && !activeQuery.data) return <SafeAreaView style={styles.safe}><ErrorState message={(activeQuery.error as Error).message} retry={() => void activeQuery.refetch()} /></SafeAreaView>;
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void activeQuery.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+  return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void Promise.all([refresh(), activeQuery.refetch()])} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     <CohortSwitcher />
     <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>{isStaff ? 'CONTENT' : 'YOUR CURRICULUM'}</Text>
     <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
@@ -121,4 +148,8 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   moduleTop: { flexDirection: 'row', alignItems: 'center', gap: 11 }, moduleIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, moduleIconLocked: { backgroundColor: c.surface.sunken }, flex: { flex: 1, minWidth: 0 }, moduleType: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' }, moduleName: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, marginTop: 2 }, moduleMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, progress: { marginTop: 14 }, noResults: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingVertical: 25 },
   resourceButton: { minHeight: 72, borderRadius: 19, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 6 }, resourceIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, resourceTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 }, resourceCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, libraryStack: { gap: 4 }, staffTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17, marginTop: 15 }, staffCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 19, marginTop: 6 },
   partialWarning: { minHeight: 58, borderRadius: 16, borderWidth: 1, borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg, paddingHorizontal: 14, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 10 }, partialWarningText: { flex: 1, color: c.status.warning.fg, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 },
+  emptyHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  emptyActions: { gap: 10, marginTop: 16 },
+  supportButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.page, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  supportButtonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
 }));

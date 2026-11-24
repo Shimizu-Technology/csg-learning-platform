@@ -41,6 +41,7 @@ WebBrowser.maybeCompleteAuthSession();
 /** Same help address the web sign-up page uses for invitation problems. */
 const INVITATION_HELP_EMAIL = SUPPORT_EMAIL;
 const INVITATION_HELP_MAILTO = `mailto:${INVITATION_HELP_EMAIL}?subject=${encodeURIComponent(`${brand.productName} invitation`)}`;
+const SIGN_IN_HELP_MAILTO = `mailto:${INVITATION_HELP_EMAIL}?subject=${encodeURIComponent(`${brand.productName} sign-in help`)}`;
 
 const OAUTH_REDIRECT_URL = AuthSession.makeRedirectUri({
   scheme: 'csgconnect',
@@ -64,6 +65,7 @@ export default function SignIn() {
   const [socialLoading, setSocialLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [inviteFallback, setInviteFallback] = useState(false);
+  const [supportFallback, setSupportFallback] = useState(false);
   const [verificationStrategy, setVerificationStrategy] = useState<VerificationStrategy>('email_code');
 
   const loading = socialLoading || fetchStatus === 'fetching';
@@ -85,7 +87,7 @@ export default function SignIn() {
     }
     if (step === 'reset-code') return `We sent a password reset code to ${emailValue}.`;
     if (step === 'new-password') return 'Use at least eight characters for your new password.';
-    return `Use the exact email address invited to your ${brand.schoolShortName} cohort.`;
+    return `Use the email address for your ${brand.schoolShortName} account.`;
   }, [emailValue, step, verificationStrategy]);
 
   function clearError() {
@@ -334,7 +336,7 @@ export default function SignIn() {
 
                 <View style={styles.invite} testID="invitation-help">
                   <View style={styles.inviteHeading}><MailOpen color={c.text.strong} size={18} /><Text style={styles.inviteTitle}>First time here?</Text></View>
-                  <Text style={styles.inviteCopy}>Open your invitation email on this phone and tap <Text style={styles.inviteStrong}>Accept invitation</Text>. Choose your password there, then come back and sign in here with the same email.</Text>
+                  <Text style={styles.inviteCopy}>Open your invitation email on this phone and tap <Text style={styles.inviteStrong}>Accept invitation</Text>. Finish creating your account on the web (with Google or a password), then come back and sign in here the same way.</Text>
                   <Text style={styles.inviteCopy}>Can’t find it? Check spam or promotions for an email from {brand.schoolName}, or ask us for a new one.</Text>
                   <Pressable accessibilityRole="button" accessibilityHint={`Opens your email app to ask ${brand.schoolName} for a new invitation`} onPress={() => { setInviteFallback(false); void Linking.openURL(INVITATION_HELP_MAILTO).catch(() => setInviteFallback(true)); }} style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}>
                     <Mail color={c.text.strong} size={17} />
@@ -417,6 +419,19 @@ export default function SignIn() {
             )}
           </View>
 
+          <View style={styles.supportFooter}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Need help signing in? Email ${INVITATION_HELP_EMAIL}`}
+              onPress={() => { setSupportFallback(false); void Linking.openURL(SIGN_IN_HELP_MAILTO).catch(() => setSupportFallback(true)); }}
+              style={({ pressed }) => [styles.supportLink, pressed && styles.pressed]}
+            >
+              <Mail color={c.text.body} size={15} />
+              <Text style={styles.supportLinkText}>Trouble signing in? Email {INVITATION_HELP_EMAIL}</Text>
+            </Pressable>
+            {supportFallback && <Text accessibilityLiveRegion="polite" selectable style={styles.supportFallback}>No email app opened. Email {INVITATION_HELP_EMAIL} for help.</Text>}
+          </View>
+
           <View style={styles.footer}>
             <LockKeyhole color={c.text.muted} size={13} />
             <Text style={styles.footerText}>Access is limited to {brand.schoolShortName} students and staff.</Text>
@@ -481,6 +496,10 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   primaryButtonText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 14 },
   pressed: { opacity: 0.78 },
   disabled: { opacity: 0.55 },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 18 },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10 },
   footerText: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12 },
+  supportFooter: { alignItems: 'center', marginTop: 14, gap: 6 },
+  supportLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12 },
+  supportLinkText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 },
+  supportFallback: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 }));

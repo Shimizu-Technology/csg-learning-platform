@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseCatalog } from './CourseCatalog'
 
-const state = vi.hoisted(() => ({ auth: { isSignedIn: false, user: null as unknown, enrollments: [], syncSession: vi.fn() }, getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn() }))
+const state = vi.hoisted(() => ({ auth: { isSignedIn: false, user: null as unknown, enrollments: [], syncSession: vi.fn() }, acceptCommunityPolicy: vi.fn(), getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn() }))
 vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 vi.mock('../lib/api', () => ({ api: state }))
 let root: Root, container: HTMLDivElement
@@ -19,9 +19,10 @@ beforeEach(() => {
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
 const render = async (url = '/courses') => act(async () => root.render(<MemoryRouter initialEntries={[url]}><CourseCatalog /></MemoryRouter>))
-it('carries the selected server-listed offering into signup', async () => {
+it('carries the selected server-listed offering into signup and sign-in with slug preserved', async () => {
   await render('/courses?offering_id=13')
-  expect(container.querySelector('a[href="/sign-up?offering_id=13"]')).not.toBeNull()
+  expect(container.querySelector('a[href="/sign-up?offering_id=13&offering_slug=course-python"]')).not.toBeNull()
+  expect(container.querySelector('main a[href="/sign-in?offering_id=13&offering_slug=course-python"]')?.textContent).toContain('Sign in')
   expect(container.textContent).not.toContain('Ruby')
   expect(state.startCourseCheckout).not.toHaveBeenCalled()
 })
@@ -59,13 +60,36 @@ it('fails closed when purchase status cannot be checked', async () => {
   state.auth.isSignedIn = true; state.auth.user = { id: 1 }
   state.getPendingCoursePurchases.mockResolvedValue({ data: null, error: 'Offline' })
   await render('/courses?offering_id=13')
-  expect(container.textContent).toContain('could not check your purchases')
+  expect(container.textContent).toContain('couldn’t check your purchases')
   expect(container.textContent).not.toContain('Continue to secure checkout')
 })
-it('keeps canceled checkout at the selected course with calm recovery copy', async () => {
+it('keeps canceled checkout at the selected course with honest recovery copy', async () => {
   await render('/courses?checkout=canceled&offering_id=13')
-  expect(container.textContent).toContain('Checkout not completed')
+  expect(container.textContent).toContain('Checkout wasn’t completed')
+  expect(container.textContent).not.toContain('haven’t been charged')
   expect(container.textContent).not.toContain('Ruby')
+})
+
+it('shows the community standards gate before starting checkout when terms are unaccepted', async () => {
+  state.auth.isSignedIn = true
+  state.auth.user = { id: 1, email: 'buyer@example.com', community_policy: { version: '2026-08-17', accepted: false } }
+  state.auth.syncSession.mockResolvedValue(true)
+  state.acceptCommunityPolicy.mockResolvedValue({ data: { accepted: true } })
+  state.startCourseCheckout.mockResolvedValue({ data: null, error: 'Checkout unavailable' })
+  await render('/courses?offering_id=13')
+
+  const checkoutBtn = [...container.querySelectorAll('button')].find(el => el.textContent?.includes('Continue to secure checkout'))!
+  await act(async () => checkoutBtn.click())
+  expect(state.startCourseCheckout).not.toHaveBeenCalled()
+  expect(container.textContent).toContain('Before class: our community guidelines')
+
+  const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement
+  await act(async () => checkbox.click())
+  const agreeBtn = [...container.querySelectorAll('button')].find(el => el.textContent === 'Agree and continue')!
+  await act(async () => agreeBtn.click())
+  expect(state.acceptCommunityPolicy).toHaveBeenCalledWith('2026-08-17')
+  expect(state.auth.syncSession).toHaveBeenCalledOnce()
+  expect(state.startCourseCheckout).toHaveBeenCalledWith(13)
 })
 
 it('shows continue checkout on signed-in cancel with an owned pending purchase', async () => {
@@ -73,7 +97,7 @@ it('shows continue checkout on signed-in cancel with an owned pending purchase',
   state.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [{ id: 20, cohort_id: 13 }] } })
   state.getCourseCheckoutStatus.mockResolvedValue({ data: { status: 'pending', can_continue: true, cohort: { id: 13, name: 'Python' } } })
   await render('/courses?checkout=canceled&offering_id=13')
-  expect(container.textContent).toContain('Checkout not completed — Continue checkout')
+  expect(container.textContent).toContain('Checkout wasn’t finished')
   expect([...container.querySelectorAll('button')].some(el => el.textContent === 'Continue checkout')).toBe(true)
   expect(container.textContent).not.toContain('Confirming your enrollment')
   expect(state.startCourseCheckout).not.toHaveBeenCalled()

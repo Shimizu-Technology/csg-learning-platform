@@ -21792,6 +21792,12 @@
               "null"
             ]
           },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "seat_limit": {
             "type": [
               "integer",
@@ -21839,6 +21845,7 @@
           "unlisted",
           "guided_access_ends_on",
           "guided_support_ends_on",
+          "start_date",
           "seat_limit",
           "seats_taken",
           "seats_remaining",

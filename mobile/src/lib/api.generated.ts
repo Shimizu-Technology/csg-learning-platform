@@ -10093,6 +10093,7 @@ export interface components {
             unlisted: boolean;
             guided_access_ends_on: string | null;
             guided_support_ends_on: string | null;
+            start_date: string | null;
             seat_limit: number | null;
             seats_taken: number | null;
             seats_remaining: number | null;

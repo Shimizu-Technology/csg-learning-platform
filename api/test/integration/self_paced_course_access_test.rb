@@ -470,9 +470,25 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
     dashboard = JSON.parse(response.body).fetch("dashboard")
     assert_equal false, dashboard.fetch("enrolled")
-    assert_equal true, dashboard.fetch("catalog_enabled")
+    # Catalog is disabled while CourseCheckout.enabled? is false.
+    assert_equal false, dashboard.fetch("catalog_enabled")
     assert_equal [ purchase.id ], dashboard.fetch("pending_purchases").pluck("id")
     assert_equal "Self-paced course", dashboard.fetch("pending_purchases").first.fetch("course_name")
+
+    original_enabled = CourseCheckout.method(:enabled?)
+    CourseCheckout.define_singleton_method(:enabled?) { true }
+    begin
+      as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+      assert_equal true, response.parsed_body.dig("dashboard", "catalog_enabled")
+
+      SchoolSetting.current.update!(public_catalog_mode: "hidden")
+      as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+      assert_equal false, response.parsed_body.dig("dashboard", "catalog_enabled")
+      SchoolSetting.current.update!(public_catalog_mode: "automatic")
+    ensure
+      CourseCheckout.define_singleton_method(:enabled?, original_enabled)
+    end
+
     @cohort.update!(public_title: "Public course")
     as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
     assert_equal "Public course", response.parsed_body.dig("dashboard", "pending_purchases", 0, "course_name")
@@ -769,6 +785,18 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     ENV["STRIPE_WEBHOOK_SECRET"] = previous
   end
 
+  test "requires community standards acceptance before starting self-paced checkout" do
+    @student.update!(community_terms_accepted_at: nil, community_terms_version: nil)
+
+    as_user(@student) { get "/api/v1/course_checkouts", headers: auth_headers }
+    assert_response :success
+
+    as_user(@student) { post "/api/v1/course_checkouts", params: { cohort_id: @cohort.id }, headers: auth_headers, as: :json }
+    assert_response :forbidden
+    assert_equal "community_terms_required", response.parsed_body["code"]
+    assert_equal false, response.parsed_body.dig("community_policy", "accepted")
+  end
+
   private
 
   def purchase_record
@@ -805,7 +833,14 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     ENV["FRONTEND_URL"] = previous
   end
   def user(name, role)
-    User.create!(clerk_id: "clerk_self_paced_#{name}", email: "self_paced_#{name}@example.com", first_name: name.capitalize, role: role)
+    User.create!(
+      clerk_id: "clerk_self_paced_#{name}",
+      email: "self_paced_#{name}@example.com",
+      first_name: name.capitalize,
+      role: role,
+      community_terms_accepted_at: Time.current,
+      community_terms_version: CommunityPolicy::VERSION
+    )
   end
 
   def auth_headers

@@ -12,11 +12,20 @@ jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireA
 import SignIn from '../../app/(auth)/sign-in';
 
 describe('sign-in invitation help', () => {
-  it('tells first-time learners to use their invitation email', () => {
+  it('tells first-time learners they can finish creating their account on the web with Google or a password', () => {
     const screen = render(<SignIn />);
 
     expect(screen.getByText('First time here?')).toBeTruthy();
+    expect(screen.getByText(/with Google or a password/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ask for a new invitation' })).toBeTruthy();
+    expect(screen.getByText(/Trouble signing in\? Email codeschoolofguam@gmail\.com/)).toBeTruthy();
+  });
+
+  it('keeps the support email contact visible on the email and password step', () => {
+    const screen = render(<SignIn />);
+
+    fireEvent.press(screen.getByText('Use email and password'));
+    expect(screen.getByText(/Trouble signing in\? Email codeschoolofguam@gmail\.com/)).toBeTruthy();
   });
 
   it('shows the help address in the panel when no email app opens', async () => {

@@ -39,7 +39,7 @@ jest.mock('@/providers/cohort-provider', () => {
   const actual = jest.requireActual('@/providers/cohort-provider');
   return { ...actual, useCohort: () => mockUseRealCohort ? actual.useCohort() : ({ cohorts: [{ id: 2 }, { id: 3 }], selectedCohortId: 3, loading: false, selectCohort: mockSelect }) };
 });
-jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args) }));
+jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args), onWebHandoffClosed: jest.fn(() => () => {}) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('@/components/lesson-content-block', () => ({ LessonContentBlockCard: () => null }));

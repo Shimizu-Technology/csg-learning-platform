@@ -47,6 +47,16 @@
   {
     "path": "/courses/python",
     "role": "admin",
+    "status": 200
+  },
+  {
+    "path": "/courses?checkout=return&purchase_id=20&offering_id=13",
+    "role": "student",
+    "status": 200
+  },
+  {
+    "path": "/courses/../../admin",
+    "role": "student",
     "status": 422
   },
   {

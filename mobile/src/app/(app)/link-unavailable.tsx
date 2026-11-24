@@ -1,5 +1,5 @@
-import { useLocalSearchParams } from 'expo-router';
-import { Globe } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { AlertCircle, Globe } from 'lucide-react-native';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { canHandoff } from '@/lib/web-handoff-policy';
 export default function LinkUnavailable() {
   const { path } = useLocalSearchParams<{ path?: string }>();
+  const router = useRouter();
   const { api, user } = useSession();
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -21,10 +22,14 @@ export default function LinkUnavailable() {
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><BackButton style={styles.back} /><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.kicker}>LINK</Text></View>
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.icon}><Globe color={c.text.body} size={22} /></View>
-      <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>This link needs the web app</Text>
-      <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.copy}>{allowed ? 'This page is available in the web app.' : 'This link cannot be opened here. Return to your courses, or use the website in your browser.'}</Text>
-      {allowed && <Button label="Open on the web" loading={busy} onPress={() => { setBusy(true); setError(''); void openAuthenticatedWebPage(api, path!).catch(() => setError('Could not open this page. Try again.')).finally(() => setBusy(false)); }} />}
+      <View style={styles.icon}>{allowed ? <Globe color={c.text.body} size={22} /> : <AlertCircle color={c.text.body} size={22} />}</View>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>{allowed ? 'This link needs the web app' : 'Page unavailable'}</Text>
+      <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.copy}>{allowed ? 'This page is available in the web app.' : 'This link isn’t available for your account or can’t be opened in the app.'}</Text>
+      {allowed ? (
+        <Button label="Open on the web" loading={busy} onPress={() => { setBusy(true); setError(''); void openAuthenticatedWebPage(api, path!).catch(() => setError('Could not open this page. Try again.')).finally(() => setBusy(false)); }} />
+      ) : (
+        <Button label="Go to Today" onPress={() => router.replace('/(tabs)' as Href)} />
+      )}
       {!!error && <Text accessibilityRole="alert" style={styles.copy}>{error}</Text>}
     </ScrollView>
   </SafeAreaView>;

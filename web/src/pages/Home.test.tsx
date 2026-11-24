@@ -5,7 +5,7 @@ import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const auth = vi.hoisted(() => ({ value: { isSignedIn: false, user: null as null | { is_staff: boolean } } }))
+const auth = vi.hoisted(() => ({ value: { isSignedIn: false, accessDenied: false, user: null as null | { is_staff: boolean } } }))
 vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => auth.value }))
 
 vi.mock('../lib/api', () => ({ api: { getCourseOfferings: vi.fn() } }))
@@ -18,7 +18,7 @@ function render() {
 
 describe('HomePage (signed-out landing)', () => {
   beforeEach(() => {
-    auth.value = { isSignedIn: false, user: null }
+    auth.value = { isSignedIn: false, accessDenied: false, user: null }
   })
 
   it('makes the invitation path obvious next to sign in', () => {
@@ -51,16 +51,23 @@ describe('HomePage (signed-out landing)', () => {
   })
 
   it('offers staff Today', () => {
-    auth.value = { isSignedIn: true, user: { is_staff: true } }
+    auth.value = { isSignedIn: true, accessDenied: false, user: { is_staff: true } }
     expect(render()).toContain('Open Today')
     expect(render()).not.toContain('Continue learning')
   })
 
   it('offers one continue action when signed in', () => {
-    auth.value = { isSignedIn: true, user: { is_staff: false } }
+    auth.value = { isSignedIn: true, accessDenied: false, user: { is_staff: false } }
     const html = render()
     expect(html).toContain('Continue learning')
     expect(html).not.toContain('I have an invitation')
+  })
+
+  it('does not bounce access-denied users back toward Continue learning', () => {
+    auth.value = { isSignedIn: true, accessDenied: true, user: null }
+    const html = render()
+    expect(html).toContain('href="/sign-in"')
+    expect(html).not.toContain('Continue learning')
   })
 })
 
@@ -70,7 +77,7 @@ describe('automatic public catalog availability', () => {
   const getOfferings = vi.mocked(api.getCourseOfferings)
   type Result = Awaited<ReturnType<typeof api.getCourseOfferings>>
   const result = (...purchasable: boolean[]): Result => ({ error: null, data: { offerings: purchasable.map((checkout_available, id) => ({
-    course_delivery: 'self_paced' as const, unlisted: false, guided_access_ends_on: null, guided_support_ends_on: null,
+    course_delivery: 'self_paced' as const, unlisted: false, guided_access_ends_on: null, guided_support_ends_on: null, start_date: null,
     seat_limit: null, seats_taken: null, seats_remaining: null, sold_out: false,
     description: 'Public copy', image_url: null, outcomes: null, duration: null, prerequisites: null, preview: null, slug: `course-${id}`, syllabus: [], lesson_count: 0, id, name: 'Sample course', curriculum_name: 'Foundations', checkout_available,
     price_cents: 14900, currency: 'USD', access_months: 12, instructor_message_weeks: 6,
@@ -78,12 +85,13 @@ describe('automatic public catalog availability', () => {
     includes_individual_project_review: false,
   })) } })
   const renderPage = async () => act(async () => root.render(<StrictMode><MemoryRouter><HomePage /></MemoryRouter></StrictMode>))
-  const catalogLink = () => [...container.querySelectorAll('a[href="/courses"]')].find(a => a.textContent?.includes('See the course catalog')) || null
+  const heroCoursesLink = () => [...container.querySelectorAll('main a[href="/courses"]')].find(a => a.textContent?.includes('Browse courses')) || null
+  const footerCatalogLink = () => [...container.querySelectorAll('a[href="/courses"]')].find(a => a.textContent?.includes('See the course catalog')) || null
   const schoolLink = () => container.querySelector('a[href="https://codeschoolofguam.com/courses"]')
 
   beforeEach(() => {
     vi.clearAllMocks()
-    auth.value = { isSignedIn: false, user: null }
+    auth.value = { isSignedIn: false, accessDenied: false, user: null }
     container = document.createElement('div')
     document.body.append(container)
     root = createRoot(container)
@@ -93,43 +101,54 @@ describe('automatic public catalog availability', () => {
   it.each([[[]], [[false, false]]])('hides the catalog with no purchasable offering: %j', async (available) => {
     getOfferings.mockResolvedValue(result(...available))
     await renderPage()
-    expect(catalogLink()).toBeNull()
+    expect(heroCoursesLink()).toBeNull()
+    expect(footerCatalogLink()).toBeNull()
     expect(schoolLink()).not.toBeNull()
     expect(schoolLink()?.parentElement?.children).toHaveLength(2)
   })
 
-  it.each([false, true])('shows the catalog when one offering is purchasable (signed in: %s)', async (signedIn) => {
-    auth.value = { isSignedIn: signedIn, user: signedIn ? { is_staff: false } : null }
+  it.each([false, true])('shows one catalog entry point without duplicating links (signed in: %s)', async (signedIn) => {
+    auth.value = { isSignedIn: signedIn, accessDenied: false, user: signedIn ? { is_staff: false } : null }
     getOfferings.mockResolvedValue(result(false, true))
     await renderPage()
-    expect(catalogLink()?.textContent).toContain('See the course catalog')
-    expect(catalogLink()?.classList.contains('min-h-11')).toBe(true)
+    if (signedIn) {
+      expect(footerCatalogLink()?.textContent).toContain('See the course catalog')
+      expect(footerCatalogLink()?.classList.contains('min-h-11')).toBe(true)
+    } else {
+      expect(heroCoursesLink()?.textContent).toContain('Browse courses')
+      expect(footerCatalogLink()).toBeNull()
+      expect(container.textContent).toContain('Browse open courses to enroll on your own')
+    }
     expect(schoolLink()).not.toBeNull()
     await renderPage()
     expect(getOfferings).toHaveBeenCalledTimes(1)
   })
 
-  it('hides the link while loading and preserves the school link when the response arrives', async () => {
+  it('keeps the primary Sign in CTA stable while loading and reveals Browse courses without swapping Sign in', async () => {
     let resolve!: (value: Result) => void
     getOfferings.mockReturnValue(new Promise((done) => { resolve = done }))
     await renderPage()
-    expect(catalogLink()).toBeNull()
+    const primary = container.querySelector('main a.bg-action-primary')
+    expect(primary?.getAttribute('href')).toBe('/sign-in')
+    expect(heroCoursesLink()).toBeNull()
     const school = schoolLink()
     expect(school).not.toBeNull()
-    expect(school?.parentElement?.children).toHaveLength(2)
     const heading = container.querySelector('h1')
     await act(async () => resolve(result(true)))
-    expect(catalogLink()).not.toBeNull()
+    expect(container.querySelector('main a.bg-action-primary')).toBe(primary)
+    expect(primary?.getAttribute('href')).toBe('/sign-in')
+    expect(heroCoursesLink()).not.toBeNull()
+    expect(footerCatalogLink()).toBeNull()
     expect(schoolLink()).toBe(school)
     expect(container.querySelector('h1')).toBe(heading)
-    expect(school?.parentElement?.children).toHaveLength(3)
   })
 
   it.each(['response', 'rejection'])('hides the link on an API %s error', async (kind) => {
     if (kind === 'response') getOfferings.mockResolvedValue({ ...result(true), error: 'Unavailable' })
     else getOfferings.mockRejectedValue(new Error('Offline'))
     await renderPage()
-    expect(catalogLink()).toBeNull()
+    expect(heroCoursesLink()).toBeNull()
+    expect(footerCatalogLink()).toBeNull()
     expect(schoolLink()).not.toBeNull()
   })
 
@@ -140,9 +159,9 @@ describe('automatic public catalog availability', () => {
       await renderPage()
       const available = mode === 'always' || (mode === 'automatic' && onSale)
       const primary = container.querySelector('main a.bg-action-primary')
-      expect(primary?.getAttribute('href')).toBe(available ? '/courses' : '/sign-in')
-      expect(primary?.textContent).toContain(available ? 'Browse courses' : 'Sign in')
-      expect(Boolean(catalogLink())).toBe(available)
+      expect(primary?.getAttribute('href')).toBe('/sign-in')
+      expect(Boolean(heroCoursesLink())).toBe(available)
+      expect(footerCatalogLink()).toBeNull()
       expect(container.querySelectorAll('article').length).toBe(onSale && mode !== 'hidden' ? 1 : 0)
     }
   })
@@ -157,15 +176,17 @@ describe('automatic public catalog availability', () => {
   })
 })
 
-it('advertises only on-sale courses with stable links', async () => {
-  auth.value = { isSignedIn: false, user: null }
+it('advertises only on-sale courses with stable links and price/format summary', async () => {
+  auth.value = { isSignedIn: false, accessDenied: false, user: null }
   vi.mocked(api.getCourseOfferings).mockResolvedValue({ data: { offerings: [
-    { id: 1, slug: 'course-open', name: 'Open course', checkout_available: true },
+    { id: 1, slug: 'course-open', name: 'Open course', course_delivery: 'self_paced', price_cents: 14900, checkout_available: true },
     { id: 2, slug: 'course-closed', name: 'Unlaunched private pilot', checkout_available: false },
   ] }, error: null } as Awaited<ReturnType<typeof api.getCourseOfferings>>)
   const container = document.createElement('div'); const root = createRoot(container)
   await act(async () => root.render(<MemoryRouter><HomePage /></MemoryRouter>))
   expect(container.querySelector('a[href="/courses/course-open"]')).not.toBeNull()
+  expect(container.textContent).toContain('$149.00 USD')
+  expect(container.textContent).toContain('Self-paced course')
   expect(container.textContent).not.toContain('Unlaunched private pilot')
   expect(container.textContent).not.toContain('Python Fundamentals')
   await act(async () => root.unmount())

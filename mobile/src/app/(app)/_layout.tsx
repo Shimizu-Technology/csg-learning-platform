@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Redirect, Stack, useRouter, usePathname, type Href } from 'expo-router';
 import { X } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
+import { themedAlert as Alert } from '@/lib/alerts';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { fonts } from '@/constants/csg-theme';
@@ -31,6 +32,14 @@ export default function AppLayout() {
       <View style={styles.gate}>
         <ErrorState message={error || `We could not load your ${brand.schoolAbbreviation} account.`} retry={() => void refresh()} />
         <Button accessibilityRole="button" onPress={() => void signOut()} style={styles.signOut} variant="quiet" label="Use a different account" textStyle={styles.signOutText} />
+        <Button
+          accessibilityRole="button"
+          onPress={() => void Linking.openURL(`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${brand.productName} account help`)}`).catch(() => Alert.alert('Contact support', `Email ${brand.supportEmail} for help.`))}
+          style={styles.support}
+          variant="quiet"
+          label={`Contact support (${brand.supportEmail})`}
+          textStyle={styles.signOutText}
+        />
       </View>
     );
   }
@@ -75,5 +84,6 @@ export default function AppLayout() {
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   gate: { flex: 1, justifyContent: 'center', backgroundColor: c.surface.page },
   signOut: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 20, marginTop: -10 },
+  support: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 20, marginTop: 2 },
   signOutText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 13 },
 }));

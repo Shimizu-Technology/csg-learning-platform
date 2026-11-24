@@ -3,33 +3,52 @@ import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useUser } from '@clerk/expo';
-import { LogOut, RefreshCw, ShieldX } from 'lucide-react-native';
+import { Redirect, useRouter } from 'expo-router';
+import { LogOut, Mail, RefreshCw, ShieldX } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fonts } from '@/constants/csg-theme';
+import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+
+const SUPPORT_MAILTO = `mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${brand.productName} account access help`)}`;
 
 export default function AccessDeniedScreen() {
   const styles = useStyles();
   const { colors: c } = useTheme();
+  const router = useRouter();
+  const { loaded, signedIn } = useCsgAuth();
   const { user: clerkUser } = useUser();
   const { error, loading, refresh, signOut } = useSession();
   const [signingOut, setSigningOut] = useState(false);
+  const [supportFallback, setSupportFallback] = useState(false);
   const email = clerkUser?.primaryEmailAddress?.emailAddress;
 
   const handleSignOut = async () => {
     setSigningOut(true);
-    try { await signOut(); } finally { setSigningOut(false); }
+    try {
+      await signOut();
+      router.replace('/(auth)/sign-in');
+    } finally {
+      setSigningOut(false);
+    }
   };
+
+  const handleContactSupport = () => {
+    setSupportFallback(false);
+    void Linking.openURL(SUPPORT_MAILTO).catch(() => setSupportFallback(true));
+  };
+
+  if (loaded && !signedIn) return <Redirect href="/(auth)/sign-in" />;
 
   return (
     <SafeAreaView style={styles.safe}>
       <View pointerEvents="none" style={styles.glow} />
       <View style={styles.content}>
         <View style={styles.icon}><ShieldX color={c.text.body} size={30} strokeWidth={2.1} /></View>
-        <Text style={styles.eyebrow}>THIS ACCOUNT ISN’T ON THE CLASS LIST</Text>
+        <Text style={styles.eyebrow}>ACCOUNT ACCESS NEEDED</Text>
         <Text style={styles.title}>No access</Text>
         <Text style={styles.copy}>{error || `Ask a ${brand.schoolShortName} administrator to invite the email address you use to sign in.`}</Text>
 
@@ -42,12 +61,17 @@ export default function AccessDeniedScreen() {
 
         <Button variant="primary" accessibilityRole="button" disabled={loading || signingOut} onPress={() => void refresh()} style={({ pressed }) => [styles.primary, pressed && styles.pressed, (loading || signingOut) && styles.disabled]}>
           {loading ? <ActivityIndicator color={c.text.onAction} /> : <RefreshCw color={c.text.onAction} size={18} />}
-          <Text style={styles.primaryText}>{loading ? 'Checking access…' : 'I’ve been invited — check again'}</Text>
+          <Text style={styles.primaryText}>{loading ? 'Checking access…' : 'Check access again'}</Text>
         </Button>
         <Pressable accessibilityRole="button" disabled={loading || signingOut} onPress={() => void handleSignOut()} style={({ pressed }) => [styles.secondary, pressed && styles.pressed, (loading || signingOut) && styles.disabled]}>
           {signingOut ? <ActivityIndicator color={c.text.body} /> : <LogOut color={c.text.body} size={18} />}
           <Text style={styles.secondaryText}>{signingOut ? 'Signing out…' : 'Use a different account'}</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityHint={`Opens your email app to contact ${brand.schoolName} support`} onPress={handleContactSupport} style={({ pressed }) => [styles.supportRow, pressed && styles.pressed]}>
+          <Mail color={c.text.body} size={17} />
+          <Text style={styles.supportText}>Contact support ({brand.supportEmail})</Text>
+        </Pressable>
+        {supportFallback && <Text accessibilityLiveRegion="polite" selectable style={styles.note}>No email app opened. Email {brand.supportEmail} for help.</Text>}
         <Text style={styles.note}>Use the exact email address from your {brand.schoolShortName} invitation.</Text>
       </View>
     </SafeAreaView>
@@ -69,7 +93,9 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   primaryText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 14 },
   secondary: { minHeight: 52, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10 },
   secondaryText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 14 },
-  note: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 18 },
+  supportRow: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, paddingHorizontal: 12 },
+  supportText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 },
+  note: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 14 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   disabled: { opacity: 0.5 },
 }));

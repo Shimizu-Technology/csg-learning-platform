@@ -3,9 +3,11 @@ import { canReadCachedEnrollment, canUseCachedSession, isSessionAccessDenied, pa
 import type { SessionEnrollment } from '../types';
 
 describe('session access errors', () => {
-  it('recognizes explicit invite-only and archived account denials', () => {
+  it('recognizes explicit invite-only, archived, and identity account denials', () => {
     expect(isSessionAccessDenied(new ApiError('No access', 403, 'account_not_authorized'))).toBe(true);
     expect(isSessionAccessDenied(new ApiError('Archived', 403, 'account_archived'))).toBe(true);
+    expect(isSessionAccessDenied(new ApiError('Unverified', 403, 'identity_unverified'))).toBe(true);
+    expect(isSessionAccessDenied(new ApiError('Conflict', 403, 'identity_conflict'))).toBe(true);
   });
 
   it('never treats authentication or authorization errors as offline cache fallbacks', () => {

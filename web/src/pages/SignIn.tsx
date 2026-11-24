@@ -2,16 +2,16 @@ import { brand } from '../lib/brand'
 import { SignIn, SignUp, useClerk, useUser } from '@clerk/clerk-react'
 import { signUpModeFrom } from '../lib/clerkSignUpMode'
 import { InvitationHelp } from '../components/auth/InvitationHelp'
-import { clerkAuthAppearanceFor } from '../lib/clerkAppearance'
+import { clerkAuthAppearanceFor, setClerkAuthMode } from '../lib/clerkAppearance'
 import { useTheme } from '../lib/theme'
 import { useAuthContext } from '../contexts/AuthContext'
 import { Navigate, useLocation } from 'react-router-dom'
-import { BookOpenText, Loader2, LogOut, MessageCircle, PlayCircle, RefreshCw, ShieldAlert } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { BookOpenText, Loader2, LogOut, Mail, MessageCircle, PlayCircle, RefreshCw, ShieldAlert } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { AuthWidgetStatus } from '../components/auth/AuthWidgetStatus'
-import { Button, LinkButton } from '../components/ui/Button'
-import { courseAuthPath, courseIntentDestination, offeringIdFrom } from '../lib/courseIntent'
+import { AnchorButton, Button, LinkButton } from '../components/ui/Button'
+import { courseAuthPath, courseIntentDestination, hasCourseIntent } from '../lib/courseIntent'
 import { hasInvitationTicket, PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
 const SUPPORT_EMAIL = `${brand.supportEmail}`
@@ -81,10 +81,26 @@ function RedirectIfSignedIn({ children }: { children: ReactNode }) {
 function AccessDeniedCard() {
   const { signOut } = useClerk()
   const { user } = useUser()
-  const { sessionError, syncSession } = useAuthContext()
+  const { sessionError, sessionErrorCode, syncSession } = useAuthContext()
   const [signingOut, setSigningOut] = useState(false)
   const [checking, setChecking] = useState(false)
   const email = user?.primaryEmailAddress?.emailAddress
+
+  const heading = sessionErrorCode === 'identity_unverified'
+    ? 'We couldn’t verify your email'
+    : sessionErrorCode === 'identity_conflict'
+      ? 'We couldn’t match this sign-in to your account'
+      : sessionErrorCode === 'account_archived'
+        ? 'This account is inactive'
+        : 'This account isn’t on the class list'
+
+  const guidance = sessionErrorCode === 'identity_unverified'
+    ? 'Verify your email address or try signing in with Google, or contact support for help.'
+    : sessionErrorCode === 'identity_conflict'
+      ? `Sign out to try another account, or email ${SCHOOL_NAME} support so we can link your account safely.`
+      : sessionErrorCode === 'account_archived'
+        ? `Sign out to use another account, or email ${SCHOOL_NAME} support if you think this is a mistake.`
+        : `If an administrator just invited this address, check again. Otherwise, use the exact email from your ${SCHOOL_NAME} invitation.`
 
   const handleSignOut = async () => {
     setSigningOut(true)
@@ -110,7 +126,7 @@ function AccessDeniedCard() {
         <span className="flex h-12 w-12 items-center justify-center rounded-md bg-warning-soft text-warning-ink">
           <ShieldAlert className="h-6 w-6" aria-hidden="true" />
         </span>
-        <h2 className="mt-5 font-display text-[1.75rem] font-medium leading-tight tracking-[-0.02em] text-ink">This account isn’t on the class list</h2>
+        <h2 className="mt-5 font-display text-[1.75rem] font-medium leading-tight tracking-[-0.02em] text-ink">{heading}</h2>
         <p className="mt-3 text-sm leading-6 text-ink-secondary">
           {sessionError || `${PRODUCT_NAME} is invite-only. Ask a ${SCHOOL_NAME} administrator to add the email you use to sign in.`}
         </p>
@@ -122,19 +138,50 @@ function AccessDeniedCard() {
             <p className="mt-1 text-sm font-semibold text-ink [overflow-wrap:anywhere]">{email}</p>
           </div>
         )}
-        <p className="text-sm leading-6 text-ink-secondary">
-          If an administrator just invited this address, check again. Otherwise, use the exact email from your {SCHOOL_NAME} invitation.
-        </p>
+        <p className="text-sm leading-6 text-ink-secondary">{guidance}</p>
         <Button size="lg" shape="brand" fullWidth onClick={() => void handleCheckAccess()} disabled={checking || signingOut}>
           {checking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
-          {checking ? 'Checking access…' : 'I’ve been invited — check again'}
+          {checking ? 'Checking access…' : sessionErrorCode === 'account_not_authorized' || !sessionErrorCode ? 'I’ve been invited — check again' : 'Check again'}
         </Button>
         <Button size="lg" shape="brand" variant="secondary" fullWidth onClick={() => void handleSignOut()} disabled={checking || signingOut}>
           {signingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogOut className="h-4 w-4" aria-hidden="true" />}
           {signingOut ? 'Signing out…' : 'Use a different account'}
         </Button>
+        <AnchorButton
+          href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`${PRODUCT_NAME} account access help`)}`}
+          size="lg"
+          shape="brand"
+          variant="quiet"
+          fullWidth
+        >
+          <Mail className="h-4 w-4" aria-hidden="true" />
+          Contact support
+        </AnchorButton>
       </div>
     </div>
+  )
+}
+
+function CourseSignUpUnavailable({ signInUrl }: { signInUrl: string }) {
+  const subject = encodeURIComponent(`${PRODUCT_NAME} course enrollment help`)
+  return (
+    <section aria-labelledby="course-signup-unavailable-title" className="rounded-md border border-brand-line bg-surface-raised p-6 sm:p-8">
+      <h2 id="course-signup-unavailable-title" className="font-display text-[1.75rem] font-medium leading-tight tracking-[-0.02em] text-ink">
+        Self-serve sign-ups aren’t open right now
+      </h2>
+      <p className="mt-3 text-base leading-7 text-ink-secondary">
+        If you already have a {PRODUCT_NAME} account, sign in to continue with your course. Otherwise, email {SCHOOL_NAME} and we’ll help you get enrolled.
+      </p>
+      <div className="mt-6 flex flex-col gap-3">
+        <LinkButton to={signInUrl} size="lg" shape="brand" fullWidth>
+          Sign in to continue
+        </LinkButton>
+        <AnchorButton href={`mailto:${SUPPORT_EMAIL}?subject=${subject}`} variant="secondary" size="lg" shape="brand" fullWidth>
+          <Mail className="h-4 w-4" aria-hidden="true" />
+          Contact support
+        </AnchorButton>
+      </div>
+    </section>
   )
 }
 
@@ -153,8 +200,13 @@ function useAuthAppearance() {
 export function SignInPage() {
   const authAppearance = useAuthAppearance()
   const { search } = useLocation()
-  const courseIntent = offeringIdFrom(search) !== null
+  const courseIntent = hasCourseIntent(search)
   const { accessDenied } = useAuthContext()
+
+  useEffect(() => {
+    setClerkAuthMode(courseIntent ? 'course' : 'invite')
+    return () => setClerkAuthMode('invite')
+  }, [courseIntent])
 
   if (accessDenied) {
     return (
@@ -169,7 +221,7 @@ export function SignInPage() {
       <AuthShell
         eyebrow="Welcome back"
         title="Sign in and pick up where you left off."
-        description={courseIntent ? 'Sign in to continue with your selected course.' : `Use the email address your ${SCHOOL_NAME} invitation was sent to.`}
+        description={courseIntent ? 'Sign in to continue with your selected course.' : `Use the email address for your ${SCHOOL_NAME} account.`}
         switchLink={<LinkButton to={courseAuthPath('/sign-up', search)} variant="quiet" shape="brand" className="px-3 text-ink">{courseIntent ? 'Create an account' : 'I have an invitation'}</LinkButton>}
       >
         <AuthWidgetStatus />
@@ -193,9 +245,14 @@ export function SignUpPage() {
   const search = location.search
   const clerk = useClerk()
   const fromInvitation = hasInvitationTicket(location.search)
+  const hasOffering = hasCourseIntent(search)
   // Production Clerk is invitation-only: without a ticket, guide the learner to their email link.
   const needsInvitationLink = !fromInvitation && clerk.loaded && signUpModeFrom(clerk) === 'restricted'
-  const courseIntent = offeringIdFrom(search) !== null && !needsInvitationLink
+
+  useEffect(() => {
+    setClerkAuthMode(hasOffering ? 'course' : 'invite')
+    return () => setClerkAuthMode('invite')
+  }, [hasOffering])
 
   if (accessDenied) {
     return (
@@ -205,26 +262,28 @@ export function SignUpPage() {
     )
   }
 
+  const signInUrl = courseAuthPath('/sign-in', search)
+
   return (
     <RedirectIfSignedIn>
       <AuthShell
-        eyebrow={fromInvitation ? 'Your invitation' : courseIntent ? 'Your selected course' : 'Have an invitation?'}
+        eyebrow={fromInvitation ? 'Your invitation' : hasOffering ? 'Your selected course' : 'Have an invitation?'}
         title={fromInvitation ? 'Accept your invitation.' : 'Create your account.'}
         description={fromInvitation
           ? 'Your invited email is already filled in. Finish creating your account and your course will be waiting.'
-          : courseIntent ? 'Create an account to continue with your selected course. You can review it before checkout.'
+          : hasOffering ? 'Create an account to continue with your selected course. You can review it before checkout.'
           : `Your account starts from the invitation ${SCHOOL_NAME} emailed you. If you already have an account, sign in instead.`}
-        switchLink={<LinkButton to={courseAuthPath('/sign-in', search)} variant="quiet" shape="brand" className="px-3 text-ink">Sign in</LinkButton>}
+        switchLink={<LinkButton to={signInUrl} variant="quiet" shape="brand" className="px-3 text-ink">Sign in</LinkButton>}
       >
         <AuthWidgetStatus />
         {needsInvitationLink ? (
-          <InvitationHelp />
+          hasOffering ? <CourseSignUpUnavailable signInUrl={signInUrl} /> : <InvitationHelp />
         ) : (
           <SignUp
             appearance={authAppearance}
             routing="hash"
             signInForceRedirectUrl={courseIntentDestination(search, '') || undefined}
-            signInUrl={courseAuthPath('/sign-in', search)}
+            signInUrl={signInUrl}
             fallbackRedirectUrl={courseIntentDestination(search)}
             forceRedirectUrl={courseIntentDestination(search, '') || undefined}
           />

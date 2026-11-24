@@ -38,7 +38,24 @@ class UserInviteEmailServiceTest < ActiveSupport::TestCase
     assert_includes html, ">https://accounts.example.com/invite?ticket=abc</a>"
     assert_includes html, "#9c292b"
     assert_includes html, "Accept invitation"
+    assert_includes html, "continue with Google"
+    assert_includes html, "expires in #{User::INVITE_LINK_LIFETIME.in_days.to_i} days"
+    assert_includes html, "mailto:#{SchoolBrand.current.support_email}"
     refute_match(/#2563eb|#7c3aed|CSG Connect|CSG Learning/, html)
+  end
+
+  test "invitation includes the enrolled course or cohort name and escapes it" do
+    inviter = User.create!(clerk_id: "invite_inviter_course", email: "inviter-course@example.com", first_name: "Ana", last_name: "Admin", role: :admin)
+    learner = User.create!(clerk_id: "pending_#{SecureRandom.uuid}", email: "course-learner@example.com", role: :student)
+    curriculum = Curriculum.create!(name: "Prework", status: :active)
+    cohort = Cohort.create!(name: "Fall <Cohort> 2026", curriculum: curriculum, start_date: Date.current, status: :active)
+    Enrollment.create!(user: learner, cohort: cohort, status: :active)
+
+    assert UserInviteEmailService.send_invite(user: learner, invited_by: inviter, invitation_url: "https://accounts.example.com/invite?ticket=xyz")
+
+    html = @requests.sole[:html]
+    assert_includes html, "Fall &lt;Cohort&gt; 2026"
+    refute_includes html, "Fall <Cohort> 2026"
   end
 
   test "invitation escapes inviter names" do

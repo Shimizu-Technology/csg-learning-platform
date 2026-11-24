@@ -2,7 +2,12 @@ import { type SchoolTimeConfig } from './school-time';
 import { ApiError } from './api';
 import type { SessionEnrollment, SessionUser } from './types';
 
-const ACCESS_DENIED_CODES = new Set(['account_not_authorized', 'account_archived']);
+const ACCESS_DENIED_CODES = new Set([
+  'account_not_authorized',
+  'account_archived',
+  'identity_unverified',
+  'identity_conflict',
+]);
 const SESSION_CACHE_VERSION = 4;
 
 interface CachedSession {

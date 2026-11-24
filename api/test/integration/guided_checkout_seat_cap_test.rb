@@ -121,6 +121,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     assert_equal 8, offering.fetch("instructor_message_weeks")
     assert_nil offering.fetch("guided_access_ends_on")
     assert_nil offering.fetch("guided_support_ends_on")
+    assert_equal "2026-11-22", offering.fetch("start_date")
     refute_includes response.body, @learner_a.email
     refute_includes response.body, @learner_a.full_name
 
@@ -137,6 +138,15 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     get "/api/v1/course_offerings/#{@guided.public_slug}"
     assert_response :success
     assert_nil response.headers["X-Robots-Tag"]
+
+    # Listed public courses also preserve /courses/:slug on Stripe success and cancel URLs.
+    with_checkout_client(cohort: @guided, session_id: "cs_listed_slug") do |_sessions, requests|
+      as_user(@learner_b) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
+      assert_response :success
+      params = requests.sole.first
+      assert_includes params.fetch(:success_url), "/courses/#{@guided.public_slug}?checkout=return"
+      assert_includes params.fetch(:cancel_url), "/courses/#{@guided.public_slug}?checkout=canceled"
+    end
   end
 
   test "guided checkout fulfills relative terms and fixed dates accurately, supports real repurchase via POST, and protects renewal from older refunds" do
@@ -589,10 +599,27 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     assert_equal false, updated.fetch("unlisted")
   end
 
+  test "blocks checkout creation until community standards are accepted" do
+    @learner_a.update!(community_terms_accepted_at: nil, community_terms_version: nil)
+    as_user(@learner_a) { post "/api/v1/course_checkouts", params: { cohort_id: @guided.id }, headers: auth_headers, as: :json }
+    assert_response :forbidden
+    assert_equal "community_terms_required", response.parsed_body["code"]
+    assert_equal false, response.parsed_body.dig("community_policy", "accepted")
+    assert_equal 0, CoursePurchase.where(user: @learner_a, cohort: @guided).count
+  end
+
   private
 
   def person(name, role)
-    User.create!(clerk_id: "guided_cap_#{name}", email: "guided-cap-#{name}@example.invalid", first_name: name.capitalize, last_name: "Tester", role: role)
+    User.create!(
+      clerk_id: "guided_cap_#{name}",
+      email: "guided-cap-#{name}@example.invalid",
+      first_name: name.capitalize,
+      last_name: "Tester",
+      role: role,
+      community_terms_accepted_at: Time.current,
+      community_terms_version: CommunityPolicy::VERSION
+    )
   end
 
   def auth_headers

@@ -1,13 +1,14 @@
 import { brand } from '../lib/brand'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, CalendarDays, Users } from 'lucide-react'
 import { useState } from 'react'
-import { usePublicCatalogAvailability } from '../lib/usePublicCatalogAvailability'
+import { usePublicCatalogState } from '../lib/usePublicCatalogAvailability'
 import type { PublicCourse } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { LinkButton, AnchorButton } from '../components/ui/Button'
 import { PRODUCT_NAME, SCHOOL_COURSES_URL, SCHOOL_NAME } from '../lib/brand'
+import { formatShortDate } from '../lib/format'
 
 const gettingStarted = [
   {
@@ -37,12 +38,13 @@ function LearningOverview() {
 }
 
 export function HomePage() {
-  const { isSignedIn, user } = useAuthContext()
+  const { isSignedIn, accessDenied, user } = useAuthContext()
   const [courses, setCourses] = useState<PublicCourse[]>([])
-  const catalogAvailable = usePublicCatalogAvailability(setCourses)
+  const { available: catalogAvailable, loading: catalogLoading } = usePublicCatalogState(setCourses)
+  const hasAppAccess = isSignedIn && !accessDenied
   const dashboardPath = user?.is_staff ? '/admin' : '/dashboard'
 
-  const headerActions = isSignedIn ? (
+  const headerActions = hasAppAccess ? (
     <LinkButton to={dashboardPath} shape="brand">
       Open {PRODUCT_NAME}
     </LinkButton>
@@ -79,7 +81,7 @@ export function HomePage() {
                 {SCHOOL_NAME} brings lessons, hands-on practice, and instructor feedback together in {PRODUCT_NAME}. Browse a course or sign in to continue learning.
               </p>
 
-              {isSignedIn ? (
+              {hasAppAccess ? (
                 <div className="mt-8">
                   <LinkButton to={dashboardPath} size="lg" shape="brand">
                     {user?.is_staff ? 'Open Today' : 'Continue learning'} <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -87,16 +89,26 @@ export function HomePage() {
                 </div>
               ) : (
                 <>
-                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                    <LinkButton to={catalogAvailable ? "/courses" : "/sign-in"} size="lg" shape="brand">
-                      {catalogAvailable ? 'Browse courses' : 'Sign in'} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  <div className="mt-8 flex min-h-12 flex-col gap-3 sm:flex-row">
+                    <LinkButton to="/sign-in" size="lg" shape="brand">
+                      Sign in <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </LinkButton>
-                    <LinkButton to="/sign-up" size="lg" variant="secondary" shape="brand">
-                      I have an invitation
-                    </LinkButton>
+                    {catalogLoading ? (
+                      <span aria-hidden="true" className="inline-block min-h-12 w-full rounded-md border border-brand-line bg-surface-raised/60 sm:w-48" />
+                    ) : catalogAvailable ? (
+                      <LinkButton to="/courses" size="lg" variant="secondary" shape="brand">
+                        Browse courses <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </LinkButton>
+                    ) : (
+                      <LinkButton to="/sign-up" size="lg" variant="secondary" shape="brand">
+                        I have an invitation
+                      </LinkButton>
+                    )}
                   </div>
                   <p className="mt-4 max-w-lg text-sm leading-6 text-ink-secondary">
-                    New here? Open your invitation email and choose “Accept invitation” to create your account.
+                    {catalogAvailable
+                      ? 'Browse open courses to enroll on your own, or open your invitation email if your school invited you.'
+                      : 'New here? Open your invitation email and choose “Accept invitation” to create your account.'}
                   </p>
                 </>
               )}
@@ -106,7 +118,7 @@ export function HomePage() {
                 <a href={SCHOOL_COURSES_URL} className="inline-flex min-h-11 items-center gap-1 font-bold text-primary-ink underline underline-offset-4 hover:text-primary-soft-ink sm:min-h-0">
                   Explore courses at {new URL(SCHOOL_COURSES_URL).host} <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </a>
-                {catalogAvailable && <div className="sm:col-start-2">
+                {hasAppAccess && catalogAvailable && <div className="sm:col-start-2">
                   <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-primary-ink underline underline-offset-4 hover:text-primary-soft-ink">
                     See the course catalog
                   </Link>
@@ -120,14 +132,40 @@ export function HomePage() {
 
         {courses.length > 0 && <section className="safe-px mx-auto max-w-[1200px] py-14" aria-labelledby="available-courses-title">
           <p className="brand-eyebrow">Open for enrollment</p><h2 id="available-courses-title" className="mt-4 font-display text-4xl">Choose your next skill.</h2>
-          <div className="mt-7 grid gap-5 md:grid-cols-2">{courses.map(course => <article key={course.id} className="rounded-2xl border border-line bg-surface-raised p-6">
-            {course.image_url && <img className="mb-5 aspect-video w-full rounded-xl object-cover" src={course.image_url} alt="" loading="lazy" />}
-            <h3 className="text-xl font-bold">{course.name}</h3><p className="mt-3 text-sm leading-7 text-ink-secondary">{course.description}</p>
-            <LinkButton to={course.slug ? `/courses/${course.slug}` : `/courses?offering_id=${course.id}`} className="mt-5" variant="secondary">View course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
-          </article>)}</div>
+          <div className="mt-7 grid gap-5 md:grid-cols-2">{courses.map(course => {
+            const isGuided = course.course_delivery === 'guided'
+            const hasSeatCap = course.seat_limit != null
+            const soldOut = Boolean(course.sold_out)
+            return <article key={course.id} className="flex flex-col rounded-2xl border border-line bg-surface-raised p-6">
+              {course.image_url && <img className="mb-5 aspect-video w-full rounded-xl object-cover" src={course.image_url} alt="" loading="lazy" />}
+              <p className="brand-eyebrow">{isGuided ? 'Small-class course' : 'Self-paced course'}</p>
+              <h3 className="mt-2 text-xl font-bold">{course.name}</h3>
+              <p className="mt-3 text-sm leading-7 text-ink-secondary">{course.description}</p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+                {course.price_cents != null && (
+                  <span className="font-bold text-ink">${(course.price_cents / 100).toFixed(2)} USD</span>
+                )}
+                {isGuided && course.start_date && (
+                  <span className="inline-flex items-center gap-1.5 text-ink-secondary">
+                    <CalendarDays className="h-4 w-4 text-primary-ink" aria-hidden="true" />
+                    Starts {formatShortDate(course.start_date, course.start_date)}
+                  </span>
+                )}
+                {hasSeatCap && (
+                  <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${soldOut ? 'border border-danger-line bg-danger-soft text-danger-ink' : 'border border-brand-line bg-brand-cream text-ink'}`}>
+                    <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                    {soldOut ? 'Class full' : `${course.seats_remaining ?? 0} of ${course.seat_limit} seats left`}
+                  </span>
+                )}
+              </div>
+              <div className="mt-auto pt-5">
+                <LinkButton to={course.slug ? `/courses/${course.slug}` : `/courses?offering_id=${course.id}`} variant="secondary" shape="brand">View course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+              </div>
+            </article>
+          })}</div>
         </section>}
 
-        {!isSignedIn && (
+        {!hasAppAccess && (
           <section className="py-14 md:py-20" aria-labelledby="getting-started-title">
             <div className="safe-px mx-auto grid max-w-[1200px] gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
               <div>

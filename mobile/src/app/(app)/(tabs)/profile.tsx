@@ -271,6 +271,15 @@ export default function ProfileScreen() {
         <PolicyRow icon={UserX} title="Blocked users" copy="Review and unblock people you have blocked." onPress={() => void openBlockedUsers()} divider />
         <PolicyRow icon={Trash2} title={deletionRequested ? 'Deletion request received' : 'Request account deletion'} copy={`Ask the ${brand.schoolShortName} team to delete your account and eligible data.`} onPress={requestDeletion} divider destructive />
       </View>
+      <Text style={styles.sectionLabel}>HELP & SUPPORT</Text>
+      <View style={styles.group}>
+        <PolicyRow
+          icon={Mail}
+          title="Contact support"
+          copy={`Email ${brand.supportEmail}`}
+          onPress={() => void Linking.openURL(`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${brand.productName} support`)}`).catch(() => Alert.alert('Contact support', `Email ${brand.supportEmail} for help.`))}
+        />
+      </View>
       <Button variant="quiet" accessibilityRole="button" onPress={signOut} style={({ pressed }) => [styles.signOut, pressed && { opacity: 0.7 }]}><LogOut color={c.text.body} size={19} /><Text style={styles.signOutText}>Sign out</Text></Button>
       <Text style={styles.version}>{brand.productName} · Version {Application.nativeApplicationVersion || 'development'}</Text>
       <Modal visible={showBlockedUsers} transparent animationType="fade" onRequestClose={() => setShowBlockedUsers(false)}>
