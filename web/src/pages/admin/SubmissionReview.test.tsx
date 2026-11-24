@@ -248,6 +248,20 @@ it('identifies an empty captured revision without treating it as missing work', 
   expect(container.textContent).not.toContain('No inline code submitted.')
 })
 
+// The Save label follows what saving actually does on each page (UX-1 review): the workbench and
+// a record walking a queue open the next item; the module matrix keeps the saved cell open.
+it.each([
+  [entries[0], 'Save and next'],
+  [entries[1], 'Save and next'],
+  [entries[2], 'Save grade'],
+])('labels Save by where it goes at %s', async (entry, label) => {
+  await render(entry)
+  await click('A')
+  const names = [...container.querySelectorAll('button')].map((item) => item.textContent?.trim())
+  expect(names).toContain(label)
+  expect(names).not.toContain(label === 'Save grade' ? 'Save and next' : 'Save grade')
+})
+
 describe.each(entries)('canonical review at %s', (entry) => {
   it('validates rubric then submits the same version, feedback and criterion contract', async () => {
     await render(entry)

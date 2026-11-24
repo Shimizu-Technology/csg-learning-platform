@@ -44,10 +44,16 @@ const LeaveGuardContext = createContext<Registry | null>(null)
 /** Leaving the page: the next location has a different path. */
 export const leavesPath = ({ currentLocation, nextLocation }: BlockArgs) => currentLocation.pathname !== nextLocation.pathname
 
-/** Leaving the page, or changing the query parameter that selects an inline editor (e.g. `?submission=`). */
-export const leavesPathOrParam = (param: string) => (args: BlockArgs) =>
-  leavesPath(args) ||
-  new URLSearchParams(args.currentLocation.search).get(param) !== new URLSearchParams(args.nextLocation.search).get(param)
+/**
+ * Leaving the page, or changing a query parameter that selects (or remounts) an inline editor,
+ * e.g. `?submission=` or the `?cohort_id=` scope that keys it.
+ */
+export const leavesPathOrParam = (...params: string[]) => (args: BlockArgs) => {
+  if (leavesPath(args)) return true
+  const current = new URLSearchParams(args.currentLocation.search)
+  const next = new URLSearchParams(args.nextLocation.search)
+  return params.some((param) => current.get(param) !== next.get(param))
+}
 
 export function LeaveGuardProvider({ children }: { children: ReactNode }) {
   const guards = useRef(new Set<GuardRecord>())

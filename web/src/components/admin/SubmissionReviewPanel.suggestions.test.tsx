@@ -139,7 +139,12 @@ afterEach(() => {
 
 const settle = () => act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
 
-async function renderPanel(submission: Submission, onSaved?: (s: Submission) => void, nextId?: number) {
+async function renderPanel(
+  submission: Submission,
+  onSaved?: (s: Submission) => void,
+  followingAfterSave?: (grade: string) => number | null,
+  onNavigate?: (id: number) => void,
+) {
   vi.spyOn(api, 'getSubmission').mockResolvedValue({ data: { submission }, error: null })
   const router = createMemoryRouter(
     withLeaveGuard([
@@ -150,7 +155,9 @@ async function renderPanel(submission: Submission, onSaved?: (s: Submission) => 
             submissionId={submission.id}
             navigationContext={{ cohortId: 4 }}
             onSaved={onSaved}
-            nextId={nextId}
+            nextId={onNavigate ? 51 : undefined}
+            onNavigate={onNavigate}
+            followingAfterSave={followingAfterSave}
           />
         ),
       },
@@ -597,16 +604,91 @@ describe('SubmissionReviewPanel grading safety (UX-1)', () => {
     expect(container.querySelector('[data-redo-github-warning]')).toBeNull()
   })
 
-  it('says Save and next only when there is a next item', async () => {
-    await renderPanel(plain(), vi.fn(), 51)
+  it("labels Save by the caller's own post-save step, grade by grade", async () => {
+    // As in a Redo queue: a Redo stays in the list (the review stays), any other grade moves on.
+    const following = vi.fn((grade: string) => (grade === 'R' ? null : 51))
+    await renderPanel(plain(), vi.fn(), following)
     await act(async () => findButton('A')!.click())
     expect(findButton('Save and next')).toBeTruthy()
+    await act(async () => findButton('Redo')!.click())
+    expect(findButton('Save and next')).toBeUndefined()
+    expect(findButton('Save grade')).toBeTruthy()
+    expect(following).toHaveBeenCalledWith('R')
     act(() => root.unmount())
     root = createRoot(container)
+    // No post-save step at all (a standalone record): always Save grade.
     await renderPanel(plain(), vi.fn())
     await act(async () => findButton('A')!.click())
     expect(findButton('Save and next')).toBeUndefined()
     expect(findButton('Save grade')).toBeTruthy()
+  })
+
+  it('treats a chosen but unsaved grade as a draft: leaving asks first, with copy that says so', async () => {
+    const navigate = vi.fn()
+    confirm.mockResolvedValue(false)
+    await renderPanel(plain(), vi.fn(), undefined, navigate)
+    // Nothing chosen: J moves on without asking.
+    await keydown({ key: 'j' })
+    expect(confirm).not.toHaveBeenCalled()
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(51)
+    navigate.mockClear()
+    // Release J (a held key waits for a fresh press), choose B, then press J again.
+    await act(async () => { panel().dispatchEvent(new KeyboardEvent('keyup', { key: 'j', bubbles: true })) })
+    await act(async () => findButton('B')!.click())
+    await keydown({ key: 'j' })
+    expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      title: 'Discard your unsaved review?',
+      description: expect.stringContaining('The grade you chose'),
+    }))
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('ignores Cmd/Ctrl+Enter while an input method is composing', async () => {
+    const gradeSpy = vi.spyOn(api, 'gradeSubmission')
+    await renderPanel(plain())
+    await act(async () => findButton('A')!.click())
+    const feedback = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
+    for (const init of [{ isComposing: true }, { keyCode: 229 }]) {
+      await act(async () => { feedback.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, ...init })) })
+    }
+    await settle()
+    expect(gradeSpy).not.toHaveBeenCalled()
+  })
+
+  it('gives the icon-only snippet button a 44px-wide touch target', async () => {
+    await renderPanel(plain({ feedback: 'Reusable feedback' }))
+    const snippet = container.querySelector('[aria-label="Save draft as reusable snippet"]')!
+    expect(snippet.className).toContain('min-w-11')
+    expect(snippet.className).toContain('min-h-11')
+  })
+
+  it('keeps the decision just saved when a GitHub check started earlier answers late', async () => {
+    const sub = makeSubmission()
+    let answer!: (value: unknown) => void
+    vi.spyOn(api, 'refreshSubmissionGithubChecks').mockImplementation(() => new Promise((resolve) => { answer = resolve }) as never)
+    vi.spyOn(api, 'gradeSubmission').mockResolvedValue({
+      data: { submission: { ...sub, grade: 'A', grade_suggestion: makeSuggestion({ decision: 'overridden', override_reason: 'Checks flaky' }) } },
+      error: null,
+    })
+    await renderPanel(sub)
+    await act(async () => findButton('Check GitHub again')!.click())
+    await act(async () => findButton('A')!.click())
+    await act(async () => findButton('Checks flaky')!.click())
+    await act(async () => findButton('Save grade')!.click())
+    await settle()
+    expect(container.querySelector('[data-suggestion-saved-comparison]')?.textContent).toContain('Overridden')
+    // The refresh began before the save; its older suggestion (no decision) must not replace it.
+    await act(async () => answer({
+      data: {
+        github_checks: { head_sha: SHA, fetched_at: '2026-11-22T02:00:00Z', summary: { total: 1, passed: 1, failed: 0, pending: 0, neutral: 0 }, runs: [] },
+        grade_suggestion: makeSuggestion({ decision: null, override_reason: null }),
+      },
+      error: null,
+    }))
+    await settle()
+    const comparison = container.querySelector('[data-suggestion-saved-comparison]')!
+    expect(comparison.textContent).toContain('Overridden')
+    expect(comparison.textContent).toContain('Override note: Checks flaky')
   })
 
   it('fills the override note with a one-tap reason and sends it', async () => {

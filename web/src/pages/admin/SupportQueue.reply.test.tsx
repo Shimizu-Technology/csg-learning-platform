@@ -72,11 +72,38 @@ it("I'm on it lets the student know without replying, then refreshes the queue",
   expect(state.reply).not.toHaveBeenCalled()
 })
 
-it("I'm on it reports a failure and keeps the request as it was", async () => {
-  state.update.mockResolvedValue({ data: null, error: 'Request closed' })
+it("I'm on it reports a failure and reloads to show the request as it now is", async () => {
+  state.update.mockResolvedValue({ data: null, error: 'Resolved or canceled help requests cannot be changed' })
   await press(card(4), "I'm on it")
-  expect(state.error).toHaveBeenCalledWith('Request closed')
-  expect(state.reload).not.toHaveBeenCalled()
+  expect(state.error).toHaveBeenCalledWith('Resolved or canceled help requests cannot be changed')
+  expect(state.success).not.toHaveBeenCalled()
+  expect(state.reload).toHaveBeenCalled()
+})
+
+it("I'm on it says who already has the request when someone else got there first", async () => {
+  state.update.mockResolvedValue({ data: { help_request: { ...request(4), status: 'acknowledged', owner: { id: 7, full_name: 'Pat Instructor' } }, status_changed: false }, error: null })
+  await press(card(4), "I'm on it")
+  expect(state.success).toHaveBeenCalledExactlyOnceWith('Pat Instructor is already on it.')
+  expect(state.reload).toHaveBeenCalled()
+})
+
+it("I'm on it says so plainly when you already had it", async () => {
+  state.update.mockResolvedValue({ data: { help_request: { ...request(4), status: 'acknowledged', owner: { id: 1, full_name: 'Me' } }, status_changed: false }, error: null })
+  await press(card(4), "I'm on it")
+  expect(state.success).toHaveBeenCalledExactlyOnceWith('You are already on it.')
+})
+
+it("keeps I'm on it busy for that request until the reload after it settles", async () => {
+  let reloaded!: () => void
+  state.reload.mockImplementationOnce(() => new Promise<void>((resolve) => { reloaded = resolve }))
+  state.update.mockResolvedValue({ data: { help_request: { ...request(4), status: 'acknowledged' }, status_changed: true }, error: null })
+  await press(card(4), "I'm on it")
+  const busy = () => Array.from(card(4).querySelectorAll('button')).find((item) => item.textContent?.trim() === 'Marking…')
+  expect(busy()?.matches(':disabled')).toBe(true)
+  // Another request's button stays usable meanwhile.
+  expect(Array.from(card(5).querySelectorAll('button')).find((item) => item.textContent?.trim() === "I'm on it")?.matches(':disabled')).toBe(false)
+  await act(async () => reloaded())
+  expect(busy()).toBeUndefined()
 })
 
 it('Reply posts the reply and keeps the request open', async () => {

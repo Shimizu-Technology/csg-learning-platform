@@ -78,17 +78,11 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
     ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = previous_token
   end
 
-  test "index says whether GitHub syncs on its own every hour" do
+  test "index makes no hourly sync promise without the GitHub App" do
     as_user(@admin) do
       get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions", headers: auth_headers
       assert_response :success
       assert_equal false, response.parsed_body.fetch("github_auto_sync")
-    end
-    SchoolSetting.current.update!(features: SchoolSetting.current.features.merge("github_app" => true, "github_reconciliation" => true))
-    @cohort.update!(settings: { features: { github_app: true, github_reconciliation: true } })
-    as_user(@admin) do
-      get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions", headers: auth_headers
-      assert_equal true, response.parsed_body.fetch("github_auto_sync")
     end
   end
 

@@ -36,7 +36,7 @@ import { CodeRunner } from '../shared/CodeRunner'
 import { CodeBlock } from '../shared/CodeBlock'
 import { MarkdownRenderer } from '../shared/MarkdownRenderer'
 import { FeedbackBody } from '../shared/FeedbackBody'
-import { MarkdownEditor, type MarkdownEditorHandle } from '../shared/MarkdownEditor'
+import { MarkdownEditor, isComposingKey, type MarkdownEditorHandle } from '../shared/MarkdownEditor'
 import { GradeDisplay } from '../shared/GradeDisplay'
 import { LoadError } from '../shared/LoadError'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
@@ -72,6 +72,11 @@ interface Props {
   navigationContext: Parameters<typeof submissionPath>[1]
   previousId?: number | null
   nextId?: number | null
+  /**
+   * Where saving this grade goes: the id of the item onSaved opens, or null when the review stays
+   * or closes. The same function drives onSaved, so "Save and next" only shows when it is true.
+   */
+  followingAfterSave?: (grade: GradeChoice) => number | null | undefined
   position?: string
   showRecordLink?: boolean
   /** False on the submission record page, where RecordHeader shows the learner, lesson, attempt and queue. */
@@ -82,8 +87,11 @@ interface Props {
   onLoaded?: (submission: Submission) => void
   onReturn?: () => void
   returnLabel?: string
-  /** The query parameter that selects this inline review (`submission`, `review`); changing it replaces the review. */
-  selectionParam?: string
+  /**
+   * The query parameters that select or remount this inline review (`submission`, `review`, a
+   * keyed `cohort_id`); changing any of them replaces the review, so an unsaved draft asks first.
+   */
+  selectionParam?: string | string[]
   /**
    * Where the pinned grade bar stops: `shell` sits above the phone tab bar (pages in the app
    * shell); `none` sits at the bottom of its own scroll box (a dialog).
@@ -130,6 +138,7 @@ export function SubmissionReviewPanel({
   navigationContext,
   previousId,
   nextId,
+  followingAfterSave,
   position,
   showRecordLink = true,
   showHeader = true,
@@ -144,7 +153,11 @@ export function SubmissionReviewPanel({
   taskOpen = false,
 }: Props) {
   const navigate = useNavigate()
-  const review = useSubmissionReview(submissionId, onSaved, selectionParam ? leavesPathOrParam(selectionParam) : leavesPath)
+  const review = useSubmissionReview(
+    submissionId,
+    onSaved,
+    selectionParam ? leavesPathOrParam(...[selectionParam].flat()) : leavesPath,
+  )
   // Record links in the header leave the review, so a plain click asks about unsaved feedback first.
   const guardLeave = useGuardedLinkClick(() => review.confirmLeave())
   const { submission, feedback, criteria, selectedGrade, overrideReason, loading, grading, error, conflict } = review
@@ -239,6 +252,9 @@ export function SubmissionReviewPanel({
     if (!submission) return
     setChecking(true)
     setCheckError(null)
+    // A grade saved while GitHub answers carries the decision the instructor just made; keep it.
+    const generation = review.saveGeneration()
+    const fresh = () => review.saveGeneration() === generation
     try {
       if (submission.commit_sha) {
         const result = await api.refreshSubmissionGithubChecks(submissionId)
@@ -253,7 +269,7 @@ export function SubmissionReviewPanel({
             ? {
                 ...current,
                 github_checks: data.github_checks,
-                ...(data.grade_suggestion !== undefined ? { grade_suggestion: data.grade_suggestion } : {}),
+                ...(data.grade_suggestion !== undefined && fresh() ? { grade_suggestion: data.grade_suggestion } : {}),
               }
             : current,
         )
@@ -263,7 +279,7 @@ export function SubmissionReviewPanel({
       if (!alive.current) return
       if (result.data && !result.error) {
         const suggestion = result.data.grade_suggestion
-        review.setSubmission((current) => (current ? { ...current, grade_suggestion: suggestion } : current))
+        if (fresh()) review.setSubmission((current) => (current ? { ...current, grade_suggestion: suggestion } : current))
       } else setCheckError(result.error || 'Could not check GitHub.')
     } catch {
       if (alive.current) setCheckError('Could not check GitHub.')
@@ -362,8 +378,8 @@ export function SubmissionReviewPanel({
   const hasSuggestion = Boolean(suggestion)
   const isOverridingSuggestion = gradeDiffersFromSuggestion(suggestion, selectedGrade)
   const locked = grading || conflict || isPreviousAttempt(submission)
-  // "Save and next" only when saving really opens another item.
-  const advances = Boolean(onSaved && nextId)
+  // "Save and next" only when the caller's own post-save step opens another item for this grade.
+  const advances = Boolean(onSaved && selectedGrade && followingAfterSave?.(selectedGrade))
   const hasGithub = Boolean(submission.repo_url || submission.pr_url || submission.github_code_url)
   const technical = [
     submission.github_revision && ['Submitted paths', submission.github_revision.paths.join(', ')],
@@ -396,6 +412,8 @@ export function SubmissionReviewPanel({
         // Cmd/Ctrl+Enter saves the chosen grade from anywhere in the review, feedback box included,
         // before the editor can turn it into a line break.
         if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+        // An input method is still composing (Japanese, Chinese, Korean...): Enter belongs to it.
+        if (isComposingKey(event.nativeEvent)) return
         const topDialog = Array.from(document.querySelectorAll('[data-app-modal]')).at(-1)
         if (!active || (topDialog && !topDialog.contains(event.currentTarget))) return
         event.preventDefault()
@@ -793,7 +811,7 @@ export function SubmissionReviewPanel({
               <Button
                 variant="quiet"
                 size="sm"
-                className="shrink-0"
+                className="min-w-11 shrink-0"
                 disabled={!feedback.trim() || savingSnippet}
                 onClick={() => void saveSnippet()}
                 title="Save draft as reusable snippet"

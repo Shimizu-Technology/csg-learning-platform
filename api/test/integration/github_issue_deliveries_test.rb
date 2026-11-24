@@ -100,13 +100,46 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
 
   test "legacy Redo posting needs the organization token, a GitHub username and a repository" do
     @cohort.update!(settings: { features: { github_app: false } }, repository_name: nil)
-    assert_not GithubIssueService.redo_would_post?(@submission, token: nil)
-    assert_not GithubIssueService.redo_would_post?(@submission.reload, token: "legacy-token")
+    assert_nil GithubIssueService.redo_issue_route(@submission, token: nil)
+    assert_nil GithubIssueService.redo_issue_route(@submission.reload, token: "legacy-token")
     @cohort.update!(repository_name: "prework-exercises")
-    assert GithubIssueService.redo_would_post?(@submission.reload, token: "legacy-token")
+    assert_equal :legacy, GithubIssueService.redo_issue_route(@submission.reload, token: "legacy-token")
     # The fixture's username is GitHub-verified, so clear it directly.
     @student.update_columns(github_username: nil)
-    assert_not GithubIssueService.redo_would_post?(@submission.reload, token: "legacy-token")
+    assert_nil GithubIssueService.redo_issue_route(@submission.reload, token: "legacy-token")
+  end
+
+  test "a text exercise Redo stays in Learn: no warning, no delivery, no legacy post" do
+    text_block = @lesson.content_blocks.create!(block_type: :exercise, submission_type: :text_submission, position: 5)
+    text = Submission.create!(user: @student, enrollment: @enrollment, content_block: text_block, submission_type: :text_submission, text: "my answer", num_submissions: 1)
+    assert_nil GithubIssueService.redo_issue_route(text, token: "legacy-token")
+    assert_redo_stays_in_learn(text)
+  end
+
+  test "a cohort with GitHub sync off neither warns nor posts a Redo" do
+    @cohort.update!(settings: { features: { github_sync: false, github_app: true, github_issue_delivery_v2: true } })
+    assert_not GithubIssueService.redo_issue_allowed?(@submission.reload)
+    assert_redo_stays_in_learn(@submission)
+  end
+
+  test "an opted-in cohort without a verified repository binding neither warns nor queues a Redo issue" do
+    @binding.update_columns(verification_state: "pending")
+    assert_nil GithubIssueService.redo_issue_route(@submission.reload)
+    assert_redo_stays_in_learn(@submission)
+  end
+
+  test "the drain retires a queued Redo for work that may not post, without calling GitHub" do
+    @submission.update_columns(grade: "R", feedback: "Learn-only feedback", graded_at: Time.current)
+    delivery = GithubIssueDelivery.create!(
+      submission: @submission, enrollment: @enrollment, content_block: @block, github_repository_binding: @binding,
+      repository_id: 98765, repository_full_name: "app-learner/prework-exercises", action: "open_or_comment", grade: "R",
+      feedback_body: "Learn-only feedback", dedupe_token: SecureRandom.hex(16), status: "pending", attempts: 0
+    )
+    @cohort.update!(settings: { features: { github_sync: false, github_app: true, github_issue_delivery_v2: true } })
+    GithubIssueDeliveryDrain.new(client: @fake).call(now: Time.current)
+    assert_equal "obsolete", delivery.reload.status
+    assert_not @fake.calls.any? { |call| call.first.to_s.include?("issue") || call.first.to_s.include?("comment") }
+    assert_empty @fake.issues.fetch(98765, [])
   end
 
   test "full lifecycle: R creates issue without private notes, repeat R comments, B closes, later R reopens and comments" do
@@ -797,6 +830,33 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
       feedback: feedback,
       base_submission_updated_at: submission.updated_at.iso8601(6)
     }
+  end
+
+  # The review shows no GitHub warning, and saving Redo queues no delivery and never runs the
+  # legacy token path, even with the organization token set.
+  def assert_redo_stays_in_learn(submission)
+    previous_token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = "legacy-token"
+    legacy_called = false
+    original_legacy = GithubIssueService.method(:handle_grade)
+    GithubIssueService.define_singleton_method(:handle_grade) { |**| legacy_called = true }
+    with_app_provider do
+      as_app_user(@instructor) do
+        get "/api/v1/submissions/#{submission.id}", headers: app_headers
+        assert_response :success
+        assert_equal false, response.parsed_body.dig("submission", "redo_posts_to_github")
+        patch "/api/v1/submissions/#{submission.id}/grade",
+          params: grade_params(submission.reload, grade: "R", feedback: "Keep this in Learn."),
+          headers: app_headers, as: :json
+        assert_response :success
+      end
+    end
+    assert_equal 0, GithubIssueDelivery.where(submission_id: submission.id).count
+    assert_not legacy_called, "an ineligible Redo must never reach the legacy GitHub path"
+    assert_empty @fake.calls.select { |call| call.first.to_s.include?("issue") || call.first.to_s.include?("comment") }
+  ensure
+    GithubIssueService.define_singleton_method(:handle_grade, original_legacy) if original_legacy
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = previous_token
   end
 end
 

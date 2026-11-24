@@ -214,13 +214,20 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     )
     scrollToRecordTop()
   }
+  /**
+   * Save and next (L-0.7). A filtered queue drops finished work, so when this was the last
+   * item the one before it is still waiting; "All" has nothing left after its last item, and a
+   * Redo saved in the Redo queue stays in it. The Save label reads this as well.
+   */
+  function followingAfterSave(grade: string | null) {
+    if (!queue) return null
+    const filtered = (queueMode && queueMode !== 'all') || (moduleSource?.view === 'queue' && moduleSource.filter !== 'all')
+    const keepsSaved = grade === 'R' && (queueMode === 'redo' || (moduleSource?.view === 'queue' && moduleSource.filter === 'redo'))
+    return step?.next ?? (index >= 0 && filtered && !keepsSaved ? step?.previous : null) ?? null
+  }
   function advanceAfterSave(saved: Submission) {
     if (!queue) return
-    // Save and next (L-0.7). A filtered queue drops finished work, so when this was the last
-    // item the one before it is still waiting; "All" has nothing left after its last item.
-    const filtered = (queueMode && queueMode !== 'all') || (moduleSource?.view === 'queue' && moduleSource.filter !== 'all')
-    const keepsSaved = saved.grade === 'R' && (queueMode === 'redo' || (moduleSource?.view === 'queue' && moduleSource.filter === 'redo'))
-    const following = step?.next ?? (index >= 0 && filtered && !keepsSaved ? step?.previous : null)
+    const following = followingAfterSave(saved.grade)
     if (following) goToQueueItem(following.id)
     else {
       setQueueFinished(true)
@@ -332,6 +339,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
             onLoaded={setSubmission}
             previousId={previousId}
             nextId={nextId}
+            followingAfterSave={(grade) => followingAfterSave(grade)?.id}
             position={step ? queuePositionLabel(step) : undefined}
             onNavigate={step ? goToQueueItem : undefined}
             onSaved={advanceAfterSave}

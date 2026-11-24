@@ -72,8 +72,8 @@ module Api
           module_name: @curriculum_module.name,
           requires_github: requires_github,
           github_sync_enabled: FeatureSwitches.for(cohort: @cohort)["github_sync"],
-          # Verified GitHub App repositories are reconciled by the hourly scheduled tick.
-          github_auto_sync: GithubReconciliationService.enabled_for?(@cohort),
+          # Only when the hourly reconciliation really covers this cohort's module.
+          github_auto_sync: GithubReconciliationService.covers_module?(@cohort, @curriculum_module),
           supports_github_sync: exercises.any? { |exercise| exercise[:github_sync] },
           open_github_sync_count: exercises.count do |exercise|
             exercise[:github_sync] && !exercise[:submission_window][:submissions_closed]

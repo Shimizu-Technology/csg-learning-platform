@@ -56,6 +56,6 @@ submissions = (1..10).map do |index|
   )
 end
 
-payload = { cohort_id: cohort.id, submission_ids: submissions.map(&:id) }
+payload = { cohort_id: cohort.id, module_id: mod.id, submission_ids: submissions.map(&:id) }
 File.write(File.expand_path('../../.qa-local/ux-grading-safety.json', __dir__), JSON.pretty_generate(payload))
 puts JSON.pretty_generate(payload)

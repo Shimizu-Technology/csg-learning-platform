@@ -148,6 +148,9 @@ class GithubIssueDeliveryDrain
   def stale_delivery?(delivery, submission)
     return true unless submission.grade == delivery.grade
     return true if delivery.action == "open_or_comment" && submission.latest_attempt&.id != submission.id
+    # Saved before the shared Redo rule (or the cohort turned GitHub sync off since): never post
+    # Learn-only feedback, such as a text exercise's, to GitHub.
+    return true if delivery.action == "open_or_comment" && !GithubIssueService.redo_issue_allowed?(submission)
 
     false
   end

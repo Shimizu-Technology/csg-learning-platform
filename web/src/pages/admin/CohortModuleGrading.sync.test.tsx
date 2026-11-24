@@ -48,6 +48,16 @@ it('names each student a sync could not finish, and why', async () => {
   expect(status.className).toContain('bg-danger-soft')
 })
 
+it('still names students from an older server that only sends flat errors (staggered deploy)', async () => {
+  await render()
+  vi.spyOn(api, 'syncCohortModuleGithub').mockResolvedValue({ data: { synced: 0, students_processed: 2, errors: ['User 21: No repository name configured for this module', 'User 21: Skipped closed Week 2 GitHub-sync submissions'] }, error: null } as never)
+  await act(async () => button('Sync all from GitHub').click())
+  await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
+  const status = [...container.querySelectorAll('[role="status"]')].find((node) => node.textContent?.startsWith('Synced'))!
+  expect(status.textContent).toContain('Could not sync 1 student:')
+  expect([...status.querySelectorAll('li')].map((item) => item.textContent)).toEqual(['Blair Cruz: No repository name configured for this module; Skipped closed Week 2 GitHub-sync submissions'])
+})
+
 it('reports a clean sync calmly', async () => {
   await render()
   vi.spyOn(api, 'syncCohortModuleGithub').mockResolvedValue({ data: { synced: 1, errors: [], failed_students: [] }, error: null } as never)

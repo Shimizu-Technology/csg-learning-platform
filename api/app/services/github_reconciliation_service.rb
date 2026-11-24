@@ -94,12 +94,35 @@ class GithubReconciliationService
       .map(&:id)
   end
 
+  # Whether the hourly run keeps this cohort's module in sync: the school and cohort opted in,
+  # the cohort is active today with GitHub sync on, and at least one verified binding it would
+  # reconcile covers the module. Module grading only promises hourly sync when this is true.
+  def self.covers_module?(cohort, curriculum_module, now: Time.current)
+    school = FeatureSwitches.school(read_only: true)
+    return false unless school["github_app"] == true && school["github_reconciliation"] == true
+    return false unless enabled_for?(cohort, school: school) && FeatureSwitches.for(cohort: cohort, school: school)["github_sync"] == true
+    return false unless Cohort.active(on: now.in_time_zone(Rails.application.config.x.school.time_zone).to_date).where(id: cohort.id).exists?
+
+    eligible_bindings_relation(cohort_ids: [ cohort.id ], now: now)
+      .where(github_repository_bindings: { curriculum_module_id: [ curriculum_module.id, nil ] })
+      .exists?
+  end
+
   # Push user/identity/cohort/curriculum eligibility checks into SQL so
   # ineligible rows cannot crowd out healthy bindings behind pre-filter limits.
   def self.due_bindings_relation(cohort_ids:, now:)
+    eligible_bindings_relation(cohort_ids: cohort_ids, now: now)
+      .left_outer_joins(:github_reconciliation_state)
+      .where("github_reconciliation_states.claimed_until IS NULL OR github_reconciliation_states.claimed_until <= ?", now)
+      .where("github_reconciliation_states.next_reconcile_at IS NULL OR github_reconciliation_states.next_reconcile_at <= ?", now)
+      .order(Arel.sql("github_reconciliation_states.next_reconcile_at ASC NULLS FIRST, github_reconciliation_states.last_reconciled_at ASC NULLS FIRST, github_repository_bindings.id ASC"))
+  end
+
+  # Bindings the hourly run would ever reconcile, whether or not they are due right now.
+  def self.eligible_bindings_relation(cohort_ids:, now:)
     GithubRepositoryBinding
       .joins(:github_app_installation, enrollment: [ :user, :cohort ])
-      .left_outer_joins(:curriculum_module, :github_reconciliation_state)
+      .left_outer_joins(:curriculum_module)
       .where(
         verification_state: "verified",
         github_app_installations: { connection_state: "connected" },
@@ -114,9 +137,6 @@ class GithubReconciliationService
       .where("github_app_installations.cohort_id = enrollments.cohort_id")
       .where("github_repository_bindings.curriculum_module_id IS NULL OR modules.curriculum_id = cohorts.curriculum_id")
       .where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", now)
-      .where("github_reconciliation_states.claimed_until IS NULL OR github_reconciliation_states.claimed_until <= ?", now)
-      .where("github_reconciliation_states.next_reconcile_at IS NULL OR github_reconciliation_states.next_reconcile_at <= ?", now)
-      .order(Arel.sql("github_reconciliation_states.next_reconcile_at ASC NULLS FIRST, github_reconciliation_states.last_reconciled_at ASC NULLS FIRST, github_repository_bindings.id ASC"))
   end
 
   def self.binding_eligible?(binding, school:, now:)

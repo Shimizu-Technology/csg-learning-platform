@@ -73,7 +73,32 @@ const LEGEND: Array<{ tone: keyof typeof CELL_TONES; icon?: LucideIcon; text?: s
 interface SyncNotice {
   failed: boolean
   text: string
-  students: { name: string; errors: string[] }[]
+  /** user_id is null only for an older server's message that names no student. */
+  students: { user_id: number | null; name: string; errors: string[] }[]
+}
+
+type SyncFailure = { user_id: number; full_name?: string | null; errors: string[] }
+
+/**
+ * Students a module sync could not finish. Servers before failed_students only sent flat
+ * "User 21: reason" strings, so those are grouped by id during a staggered deploy.
+ */
+export function syncFailures(data: { failed_students?: SyncFailure[]; errors?: string[] } | null | undefined): SyncFailure[] {
+  if (Array.isArray(data?.failed_students)) return data.failed_students
+  const byUser = new Map<number, SyncFailure>()
+  const unmatched: string[] = []
+  for (const line of data?.errors || []) {
+    const match = /^User (\d+): (.*)$/s.exec(line)
+    if (!match) {
+      unmatched.push(line)
+      continue
+    }
+    const id = Number(match[1])
+    const entry = byUser.get(id) || { user_id: id, errors: [] }
+    entry.errors.push(match[2])
+    byUser.set(id, entry)
+  }
+  return [...byUser.values(), ...(unmatched.length ? [{ user_id: 0, errors: unmatched }] : [])]
 }
 
 interface StudentSummary {
@@ -211,11 +236,14 @@ export function CohortModuleGrading() {
     if (res.error) {
       setMessage({ failed: true, text: `Sync failed: ${res.error}`, students: [] })
     } else {
-      const failures: { user_id: number; full_name?: string | null; errors: string[] }[] = res.data?.failed_students || []
+      const failures = syncFailures(res.data)
+      const named = failures.filter((failure) => failure.user_id > 0).length
       setMessage({
         failed: false,
-        text: `${synced(res.data?.synced || 0)}${failures.length ? `. Could not sync ${failures.length === 1 ? '1 student' : `${failures.length} students`}:` : ''}`,
-        students: failures.map((failure) => ({ name: failure.full_name || studentName(failure.user_id), errors: failure.errors })),
+        text: `${synced(res.data?.synced || 0)}${failures.length ? `. ${named ? `Could not sync ${named === 1 ? '1 student' : `${named} students`}` : 'Some work could not sync'}:` : ''}`,
+        students: failures.map((failure) => failure.user_id > 0
+          ? { user_id: failure.user_id, name: failure.full_name || studentName(failure.user_id), errors: failure.errors }
+          : { user_id: null, name: 'Other', errors: failure.errors }),
       })
       await loadData()
     }
@@ -234,7 +262,7 @@ export function CohortModuleGrading() {
       setMessage({
         failed: false,
         text: `${synced(res.data?.synced || 0)} for ${studentName(userId)}${errors.length ? '. Some work could not sync:' : ''}`,
-        students: errors.length ? [{ name: studentName(userId), errors }] : [],
+        students: errors.length ? [{ user_id: userId, name: studentName(userId), errors }] : [],
       })
       await loadData()
     }
@@ -340,6 +368,12 @@ export function CohortModuleGrading() {
     [data, viewMode, queueFilter, selectedStudentId],
   )
   const reviewIndex = reviewQueue.findIndex((item) => item.id === selectedId)
+  // Only the Waiting queue (and a non-Redo grade in the Redo queue) moves on after Save; the grid,
+  // students and All views keep the saved item open. The Save label reads this too.
+  const followingAfterSave = (grade: string | null) =>
+    viewMode === 'queue' && (queueFilter === 'ungraded' || (queueFilter === 'redo' && grade !== 'R'))
+      ? reviewQueue[reviewIndex + 1] || reviewQueue[reviewIndex - 1] || null
+      : undefined
   const reviewPanel = selectedId ? (
     <SubmissionReviewPanel
       selectionParam="review"
@@ -354,6 +388,7 @@ export function CohortModuleGrading() {
       }}
       previousId={reviewQueue[reviewIndex - 1]?.id}
       nextId={reviewIndex >= 0 ? reviewQueue[reviewIndex + 1]?.id : null}
+      followingAfterSave={(grade) => followingAfterSave(grade)?.id}
       position={reviewIndex >= 0 ? `${reviewIndex + 1} of ${reviewQueue.length}` : undefined}
       onNavigate={(id) => {
         // In the matrix, keep the return anchor on the cell now under review.
@@ -363,13 +398,9 @@ export function CohortModuleGrading() {
       onReturn={() => update({ review: null })}
       returnLabel={viewMode === 'grid' ? 'Back to matrix cell' : 'Back to list'}
       onSaved={(saved) => {
-        if (
-          viewMode === 'queue' &&
-          (queueFilter === 'ungraded' || (queueFilter === 'redo' && saved.grade !== 'R'))
-        ) {
-          const following = reviewQueue[reviewIndex + 1] || reviewQueue[reviewIndex - 1]
-          update({ review: following ? String(following.id) : null })
-        }
+        const following = followingAfterSave(saved.grade)
+        // undefined: this view keeps the review open; null: the queue is done, so it closes.
+        if (following !== undefined) update({ review: following ? String(following.id) : null })
         void loadData()
       }}
     />
@@ -430,7 +461,7 @@ export function CohortModuleGrading() {
           {message.students.length > 0 && (
             <ul className="list-disc space-y-1 pl-5">
               {message.students.map((student) => (
-                <li key={student.name} className="break-words">
+                <li key={student.user_id ?? 'other'} className="break-words">
                   <span className="font-semibold">{student.name}</span>: {student.errors.join('; ')}
                 </li>
               ))}

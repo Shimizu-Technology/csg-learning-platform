@@ -37,7 +37,7 @@ import { FOLLOW_UP_TRIGGER_LABELS, followUpLabel } from '../../lib/followUpLabel
 export function SupportQueue() {
   const back = useBackLink({ returnTo: '/admin', returnLabel: 'Today' })
   const { cohorts = [] } = useCohortContext()
-  const { schoolFeatures } = useAuthContext()
+  const { schoolFeatures, user } = useAuthContext()
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -55,7 +55,8 @@ export function SupportQueue() {
   // Back from a help request returns to this list at the same scroll position.
   useListScrollMemory(Boolean(queue))
   const [savingId, setSavingId] = useState<number | null>(null)
-  const [acknowledging, setAcknowledging] = useState<number | null>(null)
+  // Requests with an "I'm on it" still settling (the update and the reload after it), by id.
+  const [acknowledging, setAcknowledging] = useState<ReadonlySet<number>>(() => new Set())
   // One reply box open at a time (U-4.7), with the action that opened it as its primary button.
   const [replying, setReplying] = useState<{ id: number; primary: HelpReplyAction } | null>(null)
   const [draft, setDraft] = useState('')
@@ -109,17 +110,29 @@ export function SupportQueue() {
     await loadQueue()
   }
 
-  // "I'm on it": the student sees someone is looking, without a reply yet.
+  // "I'm on it": the student sees someone is looking, without a reply yet. Someone else may have
+  // picked it up first, so the message follows what the server says happened.
   async function acknowledge(request: HelpRequest) {
-    setAcknowledging(request.id)
-    const result = await api.updateHelpRequest(request.id, { status: 'acknowledged' })
-    setAcknowledging(null)
-    if (!result.data) {
-      toast.error(result.error || 'Could not mark this request.')
-      return
+    const settle = (pending: boolean) => setAcknowledging((current) => {
+      const next = new Set(current)
+      if (pending) next.add(request.id)
+      else next.delete(request.id)
+      return next
+    })
+    settle(true)
+    try {
+      const result = await api.updateHelpRequest(request.id, { status: 'acknowledged' })
+      if (!result.data) {
+        toast.error(result.error || 'Could not mark this request.')
+        await loadQueue()
+        return
+      }
+      const { help_request: updated, status_changed: changed } = result.data
+      toast.success(changed === false ? alreadyHandled(updated, user?.id) : `${request.student?.full_name || 'The student'} can now see that you are on it.`)
+      await loadQueue()
+    } finally {
+      settle(false)
     }
-    toast.success(`${request.student?.full_name || 'The student'} can now see that you are on it.`)
-    await loadQueue()
   }
 
   function startIntervention(student: SupportQueueStudent) {
@@ -248,7 +261,7 @@ export function SupportQueue() {
                 {/* Reply, Reply & resolve, I'm on it (while still open), the request, and its lesson above. */}
                 <Button fullWidth onClick={() => void openReply(request, 'reply')} disabled={savingId === request.id} aria-expanded={replying?.id === request.id}><MessageSquareReply className="h-4 w-4" aria-hidden="true" />Reply</Button>
                 <Button variant="secondary" fullWidth onClick={() => void openReply(request, 'resolve')} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Reply & resolve</Button>
-                {request.status === 'open' && <Button variant="secondary" fullWidth onClick={() => void acknowledge(request)} disabled={acknowledging === request.id || savingId === request.id} aria-label={`I'm on it: let ${request.student?.full_name || 'the student'} know you are looking`}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />{acknowledging === request.id ? 'Marking…' : "I'm on it"}</Button>}
+                {request.status === 'open' && <Button variant="secondary" fullWidth onClick={() => void acknowledge(request)} disabled={acknowledging.has(request.id) || savingId === request.id} aria-label={`I'm on it: let ${request.student?.full_name || 'the student'} know you are looking`}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />{acknowledging.has(request.id) ? 'Marking…' : "I'm on it"}</Button>}
                 <LinkButton to={helpRequestPath(request.id, returnTo)} variant="quiet" fullWidth>Open request <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
               </div>
             </div>
@@ -300,6 +313,14 @@ function SummaryCard({ label, value, icon: Icon, tone }: { label: string; value:
 
 function StudentSignalRow({ student, onSelect, onCreate, canCreate = true }: { canCreate?: boolean; student: SupportQueueStudent; onSelect: () => void; onCreate: () => void }) {
   return <div><AttentionRow student={student} /><div className="flex flex-wrap gap-3 px-5 pb-4"><TextButton onClick={onSelect} aria-label={`View context for ${student.full_name || student.email}`}>Student context</TextButton>{canCreate && !student.active_intervention_id && <TextButton onClick={onCreate} aria-label={`Start follow-up plan for ${student.full_name || student.email}`}>{TERMS.startFollowUpPlan}</TextButton>}</div></div>
+}
+
+/** When "I'm on it" changed nothing: say who already has the request, or how it ended. */
+function alreadyHandled(request: Pick<HelpRequest, 'status' | 'owner'>, viewerId?: number) {
+  if (request.status === 'resolved') return 'This request was already resolved.'
+  if (request.status === 'canceled') return 'The student already canceled this request.'
+  if (request.owner && request.owner.id !== viewerId) return `${request.owner.full_name} is already on it.`
+  return 'You are already on it.'
 }
 
 function localDateTime(daysFromNow: number) { const date = new Date(Date.now() + daysFromNow * 86_400_000); const offset = date.getTimezoneOffset() * 60_000; return new Date(date.getTime() - offset).toISOString().slice(0, 16) }

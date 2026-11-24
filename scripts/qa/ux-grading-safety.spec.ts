@@ -11,6 +11,7 @@ if (!session) throw new Error('DEV_LIFECYCLE_SESSION is required')
 
 const fixtures = JSON.parse(readFileSync(fileURLToPath(new URL('../../.qa-local/ux-grading-safety.json', import.meta.url)), 'utf8')) as {
   cohort_id: number
+  module_id: number
   submission_ids: number[]
 }
 const output = fileURLToPath(new URL('../../.qa-local/ux-grading-safety/', import.meta.url))
@@ -120,6 +121,23 @@ for (const theme of ['light', 'dark'] as const) {
       await expectTouchTarget(page, save, mobile)
       await expectTouchTarget(page, page.getByRole('button', { name: 'Check GitHub again' }), mobile)
 
+      // A chosen grade alone is an unsaved draft: moving on asks first, and Keep editing stays.
+      await review.focus()
+      await page.keyboard.press('j')
+      const dialog = page.getByRole('dialog', { name: 'Discard your unsaved review?' })
+      await expect(dialog).toBeVisible()
+      await expect(dialog).toContainText('The grade you chose')
+      await dialog.getByRole('button', { name: 'Keep editing' }).click()
+      await expect(dialog).toHaveCount(0)
+      await expect(page).toHaveURL(new RegExp(`submission=${opened}(&|$)`))
+      await expect(gradeGroup.getByRole('button', { name: 'Redo', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+      // With feedback written, the icon-only "save as snippet" button is a full touch target.
+      await bar.getByRole('textbox').first().fill('Check the odd and even cases again.')
+      const snippet = bar.getByRole('button', { name: 'Save draft as reusable snippet' })
+      await expect(snippet).toBeVisible()
+      await expectTouchTarget(page, snippet, mobile)
+
       // Choose A and save: exactly one save, then the next attempt opens.
       await gradeGroup.getByRole('button', { name: 'A', exact: true }).click()
       await expect(warning).toHaveCount(0)
@@ -140,6 +158,15 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(recordBar.getByRole('button', { name: 'Save and next' })).toHaveCount(0)
       await expect(recordBar.getByRole('textbox').first()).toBeVisible()
       await evidence(page, 'record-save-grade', info.project.name, theme, '[data-grade-bar]')
+      expect(grades).toHaveLength(1)
+
+      // The module matrix keeps a saved cell open, so it says Save grade too.
+      await open(page, `/admin/cohorts/${fixtures.cohort_id}/modules/${fixtures.module_id}/grading?view=grid&review=${fixtures.submission_ids.at(-2)}`)
+      const gridBar = page.locator('[data-grade-bar]')
+      await gridBar.getByRole('group', { name: 'Grade' }).getByRole('button', { name: 'A', exact: true }).click()
+      await expect(gridBar.getByRole('button', { name: 'Save grade' })).toBeVisible()
+      await expect(gridBar.getByRole('button', { name: 'Save and next' })).toHaveCount(0)
+      await evidence(page, 'grid-save-grade', info.project.name, theme)
       expect(grades).toHaveLength(1)
 
       expect(errors).toEqual([])
