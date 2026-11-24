@@ -88,7 +88,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const [switchNoticeShownAt, setSwitchNoticeShownAt] = useState<number | null>(null);
   // Only the latest link switch may start the notice clock; an older one can finish late.
   const switchSequenceRef = useRef(0);
-  const { api, user, enrollments } = useSession();
+  const { api, user, enrollments, refresh: refreshSession } = useSession();
   const cachedEnrollmentsRef = useRef(enrollments);
   useLayoutEffect(() => { cachedEnrollmentsRef.current = enrollments; }, [enrollments]);
   const userId = user?.id ?? null;
@@ -109,7 +109,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const visibleCohorts = readableCohorts(cohorts, isStaff ? null : enrollments);
   const stale = needsRevalidation && visibleCohorts.some(cohort => cohort.id === selectedCohortId);
 
-  const refresh = useCallback(async () => {
+  const validateCohorts = useCallback(async () => {
     // Coalesce access validation; selection changes never cancel a valid result.
     const pending = validationRequestRef.current;
     if (pending?.generation === validationGenerationRef.current) return pending.promise;
@@ -170,6 +170,16 @@ export function CohortProvider({ children }: PropsWithChildren) {
     }
   }, [api, auth.demo, isAdmin, isStaff, userId]);
 
+  const refresh = useCallback(async () => {
+    // Refresh the session enrollment snapshot alongside accessible cohorts so
+    // an enrollment reactivated or renewed on the web is not filtered out by a
+    // stale deadline/status in memory.
+    await Promise.all([
+      typeof refreshSession === 'function' ? refreshSession().catch(() => undefined) : Promise.resolve(),
+      validateCohorts(),
+    ]);
+  }, [refreshSession, validateCohorts]);
+
   useLayoutEffect(() => {
     activeUserIdRef.current = userId;
     selectionRef.current = undefined;
@@ -183,10 +193,10 @@ export function CohortProvider({ children }: PropsWithChildren) {
       setLoading(true);
       setValidationFailures(0);
       setError(null);
-      void refresh();
+      void validateCohorts();
     });
     return () => { cancelAnimationFrame(frame); validationGenerationRef.current += 1; };
-  }, [api, refresh, userId]);
+  }, [api, validateCohorts, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -196,19 +206,19 @@ export function CohortProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!needsRevalidation) return;
     const network = Network.addNetworkStateListener(state => {
-      if (state.isConnected && state.isInternetReachable !== false) void refresh();
+      if (state.isConnected && state.isInternetReachable !== false) void validateCohorts();
     });
     const foreground = AppState.addEventListener('change', state => {
       if (state === 'active') {
         setDeadlineTick(tick => tick + 1);
-        void refresh();
+        void validateCohorts();
       }
     });
     // Connectivity may remain stable after a transient server failure. Keep one
     // bounded-backoff retry until validation succeeds, without needing an event.
-    const timer = setTimeout(() => { void refresh(); }, Math.min(30_000, 1000 * 2 ** Math.min(5, Math.max(0, validationFailures - 1))));
+    const timer = setTimeout(() => { void validateCohorts(); }, Math.min(30_000, 1000 * 2 ** Math.min(5, Math.max(0, validationFailures - 1))));
     return () => { clearTimeout(timer); network.remove(); foreground.remove(); };
-  }, [refresh, needsRevalidation, validationFailures]);
+  }, [validateCohorts, needsRevalidation, validationFailures]);
 
   useEffect(() => {
     if (isStaff) return;

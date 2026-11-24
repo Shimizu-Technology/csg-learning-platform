@@ -13,11 +13,12 @@ let mockPath = '/';
 let mockNetworkListener: (state: { isConnected: boolean; isInternetReachable: boolean }) => void;
 jest.mock('expo-network', () => ({ addNetworkStateListener: jest.fn(listener => { mockNetworkListener = listener; return { remove: jest.fn() }; }) }));
 const mockApi = { accessibleCohorts: jest.fn(), setCohortContextReadOnly: jest.fn() };
+const mockSessionRefresh = jest.fn().mockResolvedValue(undefined);
 let mockEnrollments: SessionEnrollment[] = [];
 const mockUser = { id: 9, is_admin: false, is_staff: false };
 jest.mock('expo-router', () => ({ useGlobalSearchParams: () => mockParams, usePathname: () => mockPath }));
 jest.mock('../auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('../session-provider', () => ({ useSession: () => ({ api: mockApi, user: mockUser.id ? mockUser : null, enrollments: mockEnrollments }) }));
+jest.mock('../session-provider', () => ({ useSession: () => ({ api: mockApi, user: mockUser.id ? mockUser : null, enrollments: mockEnrollments, refresh: mockSessionRefresh }) }));
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 beforeEach(() => {
   jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
@@ -475,6 +476,58 @@ it('revalidates accessible cohorts and selects a newly purchased course when a w
     });
 
     await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Python Fundamentals'));
+  } finally {
+    screen.unmount();
+    browserSpy.mockRestore();
+  }
+});
+
+it('refreshes the session enrollment snapshot on web-handoff close and Refresh status so a reactivated enrollment appears immediately', async () => {
+  mockParams = {}; mockPath = '/';
+  await AsyncStorage.clear();
+  mockApi.accessibleCohorts.mockClear();
+  mockSessionRefresh.mockReset();
+
+  // Start with a stale expired enrollment for cohort 2 so readableCohorts hides it.
+  mockEnrollments = [{
+    ...savedEnrollment,
+    access_expires_at: new Date(Date.now() - 60_000).toISOString(),
+  }];
+  mockApi.accessibleCohorts.mockResolvedValueOnce({ cohorts: [] });
+  const browserSpy = jest.spyOn(WebBrowser, 'openBrowserAsync').mockResolvedValue({ type: 'dismiss' } as WebBrowser.WebBrowserResult);
+
+  const screen = render(<CohortProvider><RefreshSurface /></CohortProvider>);
+  try {
+    await waitFor(() => expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('selection').props.children).toBe('Loading');
+
+    // Reactivate enrollment on the web: session refresh clears the stale deadline
+    // and accessibleCohorts returns the reactivated cohort.
+    mockSessionRefresh.mockImplementationOnce(async () => {
+      mockEnrollments = [{
+        ...savedEnrollment,
+        access_expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      }];
+    });
+    mockApi.accessibleCohorts.mockResolvedValueOnce({
+      cohorts: [{ id: 2, name: 'Saved cohort', status: 'active' }],
+    });
+
+    const handoffApi = { webHandoff: jest.fn().mockResolvedValue({ url: 'https://learn.codeschoolofguam.com/courses' }) };
+    await act(async () => {
+      await openAuthenticatedWebPage(handoffApi as never, '/courses');
+    });
+    screen.rerender(<CohortProvider><RefreshSurface /></CohortProvider>);
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Saved cohort'));
+    expect(mockSessionRefresh).toHaveBeenCalledTimes(1);
+
+    // Explicit Refresh status also refreshes the session enrollment snapshot.
+    mockSessionRefresh.mockResolvedValueOnce(undefined);
+    mockApi.accessibleCohorts.mockResolvedValueOnce({
+      cohorts: [{ id: 2, name: 'Saved cohort', status: 'active' }],
+    });
+    fireEvent.press(screen.getByText('Refresh cohorts'));
+    await waitFor(() => expect(mockSessionRefresh).toHaveBeenCalledTimes(2));
   } finally {
     screen.unmount();
     browserSpy.mockRestore();

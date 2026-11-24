@@ -31,7 +31,7 @@ export function courseIntentDestination(search: string, fallback = '/dashboard')
     if (id) next.set('offering_id', String(id))
     return slug ? `/courses/${slug}?${next}` : `/courses?${next}`
   }
-  if (slug) return `/courses/${slug}`
+  if (slug) return id ? `/courses/${slug}?offering_id=${id}` : `/courses/${slug}`
   if (id) return `/courses?offering_id=${id}`
   return safeInternalReturnPath(params.get('redirect_url'), '') || safeInternalReturnPath(params.get('redirect'), fallback)
 }

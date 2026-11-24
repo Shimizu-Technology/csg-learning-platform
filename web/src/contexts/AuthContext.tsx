@@ -128,9 +128,9 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       const denied = isAccessDeniedResponse(res)
       setUser(null)
       setEnrollments([])
-      setAccessDenied(denied)
+      setAccessDenied((wasDenied) => denied || wasDenied)
       if (denied && cacheScopeRef.current) clearApiCache(cacheScopeRef.current)
-      setSessionErrorCode(res.errorCode ?? null)
+      setSessionErrorCode((prevCode) => (denied ? (res.errorCode ?? null) : prevCode))
       setSessionError(res.error || `Could not connect to your ${brand.schoolAbbreviation} account. Check your connection and try again.`)
       return false
     } catch (err) {
@@ -138,8 +138,8 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       console.error('Session sync failed:', err)
       setUser(null)
       setEnrollments([])
-      setAccessDenied(false)
-      setSessionErrorCode(null)
+      // Keep any existing accessDenied state/code intact so a transient network
+      // error during "Check again" does not bounce the user off AccessDeniedCard.
       setSessionError(err instanceof Error ? err.message : `Could not connect to your ${brand.schoolAbbreviation} account.`)
       return false
     }

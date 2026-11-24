@@ -206,6 +206,57 @@ describe('AuthProvider session lifecycle', () => {
     })
     expect(seenDenied.at(-1)).toBe(false)
   })
+
+  it('keeps accessDenied intact when Check again hits a network exception or non-denial server error', async () => {
+    createSession
+      .mockResolvedValueOnce({
+        data: null,
+        error: 'Not invited yet',
+        status: 403,
+        errorCode: 'account_not_authorized',
+      })
+      .mockRejectedValueOnce(new Error('Network offline'))
+      .mockResolvedValueOnce({
+        data: null,
+        error: 'Temporarily unavailable',
+        status: 503,
+      })
+      .mockResolvedValueOnce({
+        data: { user: { id: 41, role: 'student' }, enrollments: [] },
+        error: null,
+      })
+
+    let latest = { accessDenied: false, sessionError: null as string | null, sessionErrorCode: null as string | null | undefined }
+    let triggerSync: (() => Promise<boolean>) | undefined
+    function RetryProbe() {
+      const { accessDenied, sessionError, sessionErrorCode, syncSession } = useAuthContext()
+      useEffect(() => {
+        latest = { accessDenied, sessionError, sessionErrorCode }
+      }, [accessDenied, sessionError, sessionErrorCode])
+      useEffect(() => { triggerSync = syncSession }, [syncSession])
+      return null
+    }
+
+    container = document.createElement('div')
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<AuthProvider><RetryProbe /></AuthProvider>)
+      await Promise.resolve()
+    })
+    expect(latest).toEqual({ accessDenied: true, sessionError: 'Not invited yet', sessionErrorCode: 'account_not_authorized' })
+
+    // Network throw during Check again must not clear accessDenied or its code.
+    await act(async () => { await triggerSync?.() })
+    expect(latest).toEqual({ accessDenied: true, sessionError: 'Network offline', sessionErrorCode: 'account_not_authorized' })
+
+    // Non-denial 503 during Check again must also keep accessDenied intact.
+    await act(async () => { await triggerSync?.() })
+    expect(latest).toEqual({ accessDenied: true, sessionError: 'Temporarily unavailable', sessionErrorCode: 'account_not_authorized' })
+
+    // Only a successful user session clears accessDenied.
+    await act(async () => { await triggerSync?.() })
+    expect(latest).toEqual({ accessDenied: false, sessionError: null, sessionErrorCode: null })
+  })
 })
 
 describe('AuthProvider analytics identity', () => {
