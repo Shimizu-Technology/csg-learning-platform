@@ -10,6 +10,7 @@ import { Button } from '../ui/Button'
 const checklist = {
   curriculum_assigned: 'Active curriculum assigned',
   price_set: 'Display price and Stripe price ID set',
+  price_verified: 'Price verified in Stripe',
   support_instructor_set: 'Active support instructor assigned to this cohort',
   published_content: 'Selected modules contain a published lesson with content',
   cohort_active: 'Cohort is active',
@@ -39,6 +40,9 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [verification, setVerification] = useState(cohort.offering_price_verified ?? null)
+  const [verifying, setVerifying] = useState(false)
+  const [priceError, setPriceError] = useState('')
   useEffect(() => {
     let active = true
     const request = typeof api.getCohortInstructorAssignments === 'function' ? api.getCohortInstructorAssignments(cohort.id) : null
@@ -58,9 +62,16 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
   const parsedSeatLimit = trimmedSeatLimit === '' ? null : seatLimitInvalid ? Number.NaN : Number(trimmedSeatLimit)
 
   const priceCents = Math.round(Number(price) * 100)
+  const stripePriceId = stripePrice.trim() || null
+  const savedPrice = stripePriceId === (cohort.stripe_price_id || null) && priceCents === cohort.public_price_cents
+  const priceSet = priceCents > 0 && /^price_[a-zA-Z0-9_]+$/.test(stripePrice)
+  const priceVerified = Boolean(verification && verification.price_cents === priceCents && verification.stripe_price_id === stripePriceId)
+  const savedPriceVerified = verification?.price_cents === cohort.public_price_cents && verification?.stripe_price_id === cohort.stripe_price_id
+  const formattedPrice = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(priceCents / 100)
   const readiness = {
     ...cohort.offering_readiness,
-    price_set: priceCents > 0 && /^price_[a-zA-Z0-9_]+$/.test(stripePrice.trim()),
+    price_set: priceSet,
+    price_verified: priceVerified,
     support_instructor_set: instructors.some((entry) => String(entry.id) === instructor),
   }
   const [serverReadiness, setServerReadiness] = useState<Record<string, boolean> | null>(null)
@@ -76,8 +87,8 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
       }).catch(() => { if (active) setError('Readiness unavailable. Refresh before publishing.') })
     }, 250)
     return () => { active = false; clearTimeout(timer) }
-  }, [cohort.id, courseDelivery, price, priceCents, stripePrice, instructor, marketing])
-  const ready = serverReadiness !== null && Object.values(serverReadiness).every(Boolean)
+  }, [cohort.id, courseDelivery, price, priceCents, stripePrice, instructor, marketing, verification])
+  const ready = priceVerified && serverReadiness !== null && Object.values(serverReadiness).every(Boolean)
   useEffect(() => {
     if (!onDraftChange) return
     const patch: Record<string, unknown> = {
@@ -87,7 +98,7 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
       support_instructor_id: instructor ? Number(instructor) : null,
       ...(!isGuided ? { self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks) } : {}),
       seat_limit: parsedSeatLimit,
-      public_checkout_enabled: visible,
+      public_checkout_enabled: visible && (cohort.public_checkout_enabled || priceVerified),
       unlisted,
     }
     const baseline = (key: string) => {
@@ -97,8 +108,34 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
       return (cohort as unknown as Record<string, unknown>)[key] ?? (key.startsWith('public_') && key !== 'public_price_cents' && key !== 'public_checkout_enabled' ? '' : null)
     }
     onDraftChange(Object.fromEntries(Object.entries(patch).filter(([key, value]) => !Object.is(value, baseline(key)))))
-  }, [price, priceCents, stripePrice, instructor, months, weeks, parsedSeatLimit, visible, unlisted, isGuided, ready, cohort, onDraftChange, loaded, marketing])
+  }, [price, priceCents, stripePrice, instructor, months, weeks, parsedSeatLimit, visible, unlisted, isGuided, priceVerified, cohort, onDraftChange, marketing])
   const Form = onDraftChange ? 'div' : 'form'
+  function editPrice(setValue: (value: string) => void, value: string) {
+    setValue(value)
+    setPriceError('')
+    if (!cohort.public_checkout_enabled) setVisible(false)
+  }
+
+  async function verifyPrice() {
+    setVerifying(true)
+    setPriceError('')
+    try {
+      const response = await api.verifyOfferingPrice(cohort.id)
+      const stamp = response.data?.offering_price_verified
+      if (response.error || !stamp) {
+        setPriceError(response.error || 'Could not verify this price. Try again.')
+      } else if (stamp.stripe_price_id !== stripePriceId || stamp.price_cents !== priceCents) {
+        setPriceError('The saved price has changed. Reload settings and try again.')
+      } else {
+        setVerification(stamp)
+      }
+    } catch {
+      setPriceError('Could not verify this price. Try again.')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   async function save(event: FormEvent) {
     event.preventDefault()
     if (seatLimitInvalid) {
@@ -118,7 +155,13 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
         ...(unlisted !== (cohort.unlisted ?? false) ? { unlisted } : {}),
       })
       if (response.error || !response.data) setError(response.error || 'Could not save course offering.')
-      else { setVisible(response.data.cohort.public_checkout_enabled ?? false); setUnlisted(response.data.cohort.unlisted ?? false); setMessage('Course offering saved.'); await onSaved() }
+      else {
+        setVerification(response.data.cohort.offering_price_verified ?? null)
+        setVisible(response.data.cohort.public_checkout_enabled ?? false)
+        setUnlisted(response.data.cohort.unlisted ?? false)
+        setMessage('Course offering saved.')
+        await onSaved()
+      }
     } catch { setError('Could not save course offering. Please try again.') }
     finally { setBusy(false) }
   }
@@ -135,9 +178,25 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
       <div className="grid gap-4 sm:grid-cols-2">
         {Object.entries({ public_title: 'Public title', public_description: 'Description', public_image_url: 'Image URL (HTTPS)', public_outcomes: 'What learners will learn', public_duration: 'Estimated duration', public_prerequisites: 'Prerequisites', public_preview: 'Course preview' }).map(([key, label]) => <label key={key} className="text-sm font-semibold sm:col-span-2">{label}{['public_description', 'public_outcomes', 'public_prerequisites', 'public_preview'].includes(key) ? <textarea className="app-control mt-1 w-full" value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} /> : <input className="app-control mt-1 w-full" type={key === 'public_image_url' ? 'url' : 'text'} value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} />}</label>)}
         <p className="text-sm text-ink-secondary sm:col-span-2">Use public course copy only. The lesson count and syllabus come from published lessons in the selected modules. The course address stays the same when you change its title.</p>
-        <label className="text-sm font-semibold">Display price (USD)<input id="offering-price" className="app-control mt-1 min-h-11 w-full" type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></label>
-        <label className="text-sm font-semibold">Stripe price ID<input className="app-control mt-1 min-h-11 w-full" pattern="price_[a-zA-Z0-9_]+" placeholder="price_…" value={stripePrice} onChange={(event) => setStripePrice(event.target.value)} /></label>
-        <p className="text-sm text-ink-secondary sm:col-span-2">Use a Stripe Price ID beginning with price_, such as price_example123. Product IDs beginning with prod_ will not work.</p>
+        <label className="min-w-0 text-sm font-semibold">Display price (USD)<input id="offering-price" className="app-control mt-1 min-h-11 w-full" type="number" min="0.01" step="0.01" value={price} disabled={verifying} onChange={(event) => editPrice(setPrice, event.target.value)} /></label>
+        <div className="grid min-w-0 gap-2">
+          <label className="text-sm font-semibold">Stripe price ID<input id="offering-stripe-price" className="app-control mt-1 min-h-11 w-full" pattern="price_[a-zA-Z0-9_]+" placeholder="price_…" value={stripePrice} disabled={verifying} aria-describedby="offering-price-help" onChange={(event) => editPrice(setStripePrice, event.target.value)} /></label>
+          {priceVerified ? (
+            <p role="status" className="flex w-fit items-center gap-2 rounded-xl bg-success-soft px-3 py-2 text-sm font-semibold text-success-ink">
+              <CheckCircle className="h-4 w-4 shrink-0" aria-hidden="true" />Verified in Stripe · {formattedPrice} USD
+            </p>
+          ) : (
+            <Button variant="secondary" className="min-h-11 justify-self-start" disabled={!savedPrice || !priceSet || verifying || busy} onClick={() => void verifyPrice()}>
+              {verifying ? 'Verifying price…' : 'Verify price in Stripe'}
+            </Button>
+          )}
+          <p id="offering-price-help" className="text-sm text-ink-secondary">
+            {priceVerified ? 'One-time payment.' : priceSet && !savedPrice
+              ? `Save ${onDraftChange ? 'settings' : 'the course offering'} to verify this price.`
+              : 'Use an active, one-time USD Price ID beginning with price_.'}
+          </p>
+          {priceError && <p role="alert" className="text-sm text-danger-ink">{priceError}</p>}
+        </div>
         {loaded && instructors.length === 0 && <p className="text-sm sm:col-span-2">Assign an instructor to this cohort first. <Link className="app-link" to={`/admin/cohorts/${cohort.id}?tab=team`}>Open Teaching team</Link></p>}
         <label className="text-sm font-semibold">Support instructor<select className="app-control mt-1 min-h-11 w-full" value={instructor} onChange={(event) => setInstructor(event.target.value)} disabled={!loaded}><option value="">Choose an assigned instructor</option>{instructors.map((entry) => <option key={entry.id} value={entry.id}>{entry.full_name || entry.email}</option>)}</select></label>
         <label className="text-sm font-semibold">
@@ -167,21 +226,23 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
         </>}
       </div>
       <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{Object.entries(checklist).map(([key, label]) => {
-        const complete = (serverReadiness ?? readiness)[key as keyof typeof readiness]
+        const complete = key === 'price_verified' ? priceVerified : (serverReadiness ?? readiness)[key as keyof typeof readiness]
         const Icon = complete ? CheckCircle : Circle
-        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><Link className="app-link min-h-11 inline-flex items-center" onClick={() => { if (key === 'cohort_active' || !['support_instructor_set', 'published_content', 'curriculum_assigned'].includes(key)) { const target = document.getElementById(key === 'cohort_active' ? 'cohort-status' : 'offering-price'); target?.scrollIntoView({ block: 'center' }); target?.focus({ preventScroll: true }) } }} to={key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team` : key === 'published_content' || key === 'curriculum_assigned' ? `/admin/content?open=${(cohort as { modules?: Array<{ id: number }> }).modules?.map(module => module.id).join(',') || ''}` : key === 'cohort_active' ? `${location.pathname}${location.search}#cohort-status` : `${location.pathname}${location.search}#offering-price`}>{complete ? 'Ready: ' : 'Needed: '}{label}</Link></li>
+        const targetId = key === 'cohort_active' ? 'cohort-status' : key === 'price_verified' ? 'offering-stripe-price' : 'offering-price'
+        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><Link className="app-link min-h-11 inline-flex items-center" onClick={() => { if (!['support_instructor_set', 'published_content', 'curriculum_assigned'].includes(key)) { const target = document.getElementById(targetId); target?.scrollIntoView({ block: 'center' }); target?.focus({ preventScroll: true }) } }} to={key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team` : key === 'published_content' || key === 'curriculum_assigned' ? `/admin/content?open=${(cohort as { modules?: Array<{ id: number }> }).modules?.map(module => module.id).join(',') || ''}` : `${location.pathname}${location.search}#${targetId}`}>{complete ? 'Ready: ' : 'Needed: '}{label}</Link></li>
       })}</ul></div>
       <div className="space-y-1">
         <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" className="h-5 w-5" checked={visible} disabled={(!ready && !visible) || !loaded} onChange={(event) => setVisible(event.target.checked)} />{unlisted ? 'Enable in-app checkout (direct link only)' : 'Show checkout in the course catalog'}</label>
         <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input id="offering-unlisted" type="checkbox" className="h-5 w-5" checked={unlisted} onChange={(event) => setUnlisted(event.target.checked)} />Unlisted — hide from the public catalog list (direct link only)</label>
       </div>
       <p className="text-sm text-ink-secondary">
+        {cohort.public_checkout_enabled && !savedPriceVerified && 'New checkout attempts are paused until you verify the saved price. '}
         Checkout is off by default. Complete the checklist before enabling it. School-wide sales controls must also be enabled separately.
         {unlisted && cohort.public_slug ? ` Invited learners can still open and enroll at /courses/${cohort.public_slug}.` : ''}
       </p>
       {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
       {message && <p role="status" className="text-sm text-success-ink">{message}</p>}
-      {!onDraftChange && <Button type="submit" disabled={busy || !loaded || seatLimitInvalid}>{busy ? 'Saving…' : 'Save course offering'}</Button>}
+      {!onDraftChange && <Button type="submit" disabled={busy || verifying || !loaded || seatLimitInvalid}>{busy ? 'Saving…' : 'Save course offering'}</Button>}
     </Form>
   </section>
 }

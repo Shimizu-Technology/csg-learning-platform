@@ -7,6 +7,7 @@ import { copyText } from '../../lib/clipboard'
 import { cohortPath, curriculumPath, lessonEditorPath, lessonRecordPath, moduleRecordPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink, type BackLink } from '../../lib/recordOrigin'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useUpload } from '../../contexts/UploadContext'
@@ -81,6 +82,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const previewing = searchParams.get('preview') === 'true'
+  const mobileInspector = useMediaQuery('not all and (min-width: 1024px)')
   const { uploads, completeDeferredUpload, cancelUpload } = useUpload()
 
   const [server, setServer] = useState<LessonBlockEditorResponse | null>(null)
@@ -127,7 +129,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const [rubrics, setRubrics] = useState<Rubric[]>([])
   const [rubricDrafts, setRubricDrafts] = useState<Record<string, RubricDraft>>({})
   const auditBlockId = Number(searchParams.get('block'))
-  const auditRequest = useRef({ blockId: auditBlockId, companion: searchParams.get('add_companion') === '1' })
+  const checkPolicyBlockId = Number(searchParams.get('block_id'))
+  const auditRequest = useRef({ blockId: checkPolicyBlockId || auditBlockId, companion: !checkPolicyBlockId && searchParams.get('add_companion') === '1' })
   const [suggestedSubmission, setSuggestedSubmission] = useState(searchParams.get('suggest_submission'))
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('lesson')
@@ -601,6 +604,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       draft={draft}
       onLesson={(patch) => setDraft((current) => ({ ...current, ...patch }))}
       block={selectedBlock}
+      savedGithubSync={lesson.content_blocks.some((item) => item.id === selectedBlock?.id && item.submission_type === 'prework_github_sync')}
+      focusCheckPolicy={Boolean(checkPolicyBlockId && selectedBlock?.id === checkPolicyBlockId)}
       onBlock={(patch) => selectedBlock && updateBlock(selectedBlock.key, patch)}
       activity={activity}
       context={context}
@@ -788,7 +793,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
             </div>
           </main>
           <aside aria-label="Settings" className="hidden w-80 shrink-0 border-l border-line bg-surface-raised lg:block">
-            <div className="sticky top-15 max-h-[calc(100dvh-7.75rem)] overflow-y-auto">{inspector}</div>
+            <div className="sticky top-15 max-h-[calc(100dvh-7.75rem)] overflow-y-auto">{!mobileInspector && !settingsOpen && inspector}</div>
           </aside>
         </div>
       )}

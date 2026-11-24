@@ -18,15 +18,73 @@ class CourseCheckout
     Stripe::StripeClient.new(ENV.fetch("STRIPE_RESTRICTED_KEY"), stripe_version: "2026-08-26.dahlia")
   end
 
+  def self.verify_offering_price!(cohort)
+    captured_id = cohort.stripe_price_id
+    captured_cents = cohort.public_price_cents
+    raise SetupFailure, "Stripe is not configured for this school." if ENV["STRIPE_RESTRICTED_KEY"].blank?
+
+    verified_price!(stripe_price_id: captured_id, price_cents: captured_cents)
+
+    # A price edit during the Stripe request must never stamp the newer terms.
+    cohort.with_lock do
+      unless cohort.stripe_price_id == captured_id && cohort.public_price_cents == captured_cents
+        raise PriceChanged, "The saved price changed while Stripe was checking it. Reload settings and try again."
+      end
+
+      stamp = { "stripe_price_id" => captured_id, "price_cents" => captured_cents, "verified_at" => Time.current.iso8601 }
+      cohort.update!(settings: cohort.settings.to_h.merge("offering_price_verified" => stamp))
+      stamp
+    end
+  end
+
+  def self.verified_price!(stripe_price_id:, price_cents:)
+    unless stripe_price_id.to_s.match?(/\Aprice_[a-zA-Z0-9_]+\z/) && price_cents.to_i.positive?
+      raise SetupFailure, "Save a display price and a valid Stripe Price ID before verifying."
+    end
+    price = client.v1.prices.retrieve(stripe_price_id)
+    raise SetupFailure, "This Stripe price is inactive. Use an active Price ID." unless price.active
+    raise SetupFailure, "This Stripe price is recurring. Use a one-time price." unless price.type == "one_time"
+    unless price.currency == "usd"
+      raise SetupFailure, "This Stripe price uses #{price.currency.to_s.upcase}. Use a price in USD."
+    end
+    unless price.unit_amount == price_cents
+      raise SetupFailure, "This Stripe price does not have a fixed amount." if price.unit_amount.nil?
+
+      raise SetupFailure, "Stripe price is #{usd_price(price.unit_amount)}, but display price is #{usd_price(price_cents)}."
+    end
+    price
+  rescue Stripe::InvalidRequestError => error
+    raise SetupFailure, "Stripe could not find this Price ID. Check the ID and try again." if error.code == "resource_missing" || error.http_status == 404
+
+    raise SetupFailure, "Stripe rejected this Price ID. Check the ID and try again."
+  rescue Stripe::AuthenticationError, Stripe::PermissionError
+    raise SetupFailure, "Stripe could not authorize the price check. Check the school's Stripe configuration."
+  rescue Stripe::StripeError
+    raise SetupFailure, "Could not reach Stripe to check this price. Try again."
+  end
+  private_class_method :verified_price!
+
+  def self.usd_price(cents)
+    dollars, remainder = cents.divmod(100)
+    format("$%d.%02d USD", dollars, remainder)
+  end
+  private_class_method :usd_price
+
   def self.start!(user:, cohort:)
-    raise Unavailable, "Course checkout is not available" unless enabled? && cohort.purchase_ready?
+    raise Unavailable, "Course checkout is not available" unless enabled? && cohort.purchase_ready?(require_verified_price: false)
     raise Unavailable, "This course is already in your library" if user.enrollments.with_read_access.exists?(cohort: cohort)
 
     purchase = user.with_lock do
       raise Unavailable, "This course is already in your library" if user.enrollments.with_read_access.exists?(cohort: cohort)
       raise Unavailable, "This purchase needs staff review" if CoursePurchase.where(user: user, cohort: cohort, status: "disputed").exists?
 
-      CoursePurchase.where(user: user, cohort: cohort, status: CoursePurchase::OPEN_ATTEMPT_STATUSES).order(id: :desc).first ||
+      open_purchase = CoursePurchase.where(user: user, cohort: cohort, status: CoursePurchase::OPEN_ATTEMPT_STATUSES).order(id: :desc).first
+      # Previously opened sessions and immutable requests can still resume on their agreed terms.
+      if open_purchase
+        open_purchase
+      else
+        raise Unavailable, "Course checkout is not available" unless cohort.offering_price_verification
+
         CoursePurchase.create!(
           user: user,
           cohort: cohort,
@@ -34,6 +92,7 @@ class CourseCheckout
           stripe_price_id: cohort.stripe_price_id,
           price_cents: cohort.public_price_cents
         )
+      end
     end
 
     # Commit the full immutable request BEFORE the external side effect. A
@@ -99,16 +158,14 @@ class CourseCheckout
     end
 
     raise CohortFull, "This cohort is full" if cohort.full_for_checkout?(user: user)
+    raise Unavailable, "Course checkout is not available" unless cohort.offering_price_verification
 
     captured_price_id = cohort.stripe_price_id
     captured_price_cents = cohort.public_price_cents
 
-    stripe_price = begin
-      client.v1.prices.retrieve(captured_price_id)
-    rescue Stripe::StripeError
-      raise SetupFailure, "We couldn't start checkout — try again"
-    end
-    unless stripe_price.active && stripe_price.currency == "usd" && stripe_price.unit_amount == captured_price_cents && stripe_price.type == "one_time"
+    begin
+      verified_price!(stripe_price_id: captured_price_id, price_cents: captured_price_cents)
+    rescue SetupFailure
       raise SetupFailure, "We couldn't start checkout — try again"
     end
 
@@ -117,10 +174,10 @@ class CourseCheckout
     # Acquire cohort row lock to serialize concurrent seat reservations and
     # verify price/terms did not change while Stripe verified the price.
     cohort.with_lock do
-      raise Unavailable, "Course checkout is not available" unless cohort.purchase_ready?
       if cohort.stripe_price_id != captured_price_id || cohort.public_price_cents != captured_price_cents
         raise PriceChanged, "The course price changed while checkout was starting. Reload and try again."
       end
+      raise Unavailable, "Course checkout is not available" unless cohort.purchase_ready?
       raise CohortFull, "This cohort is full" if cohort.full_for_checkout?(user: user)
 
       course_path = cohort.unlisted? && cohort.public_slug.present? ? "/courses/#{cohort.public_slug}" : "/courses"

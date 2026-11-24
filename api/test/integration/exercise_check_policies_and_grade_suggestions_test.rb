@@ -167,6 +167,17 @@ class ExerciseCheckPoliciesAndGradeSuggestionsTest < ActionDispatch::Integration
     assert_equal v1.fetch("id"), suggestion.reload.exercise_check_policy_id
   end
 
+  test "lesson authoring context exposes the grade suggestion setup hint to authorized editors" do
+    as_user(@editor_instructor) { get "/api/v1/lessons/#{@lesson.id}/block_editor", headers: auth_headers }
+    assert_response :success
+    assert_equal true, response.parsed_body.dig("context", "github_grade_suggestions_configured")
+
+    SchoolSetting.current.update!(features: { "github_app" => true, "github_grade_suggestions" => false })
+    as_user(@editor_instructor) { get "/api/v1/lessons/#{@lesson.id}/block_editor", headers: auth_headers }
+    assert_response :success
+    assert_equal false, response.parsed_body.dig("context", "github_grade_suggestions_configured")
+  end
+
   test "PUT /api/v1/content_blocks/:id/check_policy rejects malformed param types, control characters, unsafe paths, and sha without path" do
     invalid_payloads = [
       { required_checks: "prework/111.rb" },

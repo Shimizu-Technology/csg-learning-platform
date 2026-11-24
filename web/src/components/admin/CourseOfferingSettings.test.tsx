@@ -5,13 +5,15 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseOfferingSettings } from './CourseOfferingSettings'
 import type { CourseOfferingTerms } from '../../types/api'
-const api = vi.hoisted(() => ({ getCohortInstructorAssignments: vi.fn(), updateCohort: vi.fn(), getSetupReadiness: vi.fn() }))
+const api = vi.hoisted(() => ({ getCohortInstructorAssignments: vi.fn(), updateCohort: vi.fn(), getSetupReadiness: vi.fn(), verifyOfferingPrice: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api }))
 let root: Root, container: HTMLDivElement
+const stamp = { stripe_price_id: 'price_python', price_cents: 14900, verified_at: '2026-11-24T02:00:00Z' }
 const cohort: CourseOfferingTerms & { id: number } = {
   id: 13, public_checkout_enabled: false, public_price_cents: 14900, stripe_price_id: 'price_python', support_instructor_id: 9,
   self_paced_access_months: 12, self_paced_support_weeks: 6,
-  offering_readiness: { curriculum_assigned: true, price_set: true, support_instructor_set: true, published_content: true, cohort_active: true },
+  offering_price_verified: stamp,
+  offering_readiness: { curriculum_assigned: true, price_set: true, price_verified: true, support_instructor_set: true, published_content: true, cohort_active: true },
 }
 const onSaved = vi.fn()
 beforeEach(() => {
@@ -73,7 +75,7 @@ it('links catalog preview and every readiness item to its repair location', asyn
   await render()
   expect(container.querySelector('a[href="/courses?offering_id=13"]')?.textContent).toBe('View in catalog')
   const links = [...container.querySelectorAll('li a')].map(link => link.getAttribute('href'))
-  expect(links).toEqual(['/admin/content?open=', '/#offering-price', '/admin/cohorts/13?tab=team', '/admin/content?open=', '/#cohort-status', '/#offering-price', '/#offering-price'])
+  expect(links).toEqual(['/admin/content?open=', '/#offering-price', '/#offering-stripe-price', '/admin/cohorts/13?tab=team', '/admin/content?open=', '/#cohort-status', '/#offering-price', '/#offering-price'])
   expect(container.querySelector('#offering-price')).not.toBeNull()
 })
 
@@ -147,4 +149,44 @@ it('validates and stages seat limit and unlisted toggle for guided cohorts witho
   await act(async () => { unlistedBox.click() })
   expect(onDraftChange).toHaveBeenLastCalledWith({ seat_limit: 20, unlisted: true })
   expect(container.textContent).toContain('/courses/python-pilot')
+})
+
+it('requires a verified price and reports the live amount after verification', async () => {
+  const draft = { ...cohort, offering_price_verified: null, offering_readiness: { ...cohort.offering_readiness, price_verified: false } }
+  api.getSetupReadiness.mockResolvedValue({ data: { readiness: { ...cohort.offering_readiness, catalog_copy: true, school_checkout_enabled: true }, errors: [] } })
+  api.verifyOfferingPrice.mockResolvedValue({ data: { offering_price_verified: stamp } })
+  await render(draft)
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)) })
+  const checkout = container.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+  expect(checkout.disabled).toBe(true)
+  const verify = [...container.querySelectorAll('button')].find(button => button.textContent === 'Verify price in Stripe')!
+  await act(async () => verify.click())
+  expect(api.verifyOfferingPrice).toHaveBeenCalledWith(13)
+  expect(container.textContent).toContain('Verified in Stripe · $149.00 USD')
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)) })
+  expect(checkout.disabled).toBe(false)
+})
+
+it('shows the exact Stripe failure and asks to save price edits before verification', async () => {
+  const draft = { ...cohort, offering_price_verified: null }
+  api.verifyOfferingPrice.mockResolvedValue({ error: 'Stripe price is $199.00 USD, but display price is $149.00 USD.' })
+  await render(draft)
+  const verify = [...container.querySelectorAll('button')].find(button => button.textContent === 'Verify price in Stripe')!
+  await act(async () => verify.click())
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe('Stripe price is $199.00 USD, but display price is $149.00 USD.')
+  const stripeId = container.querySelector<HTMLInputElement>('#offering-stripe-price')!
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(stripeId, 'price_replacement'); stripeId.dispatchEvent(new Event('input', { bubbles: true })) })
+  expect(verify.disabled).toBe(true)
+  expect(container.textContent).toContain('Save the course offering to verify this price.')
+  expect(container.querySelector('[role="alert"]')).toBeNull()
+})
+
+it.each([['#offering-price', '199.00'], ['#offering-stripe-price', 'price_changed']])('clears the verified badge and prevents enabling checkout while editing %s', async (selector, value) => {
+  await render()
+  const control = container.querySelector<HTMLInputElement>(selector)!
+  expect(container.textContent).toContain('Verified in Stripe')
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(control, value); control.dispatchEvent(new Event('input', { bubbles: true })) })
+  expect(container.textContent).not.toContain('Verified in Stripe')
+  expect(container.textContent).toContain('Save the course offering to verify this price.')
+  expect(container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.disabled).toBe(true)
 })

@@ -21,6 +21,18 @@ abort 'Database guard failed' unless ActiveRecord::Base.connection_db_config.dat
 # Local harness only: simulate readiness without provider credentials or calls.
 CourseCheckout.define_singleton_method(:enabled?) { true } if ENV["QA_CHECKOUT_READY"] == "1"
 
+if ENV["QA_OFFERING_PRICE_VERIFICATION"] == "1"
+  ENV["STRIPE_RESTRICTED_KEY"] = "rk_test_qa_offering_price"
+  prices = Object.new
+  prices.define_singleton_method(:retrieve) do |id|
+    amount = { "price_qa_ux2_399" => 39_900, "price_qa_ux2_499" => 49_900 }[id]
+    raise Stripe::InvalidRequestError.new("Synthetic price not found", "id", code: "resource_missing") unless amount
+
+    Stripe::Price.construct_from(active: true, type: "one_time", currency: "usd", unit_amount: amount)
+  end
+  CourseCheckout.define_singleton_method(:client) { Struct.new(:v1).new(Struct.new(:prices).new(prices)) }
+end
+
 # Opt-in inline invitation timing model, with no external HTTP or credentials.
 if ENV['QA_INVITE_DELAY']
   delay = Float(ENV.fetch('QA_INVITE_DELAY'))

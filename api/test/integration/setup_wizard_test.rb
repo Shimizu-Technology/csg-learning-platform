@@ -1,8 +1,10 @@
 require "test_helper"
+require_relative "../support/offering_price_test_support"
 require_relative "../support/query_counter"
 require_relative "../support/job_adapter_helpers"
 
 class SetupWizardTest < ActionDispatch::IntegrationTest
+  include OfferingPriceTestSupport
   include QueryCounter
   include JobAdapterHelpers
   setup do
@@ -195,6 +197,7 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
     @cohort.update!(support_instructor: instructor, public_price_cents: 14900, stripe_price_id: "price_synthetic",
       public_title: "Synthetic course", public_description: "Learn with a project", public_image_url: "https://example.test/course.png",
       content_defaults: { mod.id.to_s => { "assigned" => true } })
+    stamp_verified_offering_price(@cohort)
     original = CourseCheckout.method(:enabled?)
     CourseCheckout.define_singleton_method(:enabled?) { true }
     as_user(@admin) do
