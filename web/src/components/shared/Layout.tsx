@@ -5,7 +5,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { originLabel } from '../../lib/recordOrigin'
 import { usePageFade } from '../../lib/motion'
-import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis, Bell } from 'lucide-react'
+import { X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis, Bell } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { brand, LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -22,7 +22,6 @@ import { AccountMenu } from './AccountMenu'
 import { IconButton } from '../ui/Button'
 import { useKeyboardAwareViewport } from '../../lib/visualViewport'
 import { shellNavigation } from '../../lib/shellNavigation'
-import { NavDisclosure } from './NavDisclosure'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -51,6 +50,8 @@ export function Layout({ children }: LayoutProps) {
   const { user, enrollments, isLoading, schoolFeatures } = useAuthContext()
   const { selectedCohort, cohorts } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
+  // Unread announcement notices alone: with none, the badged Updates link opens Notifications.
+  const [announcementUnreadCount, setAnnouncementUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
   const summaryFreshness = useRef(new ConversationSummaryFreshness()).current
   const channelSummariesRef = useRef(new Map<number, ChannelSummary>())
@@ -122,8 +123,10 @@ export function Layout({ children }: LayoutProps) {
       const version = unreadRefreshVersion()
       const started = summaryFreshness.startRequest()
       const current = () => active && request === generation && version === unreadRefreshVersion() && (!isCurrent || isCurrent())
-      api.getNotifications({ per_page: 1 }).then((res) => {
-        if (current() && res.data) setUnreadCount(res.data.unread_count)
+      Promise.all([api.getNotifications({ per_page: 1 }), api.getNotifications({ per_page: 1, notification_type: 'announcement' })]).then(([all, announcements]) => {
+        if (!current()) return
+        if (all.data) setUnreadCount(all.data.unread_count)
+        if (announcements.data) setAnnouncementUnreadCount(announcements.data.unread_count)
       })
       Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
         if (!active || request !== generation) return
@@ -274,6 +277,15 @@ export function Layout({ children }: LayoutProps) {
     return 0
   }
 
+  // Updates opens the Notifications tab when everything unread lives there, so the badge leads to what set it.
+  const navTarget = (item: (typeof navItems)[number]) => {
+    if (!item.to.startsWith('/announcements') || unreadCount === 0 || announcementUnreadCount > 0) return item.to
+    const [path, query = ''] = item.to.split('?')
+    const params = new URLSearchParams(query)
+    params.set('tab', 'inbox')
+    return `${path}?${params}`
+  }
+
   const getNavLabel = (item: (typeof navItems)[number]) => {
     const count = getNavUnreadCount(item.to)
     return count > 0 ? `${item.label}, ${count} unread` : item.label
@@ -297,7 +309,7 @@ export function Layout({ children }: LayoutProps) {
   const renderMobileLinks = (items: typeof navItems) => items.map((item) => (
               <Link
                 key={item.to}
-                to={item.to}
+                to={navTarget(item)}
                 onClick={() => closeMobileSidebar(false)}
                 aria-current={isActive(item.to, item.exact) ? 'page' : undefined}
                 {...getLinkHandlers(item.to)}
@@ -317,13 +329,22 @@ export function Layout({ children }: LayoutProps) {
                   )}
                 </span>
                 {item.label}
+                {getNavUnreadCount(item.to) > 0 && <span className="ml-auto min-w-6 rounded-full bg-action-primary px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-on-action">{getNavUnreadCount(item.to)}</span>}
               </Link>
             ))
+
+  // Open, labeled groups (as on the desktop sidebar): nothing in the drawer hides behind a second "More".
+  const renderMobileSection = (label: string, items: typeof navItems) => items.length > 0 && (
+    <section className="border-t border-line pt-3" aria-label={label}>
+      <h2 className="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</h2>
+      <div className="space-y-1">{renderMobileLinks(items)}</div>
+    </section>
+  )
 
   const renderDesktopLinks = (items: typeof navItems) => items.map((item) => (
             <Link
               key={item.to}
-              to={item.to}
+              to={navTarget(item)}
               aria-label={collapsed ? getNavLabel(item) : undefined}
               aria-current={isActive(item.to, item.exact) ? 'page' : undefined}
               {...getLinkHandlers(item.to)}
@@ -371,17 +392,7 @@ export function Layout({ children }: LayoutProps) {
       </a>
       {/* Mobile header */}
       <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="hide-with-keyboard sticky top-0 z-40 flex h-14 items-center gap-2 overflow-x-clip border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
-        <IconButton
-          ref={menuButtonRef}
-          label="Open navigation"
-          onClick={() => {
-            restoreMenuButtonFocusRef.current = false
-            setSidebarOpen(true)
-          }}
-          aria-expanded={sidebarOpen}
-        >
-          <Menu className="h-6 w-6" aria-hidden="true" />
-        </IconButton>
+        {/* The bottom bar's More is the one way into the drawer on phones and tablets. */}
         <Link to={homePath} className="pressable flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-xl px-1 sm:justify-start" aria-label="Go to Today">
           <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
           <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">{PRODUCT_NAME}</span>
@@ -424,13 +435,9 @@ export function Layout({ children }: LayoutProps) {
           </div>
           <nav className="flex-1 space-y-1 p-3">
             <button type="button" onClick={() => { closeMobileSidebar(false); setCommandPaletteOpen(true) }} className="pressable mb-2 flex min-h-11 w-full items-center gap-3 rounded-xl border border-line-strong px-3 text-sm font-medium text-ink-muted hover:bg-surface-sunken"><Search className="h-5 w-5" aria-hidden="true" />Search and go</button>
-            {renderMobileLinks(primary)}
-          <NavDisclosure label="More" compact={false} active={more.some((item) => isActive(item.to, item.exact))}>
-{renderMobileLinks(more)}
-          </NavDisclosure>
-          <NavDisclosure label="Admin" compact={false} active={admin.some((item) => isActive(item.to, item.exact))}>
-{renderMobileLinks(admin)}
-          </NavDisclosure>
+            <div className="space-y-1 pb-2">{renderMobileLinks(primary)}</div>
+            {renderMobileSection('More', more)}
+            {renderMobileSection('Admin', admin)}
           </nav>
           <div className="border-t border-line p-3">
             <AccountMenu name={user?.full_name || user?.email || 'Your account'} role={user?.role} avatarUrl={user?.avatar_url} onNavigate={() => closeMobileSidebar()} />
@@ -454,7 +461,6 @@ export function Layout({ children }: LayoutProps) {
         </div>
         {!isStaff && <CohortSwitcher iconOnly={collapsed} />}
         <nav className={`flex-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
-          {isStaff && <Link to="/announcements?tab=inbox" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken"><Bell className="h-5 w-5" aria-hidden="true" />{unreadCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-action-primary px-1.5 text-xs font-bold text-on-action">{unreadCount > 99 ? '99+' : unreadCount}</span>}</Link>}
           <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" aria-hidden="true" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-surface-sunken px-1.5 py-0.5 font-sans text-xs text-ink-muted">⌘K</kbd></>}</button>
           {renderDesktopLinks(primary)}
           {(more.length > 0 || admin.length > 0) && <section className="border-t border-line pt-3" aria-label="More">
@@ -536,7 +542,7 @@ export function Layout({ children }: LayoutProps) {
               </Link>
             )
           })}
-          <button type="button" aria-label="More navigation" aria-expanded={sidebarOpen} onClick={() => { restoreMenuButtonFocusRef.current = false; setSidebarOpen(true) }} className="pressable flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium text-ink-muted"><Ellipsis className="h-5 w-5" aria-hidden="true" />More</button>
+          <button ref={menuButtonRef} type="button" aria-label="More navigation" aria-haspopup="dialog" aria-expanded={sidebarOpen} onClick={() => { restoreMenuButtonFocusRef.current = false; setSidebarOpen(true) }} className="pressable flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium text-ink-muted"><Ellipsis className="h-5 w-5" aria-hidden="true" />More</button>
         </nav>
       )}
       <CommandPalette key={user?.id} open={commandPaletteOpen} isStaff={Boolean(isStaff)} onClose={closeCommandPalette} />

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
-import { browserPushEnabled, disablePushNotifications, webPushPreferenceEnabled } from './pushNotifications'
+import { browserPushEnabled, disablePushNotifications, PUSH_UNAVAILABLE_MESSAGE, pushConfigurationHint, webPushPreferenceEnabled } from './pushNotifications'
 
 vi.mock('./api', () => ({
   api: {
@@ -62,5 +62,24 @@ describe('browserPushEnabled', () => {
     expect(browserPushEnabled({ web_push_notifications_enabled: true }, subscription)).toBe(true)
     expect(browserPushEnabled({ web_push_notifications_enabled: false }, subscription)).toBe(false)
     expect(browserPushEnabled({ web_push_notifications_enabled: true }, null)).toBe(false)
+  })
+})
+
+describe('pushConfigurationHint', () => {
+  it('shows students and instructors a plain message, never env-var setup', () => {
+    const hint = pushConfigurationHint({ configured: false, missing: ['WEB_PUSH_VAPID_PRIVATE_KEY'], publicKey: null })
+    expect(hint).toBe(PUSH_UNAVAILABLE_MESSAGE)
+    expect(hint).not.toMatch(/Netlify|VAPID|VITE_|env/)
+  })
+
+  it('keeps the setup detail for admins, after the plain message', () => {
+    const hint = pushConfigurationHint({ configured: false, missing: ['WEB_PUSH_VAPID_PRIVATE_KEY'], publicKey: null, admin: true })
+    expect(hint.startsWith(PUSH_UNAVAILABLE_MESSAGE)).toBe(true)
+    expect(hint).toContain('API push is missing WEB_PUSH_VAPID_PRIVATE_KEY.')
+    expect(hint).toContain('VITE_WEB_PUSH_PUBLIC_KEY')
+  })
+
+  it('is empty once push is configured', () => {
+    expect(pushConfigurationHint({ configured: true, publicKey: 'key' })).toBe('')
   })
 })

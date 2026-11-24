@@ -4987,8 +4987,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reply to a help request (staff)
-         * @description Body: `{ "reply": { "body": string, "resolve": boolean, "client_request_id"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. 403 for learners, 404 outside the staff member's cohorts, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.
+         * Reply to a help request (staff), or follow up on one (the learner who asked)
+         * @description Body: `{ "reply": { "body": string, "resolve": boolean, "client_request_id"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. The learner who asked may follow up on their own open or acknowledged request once staff replied (`resolve` is ignored): the reply has `from_student: true`, the status, owner and `staff_response` stay as they were, and the owner (every cohort staff member when nobody owns it) is notified; the learner's response omits staff-only fields. 403 for other roles, or a learner whose course no longer offers instructor help; 404 outside the staff member's cohorts or for another learner's request, 422 for a blank or too-long reply, a malformed client request id, a new reply on a resolved or canceled request, or a learner follow-up before any staff reply.
          */
         post: {
             parameters: {
@@ -6784,7 +6784,7 @@ export interface components {
             };
             destination: components["schemas"]["RecordDestination"] | null;
             context_destination: components["schemas"]["RecordDestination"] | null;
-            /** @description Staff replies, oldest first. Requests resolved before replies existed have none; their one response is `staff_response`, which always mirrors the latest reply. */
+            /** @description Staff replies and the learner's follow-ups, oldest first. Requests resolved before replies existed have none; their one response is `staff_response`, which always mirrors the latest staff reply. */
             replies: components["schemas"]["HelpRequestReply"][];
             /** @description Staff readers of one request (show, update, reply) only; null when no plan was started from it or the cohort has follow-up plans switched off. Never sent to learners or in lists. */
             follow_up?: components["schemas"]["HelpRequestFollowUp"] | null;
@@ -10041,11 +10041,13 @@ export interface components {
             /** @description Admins who can turn meetings on or change the host. Empty for admins. */
             admin_contacts: components["schemas"]["StaffContact"][];
         };
-        /** @description One staff reply (U-4.7). `resolved_request` is true for the reply sent with Reply & resolve. */
+        /** @description One reply (U-4.7): a staff reply, or the learner's follow-up (`from_student`). `resolved_request` is true for the reply sent with Reply & resolve. */
         HelpRequestReply: {
             id: number;
             body: string;
             resolved_request: boolean;
+            /** @description True for the learner's own follow-up in the thread. Always sent; optional for older clients. */
+            from_student?: boolean;
             author: {
                 id: number;
                 full_name: string;

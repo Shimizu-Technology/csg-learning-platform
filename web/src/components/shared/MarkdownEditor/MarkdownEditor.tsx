@@ -305,6 +305,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [linkError, setLinkError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  // Composer only: formatting tools stay behind Aa until the person opens them; this browser remembers the choice.
+  const [formattingShown, setFormattingShown] = useState(() => composer && readComposerFormattingShown())
+  const toggleFormatting = () => {
+    const next = !formattingShown
+    setFormattingShown(next)
+    setMenuOpen(false)
+    if (!next) setHelpOpen(false)
+    writeComposerFormattingShown(next)
+  }
   const [sourceInBlock, setSourceInBlock] = useState(false)
   const [sourceSelection, setSourceSelection] = useState({ start: 0, end: 0 })
   const linkSelectionRef = useRef<{ from: number; to: number; start: number; end: number } | null>(null)
@@ -1254,15 +1263,24 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
       {composer && (
         <>
+          {formattingShown && (
+            <div data-composer-formatting="" className="flex min-w-0 flex-wrap items-center gap-0.5 border-t border-line px-1.5 py-1">
+              <div role="toolbar" aria-label={`Formatting for ${label.toLowerCase()}`} className="messages-toolbar-scroll flex min-w-0 flex-1 basis-full items-center gap-0.5 overflow-x-auto @min-[37.5rem]:basis-0">
+                <FormatButtons pressed={pressed} disabled={formatDisabled} compact onAction={runAction} />
+              </div>
+              <span className="min-w-0 flex-1 @min-[37.5rem]:hidden" />
+              <ModeToggle mode={mode} onChange={(next) => setMode(next)} />
+              {helpButton}
+            </div>
+          )}
           <div className="flex min-w-0 items-center gap-0.5 border-t border-line px-1.5 py-1">
             {toolbarStart}
-            {toolbar}
-            {phoneMenu}
-            <span className={wide.contents}>{toolbarEnd}</span>
+            <ToolbarButton label="Formatting" compact pressed={formattingShown} onClick={toggleFormatting}>
+              <span className="text-sm font-bold" aria-hidden="true">Aa</span>
+            </ToolbarButton>
+            {toolbarEnd}
             <span className="min-w-0 flex-1" />
-            <ModeToggle mode={mode} onChange={(next) => setMode(next)} className={wide.showInline} />
             {previewButton}
-            {helpButton}
             {submitSlot}
           </div>
           {(hint || hintStart) && (
@@ -1278,3 +1296,22 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     </div>
   )
 })
+
+const COMPOSER_FORMATTING_KEY = 'csg-composer-formatting'
+
+function readComposerFormattingShown() {
+  try {
+    return window.localStorage.getItem(COMPOSER_FORMATTING_KEY) === 'shown'
+  } catch {
+    return false
+  }
+}
+
+function writeComposerFormattingShown(shown: boolean) {
+  try {
+    if (shown) window.localStorage.setItem(COMPOSER_FORMATTING_KEY, 'shown')
+    else window.localStorage.removeItem(COMPOSER_FORMATTING_KEY)
+  } catch {
+    // Storage can be unavailable (private windows); the choice lasts until reload.
+  }
+}

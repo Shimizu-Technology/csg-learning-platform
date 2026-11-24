@@ -126,6 +126,29 @@ describe('Rich typing rules (§9.4)', () => {
   })
 })
 
+describe('calm composer: formatting behind Aa', () => {
+  it('hides formatting and the editor mode until Aa is pressed, and remembers the choice', async () => {
+    localStorage.removeItem('csg-composer-formatting')
+    const first = await mount({ variant: 'composer' })
+    const aa = first.button('Formatting')
+    expect(aa.getAttribute('aria-pressed')).toBe('false')
+    expect(first.host.querySelector('[role="toolbar"]')).toBeNull()
+    expect(first.button('Markdown')).toBeUndefined()
+    act(() => aa.click())
+    expect(first.button('Formatting').getAttribute('aria-pressed')).toBe('true')
+    expect(first.host.querySelector('[role="toolbar"]')).not.toBeNull()
+    expect(first.button('Bold')).toBeTruthy()
+    expect(first.button('Markdown')).toBeTruthy()
+    expect(localStorage.getItem('csg-composer-formatting')).toBe('shown')
+    act(() => root!.unmount()); container!.remove()
+    const second = await mount({ variant: 'composer' })
+    expect(second.host.querySelector('[role="toolbar"]')).not.toBeNull()
+    act(() => second.button('Formatting').click())
+    expect(second.host.querySelector('[role="toolbar"]')).toBeNull()
+    expect(localStorage.getItem('csg-composer-formatting')).toBeNull()
+  })
+})
+
 describe('Enter in the composer (§9.7)', () => {
   it('sends on Enter by default; Shift+Enter, lists and code blocks add a line', async () => {
     const onSubmit = vi.fn()
@@ -149,6 +172,7 @@ describe('Enter in the composer (§9.7)', () => {
   it('with the setting off, Enter adds a line and ⌘/Ctrl+Enter sends, and the choice is saved', async () => {
     const onSubmit = vi.fn()
     const { editor, surface, host, button } = await mount({ variant: 'composer', onSubmit })
+    act(() => button('Formatting').click())
     act(() => button('Formatting help').click())
     const toggle = host.querySelector('[role="switch"]') as HTMLButtonElement
     expect(toggle.getAttribute('aria-checked')).toBe('true')
@@ -574,6 +598,7 @@ describe('review round 2', () => {
     try {
       const onSubmit = vi.fn()
       const { host, button: find, editor, surface } = await mount({ variant: 'composer', onSubmit })
+      act(() => find('Formatting').click())
       act(() => find('Formatting help').click())
       const toggle = () => host.querySelector('[role="switch"]') as HTMLButtonElement
       act(() => toggle().click())
@@ -592,7 +617,8 @@ describe('review round 2', () => {
 
   it('gives the Enter switch and mode buttons 44px touch targets on phones', async () => {
     const { host, button: find } = await mount({ variant: 'composer' })
-    act(() => find('Formatting help').click())
+    act(() => find('Formatting').click())
+      act(() => find('Formatting help').click())
     expect(host.querySelector('[role="switch"]')!.className).toMatch(/\bmin-h-11\b/)
     for (const name of ['Rich', 'Markdown']) expect(find(name).className).toMatch(/(^|\s)min-h-11(\s|$)/)
   })

@@ -11,7 +11,7 @@ import { AnchorButton, Button } from '../ui/Button'
 import { INVITATION_HELP_EMAIL } from '../auth/InvitationHelp'
 import { conversationPath } from '../../lib/routes'
 
-export function CourseSupport({ capabilities, cohortId, contextLabel, contextPath, buttonLabel = TERMS.askForHelp }: {
+export function CourseSupport({ capabilities, cohortId, contextLabel, contextPath, buttonLabel = TERMS.messageInstructor }: {
   capabilities?: LearnerCapabilities; cohortId: number; contextLabel: string; contextPath?: string; buttonLabel?: string
 }) {
   const { user } = useAuthContext()

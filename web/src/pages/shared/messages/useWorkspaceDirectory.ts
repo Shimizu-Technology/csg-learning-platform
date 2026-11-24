@@ -47,7 +47,8 @@ export function useWorkspaceDirectory(
   const [showWorkspaceMembers, setShowWorkspaceMembers] = useState(false)
   const [workspaceError, setWorkspaceError] = useState('')
   const [channelError, setChannelError] = useState('')
-  const [dmUserId, setDmUserId] = useState('')
+  // Everyone picked for a new direct message: one person starts a 1:1, several a group.
+  const [dmUserIds, setDmUserIds] = useState<number[]>([])
   const [memberToAddId, setMemberToAddId] = useState('')
   const [isNavigationPending, startNavigationTransition] = useTransition()
   const [workspaceForm, setWorkspaceForm] = useState({
@@ -242,7 +243,7 @@ export function useWorkspaceDirectory(
     const res = await api.getAvailableDirectUsers(workspaceId)
     if (res.data) {
       setAvailableUsers(res.data.users)
-      setDmUserId(String(res.data.users[0]?.id || ''))
+      setDmUserIds((current) => current.filter((id) => res.data!.users.some((user) => user.id === id)))
     }
   }
 
@@ -521,12 +522,13 @@ export function useWorkspaceDirectory(
 
   const handleCreateDm = async (event: FormEvent) => {
     event.preventDefault()
-    if (!selectedWorkspaceId || !dmUserId) return
+    if (!selectedWorkspaceId || dmUserIds.length === 0) return
 
-    const res = await api.createDirectConversation({ workspace_id: selectedWorkspaceId, user_ids: [Number(dmUserId)] })
+    const res = await api.createDirectConversation({ workspace_id: selectedWorkspaceId, user_ids: dmUserIds })
     if (res.data) {
       await loadLists()
       setShowDmForm(false)
+      setDmUserIds([])
       selectTarget({ type: 'dm', id: res.data.direct_conversation.id })
     } else if (res.error) {
       toast.error(res.error)
@@ -574,8 +576,8 @@ export function useWorkspaceDirectory(
     setWorkspaceError,
     channelError,
     setChannelError,
-    dmUserId,
-    setDmUserId,
+    dmUserIds,
+    setDmUserIds,
     memberToAddId,
     setMemberToAddId,
     isNavigationPending,

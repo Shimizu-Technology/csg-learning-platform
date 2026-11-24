@@ -18,6 +18,8 @@ export const TERMS = {
   postUpdate: 'Post update',
   notifications: 'Notifications',
   askForHelp: 'Ask for help',
+  /** The self-paced direct message to the course instructor (never a tracked help request). */
+  messageInstructor: 'Message your instructor',
   helpRequest: 'help request',
   viewResponse: 'View response',
   /** How long a self-paced learner can ask an instructor for help. */

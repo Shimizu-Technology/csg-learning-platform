@@ -53,7 +53,9 @@ it('Off Profile keeps the old toggle and activity copy', async () => {
   delete response.data.enrollments[0].access_expires_at
   state.profile.mockResolvedValue(response)
   await render(<Profile />)
-  expect(container.querySelector('[role="switch"]')?.className).toContain('h-7')
+  // UX-6: the same 28px track, inside a 44px touch target for every switch.
+  expect(container.querySelector('[role="switch"]')?.className).toContain('h-11')
+  expect(container.querySelector('[role="switch"] span')?.className).toContain('h-7')
   expect(container.textContent).toContain('Earlier activity was not backfilled.')
   expect(container.textContent).not.toContain('View receipt')
 })

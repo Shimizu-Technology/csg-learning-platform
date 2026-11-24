@@ -1,12 +1,13 @@
 import { useStudentExperience } from '../../lib/studentExperience'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CheckCircle2, CircleHelp, Clock3, Send, ShieldAlert, XCircle } from 'lucide-react'
+import { CheckCircle2, CircleHelp, Clock3, MessageCircleReply, Send, ShieldAlert, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { captureProductEvent } from '../../lib/analytics'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { CourseSupport } from './CourseSupport'
+import { HELP_REPLY_LIMIT, useReplyAttempt } from '../admin/HelpReplyBox'
 import { Modal } from '../shared/Modal'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
@@ -54,6 +55,8 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const [category, setCategory] = useState<HelpCategory>('concept')
   const [urgency, setUrgency] = useState<HelpUrgency>('normal')
   const [message, setMessage] = useState('')
+  const [followUp, setFollowUp] = useState('')
+  const followUpAttempt = useReplyAttempt()
 
   const requestGeneration = useRef(0)
   const loadRequests = useCallback(async () => {
@@ -160,8 +163,31 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     toast.success('Help request canceled.')
   }
 
-  const replied = Boolean(activeRequest?.replies?.length || (v2 && activeRequest?.staff_response))
-  const statusLabel = replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
+  async function sendFollowUp(event: React.FormEvent) {
+    event.preventDefault()
+    const body = followUp.trim()
+    if (!canRequest || !activeRequest || !body || body.length > HELP_REPLY_LIMIT) return
+    const generation = requestGeneration.current
+    setSaving(true)
+    const response = await api.replyToHelpRequest(activeRequest.id, { body, resolve: false, client_request_id: followUpAttempt.id() })
+    if (generation !== requestGeneration.current) return
+    setSaving(false)
+    if (!response.data) {
+      toast.error(response.error || 'Your reply could not be sent. Your draft is still here—please try again.')
+      return
+    }
+    followUpAttempt.done()
+    replaceRequests(requests.map((item) => item.id === response.data!.help_request.id ? response.data!.help_request : item))
+    setFollowUp('')
+    toast.success('Reply sent to your instructor.')
+  }
+
+  // Staff replies only: the learner's own follow-ups never count as an answer.
+  const staffReplied = Boolean(activeRequest?.replies?.some((reply) => !reply.from_student) || (v2 && activeRequest?.staff_response))
+  const awaitingInstructor = Boolean(staffReplied && activeRequest?.replies?.at(-1)?.from_student)
+  const replied = staffReplied && !awaitingInstructor
+  const statusLabel = awaitingInstructor ? 'You replied' : replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
+  const canFollowUp = canRequest && staffReplied
 
   if (capabilities?.features?.help_requests === false) return null
 
@@ -173,7 +199,12 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         size={v2 ? "md" : "sm"}
         fullWidth={compact}
         onClick={() => {
-          if (choices && !message.trim()) setChosenContext('')
+          // With several contexts, open on the learner's active request (a replied one first), so its thread and reply box show.
+          if (choices && !message.trim()) {
+            const active = history.filter((request) => request.status === 'open' || request.status === 'acknowledged')
+            const shown = active.find((request) => request.replies?.some((reply) => !reply.from_student) || request.staff_response) ?? active[0]
+            setChosenContext(shown ? `${shown.context_type}:${shown.context_id}` : '')
+          }
           setOpen(true)
           if (onRequestsRefresh) void onRequestsRefresh()
           else void loadRequests()
@@ -227,27 +258,49 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                   <div>
                     <p className="font-semibold text-ink">{statusLabel}</p>
                     <p className="mt-1 text-sm leading-6 text-ink-secondary">
-                      {replied
-                        ? 'Read the reply below. The request stays open until it is resolved.'
+                      {awaitingInstructor
+                        ? 'Your instructor will see your reply here.'
+                        : replied
+                        ? 'Read the reply below. If they asked you something, answer right here.'
                         : activeRequest.status === 'acknowledged'
-                        ? `${activeRequest.owner?.full_name || 'An instructor'} acknowledged this request.`
-                        : 'Staff can see it in Support.'}
+                        ? `${activeRequest.owner?.full_name || 'An instructor'} is looking at your question.`
+                        : 'Your instructor has your question.'}
                     </p>
                   </div>
                 </div>
               </div>
-              <dl className="space-y-3 rounded-2xl border border-line bg-surface-sunken/60 p-4 text-sm">
-                <div><dt className="font-semibold text-ink-muted">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.message}</dd></div>
-                {/* Replies sent while the request stays open (U-4.7); older payloads have only staff_response. */}
-                <HelpReplies request={activeRequest} />
+              <div className="space-y-3 rounded-2xl border border-line bg-surface-sunken/60 p-4 text-sm">
+                <dl className="space-y-3">
+                  <div><dt className="font-semibold text-ink-muted">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.message}</dd></div>
+                  {/* Replies sent while the request stays open (U-4.7); older payloads have only staff_response. */}
+                  <HelpReplies request={activeRequest} />
+                </dl>
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink-secondary">
                   <Badge tone="neutral">{categories.find((option) => option.value === activeRequest.category)?.label || humanize(activeRequest.category)}</Badge>
                   {activeRequest.urgency === 'urgent' && <Badge tone="warning">Urgent</Badge>}
                   <span className="px-1 py-1 font-medium tabular-nums text-ink-muted">Sent {formatShortDateTime(activeRequest.created_at)}</span>
                 </div>
-              </dl>
-              {canRequest && <Button variant="danger" onClick={cancelRequest} disabled={saving}>
-                <XCircle className="h-4 w-4" /> Cancel request
+              </div>
+              {canFollowUp && <form className="space-y-2" onSubmit={sendFollowUp}>
+                <label htmlFor={`help-follow-up-${activeRequest.id}`} className="text-sm font-semibold text-ink">Reply to your instructor</label>
+                <textarea
+                  id={`help-follow-up-${activeRequest.id}`}
+                  value={followUp}
+                  onChange={(event) => setFollowUp(event.target.value)}
+                  maxLength={HELP_REPLY_LIMIT}
+                  rows={3}
+                  placeholder="Answer their question or share what happened when you tried it."
+                  className="app-control w-full leading-6"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="submit" disabled={saving || !followUp.trim()}>
+                    <MessageCircleReply className="h-4 w-4" aria-hidden="true" /> {saving ? 'Sending…' : 'Send reply'}
+                  </Button>
+                  <p className="ml-auto text-xs tabular-nums text-ink-muted">{followUp.length.toLocaleString()}/{HELP_REPLY_LIMIT.toLocaleString()}</p>
+                </div>
+              </form>}
+              {canRequest && <Button variant={canFollowUp ? 'quiet' : 'danger'} onClick={cancelRequest} disabled={saving}>
+                <XCircle className="h-4 w-4" /> {canFollowUp ? 'I no longer need help' : 'Cancel request'}
               </Button>}
             </div>
           ) : canRequest && !needsChoice ? (
@@ -297,10 +350,10 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   )
 }
 
-/** Every staff reply on a request, oldest first; older payloads have only `staff_response`. */
+/** Every reply on a request, oldest first, the learner's own follow-ups included; older payloads have only `staff_response`. */
 function HelpReplies({ request }: { request: Pick<HelpRequest, 'replies' | 'staff_response'> }) {
   if (request.replies?.length) {
-    return <>{request.replies.map((reply) => <div key={reply.id}><dt className="font-semibold text-ink-muted">{reply.author.full_name} replied <span className="font-medium tabular-nums">· {formatShortDateTime(reply.created_at)}</span></dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={reply.body} /></dd></div>)}</>
+    return <>{request.replies.map((reply) => <div key={reply.id}><dt className="font-semibold text-ink-muted">{reply.from_student ? 'You replied' : `${reply.author.full_name} replied`} <span className="font-medium tabular-nums">· {formatShortDateTime(reply.created_at)}</span></dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={reply.body} /></dd></div>)}</>
   }
   if (!request.staff_response) return null
   return <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={request.staff_response} /></dd></div>

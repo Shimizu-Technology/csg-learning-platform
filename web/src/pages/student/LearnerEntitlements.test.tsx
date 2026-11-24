@@ -17,7 +17,7 @@ vi.mock('../../components/shared/VideoPlayer', () => ({ VideoPlayer: ({ title, t
 vi.mock('../../components/shared/Modal', () => ({ Modal: ({ open, title, children }: { open: boolean; title?: ReactNode; children: ReactNode }) => open ? <div role="dialog"><h2 data-modal-title="">{title}</h2>{children}</div> : null }))
 vi.mock('../../lib/api', () => ({ api: {
   getLesson: vi.fn(), getProfile: vi.fn(), getHelpRequests: vi.fn(), getPushConfig: vi.fn(), getBlockedUsers: vi.fn(),
-  getRecordings: vi.fn(), getDashboard: vi.fn(), getWeeklyPlan: vi.fn(), createHelpRequest: vi.fn(), createDirectConversation: vi.fn(), updateHelpRequest: vi.fn(),
+  getRecordings: vi.fn(), getDashboard: vi.fn(), getWeeklyPlan: vi.fn(), createHelpRequest: vi.fn(), createDirectConversation: vi.fn(), updateHelpRequest: vi.fn(), replyToHelpRequest: vi.fn(),
 } }))
 
 import { api } from '../../lib/api'
@@ -144,6 +144,29 @@ describe('support identity and entitlements', () => {
     await click('Cancel request')
     expect(api.updateHelpRequest).toHaveBeenCalledExactlyOnceWith(93, { status: 'canceled' })
   })
+  it('lets the learner answer an instructor reply in the same request', async () => {
+    const staffReply = { id: 1, body: 'What error did you see?', resolved_request: false, from_student: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' }
+    const followUp = { id: 2, body: 'NoMethodError on each', resolved_request: false, from_student: true, author: { id: 7, full_name: 'Student Test' }, created_at: '2026-10-01T02:00:00Z' }
+    const active = request({ id: 93, status: 'acknowledged', staff_response: staffReply.body, owner: { id: 9, full_name: 'Ina Teacher' }, replies: [staffReply] })
+    vi.mocked(api.replyToHelpRequest).mockResolvedValue({ data: { help_request: { ...active, replies: [staffReply, followUp] }, reply: followUp, replayed: false }, error: null })
+    await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[active]} requestsLoading={false} />)
+    await click('Your instructor replied')
+    expect(container.textContent).toContain('Ina Teacher replied')
+    expect(container.textContent).not.toContain('Staff can see it in Support')
+    const box = container.querySelector<HTMLTextAreaElement>('#help-follow-up-93')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, 'NoMethodError on each')
+      box.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('Send reply')
+    expect(api.replyToHelpRequest).toHaveBeenCalledExactlyOnceWith(93, expect.objectContaining({ body: 'NoMethodError on each', resolve: false, client_request_id: expect.any(String) }))
+  })
+  it('keeps the learner reply box closed until an instructor answers', async () => {
+    await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ id: 93 })]} requestsLoading={false} />)
+    await click('Sent to your instructor')
+    expect(container.textContent).toContain('Your instructor has your question.')
+    expect(container.querySelector('#help-follow-up-93')).toBeNull()
+  })
   it('shows every reply on a resolved request, not only the last one (PR #282 fix round 1)', async () => {
     const replies = [
       { id: 1, body: 'Print the counter first.', resolved_request: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' },
@@ -172,16 +195,16 @@ describe('support identity and entitlements', () => {
   it('retains the lesson context when opening an instructor DM fails and allows retry', async () => {
     vi.mocked(api.createDirectConversation).mockResolvedValueOnce({ data: null, error: 'Connection lost' }).mockResolvedValueOnce({ data: { direct_conversation: { id: 20, cohort_id: 4 } } as never, error: null })
     await render(<><CourseSupport capabilities={{ ...capabilities, support_mode: 'course_question' }} cohortId={4} contextLabel="Lists" contextPath="https://learn.test/lessons/42?cohort_id=4" /><Destination /></>)
-    await click('Ask for help')
+    await click('Message your instructor')
     expect(container.textContent).toContain('Connection lost')
     expect(container.querySelector('[data-destination]')?.textContent).toBe('/lessons/42?cohort_id=4')
-    await click('Ask for help')
+    await click('Message your instructor')
     expect(container.querySelector('[data-destination]')?.textContent).toBe('/messages/dm/20?cohort_id=4')
   })
   it('opens the assigned instructor DM with an unsent lesson draft', async () => {
     vi.mocked(api.createDirectConversation).mockResolvedValue({ data: { direct_conversation: { id: 20, cohort_id: 4 } } as never, error: null })
     await render(<><CourseSupport capabilities={{ ...capabilities, support_mode: 'course_question' }} cohortId={4} contextLabel="Lists" contextPath="https://learn.test/lessons/42?cohort_id=4#block-42" /><Destination /></>)
-    await click('Ask for help')
+    await click('Message your instructor')
     expect(api.createDirectConversation).toHaveBeenCalledExactlyOnceWith({ cohort_id: 4, user_ids: [9] })
     expect(container.querySelector('[data-destination]')?.textContent).toBe('/messages/dm/20?cohort_id=4')
     const draft = readComposerDraft(composerDestinationKey(7, { type: 'dm', id: 20 }, null), localStorage)
@@ -257,7 +280,10 @@ it('On asks which exercise new help concerns and keeps every older response reac
   expect(container.textContent).toContain('Second response')
   expect(container.textContent).toContain('Lesson response')
   const select = container.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement
-  expect(select.value).toBe('')
+  // UX-6: it opens on the open, answered request, so its thread and reply box are right there.
+  expect(select.value).toBe('exercise:51')
+  expect(container.querySelector('#help-follow-up-11')).not.toBeNull()
+  await act(async () => { select.value = ''; select.dispatchEvent(new Event('change', { bubbles: true })) })
   expect(container.querySelector('form')).toBeNull()
   await act(async () => { select.value = 'exercise:52'; select.dispatchEvent(new Event('change', { bubbles: true })) })
   const textarea = container.querySelector('textarea')!
@@ -265,5 +291,13 @@ it('On asks which exercise new help concerns and keeps every older response reac
   await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
   expect(api.createHelpRequest).toHaveBeenCalledWith(expect.objectContaining({ context_type: 'exercise', context_id: 52, message: 'New question about the second exercise' }))
   await click('View response')
-  expect(select.value).toBe('')
+  expect(select.value).toBe('exercise:51')
+})
+
+it('On asks which context new help concerns when nothing is open', async () => {
+  const requests = [request({ id: 12, context_type: 'exercise', context_id: 52, status: 'resolved', staff_response: 'Second response' })]
+  await render(<StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" contexts={[{ type: 'lesson', id: 42, label: 'Lists' }, { type: 'exercise', id: 52, label: 'Second exercise' }]} requests={requests} requestsLoading={false} /></StudentExperienceProvider>)
+  await click('View response')
+  expect((container.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement).value).toBe('')
+  expect(container.querySelector('form')).toBeNull()
 })

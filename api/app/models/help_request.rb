@@ -73,6 +73,31 @@ class HelpRequest < ApplicationRecord
     end
   end
 
+  # The learner's follow-up in the thread, after staff replied. It never
+  # changes the status, owner or `staff_response`; staff are notified by the
+  # caller after commit. Returns the saved reply, false when the request is no
+  # longer active, or nil when no staff member has replied yet.
+  def follow_up!(student, body:, client_request_id: nil)
+    text = MarkdownText.trim_blank_lines(body)
+    with_lock do
+      if client_request_id && (earlier = replies.find_by(author_id: student.id, client_request_id: client_request_id))
+        earlier.replayed = true
+        return earlier
+      end
+      return false unless status_open? || status_acknowledged?
+      return nil unless staff_replied?
+
+      reply = replies.create!(author: student, body: text, client_request_id: client_request_id)
+      touch
+      reply
+    end
+  end
+
+  # Staff replied in the thread, or (before replies existed) left a response.
+  def staff_replied?
+    staff_response.present? || replies.where.not(author_id: student_id).exists?
+  end
+
   def cancel!
     with_lock do
       return false unless status_open? || status_acknowledged?
