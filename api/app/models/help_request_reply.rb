@@ -1,6 +1,8 @@
-# One staff reply to a help request (U-4.7). "Reply" keeps the request open;
+# One reply on a help request (U-4.7). A staff "Reply" keeps the request open;
 # "Reply & resolve" also resolves it (`resolved_request`). The learner sees
-# every reply; the request's `staff_response` mirrors the latest one.
+# every reply; the request's `staff_response` mirrors the latest staff one.
+# The learner who asked can follow up in the same thread once staff replied,
+# so a question back from the instructor never strands them.
 class HelpRequestReply < ApplicationRecord
   CLIENT_REQUEST_ID = /\A[A-Za-z0-9_-]{8,64}\z/
 
@@ -14,8 +16,22 @@ class HelpRequestReply < ApplicationRecord
   normalizes :body, with: ->(body) { MarkdownText.normalize(body) }
 
   validates :body, presence: true, length: { maximum: 2_000 }
-  validates :author, staff_role: true
+  validate :author_can_reply
   validates :client_request_id, format: { with: CLIENT_REQUEST_ID }, allow_nil: true
 
   scope :thread_order, -> { order(:created_at, :id) }
+
+  def from_student?
+    author_id.present? && author_id == help_request&.student_id
+  end
+
+  private
+
+  def author_can_reply
+    return unless author
+    return if author.staff?
+    return if from_student? && !resolved_request
+
+    errors.add(:author, "must be staff or the learner who asked")
+  end
 end

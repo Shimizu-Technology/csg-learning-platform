@@ -1,3 +1,4 @@
+import { PausedLearningCard } from '@/components/paused-learning-card';
 import { BackButton } from '@/components/back-button';
 import { brand } from '../../lib/brand'
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -74,6 +75,7 @@ export default function RecordingsScreen() {
   if (isAlumniOnly) return <Redirect href="/(app)/(tabs)/learn" />;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>LEARNING LIBRARY</Text><Text style={styles.headerTitle}>Recordings</Text></View>{user?.is_staff && <View style={styles.headerActions}><Pressable accessibilityRole="button" accessibilityLabel="Add recording link" onPress={() => router.push('/recordings/link' as Href)} style={styles.uploadButton}><Link2 color={c.text.body} size={19} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Upload class recording" onPress={() => router.push('/recordings/upload' as Href)} style={styles.uploadButton}><UploadCloud color={c.text.body} size={19} /></Pressable></View>}</View>{query.isPending && !query.data ? <LoadingState label="Loading class recordings" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+    <PausedLearningCard cohortId={selectedCohortId} />
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved recordings. Playback needs a connection.</Text></View>}
     <View style={styles.hero}><View style={styles.heroIcon}><Film color={c.text.body} size={23} /></View><Text style={styles.heroKicker}>CLASS REPLAYS</Text><Text style={styles.heroTitle}>Pick up where you left off</Text><Text style={styles.heroCopy}>{selectedCohort ? `${selectedCohort.name} · ` : ''}{brand.schoolAbbreviation}-hosted videos play natively. Supported YouTube, Vimeo, and Loom recordings play here in the app, with the original always one tap away.</Text></View>
     <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search recordings" value={filter} onChangeText={setFilter} placeholder="Search class recordings" placeholderTextColor={c.text.body} style={styles.input} /></View>

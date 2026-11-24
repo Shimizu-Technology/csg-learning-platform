@@ -83,14 +83,20 @@ export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+/** Shown when the school has not set up browser alerts. Setup detail is for admins, who can fix it. */
+export const PUSH_UNAVAILABLE_MESSAGE = 'Browser alerts aren’t available right now. You’ll still get email alerts.'
+
 export function pushConfigurationHint({
   configured,
   missing = [],
   publicKey,
+  admin = false,
 }: {
   configured: boolean
   missing?: string[]
   publicKey?: string | null
+  /** Only admins see which settings are missing; everyone else gets a plain message. */
+  admin?: boolean
 }) {
   const notes: string[] = []
 
@@ -104,9 +110,10 @@ export function pushConfigurationHint({
   }
 
   if (notes.length === 0) return ''
+  if (!admin) return PUSH_UNAVAILABLE_MESSAGE
 
   notes.push('Redeploy after updating env vars.')
-  return notes.join(' ')
+  return `${PUSH_UNAVAILABLE_MESSAGE} Setup for admins: ${notes.join(' ')}`
 }
 
 export async function enablePushNotifications(publicKey: string) {

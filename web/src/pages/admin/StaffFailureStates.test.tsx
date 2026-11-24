@@ -135,7 +135,7 @@ describe('honest staff failures', () => {
     vi.spyOn(api, 'getCohortModuleSubmissions').mockResolvedValue({ data: matrix, error: null } as never)
     vi.spyOn(api, 'getSubmission').mockImplementation(() => new Promise(() => {}) as never)
     await render('/admin/cohorts/4/modules/2/grading')
-    const queue = [...container.querySelectorAll('button')].find((button) => button.textContent?.includes('Ungraded queue'))!
+    const queue = [...container.querySelectorAll('button')].find((button) => button.textContent?.startsWith('Waiting'))!
     await act(async () => queue.click())
     expect(container.textContent).toContain('Loading submission details...')
     expect(container.querySelector('textarea')).toBeNull()

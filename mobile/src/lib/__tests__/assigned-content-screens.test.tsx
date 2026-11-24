@@ -28,7 +28,7 @@ jest.mock('lucide-react-native', () => {
   return Object.fromEntries('AlertTriangle ArrowRight BadgeCheck BookOpen CalendarCheck CalendarClock CalendarDays ClipboardCheck Clock3 ExternalLink Hourglass LifeBuoy Megaphone MessageSquare RotateCcw Users BookMarked Film FolderOpen Lock LockKeyhole Search Check CheckCircle2 Circle CircleDot ClipboardList Sparkles'.split(' ').map((name) => [name, Icon]));
 });
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
-jest.mock('@tanstack/react-query', () => ({ useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({ data: queryKey[2] === 'dashboard' ? { dashboard: mockDashboard } : mockWeeklyPlan ? { weekly_plan: mockWeeklyPlan } : undefined, refetch: jest.fn(), isPending: false, isRefetching: false }) }));
+jest.mock('@tanstack/react-query', () => ({ useMutation: () => ({ mutate: jest.fn(), isPending: false }), useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({ data: queryKey[2] === 'dashboard' ? { dashboard: mockDashboard } : mockWeeklyPlan ? { weekly_plan: mockWeeklyPlan } : undefined, refetch: jest.fn(), isPending: false, isRefetching: false }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: { createCohortDm: mockCreateDm }, user: { id: 1, is_staff: false }, enrollments: [] }) }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: 1 }) }));
@@ -92,7 +92,7 @@ it('shows paused enrollment and saved work instead of an active next task', () =
   mockDashboard.paused_since = '2026-11-14';
   const screen = render(<TodayScreen />);
   expect(screen.getByText(/Your enrollment is paused/)).toBeTruthy();
-  expect(screen.getByText('Message staff')).toBeTruthy();
+  expect(screen.getByText('Ask about resuming')).toBeTruthy();
   expect(screen.queryByText('Course progress')).toBeNull();
   mockDashboard.enrollment_status = 'active';
 });
@@ -118,7 +118,7 @@ it('reports staff DM failure and offers configured email support', async () => {
   mockDashboard.support_instructor_id = 7;
   mockCreateDm.mockRejectedValueOnce(new Error('offline'));
   const screen = render(<TodayScreen />);
-  fireEvent.press(screen.getByText('Message staff'));
+  fireEvent.press(screen.getByText('Ask about resuming'));
   await waitFor(() => expect(mockAlert).toHaveBeenCalledWith('Could not message staff', expect.stringContaining('email'), expect.arrayContaining([expect.objectContaining({ text: 'Email support' })])));
   expect(mockCreateDm).toHaveBeenCalledWith(initialCohort!.id, [7]);
   expect(mockPush).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ it('launches configured staff email with the native mail handler', async () => {
   mockDashboard.support_instructor_id = null;
   try {
     const screen = render(<TodayScreen />);
-    fireEvent.press(screen.getByText('Message staff'));
+    fireEvent.press(screen.getByText('Ask about resuming'));
     await waitFor(() => expect(openEmail).toHaveBeenCalledWith(`mailto:${SUPPORT_EMAIL}`));
     expect(mockAlert).not.toHaveBeenCalled();
   } finally { openEmail.mockRestore(); }
@@ -157,7 +157,7 @@ it('reports a rejected native email launch when no support instructor is availab
   mockDashboard.support_instructor_id = null;
   try {
     const screen = render(<TodayScreen />);
-    fireEvent.press(screen.getByText('Message staff'));
+    fireEvent.press(screen.getByText('Ask about resuming'));
     await waitFor(() => expect(mockAlert).toHaveBeenCalledWith('Could not message staff', expect.stringContaining(SUPPORT_EMAIL), expect.any(Array)));
     expect(openEmail).toHaveBeenCalledWith(`mailto:${SUPPORT_EMAIL}`);
     expect(mockCreateDm).not.toHaveBeenCalled();
@@ -180,7 +180,7 @@ it('opens the registered conversation route after creating the paused staff DM',
   mockDashboard.support_instructor_id = 7;
   mockCreateDm.mockResolvedValueOnce({ direct_conversation: { id: 42 } });
   const screen = render(<TodayScreen />);
-  fireEvent.press(screen.getByText('Message staff'));
+  fireEvent.press(screen.getByText('Ask about resuming'));
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/conversation/dm/42'));
   expect(mockCreateDm).toHaveBeenCalledWith(initialCohort!.id, [7]);
   expect(mockAlert).not.toHaveBeenCalled();
@@ -192,13 +192,32 @@ it('omits the pause date for a historical pause with no known timestamp', () => 
   const screen = render(<TodayScreen />);
   expect(screen.getByText('Your enrollment is paused. Your work is saved.')).toBeTruthy();
 });
-it('native Today stays today’s screen when the dashboard carries the redesigned student_today (W8 PR 8.2)', () => {
+it('native Today uses the redesigned student_today when the server supplies it', () => {
   const tree = () => { const screen = render(<TodayScreen />); const json = JSON.stringify(screen.toJSON(), (key, value) => (key === 'refreshControl' || typeof value === 'function' ? undefined : value)); screen.unmount(); return json; };
   const before = tree();
   mockDashboard.cohort = { ...initialCohort!, features: { ...(initialCohort?.features || {}), student_experience_v2: true } };
   Object.assign(mockDashboard, { student_today: { mode: 'program', needs_you: { count: 1, items: [] }, waiting: { count: 0, items: [] } } });
   const withToday = tree();
   delete (mockDashboard as { student_today?: unknown }).student_today;
-  expect(withToday).toBe(before);
+  expect(withToday).toContain('Needs you');
+  expect(withToday).toContain('My work');
   expect(before).toContain('Individually assigned lesson');
+});
+
+it('shows a browsing library with lesson links and hides progress for alumni', () => {
+  mockDashboard.cohort = { ...initialCohort!, cohort_type: 'alumni' };
+  const screen = render(<LearnScreen />);
+  expect(screen.getByText('Alumni library')).toBeTruthy();
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  expect(screen.queryByText('0 of 1 lessons')).toBeNull();
+  expect(screen.getByLabelText('Open Individual assignments')).toBeTruthy();
+});
+
+it('preserves the learning path for alumni with an active personal plan', () => {
+  mockDashboard.cohort = { ...initialCohort!, cohort_type: 'alumni' };
+  mockDashboard.personal_plan = { title: 'Catch-up plan', description: null, target_date: null, next_check_in_on: null, updated_at: '2026-11-14', required_count: 1, completed_count: 0, awaiting_review_count: 0, milestones: [], next_lesson: null, requirement_changes: [] };
+  const screen = render(<LearnScreen />);
+  expect(screen.getByText('Learning path')).toBeTruthy();
+  expect(screen.getByText('0 of 1 lessons')).toBeTruthy();
+  expect(screen.queryByText('Alumni library')).toBeNull();
 });

@@ -148,13 +148,46 @@ it.each(['admin', 'instructor'])('keeps %s management navigation with learner fe
   expect(container.querySelector('a[href^="/announcements"]')).not.toBeNull();
 });
 
-it.each(['admin', 'instructor'])('shows the notification bell with the unread count for %s', async role => {
+it.each(['admin', 'instructor'])('shows one notification bell (the phone header) with the unread count for %s', async role => {
   fixture.user = { ...fixture.user, role, is_staff: true }
   fixture.notifications = Promise.resolve({ data: { unread_count: 3 } })
   await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>))
-  const bells = [...container.querySelectorAll('a[href="/announcements?tab=inbox"]')]
-  expect(bells).toHaveLength(2)
-  expect(bells.every(bell => bell.getAttribute('aria-label') === 'Notifications, 3 unread')).toBe(true)
+  const bells = [...container.querySelectorAll('a[aria-label^="Notifications"]')]
+  expect(bells).toHaveLength(1)
+  expect(bells[0].closest('header')).not.toBeNull()
+  expect(bells[0].getAttribute('aria-label')).toBe('Notifications, 3 unread')
+  expect(container.querySelector('aside a[href="/announcements?tab=inbox"]')).toBeNull()
+})
+
+it('opens Notifications from Updates when only non-announcement notices are unread', async () => {
+  fixture.user = { ...fixture.user, role: 'admin', is_staff: true }
+  const api = (await import('../../lib/api')).api as unknown as { getNotifications: (params: { notification_type?: string }) => unknown }
+  vi.spyOn(api, 'getNotifications').mockImplementation((params) => Promise.resolve({ data: { unread_count: params.notification_type === 'announcement' ? 0 : 4 } }))
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>))
+  const updates = [...container.querySelectorAll('aside a')].find((link) => link.textContent?.includes('Updates'))
+  expect(updates?.getAttribute('href')).toBe('/announcements?tab=inbox')
+})
+
+it('keeps Updates on the feed while announcements are unread', async () => {
+  fixture.user = { ...fixture.user, role: 'admin', is_staff: true }
+  const api = (await import('../../lib/api')).api as unknown as { getNotifications: (params: { notification_type?: string }) => unknown }
+  vi.spyOn(api, 'getNotifications').mockImplementation((params) => Promise.resolve({ data: { unread_count: params.notification_type === 'announcement' ? 1 : 4 } }))
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>))
+  const updates = [...container.querySelectorAll('aside a')].find((link) => link.textContent?.includes('Updates'))
+  expect(updates?.getAttribute('href')).toBe('/announcements')
+})
+
+it('opens the phone drawer only from the bottom More, with More and Admin shown open', async () => {
+  fixture.user = { ...fixture.user, role: 'admin', is_staff: true }
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>))
+  expect(container.querySelector('button[aria-label="Open navigation"]')).toBeNull()
+  const more = container.querySelector<HTMLButtonElement>('nav[aria-label="Primary navigation"] button[aria-label="More navigation"]')
+  expect(more).not.toBeNull()
+  await act(async () => more!.click())
+  const drawer = container.querySelector('[role="dialog"][aria-label="Site navigation"]')!
+  expect(drawer.querySelector('[aria-expanded]')).toBeNull()
+  expect([...drawer.querySelectorAll('section h2')].map((heading) => heading.textContent)).toContain('More')
+  expect([...drawer.querySelectorAll('a')].some((link) => link.textContent?.includes('Updates'))).toBe(true)
 })
 
 it('shows the phone notification bell for students with unread/zero states and a 44px logo target', async () => {

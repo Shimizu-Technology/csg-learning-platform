@@ -25,7 +25,7 @@ class InstructorToday
     by_enrollment = rows.index_by { |row| row[:enrollment_id] }
     latest.where(grade: nil).includes(content_block: :lesson).order(:created_at, :id).each do |submission|
       row = by_enrollment.fetch(submission.enrollment_id)
-      items << item(row, "review", submission.id, submission.created_at, submission.content_block.title.presence || submission.content_block.lesson.title, "Open grading", "/admin/submissions/#{submission.id}", "/staff/submission/#{submission.id}")
+      items << item(row, "review", submission.id, submission.created_at, submission.content_block.title.presence || submission.content_block.lesson.title, "Open grading", grading_path(row[:cohort_id], submission.id), "/staff/submission/#{submission.id}")
         .merge(overdue_review(submission, row[:cohort_id]))
     end
     items.concat(unread_items(identities))
@@ -60,6 +60,11 @@ class InstructorToday
     @review_sla ||= ReviewSla.new(holidays: SchoolSetting.current.review_sla_holidays)
     target = @review_sla.call(submitted_at: submission.created_at, business_days: business_days, now: @now)
     target[:overdue] ? { overdue: true, expected_review_by: target[:expected_by] } : {}
+  end
+
+  # The Grading workbench, scoped to the cohort with this attempt open: Save and next keeps going.
+  def grading_path(cohort_id, submission_id)
+    "/admin/grading?#{{ cohort_id: cohort_id, submission: submission_id }.compact.to_query}"
   end
 
   def feature_ids(key)

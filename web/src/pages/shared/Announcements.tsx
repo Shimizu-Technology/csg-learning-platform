@@ -431,6 +431,7 @@ function AnnouncementFeed() {
         configured,
         missing: config.data?.missing || [],
         publicKey,
+        admin: Boolean(user?.is_admin),
       }))
       return
     }

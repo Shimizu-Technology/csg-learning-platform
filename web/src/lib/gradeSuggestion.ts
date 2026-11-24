@@ -5,6 +5,13 @@ import type { SubmissionGradeSuggestion } from '../types/api'
 export type GradeChoice = 'A' | 'B' | 'C' | 'R'
 export type SuggestionOutcomeFilter = 'all' | SubmissionGradeSuggestion['outcome']
 
+/** Older evidence and changed check rules are one state to graders: "Out of date". */
+export const STALE_SUGGESTION_LABEL = 'Out of date'
+export const STALE_SUGGESTION_EXPLANATION =
+  'The student pushed new code or the check rules changed. Check GitHub again before using this suggestion.'
+/** One-tap override notes for the most common reasons a grade differs from the checks. */
+export const OVERRIDE_REASON_PICKS = ['Manual review found issues', 'Checks flaky', 'Partial credit'] as const
+
 export interface ParsedSuggestionCheck {
   name: string
   status: 'passed' | 'failed' | 'pending' | 'missing' | 'untrusted' | 'other'
@@ -52,21 +59,21 @@ export function gradeSuggestionQueueBadge(suggestion: SubmissionGradeSuggestion)
   label: string
   tone: BadgeTone
 } {
-  if (isGradeSuggestionStale(suggestion)) return { label: 'Stale evidence', tone: 'warning' }
+  if (isGradeSuggestionStale(suggestion)) return { label: STALE_SUGGESTION_LABEL, tone: 'warning' }
   if (suggestion.outcome === 'suggest_b') return { label: 'B suggested', tone: 'info' }
   if (suggestion.outcome === 'review_for_redo') return { label: 'Review for Redo', tone: 'warning' }
   return { label: 'No suggestion', tone: 'neutral' }
 }
 
 export function gradeSuggestionHeadline(suggestion: SubmissionGradeSuggestion): string {
-  if (isGradeSuggestionStale(suggestion)) return 'Stale check evidence'
+  if (isGradeSuggestionStale(suggestion)) return 'Check suggestion'
   if (suggestion.outcome === 'suggest_b') return 'Checks passed · B suggested'
   if (suggestion.outcome === 'review_for_redo') return 'Checks failed · Review for Redo'
   return 'No grade suggestion'
 }
 
 export function gradeSuggestionSignalLabel(suggestion: SubmissionGradeSuggestion): string {
-  if (isGradeSuggestionStale(suggestion)) return 'Stale checks'
+  if (isGradeSuggestionStale(suggestion)) return 'Checks out of date'
   if (suggestion.outcome === 'suggest_b') return 'Checks passed'
   if (suggestion.outcome === 'review_for_redo') return 'Checks failed'
   return 'No suggestion'
@@ -158,7 +165,7 @@ export function extractSuggestionChecks(suggestion: SubmissionGradeSuggestion): 
       return {
         name,
         status: 'untrusted',
-        label: 'Untrusted producer',
+        label: 'From an unapproved app',
         tone: 'warning',
         appSlug: untrustedMap.get(name) ?? null,
         detailsUrl: null,

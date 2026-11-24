@@ -34,7 +34,8 @@ module ApiRateLimits
     when :messages
       (controller.in?([ "api/v1/messages", "api/v1/agent/messages" ]) && action.in?([ "create", "create_direct" ])) ||
         (controller == "api/v1/direct_conversations" && action == "create")
-    when :help then controller == "api/v1/help_requests" && action == "create"
+    # Asking for help and replying in a help thread (staff replies and learner follow-ups) share one allowance.
+    when :help then controller.in?([ "api/v1/help_requests", "api/v1/help_request_replies" ]) && action == "create"
     when :uploads
       action.include?("presign") ||
         (controller == "api/v1/uploads" && action == "multipart_initiate") ||

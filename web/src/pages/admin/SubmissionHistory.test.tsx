@@ -104,6 +104,7 @@ describe('historical grading', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'A')!.click() })
+    await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Save grade')!.click() })
     expect(container.querySelector('fieldset')?.disabled).toBe(true)
     expect(container.querySelector('textarea')?.value).toBe('My review draft')
     expect(container.textContent).toContain('Grade the latest attempt')

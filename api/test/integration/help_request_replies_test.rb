@@ -115,15 +115,94 @@ class HelpRequestRepliesTest < ActionDispatch::IntegrationTest
     assert @help.reload.status_open?
   end
 
-  test "only staff who can open the request may reply" do
+  test "only staff who can open the request may reply first" do
     reply(@student, "Answering myself")
-    assert_response :forbidden
+    assert_response :unprocessable_entity
+    assert_match "once your instructor answers", response.parsed_body["error"]
 
     reply(@other_instructor, "Not my cohort")
     assert_response :not_found
 
     assert @help.reload.status_open?
     assert_empty @help.replies
+  end
+
+  test "the learner follows up after a staff reply and the owner is notified" do
+    reply(@instructor, "What error did you see?")
+    Notification.find_by!(notifiable: @help, user: @instructor).update!(read_at: Time.current)
+    clear_enqueued_jobs
+
+    assert_enqueued_jobs 1, only: PushNotificationJob do
+      reply(@student, "It says undefined method each.", client_request_id: "follow-up-attempt-1")
+    end
+
+    assert_response :created
+    body = response.parsed_body
+    assert_equal true, body.dig("reply", "from_student")
+    assert_equal [ false, true ], body.dig("help_request", "replies").map { |item| item["from_student"] }
+    assert_nil body.dig("help_request", "student"), "the learner's payload has no staff-only fields"
+    @help.reload
+    assert @help.status_acknowledged?, "a follow-up keeps the request with its owner"
+    assert_equal @instructor, @help.owner
+    assert_equal "What error did you see?", @help.staff_response, "staff_response mirrors staff replies only"
+
+    note = Notification.find_by!(notifiable: @help, user: @instructor)
+    assert_equal "#{@student.full_name} followed up on their help request", note.title
+    assert_nil note.read_at
+    assert_equal @student, note.actor
+
+    # A retry returns the saved follow-up and alerts nobody again.
+    clear_enqueued_jobs
+    reply(@student, "It says undefined method each.", client_request_id: "follow-up-attempt-1")
+    assert_response :created
+    assert_equal true, response.parsed_body["replayed"]
+    assert_equal 2, @help.replies.count
+    assert_no_enqueued_jobs only: PushNotificationJob
+  end
+
+  test "a follow-up with no owner notifies every staff member on the cohort" do
+    @help.update!(staff_response: "Legacy hint")
+    reply(@student, "Still stuck.")
+
+    assert_response :created
+    recipients = Notification.where(notifiable: @help, title: "#{@student.full_name} followed up on their help request").pluck(:user_id)
+    assert_equal [ @admin.id, @instructor.id ].sort, recipients.sort
+  end
+
+  test "a follow-up skips an owner who no longer teaches the cohort and reaches its current staff" do
+    reply(@instructor, "What did you try?")
+    @cohort.cohort_instructor_assignments.find_by!(user: @instructor).destroy!
+    replacement = person("replacement", :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: replacement)
+    Notification.where(notifiable: @help).update_all(read_at: Time.current)
+
+    reply(@student, "I tried a while loop.")
+
+    assert_response :created
+    title = "#{@student.full_name} followed up on their help request"
+    recipients = Notification.where(notifiable: @help, title: title, read_at: nil).pluck(:user_id)
+    assert_equal [ @admin.id, replacement.id ].sort, recipients.sort
+    assert_not_includes recipients, @instructor.id, "a former instructor is never told"
+    assert_not_includes recipients, @student.id
+  end
+
+  test "learners cannot follow up on closed requests, other learners' requests, or without instructor help" do
+    reply(@instructor, "Try again.", resolve: true)
+    reply(@student, "Thanks!")
+    assert_response :unprocessable_entity
+
+    other = User.create!(clerk_id: "reply_other_student", email: "reply-other-student@example.com", first_name: "Other", last_name: "Student", role: :student)
+    Enrollment.create!(user: other, cohort: @cohort, status: :active)
+    reply(other, "Not mine")
+    assert_response :not_found
+
+    open_help = HelpRequest.create!(student: @student, cohort: @cohort, context_type: :lesson, context_source: :primary, context_id: @lesson.id + 1000,
+      context_label: "Other", context_path: "/lessons/1", category: :concept, message: "Another question")
+    open_help.reply!(@instructor, body: "Question back")
+    @enrollment.update!(status: :paused)
+    as_user(@student) { post "/api/v1/help_requests/#{open_help.id}/replies", params: { reply: { body: "Hello" } }, headers: auth_headers }
+    assert_response :forbidden
+    assert_equal 1, open_help.reload.replies.count
   end
 
   test "learners see every reply but never the follow-up plan; staff see the plan on the record" do

@@ -152,7 +152,7 @@ export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFiel
     requires_submission: fields.submission_type !== 'manual_complete',
     ...(includeVideo ? { video: {
       ...(video ? { id: video.id } : {}),
-      title,
+      ...(video ? {} : { title }),
       video_url: fields.video_url.trim() || null,
       s3_video_key: fields.s3_video_key,
       s3_video_content_type: fields.s3_video_content_type,
@@ -160,7 +160,7 @@ export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFiel
     } } : {}),
     ...(includeExercise ? { exercise: {
       ...(exercise ? { id: exercise.id } : {}),
-      title,
+      ...(exercise ? {} : { title }),
       body: instructions || null,
       solution: fields.solution.trim() || null,
       filename: fields.filename.trim() || null,
@@ -239,9 +239,9 @@ export function lessonPreviewForFields(lesson: LessonDetail, fields: LessonEdito
     .map((block) => {
       if (block.id === video?.id) {
         const stagedUpload = Boolean(fields.s3_video_key && fields.s3_video_key !== video.s3_video_key);
-        return { ...block, title: fields.title.trim(), video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: Boolean(fields.s3_video_key) && !stagedUpload, metadata: { ...block.metadata, staged_video_upload: stagedUpload } };
+        return { ...block, video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: Boolean(fields.s3_video_key) && !stagedUpload, metadata: { ...block.metadata, staged_video_upload: stagedUpload } };
       }
-      if (block.id === exercise?.id) return { ...block, title: fields.title.trim(), body: instructions || null, solution: fields.solution.trim() || null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(block.submission_config, fields.runner, fields.submission_type === 'text_submission'), rubric };
+      if (block.id === exercise?.id) return { ...block, body: instructions || null, solution: fields.solution.trim() || null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(block.submission_config, fields.runner, fields.submission_type === 'text_submission'), rubric };
       if (block.knowledge_check) return checkPreviewBlock(block, fields.retrieval_check);
       return block;
     });

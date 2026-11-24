@@ -33,14 +33,14 @@ export function ConversationList({ directory, conversation, search, alerts, show
   const hasOrigin = !back.fallback
   const { isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
   const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation
-  const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, setSearchResults } = search
+  const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, clearSearchResults, searchStatus } = search
   const { pushEnabled, pushMessage, handleTogglePush } = alerts
   if (!showListPane || sidebarCollapsed) return null
 
   const closeSearch = () => {
     setShowInboxSearch(false)
     setSearchQuery('')
-    setSearchResults([])
+    clearSearchResults()
   }
   const inboxActions: OverflowMenuItem[] = [
     ...(canManageChannels ? [{ key: 'channel', label: 'Create group chat', icon: <Plus aria-hidden="true" />, onSelect: () => { setChannelForm((current) => ({ ...current, workspace_id: String(selectedWorkspaceId) })); setShowChannelForm(true); setChannelError('') } }] : []),
@@ -93,6 +93,17 @@ export function ConversationList({ directory, conversation, search, alerts, show
               aria-label="Search messages"
               className="app-control w-full pl-9 text-base sm:text-sm"
             />
+            {searchQuery.trim().length > 0 && searchResults.length === 0 && (
+              <div role="status" className="absolute z-20 mt-2 w-full rounded-xl border border-line bg-surface-raised px-4 py-3 text-sm text-ink-secondary shadow-overlay">
+                {searchQuery.trim().length < 2
+                  ? 'Type at least 2 letters to search.'
+                  : searchStatus === 'error'
+                    ? 'Search isn’t working right now. Check your connection and try again.'
+                    : searchStatus === 'done'
+                      ? `No messages match “${searchQuery.trim()}”.`
+                      : 'Searching messages…'}
+              </div>
+            )}
             {searchResults.length > 0 && (
               <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-line bg-surface-raised p-2 shadow-overlay">
                 {searchResults.map((result) => (

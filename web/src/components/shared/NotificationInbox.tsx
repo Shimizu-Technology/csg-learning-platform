@@ -66,7 +66,7 @@ export function NotificationInbox() {
   const insertedIds = useInsertedKeys((data?.notifications || []).map((item) => item.id), { ready: !loading })
   return <div className="app-page">
     <div><p className="app-eyebrow">Communication</p><h1 className="app-title mt-2">Updates</h1></div>
-    <UpdatesTabs selected="inbox" />
+    <UpdatesTabs selected="inbox" inboxUnreadCount={data?.unread_count ?? 0} />
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p role="status" className="text-sm text-ink-secondary">{data && `${data.unread_count} unread ${data.unread_count === 1 ? 'notification' : 'notifications'}`}</p>
       <div className="flex flex-wrap gap-2">

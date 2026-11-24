@@ -6,7 +6,8 @@ import { expect, it, vi } from 'vitest'
 import { SupportQueue } from './SupportQueue'
 const state = vi.hoisted(() => ({ due: false, schoolEnabled: true, cohortEnabled: undefined as boolean | undefined }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ schoolFeatures: { interventions: state.schoolEnabled } }) }))
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: state.cohortEnabled === undefined ? null : { features: { interventions: state.cohortEnabled } } }) }))
+// The sidebar's selection says Off; only the cohort in the page's URL may decide.
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: { id: 9, features: { interventions: false } }, cohorts: [{ id: 4, name: 'Pilot', features: state.cohortEnabled === undefined ? {} : { interventions: state.cohortEnabled } }, { id: 9, name: 'Other', features: { interventions: false } }] }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => true) }))
 vi.mock('../../lib/api', () => ({ api: {} }))
@@ -33,7 +34,7 @@ it('collapses empty follow-up and return plan sections while due records open vi
   } finally { act(() => root.unmount()); container.remove(); state.due = false }
 })
 
-it('uses school defaults without a cohort and honors cohort overrides', async () => {
+it('uses school defaults without a cohort and honors the URL cohort, not the sidebar selection', async () => {
   const container = document.createElement('div'); document.body.append(container); const root = createRoot(container)
   state.schoolEnabled = false; state.due = true
   try {
@@ -41,7 +42,10 @@ it('uses school defaults without a cohort and honors cohort overrides', async ()
     expect(container.querySelectorAll('details')).toHaveLength(0)
     expect(container.textContent).not.toContain('Follow-ups due')
     state.cohortEnabled = true
-    await act(async () => root.render(<MemoryRouter><SupportQueue /></MemoryRouter>))
+    await act(async () => root.render(<MemoryRouter key="scoped" initialEntries={['/admin/support?cohort_id=4']}><SupportQueue /></MemoryRouter>))
     expect(container.querySelectorAll('details')).toHaveLength(2)
+    // Unscoped, the school switch decides even though one cohort turns it on.
+    await act(async () => root.render(<MemoryRouter key="unscoped"><SupportQueue /></MemoryRouter>))
+    expect(container.querySelectorAll('details')).toHaveLength(0)
   } finally { act(() => root.unmount()); container.remove(); state.schoolEnabled = true; state.due = false; state.cohortEnabled = undefined }
 })

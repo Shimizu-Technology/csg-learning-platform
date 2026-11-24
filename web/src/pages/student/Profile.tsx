@@ -5,7 +5,7 @@ import { ReminderPreference } from '../../components/student/ReminderPreference'
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { AtSign, Bell, Building2, Check, ChevronRight, FileText, Github, History, KeyRound, LogOut, Mail, Palette, Save, ShieldCheck, SlidersHorizontal, Trash2, UserCog, UserX } from 'lucide-react'
+import { AtSign, Bell, BellRing, Building2, Check, ChevronRight, FileText, Github, History, KeyRound, LogOut, Mail, Palette, Save, ShieldCheck, SlidersHorizontal, Trash2, UserCog, UserX } from 'lucide-react'
 import { ThemeChoice } from '../../components/shared/ThemeChoice'
 import { useClerk } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
@@ -21,7 +21,8 @@ import { RecordLink } from '../../components/shared/RecordLink'
 import { scrollToSection } from '../../components/shared/RelatedPanel'
 import { formatShortDate } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
-import type { ProfileResponse as ProfileData, BlockedUser } from '../../types/api'
+import type { ProfileResponse as ProfileData, BlockedUser, PushConfigResponse } from '../../types/api'
+import { useBrowserAlerts } from '../shared/messages/useBrowserAlerts'
 import { handleProblem, normalizeHandle } from '../../lib/handles'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useStudentExperience } from '../../lib/studentExperience'
@@ -60,6 +61,9 @@ export function Profile() {
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean | null>(null)
   const [notificationPreferenceError, setNotificationPreferenceError] = useState<string | null>(null)
   const [savingNotifications, setSavingNotifications] = useState(false)
+  // One push-config load feeds both switches: message emails and this device's browser alerts.
+  const [pushConfig, setPushConfig] = useState<PushConfigResponse | null>(null)
+  const browserAlerts = useBrowserAlerts({ config: pushConfig })
   const [requestingDeletion, setRequestingDeletion] = useState(false)
   const [deletionRequested, setDeletionRequested] = useState(false)
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
@@ -68,6 +72,7 @@ export function Profile() {
     setEmailNotificationsEnabled(null)
     setNotificationPreferenceError(null)
     const response = await api.getPushConfig()
+    if (response.data) setPushConfig(response.data)
     if (typeof response.data?.notifications_enabled === 'boolean') {
       setEmailNotificationsEnabled(response.data.notifications_enabled)
     } else {
@@ -288,14 +293,14 @@ export function Profile() {
             <Bell className="h-4 w-4 text-ink-muted" aria-hidden="true" />
             <h2 className="text-lg font-bold tracking-tight text-ink">Notifications</h2>
           </div>
-          <p className="mt-1 text-sm leading-6 text-ink-secondary">Choose how class conversations reach you when you are away from the app.</p>
+          <p className="mt-1 text-sm leading-6 text-ink-secondary">Choose how messages and updates reach you when you are away from the app.</p>
         </div>
         <div className="flex items-start justify-between gap-5 px-5 py-5 sm:px-6">
           <div className="flex min-w-0 gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><Mail className="h-5 w-5" aria-hidden="true" /></span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-ink">Direct-message emails</p>
-              <p className="mt-1 max-w-md text-xs leading-5 text-ink-secondary">Receive an email when someone sends you a direct message. Browser alerts are controlled separately from Messages or Updates.</p>
+              <p className="text-sm font-semibold text-ink">Message emails</p>
+              <p className="mt-1 max-w-md text-xs leading-5 text-ink-secondary">Get an email when someone sends you a direct message.</p>
             </div>
           </div>
           {emailNotificationsEnabled === null ? (
@@ -307,20 +312,25 @@ export function Profile() {
               <span role="status" className="min-h-11 shrink-0 px-2 py-3 text-xs font-semibold text-ink-muted">Loading…</span>
             )
           ) : (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={emailNotificationsEnabled}
-              aria-label="Direct-message email notifications"
-              aria-busy={savingNotifications}
-              onClick={toggleEmailNotifications}
-              disabled={savingNotifications}
-              className={`relative mt-0.5 ${v2 ? 'h-11 w-12' : 'h-7 w-12'} shrink-0 rounded-full transition-colors duration-200 ease-out before:absolute before:-inset-2 before:content-[''] disabled:opacity-50 ${v2 ? '' : emailNotificationsEnabled ? 'bg-ink' : 'bg-line ring-1 ring-inset ring-line-control'}`}
-            >
-              {v2 && <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-2 h-7 rounded-full transition-colors duration-200 ${emailNotificationsEnabled ? 'bg-ink' : 'bg-line ring-1 ring-inset ring-line-control'}`} />}
-              <span className={`absolute left-0 ${v2 ? 'top-2.5' : 'top-0.5'} h-6 w-6 rounded-full bg-surface-raised shadow-sm transition-transform duration-200 ease-out ${v2 ? 'motion-reduce:transition-none ' : ''}${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-            </button>
+            <PreferenceSwitch v2={v2} checked={emailNotificationsEnabled} label="Message emails" busy={savingNotifications} onToggle={toggleEmailNotifications} />
           )}
+        </div>
+        <div className="border-t border-line px-5 py-5 sm:px-6">
+          <div className="flex items-start justify-between gap-5">
+            <div className="flex min-w-0 gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><BellRing className="h-5 w-5" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">Browser alerts</p>
+                <p className="mt-1 max-w-md text-xs leading-5 text-ink-secondary">Get an alert on this device for new messages and updates, even when Learn isn’t open.</p>
+              </div>
+            </div>
+            {pushConfig ? (
+              <PreferenceSwitch v2={v2} checked={browserAlerts.pushEnabled} label="Browser alerts" onToggle={() => void browserAlerts.handleTogglePush()} />
+            ) : notificationPreferenceError ? null : (
+              <span role="status" className="min-h-11 shrink-0 px-2 py-3 text-xs font-semibold text-ink-muted">Loading…</span>
+            )}
+          </div>
+          {browserAlerts.pushMessage && <p role="status" className="mt-3 text-sm leading-6 text-ink-secondary sm:pl-[3.25rem]">{browserAlerts.pushMessage}</p>}
         </div>
         {remindersAvailable && <ReminderPreference v2={v2} />}
       </section>
@@ -430,5 +440,24 @@ export function Profile() {
         <CourseCompletionStatus key={enrollment.id} completion={enrollment.course_completion} />
       ))}
     </div>
+  )
+}
+
+/** An on/off switch for a notification preference: a 28px track inside a 44px target. */
+function PreferenceSwitch({ v2, checked, label, busy = false, onToggle }: { v2: boolean; checked: boolean; label: string; busy?: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      aria-busy={busy}
+      onClick={onToggle}
+      disabled={busy}
+      className="relative -my-2 h-11 w-12 shrink-0 rounded-full disabled:opacity-50"
+    >
+      <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-2 h-7 rounded-full transition-colors duration-200 ${checked ? 'bg-ink' : 'bg-line ring-1 ring-inset ring-line-control'}`} />
+      <span className={`absolute left-0 top-2.5 h-6 w-6 rounded-full bg-surface-raised shadow-sm transition-transform duration-200 ease-out ${v2 ? 'motion-reduce:transition-none ' : ''}${checked ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+    </button>
   )
 }

@@ -95,7 +95,7 @@ it('shows self-paced course dates, next lesson and redo feedback without alumni 
   expect(html).toContain('Next lesson: Python lists')
   expect(html).toContain('Course access ends')
   expect(html).toContain('You can ask for help until')
-  expect(html).toContain('Ask for help')
+  expect(html).toContain('Message your instructor')
   expect(html).toContain('/lessons/12?cohort_id=4')
   expect(html).toContain('Redo first')
   expect(html).toContain('Try again.')

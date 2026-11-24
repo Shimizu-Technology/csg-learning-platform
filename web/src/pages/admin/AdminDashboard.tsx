@@ -29,7 +29,9 @@ export function AdminDashboard() {
   const scoped = (path: string) => `${path}${selectedCohortId ? `${path.includes('?') ? '&' : '?'}cohort_id=${selectedCohortId}` : ''}`
   const needYou = Object.values(today?.counts ?? {}).reduce((sum, count) => sum + count, 0) + (today?.attention_remaining ?? 0)
   const inboxPath = (kind: string) => { const params = new URLSearchParams(searchParams); params.set('kind', kind); return `/admin?${params}` }
-  const scopeName = cohorts.find((cohort) => cohort.id === selectedCohortId)?.name || data.cohort?.name || `Cohort ${selectedCohortId}`
+  // Waiting work opens the Grading workbench, where Save and next keeps going; it returns here.
+  const gradingPath = `${scoped('/admin/grading')}${selectedCohortId ? '&' : '?'}return_to=${encodeURIComponent(`/admin${searchParams.toString() ? `?${searchParams}` : ''}`)}`
+  const scopeName = cohorts.find((cohort) => cohort.id === selectedCohortId)?.name || data.cohort?.name || 'Not one of your cohorts'
   // A cohort in the URL that isn't in the list (still loading, or no access) still shows as the scope.
   const scopeOptions = cohortScopeOptions(selectedCohortId && !cohorts.some((cohort) => cohort.id === selectedCohortId) ? [...cohorts, { id: selectedCohortId, name: scopeName }] : cohorts)
   return <div className="app-page-wide">
@@ -42,7 +44,7 @@ export function AdminDashboard() {
     {error && <LoadError error={error} stale retry={() => void reload()} />}
     <nav className="flex flex-wrap gap-2" aria-label="Staff summary">{[
       [today?.counts.help ?? 0, 'Help requests', inboxPath('help')],
-      [today?.counts.review ?? 0, 'Waiting for review', inboxPath('review')],
+      [today?.counts.review ?? 0, 'Waiting for review', gradingPath],
       [today?.counts.message ?? 0, 'Unread conversations', inboxPath('message')],
       [today?.counts.follow_up ?? 0, 'Follow-ups', inboxPath('follow_up')],
       [today?.counts.quiet ?? 0, 'Going quiet', inboxPath('quiet')],

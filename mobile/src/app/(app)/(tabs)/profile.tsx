@@ -1,3 +1,5 @@
+import { openWebTask } from '@/lib/external-links';
+import { OtaRestartRow } from '@/components/ota-update-notice';
 import { brand } from '../../../lib/brand'
 import { switchColors } from '@/constants/csg-theme';
 import { haptic } from '@/lib/haptics';
@@ -28,15 +30,19 @@ export default function ProfileScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
   const auth = useCsgAuth();
-  const { api, user, refresh, signOut: endSession } = useSession();
+  const { api, user, enrollments, refresh, signOut: endSession } = useSession();
   const profileQuery = useQuery({ queryKey: learningKeys.profile(user?.id || 0), queryFn: ({ signal }) => api.profile(signal), enabled: Boolean(user && !auth.demo) });
-  const { selectedCohortId } = useCohort();
+  const { selectedCohortId, selectedCohort } = useCohort();
   // Same cached dashboard as Today: it says whether this course uses GitHub and offers private meetings.
   const dashboardQuery = useQuery({ queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId), queryFn: ({ signal }) => api.dashboard(signal, selectedCohortId), enabled: Boolean(user && !user.is_staff && !auth.demo) });
   const studentDashboard = dashboardQuery.data?.dashboard && isStudentDashboard(dashboardQuery.data.dashboard) ? dashboardQuery.data.dashboard : null;
   const savedGithub = profileQuery.data?.user.github_username || user?.github_username || '';
   // Learners only see the GitHub card when their course uses GitHub (or they already linked one); staff always do.
   // If the dashboard cannot load, keep the card so a learner who needs GitHub is never blocked.
+  const githubApp = !auth.demo && Boolean(selectedCohort?.features?.github_app && !user?.is_staff);
+  const enrollmentId = enrollments?.find(item => item.cohort.id === selectedCohortId)?.id;
+  const bindings = useQuery({ queryKey: ['github-bindings', user?.id, enrollmentId], queryFn: ({ signal }) => api.githubBindings(enrollmentId!, signal), enabled: githubApp && Boolean(enrollmentId) });
+  const verifiedRepos = bindings.data?.bindings.filter(item => item.verification_state === 'verified') ?? [];
   const showGithub = !auth.demo && (Boolean(user?.is_staff) || Boolean(savedGithub) || Boolean(studentDashboard?.cohort?.requires_github) || dashboardQuery.isError);
 
   // Course reminders (W9.3): only for learners in a cohort that sends them.
@@ -246,11 +252,21 @@ export default function ProfileScreen() {
     ],
   );
   return (
-    <SafeAreaView edges={['top']} style={styles.safe}><ScrollView contentContainerStyle={styles.content}>
+    <SafeAreaView edges={['top']} style={styles.safe}><ScrollView contentContainerStyle={styles.content}><OtaRestartRow />
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR ACCOUNT</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>You</Text>
       <View style={styles.person}><Avatar name={user?.full_name || `${brand.schoolAbbreviation} User`} size={62} /><View style={styles.flex}><Text style={styles.name}>{user?.full_name || `${brand.schoolShortName} member`}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><ShieldCheck color={c.status.success.fg} size={13} /><Text style={styles.roleText}>{humanize(user?.role, ROLE_LABELS) || 'Member'}</Text></View></View></View>
       {auth.demo && <View style={styles.demo}><Text style={styles.demoTitle}>Simulator walkthrough</Text><Text style={styles.demoCopy}>Local sample data is active. This mode is compiled out of production behavior.</Text></View>}
-      {showGithub && <GithubEditor initialValue={savedGithub} api={api} userId={user?.id || 0} afterSave={refresh} />}
+      {githubApp ? <View style={styles.githubCard}>
+        <Text style={styles.settingTitle}>GitHub repositories</Text>
+        {bindings.isSuccess ? <>
+          {verifiedRepos.map(repo => <Text key={repo.id} style={styles.settingCopy}>{repo.full_name} · Verified</Text>)}
+          <Button
+            variant="secondary"
+            label={verifiedRepos.length ? 'Manage GitHub repositories on web' : 'Connect GitHub on web'}
+            onPress={() => void openWebTask(api, `/profile#github-repository-${selectedCohortId}`).then(() => bindings.refetch()).catch(() => Alert.alert('Could not open GitHub settings'))}
+          />
+        </> : <Text style={styles.settingCopy}>{bindings.isFetching ? 'Checking GitHub connection…' : 'GitHub connection status unavailable.'}</Text>}
+      </View> : showGithub && <GithubEditor initialValue={savedGithub} api={api} userId={user?.id || 0} afterSave={refresh} />}
       {studentDashboard?.capabilities?.features?.private_meetings !== false && studentDashboard?.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Choose or change your weekly meeting in the app" onPress={() => router.push('/meetings' as Href)} style={styles.manage} testID="profile-book-private-hour"><View style={styles.settingIcon}><CalendarCheck color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Book your weekly private hour</Text><Text style={styles.settingCopy}>Choose or change your 60-minute Zoom hour.</Text></View><ChevronRight color={c.text.body} size={18} /></Pressable>}
       {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => <View key={enrollment.id} style={[styles.enrollment, index > 0 && styles.groupDivider]}><View style={styles.settingIcon}><GraduationCap color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>{enrollment.cohort_name}</Text><Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text></View><Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)}</Text></View>)}</View></>}
       <Pressable accessibilityRole="button" accessibilityLabel="Open your activity history" onPress={() => router.push('/activity' as Href)} style={styles.manage}><View style={styles.settingIcon}><Activity color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Your activity history</Text><Text style={styles.settingCopy}>Review your sign-ins, learning progress, and saved work.</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>

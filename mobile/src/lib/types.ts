@@ -441,7 +441,7 @@ export interface LessonEditorInput {
   requires_submission: boolean;
   video?: {
     id?: number;
-    title: string;
+    title?: string;
     video_url: string | null;
     s3_video_key?: string | null;
     s3_video_content_type?: string | null;
@@ -450,7 +450,7 @@ export interface LessonEditorInput {
   };
   exercise?: {
     id?: number;
-    title: string;
+    title?: string;
     body: string | null;
     solution: string | null;
     filename: string | null;

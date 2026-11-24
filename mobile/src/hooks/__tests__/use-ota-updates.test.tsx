@@ -226,14 +226,13 @@ it('keeps checking and stages rollback while a throwing screen is caught by the 
   expect(Updates.reloadAsync).not.toHaveBeenCalled();
 });
 
-it('uses the safe inset only for an absolute overlay, leaving the screen layout and outside touches alone', async () => {
+it('uses the safe inset and places the update in layout before the screen', async () => {
   check.mockResolvedValue(available);
   const ui = render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 3, right: 4, bottom: 34 } }}><AppRecovery><Text>Current screen</Text></AppRecovery></SafeAreaProvider>);
   await act(async () => {});
   expect(ui.getByText('Current screen')).toBeTruthy();
   const overlay = ui.getByTestId('ota-update-overlay');
-  expect(overlay).toHaveStyle({ position: 'absolute', top: 55, left: 15, right: 16 });
-  expect(overlay.props.pointerEvents).toBe('box-none');
+  expect(overlay).toHaveStyle({ marginTop: 55, marginLeft: 15, marginRight: 16 });
   fireEvent.press(ui.getByRole('button', { name: 'Later' }));
   expect(ui.queryByTestId('ota-update-overlay')).toBeNull();
   expect(ui.getByText('Current screen')).toBeTruthy();

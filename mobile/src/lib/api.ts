@@ -208,6 +208,11 @@ export class CsgApi {
   weeklyPlan = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ weekly_plan: WeeklyPlan }>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`, { signal });
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
   updateProfile = (data: { github_username?: string | null }) => this.request<components['schemas']['ProfileUpdateResponse']>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
+  gradingQueue = (filter: 'ungraded' | 'redo', cohortId?: number | null, page = 1, signal?: AbortSignal) => this.request<components['schemas']['GradingQueueResponse']>(`/api/v1/grading_queue?filter=${filter}&page=${page}${cohortId ? `&cohort_id=${cohortId}` : ''}`, { signal });
+  retryGithubIssue = (id: number) => this.request<components['schemas']['RetryGithubIssueResponse']>(`/api/v1/submissions/${id}/retry_github_issue`, { method: 'POST' });
+  githubBindings = (id: number, signal?: AbortSignal) => this.request<components['schemas']['GithubRepositoryBindingsResponse']>(`/api/v1/enrollments/${id}/github_repository_bindings`, { signal });
+  choosePace = (id: number, weeks: number) => this.request<components['schemas']['PersonalPaceResponse']>(`/api/v1/enrollments/${id}/pace`, { method: 'PUT', body: JSON.stringify({ weeks }) });
+  myWork = (cohortId: number, signal?: AbortSignal) => this.request<components['schemas']['MyWorkResponse']>(`/api/v1/my_work?cohort_id=${cohortId}`, { signal });
   webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });
   downloadCurriculumResource = (curriculumId: number, resourceId: number) => this.request<{ url: string; expires_in: number }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/download`, { method: 'POST' });
   resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources?include_course_files=true', { signal });

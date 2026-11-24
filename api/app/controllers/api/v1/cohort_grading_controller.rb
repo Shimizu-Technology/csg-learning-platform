@@ -72,6 +72,8 @@ module Api
           module_name: @curriculum_module.name,
           requires_github: requires_github,
           github_sync_enabled: FeatureSwitches.for(cohort: @cohort)["github_sync"],
+          # Only when the hourly reconciliation really covers this cohort's module.
+          github_auto_sync: GithubReconciliationService.covers_module?(@cohort, @curriculum_module),
           supports_github_sync: exercises.any? { |exercise| exercise[:github_sync] },
           open_github_sync_count: exercises.count do |exercise|
             exercise[:github_sync] && !exercise[:submission_window][:submissions_closed]
@@ -106,11 +108,15 @@ module Api
 
         total_synced = results.values.sum { |r| r[:synced] }
         all_errors = results.flat_map { |uid, r| r[:errors].map { |e| "User #{uid}: #{e}" } }
+        failing = results.select { |_, r| r[:errors].any? }
+        users = User.where(id: failing.keys).index_by(&:id)
 
         render json: {
           synced: total_synced,
           students_processed: results.size,
-          errors: all_errors
+          errors: all_errors,
+          # Who the sync could not finish for, by name, so staff can follow up.
+          failed_students: failing.map { |uid, r| { user_id: uid, full_name: users[uid]&.full_name, errors: r[:errors] } }
         }
       end
 

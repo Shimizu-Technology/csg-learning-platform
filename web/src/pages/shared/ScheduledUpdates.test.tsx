@@ -31,6 +31,7 @@ describe('Scheduled updates (U-3.6)', () => {
   let root: Root
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.inbox.mockResolvedValue({ data: { notifications: [], unread_count: 0 }, error: null })
     mocks.user.is_staff = true
     mocks.cohorts = [{ id: 4, name: 'Cohort 2', enrolled_count: 9 }, { id: 5, name: 'Cohort 3', enrolled_count: 4 }]
     mocks.confirm.mockResolvedValue(true)

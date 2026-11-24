@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
@@ -33,17 +34,19 @@ interface ContextualHelpProps {
   contextSource?: HelpContextSource;
   contextId: number;
   contextLabel: string;
+  openRequestId?: number;
   contextPath?: string;
   capabilities?: EnrollmentCapabilities;
 }
 
-export function ContextualHelp({ cohortId, contextType, contextSource = 'primary', contextId, contextLabel, contextPath, capabilities }: ContextualHelpProps) {
+export function ContextualHelp({ cohortId, contextType, contextSource = 'primary', contextId, contextLabel, contextPath, capabilities, openRequestId }: ContextualHelpProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const queryClient = useQueryClient();
-  const [visible, setVisible] = useState(false);
+  const router = useRouter();
+  const [visible, setVisible] = useState(Boolean(openRequestId));
   const [category, setCategory] = useState<HelpCategory>('concept');
   const [urgency, setUrgency] = useState<HelpUrgency>('normal');
   const [message, setMessage] = useState('');
@@ -57,8 +60,9 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
     meta: { persist: false },
   });
   const relevant = useMemo(() => (query.data?.help_requests || []).filter((request) => request.cohort.id === cohortId && request.context_type === contextType && request.context_id === contextId && request.context_source === contextSource), [cohortId, contextId, contextType, contextSource, query.data?.help_requests]);
-  const active = relevant.find((request) => request.status === 'open' || request.status === 'acknowledged');
-  const resolved = relevant.find((request) => request.status === 'resolved');
+  const linked = openRequestId ? relevant.find(request => request.id === openRequestId) : undefined;
+  const active = linked?.status === 'resolved' ? undefined : linked ?? relevant.find(request => request.status === 'open' || request.status === 'acknowledged');
+  const resolved = linked?.status === 'resolved' ? linked : relevant.find(request => request.status === 'resolved');
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -117,6 +121,19 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
 
   const status = active?.replies?.length || active?.staff_response ? 'Your instructor replied' : active?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor';
   if (capabilities?.features?.help_requests === false) return null;
+  const answered = [active, resolved].find(request => request?.replies?.length || request?.staff_response);
+  const replyAuthor = answered?.replies?.at(-1)?.author || answered?.owner;
+  const followUp = async () => {
+    if (!answered || !replyAuthor) return;
+    try {
+      const result = await api.createCohortDm(cohortId, [replyAuthor.id]);
+      setVisible(false);
+      router.push({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(result.direct_conversation.id), prefill: `I have a follow-up about ${contextLabel} (help request #${answered.id}).${contextPath ? ` ${contextPath}` : ''}` } });
+    } catch {
+      Alert.alert('Could not open your conversation', 'Try again in a moment.');
+    }
+  };
+
   return <>
     {!canAsk && <CourseSupportAction capabilities={capabilities} cohortId={cohortId} contextLabel={contextLabel} contextPath={contextPath} />}
     {(canAsk || active || resolved) && <Pressable accessibilityRole="button" accessibilityLabel={!canAsk ? `View previous help for ${contextLabel}` : active ? `Help request status: ${status}` : `Ask for help with ${contextLabel}`} onPress={() => { setVisible(true); if (!auth.demo) void query.refetch(); }} style={[styles.launcher, active && styles.launcherActive]}>
@@ -125,10 +142,11 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
     </Pressable>}
     <Modal visible={visible} animationType="fade" presentationStyle="pageSheet" onRequestClose={() => void close()}>
       <SafeAreaView style={styles.safe}>
-        <View style={styles.header}><View style={styles.headerIcon}><CircleHelp color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.kicker}>CONTEXTUAL HELP</Text><Text numberOfLines={1} style={styles.headerTitle}>{contextLabel}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close help" onPress={() => void close()} style={styles.close}><X color={c.text.body} size={21} /></Pressable></View>
+        <View style={styles.header}><View style={styles.headerIcon}><CircleHelp color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.kicker}>Lesson help</Text><Text numberOfLines={1} style={styles.headerTitle}>{contextLabel}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close help" onPress={() => void close()} style={styles.close}><X color={c.text.body} size={21} /></Pressable></View>
         <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+          {replyAuthor && <Button variant="secondary" label="Message your instructor about this" onPress={() => void followUp()} />}
           {query.isPending && !auth.demo ? <Text style={styles.loading}>Checking your requests…</Text> : active ? <View style={styles.stack}>
-            <View style={styles.statusCard}><Clock3 color={c.status.warning.fg} size={20} /><View style={styles.flex}><Text style={styles.statusTitle}>{status}</Text><Text style={styles.statusCopy}>{active.status === 'acknowledged' ? `${active.owner?.full_name || 'An instructor'} acknowledged your request.` : 'Staff can see it in Support.'}</Text></View></View>
+            <View style={styles.statusCard}><Clock3 color={c.status.warning.fg} size={20} /><View style={styles.flex}><Text style={styles.statusTitle}>{status}</Text><Text style={styles.statusCopy}>{active.status === 'acknowledged' ? `${active.owner?.full_name || 'An instructor'} acknowledged your request.` : 'Your instructor has your question.'}</Text></View></View>
             <View style={styles.requestCard}><Text style={styles.fieldLabel}>YOUR QUESTION</Text><Text style={styles.requestText}>{active.message}</Text><View style={styles.pills}><Text style={styles.pill}>{active.category.toUpperCase()}</Text>{active.urgency === 'urgent' && <Text style={styles.urgentPill}>URGENT</Text>}</View></View>
             {(active.replies?.length ? active.replies.map((item) => ({ key: String(item.id), author: item.author.full_name, body: item.body })) : active.staff_response ? [{ key: 'response', author: 'Your instructor', body: active.staff_response }] : []).map((item) => <View key={item.key} style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{`${item.author} replied`}</Text><View style={styles.resolvedText}><AuthoredContent body={item.body} compact written /></View></View></View>)}
             {canAsk && <Button accessibilityRole="button" disabled={saving} onPress={() => void cancel()} style={styles.cancelButton} variant="secondary" label={saving ? 'Canceling…' : 'Cancel request'} textStyle={styles.cancelText} />}

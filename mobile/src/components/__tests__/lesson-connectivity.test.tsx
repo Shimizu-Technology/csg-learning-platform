@@ -1,9 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { learningKeys } from '@/lib/learning';
 import { ScrollView } from 'react-native';
 import LessonScreen from '../../app/(app)/lesson/[id]';
 
 let mockConnected = true;
+let mockAlumni = false;
+let mockV2 = false;
+const mockUpdateProgress = jest.fn();
 const mockLesson = jest.fn();
 const mockSubmit = jest.fn();
 const mockVideoProgress = jest.fn();
@@ -15,8 +19,8 @@ jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: 
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: { lesson: mockLesson, createSubmission: mockSubmit, updateContentVideoProgress: mockVideoProgress }, user: { id: 4, is_staff: false } }) }));
-jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ cohorts: [{ id: 2 }], selectedCohortId: 2, loading: false, stale: false, error: null }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: { lesson: mockLesson, createSubmission: mockSubmit, updateContentVideoProgress: mockVideoProgress, updateProgress: mockUpdateProgress }, user: { id: 4, is_staff: false } }) }));
+jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ cohorts: [{ id: 2, cohort_type: mockAlumni ? 'alumni' : 'bootcamp', features: { student_experience_v2: mockV2 } }], selectedCohortId: 2, loading: false, stale: false, error: null }) }));
 jest.mock('@/lib/analytics', () => ({ analyticsAgeBucket: () => 'recent', captureProductEvent: jest.fn() }));
 jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebLesson: jest.fn() }));
 jest.mock('@/lib/submission-storage', () => ({ ...jest.requireActual('@/lib/submission-storage'), loadSubmissionDraft: jest.fn().mockResolvedValue(null), clearSubmissionDraft: jest.fn().mockResolvedValue(undefined), saveSubmissionDraft: (...args: unknown[]) => mockSaveDraft(...args) }));
@@ -37,7 +41,7 @@ const savedLesson = { id: 138, cohort_id: 2, module_id: 2, title: 'Connectivity 
   { ...base, id: 4, block_type: 'video', title: 'Watch', has_s3_video: true },
 ] };
 let client: QueryClient;
-beforeEach(() => { mockConnected = true; jest.clearAllMocks(); mockLesson.mockResolvedValue({ lesson: savedLesson }); client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } }); });
+beforeEach(() => { mockConnected = true; mockAlumni = false; mockV2 = false; jest.clearAllMocks(); mockLesson.mockResolvedValue({ lesson: savedLesson }); client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } }); });
 afterEach(() => { cleanup(); client.clear(); });
 it('pauses every write after online lesson refresh fails and restores the draft after successful reconnect refetch', async () => {
   const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
@@ -131,4 +135,45 @@ it.each([false, true])('shows the Guam deadline only when the learner payload op
     expect(screen.getByText('Submission deadline: Jan 15, 2030, 10:00 AM ChST')).toBeTruthy();
     expect(screen.queryByText(/10:00:00/)).toBeNull();
   } else expect(screen.queryByText(/Submission deadline:/)).toBeNull();
+});
+
+const readingLesson = {
+  ...savedLesson,
+  lesson_type: 'reading',
+  learner_status: 'open',
+  content_blocks: [{ ...base, id: 31, block_type: 'text', title: 'Reading', body: 'Read this.' }],
+  next_lesson: { id: 139, title: 'Next reading' },
+};
+
+it('keeps Next available for offline reading without marking it complete', async () => {
+  mockV2 = true;
+  mockConnected = false;
+  mockLesson.mockResolvedValue({ lesson: readingLesson });
+  const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  expect(await screen.findByRole('button', { name: 'Mark complete and continue' })).toBeDisabled();
+  fireEvent.press(screen.getByRole('button', { name: 'Next lesson: Next reading' }));
+  expect(mockReplace).toHaveBeenCalledWith('/lesson/139?cohort_id=2');
+  expect(mockUpdateProgress).not.toHaveBeenCalled();
+});
+
+it('refreshes dashboard, module and weekly plan after completing a reading', async () => {
+  mockV2 = true;
+  mockLesson.mockResolvedValue({ lesson: readingLesson });
+  mockUpdateProgress.mockResolvedValue({});
+  const invalidate = jest.spyOn(client, 'invalidateQueries');
+  const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  fireEvent.press(await screen.findByRole('button', { name: 'Mark complete and continue' }));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/lesson/139?cohort_id=2'));
+  expect(mockUpdateProgress).toHaveBeenCalledWith(31, 'completed', 2);
+  for (const queryKey of [learningKeys.dashboard(4, 2), learningKeys.movedModule(4, 2, 2), learningKeys.weeklyPlan(4, 2)]) {
+    expect(invalidate).toHaveBeenCalledWith({ queryKey });
+  }
+});
+
+it.each(['open', 'done'])('hides the lesson header progress for alumni with status %s', async learner_status => {
+  mockAlumni = true;
+  mockLesson.mockResolvedValue({ lesson: { ...readingLesson, learner_status } });
+  const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  expect(await screen.findByText('READING')).toBeTruthy();
+  expect(screen.queryByTestId('lesson-header-status')).toBeNull();
 });

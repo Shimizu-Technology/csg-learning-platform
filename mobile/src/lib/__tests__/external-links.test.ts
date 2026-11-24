@@ -1,5 +1,6 @@
-import { openAuthenticatedWebLesson, onWebHandoffClosed } from '../external-links';
-import type { CsgApi } from '../api';
+import { openAuthenticatedWebLesson, onWebHandoffClosed, openWebTask } from '../external-links';
+import { ApiError, type CsgApi } from '../api';
+import { brand } from '../brand';
 const mockOpen = jest.fn();
 jest.mock('expo-web-browser', () => ({ openBrowserAsync: (...args: unknown[]) => mockOpen(...args), WebBrowserPresentationStyle: { PAGE_SHEET: 'pageSheet' } }));
 it('hands off to the authenticated runner in the source cohort and block', async () => {
@@ -16,4 +17,11 @@ it('refreshes listeners only after the handoff sheet closes', async () => {
   const work = openAuthenticatedWebLesson({ webHandoff: async () => ({ url: 'https://example.com' }) } as unknown as CsgApi, 1);
   await Promise.resolve(); expect(refresh).not.toHaveBeenCalled();
   close(); await work; expect(refresh).toHaveBeenCalledTimes(1); off();
+});
+
+it('requests the exact lesson editor handoff and preserves the route if the server rejects it', async () => {
+  const webHandoff = jest.fn().mockRejectedValue(new ApiError('Unsupported web destination', 422));
+  await openWebTask({ webHandoff } as unknown as CsgApi, '/admin/lessons/42/edit');
+  expect(webHandoff).toHaveBeenCalledWith('/admin/lessons/42/edit');
+  expect(mockOpen).toHaveBeenLastCalledWith(`${brand.appUrl}/admin/lessons/42/edit`, expect.anything());
 });

@@ -2,8 +2,8 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createMemoryRouter, Link, Outlet, RouterProvider } from 'react-router-dom'
-import { afterEach, beforeAll, expect, it, vi } from 'vitest'
-import { LeaveGuardProvider, useGuardedLinkClick, useLeaveGuard } from './useLeaveGuard'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { LeaveGuardProvider, leavesPathOrParam, useGuardedLinkClick, useLeaveGuard } from './useLeaveGuard'
 
 beforeAll(() => {
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -153,4 +153,17 @@ it('lets an explicit confirmation with one draft through without asking twice', 
   expect(a.confirm).toHaveBeenCalledTimes(1)
   expect(router.state.location.pathname).toBe('/away')
   expect(a.onDiscard).toHaveBeenCalledTimes(1)
+})
+
+describe('leavesPathOrParam (UX-1 review)', () => {
+  const at = (search: string, pathname = '/admin/grading') => ({ pathname, search, hash: '', state: null, key: search })
+  const moves = (from: string, to: string, ...params: string[]) =>
+    leavesPathOrParam(...params)({ currentLocation: at(from), nextLocation: at(to), historyAction: 'PUSH' } as never)
+  it('guards every parameter the inline review is keyed on', () => {
+    expect(moves('?cohort_id=1&submission=5', '?cohort_id=2&submission=5', 'submission', 'cohort_id')).toBe(true)
+    expect(moves('?cohort_id=1&submission=5', '?cohort_id=1&submission=6', 'submission', 'cohort_id')).toBe(true)
+    expect(moves('?cohort_id=1&submission=5', '?cohort_id=1&submission=5&page=2', 'submission', 'cohort_id')).toBe(false)
+    // One parameter, as the module grid uses it.
+    expect(moves('?review=5&view=grid', '?review=5&view=queue', 'review')).toBe(false)
+  })
 })

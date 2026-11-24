@@ -86,11 +86,13 @@ const SUGGESTION_FILTER_OPTIONS: ReadonlyArray<readonly [SuggestionOutcomeFilter
   ['all', 'All checks'],
   ['suggest_b', 'B suggested'],
   ['review_for_redo', 'Review for Redo'],
-  ['stale_evidence', 'Stale'],
+  ['stale_evidence', 'Out of date'],
   ['no_suggestion', 'No suggestion'],
 ]
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
+/** URL parameters the open review is keyed on: changing either replaces it. */
+const SELECTION_PARAMS = ['submission', 'cohort_id']
 
 interface CohortSummary {
   id: number
@@ -217,8 +219,11 @@ export function Grading() {
     if (!(await leaveReview())) return
     setUrlState({ page: 1, ...patch, submission: null })
   }
+  // Where Save goes: the next item, or (a filtered list drops finished work) the one before it.
+  // The panel's Save label reads this too, so it says "Save and next" only when that happens.
+  const followingAfterSave = () => nextInQueue || (queueFilter === 'all' ? null : previousInQueue) || null
   function saved() {
-    const following = nextInQueue || (queueFilter === 'all' ? null : previousInQueue)
+    const following = followingAfterSave()
     if (following) {
       setLoaded(null)
       setShowContext(false)
@@ -303,7 +308,7 @@ export function Grading() {
         <PageHeader
           title="Grading"
           description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortName ? <> in {cohortName}</> : ' across cohorts'} · {counts.redo} redo requested{counts.overdue ? <> · {counts.overdue} past review target</> : null}</>}
-          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })} />}
+          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: cohortList ? 'Not one of your cohorts' : 'Loading cohort…' }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })} />}
           menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
         />
       </div>
@@ -587,7 +592,8 @@ export function Grading() {
                 <div className="grid min-w-0 gap-4 @4xl:grid-cols-[minmax(0,1fr)_16rem] @4xl:items-start">
                   <div className="app-surface min-w-0 p-4 sm:p-6">
                     <SubmissionReviewPanel
-                      selectionParam="submission"
+                      // Keyed by scope too: a cohort change replaces the review, so it guards that as well.
+                      selectionParam={SELECTION_PARAMS}
                       key={`${cohortId}:${selectedId}`}
                       ref={panel}
                       submissionId={selectedId}
@@ -604,6 +610,7 @@ export function Grading() {
                       }}
                       previousId={previousInQueue?.id}
                       nextId={nextInQueue?.id}
+                      followingAfterSave={() => followingAfterSave()?.id}
                       position={queuePosition}
                       onNavigate={select}
                       onSaved={saved}
@@ -634,7 +641,7 @@ export function Grading() {
           ) : selectedId ? (
             <div className="app-surface p-4 sm:p-6">
               <SubmissionReviewPanel
-                selectionParam="submission"
+                selectionParam={SELECTION_PARAMS}
                 key={`${cohortId}:${selectedId}`}
                 ref={panel}
                 submissionId={selectedId}

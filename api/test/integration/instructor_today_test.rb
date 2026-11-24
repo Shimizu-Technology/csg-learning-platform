@@ -34,7 +34,9 @@ class InstructorTodayTest < ActionDispatch::IntegrationTest
     assert_equal [ @help.id, @new_help.id ], today["items"].first(2).map { |row| row["id"] }
     assert_equal "First question", today["items"].first["text"]
     assert_equal "Can we talk?", today["items"][3]["text"]
-    assert_equal "/admin/submissions/#{@submission.id}", today["items"][2]["web_path"]
+    # Review opens the Grading workbench scoped to the cohort with this attempt selected.
+    assert_equal "/admin/grading?cohort_id=#{@cohort.id}&submission=#{@submission.id}", today["items"][2]["web_path"]
+    assert_equal "/staff/submission/#{@submission.id}", today["items"][2]["native_path"]
     assert_equal today, fetch_today(@teacher)
   end
 

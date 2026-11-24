@@ -212,6 +212,13 @@ async function click(text: string) {
   expect(button).toBeTruthy()
   await act(async () => button.click())
 }
+/** Grade buttons only choose; Save (Save grade / Save and next) saves. */
+async function grade(text: string) {
+  await click(text)
+  const save = [...container.querySelectorAll('button')].find((item) => /^(Save grade|Save and next|Saving…)$/.test(item.textContent?.trim() || ''))!
+  expect(save).toBeTruthy()
+  await act(async () => save.click())
+}
 async function input(label: string, value: string) {
   const textarea =
     label === 'overall'
@@ -233,21 +240,38 @@ it('identifies an empty captured revision without treating it as missing work', 
       paths: ['111.rb'], content_digest: 'e'.repeat(64), source_bytes: 0, captured_at: '2026-11-18T07:00:00Z' },
   } }, error: null })
   await render('/admin/submissions/42')
-  expect(container.textContent).toContain('Submitted revision aaaaaaaa')
+  expect(container.textContent).toContain('Synced from GitHub')
+  // The raw commit stays out of the way, under Technical details.
+  expect(container.textContent).not.toContain('Submitted revision')
+  expect(container.querySelector('details dl')?.textContent).toContain('a'.repeat(40))
   expect(container.textContent).toContain('The captured file is empty.')
   expect(container.textContent).not.toContain('No inline code submitted.')
+})
+
+// The Save label follows what saving actually does on each page (UX-1 review): the workbench and
+// a record walking a queue open the next item; the module matrix keeps the saved cell open.
+it.each([
+  [entries[0], 'Save and next'],
+  [entries[1], 'Save and next'],
+  [entries[2], 'Save grade'],
+])('labels Save by where it goes at %s', async (entry, label) => {
+  await render(entry)
+  await click('A')
+  const names = [...container.querySelectorAll('button')].map((item) => item.textContent?.trim())
+  expect(names).toContain(label)
+  expect(names).not.toContain(label === 'Save grade' ? 'Save and next' : 'Save grade')
 })
 
 describe.each(entries)('canonical review at %s', (entry) => {
   it('validates rubric then submits the same version, feedback and criterion contract', async () => {
     await render(entry)
-    await click('A')
+    await grade('A')
     expect(api.gradeSubmission).not.toHaveBeenCalled()
     expect(container.textContent).toContain('Rate every rubric criterion')
     await click('Meets')
     await input('Feedback for Correctness', 'Cases pass.')
     await click('Next step')
-    await click('B')
+    await grade('B')
     expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, {
       grade: 'B',
       feedback: 'Try another case.',
@@ -257,7 +281,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
   })
   it('announces a grading error beside the grade buttons, not above the review', async () => {
     await render(entry)
-    await click('B')
+    await grade('B')
     const alert = container.querySelector<HTMLElement>('[role="alert"]')!
     expect(alert.textContent).toContain('Rate every rubric criterion before grading A, B, or C')
     expect(alert.textContent).toContain('A redo only needs written feedback')
@@ -277,7 +301,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
   it('redo with written feedback and no rubric ratings saves without criterion results', async () => {
     await render(entry)
     await input('overall', 'Trace the loop by hand first.')
-    await click('Redo')
+    await grade('Redo')
     expect(container.querySelector('[role="alert"]')).toBeNull()
     expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, {
       grade: 'R',
@@ -290,14 +314,14 @@ describe.each(entries)('canonical review at %s', (entry) => {
     await render(entry)
     await input('overall', 'Rework this.')
     await input('Feedback for Correctness', 'Unrated note')
-    await click('Redo')
+    await grade('Redo')
     expect(api.gradeSubmission).not.toHaveBeenCalled()
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'Rate the criteria you commented on, or clear those comments',
     )
     await click('Keep editing')
     await click('Developing')
-    await click('Redo')
+    await grade('Redo')
     expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, {
       grade: 'R',
       feedback: 'Rework this.',
@@ -316,14 +340,14 @@ describe.each(entries)('canonical review at %s', (entry) => {
     await click('Meets')
     await input('Feedback for Correctness', 'Draft criterion')
     await input('overall', 'Draft overall')
-    await click('A')
+    await grade('A')
     expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')?.value).toBe(
       'Draft overall',
     )
     expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label]')?.value).toBe(
       'Draft criterion',
     )
-    await click('A')
+    await grade('A')
     expect(api.gradeSubmission).toHaveBeenCalledTimes(1)
     vi.mocked(api.getSubmission).mockResolvedValueOnce({
       data: {
@@ -344,7 +368,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
     expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label]')?.value).toBe(
       'Draft criterion',
     )
-    await click('B')
+    await grade('B')
     expect(api.gradeSubmission).toHaveBeenLastCalledWith(
       42,
       expect.objectContaining({
@@ -366,7 +390,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
     await render(entry)
     await click('Meets')
     await input('overall', 'Keep me')
-    await click('A')
+    await grade('A')
     expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')?.value).toBe('Keep me')
     expect(container.querySelector('textarea[id]')?.matches(':disabled')).toBe(true)
     expect(
@@ -433,7 +457,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
           .click(),
       )
     }
-    await click('Refresh checks')
+    await click('Check GitHub again')
     expect(container.textContent).toContain('1 passed')
     await click('Load GitHub issue')
     expect(container.textContent).toContain('Review thread')
@@ -458,8 +482,12 @@ describe.each(entries)('canonical review at %s', (entry) => {
     await click('Meets')
     await input('overall', '   ')
     const redo = async () => {
-      if (path === 'button') await click('Redo')
-      else await act(async () => container.querySelector('[aria-label="Submission review"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true })))
+      if (path === 'button') await grade('Redo')
+      else {
+        const panel = container.querySelector('[aria-label="Submission review"]')!
+        await act(async () => panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true })))
+        await act(async () => panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true })))
+      }
     }
     // A redo needs written feedback (U-0.4): no confirmation, no save, the message in the grade bar.
     await redo()
@@ -483,7 +511,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
     await render(entry)
     const textarea = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
     textarea.focus()
-    await click('Refresh checks')
+    await click('Check GitHub again')
     expect(document.activeElement).toBe(textarea)
   })
   it('fails closed on cached detail and retries explicitly', async () => {
@@ -532,7 +560,7 @@ it('continues the matrix side queue after saving and retains student and filter 
   )
   await click('Meets')
   await input('overall', 'Queue feedback')
-  await click('B')
+  await grade('B')
   expect(api.gradeSubmission).toHaveBeenCalledWith(
     42,
     expect.objectContaining({
@@ -619,7 +647,7 @@ it.each(['next', 'save'] as const)(
     )
     if (action === 'save') {
       await click('Meets')
-      await click('B')
+      await grade('B')
     } else await click('Next')
     expect(router.state.location.pathname).toBe('/admin/submissions/41')
     expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({

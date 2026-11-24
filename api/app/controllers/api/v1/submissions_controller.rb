@@ -219,6 +219,8 @@ module Api
 
         enrollment = @submission.enrollment
         use_v2_issue_delivery = GithubIssueDeliveryPlanner.enabled_for?(enrollment&.cohort)
+        # A Redo posts to GitHub only by the same rule that warned the grader (UX-1).
+        redo_issue_route = redo_grade ? GithubIssueService.redo_issue_route(@submission) : nil
         suggestions_enabled = GithubGradeSuggestionEvaluator.enabled_for?(enrollment&.cohort, school: school_features)
         with_learning_write_guard(enrollment) do
           Submission.transaction do
@@ -263,11 +265,18 @@ module Api
               )
             end
 
-            if use_v2_issue_delivery
+            if use_v2_issue_delivery && (!redo_grade || redo_issue_route == :v2)
               GithubIssueDeliveryPlanner.record!(
                 submission: @submission,
                 grade: @submission.grade,
                 feedback: @submission.feedback
+              )
+            elsif use_v2_issue_delivery && redo_grade
+              # This Redo stays in Learn; an earlier queued Redo (with older feedback) must not
+              # post later if the repository is verified after all.
+              GithubIssueDeliveryPlanner.obsolete_pending!(
+                enrollment_id: @submission.enrollment_id,
+                content_block_id: @submission.content_block_id
               )
             end
           end
@@ -289,7 +298,7 @@ module Api
           @submission.association(:github_issue_deliveries).reset
         else
           token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
-          if token.present?
+          if token.present? && (!redo_grade || redo_issue_route == :legacy)
             GithubIssueService.handle_grade(
               submission: @submission,
               grade: @submission.grade,
@@ -675,6 +684,8 @@ module Api
         if staff_view
           delivery = latest_github_issue_delivery(submission)
           json[:github_issue_delivery] = delivery.to_staff_json if delivery
+          # The review screen warns before a Redo publishes its feedback on GitHub.
+          json[:redo_posts_to_github] = GithubIssueService.redo_issue_route(submission).present? if include_github_checks
 
           if enrollment&.cohort && GithubGradeSuggestionEvaluator.enabled_for?(enrollment.cohort, school: school_features)
             suggestion = submission.submission_grade_suggestion
