@@ -490,6 +490,8 @@ export const api = {
   getSubmissionAudit: () => fetchApi<components['schemas']['SubmissionAuditResponse']>('/api/v1/submission_audits', { cache: 'no-store' }),
   reviewSubmissionAudit: (id: number, content_digest: string) => fetchApi<components['schemas']['SubmissionAuditReviewResponse']>(`/api/v1/submission_audits/${id}`, { method: 'PATCH', body: JSON.stringify({ content_digest }) }),
   getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
+  verifyOfferingPrice: (id: number) =>
+    fetchApi<components['schemas']['OfferingPriceVerificationResponse']>(`/api/v1/cohorts/${id}/verify_offering_price`, { method: 'POST' }),
   bulkEnroll: async (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean, onProgress?: (count: number, phase: 'enrolling' | 'inviting') => void, resume?: BulkEnrollmentState) => {
     const state = resume || { enrolled: 0, invited: 0, results: [] }
     const request = (batch: typeof rows, dispatch: boolean) => fetchApi<{ results: BulkEnrollmentResult[] }>(`/api/v1/cohorts/${id}/enrollments/bulk`, { method: 'POST', body: JSON.stringify({ rows: batch, send_invite: dispatch, dispatch_only: dispatch }) }, true, 30_000)
@@ -1247,6 +1249,12 @@ export const api = {
     }),
   getLessonBlockEditor: (id: number) =>
     fetchApi<LessonBlockEditorResponse>(`/api/v1/lessons/${id}/block_editor`, { cache: 'no-store' }),
+  getExerciseCheckPolicy: (blockId: number) =>
+    fetchApi<components['schemas']['ExerciseCheckPolicyResponse']>(`/api/v1/content_blocks/${blockId}/check_policy`, { cache: 'no-store' }),
+  saveExerciseCheckPolicy: (blockId: number, rules: components['schemas']['ExerciseCheckPolicyInput']) =>
+    fetchApi<components['schemas']['ExerciseCheckPolicyResponse']>(`/api/v1/content_blocks/${blockId}/check_policy`, { method: 'PUT', body: JSON.stringify(rules) }),
+  deactivateExerciseCheckPolicy: (blockId: number) =>
+    fetchApi<components['schemas']['ExerciseCheckPolicyResponse']>(`/api/v1/content_blocks/${blockId}/check_policy`, { method: 'DELETE' }),
   saveLessonBlockEditor: (id: number, lesson: LessonBlockEditorInput['lesson']) =>
     fetchApi<LessonBlockEditorResponse>(`/api/v1/lessons/${id}/block_editor`, {
       method: 'PUT',

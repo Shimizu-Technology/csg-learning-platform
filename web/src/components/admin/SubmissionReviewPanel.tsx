@@ -1,5 +1,5 @@
 import { NoAccess } from '../shared/NoAccess'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import {
   AlertTriangle,
@@ -17,7 +17,8 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
-import { submissionPath } from '../../lib/routes'
+import { lessonEditorPath, submissionPath } from '../../lib/routes'
+import { listLinkState } from '../../lib/navigationContext'
 import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
 import {
   CODE_RUNNER_TIMEOUT_MS,
@@ -138,6 +139,7 @@ export function SubmissionReviewPanel({
   taskOpen = false,
 }: Props) {
   const navigate = useNavigate()
+  const location = useLocation()
   const review = useSubmissionReview(submissionId, onSaved, selectionParam ? leavesPathOrParam(selectionParam) : leavesPath)
   // Record links in the header leave the review, so a plain click asks about unsaved feedback first.
   const guardLeave = useGuardedLinkClick(() => review.confirmLeave())
@@ -361,6 +363,8 @@ export function SubmissionReviewPanel({
     codeRunnerLanguageFromEditor(language) || 'ruby',
   )
   const suggestion = submission.grade_suggestion
+  const checkPolicyPath = lessonEditorPath(submission.lesson_id, { blockId: submission.content_block_id })
+  const gradingReturn = listLinkState(location, 'Grading')
   const hasSuggestion = Boolean(suggestion)
   const isOverridingSuggestion = gradeDiffersFromSuggestion(suggestion, selectedGrade)
   const artifactLinks = [
@@ -518,6 +522,11 @@ export function SubmissionReviewPanel({
           disabled={grading || conflict || isPreviousAttempt(submission)}
           reEvaluating={reEvaluating}
           reEvaluateError={reEvaluateError}
+          missingPolicyLink={suggestion.reason_code === 'missing_policy' && (
+            <Link to={checkPolicyPath} state={gradingReturn} onClick={(event) => guardLeave(event, checkPolicyPath, gradingReturn)} className="app-link inline-flex min-h-11 items-center">
+              Open exercise check rules
+            </Link>
+          )}
           onSelectB={() => selectGradeChoice('B', true)}
           onReEvaluate={() => void reEvaluateSuggestion()}
         />
@@ -908,6 +917,7 @@ function GradeSuggestionCard({
   disabled,
   reEvaluating,
   reEvaluateError,
+  missingPolicyLink,
   onSelectB,
   onReEvaluate,
 }: {
@@ -917,6 +927,7 @@ function GradeSuggestionCard({
   disabled: boolean
   reEvaluating: boolean
   reEvaluateError: string | null
+  missingPolicyLink: React.ReactNode
   onSelectB: () => void
   onReEvaluate: () => void
 }) {
@@ -1027,6 +1038,7 @@ function GradeSuggestionCard({
       </div>
 
       <p className="text-sm text-ink-secondary break-words">{suggestion.reason_summary}</p>
+      {missingPolicyLink}
 
       {checks.length > 0 && (
         <ul

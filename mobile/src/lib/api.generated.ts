@@ -875,7 +875,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/content_blocks/{id}/check_policy": {
+    "/api/v1/content_blocks/{content_block_id}/check_policy": {
         parameters: {
             query?: never;
             header?: never;
@@ -887,7 +887,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: number;
+                    content_block_id: number;
                 };
                 cookie?: never;
             };
@@ -909,7 +909,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: number;
+                    content_block_id: number;
                 };
                 cookie?: never;
             };
@@ -928,6 +928,15 @@ export interface paths {
                         "application/json": components["schemas"]["ExerciseCheckPolicyResponse"];
                     };
                 };
+                /** @description Invalid check rules or unsupported content block type */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiValidationError"];
+                    };
+                };
             };
         };
         post?: never;
@@ -936,7 +945,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: number;
+                    content_block_id: number;
                 };
                 cookie?: never;
             };
@@ -4147,6 +4156,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{id}/verify_offering_price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify the saved course offering price against Stripe (admin only) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saved price verified */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OfferingPriceVerificationResponse"];
+                    };
+                };
+                /** @description The saved price changed during verification */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+                /** @description Stripe unavailable or the saved price could not be verified */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cohorts/{cohort_id}/enrollments/bulk": {
         parameters: {
             query?: never;
@@ -6990,7 +7057,7 @@ export interface components {
         };
         ExerciseCheckPolicyInput: {
             required_checks: string[];
-            allowed_app_slugs?: string[];
+            allowed_app_slugs?: string[] | null;
             allowed_branch?: string | null;
             expected_workflow_path?: string | null;
             expected_workflow_sha?: string | null;
@@ -8056,6 +8123,8 @@ export interface components {
             }[];
             /** @description Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort. */
             other_cohorts_count: number;
+            /** @description Whether the school configured GitHub grade suggestions for cohort opt-in. */
+            github_grade_suggestions_configured?: boolean;
             /** @description Attempts in the cohorts listed in used_in. */
             submissions_count: number;
             /** @description Latest attempts without a grade in the cohorts listed in used_in. */
@@ -8985,6 +9054,7 @@ export interface components {
             readiness: {
                 curriculum_assigned: boolean;
                 price_set: boolean;
+                price_verified: boolean;
                 support_instructor_set: boolean;
                 published_content: boolean;
                 cohort_active: boolean;
@@ -8997,6 +9067,15 @@ export interface components {
                 webhook_configured: boolean;
             };
             errors: string[];
+        };
+        OfferingPriceVerification: {
+            stripe_price_id: string;
+            price_cents: number;
+            /** Format: date-time */
+            verified_at: string;
+        };
+        OfferingPriceVerificationResponse: {
+            offering_price_verified: components["schemas"]["OfferingPriceVerification"];
         };
         BulkEnrollmentResponse: {
             results: {
@@ -9562,10 +9641,12 @@ export interface components {
                 offering_readiness: {
                     curriculum_assigned: boolean;
                     price_set: boolean;
+                    price_verified: boolean;
                     support_instructor_set: boolean;
                     published_content: boolean;
                     cohort_active: boolean;
                 };
+                offering_price_verified: components["schemas"]["OfferingPriceVerification"] | null;
                 instructor_assigned: boolean;
                 public_title: string | null;
                 public_description: string | null;

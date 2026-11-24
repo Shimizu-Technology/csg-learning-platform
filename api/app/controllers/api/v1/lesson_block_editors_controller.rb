@@ -122,6 +122,7 @@ module Api
             { id: cohort.id, name: cohort.name, status: cohort.effective_status, start_date: cohort.start_date&.iso8601 }
           end,
           other_cohorts_count: cohort_scope.other_count(curriculum.id),
+          github_grade_suggestions_configured: FeatureSwitches.school(read_only: true)["github_grade_suggestions"] == true,
           submissions_count: submissions.count,
           # Latest attempts without a grade, as Grading counts them.
           waiting_count: submissions.latest_attempts.where(grade: nil).count,

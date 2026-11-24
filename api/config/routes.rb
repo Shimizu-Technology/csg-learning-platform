@@ -232,6 +232,7 @@ Rails.application.routes.draw do
           get :accessible
         end
         post "setup_readiness", on: :member
+        post "verify_offering_price", on: :member
         post "enrollments/bulk", to: "enrollments#bulk"
         resources :github_app_installations, only: [ :index, :create ] do
           post :prepare, on: :collection

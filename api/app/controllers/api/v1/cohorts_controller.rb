@@ -6,7 +6,7 @@ module Api
       before_action :require_staff!, only: [ :index, :show, :student_view, :github_access ]
       before_action :require_admin!, except: [ :index, :accessible, :home, :show, :student_view, :github_access ]
       before_action :reject_legacy_settings_write!, only: [ :create, :update ]
-      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :class_resources, :setup_readiness ]
+      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :class_resources, :setup_readiness, :verify_offering_price ]
       before_action :set_cohort_with_lessons, only: [ :student_view ]
       before_action :authorize_staff_cohort!, only: [ :show, :student_view, :github_access ]
 
@@ -99,6 +99,14 @@ module Api
           stripe_configured: ENV["STRIPE_RESTRICTED_KEY"].present?,
           webhook_configured: CourseCheckout.webhook_ready?
         }, errors: candidate.errors.full_messages }
+      end
+
+      def verify_offering_price
+        render json: { offering_price_verified: CourseCheckout.verify_offering_price!(@cohort) }
+      rescue CourseCheckout::PriceChanged => error
+        render json: { error: error.message }, status: :conflict
+      rescue CourseCheckout::SetupFailure => error
+        render json: { error: error.message }, status: :unprocessable_entity
       end
 
       # POST /api/v1/cohorts
@@ -718,6 +726,7 @@ module Api
           unlisted: cohort.unlisted?,
           **cohort.seat_capacity,
           offering_readiness: cohort.offering_readiness,
+          offering_price_verified: cohort.offering_price_verification,
           instructor_assigned: cohort.instructors.not_archived.exists?,
           public_slug: cohort.public_slug,
           public_outcomes: cohort.public_outcomes,

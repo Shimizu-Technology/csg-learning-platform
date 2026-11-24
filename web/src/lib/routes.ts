@@ -36,8 +36,8 @@ export function lessonRecordPath(lessonId: number, cohortId?: number | null) {
 }
 
 /** The lesson editor itself, e.g. to return to it after an upload. Links to a lesson use `recordPath`. */
-export function lessonEditorPath(lessonId: number, options: { preview?: boolean } = {}) {
-  return `/admin/lessons/${lessonId}/edit${options.preview ? '?preview=true' : ''}`
+export function lessonEditorPath(lessonId: number, options: { preview?: boolean; blockId?: number } = {}) {
+  return withQuery(`/admin/lessons/${lessonId}/edit`, { preview: options.preview ? 'true' : undefined, block_id: options.blockId })
 }
 
 /** Cohort settings, optionally scrolled to a section (`students`, `curriculum`). */
