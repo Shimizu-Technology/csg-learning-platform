@@ -57,11 +57,12 @@ type PendingConversationDraft = { userId: number; kind: ConversationKind; id: nu
 export default function ConversationScreen() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
-  const params = useLocalSearchParams<{ kind: string; id: string; title?: string; workspaceName?: string; messageId?: string; message_id?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
+  const params = useLocalSearchParams<{ kind: string; id: string; title?: string; workspaceName?: string; messageId?: string; message_id?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string; prefill?: string }>();
   const kind: ConversationKind = params.kind === 'dm' ? 'dm' : 'channel';
   const id = Number(params.id);
   const conversationIdentity = `${kind}:${id}`;
   const anchorMessageId = Number(params.message_id ?? params.messageId) || undefined;
+  const prefill = params.prefill;
   const sourceId = Number(params.source_id) || undefined;
   const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' || params.source_type === 'intervention' ? params.source_type : undefined;
   const sourceLabel = params.source_label?.trim();
@@ -205,6 +206,11 @@ export default function ConversationScreen() {
     onSelectionChange: setSelection,
   });
 
+  useEffect(() => {
+    if (!prefill || draftReadyOperationIdentity !== operationIdentity || !canPost) return;
+    if (!draftValueRef.current.trim() && messageBodyWithinLimit(prefill)) updateDraft(prefill);
+    router.setParams({ prefill: undefined });
+  }, [canPost, draftReadyOperationIdentity, operationIdentity, prefill, router, updateDraft]);
   const composerValue = editingMessage ? editDraft : draft;
   const updateComposerValue = editingMessage ? setEditDraft : updateDraft;
   const composerSelection = editingMessage ? editSelection : selection;
@@ -701,7 +707,7 @@ export default function ConversationScreen() {
     }
   };
 
-  const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); setPinnedMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
+  const deleteMessage = (message: Message) => Alert.alert('Delete message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); setPinnedMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
   // The message's web address (L-5.2), which opens this conversation at the message for anyone who can read it.
   const copyMessageLink = async (messageId: number) => {
     const link = messagePermalink(kind, id, messageId);
@@ -818,7 +824,7 @@ export default function ConversationScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel="Open pinned messages" onPress={() => setShowPins(true)} style={styles.headerCopy}><Text maxFontSizeMultiplier={fontScaleLimits.title} numberOfLines={1} style={styles.title}>{title}</Text><View style={styles.status}>{status === 'connected' ? <Wifi color={c.status.success.fg} size={12} /> : <WifiOff color={c.status.warning.fg} size={12} />}<Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={2} style={styles.statusText}>{status === 'connected' ? (summary?.workspace_name || params.workspaceName || 'Connected') : status === 'connecting' ? 'Connecting' : 'Reconnecting'}{pinnedMessages.length ? ` · ${pinnedMessages.length} pinned` : ''}</Text></View></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={summary?.muted ? 'Unmute conversation' : 'Mute conversation'} onPress={() => void toggleMute()} style={styles.iconButton}>{summary?.muted ? <BellOff color={c.text.body} size={20} /> : <Bell color={c.text.body} size={20} />}</Pressable>
         </View>
-        {sourceType && sourceId && sourceLabel && <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${sourceLabel}`} onPress={openSourceRecord} style={styles.sourceChip}><BookOpen color={c.text.body} size={15} /><Text numberOfLines={1} style={styles.sourceText}>From {sourceType === 'submission' ? 'submission' : 'help request'}: {sourceLabel}</Text></Pressable>}
+        {sourceType && sourceId && sourceLabel && <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${sourceLabel}`} onPress={openSourceRecord} style={styles.sourceChip}><BookOpen color={c.text.body} size={15} /><Text numberOfLines={1} style={styles.sourceText}>From {sourceType === 'submission' ? 'submission' : sourceType === 'intervention' ? 'follow-up plan' : 'help request'}: {sourceLabel}</Text></Pressable>}
         {error && !conversationReady ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} onViewableItemsChanged={onViewableItemsChanged} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
@@ -875,11 +881,10 @@ export default function ConversationScreen() {
           <View style={styles.composer}>
 
             {composerToolsExpanded && <View style={styles.composerActions}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={c.text.body} size={19} /></Pressable>
               <FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} />
               <VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} />
               </View>}
-            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><TextInput keyboardAppearance={scheme} ref={composerInputRef} accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={c.text.body} multiline {...composerInputBehavior(composerValue, composerSelection)} style={styles.input} />
+            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Attach" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={c.text.body} size={19} /></Pressable><TextInput keyboardAppearance={scheme} ref={composerInputRef} accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={c.text.body} multiline {...composerInputBehavior(composerValue, composerSelection)} style={styles.input} />
               <Button variant="primary" accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || !composerWithinLimit || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || !composerWithinLimit || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={c.text.onAction} size={19} /></Button>
             </View>
           </View>
@@ -902,7 +907,7 @@ export default function ConversationScreen() {
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && !selectedMessage.blocked && <Action icon={UserX} label={`Block ${selectedMessage.author.full_name}`} destructive onPress={() => { blockUser(selectedMessage); setSelectedMessage(null); }} />}
         {canPost && selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={startEditingSelectedMessage} />}
-        {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
+        {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Delete message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}<Button variant="secondary" onPress={() => setSelectedMessage(null)}>Cancel</Button></ScrollView></View></View></Modal>
 
       <Modal visible={showPins} transparent animationType="fade" onRequestClose={() => setShowPins(false)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close pinned messages" style={StyleSheet.absoluteFill} onPress={() => setShowPins(false)} /><View style={styles.pinsSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Pinned messages</Text><ScrollView contentContainerStyle={styles.pinsList}>{pinnedMessages.length ? pinnedMessages.map((message) => <Pressable key={message.id} accessibilityRole="button" onPress={() => { setShowPins(false); router.setParams({ message_id: String(message.id), messageId: undefined }); }} style={styles.pinCard}><Pin color={c.text.body} size={15} /><View style={styles.pinCardCopy}><Text numberOfLines={3} style={styles.pinBody}>{messagePreview(message.body, 180, message.attachments[0]?.filename || 'Attachment')}</Text><Text style={styles.pinAuthor}>{message.author.full_name}</Text></View></Pressable>) : <Text style={styles.noPins}>Nothing has been pinned in this conversation.</Text>}</ScrollView></View></View></Modal>

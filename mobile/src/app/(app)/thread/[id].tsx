@@ -1,3 +1,7 @@
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
+import type { PendingAttachment } from '@/lib/types';
 import { BackButton } from '@/components/back-button';
 import { brand } from '../../../lib/brand'
 import { Button } from '@/components/ui/button';
@@ -8,7 +12,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, Lock, MoreHorizontal, Send } from 'lucide-react-native';
+import { ChevronDown, Lock, MoreHorizontal, Paperclip, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, ScrollView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,7 +34,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { messageBodyForSend } from '@/lib/code-paste';
 import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
-import { resolveMentionUserIds } from '@/lib/mentions';
+import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { messagingKeys, syncThreadSnapshot, type ThreadSnapshot } from '@/lib/messaging-cache';
@@ -123,6 +127,7 @@ export default function ThreadScreen() {
   const [replies, setReplies] = useState<Message[]>(initialSnapshot?.replies ?? []);
   loadedReplyIdsRef.current = new Set(replies.map((reply) => reply.id));
   const [users, setUsers] = useState<UserSummary[]>(initialSnapshot?.users ?? []);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [loading, setLoading] = useState(!auth.demo);
@@ -179,6 +184,7 @@ export default function ThreadScreen() {
     if (!nextDraft) {
       draftRef.current = '';
       setDraft('');
+      setAttachments([]);
       void clearThreadDraftAfterSend(userId, rootId);
     } else {
       void saveThreadDraftState(userId, rootId, nextDraft, null).catch(() => undefined);
@@ -272,9 +278,13 @@ export default function ThreadScreen() {
         : null;
       setReplies(restoredFailure ? sortMessages([...result.replies, restoredFailure]) : result.replies);
       setError(null);
-      void api.workspace(summary.workspace_id).then((workspace) => {
-        if (requestId === loadRequestRef.current) setUsers(workspace.workspace.members);
-      }).catch(() => undefined);
+      if ('direct_conversation' in conversation) {
+        setUsers(conversation.direct_conversation.users);
+      } else {
+        void api.workspace(summary.workspace_id).then((workspace) => {
+          if (requestId === loadRequestRef.current) setUsers(workspace.workspace.members);
+        }).catch(() => undefined);
+      }
     } catch (requestError) {
       if (requestId === loadRequestRef.current) setError((requestError as Error).message);
     } finally {
@@ -508,9 +518,24 @@ export default function ThreadScreen() {
   const reactionDetailsMessage = reactionDetails
     ? reactionDetails.messageId === root?.id ? root : replies.find((message) => message.id === reactionDetails.messageId) || null
     : null;
+  const mentionTrigger = mentionTriggerAt(draft, selection.start);
+  const suggestions = mentionTrigger ? mentionSuggestions(users.filter(person => person.id !== user?.id), mentionTrigger.query) : [];
+  const pickAttachment = async (photo: boolean) => {
+    try {
+      const result = photo ? await ImagePicker.launchImageLibraryAsync({ allowsMultipleSelection: true }) : await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const picked = result.assets.map(asset => 'name' in asset ? pendingAttachment(asset) : pendingAttachment({ uri: asset.uri, name: asset.fileName, size: asset.fileSize, mimeType: asset.mimeType }));
+      setAttachments(current => [...current, ...picked].slice(0, 10));
+    } catch (error) {
+      Alert.alert('Could not attach file', (error as Error).message);
+    }
+  };
+
   const send = async (retryMessage?: Message) => {
-    const body = retryMessage?.body ? retryMessage.body.trim() : messageBodyForSend(draft);
-    if (!canPost || !destinationReady || !root || root.id !== rootId || !user || !body || sending) return;
+    const pending = retryMessage?.client_pending_attachments ?? (retryMessage ? [] : attachments);
+    const uploaded = [...(retryMessage?.client_uploads ?? [])];
+    const body = retryMessage ? retryMessage.body.trim() : messageBodyForSend(draft);
+    if (!canPost || !destinationReady || !root || root.id !== rootId || !user || (!body && !pending.length) || sending) return;
     if (!messageBodyWithinLimit(body)) {
       if (retryMessage) Alert.alert('Reply is too long to send', `Shorten this reply to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
       return;
@@ -521,7 +546,11 @@ export default function ThreadScreen() {
     const clientMessageId = clientMessageIdForSend(body, retryIntent);
     const intent = { body, clientMessageId };
     const optimisticId = retryMessage?.id || --tempMessageIdRef.current;
-    const optimistic = retryMessage || pendingReplyMessage(root, user, optimisticId, intent);
+    const optimistic = retryMessage || {
+      ...pendingReplyMessage(root, user, optimisticId, intent),
+      client_pending_attachments: pending,
+      attachments: pending.map((item, index) => ({ id: -(index + 1), filename: item.filename, content_type: item.content_type, byte_size: item.byte_size, image: item.image, url: item.uri })),
+    };
     setSending(true);
     failedSendRef.current = intent;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -529,6 +558,7 @@ export default function ThreadScreen() {
     if (!retryMessage) {
       draftRef.current = '';
       setDraft('');
+      setAttachments([]);
     }
     if (userId && !auth.demo) void saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
     setReplies((current) => sortMessages([
@@ -543,7 +573,10 @@ export default function ThreadScreen() {
         if (!retryMessage) voiceDraft.markSent(body);
         return;
       }
-      const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
+      for (const attachment of pending.slice(uploaded.length)) {
+        uploaded.push(await uploadAttachment(api, kind, conversationId, attachment, () => undefined));
+      }
+      const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), attachments: uploaded, send_push: true });
       const historical = windowMetaRef.current?.has_newer || queuedReplyIdsRef.current.size > 0;
       if (historical) {
         queuedReplyIdsRef.current.add(result.message.id);
@@ -556,7 +589,7 @@ export default function ThreadScreen() {
       if (!historical) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (requestError) {
       if (failedSendRef.current?.clientMessageId !== clientMessageId) return;
-      setReplies((current) => markOptimisticFailed(current, optimistic, (requestError as Error).message));
+      setReplies((current) => markOptimisticFailed(current, { ...optimistic, client_uploads: uploaded }, (requestError as Error).message));
       if (userId && !auth.demo) await saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
       Alert.alert('Reply not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
     }
@@ -606,7 +639,7 @@ export default function ThreadScreen() {
     if (user?.is_staff && message.id > 0) actions.push({ label: message.pinned_at ? 'Unpin message' : 'Pin message', onPress: () => void updateAction(() => api.pinMessage(message.id, Boolean(message.pinned_at))) });
     if (message.mine && message.id > 0) {
       if (canPost && !message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });
-      actions.push({ label: 'Remove message', destructive: true, onPress: () => { close(); Alert.alert('Remove message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => void updateAction(() => api.deleteMessage(message.id)) }]); } });
+      actions.push({ label: 'Delete message', destructive: true, onPress: () => { close(); Alert.alert('Delete message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void updateAction(() => api.deleteMessage(message.id)) }]); } });
     }
     if (!message.mine && message.id > 0) {
       actions.push({ label: 'Report message', onPress: () => { close(); void reportMessage(message); } });
@@ -649,11 +682,22 @@ export default function ThreadScreen() {
       <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
       <TypingIndicator users={typingUsers} />
       <ComposerLimitNotice value={preparedDraft} />
+      {mentionTrigger && suggestions.map(person => <Button key={person.id} variant="quiet" label={person.full_name} onPress={() => {
+        const next = insertMention(draft, mentionTrigger, person);
+        if (!messageBodyWithinLimit(next.value)) return;
+        draftRef.current = next.value;
+        setDraft(next.value);
+        setSelection({ start: next.cursor, end: next.cursor });
+        inputRef.current?.focus();
+      }} />)}
+      {attachments.map(item => <Button key={item.local_id} variant="quiet" label={`Remove ${item.filename}`} disabled={sending} onPress={() => setAttachments(current => current.filter(attachment => attachment.local_id !== item.local_id))} />)}
       <MessageFormattingToolbar value={draft} selection={selection} mentionUsers={users} visible={formattingExpanded} disabled={sending} onChange={(value) => { draftRef.current = value; setDraft(value); }} onSelectionChange={setSelection} onComposerFocus={() => inputRef.current?.focus()} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
       <View style={styles.composer}>
 
         {composerToolsExpanded && <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /></View>}
-            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={c.text.body} multiline {...composerInputBehavior(draft, selection)} style={styles.input} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || !draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
+            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Attach" disabled={sending} style={styles.composerOptions} onPress={() => Alert.alert('Add an attachment', undefined, [
+              { text: 'Photo library', onPress: () => void pickAttachment(true) }, { text: 'Choose a file', onPress: () => void pickAttachment(false) }, { text: 'Cancel', style: 'cancel' },
+            ])}><Paperclip color={c.text.body} size={19} /></Pressable><TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={c.text.body} multiline {...composerInputBehavior(draft, selection)} style={styles.input} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || (!draft.trim() && !attachments.length) || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, ((!draft.trim() && !attachments.length) || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
       </View>
     </> : (
       <View accessible accessibilityRole="text" accessibilityLiveRegion="polite" testID="thread-readonly-notice" style={styles.readOnlyNotice}>

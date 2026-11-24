@@ -6,18 +6,20 @@ import { demoStaffSubmissions } from '@/lib/demo-staff';
 import StaffSubmissionScreen from '../../app/(app)/staff/submission/[id]';
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
+let mockQueue: string | undefined;
 const mockApi = { submission: jest.fn(), feedbackSnippets: jest.fn(), gradeSubmission: jest.fn() };
 let mockRole = 'instructor';
 const mockMarkSent = jest.fn();
 jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requireActual('react-native').Pressable }));
-jest.mock('expo-router', () => ({ useNavigation: () => ({ dispatch: jest.fn() }), usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ canGoBack: () => false, push: mockPush, replace: jest.fn(), back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useNavigation: () => ({ dispatch: jest.fn() }), usePathname: () => '/', useLocalSearchParams: () => ({ id: '41', queue: mockQueue }), useRouter: () => ({ canGoBack: () => false, push: mockPush, replace: mockReplace, back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 7, is_staff: true, role: mockRole, is_admin: mockRole === 'admin' } }) }));
 jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 jest.mock('@/lib/analytics', () => ({ captureProductEvent: jest.fn() }));
-jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: jest.fn(), openExternalPage: jest.fn() }));
+jest.mock('@/lib/external-links', () => ({ ...jest.requireActual('@/lib/external-links'), openAuthenticatedWebPage: jest.fn(), openExternalPage: jest.fn() }));
 jest.mock('@/lib/alerts', () => ({ themedAlert: { alert: jest.fn() } }));
 jest.mock('@/lib/submission-storage', () => ({ loadGradingDraft: jest.fn().mockResolvedValue(null), saveGradingDraft: jest.fn().mockResolvedValue(undefined), clearGradingDraft: jest.fn().mockResolvedValue(undefined), gradingDraftMatches: jest.fn() }));
 jest.mock('@/hooks/use-voice-draft', () => ({ useVoiceDraft: () => ({ state: 'idle', markSent: mockMarkSent }) }));
@@ -25,7 +27,7 @@ jest.mock('@/components/voice-draft-controls', () => ({ VoiceDraftButton: () => 
 jest.mock('@/components/message-code-block', () => ({ MessageCodeBlock: () => null }));
 jest.mock('@/components/authored-content', () => ({ AuthoredContent: () => null }));
 const clients: QueryClient[] = [];
-beforeEach(() => { jest.clearAllMocks(); notifyManager.setScheduler((callback) => callback()); });
+beforeEach(() => { mockQueue = undefined; jest.clearAllMocks(); notifyManager.setScheduler((callback) => callback()); });
 afterEach(() => { cleanup(); clients.forEach((client) => client.clear()); clients.length = 0; notifyManager.setScheduler((callback) => setTimeout(callback, 0)); });
 
 it('requires rubric ratings and sends the complete server contract from the native staff screen', async () => {
@@ -147,4 +149,22 @@ it('links the submission lesson title to its native lesson', async () => {
   const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
   fireEvent.press(await screen.findByRole('link', { name: `Open lesson: ${submission.lesson_title}` }));
   expect(mockPush).toHaveBeenCalledWith('/lesson/42');
+});
+
+it('advances to the next attempt only after the selected grade is saved', async () => {
+  mockQueue = 'test-queue';
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  mockApi.gradeSubmission.mockResolvedValue({ submission: { ...submission, grade: 'A' } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+  clients.push(client);
+  client.setQueryData(['grading-navigation', 7, mockQueue], { submissions: [submission, { id: 42, cohort_id: 4, user_id: 81 }] });
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Select grade A'));
+  expect(mockReplace).not.toHaveBeenCalled();
+  expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save grade A')); });
+  expect(mockReplace).toHaveBeenCalledWith({ pathname: '/staff/submission/[id]', params: { id: '42', queue: 'test-queue', cohort_id: '4', student_id: '81' } });
 });

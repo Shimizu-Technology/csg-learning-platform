@@ -15,6 +15,10 @@ import SupportScreen from '../../app/(app)/staff/support/[id]';
 import LessonScreen from '../../app/(app)/lesson/[id]';
 import ModuleScreen from '../../app/(app)/module/[id]';
 import RecordingDetailScreen from '../../app/(app)/recording/[id]';
+import GradingTab from '../../app/(app)/(tabs)/grading';
+import SupportTab from '../../app/(app)/(tabs)/support';
+import StaffLessonEditorScreen from '../../app/(app)/staff/lesson/[id]/edit';
+import { demoSupportQueue } from '@/lib/demo-staff';
 import GradingScreen from '../../app/(app)/staff/grading';
 
 jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: true, isInternetReachable: true }), addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })) }));
@@ -22,6 +26,7 @@ const realNow = Date.now;
 
 let mockParams: Record<string, string> = {};
 let mockStaff = false;
+let mockAdmin = false;
 let mockEnrollments: SessionEnrollment[] = [];
 let mockUseRealCohort = false;
 const mockRouter = { canGoBack: () => false, push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
@@ -29,21 +34,29 @@ const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { learnerModule: jest.fn(), setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn(), replyToHelpRequest: jest.fn() };
+const mockApi = { learnerModule: jest.fn(), setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), gradingQueue: jest.fn(), supportQueue: jest.fn(), learningObjectives: jest.fn(), rubrics: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn(), replyToHelpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ get router() { return mockRouter; }, useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff }, enrollments: mockEnrollments }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff, is_admin: mockAdmin, role: mockAdmin ? 'admin' : mockStaff ? 'instructor' : 'student' }, enrollments: mockEnrollments }) }));
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('@/providers/cohort-provider', () => {
   const actual = jest.requireActual('@/providers/cohort-provider');
   return { ...actual, useCohort: () => mockUseRealCohort ? actual.useCohort() : ({ cohorts: [{ id: 2 }, { id: 3 }], selectedCohortId: 3, loading: false, selectCohort: mockSelect }) };
 });
-jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args), onWebHandoffClosed: jest.fn(() => () => {}) }));
+jest.mock('@/lib/external-links', () => ({ openWebTask: (...args: unknown[]) => mockHandoff(...args), openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args), onWebHandoffClosed: jest.fn(() => () => {}) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('@/components/lesson-content-block', () => ({ LessonContentBlockCard: () => null }));
 jest.mock('@/components/lesson-objectives', () => ({ LessonObjectives: () => null }));
+jest.mock('@/components/staff-lesson-editor', () => ({
+  StaffLessonEditor: ({ onOpenWeb }: { onOpenWeb: () => void }) => {
+    const { Pressable, Text } = jest.requireActual('react-native');
+    return <Pressable onPress={onOpenWeb}><Text>Open full editor on web</Text></Pressable>;
+  },
+}));
+jest.mock('@/hooks/use-voice-draft', () => ({ useVoiceDraft: () => ({ state: 'idle', cancel: jest.fn() }) }));
+jest.mock('@/components/voice-draft-controls', () => ({ VoiceDraftButton: () => null, VoiceDraftPanel: () => null }));
 jest.mock('@/components/rubric-panel', () => ({ RubricPanel: () => null }));
 jest.mock('@/components/staff-curriculum-management', () => ({ LessonSettingsModal: () => null }));
 jest.mock('@/components/native-video-player', () => ({ NativeVideoPlayer: () => null }));
@@ -59,20 +72,21 @@ function Wrapper({ children }: PropsWithChildren) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 beforeEach(() => {
-  jest.clearAllMocks(); mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: false } }); mockEnrollments = []; mockStaff = false; mockParams = {}; mockUseRealCohort = false;
+  jest.clearAllMocks(); mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: false } }); mockEnrollments = []; mockStaff = false; mockAdmin = false; mockParams = {}; mockUseRealCohort = false;
   mockSelect.mockResolvedValue(undefined); mockHandoff.mockResolvedValue(undefined);
   mockApi.lesson.mockResolvedValue({ lesson: { id: 42, cohort_id: 2, module_id: 1, title: 'Source lesson', lesson_type: 'exercise', content_blocks: [{ id: 8, block_type: 'exercise', position: 0, submissions: [] }], objectives: [] } });
   mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
   mockApi.notifications.mockResolvedValue({ notifications: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
-  mockApi.submissions.mockResolvedValue({ submissions: [] });
+  mockApi.gradingQueue.mockResolvedValue({ submissions: [] });
 });
 it('uses the source cohort before querying and highlights the notified exercise', async () => {
-  mockParams = { id: '42', cohort_id: '2', block_id: '8' };
+  mockParams = { id: '42', cohort_id: '2', block_id: '8', help_request: '391' };
   const screen = render(<LessonScreen />, { wrapper: Wrapper });
   await waitFor(() => expect(screen.getByText('Linked section')).toBeTruthy());
   expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2);
 
   expect(screen.getByTestId('lesson-block-8')).toBeTruthy();
+  expect(screen.getAllByTestId('recording-help').filter(node => node.props.openRequestId).map(node => [node.props.contextId, node.props.openRequestId])).toEqual([[8, 391]]);
 });
 it.each([
   ['Pacific/Guam', 'ChST', '2027-01-15T13:59:59Z', 'Jan 15, 2027, 11:59 PM ChST'],
@@ -466,4 +480,34 @@ it('opens lesson help context natively with its cohort and block', async () => {
   fireEvent.press(await screen.findByText('Open lesson'));
   expect(mockRouter.push).toHaveBeenCalledWith('/lesson/42?cohort_id=2&block_id=8');
   expect(mockHandoff).not.toHaveBeenCalled();
+});
+
+it('uses the grading total and selected filter in the root tab without a back button', async () => {
+  mockStaff = true;
+  mockParams = { filter: 'redo', page: '2' };
+  mockApi.gradingQueue.mockResolvedValue({ submissions: [], meta: { total_count: 51 } });
+  const screen = render(<GradingTab />, { wrapper: Wrapper });
+  expect(await screen.findByText('51')).toBeTruthy();
+  expect(screen.queryByLabelText('Back to Today')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Redos', selected: true })).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Waiting', selected: false }));
+  expect(mockRouter.setParams).toHaveBeenCalledWith({ filter: 'ungraded', page: '1' });
+});
+
+it('opens root Support without a back button', async () => {
+  mockStaff = true;
+  mockApi.supportQueue.mockResolvedValue({ support_queue: demoSupportQueue });
+  const screen = render(<SupportTab />, { wrapper: Wrapper });
+  expect(await screen.findByText('Support')).toBeTruthy();
+  expect(screen.queryByLabelText('Back to Today')).toBeNull();
+});
+
+it('opens the editor for the lesson returned by the API', async () => {
+  mockStaff = true;
+  mockAdmin = true;
+  mockParams = { id: '12' };
+  mockApi.lesson.mockResolvedValue({ lesson: { id: 42, title: 'Resolved lesson' } });
+  const screen = render(<StaffLessonEditorScreen />, { wrapper: Wrapper });
+  fireEvent.press(await screen.findByText('Open full editor on web'));
+  expect(mockHandoff).toHaveBeenCalledWith(mockApi, '/admin/lessons/42/edit');
 });

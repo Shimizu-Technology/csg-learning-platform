@@ -32,6 +32,7 @@ interface StaffLessonEditorProps {
   lesson: LessonDetail;
   userId: number;
   onBack: () => void;
+  onOpenWeb?: () => void;
   onSave: (input: LessonEditorInput) => Promise<LessonDetail>;
   onReload: () => Promise<LessonDetail>;
   objectiveCatalog?: LearningObjective[];
@@ -80,7 +81,7 @@ export function StaffLessonReadOnlyPreview({ lesson, onBack }: Pick<StaffLessonE
   </SafeAreaView>;
 }
 
-function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objectiveCatalog = [], rubricCatalog = [], catalogLoading = false, catalogError = false, canCreateResources = false, onRetryCatalogs = () => undefined, onCreateObjective, onCreateRubric, onUploadVideo, onAbandonVideo, onScheduleVideoCleanup, onRetryVideoCleanups }: StaffLessonEditorProps) {
+function AdminLessonEditor({ lesson, userId, onBack, onOpenWeb, onSave, onReload, objectiveCatalog = [], rubricCatalog = [], catalogLoading = false, catalogError = false, canCreateResources = false, onRetryCatalogs = () => undefined, onCreateObjective, onCreateRubric, onUploadVideo, onAbandonVideo, onScheduleVideoCleanup, onRetryVideoCleanups }: StaffLessonEditorProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const [initialLesson] = useState(lesson);
@@ -266,6 +267,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
     <View style={styles.header}><BackButton style={styles.headerButton} onPress={leave} /><View style={styles.headerCopy}><Text style={styles.headerKicker}>CURRICULUM EDITOR</Text><Text numberOfLines={1} style={styles.headerTitle}>{fields.title || 'Untitled lesson'}</Text></View><Button variant="primary" accessibilityRole="button" accessibilityLabel="Save lesson" disabled={!dirty || saving || videoUploading || !draftReady || legacyHtmlDraft} onPress={() => void save()} style={[styles.saveHeader, (!dirty || saving || videoUploading || !draftReady || legacyHtmlDraft) && styles.disabled]}><Save color={c.text.strong} size={17} /><Text style={styles.saveHeaderText}>{videoUploading ? 'Uploading' : saving ? 'Saving' : 'Save'}</Text></Button></View>
     <View style={styles.modeBar}><Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'edit' }} onPress={() => showMode('edit')} style={[styles.modeButton, mode === 'edit' && styles.modeButtonActive]}><Pencil color={mode === 'edit' ? c.selection.indicator : c.text.body} size={17} /><Text style={[styles.modeText, mode === 'edit' && styles.modeTextActive]}>Edit</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'preview' }} disabled={videoUploading} onPress={() => showMode('preview')} style={[styles.modeButton, mode === 'preview' && styles.modeButtonActive, videoUploading && styles.disabled]}><Eye color={mode === 'preview' ? c.selection.indicator : c.text.body} size={17} /><Text style={[styles.modeText, mode === 'preview' && styles.modeTextActive]}>Preview draft</Text></Pressable><Text style={styles.draftStatus}>{draftStatus === 'loading' ? 'Loading draft…' : draftStatus === 'saving' ? 'Saving draft…' : draftStatus === 'error' ? 'Draft not saved' : dirty ? 'Saved on device' : 'Up to date'}</Text></View>
     <ScrollView ref={scrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+      {onOpenWeb && <Button variant="secondary" label="Open full editor on web" onPress={onOpenWeb} />}
       {recovered && <Notice icon={<Cloud color={c.text.body} size={18} />} tone="ruby" title="Draft recovered" copy={staleDraft ? 'This draft began before the latest server update. Refresh its base before saving.' : 'Your unsaved edits were restored from this device.'} />}
       {legacyHtmlDraft && <View style={styles.conflict} accessibilityRole="alert"><View style={styles.flex}>
         <Text style={styles.conflictTitle}>This draft came from an older app version and is in HTML.</Text>

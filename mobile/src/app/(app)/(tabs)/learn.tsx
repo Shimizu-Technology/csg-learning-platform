@@ -1,3 +1,5 @@
+import { PausedLearningCard } from '@/components/paused-learning-card';
+import { SearchHeaderButton } from '@/components/search-header-button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { brand } from '../../../lib/brand';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -56,7 +58,7 @@ export default function LearnScreen() {
   });
   const dashboard = studentQuery.data?.dashboard;
   const student = dashboard && isStudentDashboard(dashboard) ? dashboard : null;
-  const isAlumniOnly = alumniCohort && !student?.personal_plan;
+  const isAlumniOnly = (alumniCohort || student?.cohort?.cohort_type === 'alumni') && !student?.personal_plan;
   const modules = useMemo(() => [...(student?.modules || [])].filter((module) => module.lessons.length > 0).sort((a, b) => (a.position || 0) - (b.position || 0)), [student?.modules]);
   const search = filter.trim().toLowerCase();
   const matches = modules.flatMap((module) => module.lessons
@@ -94,10 +96,12 @@ export default function LearnScreen() {
   if (activeQuery.error && !activeQuery.data) return <SafeAreaView style={styles.safe}><ErrorState message={(activeQuery.error as Error).message} retry={() => void activeQuery.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void Promise.all([refresh(), activeQuery.refetch()])} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
-    <CohortSwitcher />
+    <SearchHeaderButton /><CohortSwitcher />
     <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>{isStaff ? 'CONTENT' : 'YOUR CURRICULUM'}</Text>
     <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
     <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subtitle}>{isStaff ? 'Review what students see, wherever you are' : student?.cohort?.name || 'Lessons, resources, and progress'}</Text>
+    <PausedLearningCard cohortId={selectedCohortId} />
+    {student?.student_today && Boolean(selectedCohortId) && !isAlumniOnly && <ResourceButton title="My work" copy="See your submissions and instructor feedback" icon={<BookMarked color={c.text.body} size={20} />} onPress={() => router.push(`/my-work?cohort_id=${selectedCohortId}` as Href)} />}
     {isStaff ? <>
       {Boolean(curriculumQuery.data?.failedCount) && <View accessibilityRole="alert" style={styles.partialWarning}><AlertTriangle color={c.status.warning.fg} size={19} /><Text style={styles.partialWarningText}>Some curricula could not be refreshed. Everything that loaded is still available below.</Text></View>}
       <StaffCurriculumLibrary curricula={curriculumQuery.data?.curricula || []} filter={filter} onFilterChange={setFilter} onOpenCurriculum={(id) => router.push(`/staff/curriculum/${id}` as Href)} onOpenLesson={(id) => router.push(`/lesson/${id}`)} />
@@ -116,15 +120,15 @@ export default function LearnScreen() {
           const locked = !lesson.available;
           const status = lessonStatus(lesson);
           return <LearningCard key={lesson.id} label={locked ? `${lesson.title} is locked` : `Open ${lesson.title}`} onPress={locked ? undefined : () => router.push({ pathname: '/lesson/[id]', params: { id: String(lesson.id), cohort_id: String(selectedCohortId) } })}>
-            <View style={styles.moduleTop}><View style={styles.flex}><Text style={styles.moduleType}>{module.name}</Text><Text style={styles.moduleName}>{lesson.title}</Text><Text style={styles.moduleMeta}>{locked ? lesson.unlock_date ? `Opens ${formatCourseDate(lesson.unlock_date, { weekday: true })}` : 'Locked' : 'Available to open'}</Text></View><StatusBadge status={status} short /></View>
+            <View style={styles.moduleTop}><View style={styles.flex}><Text style={styles.moduleType}>{module.name}</Text><Text style={styles.moduleName}>{lesson.title}</Text><Text style={styles.moduleMeta}>{locked ? lesson.unlock_date ? `Opens ${formatCourseDate(lesson.unlock_date, { weekday: true })}` : 'Locked' : 'Available to open'}</Text></View>{!isAlumniOnly && <StatusBadge status={status} short />}</View>
           </LearningCard>;
         })}</View>
         {!matches.length && <Text style={styles.noResults}>No lessons match that search.</Text>}
       </> : <>
-      <SectionHeading eyebrow={`${modules.length} ${modules.length === 1 ? 'module' : 'modules'}`} title="Learning path" />
+      <SectionHeading eyebrow={`${modules.length} ${modules.length === 1 ? 'module' : 'modules'}`} title={isAlumniOnly ? "Alumni library" : "Learning path"} />
       <View style={styles.stack}>{modules.map((module) => {
         const locked = !module.available && !module.unlocked;
-        return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push({ pathname: '/module/[id]', params: { id: String(module.id), cohort_id: String(selectedCohortId) } })} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{learnerModuleTypeLabel(module.module_type)}</Text><Text style={styles.moduleName}>{module.name}</Text><Text style={styles.moduleMeta}>{module.lessons.filter((lesson) => lesson.completed).length} of {module.lessons.length} lessons</Text></View><StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} /></View><View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View></LearningCard>;
+        return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push({ pathname: '/module/[id]', params: { id: String(module.id), cohort_id: String(selectedCohortId) } })} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{learnerModuleTypeLabel(module.module_type)}</Text><Text style={styles.moduleName}>{module.name}</Text>{!isAlumniOnly && <Text style={styles.moduleMeta}>{module.lessons.filter((lesson) => lesson.completed).length} of {module.lessons.length} lessons</Text>}</View>{!isAlumniOnly && <StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} />}</View>{!isAlumniOnly && <View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View>}</LearningCard>;
       })}</View>
       {!modules.length && <Text style={styles.noResults}>{student.enrollment_status === 'paused' ? 'Only content from before your pause is shown here. Newer content opens when your enrollment resumes.' : 'No modules are assigned yet.'}</Text>}
       </>}

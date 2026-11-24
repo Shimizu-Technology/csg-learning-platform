@@ -99,7 +99,7 @@ describe('lesson editor helpers', () => {
 
     const preview = lessonPreviewForFields(multiExerciseLesson, fields);
 
-    expect(preview.content_blocks.find((block) => block.id === 203)).toMatchObject({ title: 'Edited lesson', body: 'Edit only the primary exercise.', submission_type: 'repo_url_submission', submission_type_explicit: 'repo_url_submission' });
+    expect(preview.content_blocks.find((block) => block.id === 203)).toMatchObject({ title: 'Rebuild the card grid', body: 'Edit only the primary exercise.', submission_type: 'repo_url_submission', submission_type_explicit: 'repo_url_submission' });
     expect(preview.content_blocks.find((block) => block.id === 205)).toMatchObject({ title: 'Second exercise', body: 'Keep this body.', submission_type: 'manual_complete', submission_type_explicit: 'manual_complete' });
     expect(preview.objectives?.find((objective) => objective.content_block_id === 205)?.content_block_title).toBe('Second exercise');
   });

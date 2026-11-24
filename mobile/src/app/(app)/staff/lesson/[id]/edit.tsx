@@ -1,3 +1,5 @@
+import { openWebTask } from '@/lib/external-links';
+import { themedAlert as Alert } from '@/lib/alerts';
 import { BackButton, useBackNavigation } from '@/components/back-button';
 import { isAuthoringAdmin, sharedLibraryReadOnlyNotice } from '@/lib/authoring-permissions';
 import { makeStyles } from '@/providers/theme-provider';
@@ -110,7 +112,7 @@ export default function StaffLessonEditorScreen() {
   if (query.isPending && !lesson) return <SafeAreaView style={styles.safe}><LoadingState label="Opening lesson editor" /></SafeAreaView>;
   if (!lesson) return <ScreenError message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} onBack={goBack} retry={() => void query.refetch()} />;
   if (!canAuthor) return <StaffLessonReadOnlyPreview lesson={lesson} onBack={goBack} />;
-  return <StaffLessonEditor lesson={lesson} userId={user.id} onBack={goBack} onSave={save} onReload={reload} objectiveCatalog={objectiveCatalog} rubricCatalog={rubricCatalog} catalogLoading={objectiveQuery.isPending || rubricQuery.isPending} catalogError={objectiveQuery.isError || rubricQuery.isError} canCreateResources={canAuthor} onRetryCatalogs={retryCatalogs} onCreateObjective={createObjective} onCreateRubric={createRubric} onUploadVideo={uploadVideo} onAbandonVideo={abandonVideo} onScheduleVideoCleanup={scheduleVideoCleanup} onRetryVideoCleanups={retryVideoCleanups} />;
+  return <StaffLessonEditor lesson={lesson} userId={user.id} onBack={goBack} onOpenWeb={() => void openWebTask(api, `/admin/lessons/${lesson.id}/edit`).catch(() => Alert.alert('Could not open full lesson editor'))} onSave={save} onReload={reload} objectiveCatalog={objectiveCatalog} rubricCatalog={rubricCatalog} catalogLoading={objectiveQuery.isPending || rubricQuery.isPending} catalogError={objectiveQuery.isError || rubricQuery.isError} canCreateResources={canAuthor} onRetryCatalogs={retryCatalogs} onCreateObjective={createObjective} onCreateRubric={createRubric} onUploadVideo={uploadVideo} onAbandonVideo={abandonVideo} onScheduleVideoCleanup={scheduleVideoCleanup} onRetryVideoCleanups={retryVideoCleanups} />;
 }
 
 function ScreenError({ message, onBack, retry }: { message: string; onBack: () => void; retry?: () => void }) {
