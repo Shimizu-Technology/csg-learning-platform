@@ -1,13 +1,13 @@
 import { NoAccess } from '../shared/NoAccess'
-import { brand } from '../../lib/brand'
+import { brand, PRODUCT_NAME } from '../../lib/brand'
 import { useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { Loader2, RefreshCw, WifiOff } from 'lucide-react'
+import { Loader2, LogOut, Mail, RefreshCw, WifiOff } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { MessagesLoadingShell } from '../shared/MessagesLoadingShell'
 import { EmptyState } from '../shared/EmptyState'
-import { Button } from '../ui/Button'
+import { AnchorButton, Button } from '../ui/Button'
 import { CommunityStandardsGate } from './CommunityStandardsGate'
 
 interface ProtectedRouteProps {
@@ -17,9 +17,10 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requiredRole, noAccessElement }: ProtectedRouteProps) {
-  const { isSignedIn, isLoading, user, sessionError, accessDenied, syncSession } = useAuthContext()
+  const { isSignedIn, isLoading, user, sessionError, accessDenied, syncSession, signOut } = useAuthContext()
   const location = useLocation()
   const [retrying, setRetrying] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
 
   const handleRetry = async () => {
     setRetrying(true)
@@ -27,6 +28,16 @@ export default function ProtectedRoute({ children, requiredRole, noAccessElement
       await syncSession()
     } finally {
       setRetrying(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    if (typeof signOut !== 'function') return
+    setSigningOut(true)
+    try {
+      await signOut()
+    } finally {
+      setSigningOut(false)
     }
   }
 
@@ -48,22 +59,45 @@ export default function ProtectedRoute({ children, requiredRole, noAccessElement
 
   if (!user) {
     return (
-      <EmptyState
-        icon={WifiOff}
-        title="Could not connect to your account"
-        description={sessionError || `We could not load your ${brand.schoolAbbreviation} account yet. Check your connection and try again.`}
-        action={
-          <Button onClick={() => void handleRetry()} disabled={retrying}>
-            {retrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
-            {retrying ? 'Trying...' : 'Try again'}
-          </Button>
-        }
-      />
+      <main className="flex min-h-svh items-center justify-center bg-surface-page px-4">
+        <EmptyState
+          headingLevel={1}
+          icon={WifiOff}
+          title="Could not connect to your account"
+          description={sessionError || `We could not load your ${brand.schoolAbbreviation} account yet. Check your connection and try again.`}
+          action={
+            <>
+              <Button onClick={() => void handleRetry()} disabled={retrying || signingOut}>
+                {retrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+                {retrying ? 'Trying...' : 'Try again'}
+              </Button>
+              <Button variant="secondary" onClick={() => void handleSignOut()} disabled={retrying || signingOut}>
+                {signingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogOut className="h-4 w-4" aria-hidden="true" />}
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </Button>
+              <AnchorButton
+                variant="quiet"
+                href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${PRODUCT_NAME} account connection help`)}`}
+              >
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                Contact support
+              </AnchorButton>
+            </>
+          }
+        />
+      </main>
     )
   }
 
   if (user.community_policy && !user.community_policy.accepted) {
-    return <CommunityStandardsGate version={user.community_policy.version} onAccepted={syncSession} />
+    return (
+      <CommunityStandardsGate
+        version={user.community_policy.version}
+        accountEmail={user.email}
+        onSignOut={handleSignOut}
+        onAccepted={syncSession}
+      />
+    )
   }
 
   if (requiredRole && user) {

@@ -29,7 +29,9 @@ it('shows public marketing, derived syllabus and a course-specific signup intent
   expect(state.api.getCourseOffering).toHaveBeenCalledWith('course-counter')
   expect(host.querySelector('h1')?.textContent).toBe('Build a counter')
   for (const text of ['Explain your code', 'A browser', '4 hours', 'Try a counter', '2 lessons', 'First steps', 'A project']) expect(host.textContent).toContain(text)
-  expect(host.querySelector('a[href="/sign-up?offering_id=13"]')).not.toBeNull()
+  expect(host.querySelector('a[href="/sign-up?offering_id=13&offering_slug=course-counter"]')).not.toBeNull()
+  expect(host.querySelector('main a[href="/sign-in?offering_id=13&offering_slug=course-counter"]')?.textContent).toContain('Sign in')
+  expect(host.textContent).toContain('Already have an account?')
   expect(host.querySelector('a[href="/courses"]')?.textContent).toBe('Back to courses')
 })
 it('makes an unlisted slug recoverable without an enrollment action', async () => {
@@ -64,6 +66,7 @@ it('shows seats remaining and guided terms on a capped small-class course page',
     ...course,
     course_delivery: 'guided' as const,
     unlisted: true,
+    start_date: '2026-12-01',
     access_months: 12,
     instructor_message_weeks: 8,
     guided_access_ends_on: null,
@@ -76,6 +79,7 @@ it('shows seats remaining and guided terms on a capped small-class course page',
   state.api.getCourseOffering.mockResolvedValue({ data: { offering: guided } })
   await render()
   expect(host.textContent).toContain('Small-class course')
+  expect(host.textContent).toContain('Starts Dec 1, 2026')
   expect(host.textContent).toContain('4 of 15 seats remaining')
   expect(host.textContent).toContain('12 months of lesson access from your start')
   expect(host.textContent).toContain('Ask an instructor for help for 8 weeks from your start')
@@ -83,7 +87,7 @@ it('shows seats remaining and guided terms on a capped small-class course page',
   expect(host.querySelector('a[href="/courses"]')).toBeNull()
 })
 
-it('shows a disabled Cohort full state with support waitlist guidance when sold out', async () => {
+it('shows a disabled Class full state with support waitlist guidance when sold out', async () => {
   state.auth.isSignedIn = true
   state.auth.user = { id: 1 }
   state.api.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [] } })
@@ -97,8 +101,8 @@ it('shows a disabled Cohort full state with support waitlist guidance when sold 
   }
   state.api.getCourseOffering.mockResolvedValue({ data: { offering: full } })
   await render()
-  expect(host.textContent).toContain('Cohort full · 0 of 10 seats remaining')
-  const btn = [...host.querySelectorAll('main button')].find(el => el.textContent?.includes('Cohort full')) as HTMLButtonElement
+  expect(host.textContent).toContain('Class full · 0 of 10 seats remaining')
+  const btn = [...host.querySelectorAll('main button')].find(el => el.textContent?.includes('Class full')) as HTMLButtonElement
   expect(btn).toBeDefined()
   expect(btn.disabled).toBe(true)
   expect(host.querySelector('a[href^="mailto:"]')?.textContent).toBeTruthy()
@@ -124,7 +128,8 @@ it('renders checkout confirmation on Stripe return even when the offering is clo
   state.api.getCourseOffering.mockResolvedValue({ error: 'Not found', status: 404, data: null })
   await render('?checkout=return&purchase_id=20&offering_id=13')
   expect(host.textContent).not.toContain('This course isn’t available')
-  expect(host.textContent).toContain('Confirming your enrollment')
+  expect(host.textContent).toContain('Sign in to confirm your enrollment')
+  expect(host.textContent).not.toContain('Confirming your enrollment')
   const statusSignIn = host.querySelector('main a[href^="/sign-in"]')!
   expect(statusSignIn.getAttribute('href')).toBe('/sign-in?checkout=return&purchase_id=20&offering_slug=course-counter')
   const headerSignIn = host.querySelector('header a[href^="/sign-in"]')!
@@ -150,4 +155,17 @@ it('renders checkout confirmation on Stripe return even when the offering is clo
   expect(host.textContent).toContain('You’re in')
   expect(host.querySelector('a[href="/dashboard?cohort_id=13"]')?.textContent).toBe('Open Python Pilot')
   expect(host.textContent).not.toContain('Course listings are unavailable')
+})
+
+it('deduplicates canceled-checkout notices when inline checkout status is shown', async () => {
+  state.auth.isSignedIn = true
+  state.auth.user = { id: 1 }
+  state.api.getCourseOffering.mockResolvedValue({ data: { offering: course } })
+  state.api.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [{ id: 20, cohort_id: 13 }] } })
+  state.api.getCourseCheckoutStatus.mockResolvedValue({
+    data: { status: 'pending', can_resume: false, can_continue: true, purchase_id: 20, cohort: { id: 13, name: 'Build a counter', slug: 'course-counter', unlisted: false }, enrollment_id: null },
+  })
+  await render('?checkout=canceled&offering_id=13')
+  expect(host.textContent).toContain('Checkout wasn’t finished')
+  expect(host.querySelectorAll('main [role="status"]').length).toBe(0)
 })

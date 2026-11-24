@@ -68,11 +68,29 @@ class UserInviteEmailService
       CGI.escapeHTML(value.to_s)
     end
 
+    def invite_course_names(user)
+      enrollment_names = user.enrollments.with_read_access.includes(:cohort).order(:id).filter_map do |enrollment|
+        enrollment.cohort&.public_title.presence || enrollment.cohort&.name.presence
+      end.uniq
+      return enrollment_names if enrollment_names.any?
+      return user.assigned_cohorts.order(:id).pluck(:name).uniq if user.staff?
+
+      []
+    end
+
     # Email clients cannot load the app's web fonts; Georgia stands in for the
     # Newsreader headline used on the CSG site and the CSG Learn sign-in pages.
     def invite_html(user:, invited_by:, button_link:)
       inviter = h(invited_by&.full_name.presence || invited_by&.email.presence || "An administrator")
       role = h(user.role.to_s.capitalize)
+      course_names = invite_course_names(user)
+      course_phrase = if course_names.any?
+        " for <strong style=\"color: #0f172a;\">#{h(course_names.to_sentence)}</strong>"
+      else
+        ""
+      end
+      invite_days = User::INVITE_LINK_LIFETIME.in_days.to_i
+      support_email = SchoolBrand.current.support_email
 
       <<~HTML
         <!doctype html>
@@ -98,7 +116,7 @@ class UserInviteEmailService
                           You're invited to #{h(SchoolBrand.current.product_name)}
                         </h1>
                         <p style="margin: 16px 0 0 0; font-size: 16px; line-height: 1.6; color: #475569;">
-                          #{inviter} added you as a <strong style="color: #0f172a;">#{role}</strong> in #{h(SchoolBrand.current.product_name)}, #{h(SchoolBrand.current.name)}'s learning workspace for lessons, feedback, and messages with your instructor.
+                          #{inviter} added you as a <strong style="color: #0f172a;">#{role}</strong>#{course_phrase} in #{h(SchoolBrand.current.product_name)}, #{h(SchoolBrand.current.name)}'s learning workspace for lessons, feedback, and messages with your instructor.
                         </p>
                       </td>
                     </tr>
@@ -111,7 +129,7 @@ class UserInviteEmailService
                               <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #475569;">
                                 Create your account with
                                 <strong style="color: #0f172a; word-break: break-all;">#{h(user.email)}</strong>,
-                                the address this invitation was sent to. If you already have an account, sign in instead.
+                                the address this invitation was sent to. You can choose a password or continue with Google if your Google account uses that same email. If you already have an account, sign in instead.
                               </p>
                             </td>
                           </tr>
@@ -135,6 +153,9 @@ class UserInviteEmailService
 
                     <tr>
                       <td style="padding: 16px 32px 0 32px;">
+                        <p style="margin: 0 0 8px 0; font-size: 12px; line-height: 1.6; color: #5f6b7f;">
+                          This invitation link expires in #{invite_days} days.
+                        </p>
                         <p style="margin: 0 0 4px 0; font-size: 12px; color: #5f6b7f;">Or open this link in your browser:</p>
                         <p style="margin: 0; font-size: 12px; word-break: break-all;">
                           <a href="#{h(button_link)}" style="color: #842225; text-decoration: underline;">#{h(button_link)}</a>
@@ -148,6 +169,7 @@ class UserInviteEmailService
                           <tr><td style="height: 1px; background-color: #ded7c9; font-size: 0;">&nbsp;</td></tr>
                         </table>
                         <p style="margin: 16px 0 0 0; font-size: 12px; line-height: 1.6; color: #5f6b7f;">
+                          Need help or need a new link? Email <a href="mailto:#{h(support_email)}" style="color: #842225; text-decoration: underline;">#{h(support_email)}</a>.<br>
                           If you were not expecting this invitation, you can ignore this email.<br>
                           #{h(SchoolBrand.current.product_name)} &middot; #{h(SchoolBrand.current.name)}
                         </p>

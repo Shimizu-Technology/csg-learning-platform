@@ -137,7 +137,8 @@ class FirstRunStatesTest < ActionDispatch::IntegrationTest
     begin
       get "/api/v1/course_checkouts/#{purchase.id}/receipt", headers: headers
       assert_response :not_found
-      assert_equal "Receipt unavailable. Contact CSG for a copy.", response.parsed_body["error"]
+      assert_equal "Receipt unavailable. Contact #{SchoolBrand.current.name} at #{SchoolBrand.current.support_email} for a copy.", response.parsed_body["error"]
+      refute_includes response.parsed_body["error"], "Contact CSG"
     ensure
       CourseCheckout.define_singleton_method(:client, original)
     end

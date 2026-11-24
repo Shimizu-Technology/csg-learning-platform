@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Award, CheckCircle2, CircleX, Printer } from 'lucide-react'
+import { Award, CheckCircle2, CircleX, Mail, Printer } from 'lucide-react'
 import { useParams } from 'react-router-dom'
+import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { CertificateLinkActions } from '../components/shared/CertificateLinkActions'
-import { Button } from '../components/ui/Button'
+import { AnchorButton, Button, LinkButton } from '../components/ui/Button'
 import { api } from '../lib/api'
+import { brand, PRODUCT_NAME } from '../lib/brand'
 import { CERTIFICATE_TITLE, type CertificateVerification } from '../lib/certificates'
 import { formatShortDate } from '../lib/format'
 
-type Verification = { certificate: CertificateVerification } | { error: string; retry: boolean } | null
+type Verification = { certificate: CertificateVerification } | { error: string; notFound?: boolean; retry: boolean } | null
 
 export function CertificateVerificationPage() {
   const { code = '' } = useParams()
@@ -23,7 +25,7 @@ function VerificationPage({ code }: { code: string }) {
     void api.verifyCertificate(code).then((response) => {
       if (!current) return
       if (response.data) setResult(response.data)
-      else if (response.status === 404) setResult({ error: 'Certificate not found', retry: false })
+      else if (response.status === 404) setResult({ error: 'Certificate not found', notFound: true, retry: false })
       else if (response.status === 429) setResult({ error: 'Too many attempts. Wait a minute and try again.', retry: true })
       else setResult({ error: 'Certificate verification is unavailable. Try again in a moment.', retry: true })
     }).catch(() => {
@@ -32,17 +34,54 @@ function VerificationPage({ code }: { code: string }) {
     return () => { current = false }
   }, [code, attempt])
 
-  return <main className="certificate-page min-h-svh bg-brand-cream px-4 py-8 text-ink sm:px-8 sm:py-12 print:min-h-0 print:bg-surface-raised print:p-0">
-    <meta name="robots" content="noindex, nofollow" />
-    <div className="mx-auto max-w-3xl print:max-w-none">
-      {!result && <p role="status" className="text-center text-ink-secondary">Verifying certificate…</p>}
-      {result && 'error' in result && <div className="app-surface space-y-4 p-6 text-center">
-        <h1 className="font-display text-3xl">{result.error}</h1>
-        {result.retry && <Button shape="brand" variant="secondary" onClick={() => { setResult(null); setAttempt((value) => value + 1) }}>Try again</Button>}
-      </div>}
-      {result && 'certificate' in result && <VerificationCard certificate={result.certificate} />}
+  return (
+    <div className="flex min-h-svh flex-col bg-brand-cream text-ink print:min-h-0 print:bg-surface-raised">
+      <div className="print:hidden">
+        <PublicHeader actions={<LinkButton to="/sign-in" variant="quiet" shape="brand" className="px-3 text-ink">Sign in</LinkButton>} />
+      </div>
+      <main className="certificate-page flex-1 px-4 py-8 sm:px-8 sm:py-12 print:p-0">
+        <meta name="robots" content="noindex, nofollow" />
+        <div className="mx-auto max-w-3xl print:max-w-none">
+          {!result && <p role="status" className="text-center text-ink-secondary">Verifying certificate…</p>}
+          {result && 'error' in result && (
+            <div className="rounded-2xl border border-brand-line bg-surface-raised p-6 text-center shadow-raised sm:p-8">
+              <h1 className="font-display text-3xl font-medium text-ink">{result.error}</h1>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-ink-secondary">
+                {result.notFound
+                  ? 'Check that the 12-character verification code in the link matches the code printed on the certificate.'
+                  : 'We could not check this certificate right now. Try again in a moment or contact support.'}
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                {result.retry && (
+                  <Button shape="brand" onClick={() => { setResult(null); setAttempt((value) => value + 1) }}>
+                    Try again
+                  </Button>
+                )}
+                <LinkButton to="/" shape="brand" variant={result.retry ? 'secondary' : 'primary'}>
+                  Go to home
+                </LinkButton>
+                <LinkButton to="/sign-in" shape="brand" variant="secondary">
+                  Sign in
+                </LinkButton>
+                <AnchorButton
+                  href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${PRODUCT_NAME} certificate verification help`)}`}
+                  shape="brand"
+                  variant="quiet"
+                >
+                  <Mail className="h-4 w-4" aria-hidden="true" />
+                  Contact support
+                </AnchorButton>
+              </div>
+            </div>
+          )}
+          {result && 'certificate' in result && <VerificationCard certificate={result.certificate} />}
+        </div>
+      </main>
+      <div className="print:hidden">
+        <PublicFooter />
+      </div>
     </div>
-  </main>
+  )
 }
 
 function VerificationCard({ certificate }: { certificate: CertificateVerification }) {

@@ -74,6 +74,15 @@ describe('course acquisition auth', () => {
     expect(signin).toContain('data-switch="/sign-up?offering_id=13"')
     expect(signin).toContain('data-return="/courses?offering_id=13"')
   })
+
+  it('shows self-serve course fallback instead of invitation-email instructions when restricted mode blocks an offering signup', () => {
+    withMode('restricted')
+    const html = render('/sign-up?offering_id=13&offering_slug=python')
+    expect(html).toContain('Self-serve sign-ups aren’t open right now')
+    expect(html).toContain('href="/sign-in?offering_id=13&amp;offering_slug=python"')
+    expect(html).toContain('Contact support')
+    expect(html).not.toContain('Use the link in your invitation email')
+  })
 })
 
 describe('deep-link auth configuration', () => {

@@ -5,7 +5,8 @@ import { canHandoff } from '@/lib/web-handoff-policy';
 let mockPath = '';
 let mockRole = 'student';
 const mockHandoff = jest.fn().mockResolvedValue(undefined);
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ path: mockPath }), useRouter: () => ({ back: jest.fn(), canGoBack: () => false }), usePathname: () => '/link-unavailable' }));
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ path: mockPath }), useRouter: () => ({ back: jest.fn(), canGoBack: () => false, replace: mockReplace }), usePathname: () => '/link-unavailable' }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: {}, user: { is_staff: mockRole !== 'student', is_admin: mockRole === 'admin' } }) }));
 jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
@@ -22,9 +23,10 @@ it('opens the accepted exact destination', async () => {
   fireEvent.press(screen.getByLabelText('Open on the web'));
   await waitFor(() => expect(mockHandoff).toHaveBeenCalledWith({}, mockPath));
 });
-it('shows one Back control and a readable heading', () => {
+it('shows Page unavailable with Go to Today recovery when a link cannot hand off', () => {
   mockPath = '/staff/student/3?cohort_id=1'; mockRole = 'student';
   const screen = render(<LinkUnavailable />);
-  expect(screen.getAllByRole('button').map((button) => button.props.accessibilityLabel)).toEqual(['Back to Today']);
-  expect(screen.getByRole('header')).toHaveTextContent('This link needs the web app');
+  expect(screen.getByRole('header')).toHaveTextContent('Page unavailable');
+  fireEvent.press(screen.getByLabelText('Go to Today'));
+  expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
 });

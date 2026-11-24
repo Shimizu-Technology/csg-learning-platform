@@ -1,4 +1,6 @@
+import { useSyncExternalStore } from 'react'
 import { PRODUCT_NAME, SCHOOL_NAME } from './brand'
+import { offeringIdFrom } from './courseIntent'
 
 /**
  * Clerk components use the same colour roles as the rest of CSG Learn so the
@@ -130,30 +132,60 @@ export function clerkAuthAppearanceFor(theme: ClerkTheme) {
 
 export const clerkAuthAppearance = clerkAuthAppearanceFor('light')
 
+export type ClerkAuthMode = 'invite' | 'course'
+
 /**
  * Clerk otherwise titles its widget with the instance's application name
- * configured in the Clerk dashboard. Use the one product name instead.
+ * configured in the Clerk dashboard. Use the one product name instead, and
+ * switch between invitation and self-serve course enrollment copy.
  */
-export const clerkLocalization = {
-  signIn: {
-    start: {
-      title: `Sign in to ${PRODUCT_NAME}`,
-      // The page already says "Welcome back"; the card doesn't repeat it (S-19).
-      subtitle: 'Enter your email to continue.',
-      actionText: 'Have an invitation?',
-      actionLink: 'Sign up',
+export function clerkLocalizationFor(mode: ClerkAuthMode) {
+  const course = mode === 'course'
+  return {
+    signIn: {
+      start: {
+        title: `Sign in to ${PRODUCT_NAME}`,
+        // The page already says "Welcome back"; the card doesn't repeat it (S-19).
+        subtitle: course ? 'Enter your email to continue to your course.' : 'Enter your email to continue.',
+        actionText: course ? 'Don’t have an account?' : 'Have an invitation?',
+        actionLink: 'Sign up',
+      },
+      password: { subtitle: `Enter the password for your ${PRODUCT_NAME} account.` },
+      emailCode: { subtitle: `to continue to ${PRODUCT_NAME}` },
     },
-    password: { subtitle: `Enter the password for your ${PRODUCT_NAME} account.` },
-    emailCode: { subtitle: `to continue to ${PRODUCT_NAME}` },
-  },
-  signUp: {
-    start: {
-      title: `Create your ${PRODUCT_NAME} account`,
-      subtitle: `Use the email address your ${SCHOOL_NAME} invitation was sent to.`,
-      actionText: 'Already have an account?',
-      actionLink: 'Sign in',
+    signUp: {
+      start: {
+        title: `Create your ${PRODUCT_NAME} account`,
+        subtitle: course
+          ? 'Enter your email to create your account and continue enrolling.'
+          : `Use the email address your ${SCHOOL_NAME} invitation was sent to.`,
+        actionText: 'Already have an account?',
+        actionLink: 'Sign in',
+      },
+      emailCode: { subtitle: `to continue to ${PRODUCT_NAME}` },
+      continue: { subtitle: `to continue to ${PRODUCT_NAME}` },
     },
-    emailCode: { subtitle: `to continue to ${PRODUCT_NAME}` },
-    continue: { subtitle: `to continue to ${PRODUCT_NAME}` },
-  },
+  }
+}
+
+export const clerkLocalization = clerkLocalizationFor('invite')
+
+let clerkAuthMode: ClerkAuthMode = typeof window !== 'undefined' && offeringIdFrom(window.location.search) !== null ? 'course' : 'invite'
+const authModeListeners = new Set<() => void>()
+
+export function setClerkAuthMode(mode: ClerkAuthMode) {
+  if (clerkAuthMode === mode) return
+  clerkAuthMode = mode
+  authModeListeners.forEach((listener) => listener())
+}
+
+export function useClerkAuthMode(): ClerkAuthMode {
+  return useSyncExternalStore(
+    (listener) => {
+      authModeListeners.add(listener)
+      return () => { authModeListeners.delete(listener) }
+    },
+    () => clerkAuthMode,
+    () => 'invite',
+  )
 }

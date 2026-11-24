@@ -107,11 +107,11 @@ export function RouteTitle() {
  * forwarded to the sign-up or sign-in page that can accept it.
  */
 export function HomeRoute() {
-  const { isSignedIn, isLoading } = useAuthContext()
+  const { isSignedIn, isLoading, accessDenied } = useAuthContext()
   const location = useLocation()
   const destination = invitationDestination(location.search)
   if (destination) return <Navigate to={destination} replace />
-  if (!isLoading && isSignedIn) return <Navigate to="/dashboard" replace />
+  if (!isLoading && isSignedIn && !accessDenied) return <Navigate to="/dashboard" replace />
   return <HomePage />
 }
 
@@ -135,9 +135,9 @@ function AppRoutes() {
           <Route path="/admin/cohorts/:id/student-view/*" element={<SuspendedRoute><CohortStudentView /></SuspendedRoute>} />
         </Route>
 
-        {/* Authenticated routes with shared layout */}
-        <Route element={<Layout />}>
-          <Route element={<ProtectedRoute />}>
+        {/* Authenticated routes: gate before mounting the app shell */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<Layout />}>
             <Route path="/dashboard" element={<SuspendedRoute><TodayRoute /></SuspendedRoute>} />
             <Route path="/my-work" element={<SuspendedRoute><MyWorkRoute /></SuspendedRoute>} />
             <Route path="/cohorts/:id" element={<CohortHomeRoute />} />
@@ -155,50 +155,50 @@ function AppRoutes() {
             <Route path="/messages" element={<SuspendedRoute><Messages /></SuspendedRoute>} />
             <Route path="/messages/dm/:dmId" element={<SuspendedRoute><Messages /></SuspendedRoute>} />
             <Route path="/messages/:channelId" element={<SuspendedRoute><Messages /></SuspendedRoute>} />
-          </Route>
 
-          {/* Staff routes (admin + instructor) */}
-          <Route element={<ProtectedRoute requiredRole="staff" />}>
-            <Route path="/admin" element={<SuspendedRoute><AdminDashboard /></SuspendedRoute>} />
-            <Route path="/admin/meetings" element={<SuspendedRoute><StaffPrivateMeetings /></SuspendedRoute>} />
-            <Route path="/admin/meetings/:id" element={<SuspendedRoute><PrivateMeetingRecord /></SuspendedRoute>} />
-            <Route path="/admin/students" element={<SuspendedRoute><StudentManagement /></SuspendedRoute>} />
-            <Route path="/admin/students/:id" element={<SuspendedRoute><StudentDetail /></SuspendedRoute>} />
-            <Route path="/admin/cohorts/:cohortId/students/:id/:tab?" element={<SuspendedRoute><StudentWorkspace /></SuspendedRoute>} />
-            <Route path="/admin/cohorts" element={<SuspendedRoute><CohortManagement /></SuspendedRoute>} />
-            <Route path="/admin/cohorts/:id/settings" element={<CohortSettingsEntry />} />
-            <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortWorkspace /></SuspendedRoute>} />
-            <Route path="/admin/cohorts/:id/watch-progress" element={<SuspendedRoute><CohortWatchProgress /></SuspendedRoute>} />
-            <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
-            <Route path="/admin/submissions/:id" element={<SuspendedRoute><SubmissionDetail /></SuspendedRoute>} />
-            <Route path="/admin/support" element={<SuspendedRoute><SupportQueue /></SuspendedRoute>} />
-            <Route path="/admin/help-requests/:id" element={<SuspendedRoute><HelpRequestDetail /></SuspendedRoute>} />
-            <Route path="/admin/interventions/:id" element={<SuspendedRoute><InterventionDetail /></SuspendedRoute>} />
-            <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />
-            <Route path="/admin/content" element={<SuspendedRoute><ContentManagement /></SuspendedRoute>} />
-            <Route path="/admin/curricula/:id" element={<SuspendedRoute><CurriculumRecord /></SuspendedRoute>} />
-            <Route path="/admin/modules/:id" element={<SuspendedRoute><ModuleRecord /></SuspendedRoute>} />
-            <Route path="/admin/lessons/:id" element={<SuspendedRoute><LessonRecord /></SuspendedRoute>} />
-            <Route path="/admin/lessons/:id/edit" element={<SuspendedRoute><LessonEditor /></SuspendedRoute>} />
-            {/* Staff record pages (L-5.2). Students get No access; the server answers 404 for anything else out of scope. */}
-            <Route path="/admin/recordings/:id" element={<SuspendedRoute><RecordingRecord /></SuspendedRoute>} />
-            <Route path="/admin/office-hours/:id" element={<SuspendedRoute><OfficeHourRecord /></SuspendedRoute>} />
-            <Route path="/admin/learning-plans/:id" element={<SuspendedRoute><LearningPlanRecord /></SuspendedRoute>} />
-            <Route path="/admin/channels/:id" element={<SuspendedRoute><ChannelRecord /></SuspendedRoute>} />
-            <Route path="/admin/rubrics/:id" element={<SuspendedRoute><RubricRecord /></SuspendedRoute>} />
-            <Route path="/admin/activity/:id" element={<SuspendedRoute><ActivityEventRecord /></SuspendedRoute>} />
-            <Route path="/admin/recovery-plans/:id" element={<SuspendedRoute><RecoveryPlanRecord /></SuspendedRoute>} />
-          </Route>
+            {/* Staff routes (admin + instructor) */}
+            <Route element={<ProtectedRoute requiredRole="staff" />}>
+              <Route path="/admin" element={<SuspendedRoute><AdminDashboard /></SuspendedRoute>} />
+              <Route path="/admin/meetings" element={<SuspendedRoute><StaffPrivateMeetings /></SuspendedRoute>} />
+              <Route path="/admin/meetings/:id" element={<SuspendedRoute><PrivateMeetingRecord /></SuspendedRoute>} />
+              <Route path="/admin/students" element={<SuspendedRoute><StudentManagement /></SuspendedRoute>} />
+              <Route path="/admin/students/:id" element={<SuspendedRoute><StudentDetail /></SuspendedRoute>} />
+              <Route path="/admin/cohorts/:cohortId/students/:id/:tab?" element={<SuspendedRoute><StudentWorkspace /></SuspendedRoute>} />
+              <Route path="/admin/cohorts" element={<SuspendedRoute><CohortManagement /></SuspendedRoute>} />
+              <Route path="/admin/cohorts/:id/settings" element={<CohortSettingsEntry />} />
+              <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortWorkspace /></SuspendedRoute>} />
+              <Route path="/admin/cohorts/:id/watch-progress" element={<SuspendedRoute><CohortWatchProgress /></SuspendedRoute>} />
+              <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
+              <Route path="/admin/submissions/:id" element={<SuspendedRoute><SubmissionDetail /></SuspendedRoute>} />
+              <Route path="/admin/support" element={<SuspendedRoute><SupportQueue /></SuspendedRoute>} />
+              <Route path="/admin/help-requests/:id" element={<SuspendedRoute><HelpRequestDetail /></SuspendedRoute>} />
+              <Route path="/admin/interventions/:id" element={<SuspendedRoute><InterventionDetail /></SuspendedRoute>} />
+              <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />
+              <Route path="/admin/content" element={<SuspendedRoute><ContentManagement /></SuspendedRoute>} />
+              <Route path="/admin/curricula/:id" element={<SuspendedRoute><CurriculumRecord /></SuspendedRoute>} />
+              <Route path="/admin/modules/:id" element={<SuspendedRoute><ModuleRecord /></SuspendedRoute>} />
+              <Route path="/admin/lessons/:id" element={<SuspendedRoute><LessonRecord /></SuspendedRoute>} />
+              <Route path="/admin/lessons/:id/edit" element={<SuspendedRoute><LessonEditor /></SuspendedRoute>} />
+              {/* Staff record pages (L-5.2). Students get No access; the server answers 404 for anything else out of scope. */}
+              <Route path="/admin/recordings/:id" element={<SuspendedRoute><RecordingRecord /></SuspendedRoute>} />
+              <Route path="/admin/office-hours/:id" element={<SuspendedRoute><OfficeHourRecord /></SuspendedRoute>} />
+              <Route path="/admin/learning-plans/:id" element={<SuspendedRoute><LearningPlanRecord /></SuspendedRoute>} />
+              <Route path="/admin/channels/:id" element={<SuspendedRoute><ChannelRecord /></SuspendedRoute>} />
+              <Route path="/admin/rubrics/:id" element={<SuspendedRoute><RubricRecord /></SuspendedRoute>} />
+              <Route path="/admin/activity/:id" element={<SuspendedRoute><ActivityEventRecord /></SuspendedRoute>} />
+              <Route path="/admin/recovery-plans/:id" element={<SuspendedRoute><RecoveryPlanRecord /></SuspendedRoute>} />
+            </Route>
 
-          {/* Admin-only routes */}
-          <Route element={<ProtectedRoute requiredRole="admin" />}>
-            <Route path="/admin/content/submission-audit" element={<SuspendedRoute><SubmissionAudit /></SuspendedRoute>} />
-            <Route path="/admin/activity" element={<SuspendedRoute><AdminActivity /></SuspendedRoute>} />
-            <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
-            <Route path="/admin/moderation/reports/:id" element={<SuspendedRoute><ContentReportRecord /></SuspendedRoute>} />
-            <Route path="/admin/offerings/:id" element={<SuspendedRoute><OfferingRecord /></SuspendedRoute>} />
-            <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
-            <Route path="/admin/team/:id" element={<SuspendedRoute><TeamMemberDetail /></SuspendedRoute>} />
+            {/* Admin-only routes */}
+            <Route element={<ProtectedRoute requiredRole="admin" />}>
+              <Route path="/admin/content/submission-audit" element={<SuspendedRoute><SubmissionAudit /></SuspendedRoute>} />
+              <Route path="/admin/activity" element={<SuspendedRoute><AdminActivity /></SuspendedRoute>} />
+              <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
+              <Route path="/admin/moderation/reports/:id" element={<SuspendedRoute><ContentReportRecord /></SuspendedRoute>} />
+              <Route path="/admin/offerings/:id" element={<SuspendedRoute><OfferingRecord /></SuspendedRoute>} />
+              <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
+              <Route path="/admin/team/:id" element={<SuspendedRoute><TeamMemberDetail /></SuspendedRoute>} />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<NotFoundRoute />} />

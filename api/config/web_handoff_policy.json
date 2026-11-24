@@ -1,5 +1,5 @@
 {
-  "path_pattern": "/(?:lessons|modules)/[0-9]+|/meetings|/admin(?:/(?:students(?:/[0-9]+)?|submissions/[0-9]+|help-requests/[0-9]+|interventions/[0-9]+)|/cohorts(?:/[1-9][0-9]*(?:/settings|/watch-progress|/modules/[0-9]+/grading|/students/[0-9]+/(?:overview|work|learning|support|communication|access))?)?|/(?:grading|support|content|team|meetings|moderation))?",
+  "path_pattern": "/(?:lessons|modules)/[0-9]+|/meetings|/courses(?:/[a-z0-9]+(?:-[a-z0-9]+)*)?|/admin(?:/(?:students(?:/[0-9]+)?|submissions/[0-9]+|help-requests/[0-9]+|interventions/[0-9]+)|/cohorts(?:/[1-9][0-9]*(?:/settings|/watch-progress|/modules/[0-9]+/grading|/students/[0-9]+/(?:overview|work|learning|support|communication|access))?)?|/(?:grading|support|content|team|meetings|moderation))?",
   "recording_pattern": "/recordings\\?cohort_id=[1-9][0-9]*&recording=(?:[1-9][0-9]*|legacy-[1-9][0-9]*-[1-9][0-9]*)",
   "admin_only_paths": [
     "/admin/moderation"

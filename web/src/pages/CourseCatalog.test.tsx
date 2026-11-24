@@ -19,9 +19,10 @@ beforeEach(() => {
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
 const render = async (url = '/courses') => act(async () => root.render(<MemoryRouter initialEntries={[url]}><CourseCatalog /></MemoryRouter>))
-it('carries the selected server-listed offering into signup', async () => {
+it('carries the selected server-listed offering into signup and sign-in with slug preserved', async () => {
   await render('/courses?offering_id=13')
-  expect(container.querySelector('a[href="/sign-up?offering_id=13"]')).not.toBeNull()
+  expect(container.querySelector('a[href="/sign-up?offering_id=13&offering_slug=course-python"]')).not.toBeNull()
+  expect(container.querySelector('main a[href="/sign-in?offering_id=13&offering_slug=course-python"]')?.textContent).toContain('Sign in')
   expect(container.textContent).not.toContain('Ruby')
   expect(state.startCourseCheckout).not.toHaveBeenCalled()
 })
@@ -59,12 +60,12 @@ it('fails closed when purchase status cannot be checked', async () => {
   state.auth.isSignedIn = true; state.auth.user = { id: 1 }
   state.getPendingCoursePurchases.mockResolvedValue({ data: null, error: 'Offline' })
   await render('/courses?offering_id=13')
-  expect(container.textContent).toContain('could not check your purchases')
+  expect(container.textContent).toContain('couldn’t check your purchases')
   expect(container.textContent).not.toContain('Continue to secure checkout')
 })
 it('keeps canceled checkout at the selected course with calm recovery copy', async () => {
   await render('/courses?checkout=canceled&offering_id=13')
-  expect(container.textContent).toContain('Checkout not completed')
+  expect(container.textContent).toContain('Checkout wasn’t finished')
   expect(container.textContent).not.toContain('Ruby')
 })
 
@@ -73,7 +74,7 @@ it('shows continue checkout on signed-in cancel with an owned pending purchase',
   state.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [{ id: 20, cohort_id: 13 }] } })
   state.getCourseCheckoutStatus.mockResolvedValue({ data: { status: 'pending', can_continue: true, cohort: { id: 13, name: 'Python' } } })
   await render('/courses?checkout=canceled&offering_id=13')
-  expect(container.textContent).toContain('Checkout not completed — Continue checkout')
+  expect(container.textContent).toContain('Checkout wasn’t finished')
   expect([...container.querySelectorAll('button')].some(el => el.textContent === 'Continue checkout')).toBe(true)
   expect(container.textContent).not.toContain('Confirming your enrollment')
   expect(state.startCourseCheckout).not.toHaveBeenCalled()

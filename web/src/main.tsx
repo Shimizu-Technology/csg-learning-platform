@@ -5,7 +5,7 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import { AuthProvider } from './contexts/AuthContext'
 import { AppErrorBoundary } from './components/shared/AppErrorBoundary'
 import App from './App'
-import { clerkAppearanceFor, clerkLocalization } from './lib/clerkAppearance'
+import { clerkAppearanceFor, clerkLocalizationFor, useClerkAuthMode } from './lib/clerkAppearance'
 import { initTheme, useTheme } from './lib/theme'
 import './index.css'
 
@@ -26,13 +26,15 @@ function ConfigurationError() {
 
 function Root() {
   const { theme } = useTheme()
+  const authMode = useClerkAuthMode()
   const appearance = useMemo(() => clerkAppearanceFor(theme), [theme])
+  const localization = useMemo(() => clerkLocalizationFor(authMode), [authMode])
   if (!PUBLISHABLE_KEY || PUBLISHABLE_KEY === 'YOUR_PUBLISHABLE_KEY') {
     return <ConfigurationError />
   }
 
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/" appearance={appearance} localization={clerkLocalization}>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/" appearance={appearance} localization={localization}>
       <AuthProvider>
         <App />
       </AuthProvider>

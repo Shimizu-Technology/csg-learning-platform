@@ -34,8 +34,10 @@ interface AuthContextType {
   schoolFeatures?: Record<string, boolean>
   enrollments: SessionEnrollment[]
   sessionError: string | null
+  sessionErrorCode?: string | null
   accessDenied: boolean
   syncSession: () => Promise<boolean>
+  signOut?: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -44,8 +46,10 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   enrollments: [],
   sessionError: null,
+  sessionErrorCode: null,
   accessDenied: false,
   syncSession: async () => false,
+  signOut: async () => {},
 })
 
 export function useAuthContext() {
@@ -53,13 +57,14 @@ export function useAuthContext() {
 }
 
 function ClerkAuthProvider({ children }: { children: ReactNode }) {
-  const { getToken, isLoaded, isSignedIn } = useAuth()
+  const { getToken, isLoaded, isSignedIn, signOut: clerkSignOut } = useAuth()
   const { user: clerkUser } = useUser()
   const [user, setUser] = useState<UserData | null>(null)
   const [schoolFeatures, setSchoolFeatures] = useState<Record<string, boolean>>({})
   const [enrollments, setEnrollments] = useState<SessionEnrollment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [sessionErrorCode, setSessionErrorCode] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
   const clerkUserId = clerkUser?.id
   const cacheScopeRef = useRef<string | null>(null)
@@ -90,6 +95,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     if (!isSignedIn) return false
     const requestGeneration = ++sessionRequestGenerationRef.current
     setSessionError(null)
+    setSessionErrorCode(null)
     setAccessDenied(false)
 
     try {
@@ -124,6 +130,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setEnrollments([])
       setAccessDenied(denied)
       if (denied && cacheScopeRef.current) clearApiCache(cacheScopeRef.current)
+      setSessionErrorCode(res.errorCode ?? null)
       setSessionError(res.error || `Could not connect to your ${brand.schoolAbbreviation} account. Check your connection and try again.`)
       return false
     } catch (err) {
@@ -132,6 +139,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setEnrollments([])
       setAccessDenied(false)
+      setSessionErrorCode(null)
       setSessionError(err instanceof Error ? err.message : `Could not connect to your ${brand.schoolAbbreviation} account.`)
       return false
     }
@@ -150,6 +158,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setEnrollments([])
       setSessionError(null)
+      setSessionErrorCode(null)
       setAccessDenied(false)
       setIsLoading(false)
       // Signed out: drop any identity persisted from an earlier session before
@@ -161,6 +170,10 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     syncSession().finally(() => setIsLoading(false))
   }, [isLoaded, isSignedIn, clerkUserId, syncSession])
 
+  const signOut = useCallback(async () => {
+    await clerkSignOut?.({ redirectUrl: '/sign-in' })
+  }, [clerkSignOut])
+
   return (
     <AuthContext.Provider
       value={{
@@ -170,8 +183,10 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         enrollments,
         schoolFeatures,
         sessionError,
+        sessionErrorCode,
         accessDenied,
         syncSession,
+        signOut,
       }}
     >
       {children}

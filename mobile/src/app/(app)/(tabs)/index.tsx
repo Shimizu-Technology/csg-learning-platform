@@ -5,9 +5,11 @@ import { themedAlert as Alert } from '@/lib/alerts';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
-import { ArrowRight, BadgeCheck, BookOpen, CalendarCheck, CalendarClock, ClipboardCheck, Clock3, ExternalLink, Hourglass, LifeBuoy, Megaphone, MessageSquare, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
+import { ArrowRight, BadgeCheck, BookOpen, CalendarCheck, CalendarClock, ClipboardCheck, Clock3, ExternalLink, Hourglass, LifeBuoy, Mail, Megaphone, MessageSquare, RefreshCw, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
+import { useState } from 'react';
 import { Linking, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button } from '@/components/ui/button';
 
 import { InstructorToday } from '@/components/instructor-today';
 import { StaffAttention } from '@/components/staff-attention';
@@ -37,6 +39,7 @@ export default function TodayScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const { selectedCohortId } = useCohort();
+  const [openingWebPath, setOpeningWebPath] = useState<string | null>(null);
   const query = useQuery({
     queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: user?.is_staff ? demoStaffDashboardForCohort(selectedCohortId) : demoDashboard }) : api.dashboard(signal, selectedCohortId),
@@ -72,7 +75,90 @@ export default function TodayScreen() {
     </ScrollView></SafeAreaView>;
   }
 
-  if (!dashboard.enrolled) return <SafeAreaView style={styles.safe}><View style={styles.content}><CohortSwitcher /></View><View style={styles.center}><BookOpen color={c.text.body} size={34} /><Text style={styles.emptyTitle}>No active learning path</Text><Text style={styles.emptyCopy}>Choose a current cohort to see its lessons, or open a past cohort to revisit your class.</Text></View></SafeAreaView>;
+  if (!dashboard.enrolled) {
+    const pendingPurchases = dashboard.pending_purchases || [];
+    const openWeb = async (path: string, fallbackUrl?: string) => {
+      setOpeningWebPath(path);
+      try {
+        await openAuthenticatedWebPage(api, path);
+      } catch (error) {
+        if (fallbackUrl) {
+          await openExternalPage(fallbackUrl).catch(() => Alert.alert('Could not open the web app', (error as Error).message));
+        } else {
+          Alert.alert('Could not open the web app', (error as Error).message);
+        }
+      } finally {
+        setOpeningWebPath(null);
+      }
+    };
+    const emailSupport = (subject: string) => void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`).catch(() => Alert.alert('Contact support', `Email ${SUPPORT_EMAIL} for help.`));
+
+    return (
+      <SafeAreaView edges={['top']} style={styles.safe}>
+        <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={refresh} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+          <CohortSwitcher />
+          {pendingPurchases.length > 0 ? (
+            <View style={styles.stack}>
+              {pendingPurchases.map((purchase) => {
+                const statusPath = `/courses?checkout=return&purchase_id=${purchase.id}&offering_id=${purchase.cohort_id}`;
+                return (
+                  <View key={purchase.id} style={styles.notOpen} testID={`pending-purchase-${purchase.id}`}>
+                    <View style={styles.cardTop}>
+                      <View style={styles.notOpenIcon}><Hourglass color={c.text.body} size={21} /></View>
+                      <View style={styles.flex}>
+                        <Text accessibilityRole="header" style={styles.cardTitle}>Confirming your enrollment in {purchase.course_name}</Text>
+                        <Text style={styles.notOpenCopy}>Your purchase is still being confirmed. Check its status on the web before trying another payment.</Text>
+                      </View>
+                    </View>
+                    <Button
+                      label="Check enrollment on the web"
+                      loading={openingWebPath === statusPath}
+                      disabled={openingWebPath !== null}
+                      onPress={() => void openWeb(statusPath, `${brand.appUrl}${statusPath}`)}
+                    />
+                    <Pressable accessibilityRole="button" onPress={refresh} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+                      <RefreshCw color={c.text.strong} size={17} />
+                      <Text style={styles.secondaryButtonText}>Refresh status</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" onPress={() => emailSupport(`Enrollment help (reference #${purchase.id})`)} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+                      <Mail color={c.text.strong} size={17} />
+                      <Text style={styles.secondaryButtonText}>Contact support</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.notOpen} testID="unenrolled-empty-state">
+              <View style={styles.cardTop}>
+                <View style={styles.notOpenIcon}><BookOpen color={c.text.body} size={21} /></View>
+                <View style={styles.flex}>
+                  <Text accessibilityRole="header" style={styles.cardTitle}>No course yet</Text>
+                  <Text style={styles.notOpenCopy}>
+                    {dashboard.catalog_enabled
+                      ? `Browse open courses on the web or contact ${brand.schoolName} for help getting started.`
+                      : `Your account isn’t enrolled in a course yet. Contact ${brand.schoolName} if you expected to see your class here.`}
+                  </Text>
+                </View>
+              </View>
+              {dashboard.catalog_enabled && (
+                <Button
+                  label="Browse courses on the web"
+                  loading={openingWebPath === '/courses'}
+                  disabled={openingWebPath !== null}
+                  onPress={() => void openWeb('/courses', `${brand.appUrl}/courses`)}
+                />
+              )}
+              <Pressable accessibilityRole="button" onPress={() => emailSupport(`${brand.productName} enrollment help`)} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+                <Mail color={c.text.strong} size={17} />
+                <Text style={styles.secondaryButtonText}>Contact support ({SUPPORT_EMAIL})</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   const paused = dashboard.enrollment_status === 'paused';
   const library = dashboard.cohort?.cohort_type === 'alumni' && !dashboard.personal_plan;

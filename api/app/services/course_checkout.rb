@@ -123,7 +123,7 @@ class CourseCheckout
       end
       raise CohortFull, "This cohort is full" if cohort.full_for_checkout?(user: user)
 
-      course_path = cohort.unlisted? && cohort.public_slug.present? ? "/courses/#{cohort.public_slug}" : "/courses"
+      course_path = cohort.public_slug.present? ? "/courses/#{cohort.public_slug}" : "/courses"
       params = {
         mode: "payment",
         line_items: [ { price: captured_price_id, quantity: 1 } ],

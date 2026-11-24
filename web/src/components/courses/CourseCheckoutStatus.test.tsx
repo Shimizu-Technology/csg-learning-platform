@@ -45,8 +45,10 @@ it('bounds pending polling at one minute and retries without offering checkout',
 it.each(['failed', 'refunded'])('shows a recoverable %s state and stops polling', async (status) => {
   state.getCourseCheckoutStatus.mockResolvedValue(response(status))
   await render()
-  expect(container.textContent).toContain(status === 'refunded' ? 'refunded' : 'could not confirm')
+  expect(container.textContent).toContain(status === 'refunded' ? 'refunded' : 'couldn’t confirm')
   expect(container.textContent).toContain('Contact support')
+  expect(container.textContent).toContain('Reference #20')
+  expect(container.querySelector('a[href^="mailto:"]')?.getAttribute('href')).toContain('reference%20%2320')
   await act(async () => vi.advanceTimersByTimeAsync(10000))
   expect(state.getCourseCheckoutStatus).toHaveBeenCalledOnce()
 })
@@ -68,7 +70,7 @@ it('stops updates and polling on unmount', async () => {
 it('shows a setup failure with a course retry destination and stops polling', async () => {
   state.getCourseCheckoutStatus.mockResolvedValue(response('setup_failed'))
   await render()
-  expect(container.textContent).toContain("We couldn't start checkout — try again")
+  expect(container.textContent).toContain('We couldn’t start checkout')
   expect(container.querySelector('a[href="/courses?offering_id=13"]')?.textContent).toBe('Try checkout again')
   await act(async () => vi.advanceTimersByTimeAsync(120000))
   expect(state.getCourseCheckoutStatus).toHaveBeenCalledOnce()
@@ -77,7 +79,7 @@ it('shows a setup failure with a course retry destination and stops polling', as
 it('does not poll a session-less uncertain creation or invite a fresh payment', async () => {
   state.getCourseCheckoutStatus.mockResolvedValue({ data: { ...response('starting').data, can_resume: false } })
   await render()
-  expect(container.textContent).toContain('Checkout needs a status check')
+  expect(container.textContent).toContain('Checking your checkout')
   expect(container.textContent).toContain('Contact support')
   await act(async () => vi.advanceTimersByTimeAsync(120000))
   expect(state.getCourseCheckoutStatus).toHaveBeenCalledOnce()
@@ -101,7 +103,8 @@ it('offers server-authorized continuation after cancel without confirmation poll
   state.getCourseCheckoutStatus.mockResolvedValue({ data: { ...response('pending').data, can_continue: true } })
   state.startCourseCheckout.mockResolvedValue({ error: 'Connection lost. Try continuing again.' })
   await act(async () => root.render(<MemoryRouter><CourseCheckoutStatus purchaseId="20" canceled /></MemoryRouter>))
-  expect(container.textContent).toContain('Checkout not completed — Continue checkout')
+  expect(container.textContent).toContain('Checkout wasn’t finished')
+  expect(container.textContent).toContain('You haven’t been charged yet')
   const button = [...container.querySelectorAll('button')].find(el => el.textContent === 'Continue checkout')!
   await act(async () => button.click())
   expect(state.startCourseCheckout).toHaveBeenCalledWith(13)
@@ -119,9 +122,11 @@ it('allows continuation of an expired session using the server renewal path', as
   expect(state.startCourseCheckout).toHaveBeenCalledWith(13)
 })
 
-it('preserves validated offering_slug on the signed-out confirmation sign-in link', async () => {
+it('prompts signed-out visitors to sign in instead of pretending to poll, preserving validated offering_slug', async () => {
   state.isSignedIn = false
   await act(async () => root.render(<MemoryRouter><CourseCheckoutStatus purchaseId="20" slug="python-pilot" /></MemoryRouter>))
+  expect(container.textContent).toContain('Sign in to confirm your enrollment')
+  expect(container.textContent).not.toContain('Confirming your enrollment…')
   const link = container.querySelector('a[href^="/sign-in"]')!
   expect(link.getAttribute('href')).toBe('/sign-in?checkout=return&purchase_id=20&offering_slug=python-pilot')
 

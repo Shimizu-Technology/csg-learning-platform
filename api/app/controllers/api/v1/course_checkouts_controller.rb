@@ -40,17 +40,17 @@ module Api
       # Only an explicit click asks Stripe; profile loading remains local and batched.
       def receipt
         purchase = current_user.course_purchases.find(params[:id])
-        return render json: { error: "Receipt unavailable. Contact CSG for a copy." }, status: :not_found unless purchase.status == "paid" && purchase.stripe_payment_intent_id.present?
+        return render json: { error: receipt_unavailable_error }, status: :not_found unless purchase.status == "paid" && purchase.stripe_payment_intent_id.present?
 
         intent = CourseCheckout.client.v1.payment_intents.retrieve(purchase.stripe_payment_intent_id, { expand: [ "latest_charge" ] })
         url = intent.latest_charge&.receipt_url
-        return render json: { error: "Receipt unavailable. Contact CSG for a copy." }, status: :not_found unless url.present? && URI.parse(url).is_a?(URI::HTTPS)
+        return render json: { error: receipt_unavailable_error }, status: :not_found unless url.present? && URI.parse(url).is_a?(URI::HTTPS)
 
         render json: { url: url }
       rescue URI::InvalidURIError
-        render json: { error: "Receipt unavailable. Contact CSG for a copy." }, status: :not_found
+        render json: { error: receipt_unavailable_error }, status: :not_found
       rescue Stripe::StripeError
-        render json: { error: "Receipt could not load. Try again or contact CSG for a copy." }, status: :service_unavailable
+        render json: { error: "Receipt could not load. Try again or contact #{receipt_contact} for a copy." }, status: :service_unavailable
       end
 
       def create
@@ -67,6 +67,16 @@ module Api
       rescue Stripe::StripeError => error
         Rails.logger.error("[CourseCheckout] stripe_error=#{error.class.name}")
         render json: { error: "Checkout is temporarily unavailable" }, status: :service_unavailable
+      end
+
+      private
+
+      def receipt_contact
+        "#{SchoolBrand.current.name} at #{SchoolBrand.current.support_email}"
+      end
+
+      def receipt_unavailable_error
+        "Receipt unavailable. Contact #{receipt_contact} for a copy."
       end
     end
   end

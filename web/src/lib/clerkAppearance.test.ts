@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { CLERK_AUTH_THEME_VARIABLES, CLERK_CSS_LAYER, CLERK_THEME_VARIABLES, clerkAppearance, clerkAppearanceFor, clerkAuthAppearance, clerkAuthAppearanceFor, clerkAuthThemeVariables, clerkLocalization, clerkThemeVariables } from './clerkAppearance'
+import { CLERK_AUTH_THEME_VARIABLES, CLERK_CSS_LAYER, CLERK_THEME_VARIABLES, clerkAppearance, clerkAppearanceFor, clerkAuthAppearance, clerkAuthAppearanceFor, clerkAuthThemeVariables, clerkLocalization, clerkLocalizationFor, clerkThemeVariables } from './clerkAppearance'
 
 const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8')
 function block(selector: RegExp) {
@@ -69,5 +69,12 @@ describe('Clerk appearance', () => {
     expect(clerkLocalization.signIn.start.title).toBe('Sign in to CSG Learn')
     expect(clerkLocalization.signUp.start.title).toBe('Create your CSG Learn account')
     expect(JSON.stringify(clerkLocalization)).not.toMatch(/Learning Platform|Learning Hub|CSG Connect/)
+  })
+
+  it('uses welcoming course-enrollment copy without invitation-only wording for catalog buyers', () => {
+    const courseLoc = clerkLocalizationFor('course')
+    expect(courseLoc.signUp.start.subtitle).not.toMatch(/invitation/i)
+    expect(courseLoc.signIn.start.actionText).not.toMatch(/invitation/i)
+    expect(courseLoc.signUp.start.subtitle).toContain('continue enrolling')
   })
 })

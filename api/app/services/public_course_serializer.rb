@@ -40,6 +40,7 @@ class PublicCourseSerializer
       access_months: access_months,
       guided_access_ends_on: cohort.guided? ? cohort.guided_access_ends_on&.iso8601 : nil,
       guided_support_ends_on: cohort.guided? ? cohort.guided_support_ends_on&.iso8601 : nil,
+      start_date: cohort.guided? ? cohort.start_date&.iso8601 : nil,
       includes_private_meetings: false, instructor_message_weeks: support_weeks,
       instructor_response_target: cohort.effective_review_response_time,
       includes_individual_project_review: true,

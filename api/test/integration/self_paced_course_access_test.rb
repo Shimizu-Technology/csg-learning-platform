@@ -466,9 +466,25 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
     dashboard = JSON.parse(response.body).fetch("dashboard")
     assert_equal false, dashboard.fetch("enrolled")
-    assert_equal true, dashboard.fetch("catalog_enabled")
+    # Catalog is disabled while CourseCheckout.enabled? is false.
+    assert_equal false, dashboard.fetch("catalog_enabled")
     assert_equal [ purchase.id ], dashboard.fetch("pending_purchases").pluck("id")
     assert_equal "Self-paced course", dashboard.fetch("pending_purchases").first.fetch("course_name")
+
+    original_enabled = CourseCheckout.method(:enabled?)
+    CourseCheckout.define_singleton_method(:enabled?) { true }
+    begin
+      as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+      assert_equal true, response.parsed_body.dig("dashboard", "catalog_enabled")
+
+      SchoolSetting.current.update!(public_catalog_mode: "hidden")
+      as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+      assert_equal false, response.parsed_body.dig("dashboard", "catalog_enabled")
+      SchoolSetting.current.update!(public_catalog_mode: "automatic")
+    ensure
+      CourseCheckout.define_singleton_method(:enabled?, original_enabled)
+    end
+
     @cohort.update!(public_title: "Public course")
     as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
     assert_equal "Public course", response.parsed_body.dig("dashboard", "pending_purchases", 0, "course_name")
