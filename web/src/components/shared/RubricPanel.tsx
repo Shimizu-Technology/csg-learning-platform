@@ -6,7 +6,7 @@ const labels: Record<RubricRating, string> = {
   exceeds: 'Exceeds',
   meets: 'Meets',
   developing: 'Developing',
-  redo: 'Needs revision',
+  redo: 'Needs redo',
 }
 
 const tones: Record<RubricRating, BadgeTone> = {

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
 import { formatShortDate } from '../../lib/format'
 import { reviewTiming } from '../../lib/reviewCopy'
@@ -10,6 +11,30 @@ import type { DashboardData, StudentToday } from '../../types/api'
 export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss }: { data: DashboardData; today: StudentToday; lessonPath: string | null; learnPath: string; onDismiss: () => void }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const { enrollments } = useAuthContext()
+  const cohortId = data.cohort?.id
+  const enrollmentId = enrollments?.find((item) => item.cohort.id === cohortId)?.id
+  const modules = data.modules ?? []
+  const githubModuleIds = modules.filter((item) => data.cohort?.requires_github || item.module_type === 'prework').map((item) => item.id).join(',')
+  const showGithubSetup = Boolean(enrollmentId && data.cohort?.features?.github_app && data.cohort.features.github_sync !== false && (data.cohort.requires_github || githubModuleIds))
+  const [githubSetupNeeded, setGithubSetupNeeded] = useState(false)
+  useEffect(() => {
+    if (!showGithubSetup || !enrollmentId) return
+    let current = true
+    void api.getGithubRepositoryBindings(enrollmentId).then(({ data: setup }) => {
+      if (!current || !setup) return
+      const verified = (moduleId: number | null) => {
+        const binding = setup.bindings.find((item) => item.curriculum_module_id === moduleId)
+          ?? setup.bindings.find((item) => item.curriculum_module_id === null)
+        return binding?.verification_state === 'verified' && binding.verified_at && binding.repository_id
+          && setup.installations.some((installation) => installation.id === binding.github_app_installation_id)
+      }
+      const moduleIds = githubModuleIds ? githubModuleIds.split(',').map(Number) : [null]
+      setGithubSetupNeeded(!setup.github_identity.id || moduleIds.some((id) => !verified(id)))
+    }).catch(() => { /* An unavailable check leaves the welcome usable. */ })
+    return () => { current = false }
+  }, [enrollmentId, githubModuleIds, showGithubSetup])
+
   async function dismiss() {
     if (!data.cohort || saving) return
     setSaving(true); setError('')
@@ -49,7 +74,11 @@ export function FirstRunWelcome({ data, today, lessonPath, learnPath, onDismiss 
         {today.support.mode !== 'none' && ' Stuck? Use Ask for help on the lesson.'}
         {today.support.ends_on && <> {today.support.ended ? 'Support ended on' : 'Support until'} <strong>{formatShortDate(today.support.ends_on)}</strong>.</>}
       </Step>
-      <Step number={3} title={next ? `Start with ${next.title}` : 'Explore Learn'}>Get to know lessons, submitting work, and getting help.</Step>
+      {githubSetupNeeded && data.cohort && <Step number={3} title="Connect GitHub">
+        Connect your account and verify your repository so Learn can receive your exercises.{' '}
+        <LinkButton variant="secondary" to={`/profile#github-repository-${data.cohort.id}`}>Connect GitHub</LinkButton>
+      </Step>}
+      <Step number={githubSetupNeeded && data.cohort ? 4 : 3} title={next ? `Start with ${next.title}` : 'Explore Learn'}>Get to know lessons, submitting work, and getting help.</Step>
     </ol>
     <div className="mt-4 flex flex-wrap gap-2">
       {next && lessonPath && <LinkButton to={lessonPath} state={{ returnTo: `/dashboard?cohort_id=${data.cohort!.id}`, returnLabel: 'Today' }} className="max-w-full"><span className="min-w-0 [overflow-wrap:anywhere]">Start {next.title}</span><ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /></LinkButton>}

@@ -19,10 +19,10 @@ export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { 
   const paths = useLearnerPaths(cohortId)
   // The new student experience links the waiting count to My work (L-1.2).
   const { v2 } = useStudentExperience()
-  return <section aria-label="Your personal learning plan" className="app-surface space-y-5 p-5 sm:p-6">
+  return <section aria-label="Your catch-up plan" className="app-surface space-y-5 p-5 sm:p-6">
     <div>
-      <p className="app-eyebrow">Your personal plan</p>
-      <h2 className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.title}</h2>
+      <h2 className="text-xl font-bold text-ink">Your catch-up plan</h2>
+      <p className="mt-1 font-semibold text-ink [overflow-wrap:anywhere]">{plan.title}</p>
       {/* Staff write the note in the shared Markdown editor (§9); read it through the one renderer. */}
       {plan.description && <div className="mt-2 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={plan.description} /></div>}
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-ink-secondary">

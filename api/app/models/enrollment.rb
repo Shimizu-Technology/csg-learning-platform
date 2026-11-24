@@ -103,12 +103,28 @@ class Enrollment < ApplicationRecord
     availability_dates.compact.all? { |date| date.in_time_zone(LearningCalendar::TIMEZONE).to_date <= cutoff_date }
   end
 
+  def media_available_for_read?(*availability_dates)
+    return true unless paused?
+
+    cutoff = paused_at || read_cutoff_at
+    return false unless cutoff
+
+    availability_dates.compact.all? do |value|
+      if value.instance_of?(Date)
+        value <= read_cutoff_date
+      else
+        value <= cutoff
+      end
+    end
+  end
+
   def recording_available_for_read?(recording)
-    recording.published? && content_available_for_read?(recording.created_at, recording.published_at || recording.updated_at, recording.recorded_date)
+    recorded_on = recording.recorded_date&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date
+    recording.published? && media_available_for_read?(recording.created_at, recording.published_at || recording.updated_at, recorded_on)
   end
 
   def resource_available_for_read?(resource)
-    resource.ready? && content_available_for_read?(resource.created_at, resource.ready_at || resource.updated_at)
+    resource.ready? && media_available_for_read?(resource.created_at, resource.ready_at || resource.updated_at)
   end
 
   def record_pause_date

@@ -1,7 +1,7 @@
 import { formatShortDateTime } from '../../lib/format'
 import { useBackLink } from '../../lib/recordOrigin'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Clock3, List } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -53,6 +53,7 @@ export function LessonExperience({
     return () => { ownership.current += 1 }
   }, [lesson.id, lesson.cohort_id])
   const [outlineOpen, setOutlineOpen] = useState(false)
+  const navigate = useNavigate()
   const [search, setSearch] = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -69,7 +70,12 @@ export function LessonExperience({
   const isLibrary = outline?.mode === 'library'
   const section = outline?.mode === 'program' ? group?.label : module ? `Section ${module.number}` : undefined
   const nextLabel = navigation?.next_redo ? `Redo: ${next?.title}` : navigation?.next_module ? `Start next module: ${next?.title}` : `Next: ${next?.title}`
-  async function markComplete() {
+  const completeAndContinue = !readOnly && !isLibrary && next && lesson.learner_status !== 'done'
+    && navigation?.manual_block_ids.length
+    && lesson.content_blocks.some((block) => block.block_type === 'text')
+    && lesson.content_blocks.every((block) => ['text', 'video', 'recording'].includes(block.block_type))
+
+  async function markComplete(continueTo?: number) {
     if (saving || readOnly || !navigation) return
     const request = ++ownership.current
     const ownsRequest = () => currentLesson.current === lessonKey && ownership.current === request
@@ -83,6 +89,7 @@ export function LessonExperience({
           throw new Error(result.error || 'Couldn’t save your progress. Try again.')
       }
       if (ownsRequest()) await reload()
+      if (ownsRequest() && continueTo) navigate(paths.lesson(continueTo), { state: backState })
     } catch (failure) {
       if (!ownsRequest()) return
       setSaveError(failure instanceof Error ? failure.message : 'Couldn’t save your progress. Try again.')
@@ -219,11 +226,11 @@ export function LessonExperience({
           </LinkButton>
         )}
         {!readOnly && Boolean(navigation?.manual_block_ids.length) && (
-          <Button variant={next ? 'secondary' : 'primary'} onClick={() => void markComplete()} disabled={saving}>
-            {saving ? 'Saving…' : 'Mark complete'}
+          <Button variant={next && !completeAndContinue ? 'secondary' : 'primary'} onClick={() => void markComplete(completeAndContinue ? next.id : undefined)} disabled={saving}>
+            {saving ? 'Saving…' : completeAndContinue ? 'Mark complete and continue' : 'Mark complete'}
           </Button>
         )}
-        {next && (
+        {next && !completeAndContinue && (
           <LinkButton
             state={backState}
             to={paths.lesson(next.id)}

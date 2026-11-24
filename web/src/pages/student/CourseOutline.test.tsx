@@ -167,7 +167,7 @@ it('tells a paused learner their past lessons stay open, without a next step', a
   const outline = program()
   Object.assign(outline, { read_only: true, enrollment_status: 'paused', paused_since: '2026-11-14', next_lesson: null, current_group_key: null, filters: { todo: 0, redo: 1 } })
   await render(outline)
-  expect(container.textContent).toContain('Your enrollment is paused since Nov 14')
+  expect(container.textContent).toContain('Paused since Nov 14')
   expect(container.querySelector('[data-testid="continue-bar"]')).toBeNull()
   expect(Array.from(container.querySelectorAll('[role="group"][aria-label="Show"] button')).map((item) => item.textContent)).toEqual(['All', 'Needs redo1'])
 })

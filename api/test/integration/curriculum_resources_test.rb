@@ -120,12 +120,12 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "paused file and class link availability use inclusive Guam dates at midnight" do
+  test "paused file and class link availability uses the exact pause time" do
     travel_to Time.utc(2026, 11, 16, 1) do
       @enrollment.update!(status: :paused, access_expires_at: 1.month.from_now)
       @enrollment.update_column(:paused_at, Time.utc(2026, 11, 14, 16))
       @resource.update_column(:created_at, Time.utc(2026, 11, 14))
-      [ [ Time.utc(2026, 11, 15, 13, 59, 59), :success ], [ Time.utc(2026, 11, 15, 14), :forbidden ] ].each do |available_at, expected|
+      [ [ Time.utc(2026, 11, 14, 16), :success ], [ Time.utc(2026, 11, 14, 16, 0, 1), :forbidden ] ].each do |available_at, expected|
         @resource.update_column(:ready_at, available_at)
         @cohort.update_column(:settings, { "class_resources" => [ { "title" => "Guam boundary link", "url" => "https://example.com/boundary", "available_at" => available_at.iso8601 } ] })
         with_storage do

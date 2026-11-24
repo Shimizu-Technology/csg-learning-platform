@@ -597,14 +597,14 @@ describe('manual completion feedback', () => {
   it.each(['R', 'A'])('shows grade %s and instructor feedback', (grade) => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submission_type: 'manual_complete', submissions: [submission({ grade, feedback: 'Explain your decision.' })] })} />)
     expect(html).toContain('Explain your decision.')
-    expect(html).toContain(grade === 'R' ? 'redo (R)' : 'A (')
+    expect(html).toContain(grade === 'R' ? 'Redo requested' : 'A (')
   })
 })
 
 it.each([
   ['text_submission', 'then resubmit below'],
   ['manual_complete', 'Read the feedback — your instructor will re-check this'],
-  ['prework_github_sync', 'Update your code on GitHub — your instructor will re-check it'],
+  ['prework_github_sync', 'Fix budget_decision.py, then commit and push again'],
 ])('uses accurate redo copy for %s', (submission_type, copy) => {
   const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ block_type: 'exercise', submission_type, submissions: [submission({ grade: 'R', text: null, feedback: 'Unique redo feedback.' })] })} />)
   expect(html).toContain(copy)
@@ -614,6 +614,18 @@ it.each([
     expect(html).not.toContain('No inline code text submitted')
     expect(html).not.toContain('Review complete.')
   }
+})
+
+it('links a GitHub redo directly to the issue with instructor feedback', () => {
+  const block = checkpoint({
+    block_type: 'exercise',
+    submission_type: 'prework_github_sync',
+    submissions: [submission({ grade: 'R', github_issue_url: 'https://github.com/learner/exercises/issues/42' })],
+  })
+  const html = renderToStaticMarkup(<ContentBlockRenderer block={block} repositoryName="learner/exercises" />)
+  expect(html).toContain('push again to learner/exercises')
+  expect(html).toContain('href="https://github.com/learner/exercises/issues/42"')
+  expect(html).toContain('Read feedback on GitHub')
 })
 
 describe('written text submissions', () => {
@@ -637,7 +649,7 @@ it('On shows one server-derived success and hides the revision editor behind an 
   const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: 'submitted', submissions: [submission()] })} cohortId={2} reviewerName="Audreana" /></StudentExperienceProvider>)
   expect(html.match(/Waiting for review\./g)).toHaveLength(1)
   expect(html).toContain('Audreana will review it')
-  expect(html).toContain('View submission #1')
+  expect(html).toContain('View attempt 1')
   expect(html).toContain('Edit and resubmit')
   expect(html).not.toContain('data-editor="editable"')
   expect(html).not.toContain('Revise your answer')
@@ -647,7 +659,7 @@ it('On keeps redo feedback and exactly one editor while the prior answer is coll
   const html = renderToStaticMarkup(<StudentExperienceProvider v2><ContentBlockRenderer block={checkpoint({ learner_state: 'redo_requested', submissions: [submission({ grade: 'R', feedback: 'Keep this important feedback.' })] })} cohortId={2} /></StudentExperienceProvider>)
   expect(html.match(/data-editor="editable"/g)).toHaveLength(1)
   expect(html.match(/Keep this important feedback\./g)).toHaveLength(1)
-  expect(html).toContain('View submission #1')
+  expect(html).toContain('View attempt 1')
   expect(html).not.toContain('<details open')
 })
 

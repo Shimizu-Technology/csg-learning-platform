@@ -11,7 +11,7 @@ export function KnowledgeCheckBlock({ controller, ...props }: ContentBlockRender
         <section className="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-semibold text-ink-muted">Quick recall</p>
-            {knowledgeCheck.objective_code && <span className="rounded-full border border-line bg-surface-raised px-2 py-0.5 font-mono text-xs font-semibold text-ink-secondary">{knowledgeCheck.objective_code}</span>}
+            {isStaff && knowledgeCheck.objective_code && <span className="rounded-full border border-line bg-surface-raised px-2 py-0.5 font-mono text-xs font-semibold text-ink-secondary">{knowledgeCheck.objective_code}</span>}
           </div>
           <p className="mt-2 text-base font-semibold leading-6 text-ink">{knowledgeCheck.prompt}</p>
           <div className="mt-4 grid gap-2">

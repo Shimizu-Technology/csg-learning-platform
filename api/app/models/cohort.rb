@@ -182,7 +182,7 @@ class Cohort < ApplicationRecord
 
     available_at = Time.iso8601(resource["available_at"]) if resource["available_at"].present?
     recorded_on = Date.iso8601(resource[date_key]) if date_key && resource[date_key].present?
-    enrollment.content_available_for_read?(available_at || updated_at, recorded_on)
+    enrollment.media_available_for_read?(available_at || updated_at, recorded_on)
   rescue ArgumentError
     false
   end

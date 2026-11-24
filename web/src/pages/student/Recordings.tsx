@@ -1,3 +1,4 @@
+import { PausedLearningBanner, useSelectedCoursePaused } from '../../components/student/PausedLearningBanner'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { activityReturnPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
@@ -158,6 +159,7 @@ export function Recordings() {
   useEffect(() => {
     if (legacyReturnTo) navigate(`${location.pathname}${location.search}`, { replace: true, state: { returnTo: legacyReturnTo, returnLabel: 'Notifications' } })
   }, [legacyReturnTo, location.pathname, location.search, navigate])
+  const paused = useSelectedCoursePaused(selectedCohortId)
   const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
   const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' }, { legacyInbox: v2 })
   const backTo = v2 ? originBack.to : todayPath
@@ -168,6 +170,8 @@ export function Recordings() {
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
   const [capabilities, setCapabilities] = useState<LearnerCapabilities | undefined>()
+  const [pause, setPause] = useState<{ cohortId: number; since: string | null } | null>(null)
+  const pausedBanner = paused && <PausedLearningBanner cohortId={selectedCohortId} pausedSince={pause?.cohortId === selectedCohortId ? pause?.since ?? null : null} />
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
@@ -189,7 +193,10 @@ export function Recordings() {
     setLoading(true)
     setCapabilities(undefined)
     if (!isStaff && selectedCohortId) api.getDashboard(selectedCohortId).then((res) => {
-      if (generation === requestGeneration.current && res.data && !res.fromCache) setCapabilities(res.data.dashboard.capabilities)
+      if (generation !== requestGeneration.current || !res.data || res.fromCache) return
+      const dashboard = res.data.dashboard
+      setCapabilities(dashboard.capabilities)
+      if (dashboard.cohort?.id === selectedCohortId) setPause({ cohortId: selectedCohortId, since: dashboard.paused_since ?? null })
     }).catch(() => { /* No verified capabilities: playback remains read only. */ })
     setLegacyRecordings([])
     setS3Recordings([])
@@ -331,12 +338,12 @@ export function Recordings() {
 
   if (totalCount === 0) {
     return (
-      <EmptyState headingLevel={1}
+      <div className="app-page">{pausedBanner}<EmptyState headingLevel={1}
         icon={PlayCircle}
         action={activityBack}
-        title="No recordings yet"
-        description="Class recordings will appear here once your instructor adds them."
-      />
+        title={paused ? 'No recordings available before your pause' : 'No recordings yet'}
+        description={paused ? 'Recordings published before you paused appear here.' : 'Class recordings will appear here once your instructor adds them.'}
+      /></div>
     )
   }
 
@@ -350,7 +357,8 @@ export function Recordings() {
 
   return (
     <div className="app-page">
-      {capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
+      {pausedBanner}
+      {!paused && capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           Showing saved recordings while your connection catches up.
