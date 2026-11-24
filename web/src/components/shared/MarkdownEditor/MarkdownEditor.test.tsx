@@ -149,6 +149,57 @@ describe('calm composer: formatting behind Aa', () => {
   })
 })
 
+describe('compact field toolbar on phones', () => {
+  it('folds the top formatting row behind Aa and caps the box at 88px', async () => {
+    const original = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    })
+    try {
+      const { host, button, surface } = await mount({ compactToolbar: true, minHeight: 44, maxHeight: 160 })
+      const row = host.querySelector('[role="toolbar"]')!.parentElement!
+      expect(row.className).toContain('hidden sm:flex')
+      expect(surface()).toBeTruthy()
+      expect((host.querySelector('[data-md-rich]') as HTMLElement).style.maxHeight).toBe('88px')
+      const toggle = button('Formatting toolbar')
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+      act(() => toggle.click())
+      expect(button('Formatting toolbar').getAttribute('aria-expanded')).toBe('true')
+      expect(row.className).not.toContain('hidden')
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: original })
+    }
+  })
+
+  it('clamps Markdown preview minHeight to the compact 88px cap when minHeight is omitted', async () => {
+    const original = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    })
+    try {
+      window.localStorage.setItem('csg-editor-preferences:signed-out', JSON.stringify({ mode: 'markdown', enterSends: true }))
+      const { host, button } = await mount({ compactToolbar: true, defaultValue: '**Hello**' })
+      act(() => button('Formatting toolbar').click())
+      act(() => button('Preview').click())
+      const previewRegion = host.querySelector('[role="region"][aria-label^="Preview of"]') as HTMLElement
+      expect(previewRegion).toBeTruthy()
+      expect(previewRegion.style.maxHeight).toBe('88px')
+      expect(previewRegion.style.minHeight).toBe('88px')
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: original })
+    }
+  })
+
+  it('leaves the field toolbar alone without compactToolbar', async () => {
+    const { host, button } = await mount({ maxHeight: 160 })
+    expect(host.querySelector('[role="toolbar"]')!.parentElement!.className).not.toContain('hidden sm:flex')
+    expect(button('Formatting toolbar')).toBeUndefined()
+    expect((host.querySelector('[data-md-rich]') as HTMLElement).style.maxHeight).toBe('160px')
+  })
+})
+
 describe('Enter in the composer (§9.7)', () => {
   it('sends on Enter by default; Shift+Enter, lists and code blocks add a line', async () => {
     const onSubmit = vi.fn()
