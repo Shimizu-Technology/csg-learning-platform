@@ -212,7 +212,7 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
         {loaded && instructors.length === 0 && <p className="text-sm sm:col-span-2">Assign an instructor to this cohort first. <Link className="app-link" to={`/admin/cohorts/${cohort.id}?tab=team`}>Open Teaching team</Link></p>}
         <label className="text-sm font-semibold">Support instructor<select className="app-control mt-1 min-h-11 w-full" value={instructor} onChange={(event) => setInstructor(event.target.value)} disabled={!loaded}><option value="">Choose an assigned instructor</option>{instructors.map((entry) => <option key={entry.id} value={entry.id}>{entry.full_name || entry.email}</option>)}</select></label>
         <label className="text-sm font-semibold">
-          Seat limit
+          Paid checkout seat limit
           <input
             id="offering-seat-limit"
             className="app-control mt-1 min-h-11 w-full"
@@ -226,9 +226,19 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
             value={seatLimit}
             onChange={(event) => setSeatLimit(event.target.value)}
           />
-          <span id="offering-seat-limit-help" className="mt-1 block text-xs font-normal text-ink-secondary">
-            Leave blank for unlimited seats. Includes active enrollments and open checkout sessions.
-            {cohort.seat_limit != null && cohort.seats_taken != null ? ` Currently ${cohort.seats_taken} of ${cohort.seat_limit} seats occupied${cohort.sold_out ? ' (full)' : ''}.` : ''}
+          <span id="offering-seat-limit-help" className="mt-1 block text-xs font-normal leading-5 text-ink-secondary">
+            Leave blank for unlimited seats. Counts active, unexpired paused, and unexpired completed enrollments plus open checkout holds. Staff enrollment can still add learners over this limit; paid checkout stops when full.
+            {cohort.seat_limit != null && cohort.seats_taken != null ? (
+              <>
+                {' '}Currently <strong>{cohort.seats_taken} of {cohort.seat_limit}</strong> seats occupied
+                {typeof cohort.occupied_enrollments_count === 'number' && typeof cohort.pending_checkouts_count === 'number'
+                  ? ` (${cohort.occupied_enrollments_count} enrollments, ${cohort.pending_checkouts_count} open checkouts)`
+                  : ''}
+                {cohort.sold_out ? ' — full' : ''}.
+              </>
+            ) : typeof cohort.seats_taken === 'number' && cohort.seats_taken > 0 ? (
+              <> Currently {cohort.seats_taken} occupied.</>
+            ) : null}
           </span>
           {seatLimitInvalid && <span role="alert" className="mt-1 block text-xs font-medium text-danger-ink">Enter a whole number of at least 1, or leave blank for unlimited.</span>}
         </label>

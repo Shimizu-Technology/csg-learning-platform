@@ -1,5 +1,5 @@
 import { useCallback, useId, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { ArrowDown, ArrowUp, Code2, Copy, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Code2, Copy, GripVertical, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { Modal } from '../../../components/shared/Modal'
 import { LazyMarkdownEditor } from '../../../components/shared/LazyMarkdownEditor'
 import { MarkdownRenderer } from '../../../components/shared/MarkdownRenderer'
@@ -9,14 +9,14 @@ import { VideoVersionsEditor } from '../../../components/admin/VideoVersionsEdit
 import { VideoUploadField } from '../../../components/admin/VideoUploadField'
 import { AdminVideoPreview } from '../../../components/admin/AdminVideoPreview'
 import { VideoSegmentEditor } from '../../../components/admin/VideoSegmentEditor'
+import { buildSubmissionConfigWithRunner, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../../lib/codeRunner'
 import { sectionDuration, videoSectionErrors } from '../../../lib/videoSectionDraft'
 import { Badge } from '../../../components/ui/Badge'
 import { Button, IconButton } from '../../../components/ui/Button'
-import { OverflowMenu } from '../../../components/ui/OverflowMenu'
 import type { BlockLearnerActivity } from '../../../types/api'
 import { BLOCK_ICONS } from './AddBlockMenu'
 import { BLOCK_LABELS, emptyCheck, type BlockDraft, type CheckDraft } from './blockDraft'
-import { REVIEWED_SUBMISSION_TYPES } from './submissionTypes'
+import { REVIEWED_SUBMISSION_TYPES, SUBMISSION_TYPE_OPTIONS, submissionTypeHint } from './submissionTypes'
 
 export function hasLearnerWork(activity?: BlockLearnerActivity) {
   return Boolean(activity && (activity.submissions || activity.progress || activity.watched || activity.check_attempts))
@@ -45,6 +45,8 @@ interface BlockCardProps {
   readOnly?: boolean
   dropIndicator?: 'before' | 'after' | null
   onSelect: () => void
+  onOpenSettings?: () => void
+  onSaveBlock?: () => void
   onChange: (patch: Partial<BlockDraft>) => void
   onAddVideoVersion?: (version: VideoVersion) => boolean
   onMove: (to: number) => void
@@ -59,7 +61,7 @@ interface BlockCardProps {
 
 export function BlockCard({
   block, index, total, lessonId, activity, selected, problem, readOnly = false, dropIndicator,
-  onSelect, onChange, onAddVideoVersion, onMove, onDuplicate, onDelete, onDragStart, onDragOver, onDrop, onDragEnd, canDuplicate,
+  onSelect, onOpenSettings, onSaveBlock, onChange, onAddVideoVersion, onMove, onDuplicate, onDelete, onDragStart, onDragOver, onDrop, onDragEnd, canDuplicate,
 }: BlockCardProps) {
   const id = useId()
   const [solutionOpen, setSolutionOpen] = useState(false)
@@ -138,31 +140,59 @@ export function BlockCard({
           {workSummary && <Badge tone="info">{workSummary}</Badge>}
         </span>
         {!readOnly && (
-          <>
-            <IconButton label={`Duplicate ${label.toLowerCase()} block`} size="sm" onClick={onDuplicate} disabled={!canDuplicate} title={canDuplicate ? undefined : 'A lesson can have at most 20 blocks'}>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <IconButton
+              label={`Move ${label.toLowerCase()} block up`}
+              size="sm"
+              variant="quiet"
+              onClick={() => onMove(index - 1)}
+              disabled={index === 0}
+              title={index === 0 ? 'Already first block' : 'Move up'}
+            >
+              <ArrowUp className="h-4 w-4" />
+            </IconButton>
+            <IconButton
+              label={`Move ${label.toLowerCase()} block down`}
+              size="sm"
+              variant="quiet"
+              onClick={() => onMove(index + 1)}
+              disabled={index === total - 1}
+              title={index === total - 1 ? 'Already last block' : 'Move down'}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </IconButton>
+            <IconButton
+              label={`Duplicate ${label.toLowerCase()} block`}
+              size="sm"
+              variant="quiet"
+              onClick={onDuplicate}
+              disabled={!canDuplicate}
+              title={canDuplicate ? 'Duplicate block' : 'A lesson can have at most 20 blocks'}
+            >
               <Copy className="h-4 w-4" />
             </IconButton>
+            {onOpenSettings && (
+              <IconButton
+                label={`Edit settings for ${label.toLowerCase()} block`}
+                size="sm"
+                variant="quiet"
+                onClick={onOpenSettings}
+                title="Edit block settings"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </IconButton>
+            )}
             <IconButton
               label={work ? `${label} block has learner work and can't be deleted` : `Delete ${label.toLowerCase()} block`}
               size="sm"
               variant="quiet"
               onClick={onDelete}
               disabled={work || total <= 1}
-              title={work ? `Students have work here (${workSummary}). Keep the block so it isn't lost.` : total <= 1 ? 'A lesson needs at least one block' : undefined}
+              title={work ? `Students have work here (${workSummary}). Keep the block so it isn't lost.` : total <= 1 ? 'A lesson needs at least one block' : 'Delete block'}
             >
               <Trash2 className="h-4 w-4" />
             </IconButton>
-            <OverflowMenu
-              label={`More actions for ${label.toLowerCase()} block`}
-              size="sm"
-              items={[
-                ...(index > 0 ? [{ key: 'up', label: 'Move up', icon: <ArrowUp />, onSelect: () => onMove(index - 1) }] : []),
-                ...(index < total - 1 ? [{ key: 'down', label: 'Move down', icon: <ArrowDown />, onSelect: () => onMove(index + 1) }] : []),
-                ...(canDuplicate ? [{ key: 'duplicate', label: 'Duplicate', icon: <Copy />, onSelect: onDuplicate }] : []),
-                ...(!work && total > 1 ? [{ key: 'delete', label: 'Delete', icon: <Trash2 />, onSelect: onDelete, tone: 'danger' as const }] : []),
-              ]}
-            />
-          </>
+          </div>
         )}
       </header>
 
@@ -230,7 +260,16 @@ export function BlockCard({
                   placeholder="https://www.youtube.com/watch?v=…"
                   className="app-control w-full"
                 />
-                {!readOnly && <p className="mt-1.5 text-xs text-ink-muted">To upload a video file instead, wait for this block to save, then choose Upload.</p>}
+                {!readOnly && (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-sunken px-3 py-2">
+                    <p className="text-xs text-ink-secondary">Want to upload a video file instead of pasting a link? Save this block first.</p>
+                    {onSaveBlock && (
+                      <Button variant="secondary" size="sm" onClick={onSaveBlock}>
+                        Save block to upload video
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {block.s3_video_key && !readOnly && <VideoVersionsEditor metadata={block.metadata} onAppendVersion={(version) => onAddVideoVersion?.(version) ?? false} anchorDuration={block.s3_video_duration_seconds} onChange={(metadata) => onChange({ metadata })} />}
@@ -250,6 +289,42 @@ export function BlockCard({
             )}
           </div>
         )}
+
+        {(isExercise || block.block_type === 'checkpoint') && !readOnly && (() => {
+          const runner = normalizeCodeRunnerConfig(block.submission_config, codeRunnerLanguageFromEditor(detectLanguage(block.filename)) || 'ruby')
+          return (
+            <div className="rounded-xl border border-line bg-surface-sunken/50 px-3 py-2.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <label htmlFor={`${id}-students-submit`} className="text-sm font-semibold text-ink-secondary">
+                  Students submit
+                </label>
+                <select
+                  id={`${id}-students-submit`}
+                  value={block.submission_type || ''}
+                  onChange={(event) => {
+                    const value = event.target.value || null
+                    onChange({
+                      submission_type: value,
+                      submission_config: buildSubmissionConfigWithRunner(
+                        block.submission_config,
+                        value === 'text_submission' ? runner : { ...runner, enabled: false },
+                      ),
+                    })
+                  }}
+                  className="app-control w-full sm:w-64"
+                >
+                  {block.submission_type === null && <option value="">Lesson default</option>}
+                  {SUBMISSION_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">{submissionTypeHint(block.submission_type)}</p>
+            </div>
+          )
+        })()}
 
         {isExercise && !readOnly && (
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line px-3 py-2">

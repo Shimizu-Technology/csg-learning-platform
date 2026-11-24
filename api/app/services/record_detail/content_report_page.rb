@@ -33,6 +33,7 @@ class RecordDetail
         reason: report.reason,
         details: report.details,
         status: report.status,
+        resolution_note: report.resolution_note,
         created_at: iso(report.created_at),
         resolved_at: iso(report.resolved_at),
         reporter: account(report.reporter),

@@ -83,6 +83,7 @@ export const ROUTE_TITLES: Array<[path: string, name: string]> = [
   ['/admin/moderation/reports/:id', 'Report'],
   ['/admin/offerings/:id', 'Purchases'],
   ['/admin/activity', 'School activity'],
+  ['/admin/settings', 'School settings'],
   ['/admin/moderation', 'Safety'],
   ['/admin/team', 'Team'],
   ['/admin/team/:id', 'Team member'],

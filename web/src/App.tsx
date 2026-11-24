@@ -64,6 +64,7 @@ import {
   Moderation,
   InterventionDetail,
   HelpRequestDetail,
+  SchoolSettings,
   TeamManagement,
   TeamMemberDetail,
 } from './lib/routePreload'
@@ -191,6 +192,7 @@ function AppRoutes() {
 
             {/* Admin-only routes */}
             <Route element={<ProtectedRoute requiredRole="admin" />}>
+              <Route path="/admin/settings" element={<SuspendedRoute><SchoolSettings /></SuspendedRoute>} />
               <Route path="/admin/content/submission-audit" element={<SuspendedRoute><SubmissionAudit /></SuspendedRoute>} />
               <Route path="/admin/activity" element={<SuspendedRoute><AdminActivity /></SuspendedRoute>} />
               <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />

@@ -166,7 +166,8 @@ export function Students({ cohort }: { cohort: CohortDetail }) {
           <div>
             <h2 className="text-lg font-bold text-ink">Access and invitations</h2>
             <p className="mt-1 text-sm text-ink-secondary">
-              Cohort entry, app account invitation, and GitHub membership are tracked separately.
+              Cohort entry, app account invitation, and GitHub organization membership are tracked separately.
+              {cohort.github_organization_name && ' GitHub organization membership is separate from personal repository access used for exercise sync.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

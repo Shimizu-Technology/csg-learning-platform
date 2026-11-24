@@ -2,11 +2,10 @@ import { CourseCompletionStatus } from '../../components/student/CourseCompletio
 import { GithubRepositorySettings } from '../../components/shared/GithubRepositorySettings'
 import { PurchaseReceipt } from '../../components/student/PurchaseReceipt'
 import { ReminderPreference } from '../../components/student/ReminderPreference'
-import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { AtSign, Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Palette, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
+import { AtSign, Bell, Building2, Check, ChevronRight, FileText, Github, History, KeyRound, LogOut, Mail, Palette, Save, ShieldCheck, SlidersHorizontal, Trash2, UserCog, UserX } from 'lucide-react'
 import { ThemeChoice } from '../../components/shared/ThemeChoice'
 import { useClerk } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
@@ -15,7 +14,6 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useAuthContext } from '../../contexts/AuthContext'
-import { AgentPostingTokens } from '../../components/admin/AgentPostingTokens'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
@@ -342,8 +340,37 @@ export function Profile() {
 
       {githubEnrollments.map(enrollment => <GithubRepositorySettings key={enrollment.id} enrollmentId={enrollment.id} studentCohortId={enrollment.cohort_id} onReconnectAvailabilityChange={onGithubReconnectAvailabilityChange} title={`${enrollment.cohort_name} · GitHub repository`} />)}
 
-      {sessionUser?.role === 'admin' && <><FeatureSettings />
-            <AgentPostingTokens /></>}
+      {sessionUser?.role === 'admin' && (
+        <section className="app-surface overflow-hidden" aria-labelledby="profile-school-settings-title">
+          <div className="border-b border-line px-5 py-4 sm:px-6">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+              <h2 id="profile-school-settings-title" className="text-lg font-bold tracking-tight text-ink">School settings</h2>
+            </div>
+            <p className="mt-1 text-sm leading-6 text-ink-secondary">School-wide feature defaults, branding verification, and assistant tokens now live in Admin Settings.</p>
+          </div>
+          <Link to="/admin/settings" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><SlidersHorizontal className="h-5 w-5" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Feature switches &amp; school defaults</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Turn school-wide capabilities on or off and set review response defaults.</span></span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+          </Link>
+          <Link to="/admin/settings?tab=identity" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><Building2 className="h-5 w-5" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">School identity</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Verify white-label name, logo, support address, email sender, and time zone.</span></span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+          </Link>
+          <Link to="/admin/settings?tab=changes" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><History className="h-5 w-5" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Feature switch change history</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">See who changed school or cohort switches and when.</span></span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+          </Link>
+          <Link to="/admin/settings?tab=tokens" className="pressable flex min-h-16 items-center gap-3 px-5 py-4 hover:bg-surface-sunken sm:px-6">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><KeyRound className="h-5 w-5" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Assistant posting tokens</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Create or revoke scoped tokens for automated updates.</span></span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+          </Link>
+        </section>
+      )}
 
       <section className="app-surface overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-6">

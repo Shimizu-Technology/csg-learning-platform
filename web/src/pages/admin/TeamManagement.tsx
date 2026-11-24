@@ -3,7 +3,7 @@ import { urlParsers, useUrlParam } from '../../lib/useUrlState'
 
 const TEAM_VIEW = urlParsers.oneOf(['active', 'archived'] as const, 'active')
 import { useLocation } from 'react-router-dom'
-import { Activity, Archive, UserPlus, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
+import { Activity, Archive, UserPlus, Pencil, Trash2, RotateCcw, Check, SlidersHorizontal } from 'lucide-react'
 import { api } from '../../lib/api'
 import { teamMemberPath } from '../../lib/routes'
 import { Modal } from '../../components/shared/Modal'
@@ -295,11 +295,18 @@ export function TeamManagement() {
           <h1 className="app-title mt-2">Team</h1>
           <p className="app-description mt-2">Manage instructors and administrators.</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)} className="shrink-0">
-          <UserPlus className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Add team member</span>
-          <span className="sm:hidden">Add</span>
-        </Button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <LinkButton variant="secondary" to="/admin/settings">
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">School settings</span>
+            <span className="sm:hidden">Settings</span>
+          </LinkButton>
+          <Button onClick={() => setShowAddModal(true)} className="shrink-0">
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Add team member</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
+        </div>
       </header>
 
       <SegmentedControl label="Team members view" className="self-start">

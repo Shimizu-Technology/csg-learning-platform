@@ -4,7 +4,9 @@ import { BulkEnrollment } from '../../components/admin/BulkEnrollment'
 import { CohortEnrollment } from '../../components/admin/CohortEnrollment'
 import { CohortHomePanel } from '../../components/admin/CohortHomePanel'
 import { CohortScheduleManager } from '../../components/admin/CohortScheduleManager'
+import { CohortSetupChecklist } from '../../components/admin/CohortSetupChecklist'
 import { CohortTeachingTeam } from '../../components/admin/CohortTeachingTeam'
+import { GithubSyncHealthPanel } from '../../components/admin/GithubSyncHealthPanel'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { SetupWizard } from '../../components/admin/SetupWizard'
 import { StaffActivityFeed } from '../../components/admin/StaffActivityFeed'
@@ -21,7 +23,7 @@ import { PreviewLink as Link, ReturnOrigin } from '../../contexts/PreviewNavigat
 import { api } from '../../lib/api'
 import { forwardReturnState } from '../../lib/navigationContext'
 import { relatedRows } from '../../lib/recordRelated'
-import { cohortPath, cohortSettingsPath, cohortStudentViewPath, type CohortWorkspaceTab } from '../../lib/routes'
+import { cohortPath, cohortSettingsPath, cohortStudentViewPath } from '../../lib/routes'
 import { CohortSettings } from './CohortDetail'
 import { Communication } from './cohortWorkspace/Communication'
 import { Insights } from './cohortWorkspace/Insights'
@@ -170,8 +172,9 @@ function Workspace({ cohortId }: { cohortId: number }) {
           />
         )}
         {activeTab === 'overview' && user?.is_admin && (
-          <>
-            {cohort.course_delivery === 'self_paced' ? (
+          <div className="space-y-6">
+            <CohortSetupChecklist cohort={cohort} />
+            {cohort.course_delivery === 'self_paced' && (
               <SetupWizard
                 cohort={cohort}
                 onSaved={() => {
@@ -180,32 +183,11 @@ function Workspace({ cohortId }: { cohortId: number }) {
                   })
                 }}
               />
-            ) : (
-              <section className="app-surface p-5">
-                <h2 className="font-bold">Setup checklist</h2>
-                <ul className="mt-3 space-y-2">
-                  {[
-                    ['Curriculum published', cohort.offering_readiness?.published_content, 'learning'],
-                    ['Instructor assigned', cohort.instructor_assigned, 'team'],
-                    ['Students added', cohort.students.length > 0, 'students'],
-                  ].map(([label, ready, tab]) => (
-                    <li key={String(label)}>
-                      <Link
-                        className="app-link inline-flex min-h-11 items-center"
-                        to={cohortPath(cohort.id, tab as CohortWorkspaceTab)}
-                      >
-                        {ready ? 'Ready: ' : 'Needed: '}
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <Link className="app-link" to={cohortPath(cohort.id, 'settings')}>
-                  Change delivery in Settings
-                </Link>
-              </section>
             )}
-          </>
+          </div>
+        )}
+        {activeTab === 'overview' && (cohort.features?.github_app === true || cohort.modules.some((mod) => mod.requires_github)) && (
+          <GithubSyncHealthPanel cohortId={cohort.id} compact />
         )}
         {activeTab === 'overview' && (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
@@ -228,6 +210,8 @@ function Workspace({ cohortId }: { cohortId: number }) {
             {user?.is_admin && (
               <BulkEnrollment
                 cohortId={cohort.id}
+                seatLimit={cohort.seat_limit}
+                seatsTaken={cohort.seats_taken}
                 onSaved={() => {
                   void api.getCohort(cohort.id).then((r) => {
                     if (r.data) setCohort(r.data.cohort)
@@ -238,6 +222,8 @@ function Workspace({ cohortId }: { cohortId: number }) {
             {user?.is_admin && (
               <CohortEnrollment
                 cohortId={cohort.id}
+                seatLimit={cohort.seat_limit}
+                seatsTaken={cohort.seats_taken}
                 onSaved={() =>
                   api.getCohort(cohort.id).then((result) => {
                     if (result.data) setCohort(result.data.cohort)

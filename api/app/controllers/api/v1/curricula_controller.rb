@@ -116,6 +116,7 @@ module Api
               submissions_count: evidence[:submissions].fetch(m.id, 0),
               deletion_blocked: evidence[:blocked].include?(m.id),
               lessons_count: lessons.count { |lesson| !lesson.archived? },
+              draft_lessons_count: lessons.count { |lesson| !lesson.archived? && !lesson.published? },
               archived_lessons_count: lessons.count(&:archived?),
               lessons: lessons.map { |l|
                 exercise_block = l.content_blocks.find(&:exercise_like?)
@@ -126,6 +127,7 @@ module Api
                   position: l.position,
                   release_day: l.release_day,
                   required: l.required,
+                  published: l.published?,
                   archived_at: l.archived_at,
                   updated_at: l.updated_at.iso8601(6),
                   requires_submission: exercise_block ? exercise_block.review_required? : l.requires_submission,

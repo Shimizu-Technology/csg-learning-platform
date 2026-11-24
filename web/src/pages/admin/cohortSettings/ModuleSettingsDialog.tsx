@@ -120,6 +120,24 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                     ? ' Right now this module is still using the cohort-based fallback.'
                     : ''}
                 </p>
+                <div className="mt-2 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-secondary space-y-1">
+                  <p className="tabular-nums">
+                    <strong className="text-ink">First lesson opens:</strong>{' '}
+                    {form.module_start_date
+                      ? `${formatDateLabel(form.module_start_date)} (${schoolTimeDescription()})`
+                      : 'Uses cohort start date fallback'}
+                  </p>
+                  {(() => {
+                    const firstWindow = windowForms[0]
+                    const firstClose = firstWindow ? submissionWindowCloseAt(firstWindow) : null
+                    return (
+                      <p className="tabular-nums">
+                        <strong className="text-ink">First weekly close:</strong>{' '}
+                        {firstClose ? formatShortDateTime(firstClose) : 'No close time set (submissions stay open)'}
+                      </p>
+                    )
+                  })()}
+                </div>
               </div>
 
               <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
@@ -171,8 +189,12 @@ export function ModuleSettingsDialog({ settings }: { settings: CohortSettingsCon
                   <div>
                     <h3 className="text-base font-semibold text-ink">Submission windows</h3>
                     <p className="mt-1 text-xs leading-5 text-ink-muted">
-                      Set a close time for each week. Students can still view lessons and videos after a week closes,
-                      but submissions and redo resubmissions are blocked.
+                      Set a close time for each week in {schoolTimeDescription()}. Students can still view lessons and
+                      videos after a week closes.
+                    </p>
+                    <p className="mt-2 rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-xs leading-5 text-warning-ink">
+                      <strong>Heads up:</strong> Weekly closure blocks <strong>both new submissions and Redos</strong>{' '}
+                      once the close time passes. Use a learner extension if someone needs extra time for a Redo.
                     </p>
                   </div>
                   <Button

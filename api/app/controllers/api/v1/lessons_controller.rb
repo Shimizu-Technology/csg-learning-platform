@@ -77,7 +77,7 @@ module Api
 
       # POST /api/v1/modules/:module_id/lessons
       def create
-        lesson = @module.lessons.new(lesson_params)
+        lesson = @module.all_lessons.new(lesson_params)
         if lesson.save
           render json: { lesson: lesson_json(lesson) }, status: :created
         else
@@ -97,16 +97,17 @@ module Api
         return if performed?
 
         ActiveRecord::Base.transaction do
-          position = @module.lessons.where(release_day: params[:release_day].to_i).maximum(:position).to_i + 1
+          position = @module.all_lessons.where(archived_at: nil, release_day: params[:release_day].to_i).maximum(:position).to_i + 1
           submission_type = normalized_submission_type_for_create
           requires_submission = submission_type != "manual_complete"
 
-          @lesson = @module.lessons.create!(
+          @lesson = @module.all_lessons.create!(
             title: params[:title],
             lesson_type: :exercise,
             position: position,
             release_day: params[:release_day].to_i,
             required: params.key?(:required) ? ActiveModel::Type::Boolean.new.cast(params[:required]) : true,
+            published: params.key?(:published) ? ActiveModel::Type::Boolean.new.cast(params[:published]) : true,
             requires_submission: requires_submission
           )
 
@@ -326,7 +327,7 @@ module Api
       end
 
       def lesson_params
-        params.permit(:title, :lesson_type, :position, :release_day, :required, :requires_submission)
+        params.permit(:title, :lesson_type, :position, :release_day, :required, :requires_submission, :published)
       end
 
       def pending_video_upload?

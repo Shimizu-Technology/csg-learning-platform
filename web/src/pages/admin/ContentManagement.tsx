@@ -897,7 +897,11 @@ export function ContentManagement() {
             await loadCurricula()
             if (res.data?.lesson)
               navigate(lessonEditorPath(res.data.lesson.id), { state: listLinkState(location, 'Content') })
-            toast.success(`Created exercise "${payload.title}"`)
+            toast.success(
+              payload.published === false
+                ? `Created draft "${payload.title}". Preview and publish when ready.`
+                : `Created exercise "${payload.title}"`,
+            )
           }}
         />
       )}
@@ -1030,6 +1034,7 @@ function ModuleSection({
     SCHEDULE_PATTERN_OPTIONS.find((option) => option.value === mod.schedule_days)?.label || 'MTWTF / Mon–Fri'
 
   const exerciseCount = activeLessons.length
+  const draftCount = activeLessons.filter((lesson) => lesson.published === false).length
 
   const daysInActiveWeek = useMemo(() => {
     return scheduleIndices.map((dayIdx) => {
@@ -1061,6 +1066,7 @@ function ModuleSection({
             <p className="text-xs text-ink-muted capitalize tabular-nums">
               {mod.module_type.replace('_', ' ')} · {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''} ·{' '}
               {weekNumbers.length} week{weekNumbers.length !== 1 ? 's' : ''} · {scheduleLabel}
+              {draftCount > 0 ? ` · ${draftCount} draft` : ''}
               {archivedLessons.length > 0 ? ` · ${archivedLessons.length} archived` : ''}
             </p>
           </div>

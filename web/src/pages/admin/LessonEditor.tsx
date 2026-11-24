@@ -1,7 +1,7 @@
 import { videoVersions, type VideoVersion } from '../../lib/videoVersions'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
+import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, EyeOff, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, Send, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
 import { cohortPath, curriculumPath, lessonEditorPath, lessonRecordPath, moduleRecordPath } from '../../lib/routes'
@@ -15,6 +15,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import { Modal } from '../../components/shared/Modal'
+import { Badge } from '../../components/ui/Badge'
 import { Button, IconButton } from '../../components/ui/Button'
 import { OverflowMenu } from '../../components/ui/OverflowMenu'
 import type { LearningObjective, LessonBlockEditorResponse, LessonDetail, LessonEditAccess, LessonObjective, Rubric } from '../../types/api'
@@ -150,6 +151,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   useEffect(() => () => finishLeaveSave(false), [finishLeaveSave])
   const [watchReset, setWatchReset] = useState<{ ids: number[]; message: string } | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
   const [announcement, setAnnouncement] = useState('')
@@ -553,6 +556,31 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     await load()
   }
 
+  const togglePublish = async (nextPublished: boolean) => {
+    if (!server || publishing) return
+    setPublishing(true)
+    try {
+      if (dirty && !(await save())) return
+      const response = await api.updateLesson(lessonId, {
+        base_updated_at: updatedAtRef.current,
+        published: nextPublished,
+      })
+      setConfirmUnpublish(false)
+      if (response.error) {
+        toast.error(response.error)
+        return
+      }
+      toast.success(
+        nextPublished
+          ? 'Lesson published. Students can see it on its scheduled release day.'
+          : 'Lesson moved to draft. Students can no longer see it.',
+      )
+      await load()
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   const duplicateLesson = async () => {
     if (dirty && !(await save())) return
     setConfirmDuplicate(false)
@@ -603,6 +631,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} back={back} context={server.context} backup={readOnlyBackup} onCopied={openCopy} />
 
   const lesson = server.lesson
+  const isDraft = lesson.published === false && !lesson.archived_at
   const context = server.context
   const otherCohorts = context.used_in
   // Cohorts you don't teach still share the curriculum: counted, never named (L-3.2).
@@ -661,11 +690,26 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
             <span aria-hidden="true"> · </span>
             <span>{weekdayLabel(server, draft.release_day)}</span>
           </nav>
-          <h1 className="truncate text-[15px] font-bold text-ink" title={draft.title}>{draft.title.trim() || 'Untitled lesson'}</h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="truncate text-[15px] font-bold text-ink" title={draft.title}>{draft.title.trim() || 'Untitled lesson'}</h1>
+            {isDraft && <Badge tone="warning">Draft</Badge>}
+          </div>
         </div>
         <span role="status" className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold sm:text-[13px] ${saveState.tone}`}>
           {saveState.icon}<span className="max-sm:sr-only">{saveState.text}</span>
         </span>
+        {isAdmin && isDraft && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
+            disabled={saving || publishing || status === 'conflict' || problems.size > 0}
+            onClick={() => void togglePublish(true)}
+          >
+            <Send className="h-4 w-4" aria-hidden="true" />
+            <span className="max-sm:sr-only">{publishing ? 'Publishing…' : 'Publish lesson'}</span>
+          </Button>
+        )}
         <Button
           size="sm"
           className="min-w-11 shrink-0"
@@ -686,8 +730,13 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
           label="More lesson actions"
           size="sm"
           items={[
-            // Lesson structure (duplicate, move, archive) stays admin-only.
+            // Lesson structure (duplicate, move, publish/unpublish, archive) stays admin-only.
             ...(isAdmin ? [
+              ...(!lesson.archived_at
+                ? isDraft
+                  ? [{ key: 'publish', label: 'Publish lesson', icon: <Send />, onSelect: () => void togglePublish(true) }]
+                  : [{ key: 'unpublish', label: 'Unpublish to draft', icon: <EyeOff />, onSelect: () => setConfirmUnpublish(true) }]
+                : []),
               { key: 'duplicate', label: 'Duplicate lesson', icon: <Copy />, onSelect: () => setConfirmDuplicate(true) },
               ...(lesson.archived_at ? [] : [{ key: 'move', label: 'Move to week or day', icon: <CalendarRange />, onSelect: () => void openMove() }]),
             ] : []),
@@ -732,6 +781,27 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         <div className="flex flex-col gap-3 border-b border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center sm:px-6">
           <p className="min-w-0 flex-1"><strong>Archived lesson.</strong> Students can't see it. Its content, progress and submissions are kept.</p>
           {isAdmin && <Button size="sm" variant="secondary" onClick={() => void archive(true)}><RotateCcw className="h-4 w-4" />Restore lesson</Button>}
+        </div>
+      )}
+
+      {isDraft && (
+        <div className="flex flex-col gap-3 border-b border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center sm:px-6">
+          <p className="min-w-0 flex-1">
+            <strong>Draft lesson.</strong> Hidden from students while you build and preview.
+            {sharingCount > 0 && (
+              <> Publishing makes it visible to {cohortList([...otherCohorts.map((cohort) => cohort.name), ...(context.other_cohorts_count ? [`${context.other_cohorts_count} ${context.other_cohorts_count === 1 ? 'cohort' : 'cohorts'}`] : [])])} on its release schedule.</>
+            )}
+          </p>
+          {isAdmin && (
+            <Button
+              size="sm"
+              disabled={saving || publishing || status === 'conflict' || problems.size > 0}
+              onClick={() => void togglePublish(true)}
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              {publishing ? 'Publishing…' : 'Publish lesson'}
+            </Button>
+          )}
         </div>
       )}
 
@@ -792,6 +862,12 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
                         setInspectorTab('block')
                       }
                     }}
+                    onOpenSettings={() => {
+                      setSelectedKey(block.key)
+                      setInspectorTab('block')
+                      if (mobileInspector) setSettingsOpen(true)
+                    }}
+                    onSaveBlock={() => void save()}
                     onChange={(patch) => updateBlock(block.key, patch)}
                     onAddVideoVersion={(version) => appendVideoVersion(block.key, version, block.s3_video_key)}
                     onMove={(to) => move(index, to)}
@@ -879,6 +955,18 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         footer={<>
           <Button variant="secondary" onClick={() => setConfirmArchive(false)}>Cancel</Button>
           <Button variant="danger" onClick={() => void archive(false)}>Archive lesson</Button>
+        </>}
+      />
+
+      <Modal
+        open={confirmUnpublish}
+        onClose={() => setConfirmUnpublish(false)}
+        size="md"
+        title="Unpublish to draft?"
+        subtitle="Students will no longer see this lesson until you publish it again. Existing progress and submissions are kept."
+        footer={<>
+          <Button variant="secondary" onClick={() => setConfirmUnpublish(false)}>Keep published</Button>
+          <Button variant="danger" disabled={publishing} onClick={() => void togglePublish(false)}>Unpublish to draft</Button>
         </>}
       />
       {/* Leave questions sit above Settings; save confirmations below sit above the leave question. */}

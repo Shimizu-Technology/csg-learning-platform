@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Activity, Archive, ClipboardCheck, Layers, LifeBuoy, Mail, MessageSquareText, PencilLine, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
+import { Activity, Archive, ClipboardCheck, Layers, LifeBuoy, Mail, MessageSquareText, PencilLine, ShieldAlert, UserPlus, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { directMessagePath, safetyPersonPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
@@ -40,6 +40,9 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
   const [error, setError] = useState<string | null>(null)
   const [missing, setMissing] = useState(false)
   const [messaging, setMessaging] = useState(false)
+  const [availableCohorts, setAvailableCohorts] = useState<Array<{ id: number; name: string; status: string }>>([])
+  const [assignCohortId, setAssignCohortId] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const load = useCallback(async () => {
     if (!Number.isInteger(memberId) || memberId <= 0) { setMissing(true); setLoading(false); return }
@@ -52,6 +55,36 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
   }, [memberId])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    if (!member || member.role !== 'instructor' || member.archived_at) return
+    if (typeof api.getCohorts !== 'function') return
+    let active = true
+    void api.getCohorts().then((result) => {
+      if (!active || !result.data) return
+      setAvailableCohorts(
+        result.data.cohorts
+          .filter((cohort) => cohort.status === 'active' || cohort.status === 'upcoming')
+          .map(({ id, name, status }) => ({ id, name, status })),
+      )
+    }).catch(() => {})
+    return () => { active = false }
+  }, [member])
+
+  async function assignToCohort() {
+    if (!member || !assignCohortId || assigning) return
+    setAssigning(true)
+    const result = await api.createCohortInstructorAssignment(Number(assignCohortId), member.id)
+    setAssigning(false)
+    if (result.error) {
+      toast.error(result.error || 'Could not assign to that cohort.')
+      return
+    }
+    const cohortName = availableCohorts.find((c) => c.id === Number(assignCohortId))?.name
+    setAssignCohortId('')
+    toast.success(cohortName ? `Assigned ${member.full_name} to ${cohortName}.` : `Assigned ${member.full_name} to cohort.`)
+    await load()
+  }
 
   // The Team list's Activity button opens this page at #activity.
   const location = useLocation()
@@ -120,7 +153,42 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
             <h2 id="team-member-cohorts" className="text-lg font-bold text-ink">Cohorts they teach</h2>
             <p className="mt-1 text-sm text-ink-secondary">{member.teaching.length
               ? `${running.length} running or upcoming. Lesson editing access is changed on each cohort’s Teaching team tab.`
-              : member.role === 'admin' ? 'Admins can open every cohort, so they aren’t assigned to any.' : 'Not assigned to a cohort yet. Assign them from a cohort’s Teaching team tab.'}</p>
+              : member.role === 'admin' ? 'Admins can open every cohort, so they aren’t assigned to any.' : 'Not assigned to a cohort yet. Assign them below or from a cohort’s Teaching team tab.'}</p>
+            {member.role === 'instructor' && !member.archived_at && (() => {
+              const assignedIds = new Set(member.teaching.map((row) => row.cohort.id))
+              const assignable = availableCohorts.filter((cohort) => !assignedIds.has(cohort.id))
+              if (!assignable.length) return null
+              return (
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <label className="min-w-0 flex-1">
+                    <span className="sr-only">Assign {member.full_name} to a cohort</span>
+                    <select
+                      aria-label="Assign to a cohort"
+                      value={assignCohortId}
+                      onChange={(event) => setAssignCohortId(event.target.value)}
+                      disabled={assigning}
+                      className="app-control w-full"
+                    >
+                      <option value="">Choose a cohort to assign…</option>
+                      {assignable.map((cohort) => (
+                        <option key={cohort.id} value={cohort.id}>
+                          {cohort.name} ({humanize(cohort.status)})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!assignCohortId || assigning}
+                    onClick={() => void assignToCohort()}
+                  >
+                    <UserPlus className="h-4 w-4" aria-hidden="true" />
+                    {assigning ? 'Assigning…' : 'Assign to a cohort'}
+                  </Button>
+                </div>
+              )
+            })()}
           </div>
           {member.teaching.length > 0 && <ul className="divide-y divide-line">{member.teaching.map((row) => (
             <li key={row.cohort.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">

@@ -559,7 +559,7 @@ class GithubReconciliationService
 
     all_blocks = ContentBlock
       .joins(:lesson)
-      .where(lessons: { module_id: module_ids, archived_at: nil })
+      .where(lessons: { module_id: module_ids, archived_at: nil, published: true })
       .where(block_type: [ :exercise, :code_challenge ])
       .where.not(filename: [ nil, "" ])
       .includes(lesson: :curriculum_module)

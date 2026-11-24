@@ -31,6 +31,7 @@ vi.mock('./lib/routePreload', () => ({
   StudentWorkspace: () => null, SubmissionDetail: () => null, StudentManagement: () => null,
   SupportQueue: () => null, Moderation: () => <p>Private safety review</p>, InterventionDetail: () => null,
   HelpRequestDetail: () => null, TeamManagement: () => null, TeamMemberDetail: () => <p>Team member record</p>,
+  SchoolSettings: () => <p>School settings page</p>,
   CurriculumRecord: () => <p>Curriculum record</p>, ModuleRecord: () => <p>Module record</p>, LessonRecord: () => <p>Lesson record</p>,
   RecordingRecord: () => <p>Recording record</p>, OfficeHourRecord: () => <p>Session record</p>, PrivateMeetingRecord: () => <p>Meeting record</p>,
   LearningPlanRecord: () => <p>Plan record</p>, ChannelRecord: () => <p>Conversation record</p>, RubricRecord: () => <p>Rubric record</p>,
@@ -176,4 +177,18 @@ it.each(['student', 'instructor'])('blocks %s from the lazy audit route', async 
   await act(async () => root.render(<App />))
   expect(container.textContent).toContain('No access')
   expect(container.textContent).not.toContain('Lazy submission audit')
+})
+
+it('opens /admin/settings for admins', async () => {
+  window.history.replaceState({}, '', '/admin/settings')
+  state.role = 'admin'
+  await act(async () => root.render(<App />))
+  expect(container.textContent).toContain('School settings page')
+})
+it.each(['instructor', 'student'])('blocks %s from /admin/settings', async (role) => {
+  window.history.replaceState({}, '', '/admin/settings')
+  state.role = role
+  await act(async () => root.render(<App />))
+  expect(container.textContent).toContain('No access')
+  expect(container.textContent).not.toContain('School settings page')
 })

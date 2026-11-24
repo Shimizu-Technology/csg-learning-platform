@@ -15,6 +15,7 @@ export interface Lesson {
   release_day: number
   requires_submission?: boolean
   submission_type?: string
+  published?: boolean
   content_blocks_count: number
   archived_at: string | null
   updated_at: string
@@ -42,16 +43,21 @@ export function LessonRow({
         >
           {lesson.title}
         </RecordLink>
-        <span className="text-xs text-ink-muted">
-          {lesson.content_blocks_count} {lesson.content_blocks_count === 1 ? 'block' : 'blocks'}
-        </span>
-        {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
-          <Badge tone="neutral">
-            {lesson.submission_type.includes('repo') || lesson.submission_type.includes('github')
-              ? lesson.submission_type === 'repo_and_live_url_submission' ? 'GitHub repo + live URL' : 'GitHub repo'
-              : 'Submission'}
-          </Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-1.5 pb-1">
+          <span className="text-xs text-ink-muted">
+            {lesson.content_blocks_count} {lesson.content_blocks_count === 1 ? 'block' : 'blocks'}
+          </span>
+          {lesson.published === false && (
+            <Badge tone="warning">Draft</Badge>
+          )}
+          {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
+            <Badge tone="neutral">
+              {lesson.submission_type.includes('repo') || lesson.submission_type.includes('github')
+                ? lesson.submission_type === 'repo_and_live_url_submission' ? 'GitHub repo + live URL' : 'GitHub repo'
+                : 'Submission'}
+            </Badge>
+          )}
+        </div>
       </td>
       <td className="w-24 px-1 py-1">
         <div className="flex flex-wrap items-center justify-end">

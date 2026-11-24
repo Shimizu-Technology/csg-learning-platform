@@ -90,6 +90,7 @@ module Api
 
         report.status = status
         report.reviewed_by = current_user
+        report.resolution_note = review_params[:resolution_note].to_s.strip.presence if review_params.key?(:resolution_note)
         report.resolved_at = Time.current if report.status_actioned? || report.status_dismissed?
         report.save!
         render json: { content_report: report_json(report, conversation_access([ report ])) }
@@ -129,7 +130,7 @@ module Api
       end
 
       def review_params
-        params.require(:content_report).permit(:status)
+        params.require(:content_report).permit(:status, :resolution_note)
       end
 
       def shares_visible_workspace?(reported_user)
@@ -160,6 +161,7 @@ module Api
           reason: report.reason,
           details: report.details,
           status: report.status,
+          resolution_note: report.resolution_note,
           created_at: report.created_at,
           resolved_at: report.resolved_at,
           reporter: user_json(report.reporter),

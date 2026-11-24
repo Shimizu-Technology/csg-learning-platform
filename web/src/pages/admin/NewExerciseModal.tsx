@@ -30,6 +30,7 @@ interface Props {
     title: string
     release_day: number
     required: boolean
+    published?: boolean
     video_url?: string
     instructions?: string
     solution?: string
@@ -67,6 +68,7 @@ export function NewExerciseModal({
   const [filename, setFilename] = useState('')
   const [submissionType, setSubmissionType] = useState('manual_complete')
   const [required, setRequired] = useState(true)
+  const [createAsDraft, setCreateAsDraft] = useState(true)
   const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
     enabled: false,
     language: 'ruby',
@@ -108,6 +110,7 @@ export function NewExerciseModal({
       title: title.trim(),
       release_day: releaseDay,
       required,
+      published: !createAsDraft,
       video_url: videoUrl.trim() || undefined,
       instructions: instructions.trim() || undefined,
       solution: solution.trim() || undefined,
@@ -237,6 +240,25 @@ export function NewExerciseModal({
           {submissionType === 'text_submission' && (
             <CodeRunnerSettings value={runnerConfig} onChange={setRunnerConfig} compact />
           )}
+
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-raised px-4 py-3">
+            <input
+              type="checkbox"
+              checked={createAsDraft}
+              onChange={e => setCreateAsDraft(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-ink"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-ink">
+                Start as draft (recommended)
+              </span>
+              <span className="mt-0.5 block text-xs leading-5 text-ink-muted">
+                {createAsDraft
+                  ? 'Stays hidden from students while you add blocks and preview. Click Publish lesson when ready.'
+                  : 'Publishes immediately so students see it on its scheduled release day.'}
+              </span>
+            </span>
+          </label>
 
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-raised px-4 py-3">
             <input

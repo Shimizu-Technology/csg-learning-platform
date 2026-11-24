@@ -123,7 +123,7 @@ module Api
                 raise
               end
               if enrollment.dropped?
-                result.merge(status: "previously_dropped")
+                result.merge(status: "previously_dropped", user_id: user.id, enrollment_id: enrollment.id)
               else
                 invitation = dispatch_invitation(user)
                 if created && !user.invite_pending?
@@ -132,7 +132,7 @@ module Api
                     body: "Open your cohort workspace to see your class, schedule, and messages.", path: "/cohorts/#{@cohort.id}")
                   NotificationDeliveryService.system_notice(enrollment, [ notification ])
                 end
-                result.merge(status: created ? "enrolled" : "already_enrolled", invitation_status: invitation&.status, error: invitation&.error).compact
+                result.merge(status: created ? "enrolled" : "already_enrolled", user_id: user.id, enrollment_id: enrollment.id, invitation_status: invitation&.status, error: invitation&.error).compact
               end
             rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, ArgumentError => error
               result.merge(status: "error", error: error.is_a?(ArgumentError) ? error.message : "Could not save this row")

@@ -32,7 +32,7 @@ class CurriculumModule < ApplicationRecord
     inverse_of: :curriculum_module,
     dependent: :destroy
   has_many :lessons,
-    -> { where(archived_at: nil).order(:release_day, :position, :id) },
+    -> { where(archived_at: nil, published: true).order(:release_day, :position, :id) },
     class_name: "Lesson",
     foreign_key: :module_id,
     inverse_of: :curriculum_module

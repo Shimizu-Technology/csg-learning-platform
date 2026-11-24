@@ -183,7 +183,7 @@ class RecordSearch
     module_lessons = {}
     prepare_modules = unless @viewer.staff?
       lambda do |batch|
-        module_lessons = Lesson.where(module_id: batch.map(&:id)).where(archived_at: nil).reorder(nil).to_a.group_by(&:module_id)
+        module_lessons = Lesson.active.where(module_id: batch.map(&:id)).reorder(nil).to_a.group_by(&:module_id)
         batch.each do |mod|
           module_lessons.fetch(mod.id, []).each { |lesson| lesson.association(:curriculum_module).target = mod }
         end
@@ -194,7 +194,7 @@ class RecordSearch
         next false unless e.cohort.curriculum_id == r.curriculum_id
 
         assignment = e.module_assignments.find { |a| a.module_id == r.id }
-        assigned = e.module_reachable_for_read?(assignment) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? }
+        assigned = e.module_reachable_for_read?(assignment) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? && a.lesson.published? }
         lessons = module_lessons.fetch(r.id, [])
         assigned && (lessons.empty? || lessons.any? do |lesson|
           check_deadline!

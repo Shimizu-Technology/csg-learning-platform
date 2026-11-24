@@ -6654,6 +6654,150 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feature_settings/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description FeatureSwitchChangesResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FeatureSwitchChangesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/feature_settings/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description FeatureSwitchChangesResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FeatureSwitchChangesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/school_identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SchoolIdentityResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SchoolIdentityResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{id}/github_sync_health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CohortGithubSyncHealthResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortGithubSyncHealthResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6887,6 +7031,7 @@ export interface components {
             show_personal_deadline?: boolean;
             /** @description Present when the learner can read one or more attachments from their cohort. */
             attached_recordings?: components["schemas"]["AttachedRecording"][];
+            published?: boolean;
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -7595,6 +7740,7 @@ export interface components {
                 email: string;
                 role: string;
             } | null;
+            resolution_note?: string | null;
         };
         DataDeletionRequest: {
             id: number;
@@ -8251,6 +8397,7 @@ export interface components {
             content_blocks_count: number;
             archived_at: string | null;
             updated_at: string;
+            published?: boolean;
         };
         ModuleSummary: {
             id: number;
@@ -8289,6 +8436,8 @@ export interface components {
             lessons_count: number;
             /** @description Present in staff module responses. */
             archived_lessons_count?: number;
+            /** @description Present in staff module responses. */
+            draft_lessons_count?: number;
             /** @description Included on module show, omitted on create/update. */
             lessons: {
                 id: number;
@@ -8297,6 +8446,7 @@ export interface components {
                 position: number;
                 release_day: number;
                 required: boolean;
+                published?: boolean;
                 /** @description Present in student module show. */
                 available?: boolean;
                 /** @description Present in student module show. */
@@ -8764,6 +8914,7 @@ export interface components {
             lessons: components["schemas"]["LessonSummary"][];
             submissions_count: number;
             deletion_blocked: boolean;
+            draft_lessons_count?: number;
         };
         ModuleEditorBlock: {
             id: number;
@@ -9085,6 +9236,8 @@ export interface components {
                 status: "enrolled" | "already_enrolled" | "duplicate" | "error" | "previously_dropped";
                 error?: string;
                 invitation_status?: string | null;
+                user_id?: number | null;
+                enrollment_id?: number | null;
             }[];
         };
         PublicOfferingsResponse: {
@@ -9744,6 +9897,8 @@ export interface components {
                 seats_taken: number;
                 seats_remaining: number | null;
                 sold_out: boolean;
+                occupied_enrollments_count?: number;
+                pending_checkouts_count?: number;
             };
         };
         StudentCommunicationMessage: {
@@ -10098,6 +10253,8 @@ export interface components {
             seats_taken: number | null;
             seats_remaining: number | null;
             sold_out: boolean;
+            occupied_enrollments_count?: number;
+            pending_checkouts_count?: number;
         };
         PublicCourseResponse: {
             offering: components["schemas"]["PublicCourse"];
@@ -11234,6 +11391,7 @@ export interface components {
                 /** Format: date-time */
                 created_at: string;
             }[];
+            resolution_note?: string | null;
         };
         /** @description A self-paced course offering and its purchases, for admins. */
         OfferingDetail: {
@@ -11296,6 +11454,8 @@ export interface components {
             seats_taken: number;
             seats_remaining: number | null;
             sold_out: boolean;
+            occupied_enrollments_count?: number;
+            pending_checkouts_count?: number;
         };
         /** @description The curriculum a course package was already imported as. */
         CoursePackageCurriculum: {
@@ -11733,6 +11893,8 @@ export interface components {
                 seats_taken?: number;
                 seats_remaining?: number | null;
                 sold_out?: boolean;
+                occupied_enrollments_count?: number;
+                pending_checkouts_count?: number;
             };
         };
         CohortSettingsInput: {
@@ -11952,6 +12114,109 @@ export interface components {
             versions?: {
                 [key: string]: string;
             };
+        };
+        FeatureSwitchChangeDiff: {
+            key: string;
+            from: boolean | string | null;
+            to: boolean | string | null;
+        };
+        FeatureSwitchChange: {
+            id: number;
+            /** Format: date-time */
+            created_at: string;
+            actor: {
+                id: number;
+                full_name: string;
+                email: string;
+            } | null;
+            cohort: {
+                id: number;
+                name: string;
+            } | null;
+            diff: components["schemas"]["FeatureSwitchChangeDiff"][];
+        };
+        FeatureSwitchChangesResponse: {
+            changes: components["schemas"]["FeatureSwitchChange"][];
+        };
+        SchoolIdentity: {
+            name: string;
+            product_name: string;
+            abbreviation: string;
+            short_name: string;
+            support_email: string;
+            email_sender: string | null;
+            sender_name_override: string | null;
+            time_zone: string;
+            time_zone_label: string;
+            site_url: string;
+            app_url: string;
+            frontend_origin: string | null;
+        };
+        SchoolIdentityResponse: {
+            school_identity: components["schemas"]["SchoolIdentity"];
+        };
+        CohortGithubSyncHealthBinding: {
+            id: number;
+            enrollment_id: number;
+            curriculum_module_id?: number | null;
+            module_name?: string | null;
+            github_app_installation_id?: number;
+            repository_id?: number | null;
+            full_name: string;
+            github_user_id?: string | null;
+            github_username?: string | null;
+            verification_state: string;
+            failure_reason?: string | null;
+            verified_at?: string | null;
+            checked_at?: string | null;
+            last_reconciled_at?: string | null;
+            last_status?: string | null;
+            last_error?: string | null;
+            next_reconcile_at?: string | null;
+        };
+        CohortGithubSyncHealthLearner: {
+            enrollment_id: number;
+            user_id: number;
+            full_name: string;
+            email: string;
+            github_username: string | null;
+            identity_verified: boolean;
+            github_verified_login: string | null;
+            github_verified_at: string | null;
+            /** @enum {unknown} */
+            status: "healthy" | "sync_error" | "unverified" | "not_bound" | "identity_missing" | "app_not_ready";
+            plain_reason: string;
+            last_synced_at: string | null;
+            next_retry_at: string | null;
+            last_error: string | null;
+            bindings: components["schemas"]["CohortGithubSyncHealthBinding"][];
+        };
+        CohortGithubSyncHealthResponse: {
+            cohort_id: number;
+            app_configured: boolean;
+            oauth_configured: boolean;
+            school_github_app_enabled: boolean;
+            cohort_github_app_enabled: boolean;
+            github_sync_enabled: boolean;
+            webhooks_enabled: boolean;
+            reconciliation_enabled: boolean;
+            grade_suggestions_enabled: boolean;
+            installations: components["schemas"]["GithubAppInstallation"][];
+            github_modules: {
+                id: number;
+                name: string;
+                repository_name: string | null;
+            }[];
+            summary: {
+                total_learners: number;
+                healthy_count: number;
+                sync_error_count: number;
+                unverified_count: number;
+                not_bound_count: number;
+                identity_missing_count: number;
+                app_not_ready_count: number;
+            };
+            learners: components["schemas"]["CohortGithubSyncHealthLearner"][];
         };
     };
     responses: {

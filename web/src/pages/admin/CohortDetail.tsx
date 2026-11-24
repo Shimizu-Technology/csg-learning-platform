@@ -1,4 +1,5 @@
 import { GithubAppSettings } from '../../components/admin/GithubAppSettings'
+import { GithubSyncHealthPanel } from '../../components/admin/GithubSyncHealthPanel'
 import { ReleaseCommunicationsPanel } from '../../components/admin/ReleaseCommunicationsPanel'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
@@ -31,6 +32,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     editPaceWeeks,
     editPaceEnabled,
     editStartDate,
+    editEndDate,
     editGithubOrganization,
     editStatus,
     buildFormsFromCohort,
@@ -49,7 +51,12 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
   const ready = { ...settings, cohort }
   return (
     <>
-    {settings.user?.role === 'admin' && cohort.features?.github_app === true && <div className="mb-6"><GithubAppSettings cohortId={cohort.id} /></div>}
+    {settings.user?.role === 'admin' && (
+      <div className="mb-6 space-y-6">
+        <GithubSyncHealthPanel cohortId={cohort.id} />
+        {cohort.features?.github_app === true && <GithubAppSettings cohortId={cohort.id} />}
+      </div>
+    )}
     <form
       onKeyDown={(event) => {
         if (
@@ -77,6 +84,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
             Object.keys(assignedChanges).length > 0 ||
             Object.keys(offeringDraft).length > 0 ||
             editStartDate !== toDateInputValue(cohort.start_date) ||
+            editEndDate !== toDateInputValue(cohort.end_date) ||
             editGithubOrganization !== (cohort.github_organization_name || '') ||
             editStatus !== cohort.status ||
             editCourseDelivery !== (cohort.course_delivery || 'program') ||
