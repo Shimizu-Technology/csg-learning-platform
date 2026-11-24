@@ -95,6 +95,7 @@ afterEach(async () => {
   document.querySelectorAll('[data-state="closing"]').forEach((ghost) => ghost.dispatchEvent(new Event('animationend', { bubbles: true })))
   container.remove()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
@@ -497,6 +498,84 @@ describe('block lesson editor', () => {
     expect(router.state.location.pathname).toBe('/admin/lessons/2/edit')
   })
 
+  it.each([false, true])('keeps separate exercise check drafts and guards navigation with mobile Settings: %s', async (mobile) => {
+    if (mobile) {
+      vi.stubGlobal('innerWidth', 390)
+      vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    }
+    vi.mocked(api.getLessonBlockEditor).mockResolvedValue({
+      data: response({ content_blocks: blocks.map((block) => [3, 4].includes(block.id)
+        ? { ...block, submission_type: 'prework_github_sync', submission_type_explicit: 'prework_github_sync' }
+        : block) as LessonBlockEditorResponse['lesson']['content_blocks'] }),
+      error: null,
+    })
+    vi.spyOn(api, 'getExerciseCheckPolicy').mockImplementation(async (id) => ({
+      data: { content_block_id: id, active_policy: null, versions: [] }, error: null,
+    }))
+    const savePolicy = vi.spyOn(api, 'saveExerciseCheckPolicy').mockImplementation(async (id, rules) => {
+      const policy = {
+        id: 90, content_block_id: id, version: 1, active: true, required_checks: rules.required_checks,
+        allowed_app_slugs: ['github-actions'], allowed_branch: rules.allowed_branch ?? null,
+        expected_workflow_path: null, expected_workflow_sha: null,
+        created_by_id: 1, created_by_name: 'Admin', created_at: null, updated_at: null,
+      }
+      return { data: { content_block_id: id, active_policy: policy, versions: [policy] }, error: null }
+    })
+    const checkInput = () => container.querySelector<HTMLInputElement>('input[placeholder="exercise-111"]')!
+    const branchInput = () => container.querySelector<HTMLInputElement>('input[placeholder="main"]')!
+    const closeSettings = async () => { if (mobile) await click(button('Close Settings', container)) }
+    const selectExercise = async (index: number) => {
+      await closeSettings()
+      await act(async () => cards()[index].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+      if (mobile) await click(button('Settings', container))
+      await settle()
+    }
+    const back = () => container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]')
+    const hasUnloadGuard = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+
+    await mount('/admin/lessons/2/edit?block_id=3')
+    await type(checkInput(), 'first-check')
+    await type(branchInput(), 'release')
+    await click(button('Lesson', container))
+    await click(button('Exercise block', container))
+    expect(checkInput().value).toBe('first-check')
+    expect(branchInput().value).toBe('release')
+
+    await selectExercise(3)
+    expect(checkInput().value).toBe('')
+    await type(checkInput(), 'second-check')
+    await click(button('Add', container))
+    await selectExercise(2)
+    expect(checkInput().value).toBe('first-check')
+    expect(container.querySelector('[aria-label="Remove second-check"]')).toBeNull()
+
+    await closeSettings()
+    expect(hasUnloadGuard()).toBe(true)
+    await click(back())
+    const leave = Array.from(container.querySelectorAll<HTMLElement>('[role="dialog"]')).at(-1)!
+    expect(leave.textContent).toContain('This lesson has unsaved check rules')
+    expect(button('Save and leave', leave)).toBeUndefined()
+    await click(button('Keep editing', leave))
+    expect(router.state.location.pathname).toBe('/admin/lessons/2/edit')
+    if (mobile) await click(button('Settings', container))
+    await click(button('Save check rules', container))
+    expect(savePolicy).toHaveBeenCalledWith(3, expect.objectContaining({ required_checks: ['first-check'], allowed_branch: 'release' }))
+    expect(hasUnloadGuard()).toBe(true)
+    expect(save).not.toHaveBeenCalled()
+
+    await selectExercise(3)
+    expect(container.querySelector('[aria-label="Remove second-check"]')).toBeTruthy()
+    await click(button('Reset check-rule edits', container))
+    await closeSettings()
+    expect(hasUnloadGuard()).toBe(false)
+    await click(back())
+    expect(router.state.location.pathname).toBe('/admin/content')
+  })
+
   for (const keepOther of [false, true]) it(`drops deleted-block rubric drafts after save; remaining draft: ${keepOther}`, async () => {
     save.mockResolvedValue({ data: response({ content_blocks: blocks.filter((block) => block.id !== 4), content_blocks_count: blocks.length - 1, updated_at: '2026-11-16T00:00:05Z' }), error: null })
     await mount()
@@ -632,6 +711,50 @@ describe('block lesson editor', () => {
     expect(button('Reload latest version')).toBeTruthy()
     expect(cards()[2].querySelector('input')!.value).toBe('Mine')
     expect(container.textContent).toContain('Not saved: newer version')
+  })
+
+  it('refetches clean check rules on reload and preserves another exercise’s unfinished draft', async () => {
+    const syncedBlocks = blocks.map((block) => [3, 4].includes(block.id)
+      ? { ...block, submission_type: 'prework_github_sync', submission_type_explicit: 'prework_github_sync' }
+      : block) as LessonBlockEditorResponse['lesson']['content_blocks']
+    vi.mocked(api.getLessonBlockEditor)
+      .mockResolvedValueOnce({ data: response({ content_blocks: syncedBlocks }), error: null })
+      .mockResolvedValue({ data: response({ content_blocks: syncedBlocks, updated_at: '2026-11-16T00:00:05Z' }), error: null })
+    save.mockResolvedValueOnce({ data: null, error: 'Someone else saved this lesson.', status: 409, errorCode: 'stale_editor' })
+
+    let version = 1
+    const getPolicy = vi.spyOn(api, 'getExerciseCheckPolicy').mockImplementation(async (id) => {
+      const policy = {
+        id: id * 10 + version, content_block_id: id, version, active: true, required_checks: [`check-${id}-v${version}`],
+        allowed_app_slugs: ['github-actions'], allowed_branch: null, expected_workflow_path: null, expected_workflow_sha: null,
+        created_by_id: 1, created_by_name: 'Admin', created_at: null, updated_at: null,
+      }
+      return { data: { content_block_id: id, active_policy: policy, versions: [policy] }, error: null }
+    })
+    const selectBlock = async (index: number) => {
+      await act(async () => cards()[index].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+      await settle()
+    }
+    const checkInput = () => container.querySelector<HTMLInputElement>('input[placeholder="exercise-111"]')!
+
+    await mount('/admin/lessons/2/edit?block_id=3')
+    expect(button('Remove check-3-v1', container)).toBeTruthy()
+    await selectBlock(3)
+    await type(checkInput(), 'unfinished-check')
+    await selectBlock(2)
+
+    version = 2
+    await type(cards()[2].querySelector('input')!, 'Conflicting title')
+    await click(button('Save'))
+    await click(button('Reload latest version'))
+
+    expect(button('Remove check-3-v1', container)).toBeUndefined()
+    expect(button('Remove check-3-v2', container)).toBeTruthy()
+    expect(container.textContent).toContain('Active · 1 required check · Version 2')
+    await selectBlock(3)
+    expect(button('Remove check-4-v1', container)).toBeTruthy()
+    expect(checkInput().value).toBe('unfinished-check')
+    expect(getPolicy.mock.calls.map(([id]) => id)).toEqual([3, 4, 3])
   })
 })
 

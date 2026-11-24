@@ -1,6 +1,8 @@
 # Run in the disposable scripts/qa/run database only. Resets the synthetic
 # guided checkout cohorts before each viewport and theme in Playwright QA.
 require_relative "boot"
+require_relative "../../api/test/support/offering_price_test_support"
+extend OfferingPriceTestSupport
 
 teacher = User.find(2)
 program = Cohort.find_by!(name: "QA Program")
@@ -58,6 +60,7 @@ open_cohort.update!(
   guided_access_months: 12,
   guided_support_weeks: 8
 )
+stamp_verified_offering_price(open_cohort)
 
 full_cohort = Cohort.find_by(name: "QA Guided Capped Full")
 unless full_cohort
@@ -91,6 +94,7 @@ unless full_cohort
 end
 
 full_cohort.update!(public_checkout_enabled: true, unlisted: false, seat_limit: 1)
+stamp_verified_offering_price(full_cohort)
 
 puts JSON.generate(
   open_id: open_cohort.id,

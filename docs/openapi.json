@@ -624,7 +624,7 @@
         ]
       }
     },
-    "/api/v1/content_blocks/{id}/check_policy": {
+    "/api/v1/content_blocks/{content_block_id}/check_policy": {
       "get": {
         "responses": {
           "200": {
@@ -640,7 +640,7 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "content_block_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -670,11 +670,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Invalid check rules or unsupported content block type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationError"
+                }
+              }
+            }
           }
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "content_block_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -698,7 +708,7 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "content_block_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -3115,6 +3125,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SetupReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ]
+    },
+    "/api/v1/cohorts/{id}/verify_offering_price": {
+      "post": {
+        "summary": "Verify the saved course offering price against Stripe (admin only)",
+        "responses": {
+          "200": {
+            "description": "Saved price verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferingPriceVerificationResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The saved price changed during verification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stripe unavailable or the saved price could not be verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -7317,7 +7374,10 @@
             }
           },
           "allowed_app_slugs": {
-            "type": "array",
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
               "type": "string"
             }
@@ -12567,6 +12627,10 @@
             "minimum": 0,
             "description": "Cohorts on the same curriculum the viewer doesn’t teach, as a number and never named. Always 0 for admins, who see every cohort."
           },
+          "github_grade_suggestions_configured": {
+            "type": "boolean",
+            "description": "Whether the school configured GitHub grade suggestions for cohort opt-in."
+          },
           "submissions_count": {
             "type": "integer",
             "minimum": 0,
@@ -16790,6 +16854,9 @@
               "price_set": {
                 "type": "boolean"
               },
+              "price_verified": {
+                "type": "boolean"
+              },
               "support_instructor_set": {
                 "type": "boolean"
               },
@@ -16809,6 +16876,7 @@
             "required": [
               "curriculum_assigned",
               "price_set",
+              "price_verified",
               "support_instructor_set",
               "published_content",
               "cohort_active",
@@ -16848,6 +16916,39 @@
           "readiness",
           "school_checkout",
           "errors"
+        ],
+        "additionalProperties": false
+      },
+      "OfferingPriceVerification": {
+        "type": "object",
+        "properties": {
+          "stripe_price_id": {
+            "type": "string"
+          },
+          "price_cents": {
+            "type": "integer"
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "stripe_price_id",
+          "price_cents",
+          "verified_at"
+        ],
+        "additionalProperties": false
+      },
+      "OfferingPriceVerificationResponse": {
+        "type": "object",
+        "properties": {
+          "offering_price_verified": {
+            "$ref": "#/components/schemas/OfferingPriceVerification"
+          }
+        },
+        "required": [
+          "offering_price_verified"
         ],
         "additionalProperties": false
       },
@@ -19445,6 +19546,9 @@
                   "price_set": {
                     "type": "boolean"
                   },
+                  "price_verified": {
+                    "type": "boolean"
+                  },
                   "support_instructor_set": {
                     "type": "boolean"
                   },
@@ -19458,11 +19562,22 @@
                 "required": [
                   "curriculum_assigned",
                   "price_set",
+                  "price_verified",
                   "support_instructor_set",
                   "published_content",
                   "cohort_active"
                 ],
                 "additionalProperties": false
+              },
+              "offering_price_verified": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OfferingPriceVerification"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "instructor_assigned": {
                 "type": "boolean"
@@ -20063,6 +20178,7 @@
               "course_delivery",
               "public_checkout_enabled",
               "offering_readiness",
+              "offering_price_verified",
               "instructor_assigned",
               "public_title",
               "public_description",

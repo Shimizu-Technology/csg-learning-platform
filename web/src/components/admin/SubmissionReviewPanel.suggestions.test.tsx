@@ -109,6 +109,17 @@ function makeSubmission(overrides: Partial<Submission> = {}): Submission {
   }
 }
 
+it('links a missing check policy to the exact exercise in the lesson editor', async () => {
+  await renderPanel(makeSubmission({
+    grade_suggestion: makeSuggestion({
+      outcome: 'no_suggestion', suggested_grade: null, reason_code: 'missing_policy',
+      exercise_check_policy_id: null, policy_version: null, reason_summary: 'This exercise needs check rules.',
+    }),
+  }))
+  const link = container.querySelector('a[href="/admin/lessons/30/edit?block_id=8"]')
+  expect(link?.textContent).toBe('Open exercise check rules')
+})
+
 let container: HTMLDivElement
 let root: Root
 
