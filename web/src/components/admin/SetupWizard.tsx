@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { CheckCircle, Circle } from 'lucide-react'
 import { humanize } from '../../lib/glossary'
 import { api } from '../../lib/api'
+import { cohortSettingsPath } from '../../lib/routes'
 import type { CohortDetail, CurriculumSummary, UserListItem } from '../../types/api'
 import { UnsavedChangesGuard } from '../shared/UnsavedChangesGuard'
 import { Button } from '../ui/Button'
@@ -62,7 +63,7 @@ export function SetupWizard({ cohort, onSaved }: { cohort: CohortDetail; onSaved
     finally { setBusy(false) }
   }
   const field = (key: keyof typeof draft) => String(draft[key] ?? '')
-  const settingsPath = `/admin/cohorts/${cohort.id}?tab=settings`
+  const settingsPath = cohortSettingsPath(cohort.id)
   const needsPriceVerification = readiness.price_set && readiness.price_verified === false && !dirty
   const complete = [readiness.curriculum_assigned, readiness.support_instructor_set, readiness.price_set && readiness.price_verified, readiness.catalog_copy, Object.values(readiness).length > 0 && Object.values(readiness).every(Boolean), cohort.public_checkout_enabled]
   return <section className="app-surface overflow-hidden" aria-labelledby="setup-title"><UnsavedChangesGuard dirty={dirty} pathnameOnly={false} /><div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5"><h2 id="setup-title" className="text-lg font-bold">Get this course ready to sell</h2><span className="text-sm text-ink-muted">{complete.filter(Boolean).length} of 6 done</span></div><div className="grid md:grid-cols-[230px_1fr]"><nav aria-label="Setup steps" className="border-b border-line p-3 md:border-r md:border-b-0">{steps.map((label, i) => { const Icon = complete[i] ? CheckCircle : Circle; return <button key={label} type="button" disabled={busy} aria-pressed={step === i} onClick={() => setStep(i)} className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold ${step === i ? 'bg-primary-soft text-primary-ink' : 'text-ink-secondary'}`}><Icon className="h-5 w-5 shrink-0" />{label}</button> })}</nav><div className="space-y-4 p-5 sm:p-6">

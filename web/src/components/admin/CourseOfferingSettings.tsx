@@ -5,6 +5,7 @@ import { api } from '../../lib/api'
 import { listLinkState } from '../../lib/navigationContext'
 import { offeringPath } from '../../lib/routes'
 import type { CohortInstructorAssignment, CourseOfferingTerms } from '../../types/api'
+import type { components } from '../../types/api.generated'
 import { Button } from '../ui/Button'
 
 const checklist = {
@@ -16,6 +17,13 @@ const checklist = {
   cohort_active: 'Cohort is active',
   catalog_copy: 'Public title, description and image set',
   school_checkout_enabled: 'School checkout is on',
+}
+const readinessTargets: Partial<Record<keyof typeof checklist, string>> = {
+  price_set: 'offering-price',
+  price_verified: 'offering-stripe-price',
+  cohort_active: 'cohort-status',
+  catalog_copy: 'offering-public-title',
+  school_checkout_enabled: 'offering-school-checkout',
 }
 
 export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', onSaved, onDraftChange }: {
@@ -64,7 +72,7 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
   const priceCents = Math.round(Number(price) * 100)
   const stripePriceId = stripePrice.trim() || null
   const savedPrice = stripePriceId === (cohort.stripe_price_id || null) && priceCents === cohort.public_price_cents
-  const priceSet = priceCents > 0 && /^price_[a-zA-Z0-9_]+$/.test(stripePrice)
+  const priceSet = priceCents > 0 && stripePriceId !== null && /^price_[a-zA-Z0-9_]+$/.test(stripePriceId)
   const priceVerified = Boolean(verification && verification.price_cents === priceCents && verification.stripe_price_id === stripePriceId)
   const savedPriceVerified = verification?.price_cents === cohort.public_price_cents && verification?.stripe_price_id === cohort.stripe_price_id
   const formattedPrice = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(priceCents / 100)
@@ -75,6 +83,7 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
     support_instructor_set: instructors.some((entry) => String(entry.id) === instructor),
   }
   const [serverReadiness, setServerReadiness] = useState<Record<string, boolean> | null>(null)
+  const [schoolCheckout, setSchoolCheckout] = useState<components['schemas']['SetupReadinessResponse']['school_checkout'] | null>(null)
   useEffect(() => {
     let active = true
     setServerReadiness(null)
@@ -83,7 +92,10 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
       const req = api.getSetupReadiness(cohort.id, { ...marketing, course_delivery: courseDelivery, public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null })
       if (!req) return
       void req.then(r => {
-        if (active && r.data && !r.error && !r.fromCache) setServerReadiness(r.data.readiness)
+        if (active && r.data && !r.error && !r.fromCache) {
+          setServerReadiness(r.data.readiness)
+          setSchoolCheckout(r.data.school_checkout)
+        }
       }).catch(() => { if (active) setError('Readiness unavailable. Refresh before publishing.') })
     }, 250)
     return () => { active = false; clearTimeout(timer) }
@@ -176,11 +188,11 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
     <p className="mt-2 text-sm text-ink-secondary">These defaults apply to new checkout attempts. Open and paid purchases keep their agreed terms. Existing purchasers keep their agreed access dates and support duration, including courses they have not opened yet.</p>
     <Form onSubmit={(event) => void save(event)} className="mt-4 space-y-4 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base">
       <div className="grid gap-4 sm:grid-cols-2">
-        {Object.entries({ public_title: 'Public title', public_description: 'Description', public_image_url: 'Image URL (HTTPS)', public_outcomes: 'What learners will learn', public_duration: 'Estimated duration', public_prerequisites: 'Prerequisites', public_preview: 'Course preview' }).map(([key, label]) => <label key={key} className="text-sm font-semibold sm:col-span-2">{label}{['public_description', 'public_outcomes', 'public_prerequisites', 'public_preview'].includes(key) ? <textarea className="app-control mt-1 w-full" value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} /> : <input className="app-control mt-1 w-full" type={key === 'public_image_url' ? 'url' : 'text'} value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} />}</label>)}
+        {Object.entries({ public_title: 'Public title', public_description: 'Description', public_image_url: 'Image URL (HTTPS)', public_outcomes: 'What learners will learn', public_duration: 'Estimated duration', public_prerequisites: 'Prerequisites', public_preview: 'Course preview' }).map(([key, label]) => <label key={key} className="text-sm font-semibold sm:col-span-2">{label}{['public_description', 'public_outcomes', 'public_prerequisites', 'public_preview'].includes(key) ? <textarea className="app-control mt-1 w-full" value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} /> : <input id={key === 'public_title' ? readinessTargets.catalog_copy : undefined} className="app-control mt-1 w-full" type={key === 'public_image_url' ? 'url' : 'text'} value={marketing[key]} onChange={e => setMarketing(v => ({ ...v, [key]: e.target.value }))} />}</label>)}
         <p className="text-sm text-ink-secondary sm:col-span-2">Use public course copy only. The lesson count and syllabus come from published lessons in the selected modules. The course address stays the same when you change its title.</p>
         <label className="min-w-0 text-sm font-semibold">Display price (USD)<input id="offering-price" className="app-control mt-1 min-h-11 w-full" type="number" min="0.01" step="0.01" value={price} disabled={verifying} onChange={(event) => editPrice(setPrice, event.target.value)} /></label>
         <div className="grid min-w-0 gap-2">
-          <label className="text-sm font-semibold">Stripe price ID<input id="offering-stripe-price" className="app-control mt-1 min-h-11 w-full" pattern="price_[a-zA-Z0-9_]+" placeholder="price_…" value={stripePrice} disabled={verifying} aria-describedby="offering-price-help" onChange={(event) => editPrice(setStripePrice, event.target.value)} /></label>
+          <label className="text-sm font-semibold">Stripe price ID<input id="offering-stripe-price" className="app-control mt-1 min-h-11 w-full" pattern="\s*price_[a-zA-Z0-9_]+\s*" placeholder="price_…" value={stripePrice} disabled={verifying} aria-describedby="offering-price-help" onChange={(event) => editPrice(setStripePrice, event.target.value)} /></label>
           {priceVerified ? (
             <p role="status" className="flex w-fit items-center gap-2 rounded-xl bg-success-soft px-3 py-2 text-sm font-semibold text-success-ink">
               <CheckCircle className="h-4 w-4 shrink-0" aria-hidden="true" />Verified in Stripe · {formattedPrice} USD
@@ -225,12 +237,34 @@ export function CourseOfferingSettings({ cohort, courseDelivery = 'self_paced', 
           <label className="text-sm font-semibold">Help period (weeks)<input className="app-control mt-1 min-h-11 w-full" required type="number" min="1" step="1" value={weeks} onChange={(event) => setWeeks(event.target.value)} /></label>
         </>}
       </div>
-      <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{Object.entries(checklist).map(([key, label]) => {
+      <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{(Object.keys(checklist) as Array<keyof typeof checklist>).map((key) => {
         const complete = key === 'price_verified' ? priceVerified : (serverReadiness ?? readiness)[key as keyof typeof readiness]
         const Icon = complete ? CheckCircle : Circle
-        const targetId = key === 'cohort_active' ? 'cohort-status' : key === 'price_verified' ? 'offering-stripe-price' : 'offering-price'
-        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><Link className="app-link min-h-11 inline-flex items-center" onClick={() => { if (!['support_instructor_set', 'published_content', 'curriculum_assigned'].includes(key)) { const target = document.getElementById(targetId); target?.scrollIntoView({ block: 'center' }); target?.focus({ preventScroll: true }) } }} to={key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team` : key === 'published_content' || key === 'curriculum_assigned' ? `/admin/content?open=${(cohort as { modules?: Array<{ id: number }> }).modules?.map(module => module.id).join(',') || ''}` : `${location.pathname}${location.search}#${targetId}`}>{complete ? 'Ready: ' : 'Needed: '}{label}</Link></li>
+        const targetId = readinessTargets[key]
+        const to = targetId ? `${location.pathname}${location.search}#${targetId}`
+          : key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team`
+            : `/admin/content?open=${(cohort as { modules?: Array<{ id: number }> }).modules?.map(module => module.id).join(',') || ''}`
+        return <li key={key} className="flex items-start gap-2 text-sm">
+          <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" />
+          <Link className="app-link min-h-11 inline-flex items-center" to={to} onClick={targetId ? (event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            const target = document.getElementById(targetId)
+            target?.scrollIntoView({ block: 'center' })
+            target?.focus({ preventScroll: true })
+          } : undefined}>{complete ? 'Ready: ' : 'Needed: '}{checklist[key]}</Link>
+        </li>
       })}</ul></div>
+      <div id={readinessTargets.school_checkout_enabled} tabIndex={-1} className="rounded-2xl border border-line p-3 text-sm">
+        <h4 className="font-semibold">School checkout status</h4>
+        {schoolCheckout ? <>
+          <p>School checkout is {schoolCheckout.enabled ? 'on' : 'off'}.</p>
+          {!schoolCheckout.enabled && <p className="mt-1 text-ink-secondary">
+            {schoolCheckout.stripe_configured ? 'Stripe is configured.' : 'Stripe needs to be configured.'}{' '}
+            {schoolCheckout.webhook_configured ? 'The payment webhook is configured.' : 'The payment webhook needs to be configured.'}{' '}
+            Ask a school administrator to check the school-wide sales settings.
+          </p>}
+        </> : <p className="text-ink-secondary">School checkout status is unavailable.</p>}
+      </div>
       <div className="space-y-1">
         <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" className="h-5 w-5" checked={visible} disabled={(!ready && !visible) || !loaded} onChange={(event) => setVisible(event.target.checked)} />{unlisted ? 'Enable in-app checkout (direct link only)' : 'Show checkout in the course catalog'}</label>
         <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input id="offering-unlisted" type="checkbox" className="h-5 w-5" checked={unlisted} onChange={(event) => setUnlisted(event.target.checked)} />Unlisted — hide from the public catalog list (direct link only)</label>

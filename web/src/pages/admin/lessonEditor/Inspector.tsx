@@ -16,7 +16,7 @@ import type { BlockLearnerActivity, LearningObjective, LessonEditorContext, Rubr
 import { hasLearnerWork, learnerWorkSummary } from './BlockCard'
 import { BLOCK_LABELS, blockTitle, type BlockDraft, type LessonDraft } from './blockDraft'
 import { SUBMISSION_TYPE_OPTIONS, submissionTypeHint } from './submissionTypes'
-import { ExerciseCheckPolicyEditor } from './ExerciseCheckPolicyEditor'
+import { ExerciseCheckPolicyEditor, hasCheckPolicyEdits, type CheckPolicyEditors } from './ExerciseCheckPolicyEditor'
 
 export type RubricDraft = { title: string; criteria: string[] }
 const emptyRubric = (): RubricDraft => ({ title: '', criteria: ['', ''] })
@@ -40,6 +40,8 @@ interface InspectorProps {
   onRubricCreated: (rubric: Rubric) => void
   rubricDrafts: Record<string, RubricDraft>
   setRubricDrafts: React.Dispatch<React.SetStateAction<Record<string, RubricDraft>>>
+  checkPolicyEditors: CheckPolicyEditors
+  setCheckPolicyEditors: React.Dispatch<React.SetStateAction<CheckPolicyEditors>>
   readOnly?: boolean
   savedGithubSync?: boolean
   focusCheckPolicy?: boolean
@@ -248,13 +250,17 @@ function LessonUsedIn({ lessonId, context }: { lessonId: number; context: Lesson
   )
 }
 
-function BlockSettings({ block, onBlock, activity, context, objectives, rubrics, onRubricCreated, curriculumId, readOnly, savedGithubSync, focusCheckPolicy, rubricDraft, setRubricDraft }: InspectorProps & { block: BlockDraft; rubricDraft: RubricDraft; setRubricDraft: (update: RubricDraft | ((value: RubricDraft) => RubricDraft)) => void }) {
+function BlockSettings({ block, onBlock, activity, context, objectives, rubrics, onRubricCreated, curriculumId, readOnly, savedGithubSync, focusCheckPolicy, rubricDraft, setRubricDraft, checkPolicyEditors, setCheckPolicyEditors }: InspectorProps & { block: BlockDraft; rubricDraft: RubricDraft; setRubricDraft: (update: RubricDraft | ((value: RubricDraft) => RubricDraft)) => void }) {
   const id = useId()
   const toast = useToast()
   const blockActivity = block.id ? activity.get(block.id) : undefined
   const work = hasLearnerWork(blockActivity)
   const isVideo = block.block_type === 'video' || block.block_type === 'recording'
   const isExercise = block.block_type === 'exercise' || block.block_type === 'code_challenge'
+  const checkPolicyEditor = block.id ? checkPolicyEditors[block.id] : undefined
+  const showCheckPolicy = savedGithubSync || block.submission_type === 'prework_github_sync' ||
+    (block.filename.trim() && (context.github_grade_suggestions_configured || focusCheckPolicy)) ||
+    (checkPolicyEditor && hasCheckPolicyEdits(checkPolicyEditor))
   const runner = normalizeCodeRunnerConfig(block.submission_config, codeRunnerLanguageFromEditor(detectLanguage(block.filename)) || 'ruby')
   const rubric = rubrics.find((item) => item.id === block.rubric_id)
   const [creatingRubric, setCreatingRubric] = useState(false)
@@ -279,9 +285,9 @@ function BlockSettings({ block, onBlock, activity, context, objectives, rubrics,
 
   return (
     <div>
-      {isExercise && block.id && (savedGithubSync || block.submission_type === 'prework_github_sync' || (block.filename.trim() && (context.github_grade_suggestions_configured || focusCheckPolicy))) && (
+      {isExercise && block.id && showCheckPolicy && (
         <Section title="Checks used for grade suggestions" icon={<ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />}>
-          <ExerciseCheckPolicyEditor key={block.id} blockId={block.id} readOnly={readOnly} />
+          <ExerciseCheckPolicyEditor key={block.id} blockId={block.id} state={checkPolicyEditor} setCheckPolicyEditors={setCheckPolicyEditors} readOnly={readOnly} />
         </Section>
       )}
       <Section title={`${BLOCK_LABELS[block.block_type]} block`}>

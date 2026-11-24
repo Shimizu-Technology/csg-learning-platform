@@ -35,6 +35,8 @@ class CourseCheckout
       cohort.update!(settings: cohort.settings.to_h.merge("offering_price_verified" => stamp))
       stamp
     end
+  rescue ActiveRecord::RecordInvalid => error
+    raise SetupFailure, "Could not save price verification. Fix the cohort settings and try again. #{error.record.errors.full_messages.to_sentence}"
   end
 
   def self.verified_price!(stripe_price_id:, price_cents:)

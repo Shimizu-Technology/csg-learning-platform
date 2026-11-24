@@ -25,6 +25,7 @@ import { MoveLessonDialog } from './lessonEditor/MoveLessonDialog'
 import { AddBlockMenu } from './lessonEditor/AddBlockMenu'
 import { BlockCard } from './lessonEditor/BlockCard'
 import { Inspector, type InspectorTab, type RubricDraft } from './lessonEditor/Inspector'
+import { hasCheckPolicyEdits, type CheckPolicyEditors } from './lessonEditor/ExerciseCheckPolicyEditor'
 import { LessonLeaveGuard } from './lessonEditor/LessonLeaveGuard'
 import {
   BLOCK_LABELS, MAX_BLOCKS, applySavedIds, blockFromServer, blockTitle, draftFromLesson, draftPayload, draftProblems, draftSignature,
@@ -128,6 +129,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const [objectives, setObjectives] = useState<LearningObjective[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
   const [rubricDrafts, setRubricDrafts] = useState<Record<string, RubricDraft>>({})
+  const [checkPolicyEditors, setCheckPolicyEditors] = useState<CheckPolicyEditors>({})
   const auditBlockId = Number(searchParams.get('block'))
   const checkPolicyBlockId = Number(searchParams.get('block_id'))
   const auditRequest = useRef({ blockId: checkPolicyBlockId || auditBlockId, companion: !checkPolicyBlockId && searchParams.get('add_companion') === '1' })
@@ -159,6 +161,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     draftRef.current = next
     setDraftState(next)
     setRubricDrafts((current) => Object.fromEntries(Object.entries(current).filter(([key]) => next.blocks.some((block) => block.key === key))))
+    setCheckPolicyEditors((current) => Object.fromEntries(Object.entries(current).filter(([id]) => next.blocks.some((block) => block.id === Number(id)))))
     setServer(response)
     updatedAtRef.current = response.lesson.updated_at
     baselineRef.current = new Map(next.blocks.map((block) => [block.id!, block]))
@@ -243,6 +246,10 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     .map((upload) => upload.contentBlockId as number)), [uploads])
   const dirty = Boolean(draft) && signature !== savedSig
   const rubricDirty = Boolean(draft?.blocks.some((block) => { const item = rubricDrafts[block.key]; return item && (item.title.trim() || item.criteria.some((criterion) => criterion.trim())) }))
+  const checkPolicyDirty = Boolean(draft?.blocks.some(({ id }) => {
+    const editor = id === null ? undefined : checkPolicyEditors[id]
+    return editor && hasCheckPolicyEdits(editor)
+  }))
   useEffect(() => {
     // A pending departure owns navigation; query cleanup must not replace its destination.
     if (leavingAfterSave.current || dirty || !savedAt || (!searchParams.has('suggest_submission') && !searchParams.has('add_companion'))) return
@@ -477,6 +484,14 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     const index = blocks.findIndex((item) => item.key === block.key)
     setDraft((current) => removeBlock(current, block.key))
     setRubricDrafts((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== block.key)))
+    if (block.id !== null) {
+      const blockId = block.id
+      setCheckPolicyEditors((current) => {
+        const next = { ...current }
+        delete next[blockId]
+        return next
+      })
+    }
     setPendingDelete(null)
     if (selectedKey === block.key) {
       setSelectedKey(null)
@@ -595,7 +610,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       : status === 'error' && dirty ? { icon: <TriangleAlert className="h-3.5 w-3.5" />, text: 'Couldn\'t save', tone: 'text-danger-ink' }
         : dirty && problems.size ? { icon: <CircleDot className="h-3.5 w-3.5" />, text: 'Unsaved: finish a block', tone: 'text-warning-ink' }
           : dirty ? { icon: <CircleDot className="h-3.5 w-3.5" />, text: 'Unsaved changes', tone: 'text-warning-ink' }
-            : { icon: <CircleCheck className="h-3.5 w-3.5" />, text: savedAt ? `Saved · ${savedAgo(savedAt, now)}` : 'Saved', tone: 'text-ink-muted' }
+            : checkPolicyDirty ? { icon: <CircleDot className="h-3.5 w-3.5" />, text: 'Unsaved check rules', tone: 'text-warning-ink' }
+              : { icon: <CircleCheck className="h-3.5 w-3.5" />, text: savedAt ? `Saved · ${savedAgo(savedAt, now)}` : 'Saved', tone: 'text-ink-muted' }
 
   const inspector = (
     <Inspector
@@ -615,6 +631,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       onObjectiveCreated={(objective) => setObjectives((current) => [...current, objective])}
       rubricDrafts={rubricDrafts}
       setRubricDrafts={setRubricDrafts}
+      checkPolicyEditors={checkPolicyEditors}
+      setCheckPolicyEditors={setCheckPolicyEditors}
       rubrics={rubrics}
       onRubricCreated={(rubric) => setRubrics((current) => [...current, rubric])}
     />
@@ -861,7 +879,14 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         </>}
       />
       {/* Leave questions sit above Settings; save confirmations below sit above the leave question. */}
-      <LessonLeaveGuard dirty={dirty || saving || rubricDirty} rubricDirty={rubricDirty} onSave={saveAndLeave} onDiscard={() => { clearLocalDraft(backupKey); setRubricDrafts({}) }} problem={firstProblem} />
+      <LessonLeaveGuard
+        dirty={dirty || saving || rubricDirty || checkPolicyDirty}
+        rubricDirty={rubricDirty}
+        checkPolicyDirty={checkPolicyDirty}
+        onSave={saveAndLeave}
+        onDiscard={() => { clearLocalDraft(backupKey); setRubricDrafts({}); setCheckPolicyEditors({}) }}
+        problem={firstProblem}
+      />
 
       <Modal open={Boolean(reopen)} onClose={() => { setReopen(null); finishLeaveSave(false) }} title="Reopen finished lessons?" subtitle={reopen ? `${reopen.impact.completed_learners} ${reopen.impact.completed_learners === 1 ? 'learner' : 'learners'} finished this lesson. Adding new work reopens it for them until they finish that work.` : ''} size="md" footer={<>
         <Button variant="secondary" onClick={() => { setReopen(null); finishLeaveSave(false) }}>Keep editing</Button>

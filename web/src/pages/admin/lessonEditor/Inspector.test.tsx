@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ToastProvider } from '../../../contexts/ToastContext'
@@ -7,6 +7,7 @@ import { TestRouter } from '../../../test/TestRouter'
 import type { components } from '../../../types/api.generated'
 import { newBlock, type BlockDraft } from './blockDraft'
 import { Inspector } from './Inspector'
+import type { CheckPolicyEditors } from './ExerciseCheckPolicyEditor'
 
 const api = vi.hoisted(() => ({
   getExerciseCheckPolicy: vi.fn(),
@@ -40,17 +41,23 @@ afterEach(() => {
   container.remove()
 })
 
-function render(selected: BlockDraft = block, configured = false) {
-  return act(async () => root.render(
+function InspectorFixture({ selected, configured }: { selected: BlockDraft; configured: boolean }) {
+  const [checkPolicyEditors, setCheckPolicyEditors] = useState<CheckPolicyEditors>({})
+  return (
     <TestRouter><ToastProvider>
       <Inspector tab="block" onTab={vi.fn()} draft={{ title: 'Lesson', required: true, release_day: 0, blocks: [selected], removed_block_ids: [], alignments: [] }}
         onLesson={vi.fn()} block={selected} onBlock={vi.fn()} activity={new Map()}
         context={{ curriculum: { id: 1, name: 'Prework' }, module: { id: 1, name: 'Ruby', release_days: [] }, used_in: [], other_cohorts_count: 0,
           submissions_count: 0, waiting_count: 0, open_help_count: 0, github_grade_suggestions_configured: configured }}
         curriculumId={1} lessonId={1} objectives={[]} onObjectiveCreated={vi.fn()} rubrics={[]} onRubricCreated={vi.fn()} rubricDrafts={{}} setRubricDrafts={vi.fn()}
+        checkPolicyEditors={checkPolicyEditors} setCheckPolicyEditors={setCheckPolicyEditors}
       />
-    </ToastProvider></TestRouter>,
-  ))
+    </ToastProvider></TestRouter>
+  )
+}
+
+function render(selected: BlockDraft = block, configured = false) {
+  return act(async () => root.render(<InspectorFixture selected={selected} configured={configured} />))
 }
 
 function button(name: string) {
@@ -105,6 +112,7 @@ it('updates rules without clearing advanced settings and requires confirmation t
     expected_workflow_path: activePolicy.expected_workflow_path, expected_workflow_sha: activePolicy.expected_workflow_sha,
   }))
   expect(container.textContent).toContain('Active · 2 required checks · Version 2')
+  await enterCheck('A draft to discard on deactivation')
   await act(async () => button('Turn off check suggestions for this exercise').click())
   expect(api.deactivateExerciseCheckPolicy).not.toHaveBeenCalled()
   await act(async () => button('Cancel').click())
@@ -113,6 +121,8 @@ it('updates rules without clearing advanced settings and requires confirmation t
   await act(async () => button('Turn off suggestions').click())
   expect(api.deactivateExerciseCheckPolicy).toHaveBeenCalledWith(12)
   expect(container.textContent).toContain('No check rules yet')
+  expect(container.querySelector<HTMLInputElement>('input[placeholder="exercise-111"]')?.value).toBe('')
+  expect(button('Reset check-rule edits')).toBeUndefined()
 })
 
 it('keeps the draft if a save fails and does not reuse another block’s rules', async () => {

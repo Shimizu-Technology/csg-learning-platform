@@ -92,6 +92,17 @@ class OfferingPriceVerificationTest < ActionDispatch::IntegrationTest
     assert_nil @cohort.reload.offering_price_verification
   end
 
+  test "reports legacy cohort validation errors when saving a matching Stripe verification" do
+    @cohort.update_columns(name: "")
+
+    as_user(@admin) { verify_price }
+
+    assert_response :unprocessable_entity
+    assert_includes response.parsed_body["error"], "Could not save price verification"
+    assert_includes response.parsed_body["error"], "Name can't be blank"
+    assert_nil @cohort.reload.offering_price_verification
+  end
+
   test "students and instructors cannot verify a price or inject the verification stamp" do
     with_stripe_price(->(_id) { flunk "Unauthorized price verification reached Stripe" }) do
       [ @instructor, @student ].each do |user|

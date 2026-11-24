@@ -69,6 +69,17 @@ for (const theme of ['light', 'dark'] as const) {
         if (mobile) await touchTargets([checkName, add, save, advanced])
 
         await checkName.fill('exercise-111')
+        await page.getByRole('tab', { name: 'Lesson', exact: true }).click()
+        await page.getByRole('tab', { name: 'Exercise block', exact: true }).click()
+        await expect(checkName).toHaveValue('exercise-111')
+        if (mobile) await page.getByRole('button', { name: 'Close Settings' }).click()
+        await page.locator('header [data-back-link]').click()
+        const leave = page.getByRole('dialog', { name: 'Leave without saving?' })
+        await expect(leave.getByText(/unsaved check rules/)).toBeVisible()
+        await expect(leave.getByRole('button', { name: 'Save and leave' })).toHaveCount(0)
+        await leave.getByRole('button', { name: 'Keep editing' }).click()
+        if (mobile) await page.getByRole('button', { name: 'Settings', exact: true }).click()
+        await expect(checkName).toHaveValue('exercise-111')
         await add.click()
         await save.click()
         await expect(panel.getByRole('status')).toHaveText('Active · 1 required check · Version 1')
@@ -131,6 +142,10 @@ for (const theme of ['light', 'dark'] as const) {
         }
         await expect(verify).toBeEnabled({ timeout: 20_000 })
         await expect(checkout).toBeDisabled()
+        await panel.getByRole('link', { name: /Public title, description and image set/ }).click()
+        await expect(panel.getByLabel('Public title')).toBeFocused()
+        await panel.getByRole('link', { name: /School checkout is on/ }).click()
+        await expect(panel.locator('#offering-school-checkout')).toBeFocused()
         await noOverflow(page, panel)
         if (mobile) await touchTargets([stripeId, displayPrice, verify, checkout.locator('..'), save])
 
@@ -140,7 +155,7 @@ for (const theme of ['light', 'dark'] as const) {
         await expect(panel.getByRole('alert')).toHaveText('Stripe price is $499.00 USD, but display price is $399.00 USD.')
         await expect(checkout).toBeDisabled()
 
-        await stripeId.fill('price_qa_ux2_399')
+        await stripeId.fill('price_qa_ux2_399 ')
         await expect(verify).toBeDisabled()
         await expect(panel.getByText('Save settings to verify this price.')).toBeVisible()
         expect(await saveOffering()).toMatchObject({ stripe_price_id: 'price_qa_ux2_399' })

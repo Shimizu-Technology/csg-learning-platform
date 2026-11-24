@@ -19,7 +19,8 @@ const onSaved = vi.fn()
 beforeEach(() => {
   vi.clearAllMocks()
   api.getCohortInstructorAssignments.mockResolvedValue({ data: { instructors: [{ id: 9, full_name: 'Assigned instructor' }] } })
-  api.getSetupReadiness.mockResolvedValue({ data: { readiness: { ...cohort.offering_readiness, catalog_copy: false, school_checkout_enabled: false }, errors: [] } })
+  api.getSetupReadiness.mockResolvedValue({ data: { readiness: { ...cohort.offering_readiness, catalog_copy: false, school_checkout_enabled: false },
+    school_checkout: { enabled: false, stripe_configured: true, webhook_configured: false }, errors: [] } })
   api.updateCohort.mockResolvedValue({ data: { cohort } })
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
 })
@@ -75,8 +76,10 @@ it('links catalog preview and every readiness item to its repair location', asyn
   await render()
   expect(container.querySelector('a[href="/courses?offering_id=13"]')?.textContent).toBe('View in catalog')
   const links = [...container.querySelectorAll('li a')].map(link => link.getAttribute('href'))
-  expect(links).toEqual(['/admin/content?open=', '/#offering-price', '/#offering-stripe-price', '/admin/cohorts/13?tab=team', '/admin/content?open=', '/#cohort-status', '/#offering-price', '/#offering-price'])
+  expect(links).toEqual(['/admin/content?open=', '/#offering-price', '/#offering-stripe-price', '/admin/cohorts/13?tab=team', '/admin/content?open=', '/#cohort-status', '/#offering-public-title', '/#offering-school-checkout'])
   expect(container.querySelector('#offering-price')).not.toBeNull()
+  expect(container.querySelector('#offering-public-title')?.tagName).toBe('INPUT')
+  expect(container.querySelector('#offering-school-checkout')?.textContent).toContain('School checkout status')
 })
 
 it('stages offering edits for the cohort save without a second save button', async () => {
@@ -103,6 +106,7 @@ it('uses server catalog and school checks before enabling visibility', async () 
   expect(api.getSetupReadiness).toHaveBeenCalledWith(13, expect.objectContaining({ stripe_price_id: 'price_python' }))
   expect(container.textContent).toContain('Needed: Public title, description and image set')
   expect(container.textContent).toContain('Needed: School checkout is on')
+  expect(container.querySelector('#offering-school-checkout')?.textContent).toContain('The payment webhook needs to be configured.')
   expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).disabled).toBe(true)
 })
 
@@ -179,6 +183,19 @@ it('shows the exact Stripe failure and asks to save price edits before verificat
   expect(verify.disabled).toBe(true)
   expect(container.textContent).toContain('Save the course offering to verify this price.')
   expect(container.querySelector('[role="alert"]')).toBeNull()
+})
+
+it('uses the trimmed Stripe Price ID in the readiness hint and saves it without whitespace', async () => {
+  await render()
+  const stripeId = container.querySelector<HTMLInputElement>('#offering-stripe-price')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(stripeId, 'price_replacement ')
+    stripeId.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(stripeId.checkValidity()).toBe(true)
+  expect(container.textContent).toContain('Save the course offering to verify this price.')
+  await act(async () => container.querySelector<HTMLButtonElement>('button[type="submit"]')!.click())
+  expect(api.updateCohort).toHaveBeenCalledWith(13, expect.objectContaining({ stripe_price_id: 'price_replacement' }))
 })
 
 it.each([['#offering-price', '199.00'], ['#offering-stripe-price', 'price_changed']])('clears the verified badge and prevents enabling checkout while editing %s', async (selector, value) => {

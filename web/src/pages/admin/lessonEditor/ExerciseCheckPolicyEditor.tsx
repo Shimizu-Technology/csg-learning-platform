@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useState, type Dispatch, type SetStateAction } from 'react'
 import { ChevronDown, Plus, X } from 'lucide-react'
 import { Button, IconButton } from '../../../components/ui/Button'
 import { api } from '../../../lib/api'
@@ -15,19 +15,37 @@ function policyFields(policy: Policy | null) {
   }
 }
 
-export function ExerciseCheckPolicyEditor({ blockId, readOnly }: { blockId: number; readOnly?: boolean }) {
+function draftFromPolicy(policy: Policy | null) {
+  return { checks: policy?.required_checks ?? [], name: '', fields: policyFields(policy) }
+}
+
+type CheckPolicyDraft = ReturnType<typeof draftFromPolicy>
+type CheckPolicyEditorState = {
+  policy: Policy | null
+  draft: CheckPolicyDraft
+  busy?: boolean
+  error?: string
+}
+export type CheckPolicyEditors = Partial<Record<number, CheckPolicyEditorState>>
+
+export function hasCheckPolicyEdits(state: CheckPolicyEditorState) {
+  return JSON.stringify(state.draft) !== JSON.stringify(draftFromPolicy(state.policy))
+}
+
+export function ExerciseCheckPolicyEditor({ blockId, state, setCheckPolicyEditors, readOnly }: {
+  blockId: number
+  state?: CheckPolicyEditorState
+  setCheckPolicyEditors: Dispatch<SetStateAction<CheckPolicyEditors>>
+  readOnly?: boolean
+}) {
   const id = useId()
-  const [policy, setPolicy] = useState<Policy | null>()
-  const [checks, setChecks] = useState<string[]>([])
-  const [name, setName] = useState('')
-  const [fields, setFields] = useState(() => policyFields(null))
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [loadError, setLoadError] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const loaded = state !== undefined
 
   useEffect(() => {
+    if (loaded) return
     let active = true
     void api.getExerciseCheckPolicy(blockId).then((response) => {
       if (!active) return
@@ -35,36 +53,49 @@ export function ExerciseCheckPolicyEditor({ blockId, readOnly }: { blockId: numb
         setLoadError(response.error || 'Could not load check rules. Try again.')
         return
       }
-      const current = response.data.active_policy
-      setPolicy(current)
-      setChecks(current?.required_checks ?? [])
-      setFields(policyFields(current))
+      const policy = response.data.active_policy
+      setCheckPolicyEditors((current) => current[blockId] ? current : {
+        ...current,
+        [blockId]: { policy, draft: draftFromPolicy(policy) },
+      })
     }).catch(() => {
       if (active) setLoadError('Could not load check rules. Try again.')
     })
     return () => { active = false }
-  }, [blockId, loadAttempt])
+  }, [blockId, loadAttempt, loaded, setCheckPolicyEditors])
 
   if (loadError) return <>
     <p role="alert" className="text-sm text-danger-ink">{loadError}</p>
     <Button variant="secondary" onClick={() => { setLoadError(''); setLoadAttempt((attempt) => attempt + 1) }}>Retry</Button>
   </>
-  if (policy === undefined) return <p role="status" className="text-sm text-ink-muted">Loading check rules…</p>
+  if (!state) return <p role="status" className="text-sm text-ink-muted">Loading check rules…</p>
 
+  const { policy, draft, busy, error } = state
+  const { checks, name, fields } = draft
   const checkName = name.trim()
   const canAdd = checkName.length > 0 && !checks.includes(checkName) && checks.length < 20
   const nextChecks = canAdd ? [...checks, checkName] : checks
-  const changed = JSON.stringify([nextChecks, fields]) !== JSON.stringify([policy?.required_checks ?? [], policyFields(policy)])
+  const canSave = nextChecks.length > 0 &&
+    JSON.stringify([nextChecks, fields]) !== JSON.stringify([policy?.required_checks ?? [], policyFields(policy)])
+
+  function updateState(update: (current: CheckPolicyEditorState) => CheckPolicyEditorState) {
+    setCheckPolicyEditors((current) => {
+      const editor = current[blockId]
+      return editor ? { ...current, [blockId]: update(editor) } : current
+    })
+  }
+
+  function editDraft(update: (current: CheckPolicyDraft) => CheckPolicyDraft) {
+    updateState((current) => ({ ...current, draft: update(current.draft), error: undefined }))
+  }
 
   function addCheck() {
     if (!canAdd) return
-    setChecks(nextChecks)
-    setName('')
+    editDraft((current) => ({ ...current, checks: nextChecks, name: '' }))
   }
 
   async function save(deactivate: boolean) {
-    setBusy(true)
-    setError('')
+    updateState((current) => ({ ...current, busy: true, error: undefined }))
     try {
       const response = deactivate
         ? await api.deactivateExerciseCheckPolicy(blockId)
@@ -76,19 +107,14 @@ export function ExerciseCheckPolicyEditor({ blockId, readOnly }: { blockId: numb
           expected_workflow_sha: fields.fingerprint.trim() || null,
         })
       if (!response.data || response.error) {
-        setError(response.error || 'Could not update check rules. Try again.')
+        updateState((current) => ({ ...current, busy: false, error: response.error || 'Could not update check rules. Try again.' }))
         return
       }
-      const current = response.data.active_policy
-      setPolicy(current)
-      setChecks(current?.required_checks ?? [])
-      setFields(policyFields(current))
-      setName('')
+      const saved = response.data.active_policy
+      updateState(() => ({ policy: saved, draft: draftFromPolicy(saved) }))
       setConfirming(false)
     } catch {
-      setError('Could not update check rules. Try again.')
-    } finally {
-      setBusy(false)
+      updateState((current) => ({ ...current, busy: false, error: 'Could not update check rules. Try again.' }))
     }
   }
 
@@ -116,7 +142,7 @@ export function ExerciseCheckPolicyEditor({ blockId, readOnly }: { blockId: numb
             {checks.map((check) => (
               <li key={check} className="flex min-w-0 items-center gap-1 rounded-xl border border-line bg-surface-sunken pl-3">
                 <span className="min-w-0 flex-1 py-1 text-sm wrap-anywhere">{check}</span>
-                {!readOnly && <IconButton label={`Remove ${check}`} className="shrink-0" onClick={() => setChecks((list) => list.filter((item) => item !== check))}><X className="h-4 w-4" /></IconButton>}
+                {!readOnly && <IconButton label={`Remove ${check}`} className="shrink-0" onClick={() => editDraft((current) => ({ ...current, checks: current.checks.filter((item) => item !== check) }))}><X className="h-4 w-4" /></IconButton>}
               </li>
             ))}
           </ul>
@@ -126,7 +152,7 @@ export function ExerciseCheckPolicyEditor({ blockId, readOnly }: { blockId: numb
             <input
               id={id}
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => { const name = event.target.value; editDraft((current) => ({ ...current, name })) }}
               onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCheck() } }}
               className="app-control min-h-11 min-w-0 flex-1 max-lg:text-base"
               placeholder="exercise-111"
@@ -148,7 +174,7 @@ export function ExerciseCheckPolicyEditor({ blockId, readOnly }: { blockId: numb
               <label key={key} className="grid min-w-0 gap-1 text-sm font-semibold text-ink-secondary">{label}
                 <input
                   value={fields[key]}
-                  onChange={(event) => setFields((current) => ({ ...current, [key]: event.target.value }))}
+                  onChange={(event) => { const value = event.target.value; editDraft((current) => ({ ...current, fields: { ...current.fields, [key]: value } })) }}
                   className="app-control min-h-11 w-full min-w-0 max-lg:text-base"
                   placeholder={placeholder}
                 />
@@ -160,17 +186,20 @@ export function ExerciseCheckPolicyEditor({ blockId, readOnly }: { blockId: numb
       </fieldset>
       {!readOnly && (
         <>
-          <Button className="min-h-11" disabled={busy || confirming || !changed || !nextChecks.length} onClick={() => void save(false)}>
+          <Button className="min-h-11" disabled={busy || confirming || !canSave} onClick={() => void save(false)}>
             {busy && !confirming ? 'Saving…' : 'Save check rules'}
           </Button>
+          {hasCheckPolicyEdits(state) && !confirming && (
+            <Button variant="quiet" disabled={busy} onClick={() => editDraft(() => draftFromPolicy(policy))}>Reset check-rule edits</Button>
+          )}
           {policy && (confirming ? (
             <div className="grid gap-2 rounded-2xl border border-line bg-surface-sunken p-3">
               <p className="text-sm text-ink-secondary">Turn off suggestions for this exercise? Previously saved grades stay as they are.</p>
               <Button variant="danger" disabled={busy} onClick={() => void save(true)}>{busy ? 'Turning off…' : 'Turn off suggestions'}</Button>
-              <Button variant="secondary" disabled={busy} onClick={() => { setConfirming(false); setError('') }}>Cancel</Button>
+              <Button variant="secondary" disabled={busy} onClick={() => { setConfirming(false); updateState((current) => ({ ...current, error: undefined })) }}>Cancel</Button>
             </div>
           ) : (
-            <Button variant="quiet" className="min-h-11 whitespace-normal" disabled={busy} onClick={() => { setConfirming(true); setError('') }}>
+            <Button variant="quiet" className="min-h-11 whitespace-normal" disabled={busy} onClick={() => { setConfirming(true); updateState((current) => ({ ...current, error: undefined })) }}>
               Turn off check suggestions for this exercise
             </Button>
           ))}
