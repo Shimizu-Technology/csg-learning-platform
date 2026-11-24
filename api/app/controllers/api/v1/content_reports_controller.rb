@@ -37,7 +37,7 @@ module Api
           .offset((page - 1) * per_page).limit(per_page).to_a
         access = conversation_access(page_reports)
         render json: {
-          content_reports: page_reports.map { |report| report_json(report, access) },
+          content_reports: page_reports.map { |report| report_json(report, access, include_resolution_note: true) },
           meta: pagination_json(total_count, page, per_page),
           **(person ? { person: { id: person.id, full_name: person.full_name } } : {})
         }
@@ -47,7 +47,7 @@ module Api
       # report that isn't in the list being shown (an alert for a report since resolved).
       def show
         report = ContentReport.includes(:reporter, :reported_user, :reviewed_by, message: { channel: :cohort, direct_conversation: :cohort }).find(params[:id])
-        render json: { content_report: report_json(report, conversation_access([ report ])) }
+        render json: { content_report: report_json(report, conversation_access([ report ]), include_resolution_note: true) }
       end
 
       def create
@@ -93,7 +93,7 @@ module Api
         report.resolution_note = review_params[:resolution_note].to_s.strip.presence if review_params.key?(:resolution_note)
         report.resolved_at = Time.current if report.status_actioned? || report.status_dismissed?
         report.save!
-        render json: { content_report: report_json(report, conversation_access([ report ])) }
+        render json: { content_report: report_json(report, conversation_access([ report ]), include_resolution_note: true) }
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -154,14 +154,13 @@ module Api
         scope.where(status: %i[pending reviewing]).first
       end
 
-      def report_json(report, access = nil)
+      def report_json(report, access = nil, include_resolution_note: false)
         access ||= conversation_access([ report ])
-        {
+        payload = {
           id: report.id,
           reason: report.reason,
           details: report.details,
           status: report.status,
-          resolution_note: report.resolution_note,
           created_at: report.created_at,
           resolved_at: report.resolved_at,
           reporter: user_json(report.reporter),
@@ -176,6 +175,8 @@ module Api
           },
           reviewed_by: report.reviewed_by && user_json(report.reviewed_by)
         }
+        payload[:resolution_note] = report.resolution_note if include_resolution_note
+        payload
       end
 
       def user_json(user)

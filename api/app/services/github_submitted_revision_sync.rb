@@ -55,7 +55,8 @@ class GithubSubmittedRevisionSync
         matches.each do |file, block|
           next unless locked_ids.include?(block.id)
           block = current_blocks.fetch(block.id)
-          unless block.lesson.module_id == curriculum_module_id && block.lesson.curriculum_module.curriculum_id == current_cohort.curriculum_id &&
+          unless block.lesson.published? && !block.lesson.archived? &&
+              block.lesson.module_id == curriculum_module_id && block.lesson.curriculum_module.curriculum_id == current_cohort.curriculum_id &&
               block.exercise_like? && block.submission_type_for(enrollment, school: school) == "prework_github_sync" && block.filename.to_s.strip.casecmp?(file.fetch("name"))
             errors << "#{file.fetch('name')}: exercise configuration changed during sync; sync again"
             next

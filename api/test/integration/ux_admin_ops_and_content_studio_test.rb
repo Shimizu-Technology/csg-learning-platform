@@ -202,6 +202,216 @@ class UxAdminOpsAndContentStudioTest < ActionDispatch::IntegrationTest
       get "/api/v1/records/content_report/#{report.id}/detail", headers: auth_headers
       assert_response :success
       assert_equal "Removed message and coached learner privately.", response.parsed_body.dig("detail", "resolution_note")
+
+      get "/api/v1/content_reports/#{report.id}", headers: auth_headers
+      assert_response :success
+      assert_equal "Removed message and coached learner privately.", response.parsed_body.dig("content_report", "resolution_note")
+    end
+
+    # Student re-reporting the same message (normal lookup path) never sees resolution_note.
+    as_user(@student) do
+      post "/api/v1/content_reports",
+        params: { content_report: { message_id: message.id, reason: "inappropriate_content" } },
+        headers: auth_headers,
+        as: :json
+      assert_response :created
+      student_report = response.parsed_body.fetch("content_report")
+      assert_equal report.id, student_report["id"]
+      refute student_report.key?("resolution_note")
+    end
+
+    # Duplicate-insert race recovery (ActiveRecord::RecordNotUnique) also never leaks resolution_note.
+    original_save = ContentReport.instance_method(:save!)
+    ContentReport.define_method(:save!) { |*args, **kwargs| raise ActiveRecord::RecordNotUnique, "duplicate" }
+    begin
+      as_user(@student) do
+        post "/api/v1/content_reports",
+          params: { content_report: { message_id: message.id, reason: "inappropriate_content" } },
+          headers: auth_headers,
+          as: :json
+        assert_response :created
+        recovered_report = response.parsed_body.fetch("content_report")
+        assert_equal report.id, recovered_report["id"]
+        refute recovered_report.key?("resolution_note")
+      end
+    ensure
+      ContentReport.define_method(:save!, original_save)
+    end
+  end
+
+  test "draft lessons block paused video stream and active video_progress without mutating duration or progress" do
+    lesson = Lesson.create!(
+      curriculum_module: @mod,
+      title: "Published Then Unpublished Video",
+      position: 0,
+      release_day: 0,
+      published: true
+    )
+    video_block = lesson.content_blocks.create!(
+      block_type: :video,
+      position: 0,
+      title: "Lecture",
+      s3_video_key: "content_videos/22222222-2222-4222-8222-222222222222/lecture.mp4",
+      s3_video_duration_seconds: nil
+    )
+
+    # Pause a second student while the lesson is published so it enters paused_lesson_ids.
+    paused_student = User.create!(
+      clerk_id: "ux_paused_draft_student",
+      email: "ux-paused-draft@example.com",
+      first_name: "Pat",
+      last_name: "Paused",
+      role: :student
+    )
+    paused_enrollment = Enrollment.create!(user: paused_student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: paused_enrollment, curriculum_module: @mod, unlocked: true)
+    paused_enrollment.update!(status: :paused, paused_at: Time.current)
+    assert_includes paused_enrollment.reload.paused_lesson_ids, lesson.id
+
+    # Move the lesson back to draft.
+    lesson.update!(published: false)
+
+    # Paused student cannot get a fresh signed playback URL for the draft lesson.
+    as_user(paused_student) do
+      get "/api/v1/content_blocks/#{video_block.id}/video_stream",
+        params: { cohort_id: @cohort.id },
+        headers: auth_headers
+      assert_response :forbidden
+    end
+
+    # Active student cannot write duration or watch progress on the draft lesson.
+    as_user(@student) do
+      patch "/api/v1/content_blocks/#{video_block.id}/video_progress",
+        params: { last_position_seconds: 90, total_watched_seconds: 90, duration_seconds: 300 },
+        headers: auth_headers,
+        as: :json
+      assert_response :forbidden
+    end
+    assert_nil video_block.reload.s3_video_duration_seconds
+    assert_equal 0, Progress.where(enrollment: @enrollment, content_block: video_block).count
+
+    # Published lessons that become schedule-locked mid-playback still allow video_progress.
+    lesson.update!(published: true, release_day: 30)
+    as_user(@student) do
+      patch "/api/v1/content_blocks/#{video_block.id}/video_progress",
+        params: { last_position_seconds: 45, total_watched_seconds: 45, duration_seconds: 300 },
+        headers: auth_headers,
+        as: :json
+      assert_response :success
+    end
+    assert_equal 300, video_block.reload.s3_video_duration_seconds
+    assert_equal 1, Progress.where(enrollment: @enrollment, content_block: video_block).count
+  end
+
+  test "manual GithubSyncService skips unpublished draft lessons" do
+    @student.update!(github_username: "sam-student")
+    @cohort.update!(repository_name: "prework-repo", settings: { "features" => { "github_sync" => true, "github_app" => false } })
+
+    published_lesson = Lesson.create!(curriculum_module: @mod, title: "Published Exercise", position: 0, release_day: 0, published: true)
+    published_block = published_lesson.content_blocks.create!(
+      block_type: :exercise,
+      position: 0,
+      title: "Published Ex",
+      filename: "published.rb",
+      submission_type: :prework_github_sync
+    )
+    draft_lesson = Lesson.create!(curriculum_module: @mod, title: "Draft Exercise", position: 1, release_day: 0, published: false)
+    draft_block = draft_lesson.content_blocks.create!(
+      block_type: :exercise,
+      position: 0,
+      title: "Draft Ex",
+      filename: "draft.rb",
+      submission_type: :prework_github_sync
+    )
+
+    service = GithubSyncService.new(github_token: "test_token")
+    requested_filenames = nil
+    service.define_singleton_method(:fetch_exercise_files) do |_username, _repo, filenames|
+      requested_filenames = filenames
+      {
+        commit_hash: "a" * 40,
+        files: [
+          { "name" => "published.rb", "text" => "puts :published" },
+          { "name" => "draft.rb", "text" => "puts :draft" }
+        ]
+      }
+    end
+
+    result = service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)
+    assert_equal 1, result[:synced]
+    assert_equal [ "published.rb" ], requested_filenames
+    assert_equal 1, Submission.where(enrollment: @enrollment, content_block: published_block).count
+    assert_equal 0, Submission.where(enrollment: @enrollment, content_block: draft_block).count
+  end
+
+  test "cohort github_sync_health reflects manual-sync-only mode, disabled github_sync, and partial module bindings" do
+    now = Time.utc(2026, 11, 24, 12, 0, 0)
+    travel_to now do
+      build_github_app_fixture
+      second_mod = CurriculumModule.create!(
+        curriculum: @curriculum,
+        name: "Capstone Repo",
+        position: 1,
+        day_offset: 7,
+        schedule_days: "daily"
+      )
+      SchoolSetting.current.update!(features: { "github_app" => true, "github_sync" => true, "github_webhooks" => false, "github_reconciliation" => false })
+      @cohort.update!(settings: {
+        "features" => { "github_app" => true, "github_sync" => true, "github_webhooks" => false, "github_reconciliation" => false },
+        "module_github_config" => {
+          @mod.id.to_s => { "requires_github" => true, "repository_name" => "prework-repo" },
+          second_mod.id.to_s => { "requires_github" => true, "repository_name" => "capstone-repo" }
+        }
+      })
+      # Bind ONLY the first module (no cohort default binding), leaving second_mod unbound.
+      @binding.update!(
+        curriculum_module_id: @mod.id,
+        repository_id: 77777,
+        github_user_id: @student.github_user_id,
+        github_username: "app-learner",
+        verification_state: "verified",
+        verified_at: now - 10.minutes,
+        checked_at: now - 10.minutes
+      )
+
+      with_app_provider do
+        as_app_user(@admin) do
+          get "/api/v1/cohorts/#{@cohort.id}/github_sync_health", headers: app_headers
+          assert_response :success
+          learner = response.parsed_body.fetch("learners").sole
+          assert_equal "not_bound", learner["status"]
+          assert_includes learner["plain_reason"], "Capstone Repo"
+
+          # Now add a verified binding for the second module too; automatic sync is still OFF.
+          GithubRepositoryBinding.create!(
+            enrollment: @enrollment,
+            curriculum_module: second_mod,
+            github_app_installation: @installation,
+            repository_id: 88888,
+            full_name: "app-learner/capstone-repo",
+            github_user_id: @student.github_user_id,
+            github_username: "app-learner",
+            verification_state: "verified",
+            verified_at: now - 5.minutes,
+            checked_at: now - 5.minutes
+          )
+
+          get "/api/v1/cohorts/#{@cohort.id}/github_sync_health", headers: app_headers
+          assert_response :success
+          learner = response.parsed_body.fetch("learners").sole
+          assert_equal "healthy", learner["status"]
+          assert_includes learner["plain_reason"], "manual sync"
+          refute_includes learner["plain_reason"], "syncing automatically"
+
+          # Turning github_sync OFF marks learners app_not_ready with explicit reason.
+          @cohort.update!(settings: @cohort.settings.merge("features" => @cohort.settings["features"].merge("github_sync" => false)))
+          get "/api/v1/cohorts/#{@cohort.id}/github_sync_health", headers: app_headers
+          assert_response :success
+          learner = response.parsed_body.fetch("learners").sole
+          assert_equal "app_not_ready", learner["status"]
+          assert_includes learner["plain_reason"], "GitHub sync is turned off"
+        end
+      end
     end
   end
 

@@ -33,9 +33,39 @@ export function CohortSetupChecklist({ cohort }: { cohort: CohortDetail }) {
     .sort()[0]
 
   const totalStudents = cohort.students.length
-  const failedInvites = cohort.students.filter((student) => student.invite_delivery_status === 'failed').length
-  const pendingInvites = cohort.students.filter((student) => student.invite_pending && !student.last_sign_in_at).length
   const signedInStudents = cohort.students.filter((student) => Boolean(student.last_sign_in_at)).length
+  const failedInvites = cohort.students.filter(
+    (student) => !student.last_sign_in_at && student.invite_delivery_status === 'failed',
+  ).length
+  const uninvitedStudents = cohort.students.filter((student) => {
+    if (student.last_sign_in_at || student.invite_delivery_status === 'failed') return false
+    if (student.invite_delivery_status === 'not_sent') return true
+    if (student.invite_delivery_status === 'sent' || student.invite_delivery_status === 'queued' || student.invite_delivery_status === 'accepted') {
+      return false
+    }
+    return !student.invite_pending && !student.invited_at
+  }).length
+  const pendingInvites = totalStudents - signedInStudents - failedInvites - uninvitedStudents
+
+  const invitationsReady = totalStudents > 0 && failedInvites === 0 && uninvitedStudents === 0
+  let invitationsDetail: string
+  let invitationsActionLabel: string
+  if (totalStudents === 0) {
+    invitationsDetail = 'No students enrolled yet. Add your roster, then send invitations from the Students tab.'
+    invitationsActionLabel = 'Add students'
+  } else if (failedInvites > 0) {
+    invitationsDetail = `${failedInvites} ${failedInvites === 1 ? 'invitation failed' : 'invitations failed'} and needs retry on the Students tab.${uninvitedStudents > 0 ? ` ${uninvitedStudents} not yet invited.` : ''}`
+    invitationsActionLabel = 'Retry failed invites'
+  } else if (uninvitedStudents > 0) {
+    invitationsDetail = `${uninvitedStudents} enrolled ${uninvitedStudents === 1 ? 'student has' : 'students have'} not been invited yet.${pendingInvites > 0 ? ` ${pendingInvites} awaiting sign-in.` : ''}`
+    invitationsActionLabel = 'Send invitations'
+  } else if (pendingInvites > 0) {
+    invitationsDetail = `${signedInStudents} signed in · ${pendingInvites} invited and awaiting sign-in.`
+    invitationsActionLabel = 'View invitations'
+  } else {
+    invitationsDetail = `All ${signedInStudents} enrolled ${signedInStudents === 1 ? 'student has' : 'students have'} signed in.`
+    invitationsActionLabel = 'View students'
+  }
 
   const readiness = cohort.offering_readiness
   const curriculumReady = Boolean(readiness ? readiness.published_content && readiness.curriculum_assigned : assignedModules.length > 0)
@@ -102,17 +132,10 @@ export function CohortSetupChecklist({ cohort }: { cohort: CohortDetail }) {
     {
       key: 'invites',
       label: 'Student invitations',
-      ready: totalStudents > 0 && failedInvites === 0,
-      detail:
-        totalStudents === 0
-          ? 'Send invitations after adding your roster.'
-          : failedInvites > 0
-            ? `${failedInvites} ${failedInvites === 1 ? 'invitation failed' : 'invitations failed'} and needs retry on the Students tab.`
-            : pendingInvites > 0
-              ? `${signedInStudents} signed in · ${pendingInvites} awaiting sign-in.`
-              : `All ${signedInStudents} enrolled ${signedInStudents === 1 ? 'student has' : 'students have'} signed in.`,
+      ready: invitationsReady,
+      detail: invitationsDetail,
       to: cohortPath(cohort.id, 'students'),
-      actionLabel: failedInvites > 0 ? 'Retry failed invites' : 'View invitations',
+      actionLabel: invitationsActionLabel,
     },
   ]
 

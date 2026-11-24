@@ -49,9 +49,10 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
       </section>
     )
   const ready = { ...settings, cohort }
+  const githubRelevant = cohort.features?.github_app === true || cohort.modules.some((mod) => mod.requires_github)
   return (
     <>
-    {settings.user?.role === 'admin' && (
+    {settings.user?.role === 'admin' && githubRelevant && (
       <div className="mb-6 space-y-6">
         <GithubSyncHealthPanel cohortId={cohort.id} />
         {cohort.features?.github_app === true && <GithubAppSettings cohortId={cohort.id} />}

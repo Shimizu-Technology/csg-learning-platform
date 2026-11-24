@@ -60,6 +60,7 @@ export function GithubSyncHealthPanel({
   if (typeof api.getCohortGithubSyncHealth !== 'function') return null
 
   const connectedInstallations = data?.installations.filter((row) => row.connection_state === 'connected') ?? []
+  const autoSyncEnabled = Boolean(data && (data.webhooks_enabled || data.reconciliation_enabled))
   const attentionCount = data
     ? data.summary.sync_error_count +
       data.summary.unverified_count +
@@ -70,6 +71,14 @@ export function GithubSyncHealthPanel({
   const visibleLearners = data
     ? data.learners.filter((learner) => filter === 'all' || learner.status !== 'healthy')
     : []
+  const badgeForLearner = (
+    status: CohortGithubSyncHealthResponse['learners'][number]['status'],
+  ): { label: string; tone: BadgeTone } => {
+    if (status === 'healthy' && !autoSyncEnabled) {
+      return { label: 'Verified (manual sync)', tone: 'info' }
+    }
+    return STATUS_BADGE[status]
+  }
 
   return (
     <section className="app-surface space-y-4 p-5" aria-labelledby={`github-sync-health-${cohortId}`}>
@@ -171,7 +180,9 @@ export function GithubSyncHealthPanel({
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold tabular-nums">
-              <Badge tone="success">{data.summary.healthy_count} syncing</Badge>
+              <Badge tone={autoSyncEnabled ? 'success' : 'info'}>
+                {data.summary.healthy_count} {autoSyncEnabled ? 'syncing' : 'verified (manual sync)'}
+              </Badge>
               {data.summary.sync_error_count > 0 && (
                 <Badge tone="danger">{data.summary.sync_error_count} sync error</Badge>
               )}
@@ -208,12 +219,14 @@ export function GithubSyncHealthPanel({
             <p className="text-sm text-ink-muted">No active learners enrolled in this cohort yet.</p>
           ) : visibleLearners.length === 0 ? (
             <p className="rounded-xl border border-success-line bg-success-soft px-4 py-3 text-sm text-success-ink">
-              Every active learner in this cohort is verified and syncing normally.
+              {autoSyncEnabled
+                ? 'Every active learner in this cohort is verified and syncing automatically.'
+                : 'Every active learner in this cohort has a verified repository ready for manual sync.'}
             </p>
           ) : (
             <ul className="divide-y divide-line rounded-xl border border-line">
               {(compact ? visibleLearners.slice(0, 8) : visibleLearners).map((learner) => {
-                const badge = STATUS_BADGE[learner.status]
+                const badge = badgeForLearner(learner.status)
                 return (
                   <li key={learner.enrollment_id} className="space-y-1.5 px-4 py-3.5 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">

@@ -29,10 +29,24 @@ class CohortGithubSyncHealth
 
     app_configured = GithubAppCredentials.configured?
     cohort_app_enabled = resolved["github_app"] == true
-    app_ready = app_configured && cohort_app_enabled && connected_installations.any?
+    github_sync_enabled = resolved["github_sync"] == true
+    webhooks_enabled = resolved["github_webhooks"] == true
+    reconciliation_enabled = resolved["github_reconciliation"] == true
+    auto_sync_enabled = webhooks_enabled || reconciliation_enabled
+    app_ready = app_configured && cohort_app_enabled && github_sync_enabled && connected_installations.any?
 
     learners = enrollments.map do |enrollment|
-      build_learner(enrollment, module_names: module_names, app_ready: app_ready, cohort_app_enabled: cohort_app_enabled, app_configured: app_configured, has_connected_installation: connected_installations.any?)
+      build_learner(
+        enrollment,
+        module_names: module_names,
+        github_modules: github_modules,
+        app_ready: app_ready,
+        cohort_app_enabled: cohort_app_enabled,
+        github_sync_enabled: github_sync_enabled,
+        auto_sync_enabled: auto_sync_enabled,
+        app_configured: app_configured,
+        has_connected_installation: connected_installations.any?
+      )
     end
 
     {
@@ -41,9 +55,9 @@ class CohortGithubSyncHealth
       oauth_configured: GithubAppCredentials.oauth_configured?,
       school_github_app_enabled: school["github_app"] == true,
       cohort_github_app_enabled: cohort_app_enabled,
-      github_sync_enabled: resolved["github_sync"] == true,
-      webhooks_enabled: resolved["github_webhooks"] == true,
-      reconciliation_enabled: resolved["github_reconciliation"] == true,
+      github_sync_enabled: github_sync_enabled,
+      webhooks_enabled: webhooks_enabled,
+      reconciliation_enabled: reconciliation_enabled,
       grade_suggestions_enabled: resolved["github_grade_suggestions"] == true,
       installations: installations.map { |row| GithubAppSerializer.installation(row) },
       github_modules: github_modules,
@@ -62,7 +76,7 @@ class CohortGithubSyncHealth
 
   private
 
-  def build_learner(enrollment, module_names:, app_ready:, cohort_app_enabled:, app_configured:, has_connected_installation:)
+  def build_learner(enrollment, module_names:, github_modules:, app_ready:, cohort_app_enabled:, github_sync_enabled:, auto_sync_enabled:, app_configured:, has_connected_installation:)
     user = enrollment.user
     bindings = enrollment.github_repository_bindings.sort_by(&:id).map do |binding|
       binding.enrollment = enrollment
@@ -75,8 +89,11 @@ class CohortGithubSyncHealth
     status, reason, last_synced_at, next_retry_at, last_error = evaluate_learner(
       user: user,
       bindings: bindings,
+      github_modules: github_modules,
       app_ready: app_ready,
       cohort_app_enabled: cohort_app_enabled,
+      github_sync_enabled: github_sync_enabled,
+      auto_sync_enabled: auto_sync_enabled,
       app_configured: app_configured,
       has_connected_installation: has_connected_installation
     )
@@ -99,10 +116,12 @@ class CohortGithubSyncHealth
     }
   end
 
-  def evaluate_learner(user:, bindings:, app_ready:, cohort_app_enabled:, app_configured:, has_connected_installation:)
+  def evaluate_learner(user:, bindings:, github_modules:, app_ready:, cohort_app_enabled:, github_sync_enabled:, auto_sync_enabled:, app_configured:, has_connected_installation:)
     unless app_ready
       reason = if !app_configured
         "GitHub App credentials are not configured for this school deployment yet."
+      elsif !github_sync_enabled
+        "GitHub sync is turned off for this cohort."
       elsif !cohort_app_enabled
         "GitHub App access is turned off for this cohort."
       elsif !has_connected_installation
@@ -119,22 +138,53 @@ class CohortGithubSyncHealth
       return [ "not_bound", "GitHub account is connected, but no repository is linked yet.", nil, nil, nil ]
     end
 
-    unverified = bindings.find { |row| row["verification_state"] != "verified" }
+    default_binding = bindings.find { |row| row["curriculum_module_id"].nil? }
+    applicable_bindings = bindings
+    if github_modules.any?
+      missing_modules = []
+      resolved_bindings = []
+      github_modules.each do |mod|
+        matched = bindings.find { |row| row["curriculum_module_id"] == mod[:id] } || default_binding
+        if matched
+          resolved_bindings << matched
+        else
+          missing_modules << mod[:name]
+        end
+      end
+      if missing_modules.any?
+        return [
+          "not_bound",
+          "No repository is linked for #{missing_modules.join(', ')}.",
+          nil,
+          nil,
+          nil
+        ]
+      end
+      applicable_bindings = resolved_bindings.uniq { |row| row["id"] }
+    end
+
+    unverified = applicable_bindings.find { |row| row["verification_state"] != "verified" }
     if unverified
       reason = humanize_error(unverified["failure_reason"]) || "Repository #{unverified["full_name"]} still needs verification before syncing can run."
       return [ "unverified", reason, nil, nil, unverified["failure_reason"] ]
     end
 
-    errored = bindings.find { |row| row["last_error"].present? || row["last_status"] == "failed" }
-    last_synced_at = bindings.filter_map { |row| row["last_reconciled_at"] }.max
-    next_retry_at = bindings.filter_map { |row| row["next_reconcile_at"] }.min
+    errored = applicable_bindings.find { |row| row["last_error"].present? || row["last_status"] == "failed" }
+    last_synced_at = applicable_bindings.filter_map { |row| row["last_reconciled_at"] }.max
+    next_retry_at = applicable_bindings.filter_map { |row| row["next_reconcile_at"] }.min
 
     if errored
       raw_error = errored["last_error"].presence || "Automatic sync failed."
       return [ "sync_error", humanize_error(raw_error), last_synced_at, next_retry_at, raw_error ]
     end
 
-    reason = last_synced_at ? "Repository verified and syncing normally." : "Repository verified and ready for the next sync."
+    reason = if !auto_sync_enabled
+      "Repository verified for manual sync. Turn on GitHub webhooks or hourly reconciliation for automatic syncing."
+    elsif last_synced_at
+      "Repository verified and syncing automatically."
+    else
+      "Repository verified and ready for automatic sync."
+    end
     [ "healthy", reason, last_synced_at, next_retry_at, nil ]
   end
 
