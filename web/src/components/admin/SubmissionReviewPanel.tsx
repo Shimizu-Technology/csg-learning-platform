@@ -738,13 +738,18 @@ export function SubmissionReviewPanel({
           className="min-w-0 space-y-4 border-0 p-0"
         >
           {submission.rubric && (
-            <div id="rubric" tabIndex={-1} className="scroll-mt-24 space-y-3 outline-none">
+            // Phones: scroll margins keep a rating scrolled into view clear of the sticky grade bar.
+            <div
+              id="rubric"
+              tabIndex={-1}
+              className="scroll-mt-24 scroll-mb-72 space-y-3 outline-none lg:scroll-mb-48 [&_:is(button,textarea)]:scroll-mt-24 [&_:is(button,textarea)]:scroll-mb-72 lg:[&_:is(button,textarea)]:scroll-mb-48"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-semibold">{submission.rubric.title}</h3>
                 <Badge tone="neutral">Optional for Redo</Badge>
               </div>
               {submission.rubric.criteria.map((criterion) => (
-                <div key={criterion.id} className="rounded-xl border border-line p-3">
+                <div key={criterion.id} className="scroll-mt-24 scroll-mb-72 rounded-xl border border-line p-3 lg:scroll-mb-48">
                   <p className="text-sm font-semibold">{criterion.title}</p>
                   <p className="mt-1 text-xs text-ink-muted">{criterion.description}</p>
                   <div
@@ -795,14 +800,14 @@ export function SubmissionReviewPanel({
       <div
         ref={gradeControls}
         data-grade-bar=""
-        className={`sticky z-20 -mx-2 space-y-2 rounded-2xl border border-line bg-surface-raised p-2.5 shadow-overlay sm:-mx-1 sm:space-y-3 sm:p-3 ${
+        className={`sticky z-20 -mx-2 space-y-1.5 rounded-2xl border border-line bg-surface-raised p-2 shadow-overlay sm:-mx-1 sm:space-y-3 sm:p-3 ${
           footerOffset === 'shell'
             ? 'bottom-[calc(4.25rem+1px+env(safe-area-inset-bottom,0px))] lg:bottom-3 [html[data-keyboard=open]_&]:bottom-0'
             : 'bottom-0'
         }`}
       >
         {/* Feedback is always in view, phones included: no grade is saved without passing it. */}
-        <fieldset disabled={locked} className="min-w-0 space-y-2 border-0 p-0">
+        <fieldset disabled={locked} className="min-w-0 space-y-1.5 border-0 p-0 sm:space-y-2">
           {(snippets.length > 0 || feedback.trim()) && (
             <div className="flex items-center gap-2">
               <div role="group" aria-label="Reusable snippets" className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none]">
@@ -849,6 +854,7 @@ export function SubmissionReviewPanel({
             disabled={grading || conflict || isPreviousAttempt(submission)}
             minHeight={44}
             maxHeight={160}
+            compactToolbar
           />
         </fieldset>
         <div aria-live="assertive" aria-atomic="true">
@@ -903,13 +909,18 @@ export function SubmissionReviewPanel({
                 disabled={locked}
                 className="app-control min-h-11 w-full px-3 text-sm"
               />
-              <div role="group" aria-label="Common override reasons" className="flex flex-wrap gap-1.5">
+              <div
+                role="group"
+                aria-label="Common override reasons"
+                className="flex flex-nowrap gap-1.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-visible"
+              >
                 {OVERRIDE_REASON_PICKS.map((reason) => (
                   <Button
                     key={reason}
                     variant={overrideReason === reason ? 'primary' : 'secondary'}
                     size="sm"
                     aria-pressed={overrideReason === reason}
+                    className="shrink-0"
                     onClick={() => review.setOverrideReason(reason)}
                   >
                     {reason}

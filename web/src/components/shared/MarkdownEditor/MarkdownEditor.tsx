@@ -20,9 +20,10 @@ import { closeHistory } from '@tiptap/pm/history'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
 import DOMPurify from 'dompurify'
-import { AlertTriangle, Eye, EyeOff, Keyboard, X } from 'lucide-react'
+import { AlertTriangle, ChevronUp, Eye, EyeOff, Keyboard, X } from 'lucide-react'
 import { editorJsonToMarkdown } from '../../../lib/messageFormat'
 import { isMultiLinePaste, looksLikeCode, normalizePastedCode } from '../../../lib/codePaste'
+import { useMediaQuery } from '../../../lib/useMediaQuery'
 import { MarkdownText } from '../MarkdownRenderer'
 import {
   applyComposerList,
@@ -106,6 +107,11 @@ export type MarkdownEditorProps = {
   autoFocus?: boolean
   minHeight?: number
   maxHeight?: number
+  /**
+   * Field only: on phones (< sm) the top formatting row stays folded behind an Aa button beside the
+   * text box, and the box grows to at most 88px, so a sticky editor (the grade bar) stays short.
+   */
+  compactToolbar?: boolean
   describedBy?: string
   extensions?: AnyExtension[]
   /** Composer footer, before the formatting buttons (Attach). */
@@ -219,7 +225,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     disabled = false,
     autoFocus = false,
     minHeight,
-    maxHeight,
+    maxHeight: maxHeightProp,
+    compactToolbar = false,
     describedBy,
     toolbarStart,
     toolbarEnd,
@@ -230,6 +237,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     className = '',
   } = props
   const composer = variant === 'composer'
+  const compact = compactToolbar && !composer
+  const narrow = useMediaQuery('(max-width: 639.98px)')
+  const maxHeight = compact && narrow ? Math.min(maxHeightProp ?? COMPACT_MAX_HEIGHT, COMPACT_MAX_HEIGHT) : maxHeightProp
   const propsRef = useRef(props)
   propsRef.current = props
   const target: MarkdownTarget = props.target ?? (composer ? 'message' : 'written')
@@ -305,6 +315,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [linkError, setLinkError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [compactRowShown, setCompactRowShown] = useState(false)
   // Composer only: formatting tools stay behind Aa until the person opens them; this browser remembers the choice.
   const [formattingShown, setFormattingShown] = useState(() => composer && readComposerFormattingShown())
   const toggleFormatting = () => {
@@ -1147,7 +1158,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       }}
     >
       {!composer && (
-        <div className="flex items-center gap-1 border-b border-line px-1.5 py-1">
+        <div className={`${compact && !compactRowShown ? 'hidden sm:flex' : 'flex'} items-center gap-1 border-b border-line px-1.5 py-1`}>
           {toolbar}
           {phoneMenu}
           <span className="flex-1" />
@@ -1166,51 +1177,65 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         </div>
       )}
 
-      <div className={mode === 'rich' ? 'overflow-y-auto' : 'hidden'} style={mode === 'rich' ? surfaceStyle : undefined} data-md-rich="">
-        <EditorContent editor={editor} />
-      </div>
-      {mode === 'markdown' && !preview && (
-        <textarea
-          ref={textareaRef}
-          id={props.id}
-          value={source}
-          disabled={disabled}
-          aria-label={`${label}, Markdown`}
-          aria-describedby={describedBy}
-          placeholder={placeholder}
-          spellCheck
-          autoCorrect="off"
-          autoCapitalize="off"
-          rows={composer ? 2 : 6}
-          onChange={(event) => {
-            const next = event.target.value
-            setSource(next)
-            sourceRef.current = next
-            emitSource(next)
-            updateSourceCaret(event.target)
-          }}
-          onSelect={(event) => updateSourceCaret(event.currentTarget)}
-          onKeyDown={handleSourceKeyDown}
-          onCompositionStart={startComposing}
-          onCompositionEnd={endComposing}
-          onPaste={handleSourcePaste}
-          onBlur={() => propsRef.current.onBlur?.()}
-          className="block w-full resize-none overflow-y-auto border-0 bg-transparent px-3 py-2.5 font-mono text-base leading-6 text-ink outline-none placeholder:text-ink-disabled sm:text-sm"
-        />
-      )}
-      {mode === 'markdown' && preview && (
-        <div
-          ref={previewRef}
-          id={previewId}
-          role="region"
-          aria-label={`Preview of ${label.toLowerCase()}`}
-          tabIndex={0}
-          className="min-w-0 overflow-y-auto px-3 py-2.5 text-sm leading-6 text-ink [overflow-wrap:anywhere] focus-visible:outline-none"
-          style={{ minHeight: minHeight ?? (composer ? 48 : 160), maxHeight }}
-        >
-          {source.trim() ? (propsRef.current.renderPreview || PREVIEW_DEFAULT)(source) : <p className="text-ink-muted">Nothing to preview yet.</p>}
+      <div className={compact ? 'flex items-start sm:block' : undefined}>
+        <div className={compact ? 'min-w-0 flex-1' : undefined}>
+          <div className={mode === 'rich' ? 'overflow-y-auto' : 'hidden'} style={mode === 'rich' ? surfaceStyle : undefined} data-md-rich="">
+            <EditorContent editor={editor} />
+          </div>
+          {mode === 'markdown' && !preview && (
+            <textarea
+              ref={textareaRef}
+              id={props.id}
+              value={source}
+              disabled={disabled}
+              aria-label={`${label}, Markdown`}
+              aria-describedby={describedBy}
+              placeholder={placeholder}
+              spellCheck
+              autoCorrect="off"
+              autoCapitalize="off"
+              rows={composer ? 2 : 6}
+              onChange={(event) => {
+                const next = event.target.value
+                setSource(next)
+                sourceRef.current = next
+                emitSource(next)
+                updateSourceCaret(event.target)
+              }}
+              onSelect={(event) => updateSourceCaret(event.currentTarget)}
+              onKeyDown={handleSourceKeyDown}
+              onCompositionStart={startComposing}
+              onCompositionEnd={endComposing}
+              onPaste={handleSourcePaste}
+              onBlur={() => propsRef.current.onBlur?.()}
+              className="block w-full resize-none overflow-y-auto border-0 bg-transparent px-3 py-2.5 font-mono text-base leading-6 text-ink outline-none placeholder:text-ink-disabled sm:text-sm"
+            />
+          )}
+          {mode === 'markdown' && preview && (
+            <div
+              ref={previewRef}
+              id={previewId}
+              role="region"
+              aria-label={`Preview of ${label.toLowerCase()}`}
+              tabIndex={0}
+              className="min-w-0 overflow-y-auto px-3 py-2.5 text-sm leading-6 text-ink [overflow-wrap:anywhere] focus-visible:outline-none"
+              style={{ minHeight: minHeight ?? (composer ? 48 : 160), maxHeight }}
+            >
+              {source.trim() ? (propsRef.current.renderPreview || PREVIEW_DEFAULT)(source) : <p className="text-ink-muted">Nothing to preview yet.</p>}
+            </div>
+          )}
         </div>
-      )}
+        {compact && (
+          <ToolbarButton
+            label="Formatting toolbar"
+            expanded={compactRowShown}
+            onClick={() => setCompactRowShown((shown) => !shown)}
+            className="sm:hidden"
+          >
+            {compactRowShown ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <span className="text-sm font-bold" aria-hidden="true">Aa</span>}
+          </ToolbarButton>
+        )}
+      </div>
 
       {showNotice && pasteNotice && (
         <div className="mx-2 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-xs text-ink-secondary" role="status">
@@ -1296,6 +1321,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     </div>
   )
 })
+
+/** The tallest a compactToolbar field grows on phones. */
+const COMPACT_MAX_HEIGHT = 88
 
 const COMPOSER_FORMATTING_KEY = 'csg-composer-formatting'
 
