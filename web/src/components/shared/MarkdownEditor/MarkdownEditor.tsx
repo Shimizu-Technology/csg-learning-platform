@@ -1142,6 +1142,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   )
 
   const surfaceStyle = { minHeight, maxHeight } as const
+  const defaultPreviewMinHeight = minHeight ?? (composer ? 48 : 160)
+  const previewMinHeight = maxHeight !== undefined ? Math.min(defaultPreviewMinHeight, maxHeight) : defaultPreviewMinHeight
 
   return (
     <div
@@ -1219,7 +1221,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               aria-label={`Preview of ${label.toLowerCase()}`}
               tabIndex={0}
               className="min-w-0 overflow-y-auto px-3 py-2.5 text-sm leading-6 text-ink [overflow-wrap:anywhere] focus-visible:outline-none"
-              style={{ minHeight: minHeight ?? (composer ? 48 : 160), maxHeight }}
+              style={{ minHeight: previewMinHeight, maxHeight }}
             >
               {source.trim() ? (propsRef.current.renderPreview || PREVIEW_DEFAULT)(source) : <p className="text-ink-muted">Nothing to preview yet.</p>}
             </div>

@@ -172,6 +172,26 @@ describe('compact field toolbar on phones', () => {
     }
   })
 
+  it('clamps Markdown preview minHeight to the compact 88px cap when minHeight is omitted', async () => {
+    const original = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    })
+    try {
+      window.localStorage.setItem('csg-editor-preferences:signed-out', JSON.stringify({ mode: 'markdown', enterSends: true }))
+      const { host, button } = await mount({ compactToolbar: true, defaultValue: '**Hello**' })
+      act(() => button('Formatting toolbar').click())
+      act(() => button('Preview').click())
+      const previewRegion = host.querySelector('[role="region"][aria-label^="Preview of"]') as HTMLElement
+      expect(previewRegion).toBeTruthy()
+      expect(previewRegion.style.maxHeight).toBe('88px')
+      expect(previewRegion.style.minHeight).toBe('88px')
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: original })
+    }
+  })
+
   it('leaves the field toolbar alone without compactToolbar', async () => {
     const { host, button } = await mount({ maxHeight: 160 })
     expect(host.querySelector('[role="toolbar"]')!.parentElement!.className).not.toContain('hidden sm:flex')
