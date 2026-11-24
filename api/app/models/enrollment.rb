@@ -62,16 +62,17 @@ class Enrollment < ApplicationRecord
   end
 
   def lesson_available_for_read?(lesson, assignment, lesson_assignment, on: LearningCalendar.today)
+    return false if lesson.archived? || !lesson.published?
     return false unless ensure_paused_library!
 
     # A paused library is the set readable at pause, independent of later
     # cohort/module/lesson date edits. Authorization and assignment containment
-    # remain the caller's responsibility; archived lessons stay hidden.
+    # remain the caller's responsibility; archived and draft lessons stay hidden.
     if paused? && paused_lesson_ids && paused_library_cutoff_at == (paused_at || read_cutoff_at)
       governing_assignment = assignment && (cohort.self_paced? || lesson_assignment.nil?) ? assignment : lesson_assignment
       return false if governing_assignment && !content_available_for_read?(governing_assignment.created_at)
 
-      return !lesson.archived? && paused_lesson_ids.include?(lesson.id)
+      return !lesson.archived? && lesson.published? && paused_lesson_ids.include?(lesson.id)
     end
     return false unless lesson.available?(cohort, assignment, lesson_assignment, on: on)
     return true unless paused?

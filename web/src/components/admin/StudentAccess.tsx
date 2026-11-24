@@ -15,6 +15,12 @@ import { TERMS, humanize } from '../../lib/glossary'
 
 /** Stored enrollment states as the glossary names them: `dropped` reads as Withdrawn. */
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = { active: 'Active', paused: 'Paused', dropped: 'Withdrawn', completed: 'Completed' }
+const ENROLLMENT_STATUS_EFFECTS: Record<string, string> = {
+  active: 'Full access to lessons, submissions, recordings, and support. Occupies a cohort seat.',
+  paused: 'Keeps read-only access to lessons unlocked before the pause. Blocks new submissions and still holds a seat until access expires.',
+  dropped: 'Removes learner access to this cohort and frees the cohort seat. Keeps past submissions and history for staff.',
+  completed: 'Marks the course finished and keeps read-only access to completed lessons and history. Still holds a seat while unexpired.',
+}
 
 type StudentProfile = StudentProgressResponse['user']
 type Override = { unlocked: boolean; unlock_date_override: string | null }
@@ -272,6 +278,7 @@ export function StudentAccess({
               <select
                 id={`${id}-status`}
                 className="app-control w-full"
+                aria-describedby={`${id}-status-help`}
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
               >
@@ -281,6 +288,10 @@ export function StudentAccess({
                   </option>
                 ))}
               </select>
+              <p id={`${id}-status-help`} className="rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs leading-5 text-ink-secondary">
+                <strong className="text-ink">{humanize(status, ENROLLMENT_STATUS_LABELS)}:</strong>{' '}
+                {ENROLLMENT_STATUS_EFFECTS[status] || 'Updates this learner’s access while keeping their history.'}
+              </p>
               <Button type="submit" disabled={Boolean(pending)}>
                 Save enrollment
               </Button>

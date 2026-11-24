@@ -876,7 +876,7 @@ describe('lesson editing access', () => {
   it('duplicates the lesson as an archived copy and opens it', async () => {
     const duplicate = vi.spyOn(api, 'duplicateLesson').mockResolvedValue({ data: { lesson: { ...response().lesson, id: 9, title: 'Make decisions (copy)', archived_at: '2026-11-16T00:00:00Z' } }, error: null })
     await mount()
-    expect(await menuItems()).toEqual(['Duplicate lesson', 'Move to week or day', 'Copy link', 'Archive lesson'])
+    expect(await menuItems()).toEqual(['Unpublish to draft', 'Duplicate lesson', 'Move to week or day', 'Copy link', 'Archive lesson'])
     await click(Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === 'Duplicate lesson'))
     expect(document.body.textContent).toContain('It starts archived on the same day')
     await click(Array.from(document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')).find((item) => item.textContent === 'Duplicate lesson'))

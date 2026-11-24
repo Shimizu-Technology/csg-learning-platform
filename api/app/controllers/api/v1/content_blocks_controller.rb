@@ -216,6 +216,12 @@ module Api
           # first reporter. Skip a busy row and let a later ping try again.
           stamped = establish_video_duration(reported_duration, source)
           @content_block.reload(lock: "FOR KEY SHARE")
+          current_lesson = @content_block.reload_lesson
+          if current_lesson.archived? || !current_lesson.published?
+            render_forbidden("Lesson is not available")
+            raise ActiveRecord::Rollback if stamped
+            return
+          end
           sections = LessonVideoSections.new(@content_block)
           if previous_media != ContentBlock.playable_media(@content_block.s3_video_key, @content_block.video_url) ||
               (params.key?(:video_source) && !sections.includes_source?(source))
@@ -366,6 +372,10 @@ module Api
       # here, not module/lesson availability.
       def authorize_video_progress!
         lesson = @content_block.lesson
+        if lesson.archived? || !lesson.published?
+          return render_forbidden("Lesson is not available")
+        end
+
         @learning_write_enrollment = active_enrollment_for_lesson(lesson)
         return if @learning_write_enrollment
 

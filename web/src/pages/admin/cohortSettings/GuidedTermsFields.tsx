@@ -5,15 +5,35 @@ const termGroups = [
   {
     label: 'Relative per learner',
     fields: [
-      { key: 'guided_access_months', label: 'Access length (months)', max: 120, placeholder: 'e.g. 12' },
-      { key: 'guided_support_weeks', label: 'Support length (weeks)', max: 104, placeholder: 'e.g. 8' },
+      {
+        key: 'guided_access_months',
+        label: 'Access length (months)',
+        max: 120,
+        placeholder: 'e.g. 12',
+        help: 'How long each learner can read lessons after their start date.',
+      },
+      {
+        key: 'guided_support_weeks',
+        label: 'Support length (weeks)',
+        max: 104,
+        placeholder: 'e.g. 8',
+        help: 'How long each learner can submit help requests and message instructors.',
+      },
     ],
   },
   {
     label: 'Fixed cohort dates',
     fields: [
-      { key: 'guided_access_ends_on', label: 'Lessons available through' },
-      { key: 'guided_support_ends_on', label: 'Help period ends' },
+      {
+        key: 'guided_access_ends_on',
+        label: 'Lessons available through',
+        help: 'Cuts off lesson access for the whole cohort after this date in school time.',
+      },
+      {
+        key: 'guided_support_ends_on',
+        label: 'Help period ends',
+        help: 'Ends instructor help and direct messages after this date; reading continues if access is longer.',
+      },
     ],
   },
 ] as const
@@ -41,6 +61,7 @@ export function GuidedTermsFields({ terms, onChange }: { terms: GuidedTermsDraft
                     onChange={event => onChange({ ...terms, [field.key]: event.target.value })}
                     className="app-control mt-1 min-h-11 w-full min-w-0"
                   />
+                  <span className="mt-1 block text-xs font-normal leading-5 text-ink-muted">{field.help}</span>
                 </label>
               ))}
             </div>

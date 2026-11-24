@@ -1,4 +1,5 @@
-import { Github } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle, Github } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { CourseOfferingSettings } from '../../../components/admin/CourseOfferingSettings'
 import { DeliveryChoice } from './DeliveryChoice'
@@ -36,11 +37,17 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
     setEditPaceEnabled,
     editStartDate,
     setEditStartDate,
+    editEndDate,
+    setEditEndDate,
     editGithubOrganization,
     setEditGithubOrganization,
     editStatus,
     chooseStatus,
   } = settings
+  const [effectiveFeatures, setEffectiveFeatures] = useState<Record<string, boolean> | null>(null)
+  const learningPlansOff = effectiveFeatures
+    ? effectiveFeatures.learning_plans === false
+    : cohort.features?.learning_plans === false
   const canMarkUpcoming = editStartDate > schoolDateInputValue(new Date())
   return (
     <>
@@ -69,16 +76,35 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             {COHORT_STATUS_OPTIONS.find((option) => option.value === editStatus)?.description}
           </p>
         </div>
-        <label className="block text-sm font-semibold">
-          Cohort start date
-          <input
-            aria-label="Cohort start date"
-            type="date"
-            className="app-control mt-1 block"
-            value={editStartDate}
-            onChange={(e) => setEditStartDate(e.target.value)}
-          />
-        </label>
+        <div id="cohort-dates" className="grid gap-4 sm:grid-cols-2">
+          <label className="block min-w-0 text-sm font-semibold">
+            Cohort start date
+            <input
+              aria-label="Cohort start date"
+              type="date"
+              className="app-control mt-1 block w-full"
+              value={editStartDate}
+              onChange={(e) => setEditStartDate(e.target.value)}
+            />
+            <span className="mt-1 block text-xs font-normal leading-5 text-ink-secondary">
+              Controls when this cohort becomes active and serves as the fallback start date for modules without their own start date.
+            </span>
+          </label>
+          <label className="block min-w-0 text-sm font-semibold">
+            Cohort end date <span className="font-normal text-ink-muted">(optional)</span>
+            <input
+              aria-label="Cohort end date"
+              type="date"
+              className="app-control mt-1 block w-full"
+              value={editEndDate}
+              min={editStartDate || undefined}
+              onChange={(e) => setEditEndDate(e.target.value)}
+            />
+            <span className="mt-1 block text-xs font-normal leading-5 text-ink-secondary">
+              Reference finish date shown on cohort cards. It does not lock lessons or cut off student access on its own.
+            </span>
+          </label>
+        </div>
         <section className="space-y-3 border-t border-line pt-4" aria-labelledby="course-access-heading">
           <h2 id="course-access-heading" className="text-base font-semibold text-ink">
             Course access for new enrollments
@@ -101,6 +127,7 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
             key={`features-${cohort.id}-${savedRevision}`}
             cohortId={cohort.id}
             onDraftChange={setFeatureDraft}
+            onEffectiveChange={setEffectiveFeatures}
             showReviewResponse={false}
           />
         )}
@@ -161,6 +188,18 @@ export function SettingsFields({ settings }: { settings: CohortSettingsControlle
               />
               Let learners choose their pace
             </label>
+            {editPaceEnabled && learningPlansOff && (
+              <p
+                role="alert"
+                className="mt-2 flex items-start gap-2 rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-xs leading-5 text-warning-ink"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  <strong>Learning plans is currently Off for this cohort.</strong> Turn Learning plans On in Features
+                  above before saving, or learners will not see the pace picker.
+                </span>
+              </p>
+            )}
             {editPaceEnabled && (
               <label className="mt-2 block max-w-xs text-xs font-semibold text-ink-secondary">
                 Pace choices, in weeks

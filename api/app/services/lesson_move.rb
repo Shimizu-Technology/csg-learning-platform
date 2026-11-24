@@ -122,7 +122,7 @@ class LessonMove
     @target = modules[@module_id]
     raise Invalid.new("Choose a module in this lesson's curriculum.", code: "module_mismatch") unless @target&.curriculum_id == curriculum_id
 
-    day_lesson_ids = Lesson.active.where(module_id: @target.id, release_day: @release_day).where.not(id: @lesson.id).pluck(:id)
+    day_lesson_ids = Lesson.where(archived_at: nil, module_id: @target.id, release_day: @release_day).where.not(id: @lesson.id).pluck(:id)
     locked = Lesson.where(id: (day_lesson_ids + [ @lesson.id ]).sort).order(:id).lock("FOR NO KEY UPDATE").index_by(&:id)
     @lesson = locked.fetch(@lesson.id)
     require_current_version!

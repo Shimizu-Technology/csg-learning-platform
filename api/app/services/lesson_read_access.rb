@@ -24,7 +24,7 @@ class LessonReadAccess
   # The columns the rule reads, per table. Titles, names, descriptions and
   # steps are not among them.
   LOOKUP_COLUMNS = {
-    lesson: %w[id module_id archived_at release_day created_at],
+    lesson: %w[id module_id archived_at published release_day created_at],
     module: %w[id curriculum_id day_offset schedule_days],
     enrollment: %w[id user_id cohort_id status paused_at read_cutoff_at paused_lesson_ids paused_library_cutoff_at starts_on first_opened_at],
     cohort: %w[id course_delivery start_date cohort_type learner_pace_weeks],
@@ -75,7 +75,7 @@ class LessonReadAccess
   # and assignments (LearnerProgress): the module is open to them or the lesson
   # is assigned on its own, and the lesson is released for them on `on`.
   def self.readable?(enrollment, lesson, assignment, lesson_assignment, on: LearningCalendar.today)
-    return false if lesson.archived?
+    return false if lesson.archived? || lesson.draft?
     return false unless enrollment.module_reachable_for_read?(assignment, on: on) || lesson_assignment.present?
 
     enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignment, on: on)
@@ -91,7 +91,7 @@ class LessonReadAccess
   def check(enrollments: nil)
     return Result.new(enrollment: nil, error: NOT_ACCESSIBLE) unless @user && @lesson
     return Result.new(enrollment: nil, error: nil) if @user.staff?
-    return denied if @lesson.archived?
+    return denied if @lesson.archived? || @lesson.draft?
     return check_with_cached_enrollment(enrollments) if enrollments
 
     enrollment = readable_enrollments.includes(*ENROLLMENT_INCLUDES).first
@@ -102,7 +102,7 @@ class LessonReadAccess
 
   def lookup
     return Result.new(enrollment: nil, error: NOT_ACCESSIBLE) unless @user
-    return denied if @lesson.archived?
+    return denied if @lesson.archived? || @lesson.draft?
 
     enrollment, assignment, lesson_assignment = Lookup.enrollment(readable_enrollments, @lesson)
     return denied unless enrollment

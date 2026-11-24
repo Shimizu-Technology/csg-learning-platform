@@ -82,6 +82,25 @@ export function GithubRepositorySettings({ enrollmentId, title = 'GitHub reposit
               : 'Verify access before Learn can sync your work.'}</p>)
             : binding.failure_reason && <p className="text-sm text-danger-ink">{binding.failure_reason}</p>}
           {verified && binding.verified_at && <p className="text-xs text-ink-secondary">Verified {formatShortDateTime(binding.verified_at)}{!student && ` · Repository ${binding.repository_id}`}</p>}
+          {!student && (
+            <div className="rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-secondary space-y-1">
+              <p className="tabular-nums">
+                <span className="font-semibold text-ink">Last automatic sync:</span>{' '}
+                {binding.last_reconciled_at ? formatShortDateTime(binding.last_reconciled_at) : 'Not yet synced'}
+                {binding.last_status && binding.last_status !== 'idle' ? ` (${binding.last_status})` : ''}
+              </p>
+              {binding.next_reconcile_at && (
+                <p className="tabular-nums">
+                  <span className="font-semibold text-ink">Next retry:</span> {formatShortDateTime(binding.next_reconcile_at)}
+                </p>
+              )}
+              {binding.last_error && (
+                <p className="text-danger-ink">
+                  <span className="font-semibold">Last sync error:</span> {binding.last_error}
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" disabled={busy || !canVerify} onClick={async () => {
               requestVersion.current += 1

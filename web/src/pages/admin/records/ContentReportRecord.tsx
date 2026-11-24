@@ -39,6 +39,7 @@ function ReportPage({ detail, onChanged }: { detail: ContentReportDetail; onChan
   const location = useLocation()
   const back = useBackLink({ returnTo: `/admin/moderation${OPEN.has(detail.status) ? '' : '?view=resolved'}#report-${detail.id}`, returnLabel: 'Safety' })
   const [saving, setSaving] = useState(false)
+  const [resolutionNote, setResolutionNote] = useState(detail.resolution_note || '')
   const here = `${location.pathname}${location.search}`
   const { reporter, reported_user: reported, message } = detail
   const open = OPEN.has(detail.status)
@@ -46,8 +47,11 @@ function ReportPage({ detail, onChanged }: { detail: ContentReportDetail; onChan
   const label = `Report #${detail.id}`
 
   async function update(status: 'reviewing' | 'actioned' | 'dismissed') {
+    const trimmed = resolutionNote.trim()
     setSaving(true)
-    const result = await api.updateContentReport(detail.id, status)
+    const result = trimmed
+      ? await api.updateContentReport(detail.id, status, trimmed)
+      : await api.updateContentReport(detail.id, status)
     setSaving(false)
     if (!result.data) { toast.error(result.error || 'Could not update the report.'); return }
     toast.success(status === 'reviewing' ? 'Marked as reviewing.' : `Report ${OUTCOMES[status].toLowerCase()}.`)
@@ -101,8 +105,38 @@ function ReportPage({ detail, onChanged }: { detail: ContentReportDetail; onChan
         <Facts items={[
           { label: 'Reason', value: humanize(detail.reason) },
           detail.details ? { label: 'What the reporter said', value: <span className="whitespace-pre-wrap">{detail.details}</span> } : null,
+          !open && detail.resolution_note ? { label: 'Resolution note', value: <span className="whitespace-pre-wrap">{detail.resolution_note}</span> } : null,
         ]} />
       </Section>
+
+      {open && (
+        <Section id="resolution" title="Resolution">
+          <div className="space-y-3 px-4 py-4 sm:px-5">
+            <div>
+              <label htmlFor={`report-record-note-${detail.id}`} className="block text-sm font-semibold text-ink">
+                Resolution note
+              </label>
+              <textarea
+                id={`report-record-note-${detail.id}`}
+                value={resolutionNote}
+                onChange={(event) => setResolutionNote(event.target.value)}
+                maxLength={2000}
+                rows={3}
+                placeholder="Describe what action was taken or why this report was dismissed so other admins have context."
+                className="app-control mt-2 min-h-24 w-full leading-6"
+              />
+              <p className="mt-1.5 text-xs leading-5 text-ink-muted">
+                Saved on this report only. It leaves the message and user accounts unchanged.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {detail.status === 'pending' && <Button variant="secondary" size="sm" disabled={saving} onClick={() => void update('reviewing')}><Clock3 className="h-4 w-4" aria-hidden="true" />Reviewing</Button>}
+              <Button size="sm" disabled={saving} onClick={() => void update('actioned')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Actioned</Button>
+              <Button variant="secondary" size="sm" disabled={saving} onClick={() => void update('dismissed')}><XCircle className="h-4 w-4" aria-hidden="true" />Dismiss</Button>
+            </div>
+          </div>
+        </Section>
+      )}
 
       <Section id="people" title="People">
         <ul className="divide-y divide-line">

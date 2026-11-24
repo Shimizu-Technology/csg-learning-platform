@@ -11,6 +11,7 @@ class ContentReport < ApplicationRecord
 
   validates :reason, presence: true
   validates :details, length: { maximum: 1000 }
+  validates :resolution_note, length: { maximum: 2000 }
   validate :reported_user_is_not_reporter
   validate :message_matches_reported_user
 

@@ -474,7 +474,10 @@ function coursePackageBody(packageData: unknown): string {
 
 export type PublicCourse = components['schemas']['PublicCourse'];
 export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
-export type BulkEnrollmentResult = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
+export type FeatureSwitchChangesResponse = components['schemas']['FeatureSwitchChangesResponse'];
+export type SchoolIdentityResponse = components['schemas']['SchoolIdentityResponse'];
+export type CohortGithubSyncHealthResponse = components['schemas']['CohortGithubSyncHealthResponse'];
+export type BulkEnrollmentResult = { row: number; email: string; status: string; user_id?: number; enrollment_id?: number; error?: string; invitation_status?: string | null }
 export type BulkEnrollmentState = { enrolled: number; invited: number; results: BulkEnrollmentResult[] }
 export const api = {
   verifyCertificate: (code: string) =>
@@ -518,7 +521,9 @@ export const api = {
   },
 
   getFeatureSettings: (cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { cache: 'no-store' }),
+  getFeatureSwitchChanges: (cohortId?: number) => fetchApi<FeatureSwitchChangesResponse>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings/changes` : '/api/v1/feature_settings/changes', { cache: 'no-store' }),
   saveFeatureSettings: (data: { features?: Record<string, boolean | null>; public_catalog_mode?: string; review_response_time?: string | null }, cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  getSchoolIdentity: () => fetchApi<SchoolIdentityResponse>('/api/v1/school_identity', { cache: 'no-store' }),
   // Auth
   getCourseOfferings: () =>
     fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: PublicCourse[] }>('/api/v1/course_offerings', {}, false),
@@ -787,9 +792,15 @@ export const api = {
     fetchApi<components['schemas']['SafetyUserBlocksResponse']>(`/api/v1/safety/user_blocks?page=${params.page ?? 1}&per_page=${params.per_page ?? 25}${params.user_id ? `&user_id=${params.user_id}` : ''}`),
   /** One staff person's record (admins). */
   getTeamMember: (id: number) => fetchApi<components['schemas']['TeamMemberResponse']>(`/api/v1/team_members/${id}`),
-  updateContentReport: (id: number, status: 'reviewing' | 'actioned' | 'dismissed') =>
+  updateContentReport: (id: number, status: 'reviewing' | 'actioned' | 'dismissed', resolutionNote?: string) =>
     fetchApi<components['schemas']['ContentReportResponse']>(`/api/v1/content_reports/${id}`, {
-      method: 'PATCH', body: JSON.stringify({ content_report: { status } }),
+      method: 'PATCH',
+      body: JSON.stringify({
+        content_report: {
+          status,
+          ...(resolutionNote !== undefined ? { resolution_note: resolutionNote } : {}),
+        },
+      }),
     }),
   blockUser: (blockedUserId: number) =>
     fetchApi<components['schemas']['BlockedUserResponse']>('/api/v1/user_blocks', {
@@ -1088,6 +1099,8 @@ export const api = {
     fetchApi<null>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}`, { method: 'DELETE' }),
   getCohortGithubAccess: (id: number) =>
     fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`, {}, true, 30_000),
+  getCohortGithubSyncHealth: (id: number) =>
+    fetchApi<CohortGithubSyncHealthResponse>(`/api/v1/cohorts/${id}/github_sync_health`, { cache: 'no-store' }),
   getCohortStudentView: (id: number) =>
     fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
   createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string;
@@ -1237,12 +1250,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  createLesson: (moduleId: number, data: { title: string; lesson_type?: string; position?: number; release_day?: number; required?: boolean; requires_submission?: boolean }) =>
+  createLesson: (moduleId: number, data: { title: string; lesson_type?: string; position?: number; release_day?: number; required?: boolean; requires_submission?: boolean; published?: boolean }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/lessons`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateLesson: (id: number, data: { base_updated_at: string; title?: string; required?: boolean; requires_submission?: boolean; release_day?: number }) =>
+  updateLesson: (id: number, data: { base_updated_at: string; title?: string; required?: boolean; requires_submission?: boolean; release_day?: number; published?: boolean }) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -1305,7 +1318,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ alignments }),
     }),
-  createExercise: (moduleId: number, data: { title: string; release_day: number; required?: boolean; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission?: boolean; submission_type?: string; submission_config?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number; video_upload_pending?: boolean }) =>
+  createExercise: (moduleId: number, data: { title: string; release_day: number; required?: boolean; published?: boolean; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission?: boolean; submission_type?: string; submission_config?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number; video_upload_pending?: boolean }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/exercises`, {
       method: 'POST',
       body: JSON.stringify(data),

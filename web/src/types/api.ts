@@ -495,6 +495,8 @@ export interface CourseOfferingTerms {
   unlisted?: boolean;
   seat_limit?: number | null;
   seats_taken?: number;
+  occupied_enrollments_count?: number;
+  pending_checkouts_count?: number;
   seats_remaining?: number | null;
   sold_out?: boolean;
   public_price_cents: number | null;

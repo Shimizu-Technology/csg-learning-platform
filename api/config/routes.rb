@@ -9,8 +9,11 @@ Rails.application.routes.draw do
       resources :submission_audits, only: [ :index, :update ]
       get "search", to: "search#index"
       resource :feature_settings, only: [ :show, :update ]
+      get "feature_settings/changes", to: "feature_settings#changes"
       get "cohorts/:cohort_id/feature_settings", to: "feature_settings#show"
       patch "cohorts/:cohort_id/feature_settings", to: "feature_settings#update"
+      get "cohorts/:cohort_id/feature_settings/changes", to: "feature_settings#changes"
+      resource :school_identity, only: :show
       get "ready", to: "/readiness#show", as: :readiness_check
 
       namespace :home_base do
@@ -249,6 +252,7 @@ Rails.application.routes.draw do
           get :home
           get :student_view
           get :github_access
+          get :github_sync_health
           patch :module_access
           patch :announcements
           patch :class_resources

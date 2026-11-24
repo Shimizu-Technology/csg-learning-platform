@@ -3,7 +3,17 @@ import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { useToast } from '../../contexts/ToastContext'
 import { Button } from '../ui/Button'
-export function CohortEnrollment({ cohortId, onSaved }: { cohortId: number; onSaved: () => Promise<unknown> }) {
+export function CohortEnrollment({
+  cohortId,
+  seatLimit,
+  seatsTaken,
+  onSaved,
+}: {
+  cohortId: number
+  seatLimit?: number | null
+  seatsTaken?: number | null
+  onSaved: () => Promise<unknown>
+}) {
 const toast = useToast()
 const [showAddStudent, setShowAddStudent] = useState(false)
 const [githubWarning, setGithubWarning] = useState('')
@@ -69,6 +79,11 @@ return <section className="app-surface space-y-4 p-5">{githubWarning && <p role=
               <p className="text-xs text-ink-secondary">
                 Enter the student's email. Their name will be filled automatically when they sign in via Clerk.
               </p>
+              {seatLimit != null && seatsTaken != null && seatsTaken >= seatLimit && (
+                <p role="status" className="rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-xs leading-5 text-warning-ink">
+                  This cohort is at its paid checkout seat limit ({seatsTaken} of {seatLimit} seats occupied). Adding a student here uses a staff override and keeps paid checkout full.
+                </p>
+              )}
               {studentConflict && <p role="alert" className="text-sm text-danger-ink">{studentConflict} <Link to="/admin/team" className="font-semibold underline">Open Team</Link></p>}
               <div>
                 <label htmlFor="add-student-email" className="block text-xs font-semibold text-ink-secondary mb-1">Email address *</label>

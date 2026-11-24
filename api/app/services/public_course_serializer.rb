@@ -44,7 +44,7 @@ class PublicCourseSerializer
       includes_private_meetings: false, instructor_message_weeks: support_weeks,
       instructor_response_target: cohort.effective_review_response_time,
       includes_individual_project_review: true,
-      **capacity
+      **capacity.slice(:seat_limit, :seats_taken, :seats_remaining, :sold_out)
     }
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -323,6 +323,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_100000) do
     t.bigint "reviewed_by_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.text "resolution_note"
     t.index ["message_id"], name: "index_content_reports_on_message_id"
     t.index ["reported_user_id"], name: "index_content_reports_on_reported_user_id"
     t.index ["reporter_id", "message_id"], name: "index_unique_message_reports", unique: true, where: "(message_id IS NOT NULL)"
@@ -647,7 +648,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_100000) do
     t.index ["next_reconcile_at"], name: "index_github_reconciliation_states_on_next_reconcile_at"
     t.check_constraint "(claim_token IS NULL) = (claimed_until IS NULL)", name: "github_reconciliation_states_claim_lease_consistent"
     t.check_constraint "consecutive_failures >= 0", name: "github_reconciliation_states_consecutive_failures_nonnegative"
-    t.check_constraint "last_status::text = ANY (ARRAY['idle'::character varying, 'ok'::character varying, 'backoff'::character varying, 'failed'::character varying]::text[])", name: "github_reconciliation_states_last_status_valid"
+    t.check_constraint "last_status::text = ANY (ARRAY['idle'::character varying::text, 'ok'::character varying::text, 'backoff'::character varying::text, 'failed'::character varying::text])", name: "github_reconciliation_states_last_status_valid"
   end
 
   create_table "github_repository_bindings", force: :cascade do |t|
@@ -938,6 +939,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_100000) do
     t.boolean "requires_submission", default: false, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.boolean "published", default: true, null: false
     t.index "to_tsvector('simple'::regconfig, (COALESCE(title, ''::character varying))::text)", name: "index_lessons_search_document", using: :gin
     t.index ["module_id", "archived_at", "release_day", "position"], name: "idx_lessons_module_archive_release_position"
     t.index ["module_id", "position"], name: "index_lessons_on_module_id_and_position"

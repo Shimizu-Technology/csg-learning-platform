@@ -17,6 +17,7 @@ module LessonSerialization
       position: lesson.position,
       release_day: lesson.release_day,
       required: lesson.required,
+      published: lesson.published?,
       archived_at: lesson.archived_at,
       updated_at: lesson.updated_at.iso8601(6),
       content_blocks_count: lesson.content_blocks.size

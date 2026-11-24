@@ -38,7 +38,7 @@ class SubmissionAudit
   end
 
   def self.candidate?(block, school:)
-    return false unless block.lesson.archived_at.nil? && block.lesson.curriculum_module.curriculum.active?
+    return false unless block.lesson.archived_at.nil? && block.lesson.published? && block.lesson.curriculum_module.curriculum.active?
     return false unless block.submission_type.nil? || block.submission_type_manual_complete?
     return false if block.checkpoint? && block.knowledge_check.present?
     return false unless asks_for_work?(block)
@@ -52,7 +52,7 @@ class SubmissionAudit
     school = FeatureSwitches.school(read_only: true)
     ContentBlock.joins(lesson: :curriculum_module)
       .joins("INNER JOIN curricula ON curricula.id = modules.curriculum_id")
-      .where(submission_type: [ nil, :manual_complete ], lessons: { archived_at: nil }, curricula: { status: Curriculum.statuses.fetch("active") })
+      .where(submission_type: [ nil, :manual_complete ], lessons: { archived_at: nil, published: true }, curricula: { status: Curriculum.statuses.fetch("active") })
       .includes(:submission_audit_review, :knowledge_check, lesson: { curriculum_module: { curriculum: :cohorts } })
       .order("modules.curriculum_id", "modules.position", "lessons.release_day", "lessons.position", "content_blocks.position", "content_blocks.id")
       .filter_map do |block|

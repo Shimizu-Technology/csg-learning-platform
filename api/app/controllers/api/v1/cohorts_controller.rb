@@ -3,12 +3,12 @@ module Api
     class CohortsController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
-      before_action :require_staff!, only: [ :index, :show, :student_view, :github_access ]
-      before_action :require_admin!, except: [ :index, :accessible, :home, :show, :student_view, :github_access ]
+      before_action :require_staff!, only: [ :index, :show, :student_view, :github_access, :github_sync_health ]
+      before_action :require_admin!, except: [ :index, :accessible, :home, :show, :student_view, :github_access, :github_sync_health ]
       before_action :reject_legacy_settings_write!, only: [ :create, :update ]
-      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :class_resources, :setup_readiness, :verify_offering_price ]
+      before_action :set_cohort, only: [ :home, :show, :github_access, :github_sync_health, :update, :destroy, :module_access, :announcements, :class_resources, :setup_readiness, :verify_offering_price ]
       before_action :set_cohort_with_lessons, only: [ :student_view ]
-      before_action :authorize_staff_cohort!, only: [ :show, :student_view, :github_access ]
+      before_action :authorize_staff_cohort!, only: [ :show, :student_view, :github_access, :github_sync_health ]
 
       # GET /api/v1/cohorts
       def index
@@ -81,6 +81,11 @@ module Api
       rescue GithubOrganizationAccessService::Unavailable => e
         Rails.logger.warn("[GithubAccess] cohort_id=#{@cohort.id} unavailable: #{e.message}")
         render json: { error: "GitHub organization status is unavailable" }, status: :bad_gateway
+      end
+
+      # GET /api/v1/cohorts/:id/github_sync_health
+      def github_sync_health
+        render json: CohortGithubSyncHealth.new(@cohort).call
       end
 
       # GET /api/v1/cohorts/:id/student_view
@@ -724,7 +729,7 @@ module Api
           course_delivery: cohort.course_delivery,
           public_checkout_enabled: cohort.public_checkout_enabled?,
           unlisted: cohort.unlisted?,
-          **cohort.seat_capacity,
+          **cohort.seat_capacity(include_breakdown: current_user&.admin? == true),
           offering_readiness: cohort.offering_readiness,
           offering_price_verified: cohort.offering_price_verification,
           instructor_assigned: cohort.instructors.not_archived.exists?,

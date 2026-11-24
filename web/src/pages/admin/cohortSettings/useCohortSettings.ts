@@ -56,6 +56,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
   // On/off is its own state, so clearing the text doesn't turn pace off (or hide the field).
   const [editPaceEnabled, setEditPaceEnabled] = useState(false)
   const [editStartDate, setEditStartDate] = useState('')
+  const [editEndDate, setEditEndDate] = useState('')
   const [editGithubOrganization, setEditGithubOrganization] = useState('')
   const [editStatus, setEditStatus] = useState('active')
   const [showResourcesModal, setShowResourcesModal] = useState(false)
@@ -125,6 +126,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
       setEditPaceWeeks(formatPaceWeeks(nextCohort.learner_pace_weeks))
       setEditPaceEnabled(Boolean(nextCohort.learner_pace_weeks?.length))
       setEditStartDate(toDateInputValue(nextCohort.start_date))
+      setEditEndDate(toDateInputValue(nextCohort.end_date))
       setEditGithubOrganization(nextCohort.github_organization_name || '')
       setEditStatus(nextCohort.status)
       setForms(buildFormsFromCohort(nextCohort))
@@ -180,9 +182,12 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
       return
     }
     setSaving(true)
+    const savedSections: string[] = []
+    let currentSection = 'cohort details'
     try {
       const candidates = {
         start_date: editStartDate,
+        end_date: editEndDate || null,
         github_organization_name: editGithubOrganization.trim() || null,
         status: editStatus,
         course_delivery: editCourseDelivery,
@@ -191,6 +196,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
       }
       const baseline = {
         start_date: toDateInputValue(cohort.start_date),
+        end_date: toDateInputValue(cohort.end_date) || null,
         github_organization_name: cohort.github_organization_name || null,
         status: cohort.status,
         course_delivery: cohort.course_delivery || 'program',
@@ -225,6 +231,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         : { data: { cohort }, error: undefined }
       if (res.error || !res.data?.cohort) notifyError(res.error || 'Could not save settings. Your edits are preserved.')
       else {
+        if (Object.keys(patch).length) savedSections.push('cohort details')
         // Keep every local draft on partial failure; retry is idempotent.
         for (const mod of cohort.modules) {
           const form = forms[mod.id]
@@ -232,6 +239,7 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
             mod.id in assignedChanges ||
             JSON.stringify(form) !== JSON.stringify(buildFormsFromCohort(cohort)[mod.id])
           ) {
+            currentSection = `module settings for ${mod.name}`
             const result = await api.updateCohortModuleAccess(Number(id), {
               module_id: mod.id,
               assigned: assignedChanges[mod.id] ?? mod.assigned,
@@ -243,8 +251,10 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
               repository_name: form.repository_name,
             })
             if (result.error) throw new Error(result.error)
+            savedSections.push(`module settings (${mod.name})`)
           }
           if (editedWindows[mod.id].length) {
+            currentSection = `submission windows for ${mod.name}`
             const result = await api.updateCohortModuleSubmissionWindows(
               Number(id),
               mod.id,
@@ -254,13 +264,17 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
               })),
             )
             if (result.error) throw new Error(result.error)
+            savedSections.push(`submission windows (${mod.name})`)
           }
         }
         if (JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || [])) {
+          currentSection = 'class resources'
           const result = await api.updateCohortClassResources(Number(id), classResources)
           if (result.error) throw new Error(result.error)
+          savedSections.push('class resources')
         }
         if (featureDraft || reviewResponseDraft !== undefined) {
+          currentSection = 'feature switches'
           const result = await api.saveFeatureSettings(
             {
               ...(featureDraft ? { features: featureDraft } : {}),
@@ -269,9 +283,11 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
             Number(id),
           )
           if (result.error || !result.data) throw new Error('Could not save features')
+          savedSections.push('feature switches')
           if (reviewResponseDraft !== undefined)
             setSavedReviewResponse({ cohortId: Number(id), value: reviewResponseDraft })
         }
+        currentSection = 'reloading settings'
         const fresh = await reloadCohort()
         if (!fresh) throw new Error('Could not refresh settings')
         setOfferingDraft({})
@@ -284,7 +300,12 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
         await onSaved?.()
       }
     } catch {
-      notifyError('Some settings may have saved. Your edits are preserved; retry Save settings to finish.')
+      const savedList = savedSections.length
+        ? `Some settings may have saved (${savedSections.join(', ')}). `
+        : ''
+      notifyError(
+        `${savedList}Could not finish saving ${currentSection}. Your edits are preserved; retry Save settings to finish.`,
+      )
     } finally {
       try {
         await refreshCohorts()
@@ -389,6 +410,8 @@ export function useCohortSettings({ onSaved }: { onSaved?: () => Promise<unknown
     setEditPaceEnabled,
     editStartDate,
     setEditStartDate,
+    editEndDate,
+    setEditEndDate,
     editGithubOrganization,
     setEditGithubOrganization,
     editStatus,

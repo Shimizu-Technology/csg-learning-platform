@@ -49,6 +49,7 @@ export function Moderation() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [reportNotes, setReportNotes] = useState<Record<number, string>>({})
   const [deletionNotes, setDeletionNotes] = useState<Record<number, string>>({})
 
   const load = useCallback(async () => {
@@ -110,9 +111,14 @@ export function Moderation() {
   const clearPerson = () => { setPersonId(null); setPage(1, { history: 'replace' }) }
 
   const updateReport = async (report: ContentReport, status: 'reviewing' | 'actioned' | 'dismissed') => {
+    const note = reportNotes[report.id]?.trim()
+    if ((status === 'actioned' || status === 'dismissed') && !note) {
+      toast.error('Add a resolution note explaining what action was taken or why this report was dismissed.')
+      return
+    }
     const key = `report-${report.id}`
     setSavingKey(key)
-    const result = await api.updateContentReport(report.id, status)
+    const result = await api.updateContentReport(report.id, status, note || undefined)
     setSavingKey(null)
     if (!result.data) return toast.error(result.error || 'Could not update the report.')
     const updated = result.data.content_report
@@ -161,7 +167,16 @@ export function Moderation() {
   if (error) return <div className="app-page">{header}<EmptyState icon={ShieldAlert} title="Could not load Safety" description={error} action={<Button onClick={() => void load()}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} /></div>
 
   const reportCard = (report: ContentReport, pinned = false) => (
-    <ReportCard key={report.id} report={report} returnTo={returnTo} pinned={pinned} saving={savingKey === `report-${report.id}`} onUpdate={(status) => void updateReport(report, status)} />
+    <ReportCard
+      key={report.id}
+      report={report}
+      returnTo={returnTo}
+      pinned={pinned}
+      note={reportNotes[report.id] ?? report.resolution_note ?? ''}
+      onNote={(note) => setReportNotes((current) => ({ ...current, [report.id]: note }))}
+      saving={savingKey === `report-${report.id}`}
+      onUpdate={(status) => void updateReport(report, status)}
+    />
   )
   const openDeletionCard = (request: DataDeletionRequest, pinned = false) => (
     <OpenDeletionCard key={request.id} request={request} returnTo={returnTo} pinned={pinned} note={deletionNotes[request.id] || ''}
@@ -210,14 +225,14 @@ export function Moderation() {
   )
 }
 
-function ReportCard({ report, returnTo, pinned, saving, onUpdate }: { report: ContentReport; returnTo: string; pinned: boolean; saving: boolean; onUpdate: (status: 'reviewing' | 'actioned' | 'dismissed') => void }) {
+function ReportCard({ report, returnTo, pinned, note, onNote, saving, onUpdate }: { report: ContentReport; returnTo: string; pinned: boolean; note: string; onNote: (note: string) => void; saving: boolean; onUpdate: (status: 'reviewing' | 'actioned' | 'dismissed') => void }) {
   const open = isOpen(report.status)
   const back = `${returnTo}#report-${report.id}`
   const conversation = report.message?.conversation
   return (
     // The pinned copy only shows when the report isn't in the list, so the id stays unique.
     <article id={`report-${report.id}`} tabIndex={-1} className={`p-5 sm:p-6 ${pinned ? 'bg-surface-selected' : ''}`}>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className={open ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,1fr)]' : 'flex flex-col gap-4'}>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge>{humanize(report.reason)}</Badge><span className="text-xs tabular-nums text-ink-muted">Reported {formatShortDateTime(report.created_at)}</span><RecordLink record={{ type: 'content_report', id: report.id }} returnLabel="Safety" variant="app" touchTarget peek={false} className="text-xs" aria-label={`Open report #${report.id}: ${report.reported_user.full_name} reported by ${report.reporter.full_name}`}>Open report</RecordLink></div>
           <div className="mt-3 flex min-w-0 items-center gap-3"><Avatar name={report.reported_user.full_name} size="sm" /><h3 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]"><SafetyPersonLink person={report.reported_user} returnTo={back} /> reported by <SafetyPersonLink person={report.reporter} returnTo={back} /></h3></div>
@@ -230,11 +245,32 @@ function ReportCard({ report, returnTo, pinned, saving, onUpdate }: { report: Co
           </p>}
           {report.details && <p className="mt-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.details}</p>}
           {!open && <p className="mt-3 text-xs font-semibold tabular-nums text-ink-muted">{resolutionLine(OUTCOMES[report.status] || humanize(report.status), report.reviewed_by?.full_name, report.resolved_at)}</p>}
+          {!open && report.resolution_note && (
+            <div className="mt-2 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">
+              <span className="block text-xs font-semibold text-ink-muted">Resolution note</span>
+              <p className="mt-0.5 whitespace-pre-wrap">{report.resolution_note}</p>
+            </div>
+          )}
         </div>
-        {open && <div className="flex shrink-0 flex-wrap gap-2">
-          {report.status === 'pending' && <Button variant="secondary" disabled={saving} onClick={() => onUpdate('reviewing')}><Clock3 className="h-4 w-4" aria-hidden="true" />Reviewing</Button>}
-          <Button disabled={saving} onClick={() => onUpdate('actioned')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Actioned</Button>
-          <Button variant="secondary" disabled={saving} onClick={() => onUpdate('dismissed')}><XCircle className="h-4 w-4" aria-hidden="true" />Dismiss</Button>
+        {open && <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-semibold text-ink" htmlFor={`report-note-${report.id}`}>Resolution note</label>
+            <textarea
+              id={`report-note-${report.id}`}
+              value={note}
+              onChange={(event) => onNote(event.target.value)}
+              maxLength={2000}
+              rows={2}
+              placeholder="Required for Actioned or Dismissed: what action was taken, or why it was dismissed."
+              className="app-control mt-1.5 min-h-20 w-full leading-6"
+            />
+            <p className="mt-1 text-xs leading-5 text-ink-muted">Recording a resolution updates this report only. It leaves the message and accounts unchanged.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {report.status === 'pending' && <Button variant="secondary" disabled={saving} onClick={() => onUpdate('reviewing')}><Clock3 className="h-4 w-4" aria-hidden="true" />Reviewing</Button>}
+            <Button disabled={saving} onClick={() => onUpdate('actioned')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Actioned</Button>
+            <Button variant="secondary" disabled={saving} onClick={() => onUpdate('dismissed')}><XCircle className="h-4 w-4" aria-hidden="true" />Dismiss</Button>
+          </div>
         </div>}
       </div>
     </article>

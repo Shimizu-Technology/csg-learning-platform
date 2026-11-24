@@ -35,7 +35,7 @@ class GithubSyncService
 
     exercise_blocks = ContentBlock
       .joins(:lesson)
-      .where(lessons: { module_id: curriculum_module.id })
+      .where(lessons: { module_id: curriculum_module.id, archived_at: nil, published: true })
       .where(block_type: [ :exercise, :code_challenge ])
       .where.not(filename: [ nil, "" ])
       .includes(lesson: :curriculum_module)
@@ -121,7 +121,7 @@ class GithubSyncService
       current_blocks = ContentBlock.where(id: locked_ids).includes(lesson: :curriculum_module).index_by(&:id)
       matches.each do |file, block|
         block = current_blocks[block.id]
-        next unless block
+        next unless block && block.lesson.published? && !block.lesson.archived?
 
         if SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: block.lesson, enrollment: enrollment, context: windows)[:submissions_closed]
           errors << "Skipped closed Week #{SubmissionWindowStatus.week_number_for_release_day(block.lesson.release_day)} GitHub-sync submissions"

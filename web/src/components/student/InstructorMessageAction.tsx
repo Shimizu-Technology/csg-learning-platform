@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
+import { brand } from '../../lib/brand'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
 import { PersonActions } from './PersonActions'
@@ -31,6 +32,6 @@ function ScopedInstructorAction({ cohortId, courseName }: { cohortId: number | n
   }, [cohortId, preview])
   if (preview) return <p className="text-sm text-ink-muted">Messaging is unavailable in View as student.</p>
   if (error) return <p role="alert" className="text-sm text-ink-muted">Couldn’t check your course instructor. Reload to try again.</p>
-  if (empty) return <p className="text-sm text-ink-muted">No instructor is assigned to {courseName || 'this course'} yet. Contact CSG to arrange help.</p>
+  if (empty) return <p className="text-sm text-ink-muted">No instructor is assigned to {courseName || 'this course'} yet. Contact {brand.schoolName} ({brand.supportEmail}) to arrange help.</p>
   return person && cohortId ? <PersonActions person={person} cohortId={cohortId} /> : null
 }

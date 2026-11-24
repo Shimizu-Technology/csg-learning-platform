@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { History, SlidersHorizontal } from 'lucide-react'
 import { api } from '../../lib/api'
 import { StaffActivityFeed } from '../../components/admin/StaffActivityFeed'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 
 export function AdminActivity() {
   const [choices, setChoices] = useState<{ cohorts: { id: number; name: string }[]; learners: { id: number; name: string }[]; actors: { id: number; name: string }[] }>({ cohorts: [], learners: [], actors: [] })
@@ -19,5 +20,26 @@ export function AdminActivity() {
     })
     return () => { active = false }
   }, [retry])
-  return <div className="app-page-wide space-y-5"><PageHeader title="School activity" description="Recorded learning and work across cohorts. Staff actions identify who acted for the learner." />{error && <div role="alert" className="app-surface p-4">{error}<Button variant="quiet" onClick={() => setRetry((value) => value + 1)}>Retry filters</Button></div>}<StaffActivityFeed {...choices} /></div>
+  return (
+    <div className="app-page-wide space-y-5">
+      <PageHeader
+        title="School activity"
+        description="Recorded learning and work across cohorts. Staff actions identify who acted for the learner."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <LinkButton variant="secondary" size="sm" to="/admin/settings?tab=changes">
+              <History className="h-4 w-4" aria-hidden="true" />
+              Feature switch changes
+            </LinkButton>
+            <LinkButton variant="secondary" size="sm" to="/admin/settings">
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              School settings
+            </LinkButton>
+          </div>
+        }
+      />
+      {error && <div role="alert" className="app-surface p-4">{error}<Button variant="quiet" onClick={() => setRetry((value) => value + 1)}>Retry filters</Button></div>}
+      <StaffActivityFeed {...choices} />
+    </div>
+  )
 }
