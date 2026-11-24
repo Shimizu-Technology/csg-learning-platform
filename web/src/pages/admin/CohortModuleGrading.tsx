@@ -181,6 +181,16 @@ export function CohortModuleGrading() {
   const [syncing, setSyncing] = useState(false)
   const [syncingStudentId, setSyncingStudentId] = useState<number | null>(null)
   const [message, setMessage] = useState<SyncNotice | null>(null)
+  // A sync notice (and its student links) belongs to one cohort and module: moving to another
+  // clears it, and a sync that answers after the move is ignored.
+  const scope = `${cohortId}:${moduleId}`
+  const currentScope = useRef(scope)
+  useEffect(() => {
+    currentScope.current = scope
+    setMessage(null)
+    setSyncing(false)
+    setSyncingStudentId(null)
+  }, [scope])
   const viewMode: ViewMode =
     params.get('view') === 'queue'
       ? 'queue'
@@ -230,9 +240,11 @@ export function CohortModuleGrading() {
 
   const handleSyncAll = async () => {
     if (!cohortId || !moduleId) return
+    const requested = scope
     setSyncing(true)
     setMessage(null)
     const res = await api.syncCohortModuleGithub(Number(cohortId), Number(moduleId))
+    if (currentScope.current !== requested) return
     if (res.error) {
       setMessage({ failed: true, text: `Sync failed: ${res.error}`, students: [] })
     } else {
@@ -252,9 +264,11 @@ export function CohortModuleGrading() {
 
   const handleSyncStudent = async (userId: number) => {
     if (!cohortId || !moduleId) return
+    const requested = scope
     setSyncingStudentId(userId)
     setMessage(null)
     const res = await api.syncStudentGithub(Number(cohortId), Number(moduleId), userId)
+    if (currentScope.current !== requested) return
     if (res.error) {
       setMessage({ failed: true, text: `Sync failed for ${studentName(userId)}: ${res.error}`, students: [] })
     } else {

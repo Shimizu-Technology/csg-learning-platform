@@ -198,6 +198,15 @@ async function checkAccessibilityAndLayout(
   )
 }
 
+/**
+ * Save says "Save and next" only when another waiting item follows in the Grading queue, and
+ * "Save grade" for the last one (UX-1). Derive the label from the queue on screen.
+ */
+async function saveButton(page: Page) {
+  const others = await page.locator('[aria-label="Grading queue"] [id^="submission-row-"]').count()
+  return page.locator('[data-grade-bar]').getByRole('button', { name: others > 1 ? 'Save and next' : 'Save grade', exact: true })
+}
+
 async function expectTouchTarget(locator: ReturnType<Page['locator']>, label: string, isPhone: boolean) {
   await expect(locator).toBeVisible()
   const box = await locator.boundingBox()
@@ -387,7 +396,7 @@ for (const theme of ['light', 'dark'] as const) {
       const saveAResp = page.waitForResponse(
         (res) => res.url().includes(`/submissions/${prog111.id}/grade`) && res.request().method() === 'PATCH',
       )
-      await page.locator('[data-grade-bar]').getByRole('button', { name: 'Save and next' }).click()
+      await (await saveButton(page)).click()
       expect((await saveAResp).status()).toBe(200)
 
       // Verify persisted A + overridden decision + override_reason via API
@@ -413,7 +422,7 @@ for (const theme of ['light', 'dark'] as const) {
 
       // Redo without feedback MUST be blocked
       await page.locator('[data-grade-bar] button', { hasText: /^Redo$/ }).click()
-      await page.locator('[data-grade-bar]').getByRole('button', { name: 'Save and next' }).click()
+      await (await saveButton(page)).click()
       await expect(page.locator('[data-grade-bar] [role="alert"]')).toContainText('Write feedback before choosing Redo')
 
       // Write specific Redo feedback and save R
@@ -425,7 +434,7 @@ for (const theme of ['light', 'dark'] as const) {
       const saveRResp = page.waitForResponse(
         (res) => res.url().includes(`/submissions/${behind112v1.id}/grade`) && res.request().method() === 'PATCH',
       )
-      await page.locator('[data-grade-bar]').getByRole('button', { name: 'Save and next' }).click()
+      await (await saveButton(page)).click()
       expect((await saveRResp).status()).toBe(200)
 
       // Simulate provider outage (permanent issue failure -> status: failed) and drain outbox

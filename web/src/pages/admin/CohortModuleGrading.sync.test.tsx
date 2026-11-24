@@ -34,7 +34,10 @@ async function render(data = matrix()) {
   const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/modules/:moduleId/grading', element: <CohortModuleGrading /> }], { initialEntries: ['/admin/cohorts/4/modules/2/grading'] })
   await act(async () => root.render(<RouterProvider router={router} />))
   await act(async () => { await Promise.resolve() })
+  return router
 }
+const settle = () => act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
+const syncNotice = () => [...container.querySelectorAll('[role="status"]')].find((node) => node.textContent?.startsWith('Synced'))
 const button = (text: string) => [...container.querySelectorAll('button')].find((item) => item.textContent?.trim().startsWith(text))!
 
 it('names each student a sync could not finish, and why', async () => {
@@ -83,4 +86,31 @@ it('uses the Grading workbench chip names: Waiting, Redo, All', async () => {
   await render()
   const chips = [...container.querySelectorAll('[role="group"][aria-label="Submission queue"] button')].map((item) => item.textContent?.replace(/\d+$/, '').trim())
   expect(chips).toEqual(['Waiting', 'Redo', 'All'])
+})
+
+it('clears the sync notice when the page moves to another module', async () => {
+  const router = await render()
+  vi.spyOn(api, 'syncCohortModuleGithub').mockResolvedValue({ data: { synced: 1, errors: [], failed_students: [{ user_id: 21, full_name: 'Blair Cruz', errors: ['No repository'] }] }, error: null } as never)
+  await act(async () => button('Sync all from GitHub').click())
+  await settle()
+  expect(syncNotice()).toBeTruthy()
+  await act(async () => { await router.navigate('/admin/cohorts/4/modules/3/grading') })
+  await settle()
+  expect(syncNotice()).toBeUndefined()
+})
+
+it('ignores a sync that answers after the page moved to another cohort', async () => {
+  const router = await render()
+  let answer!: (value: unknown) => void
+  vi.spyOn(api, 'syncCohortModuleGithub').mockImplementation(() => new Promise((resolve) => { answer = resolve }) as never)
+  await act(async () => button('Sync all from GitHub').click())
+  vi.mocked(api.getCohortModuleSubmissions).mockResolvedValue({ data: matrix({ cohort_id: 9, cohort_name: 'Other cohort', module_id: 5 }), error: null } as never)
+  await act(async () => { await router.navigate('/admin/cohorts/9/modules/5/grading') })
+  await settle()
+  await act(async () => answer({ data: { synced: 2, errors: [], failed_students: [{ user_id: 21, full_name: 'Blair Cruz', errors: ['No repository'] }] }, error: null }))
+  await settle()
+  // No notice at all, so no failure list linking cohort 4's results into cohort 9's records.
+  expect(syncNotice()).toBeUndefined()
+  expect(container.querySelector('[role="status"] li a')).toBeNull()
+  expect(button('Sync all from GitHub').matches(':disabled')).toBe(false)
 })
