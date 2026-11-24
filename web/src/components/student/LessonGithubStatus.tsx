@@ -29,7 +29,10 @@ export function LessonGithubStatus({ lesson, unavailable }: { lesson: LessonDeta
             return <li key={revision.block_id} className="[overflow-wrap:anywhere]">
               <strong className="text-ink">{block?.filename || block?.title || 'Exercise'}</strong>
               {' · Last synced '}<time dateTime={revision.captured_at}>{formatShortDateTime(revision.captured_at)}</time>
-              {' · '}<code>{revision.short_sha}</code>
+              <details className="mt-1">
+                <summary className="min-h-11 cursor-pointer py-3">Technical details</summary>
+                <code>{revision.short_sha}</code>
+              </details>
             </li>
           })}
         </ul> : <p className="text-sm text-ink-secondary">No saved version from this repository yet. Push your work to GitHub. It will appear here after Learn syncs it.</p>}

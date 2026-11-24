@@ -19,7 +19,7 @@ export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { 
   const paths = useLearnerPaths(cohortId)
   // The new student experience links the waiting count to My work (L-1.2).
   const { v2 } = useStudentExperience()
-  return <section aria-label="Your personal learning plan" className="app-surface space-y-5 p-5 sm:p-6">
+  return <section aria-label="Your catch-up plan" className="app-surface space-y-5 p-5 sm:p-6">
     <div>
       <p className="app-eyebrow">Your personal plan</p>
       <h2 className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.title}</h2>

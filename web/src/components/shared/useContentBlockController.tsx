@@ -377,13 +377,14 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
             )}
           </div>
         )}
-        {(sub.branch || sub.commit_sha || sub.notes) && (
-          <div className="space-y-1 rounded-lg border border-line bg-surface-raised p-3 text-sm text-ink-secondary">
+        {(sub.branch || sub.commit_sha) && (
+          <details className="space-y-1 rounded-lg border border-line bg-surface-raised px-3 text-sm text-ink-secondary [overflow-wrap:anywhere]">
+            <summary className="min-h-11 cursor-pointer py-3">Technical details</summary>
             {sub.branch && <p><span className="font-medium text-ink">Branch:</span> {sub.branch}</p>}
             {sub.commit_sha && <p><span className="font-medium text-ink">Commit:</span> <span className="font-mono">{sub.commit_sha}</span></p>}
-            {sub.notes && <p className="whitespace-pre-wrap"><span className="font-medium text-ink">Notes:</span> {sub.notes}</p>}
-          </div>
+          </details>
         )}
+        {sub.notes && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]"><span className="font-medium text-ink">Notes:</span> {sub.notes}</p>}
       </div>
     )
   }

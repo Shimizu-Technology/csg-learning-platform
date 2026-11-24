@@ -21,7 +21,7 @@ describe('LearningObjectivesPanel', () => {
     const html = renderToStaticMarkup(<LearningObjectivesPanel objectives={[objective]} />)
 
     expect(html).toContain('What success looks like')
-    expect(html).toContain('TERM.1')
+    expect(html).not.toContain('TERM.1')
     expect(html).toContain('For Terminal practice')
     expect(html).toContain('I can move into a requested folder')
   })

@@ -135,11 +135,11 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "paused recording publication cutoff is inclusive through Guam midnight" do
+  test "paused recording publication cutoff is inclusive at the exact pause time" do
     travel_to Time.utc(2026, 11, 16, 1) do
       @enrollment.update!(status: :paused)
       @enrollment.update_column(:paused_at, Time.utc(2026, 11, 14, 16)) # November 15 in Guam
-      recordings = [ Time.utc(2026, 11, 15, 13, 59, 59), Time.utc(2026, 11, 15, 14) ].map.with_index do |published_at, index|
+      recordings = [ Time.utc(2026, 11, 14, 16), Time.utc(2026, 11, 14, 16, 0, 1) ].map.with_index do |published_at, index|
         recording = @cohort.recordings.create!(title: "Boundary #{index}", source_kind: "external", source_url: "https://example.com/boundary/#{index}", status: :published)
         recording.update_columns(created_at: Time.utc(2026, 11, 14), published_at: published_at, recorded_date: Date.new(2026, 11, 15))
         recording

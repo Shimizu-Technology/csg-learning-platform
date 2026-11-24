@@ -22,6 +22,7 @@ export function learnerModuleTypeLabel(moduleType: string | null | undefined): s
 
 /** "code_challenge" -> "Code challenge" */
 export function blockTypeLabel(blockType: string | null | undefined): string {
+  if (blockType === 'text') return 'Reading'
   const words = (blockType || '').replaceAll('_', ' ').trim()
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Block'
 }

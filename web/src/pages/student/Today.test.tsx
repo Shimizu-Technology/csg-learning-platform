@@ -187,6 +187,26 @@ it('behind with no agreed plan: how far behind, the next required lesson and Ask
   expect(container.querySelector('[data-testid="where"]')?.textContent).toBe('/messages/dm/12?cohort_id=9')
 })
 
+it('offers recovery and direct feedback when the only remaining work is closed', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  const redo = { ...work(1, 'redo'), kind: 'redo', submissions_closed: true, can_resubmit: false }
+  const dashboard = onDashboard(studentToday({
+    next_lesson: null,
+    needs_you: { count: 1, items: [redo] },
+    waiting: { count: 0, items: [] },
+  }))
+  const lesson = { id: redo.lesson_id, title: 'Closed practice', kind: 'exercise', available: true, completed: false,
+    submission_window: { submissions_closed: true, submissions_close_at: '2026-11-19T07:00:00Z' } }
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: { ...dashboard, modules: [{ id: 3, lessons: [lesson] }] } } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  const recovery = container.querySelector('[aria-labelledby="closed-work-title"]')!
+  expect(recovery.textContent).toContain('Some work needs a new deadline')
+  expect(recovery.textContent).toContain('5:00 PM ChST')
+  expect(recovery.textContent).toContain('Ask for a catch-up plan')
+  expect(recovery.querySelector('a')?.getAttribute('href')).toBe('/lessons/101?cohort_id=9#block-701')
+  expect(container.textContent).not.toContain('You’re caught up')
+})
+
 it('an agreed plan shows who agreed it, five of its lessons, Show all in place and Ask to change it', async () => {
   state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
   const items = Array.from({ length: 14 }, (_, index) => ({ lesson_id: 500 + index, title: `Plan lesson ${index + 1}`, kind: 'exercise', due_on: `2026-11-${20 + Math.floor(index / 2)}`, available: true, status: 'open' }))
