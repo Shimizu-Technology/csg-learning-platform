@@ -9,6 +9,7 @@ import { initialMessageTarget, latestMessageFrom } from './helpers';
 import { buildMentionPatterns } from './mentions';
 import type { ConversationState } from './useConversationState';
 import type { MessagesRoute } from './useMessagesRoute';
+import { useDirectRecipients } from './useDirectRecipients';
 
 type Toast = { success: (message: string) => void; error: (message: string) => void }
 type Cohorts = { loading: boolean; selectedCohortId: number | null; setSelectedCohort: (cohortId: number) => void }
@@ -34,7 +35,6 @@ export function useWorkspaceDirectory(
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [workspaceDetail, setWorkspaceDetail] = useState<WorkspaceDetail | null>(null)
-  const [availableUsers, setAvailableUsers] = useState<UserSummary[]>([])
   const [allUsers, setAllUsers] = useState<UserSummary[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -47,7 +47,6 @@ export function useWorkspaceDirectory(
   const [showWorkspaceMembers, setShowWorkspaceMembers] = useState(false)
   const [workspaceError, setWorkspaceError] = useState('')
   const [channelError, setChannelError] = useState('')
-  const [dmUserId, setDmUserId] = useState('')
   const [memberToAddId, setMemberToAddId] = useState('')
   const [isNavigationPending, startNavigationTransition] = useTransition()
   const [workspaceForm, setWorkspaceForm] = useState({
@@ -238,14 +237,6 @@ export function useWorkspaceDirectory(
     }
   }
 
-  const loadAvailableUsers = async (workspaceId: number) => {
-    const res = await api.getAvailableDirectUsers(workspaceId)
-    if (res.data) {
-      setAvailableUsers(res.data.users)
-      setDmUserId(String(res.data.users[0]?.id || ''))
-    }
-  }
-
   const loadInitialLists = useEffectEvent(() => { loadLists() })
   useEffect(() => {
     loadInitialLists()
@@ -257,10 +248,11 @@ export function useWorkspaceDirectory(
     }
   }, [channelForm.workspace_id, workspaces])
 
-  const loadWorkspaceUsers = useEffectEvent((workspaceId: number) => { loadAvailableUsers(workspaceId) })
-  useEffect(() => {
-    if (selectedWorkspaceId) loadWorkspaceUsers(selectedWorkspaceId)
-  }, [selectedWorkspaceId])
+  // Everyone picked for a new direct message (one person starts a 1:1, several a group), for this workspace only.
+  const recipients = useDirectRecipients(selectedWorkspaceId)
+  const availableUsers = recipients.users
+  const dmUserIds = recipients.selectedIds
+  const setDmUserIds = recipients.setSelectedIds
 
   const loadSelectedWorkspaceDetail = useEffectEvent((workspaceId: number) => { loadWorkspaceDetail(workspaceId) })
   useEffect(() => {
@@ -521,12 +513,13 @@ export function useWorkspaceDirectory(
 
   const handleCreateDm = async (event: FormEvent) => {
     event.preventDefault()
-    if (!selectedWorkspaceId || !dmUserId) return
+    if (!selectedWorkspaceId || recipients.status !== 'ready' || dmUserIds.length === 0) return
 
-    const res = await api.createDirectConversation({ workspace_id: selectedWorkspaceId, user_ids: [Number(dmUserId)] })
+    const res = await api.createDirectConversation({ workspace_id: selectedWorkspaceId, user_ids: dmUserIds })
     if (res.data) {
       await loadLists()
       setShowDmForm(false)
+      setDmUserIds([])
       selectTarget({ type: 'dm', id: res.data.direct_conversation.id })
     } else if (res.error) {
       toast.error(res.error)
@@ -557,6 +550,8 @@ export function useWorkspaceDirectory(
     workspaces,
     workspaceDetail,
     availableUsers,
+    recipientsStatus: recipients.status,
+    retryRecipients: recipients.retry,
     selectedWorkspaceId,
     creatingChannel,
     creatingWorkspace,
@@ -574,8 +569,8 @@ export function useWorkspaceDirectory(
     setWorkspaceError,
     channelError,
     setChannelError,
-    dmUserId,
-    setDmUserId,
+    dmUserIds,
+    setDmUserIds,
     memberToAddId,
     setMemberToAddId,
     isNavigationPending,

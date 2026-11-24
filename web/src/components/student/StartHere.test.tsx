@@ -15,7 +15,7 @@ it.each([true, false])('explains the course and support; dismisses only after a 
   await act(async () => root.render(<StartHere data={data} onDismiss={dismissed} />))
   expect(host.textContent).toContain('8 weeks from your first course open')
   expect(host.textContent).toContain('Your instructor will review it — usually within 3 days')
-  expect(host.textContent).toContain('Ask for help')
+  expect(host.textContent).toContain('Message your instructor')
   await act(async () => host.querySelector('button')!.click())
   expect(api.dismissStartHere).toHaveBeenCalledWith(13)
   expect(dismissed).toHaveBeenCalledTimes(success ? 1 : 0)

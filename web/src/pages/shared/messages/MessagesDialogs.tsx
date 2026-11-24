@@ -8,7 +8,8 @@ import { TabButton } from '../../../components/ui/Choice';
 import { TabList } from '../../../components/ui/Motion';
 import { CountBadge, RowButton } from '../../../components/ui/RowButton';
 import { formatFileSize } from '../../../lib/uploadToS3';
-import { recipientLabel, WorkspaceMemberIdentity } from './ConversationControls';
+import { WorkspaceMemberIdentity } from './ConversationControls';
+import { DirectMessagePicker } from './DirectMessagePicker';
 import { channelInitials, formatTime, preview, REACTIONS_BY_VALUE } from './helpers';
 import { MessageActionsSheet } from './MessageActionsSheet';
 import type { AttachmentLightbox } from './useAttachmentLightbox';
@@ -32,7 +33,7 @@ type MessagesDialogsProps = {
 
 /** Every dialog the messages page opens: reactions, workspaces and members, channels, delete, message actions, new DM, author context and the image lightbox. */
 export function MessagesDialogs({ toast, sourceRecord, conversation, directory, feed, overlays, lightbox, mutations }: MessagesDialogsProps) {
-  const { isStaff, isAdmin, workspaces, workspaceDetail, availableUsers, selectedWorkspaceId, creatingChannel, creatingWorkspace, showChannelForm, setShowChannelForm, showDmForm, setShowDmForm, showWorkspaceForm, setShowWorkspaceForm, showWorkspaceSwitcher, setShowWorkspaceSwitcher, showWorkspaceMembers, setShowWorkspaceMembers, workspaceError, setWorkspaceError, channelError, setChannelError, dmUserId, setDmUserId, memberToAddId, setMemberToAddId, workspaceForm, setWorkspaceForm, channelForm, setChannelForm, selected, selectedDmStudent, selectedWorkspace, canManageChannels, sortedWorkspaceCards, memberCandidates, markWorkspaceRead, selectWorkspace, handleCreateChannel, handleCreateWorkspace, handleAddWorkspaceMember, handleRemoveWorkspaceMember, handleCreateDm } = directory
+  const { isStaff, isAdmin, workspaces, workspaceDetail, availableUsers, selectedWorkspaceId, creatingChannel, creatingWorkspace, showChannelForm, setShowChannelForm, showDmForm, setShowDmForm, showWorkspaceForm, setShowWorkspaceForm, showWorkspaceSwitcher, setShowWorkspaceSwitcher, showWorkspaceMembers, setShowWorkspaceMembers, workspaceError, setWorkspaceError, channelError, setChannelError, dmUserIds, setDmUserIds, recipientsStatus, retryRecipients, memberToAddId, setMemberToAddId, workspaceForm, setWorkspaceForm, channelForm, setChannelForm, selected, selectedDmStudent, selectedWorkspace, canManageChannels, sortedWorkspaceCards, memberCandidates, markWorkspaceRead, selectWorkspace, handleCreateChannel, handleCreateWorkspace, handleAddWorkspaceMember, handleRemoveWorkspaceMember, handleCreateDm } = directory
   const { conversationReturnContext, replyToMessage } = feed
   const { setReactionDetails, reactionDetailsMessage, selectedReaction, authorContext, setAuthorContext, mobileActionsMessage, setMobileActionsMessageId, messagePendingDelete, setMessagePendingDelete } = overlays
   const { lightboxAttachments, lightboxIndex, lightboxAttachment, lightboxTouchStartX, showPreviousLightboxImage, showNextLightboxImage, closeLightbox, downloadLightboxAttachment } = lightbox
@@ -425,22 +426,21 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
     <Modal
       open={showDmForm}
       onClose={() => setShowDmForm(false)}
-      title="Start direct message"
-      subtitle="Pick someone in this cohort or community."
+      title="New direct message"
+      subtitle="Pick one person, or several for a group message."
       size="md"
     >
       <form onSubmit={handleCreateDm} className="space-y-4">
-        <select
-          value={dmUserId}
-          onChange={(event) => setDmUserId(event.target.value)}
-          className="app-control w-full"
-        >
-          {availableUsers.map((availableUser) => (
-            <option key={availableUser.id} value={availableUser.id}>
-              {recipientLabel(availableUser, availableUsers, selectedWorkspace?.name)}
-            </option>
-          ))}
-        </select>
+        {recipientsStatus === 'error' ? (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">
+            <span>Couldn’t load the people you can message. Check your connection and try again.</span>
+            <Button variant="secondary" size="sm" onClick={retryRecipients}>Try again</Button>
+          </div>
+        ) : recipientsStatus === 'ready' ? (
+          <DirectMessagePicker people={availableUsers} workspace={selectedWorkspace?.name} selectedIds={dmUserIds} onChange={setDmUserIds} />
+        ) : (
+          <p role="status" className="py-6 text-center text-sm text-ink-muted">Loading people…</p>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <Button
             variant="secondary"
@@ -451,9 +451,9 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
           <Button
             variant="primary"
             type="submit"
-            disabled={!selectedWorkspaceId || !dmUserId}
+            disabled={!selectedWorkspaceId || recipientsStatus !== 'ready' || dmUserIds.length === 0}
           >
-            Start direct message
+            {dmUserIds.length > 1 ? `Start group message (${dmUserIds.length})` : 'Start direct message'}
           </Button>
         </div>
       </form>

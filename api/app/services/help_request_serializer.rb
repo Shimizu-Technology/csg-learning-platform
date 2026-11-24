@@ -27,8 +27,9 @@ class HelpRequestSerializer
         id: help_request.owner.id,
         full_name: help_request.owner.full_name
       },
-      # Oldest first. Requests resolved before replies existed have none; their
-      # one response is `staff_response`.
+      # Oldest first, staff replies and the learner's follow-ups together.
+      # Requests resolved before replies existed have none; their one response
+      # is `staff_response`.
       replies: help_request.replies.map { |reply| reply_json(reply) }
     }
     if include_student
@@ -48,6 +49,7 @@ class HelpRequestSerializer
       id: reply.id,
       body: reply.body,
       resolved_request: reply.resolved_request,
+      from_student: reply.from_student?,
       author: { id: reply.author.id, full_name: reply.author.full_name },
       created_at: reply.created_at
     }

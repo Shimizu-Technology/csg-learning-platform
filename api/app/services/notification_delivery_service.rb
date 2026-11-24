@@ -30,6 +30,11 @@ class NotificationDeliveryService
     new.help_request_changed(help_request, push: push, reply: reply)
   end
 
+  # The learner followed up in the thread after a staff reply.
+  def self.help_request_followed_up(help_request, reply:, push: true)
+    new.help_request_followed_up(help_request, reply: reply, push: push)
+  end
+
   # Staff open the exact request with its cohort and student (L-3.7), as submissions do.
   def self.staff_help_request_path(help_request)
     RecordDestination.to_web_path(RecordDestination.build(kind: "help_request", id: help_request.id, context: { cohort_id: help_request.cohort_id, student_id: help_request.student_id }))
@@ -208,6 +213,27 @@ class NotificationDeliveryService
     )
     PushNotificationJob.perform_later("HelpRequest", help_request.id, [ notification.id ]) if push
     [ notification ]
+  end
+
+  # The owner hears about it while they still teach the cohort; otherwise
+  # (no owner, archived, or reassigned) every current staff member on it.
+  # Each one's request notification is updated in place and marked unread.
+  def help_request_followed_up(help_request, reply:, push: true)
+    owner = help_request.owner
+    owner = nil unless owner&.staff? && owner.archived_at.nil? && owner.can_teach_cohort?(help_request.cohort)
+    recipients = (owner ? [ owner ] : staff_for_cohort(help_request.cohort).to_a).reject { |user| user.id == help_request.student_id }
+    notifications = recipients.map do |staff|
+      help_request_notification_for(
+        staff,
+        help_request,
+        actor: reply.author,
+        title: "#{help_request.student.full_name} followed up on their help request",
+        body: [ help_request.cohort&.name, help_request.context_label ].compact_blank.join(" · "),
+        path: self.class.staff_help_request_path(help_request)
+      )
+    end
+    PushNotificationJob.perform_later("HelpRequest", help_request.id, notifications.map(&:id)) if push && notifications.any?
+    notifications
   end
 
   def help_request_canceled(help_request)

@@ -129,7 +129,7 @@ for (const theme of ['light','dark']) {
     }
     if (persona.key === 'self-paced-new') {
       await page.goto(`/profile?cohort_id=${persona.cohort}`)
-      const toggle = page.getByRole('switch', { name: 'Direct-message email notifications' })
+      const toggle = page.getByRole('switch', { name: 'Message emails', exact: true })
       await expect(toggle).toBeVisible()
       const box = await toggle.boundingBox(); expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44)
       if (theme === 'dark') expect(await toggle.locator('span').last().evaluate(element => getComputedStyle(element).transitionProperty)).toBe('none')
