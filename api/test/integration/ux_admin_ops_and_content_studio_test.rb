@@ -479,10 +479,14 @@ class UxAdminOpsAndContentStudioTest < ActionDispatch::IntegrationTest
 
   test "seat_capacity exposes occupied and pending breakdown and bulk enrollment includes user_id" do
     @cohort.update!(course_delivery: :guided, seat_limit: 5)
-    cap = @cohort.seat_capacity
+    cap = @cohort.seat_capacity(include_breakdown: true)
     assert_equal 1, cap[:occupied_enrollments_count]
     assert_equal 0, cap[:pending_checkouts_count]
     assert_equal 4, cap[:seats_remaining]
+
+    public_cap = @cohort.seat_capacity(include_taken_when_unlimited: false)
+    refute public_cap.key?(:occupied_enrollments_count)
+    refute public_cap.key?(:pending_checkouts_count)
 
     as_user(@admin) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk",

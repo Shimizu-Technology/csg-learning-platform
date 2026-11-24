@@ -729,7 +729,7 @@ module Api
           course_delivery: cohort.course_delivery,
           public_checkout_enabled: cohort.public_checkout_enabled?,
           unlisted: cohort.unlisted?,
-          **cohort.seat_capacity,
+          **cohort.seat_capacity(include_breakdown: true),
           offering_readiness: cohort.offering_readiness,
           offering_price_verified: cohort.offering_price_verification,
           instructor_assigned: cohort.instructors.not_archived.exists?,

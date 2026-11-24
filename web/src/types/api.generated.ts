@@ -10253,8 +10253,6 @@ export interface components {
             seats_taken: number | null;
             seats_remaining: number | null;
             sold_out: boolean;
-            occupied_enrollments_count?: number;
-            pending_checkouts_count?: number;
         };
         PublicCourseResponse: {
             offering: components["schemas"]["PublicCourse"];

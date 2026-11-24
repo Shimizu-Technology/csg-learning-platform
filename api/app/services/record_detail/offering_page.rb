@@ -42,7 +42,7 @@ class RecordDetail
         public_slug: cohort.public_slug,
         checkout_enabled: cohort.public_checkout_enabled,
         unlisted: cohort.unlisted?,
-        **cohort.seat_capacity,
+        **cohort.seat_capacity(include_breakdown: true),
         price_cents: cohort.public_price_cents,
         access_months: access_months,
         support_weeks: support_weeks,

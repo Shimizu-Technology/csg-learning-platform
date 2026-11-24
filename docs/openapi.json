@@ -21948,12 +21948,6 @@
           },
           "sold_out": {
             "type": "boolean"
-          },
-          "occupied_enrollments_count": {
-            "type": "integer"
-          },
-          "pending_checkouts_count": {
-            "type": "integer"
           }
         },
         "required": [

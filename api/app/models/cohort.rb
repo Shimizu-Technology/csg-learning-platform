@@ -321,18 +321,18 @@ class Cohort < ApplicationRecord
     seat_limit.present? && seats_taken(at: at, excluding_user_id: user.id) >= seat_limit
   end
 
-  def seat_capacity(at: Time.current, include_taken_when_unlimited: true)
+  def seat_capacity(at: Time.current, include_taken_when_unlimited: true, include_breakdown: false)
     occupied_ids = occupied_enrollment_user_ids(at: at)
     pending_ids = active_pending_purchase_user_ids(at: at)
     taken = (occupied_ids | pending_ids).size
+    breakdown = include_breakdown ? { occupied_enrollments_count: occupied_ids.size, pending_checkouts_count: pending_ids.size } : {}
     if seat_limit.nil?
       {
         seat_limit: nil,
         seats_taken: include_taken_when_unlimited ? taken : nil,
         seats_remaining: nil,
         sold_out: false,
-        occupied_enrollments_count: occupied_ids.size,
-        pending_checkouts_count: pending_ids.size
+        **breakdown
       }
     else
       remaining = [ seat_limit - taken, 0 ].max
@@ -341,8 +341,7 @@ class Cohort < ApplicationRecord
         seats_taken: taken,
         seats_remaining: remaining,
         sold_out: remaining.zero?,
-        occupied_enrollments_count: occupied_ids.size,
-        pending_checkouts_count: pending_ids.size
+        **breakdown
       }
     end
   end
