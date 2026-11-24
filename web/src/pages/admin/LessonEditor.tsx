@@ -161,7 +161,10 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
     draftRef.current = next
     setDraftState(next)
     setRubricDrafts((current) => Object.fromEntries(Object.entries(current).filter(([key]) => next.blocks.some((block) => block.key === key))))
-    setCheckPolicyEditors((current) => Object.fromEntries(Object.entries(current).filter(([id]) => next.blocks.some((block) => block.id === Number(id)))))
+    // Reload clean policies from the server while keeping unfinished or pending edits.
+    setCheckPolicyEditors((current) => Object.fromEntries(Object.entries(current).filter(([id, editor]) =>
+      editor && (editor.busy || hasCheckPolicyEdits(editor)) && next.blocks.some((block) => block.id === Number(id)),
+    )))
     setServer(response)
     updatedAtRef.current = response.lesson.updated_at
     baselineRef.current = new Map(next.blocks.map((block) => [block.id!, block]))

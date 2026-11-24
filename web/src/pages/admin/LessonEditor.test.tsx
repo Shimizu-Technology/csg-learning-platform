@@ -712,6 +712,50 @@ describe('block lesson editor', () => {
     expect(cards()[2].querySelector('input')!.value).toBe('Mine')
     expect(container.textContent).toContain('Not saved: newer version')
   })
+
+  it('refetches clean check rules on reload and preserves another exercise’s unfinished draft', async () => {
+    const syncedBlocks = blocks.map((block) => [3, 4].includes(block.id)
+      ? { ...block, submission_type: 'prework_github_sync', submission_type_explicit: 'prework_github_sync' }
+      : block) as LessonBlockEditorResponse['lesson']['content_blocks']
+    vi.mocked(api.getLessonBlockEditor)
+      .mockResolvedValueOnce({ data: response({ content_blocks: syncedBlocks }), error: null })
+      .mockResolvedValue({ data: response({ content_blocks: syncedBlocks, updated_at: '2026-11-16T00:00:05Z' }), error: null })
+    save.mockResolvedValueOnce({ data: null, error: 'Someone else saved this lesson.', status: 409, errorCode: 'stale_editor' })
+
+    let version = 1
+    const getPolicy = vi.spyOn(api, 'getExerciseCheckPolicy').mockImplementation(async (id) => {
+      const policy = {
+        id: id * 10 + version, content_block_id: id, version, active: true, required_checks: [`check-${id}-v${version}`],
+        allowed_app_slugs: ['github-actions'], allowed_branch: null, expected_workflow_path: null, expected_workflow_sha: null,
+        created_by_id: 1, created_by_name: 'Admin', created_at: null, updated_at: null,
+      }
+      return { data: { content_block_id: id, active_policy: policy, versions: [policy] }, error: null }
+    })
+    const selectBlock = async (index: number) => {
+      await act(async () => cards()[index].dispatchEvent(new Event('pointerdown', { bubbles: true })))
+      await settle()
+    }
+    const checkInput = () => container.querySelector<HTMLInputElement>('input[placeholder="exercise-111"]')!
+
+    await mount('/admin/lessons/2/edit?block_id=3')
+    expect(button('Remove check-3-v1', container)).toBeTruthy()
+    await selectBlock(3)
+    await type(checkInput(), 'unfinished-check')
+    await selectBlock(2)
+
+    version = 2
+    await type(cards()[2].querySelector('input')!, 'Conflicting title')
+    await click(button('Save'))
+    await click(button('Reload latest version'))
+
+    expect(button('Remove check-3-v1', container)).toBeUndefined()
+    expect(button('Remove check-3-v2', container)).toBeTruthy()
+    expect(container.textContent).toContain('Active · 1 required check · Version 2')
+    await selectBlock(3)
+    expect(button('Remove check-4-v1', container)).toBeTruthy()
+    expect(checkInput().value).toBe('unfinished-check')
+    expect(getPolicy.mock.calls.map(([id]) => id)).toEqual([3, 4, 3])
+  })
 })
 
 describe('lesson editing access', () => {
