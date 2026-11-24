@@ -185,7 +185,13 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     }
     followUpAttempts.current.delete(requestId)
     replaceRequests(requests.map((item) => item.id === response.data!.help_request.id ? response.data!.help_request : item))
-    setFollowUpDrafts((drafts) => { const rest = { ...drafts }; delete rest[requestId]; return rest })
+    // Clear the draft only if it is still the text that was sent, so nothing typed meanwhile is lost.
+    setFollowUpDrafts((drafts) => {
+      if ((drafts[requestId] ?? '').trim() !== body) return drafts
+      const rest = { ...drafts }
+      delete rest[requestId]
+      return rest
+    })
     toast.success('Reply sent to your instructor.')
   }
 
@@ -293,6 +299,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                 <label htmlFor={`help-follow-up-${activeRequest.id}`} className="text-sm font-semibold text-ink">Reply to your instructor</label>
                 <textarea
                   id={`help-follow-up-${activeRequest.id}`}
+                  disabled={saving}
                   value={followUp}
                   onChange={(event) => {
                     const requestId = activeRequest.id
