@@ -488,6 +488,35 @@ class UxAdminOpsAndContentStudioTest < ActionDispatch::IntegrationTest
     refute public_cap.key?(:occupied_enrollments_count)
     refute public_cap.key?(:pending_checkouts_count)
 
+    # Admin receives checkout/enrollment breakdown on cohort show & index; instructors do not.
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}", headers: auth_headers
+      assert_response :success
+      admin_cohort = response.parsed_body.fetch("cohort")
+      assert_equal 1, admin_cohort["occupied_enrollments_count"]
+      assert_equal 0, admin_cohort["pending_checkouts_count"]
+
+      get "/api/v1/cohorts", headers: auth_headers
+      assert_response :success
+      admin_row = response.parsed_body.fetch("cohorts").find { |c| c["id"] == @cohort.id }
+      assert_equal 1, admin_row["occupied_enrollments_count"]
+      assert_equal 0, admin_row["pending_checkouts_count"]
+    end
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}", headers: auth_headers
+      assert_response :success
+      inst_cohort = response.parsed_body.fetch("cohort")
+      refute inst_cohort.key?("occupied_enrollments_count")
+      refute inst_cohort.key?("pending_checkouts_count")
+
+      get "/api/v1/cohorts", headers: auth_headers
+      assert_response :success
+      inst_row = response.parsed_body.fetch("cohorts").find { |c| c["id"] == @cohort.id }
+      refute inst_row.key?("occupied_enrollments_count")
+      refute inst_row.key?("pending_checkouts_count")
+    end
+
     as_user(@admin) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk",
         params: {

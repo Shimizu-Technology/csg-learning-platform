@@ -360,6 +360,22 @@ describe('UX Wave D admin ops components', () => {
     expect(container.textContent).toContain('1 invitation failed')
     expect(container.textContent).toContain('Retry failed invites')
 
+    // 4b. Expired invite -> needed with resend CTA (never marked ready)
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <CohortSetupChecklist
+            cohort={makeCohort([
+              { enrollment_id: 1, user_id: 10, full_name: 'Expired Learner', email: 'e@example.com', last_sign_in_at: null, invited_at: '2026-10-01T00:00:00Z', invite_pending: true, invite_delivery_status: 'sent', invite_state: 'expired' },
+            ]) as unknown as CohortDetail}
+          />
+        </MemoryRouter>,
+      )
+    })
+    expect(container.textContent).toContain('Needed: Student invitations')
+    expect(container.textContent).toContain('1 invitation expired')
+    expect(container.textContent).toContain('Resend expired invites')
+
     // 5. All signed in -> ready with accurate count
     await act(async () => {
       root.render(
