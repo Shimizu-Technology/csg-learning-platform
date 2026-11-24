@@ -348,6 +348,9 @@ export function Students({ cohort }: { cohort: CohortDetail }) {
                     {inviteBusy === student.user_id ? 'Sending…' : invite.actionLabel}
                   </Button>
                 )}
+                {!user?.is_admin && invite.actionLabel && (
+                  <p className="flex min-h-11 items-center text-xs text-ink-muted sm:min-h-9">Ask an admin to resend</p>
+                )}
                 <LinkButton
                   variant="secondary"
                   size="sm"

@@ -94,6 +94,14 @@ async function press(name: string) {
   await act(async () => target!.click())
   await settle()
 }
+/** Grade buttons only choose; Save (Save and next / Save grade) saves. */
+async function grade(name: string) {
+  await press(name)
+  const save = [...document.querySelectorAll('button')].find((item) => /^(Save and next|Save grade)$/.test(item.textContent?.trim() || ''))
+  expect(save, 'Save').toBeTruthy()
+  await act(async () => save!.click())
+  await settle()
+}
 async function key(value: string) {
   await act(async () => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true })))
   await settle()
@@ -116,15 +124,15 @@ describe('submission records from Grading', () => {
     await act(async () => open.click())
     await settle()
     expect(counter()).toBe('1 of 3')
-    await press('A')
+    await grade('A')
     expect(router.state.location.pathname).toBe('/admin/submissions/41')
     expect(counter()).toBe('1 of 2')
     // Save and next opens the next review at its top, even after grading at the bottom on a phone.
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' })
-    await press('B')
+    await grade('B')
     expect(router.state.location.pathname).toBe('/admin/submissions/42')
     expect(counter()).toBe('1 of 1')
-    await press('C')
+    await grade('C')
     expect(router.state.location.pathname).toBe('/admin/submissions/42')
     expect(container.textContent).toContain('That was the last submission in this queue.')
     expect(api.gradeSubmission).toHaveBeenCalledTimes(3)
@@ -196,7 +204,7 @@ describe('submission records from a module grading page', () => {
     await press('Next submission')
     expect(router.state.location.pathname).toBe('/admin/submissions/41')
     expect(new URLSearchParams(router.state.location.search).get('return_to')).toBe('/admin/cohorts/4/modules/2/grading?view=queue&filter=ungraded&review=41')
-    await press('A')
+    await grade('A')
     expect(router.state.location.pathname).toBe('/admin/submissions/40')
   })
 
@@ -253,7 +261,7 @@ describe('unsaved feedback and browser navigation', () => {
   it('lets a successful save move on without asking, and stops guarding reload', async () => {
     const router = await render(record(42, 'queue=all'))
     await typeFeedback('Nice work')
-    await press('A')
+    await grade('A')
     expect(router.state.location.pathname).toBe('/admin/submissions/41')
     expect(confirm).not.toHaveBeenCalled()
     const unload = new Event('beforeunload', { cancelable: true })
@@ -279,7 +287,7 @@ describe('queue requests', () => {
     // Grading invalidates the queue; the next record fetches it fresh.
     await press('Previous submission')
     expect(api.getSubmissions).toHaveBeenCalledTimes(1)
-    await press('A')
+    await grade('A')
     expect(router.state.location.pathname).toBe('/admin/submissions/37')
     expect(api.getSubmissions).toHaveBeenCalledTimes(2)
   })
@@ -341,10 +349,10 @@ describe('queue requests', () => {
   it('focuses the next review after Save and next, and the notice at the end of the queue', async () => {
     store = store.slice(0, 2)
     await render(record(42, 'queue=ungraded'))
-    await press('A')
+    await grade('A')
     await settle()
     expect(document.activeElement?.getAttribute('aria-label')).toBe('Submission review')
-    await press('B')
+    await grade('B')
     expect(document.activeElement?.getAttribute('role')).toBe('status')
     expect(document.activeElement?.textContent).toContain('That was the last submission in this queue.')
   })

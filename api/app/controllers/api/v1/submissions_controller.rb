@@ -675,6 +675,8 @@ module Api
         if staff_view
           delivery = latest_github_issue_delivery(submission)
           json[:github_issue_delivery] = delivery.to_staff_json if delivery
+          # The review screen warns before a Redo publishes its feedback on GitHub.
+          json[:redo_posts_to_github] = GithubIssueService.redo_would_post?(submission) if include_github_checks
 
           if enrollment&.cohort && GithubGradeSuggestionEvaluator.enabled_for?(enrollment.cohort, school: school_features)
             suggestion = submission.submission_grade_suggestion

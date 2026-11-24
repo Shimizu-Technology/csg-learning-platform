@@ -86,7 +86,7 @@ const SUGGESTION_FILTER_OPTIONS: ReadonlyArray<readonly [SuggestionOutcomeFilter
   ['all', 'All checks'],
   ['suggest_b', 'B suggested'],
   ['review_for_redo', 'Review for Redo'],
-  ['stale_evidence', 'Stale'],
+  ['stale_evidence', 'Out of date'],
   ['no_suggestion', 'No suggestion'],
 ]
 
@@ -303,7 +303,7 @@ export function Grading() {
         <PageHeader
           title="Grading"
           description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortName ? <> in {cohortName}</> : ' across cohorts'} · {counts.redo} redo requested{counts.overdue ? <> · {counts.overdue} past review target</> : null}</>}
-          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })} />}
+          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: cohortList ? 'Not one of your cohorts' : 'Loading cohort…' }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })} />}
           menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
         />
       </div>

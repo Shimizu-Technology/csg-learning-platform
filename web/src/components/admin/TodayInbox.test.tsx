@@ -9,7 +9,7 @@ vi.mock('./MessageStudentsDialog', () => ({ useMessageStudent: () => ({ open: vi
 vi.mock('../shared/RecordLink', () => ({ RecordLink: ({ children }: { children: React.ReactNode }) => <a href="/record">{children}</a> }))
 const today: InstructorTodayData = { items: [
   { id: 1, kind: 'help', urgent: false, student_record: true, user_id: 3, full_name: 'Alex Example', cohort_id: 4, cohort_name: 'Loops', text: 'How does this loop stop?', since: '2026-11-17T01:00:00Z', action_label: 'Reply', web_path: '/admin/help-requests/1', native_path: '/staff/support/1' },
-  { id: 2, kind: 'review', urgent: false, student_record: true, user_id: 3, full_name: 'Alex Example', cohort_id: 4, cohort_name: 'Loops', text: 'Work waiting for review', since: '2026-11-16T01:00:00Z', action_label: 'Grade', web_path: '/admin/submissions/2', native_path: '/staff/submission/2' },
+  { id: 2, kind: 'review', urgent: false, student_record: true, user_id: 3, full_name: 'Alex Example', cohort_id: 4, cohort_name: 'Loops', text: 'Work waiting for review', since: '2026-11-16T01:00:00Z', action_label: 'Open grading', web_path: '/admin/grading?cohort_id=4&submission=2', native_path: '/staff/submission/2' },
 ], counts: { help: 1, review: 1 }, attention_remaining: 0, upcoming: [] }
 it('keeps server order and source text; actions return to the explicit scope and filter', () => {
   const container = document.createElement('div'); const root = createRoot(container)
@@ -17,6 +17,8 @@ it('keeps server order and source text; actions return to the explicit scope and
   expect([...container.querySelectorAll('article')].map(e => e.dataset.todayItem)).toEqual(['help', 'review'])
   expect(container.textContent).toContain('How does this loop stop?')
   expect(container.querySelector('article > a')?.getAttribute('href')).toBe('/admin/help-requests/1?return_to=%2Fadmin%3Fcohort_id%3D4')
+  // Review work opens in the Grading workbench with that attempt selected, and comes back here.
+  expect(container.querySelector('[data-today-item="review"] > a')?.getAttribute('href')).toBe('/admin/grading?cohort_id=4&submission=2&return_to=%2Fadmin%3Fcohort_id%3D4')
   act(() => root.unmount())
 })
 it('chips filter the inbox and retain the cohort when clearing the kind', () => {

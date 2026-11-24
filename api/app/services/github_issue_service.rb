@@ -122,6 +122,22 @@ class GithubIssueService
       nil
     end
 
+    # Whether saving a Redo on this submission would open or comment on a GitHub issue,
+    # through the durable v2 delivery or the legacy token path in handle_grade. Graders are
+    # warned before saving, so this mirrors those paths without calling GitHub.
+    def redo_would_post?(submission, token: ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"])
+      cohort = submission.enrollment&.cohort
+      return true if cohort && GithubIssueDeliveryPlanner.enabled_for?(cohort)
+      return false if token.blank? || submission.user.github_username.blank?
+
+      cohort ||= submission.user.cohorts.active.first
+      return false unless cohort
+
+      submission.github_issue_url.present? ||
+        resolve_repo(cohort, submission.content_block.lesson.curriculum_module).present? ||
+        find_prior_issue_url(submission).present?
+    end
+
     private
 
     def handle_redo_grade(submission, user, repo, lesson, content_block, feedback, token)

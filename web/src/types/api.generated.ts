@@ -7135,6 +7135,8 @@ export interface components {
             github_checks?: components["schemas"]["GithubChecks"];
             /** @description Present for staff when a durable GitHub issue delivery exists for this submission. */
             github_issue_delivery?: components["schemas"]["GithubIssueDelivery"];
+            /** @description Staff single-record views: whether saving a Redo opens or comments on a GitHub issue in the student's repository. */
+            redo_posts_to_github?: boolean;
             /** @description Present only for staff when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists. */
             grade_suggestion?: components["schemas"]["SubmissionGradeSuggestion"];
             cohort_name: string | null;

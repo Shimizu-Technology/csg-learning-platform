@@ -7992,6 +7992,10 @@
             "$ref": "#/components/schemas/GithubIssueDelivery",
             "description": "Present for staff when a durable GitHub issue delivery exists for this submission."
           },
+          "redo_posts_to_github": {
+            "type": "boolean",
+            "description": "Staff single-record views: whether saving a Redo opens or comments on a GitHub issue in the student's repository."
+          },
           "grade_suggestion": {
             "$ref": "#/components/schemas/SubmissionGradeSuggestion",
             "description": "Present only for staff when the submission's cohort has GitHub grade suggestions enabled and a suggestion exists."

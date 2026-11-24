@@ -36,14 +36,16 @@ import { FOLLOW_UP_TRIGGER_LABELS, followUpLabel } from '../../lib/followUpLabel
 
 export function SupportQueue() {
   const back = useBackLink({ returnTo: '/admin', returnLabel: 'Today' })
-  const { selectedCohort, cohorts = [] } = useCohortContext()
+  const { cohorts = [] } = useCohortContext()
   const { schoolFeatures } = useAuthContext()
-  const interventionsEnabled = (selectedCohort?.features?.interventions ?? schoolFeatures?.interventions) !== false
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const scopeFilters = supportFiltersFromSearch(searchParams)
   const cohortId = scopeFilters.cohortId ?? undefined
+  // Switches follow the cohort this page is scoped to (?cohort_id), not the sidebar's selection.
+  const scopedCohort = cohortId ? cohorts.find((cohort) => cohort.id === cohortId) : undefined
+  const interventionsEnabled = (scopedCohort?.features?.interventions ?? schoolFeatures?.interventions) !== false
   // Help on one lesson or module, from a content page's "open help" count (L-3.2).
   const help = { lessonId: scopeFilters.lessonId, moduleId: scopeFilters.lessonId ? null : scopeFilters.moduleId, ...(scopeFilters.studentId ? { studentId: scopeFilters.studentId } : {}) }
   const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(`${cohortId ?? ''}|${help.lessonId ?? ''}|${help.moduleId ?? ''}|${help.studentId ?? ''}`, async () => {
@@ -53,6 +55,7 @@ export function SupportQueue() {
   // Back from a help request returns to this list at the same scroll position.
   useListScrollMemory(Boolean(queue))
   const [savingId, setSavingId] = useState<number | null>(null)
+  const [acknowledging, setAcknowledging] = useState<number | null>(null)
   // One reply box open at a time (U-4.7), with the action that opened it as its primary button.
   const [replying, setReplying] = useState<{ id: number; primary: HelpReplyAction } | null>(null)
   const [draft, setDraft] = useState('')
@@ -103,6 +106,19 @@ export function SupportQueue() {
     setReplying(null)
     setDraft('')
     toast.success(action === 'resolve' ? 'Reply sent and request resolved.' : 'Reply sent. The request stays open.')
+    await loadQueue()
+  }
+
+  // "I'm on it": the student sees someone is looking, without a reply yet.
+  async function acknowledge(request: HelpRequest) {
+    setAcknowledging(request.id)
+    const result = await api.updateHelpRequest(request.id, { status: 'acknowledged' })
+    setAcknowledging(null)
+    if (!result.data) {
+      toast.error(result.error || 'Could not mark this request.')
+      return
+    }
+    toast.success(`${request.student?.full_name || 'The student'} can now see that you are on it.`)
     await loadQueue()
   }
 
@@ -157,7 +173,7 @@ export function SupportQueue() {
       <PageHeader
         title="Support"
         description={<>{queue.summary.open_help_count === 1 ? '1 open request' : `${queue.summary.open_help_count} open requests`}{cohortId ? <> in {cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort'}</> : null} · Student requests first, then signals from current learning activity</>}
-        scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(!cohortId || cohorts.some((cohort) => cohort.id === cohortId) ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => { const next = new URLSearchParams(searchParams); if (value) next.set('cohort_id', value); else next.delete('cohort_id'); setSearchParams(next) }} />}
+        scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(!cohortId || cohorts.some((cohort) => cohort.id === cohortId) ? cohorts : [...cohorts, { id: cohortId, name: 'Not one of your cohorts' }])} onChange={(value) => { const next = new URLSearchParams(searchParams); if (value) next.set('cohort_id', value); else next.delete('cohort_id'); setSearchParams(next) }} />}
         menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadQueue() }]}
       />
 
@@ -229,9 +245,10 @@ export function SupportQueue() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2 lg:w-44 lg:flex-col">
-                {/* At most four actions (U-4.7): Reply, Reply & resolve, the request, and its lesson above. */}
+                {/* Reply, Reply & resolve, I'm on it (while still open), the request, and its lesson above. */}
                 <Button fullWidth onClick={() => void openReply(request, 'reply')} disabled={savingId === request.id} aria-expanded={replying?.id === request.id}><MessageSquareReply className="h-4 w-4" aria-hidden="true" />Reply</Button>
                 <Button variant="secondary" fullWidth onClick={() => void openReply(request, 'resolve')} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Reply & resolve</Button>
+                {request.status === 'open' && <Button variant="secondary" fullWidth onClick={() => void acknowledge(request)} disabled={acknowledging === request.id || savingId === request.id} aria-label={`I'm on it: let ${request.student?.full_name || 'the student'} know you are looking`}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />{acknowledging === request.id ? 'Marking…' : "I'm on it"}</Button>}
                 <LinkButton to={helpRequestPath(request.id, returnTo)} variant="quiet" fullWidth>Open request <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
               </div>
             </div>

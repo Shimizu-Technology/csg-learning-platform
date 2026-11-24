@@ -139,7 +139,7 @@ afterEach(() => {
 
 const settle = () => act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
 
-async function renderPanel(submission: Submission, onSaved?: (s: Submission) => void) {
+async function renderPanel(submission: Submission, onSaved?: (s: Submission) => void, nextId?: number) {
   vi.spyOn(api, 'getSubmission').mockResolvedValue({ data: { submission }, error: null })
   const router = createMemoryRouter(
     withLeaveGuard([
@@ -150,6 +150,7 @@ async function renderPanel(submission: Submission, onSaved?: (s: Submission) => 
             submissionId={submission.id}
             navigationContext={{ cohortId: 4 }}
             onSaved={onSaved}
+            nextId={nextId}
           />
         ),
       },
@@ -185,10 +186,21 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     expect(card).toBeTruthy()
     expect(card.textContent).toContain('Checks passed · B suggested')
     expect(card.textContent).toContain('instructors confirm every final grade')
-    expect(card.textContent).toContain(SHA.slice(0, 8))
-    expect(card.textContent).toContain('Policy v2')
     expect(card.textContent).toContain('prework/111.rb')
     expect(card.textContent).toContain('Passed')
+    // Commit, check rules version and app stay folded away under Technical details.
+    const technical = card.querySelector('details')!
+    expect(technical.open).toBe(false)
+    expect(technical.querySelector('summary')?.textContent).toBe('Technical details')
+    expect(technical.textContent).toContain(SHA)
+    expect(technical.textContent).toContain('Check rules version: 2')
+    expect(technical.textContent).toContain('github-actions')
+    technical.remove()
+    // The server's own summary sentence aside, no raw commit is shown.
+    ;[...card.querySelectorAll('p')].find((node) => node.textContent === sub.grade_suggestion!.reason_summary)!.remove()
+    expect(card.textContent).not.toContain(SHA.slice(0, 8))
+    expect(card.textContent).not.toContain('github-actions')
+    expect(card.textContent).not.toContain('Policy v')
 
     // Click "Select B" -> selects B in picker, NEVER calls gradeSubmission!
     const selectB = findButton('Select B')!
@@ -248,7 +260,7 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     })
   })
 
-  it('renders amber stale warning, Stale check evidence headline, and hides Select B and Override note when stale', async () => {
+  it('renders one Out of date state with a plain sentence, and hides Select B and Override note when stale', async () => {
     const staleSub = makeSubmission({
       grade_suggestion: makeSuggestion({
         outcome: 'suggest_b',
@@ -261,12 +273,14 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
 
     const card = container.querySelector('[data-grade-suggestion="suggest_b"]')!
     expect(card.getAttribute('data-grade-suggestion-stale')).toBe('true')
-    expect(card.textContent).toContain('Stale check evidence')
     expect(card.textContent).not.toContain('Checks passed · B suggested')
-    expect(card.textContent).toContain('Stale evidence')
-    expect(card.textContent).toContain('Policy updated')
+    expect([...card.querySelectorAll('span')].filter((node) => node.textContent === 'Out of date')).toHaveLength(1)
+    expect(card.textContent).toContain('The student pushed new code or the check rules changed. Check GitHub again before using this suggestion.')
+    expect(card.textContent).not.toMatch(/Stale|Policy updated/)
     expect(findButton('Select B')).toBeUndefined()
-    expect(findButton('Re-evaluate')).toBeTruthy()
+    expect(findButton('Check GitHub again')).toBeTruthy()
+    expect(findButton('Re-evaluate')).toBeUndefined()
+    expect(findButton('Refresh checks')).toBeUndefined()
 
     // Selecting A while stale must NOT show Override note input
     await act(async () => findButton('A')!.click())
@@ -342,7 +356,7 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     expect(comparison.textContent).toContain('Override note: Hardcoded expected values')
   })
 
-  it('Re-evaluate refreshes suggestion inline without losing unsaved feedback draft or rubric ratings', async () => {
+  it('Check GitHub again refreshes checks and the suggestion in one click without losing the draft or ratings', async () => {
     const sub = makeSubmission({
       rubric: {
         id: 1,
@@ -368,10 +382,14 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
       stale_for_current_policy: false,
       reason_summary: 'All 1 required exercise check(s) passed under Policy v3.',
     })
-    const evalSpy = vi.spyOn(api, 'evaluateSubmissionGradeSuggestion').mockResolvedValue({
-      data: { grade_suggestion: freshSuggestion },
+    const refreshSpy = vi.spyOn(api, 'refreshSubmissionGithubChecks').mockResolvedValue({
+      data: {
+        github_checks: { head_sha: SHA, fetched_at: '2026-11-22T02:00:00Z', summary: { total: 1, passed: 1, failed: 0, pending: 0, neutral: 0 }, runs: [] },
+        grade_suggestion: freshSuggestion,
+      },
       error: null,
     })
+    const evalSpy = vi.spyOn(api, 'evaluateSubmissionGradeSuggestion')
 
     await renderPanel(sub)
 
@@ -381,11 +399,13 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     await act(async () => setInputValue(feedbackTextarea, 'Keep this draft while re-evaluating'))
 
     expect(findButton('Select B')).toBeUndefined()
-    await act(async () => findButton('Re-evaluate')!.click())
+    await act(async () => findButton('Check GitHub again')!.click())
     await settle()
 
-    expect(evalSpy).toHaveBeenCalledExactlyOnceWith(50)
-    expect(container.querySelector('[data-grade-suggestion="suggest_b"]')?.textContent).toContain('Policy v3')
+    expect(refreshSpy).toHaveBeenCalledExactlyOnceWith(50)
+    // The refresh already scored the suggestion again: no second request.
+    expect(evalSpy).not.toHaveBeenCalled()
+    expect(container.querySelector('[data-grade-suggestion="suggest_b"]')?.textContent).toContain('Check rules version: 3')
     expect(findButton('Select B')).toBeTruthy()
     // Feedback draft and rubric rating are preserved!
     expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')!.value).toBe('Keep this draft while re-evaluating')
@@ -448,7 +468,7 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     expect(params.get('submission')).toBe('52')
   })
 
-  it('syncs grade_suggestion inline when Refresh checks returns a refreshed suggestion', async () => {
+  it('syncs grade_suggestion inline when Check GitHub again returns a refreshed suggestion', async () => {
     const sub = makeSubmission({
       grade_suggestion: makeSuggestion({
         outcome: 'no_suggestion',
@@ -473,9 +493,7 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
     await renderPanel(sub)
     expect(container.querySelector('[data-grade-suggestion="no_suggestion"]')).toBeTruthy()
 
-    const summary = [...container.querySelectorAll('summary')].find((el) => el.textContent?.includes('GitHub checks'))!
-    await act(async () => summary.click())
-    await act(async () => findButton('Refresh checks')!.click())
+    await act(async () => findButton('Check GitHub again')!.click())
     await settle()
 
     expect(container.querySelector('[data-grade-suggestion="suggest_b"]')).toBeTruthy()
@@ -520,5 +538,140 @@ describe('SubmissionReviewPanel automated grade suggestions (X-6.7)', () => {
         suggestion_override_reason: '',
       }),
     )
+  })
+})
+
+describe('SubmissionReviewPanel grading safety (UX-1)', () => {
+  const panel = () => container.querySelector('[aria-label="Submission review"]')!
+  const keydown = (init: KeyboardEventInit) => act(async () => { panel().dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init })) })
+  const plain = (overrides: Partial<Submission> = {}) => makeSubmission({ grade_suggestion: undefined, ...overrides })
+
+  it('without a suggestion, a grade button or key only chooses; Save or Cmd/Ctrl+Enter saves', async () => {
+    const sub = plain()
+    const gradeSpy = vi.spyOn(api, 'gradeSubmission').mockResolvedValue({ data: { submission: { ...sub, grade: 'C' } }, error: null })
+    await renderPanel(sub)
+    for (const name of ['A', 'B', 'C']) expect(findButton(name)?.getAttribute('aria-pressed')).toBe('false')
+    expect(findButton('Save grade')?.matches(':disabled')).toBe(true)
+
+    await act(async () => findButton('A')!.click())
+    await keydown({ key: 'b' })
+    await settle()
+    expect(gradeSpy).not.toHaveBeenCalled()
+    expect(findButton('A')?.getAttribute('aria-pressed')).toBe('false')
+    expect(findButton('B')?.getAttribute('aria-pressed')).toBe('true')
+
+    // Ctrl+Enter from inside the feedback box saves the chosen grade.
+    await act(async () => findButton('C')!.click())
+    const feedback = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
+    await act(async () => { feedback.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })) })
+    await settle()
+    expect(gradeSpy).toHaveBeenCalledExactlyOnceWith(50, expect.objectContaining({ grade: 'C' }))
+  })
+
+  it('keeps the feedback box in view at every width, with no tap-to-open drawer', async () => {
+    await renderPanel(plain())
+    const bar = container.querySelector('[data-grade-bar]')!
+    const fieldset = bar.querySelector('textarea[id]')!.closest('fieldset')!
+    expect(fieldset.className).not.toMatch(/(^|\s)hidden(\s|$)/)
+    expect(bar.querySelector('[aria-label="Feedback"]')).toBeNull()
+    expect([...bar.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Feedback')).toBe(false)
+  })
+
+  it('warns above Save that a Redo will post to GitHub, only while Redo is chosen on such a cohort', async () => {
+    const warning = "Saving Redo will post this feedback to the student's GitHub repository as an issue."
+    await renderPanel(plain({ redo_posts_to_github: true }))
+    expect(container.textContent).not.toContain(warning)
+    await act(async () => findButton('Redo')!.click())
+    const note = container.querySelector('[data-redo-github-warning]')!
+    expect(note.textContent).toBe(warning)
+    // Right above Save, inside the pinned grade bar.
+    expect(note.closest('[data-grade-bar]')).toBeTruthy()
+    expect(note.compareDocumentPosition(findButton('Save grade')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await act(async () => findButton('A')!.click())
+    expect(container.textContent).not.toContain(warning)
+  })
+
+  it('never shows the GitHub warning when Redo stays in Learn', async () => {
+    await renderPanel(plain({ redo_posts_to_github: false }))
+    await act(async () => findButton('Redo')!.click())
+    expect(container.querySelector('[data-redo-github-warning]')).toBeNull()
+  })
+
+  it('says Save and next only when there is a next item', async () => {
+    await renderPanel(plain(), vi.fn(), 51)
+    await act(async () => findButton('A')!.click())
+    expect(findButton('Save and next')).toBeTruthy()
+    act(() => root.unmount())
+    root = createRoot(container)
+    await renderPanel(plain(), vi.fn())
+    await act(async () => findButton('A')!.click())
+    expect(findButton('Save and next')).toBeUndefined()
+    expect(findButton('Save grade')).toBeTruthy()
+  })
+
+  it('fills the override note with a one-tap reason and sends it', async () => {
+    const sub = makeSubmission()
+    const gradeSpy = vi.spyOn(api, 'gradeSubmission').mockResolvedValue({ data: { submission: { ...sub, grade: 'A' } }, error: null })
+    await renderPanel(sub)
+    await act(async () => findButton('A')!.click())
+    const picks = container.querySelector('[role="group"][aria-label="Common override reasons"]')!
+    expect([...picks.querySelectorAll('button')].map((button) => button.textContent)).toEqual(['Manual review found issues', 'Checks flaky', 'Partial credit'])
+    await act(async () => findButton('Checks flaky')!.click())
+    expect(container.querySelector<HTMLInputElement>('input[type="text"]')!.value).toBe('Checks flaky')
+    expect(findButton('Checks flaky')?.getAttribute('aria-pressed')).toBe('true')
+    await act(async () => findButton('Save grade')!.click())
+    await settle()
+    expect(gradeSpy).toHaveBeenCalledExactlyOnceWith(50, expect.objectContaining({ grade: 'A', suggestion_override_reason: 'Checks flaky' }))
+  })
+
+  it('uses plain words: Needs redo, unapproved app, no commit yet, replaced by a newer grade', async () => {
+    await renderPanel(makeSubmission({
+      commit_sha: null,
+      rubric: { id: 1, title: 'Quality', description: null, criteria: [{ id: 10, title: 'Correctness', description: 'Works', position: 0, objective_code: null, rating: null, feedback: null }] },
+      github_issue_delivery: { id: 3, status: 'obsolete', action: 'open_or_comment', grade: 'R', issue_url: null, attempts: 1, last_error: null, delivered_at: null, created_at: '2026-11-22T00:00:00Z', updated_at: '2026-11-22T00:00:00Z' } as never,
+      grade_suggestion: makeSuggestion({
+        outcome: 'no_suggestion',
+        suggested_grade: null,
+        evidence: { required_checks: ['prework/111.rb'], untrusted_checks: [{ name: 'prework/111.rb', app_slug: 'rogue-app' }] },
+      }),
+    }))
+    expect(findButton('Needs redo')).toBeTruthy()
+    expect(findButton('Revision')).toBeUndefined()
+    expect(container.textContent).toContain('From an unapproved app')
+    expect(container.textContent).not.toContain('Untrusted producer')
+    expect(container.textContent).toContain('GitHub feedback replaced by a newer grade')
+    expect(container.textContent).not.toMatch(/superseded/i)
+    expect(container.textContent).not.toContain('Save a commit SHA')
+  })
+
+  it("without a commit, says the student hasn't submitted one and cannot check GitHub", async () => {
+    await renderPanel(plain({ commit_sha: null }))
+    expect(container.textContent).toContain("The student hasn't submitted a commit yet")
+    expect(findButton('Check GitHub again')?.matches(':disabled')).toBe(true)
+    expect([...container.querySelectorAll('summary')].some((node) => node.textContent === 'GitHub checks')).toBe(false)
+  })
+
+  it('without a commit, Check GitHub again scores the suggestion against the current rules', async () => {
+    const refreshSpy = vi.spyOn(api, 'refreshSubmissionGithubChecks')
+    const evalSpy = vi.spyOn(api, 'evaluateSubmissionGradeSuggestion').mockResolvedValue({
+      data: { grade_suggestion: makeSuggestion({ outcome: 'suggest_b' }) },
+      error: null,
+    })
+    await renderPanel(makeSubmission({ commit_sha: null, grade_suggestion: makeSuggestion({ stale: true, stale_for_current_policy: true }) }))
+    await act(async () => findButton('Check GitHub again')!.click())
+    await settle()
+    expect(refreshSpy).not.toHaveBeenCalled()
+    expect(evalSpy).toHaveBeenCalledExactlyOnceWith(50)
+    expect(findButton('Select B')).toBeTruthy()
+  })
+
+  it('shows a Check GitHub again failure beside the button, leaving the grade bar alone', async () => {
+    vi.spyOn(api, 'refreshSubmissionGithubChecks').mockResolvedValue({ data: null, error: 'Verify a repository binding before refreshing checks' } as never)
+    await renderPanel(plain())
+    await act(async () => findButton('Check GitHub again')!.click())
+    await settle()
+    const alert = [...container.querySelectorAll('[role="alert"]')].find((node) => node.textContent === 'Verify a repository binding before refreshing checks')!
+    expect(alert).toBeTruthy()
+    expect(alert.closest('[data-grade-bar]')).toBeNull()
   })
 })

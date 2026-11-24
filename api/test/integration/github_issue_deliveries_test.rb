@@ -71,6 +71,44 @@ class GithubIssueDeliveriesTest < ActionDispatch::IntegrationTest
     ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = previous_token
   end
 
+  test "staff review says when a Redo will post to GitHub before it is saved" do
+    previous_token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = nil
+    with_app_provider do
+      as_app_user(@instructor) do
+        get "/api/v1/submissions/#{@submission.id}", headers: app_headers
+        assert_response :success
+        assert_equal true, response.parsed_body.dig("submission", "redo_posts_to_github")
+        # Lists never pay for the per-record check.
+        get "/api/v1/submissions", params: { cohort_id: @cohort.id }, headers: app_headers
+        assert_response :success
+        assert_not response.parsed_body.fetch("submissions").first.key?("redo_posts_to_github")
+      end
+      as_app_user(@student) do
+        get "/api/v1/submissions/#{@submission.id}", headers: app_headers
+        assert_not response.parsed_body.fetch("submission").key?("redo_posts_to_github")
+      end
+      @cohort.update!(settings: { features: { github_app: true, github_issue_delivery_v2: false } })
+      as_app_user(@instructor) do
+        get "/api/v1/submissions/#{@submission.id}", headers: app_headers
+        assert_equal false, response.parsed_body.dig("submission", "redo_posts_to_github")
+      end
+    end
+  ensure
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = previous_token
+  end
+
+  test "legacy Redo posting needs the organization token, a GitHub username and a repository" do
+    @cohort.update!(settings: { features: { github_app: false } }, repository_name: nil)
+    assert_not GithubIssueService.redo_would_post?(@submission, token: nil)
+    assert_not GithubIssueService.redo_would_post?(@submission.reload, token: "legacy-token")
+    @cohort.update!(repository_name: "prework-exercises")
+    assert GithubIssueService.redo_would_post?(@submission.reload, token: "legacy-token")
+    # The fixture's username is GitHub-verified, so clear it directly.
+    @student.update_columns(github_username: nil)
+    assert_not GithubIssueService.redo_would_post?(@submission.reload, token: "legacy-token")
+  end
+
   test "full lifecycle: R creates issue without private notes, repeat R comments, B closes, later R reopens and comments" do
     # 1. Initial R -> create issue
     as_app_user(@instructor) do

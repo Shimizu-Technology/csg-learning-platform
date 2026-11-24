@@ -983,7 +983,7 @@ The staff student response keeps operational fields scoped to the selected enrol
 |--------|------|------|-------------|
 | `GET` | `/api/v1/submissions` | Staff | List submissions (filterable by `cohort_id`, `user_id`, `module_id`, `ungraded`). Staff see only cohorts they can access. Each row carries the Grading queue's context: `cohort_name`, `module_position`, `course_delivery` and `week_number` (null for self-paced cohorts) |
 | `GET` | `/api/v1/grading_queue` | Staff | One page of the Grading workbench's queue: `filter` (`ungraded` default, `redo`, `all`), `cohort_id`, `module_id`, `student_id`, `lesson_id`, `suggestion_outcome` (`suggest_b`, `review_for_redo`, `no_suggestion`, `stale_evidence`), `sort` (`oldest` default, `newest`), `page`, `per_page` (50 default, 100 at most) and `focus_id` (serve the page holding that submission). Returns `submissions` (no answer text; optional `grade_suggestion` for opted-in cohorts; open one with `GET /submissions/:id`), `meta` (page, total), the items just outside the page (`previous`, `next`), the status `counts`, `modules` and `students` options with counts, `module_grids` and the `lesson` filter's title, all filtered and counted on the server. Inside a cohort, module and lesson ids from before its copy resolve to the copy's. A chosen filter's label (student name, module name, lesson title) comes only from records in the viewer's scope; an id outside it is answered like one that doesn't exist |
-| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission, including `lesson_id`, `module_id`, `module_name`, `module_position`, `course_delivery` and `week_number` (plus optional staff-only `grade_suggestion` for opted-in cohorts) |
+| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission, including `lesson_id`, `module_id`, `module_name`, `module_position`, `course_delivery` and `week_number` (plus optional staff-only `grade_suggestion` for opted-in cohorts, and staff-only `redo_posts_to_github`: whether saving a Redo opens or comments on a GitHub issue, so the review warns first) |
 | `POST` | `/api/v1/submissions` | Authenticated | Create submission |
 | `PATCH` | `/api/v1/submissions/:id` | Staff | Update submission |
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission (supports optional `suggestion_decision` and `suggestion_override_reason` to record accepted/overridden/dismissed grade suggestion decisions on opted-in cohorts) |
@@ -1045,8 +1045,8 @@ An optional `user_id` filters the projection to one learner and must identify an
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/cohorts/:id/modules/:module_id/submissions` | Staff | All submissions for a module in a cohort (the module grading grid); each exercise and submission carries its `lesson_id`. A module id from before the cohort's copy opens the copy's grid |
-| `POST` | `/api/v1/cohorts/:id/modules/:module_id/sync_github` | Staff | Sync all students' GitHub repos |
+| `GET` | `/api/v1/cohorts/:id/modules/:module_id/submissions` | Staff | All submissions for a module in a cohort (the module grading grid); each exercise and submission carries its `lesson_id`; `github_auto_sync` says whether the hourly GitHub App reconciliation also syncs this cohort. A module id from before the cohort's copy opens the copy's grid |
+| `POST` | `/api/v1/cohorts/:id/modules/:module_id/sync_github` | Staff | Sync all students' GitHub repos. Returns `synced`, `students_processed`, `errors` and `failed_students` (`user_id`, `full_name`, `errors`) naming each student the sync could not finish |
 | `POST` | `/api/v1/cohorts/:id/modules/:module_id/sync_github/:user_id` | Staff | Sync one student's GitHub repo |
 
 ---

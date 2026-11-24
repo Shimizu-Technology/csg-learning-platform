@@ -6,13 +6,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { HelpRequest } from '../../types/api'
 import { SupportQueue } from './SupportQueue'
 
-const state = vi.hoisted(() => ({ reload: vi.fn(), confirm: vi.fn(async () => true), success: vi.fn(), error: vi.fn(), reply: vi.fn() }))
+const state = vi.hoisted(() => ({ reload: vi.fn(), confirm: vi.fn(async () => true), success: vi.fn(), error: vi.fn(), reply: vi.fn(), update: vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ schoolFeatures: {}, user: { id: 1, is_staff: true, is_admin: false } }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: null, cohorts: [] }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: state.success, error: state.error }) }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => state.confirm }))
 vi.mock('../../lib/analytics', () => ({ captureProductEvent: vi.fn(), analyticsAgeBucket: () => 'under_1h' }))
-vi.mock('../../lib/api', () => ({ api: { replyToHelpRequest: state.reply } }))
+vi.mock('../../lib/api', () => ({ api: { replyToHelpRequest: state.reply, updateHelpRequest: state.update } }))
 vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDrawer: () => null }))
 
 const request = (id: number): HelpRequest => ({
@@ -56,11 +56,27 @@ async function type(value: string) {
   })
 }
 
-it('shows Reply, Reply & resolve, the request and its lesson, and nothing else (U-4.7)', () => {
-  expect(actions(card(4))).toEqual(['Loops and iteration', 'Reply', 'Reply & resolve', 'Open request'])
+it("shows Reply, Reply & resolve, I'm on it, the request and its lesson, and nothing else (U-4.7)", () => {
+  expect(actions(card(4))).toEqual(['Loops and iteration', 'Reply', 'Reply & resolve', "I'm on it", 'Open request'])
   expect(card(4).querySelector('a[href="/lessons/40?cohort_id=3"]')).toBeTruthy()
   expect(container.textContent).not.toContain('Acknowledge')
   expect(container.textContent).not.toContain('Student context')
+})
+
+it("I'm on it lets the student know without replying, then refreshes the queue", async () => {
+  state.update.mockResolvedValue({ data: { help_request: { ...request(4), status: 'acknowledged' } }, error: null })
+  await press(card(4), "I'm on it")
+  expect(state.update).toHaveBeenCalledWith(4, { status: 'acknowledged' })
+  expect(state.success).toHaveBeenCalledWith('Blair Synthetic can now see that you are on it.')
+  expect(state.reload).toHaveBeenCalled()
+  expect(state.reply).not.toHaveBeenCalled()
+})
+
+it("I'm on it reports a failure and keeps the request as it was", async () => {
+  state.update.mockResolvedValue({ data: null, error: 'Request closed' })
+  await press(card(4), "I'm on it")
+  expect(state.error).toHaveBeenCalledWith('Request closed')
+  expect(state.reload).not.toHaveBeenCalled()
 })
 
 it('Reply posts the reply and keeps the request open', async () => {
