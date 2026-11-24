@@ -93,6 +93,11 @@ function TodayView({ data, today, saved, onDismissStartHere, onPaceSaved }: { da
   const { cohorts } = useCohortContext()
   const otherCourses = (cohorts ?? []).filter((item) => item.id !== cohortId && item.cohort_type !== 'alumni' && item.enrollment_status === 'active')
   const firstRun = today.first_run === true
+  const closedWork = today.read_only || today.mode === 'library' ? [] : (data.modules ?? [])
+    .flatMap((mod) => mod.lessons)
+    .filter((lesson) => lesson.available && lesson.required !== false && !lesson.completed && lesson.submission_window?.submissions_closed
+      && lesson.submission_window.submissions_close_at && (lesson.learner_status === 'redo' || ['exercise', 'project', 'checkpoint'].includes(lesson.kind ?? '')))
+  const planRequestLabel = today.catch_up_plan ? 'Ask to change your plan' : 'Ask for a catch-up plan'
   const pace = today.personal_pace
   const paceChosen = pace?.plan_source === 'learner_pace' && pace.weeks !== null
   const paceCard = pace && !today.read_only ? (
@@ -122,13 +127,37 @@ function TodayView({ data, today, saved, onDismissStartHere, onPaceSaved }: { da
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
         <div className="min-w-0 space-y-5">
-          {/* A pace not chosen yet is the first thing to do (W9.1); once chosen it follows the next action. */}
-          {paceCard && !paceChosen && paceCard}
+          {!firstRun && paceCard && !paceChosen && paceCard}
           {!saved && <CourseCompletionStatus completion={today.course_completion} />}
           {firstRun
             ? <FirstRunWelcome key={cohortId} data={data} today={today} lessonPath={today.next_lesson ? paths.lesson(today.next_lesson.id) : null} learnPath={learnPath} onDismiss={onDismissStartHere} />
-            : <Hero data={data} today={today} paths={paths} learnPath={learnPath} myWorkPath={myWorkPath} messenger={messenger} />}
-          {paceCard && paceChosen && paceCard}
+            : <Hero data={data} today={today} paths={paths} learnPath={learnPath} myWorkPath={myWorkPath} messenger={messenger} hasClosedWork={closedWork.length > 0} />}
+          {paceCard && (firstRun || paceChosen) && paceCard}
+          {closedWork.length > 0 && (
+            <section className="app-surface p-5 sm:p-6" aria-labelledby="closed-work-title">
+              <h2 id="closed-work-title" className="text-xl font-bold text-ink">Some work needs a new deadline</h2>
+              <p className="mt-2 text-sm text-ink-secondary">These submission windows have closed. You can still review your work and ask staff to help you catch up.</p>
+              <ul className="mt-3 divide-y divide-line">
+                {closedWork.map((item) => {
+                  const redo = today.needs_you.items.find((entry) => entry.kind === 'redo' && entry.lesson_id === item.id)
+                  const feedback = (redo?.kind === 'redo' ? redo : undefined)
+                    ?? today.recently_graded.find((entry) => entry.lesson_id === item.id)
+                    ?? data.recently_graded?.find((entry) => entry.lesson_id === item.id)
+                  const hasFeedback = feedback || item.review_status === 'reviewed' || item.review_status === 'redo_requested'
+                  return (
+                    <li key={item.id} className="py-3 [overflow-wrap:anywhere]">
+                      <p className="font-semibold text-ink">{item.title}</p>
+                      <p className="text-sm text-ink-secondary">Closed {formatShortDateTime(item.submission_window?.submissions_close_at)}</p>
+                      <Link className="app-link inline-flex min-h-11 items-center" to={feedback?.content_block_id ? paths.redo(item.id, feedback.content_block_id) : paths.lesson(item.id)}>{hasFeedback ? 'Read feedback' : 'Open lesson'}<span className="sr-only"> for {item.title}</span></Link>
+                    </li>
+                  )
+                })}
+              </ul>
+              {today.contact
+                ? <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(today.contact!.id, { label: planRequestLabel, path: learnPath })}>{planRequestLabel}</Button>
+                : <AnchorButton variant="secondary" href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(planRequestLabel)}`}>{planRequestLabel}</AnchorButton>}
+            </section>
+          )}
           {today.mode === 'library' && otherCourses.length > 0 && <section className="app-surface p-5" aria-label="Your other courses"><h2 className="font-semibold text-ink">Your other courses</h2><p className="mt-1 text-sm text-ink-secondary">Check Today for your next lesson and work waiting for you.</p><ul>{otherCourses.map((item) => <li key={item.id}><Link to={`/dashboard?cohort_id=${item.id}`} className="app-link inline-flex min-h-11 items-center">Today in {item.name}<ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link></li>)}</ul></section>}
           <NeedsYou today={today} cohortId={cohortId} paths={paths} />
           <Questions today={today} />
@@ -181,7 +210,7 @@ type Paths = ReturnType<typeof useLearnerPaths>
 type Messenger = ReturnType<typeof useMessageInstructor>
 
 /** The one next action (S-11): a single primary button, whatever the learner's state. */
-function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: DashboardData; today: StudentToday; paths: Paths; learnPath: string; myWorkPath: (tab?: string) => string; messenger: Messenger }) {
+function Hero({ data, today, paths, learnPath, myWorkPath, messenger, hasClosedWork }: { data: DashboardData; today: StudentToday; paths: Paths; learnPath: string; myWorkPath: (tab?: string) => string; messenger: Messenger; hasClosedWork: boolean }) {
   // Messages go to someone the learner can reach now (the server's contact); nobody, no button.
   const contact = today.contact
   const next = today.next_lesson
@@ -206,10 +235,10 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
         <div className="mt-4 flex flex-wrap gap-2">
           {today.paused
             ? contact
-              ? <Button onClick={() => void messenger.open(contact.id)} disabled={messenger.opening}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message {brand.schoolAbbreviation} staff</Button>
-              : <AnchorButton variant="primary" href={`mailto:${SUPPORT_EMAIL}`}><MessageCircle className="h-4 w-4" aria-hidden="true" />Contact {brand.schoolAbbreviation}</AnchorButton>
+              ? <Button onClick={() => void messenger.open(contact.id)} disabled={messenger.opening}><MessageCircle className="h-4 w-4" aria-hidden="true" />Ask about resuming</Button>
+              : <AnchorButton variant="primary" href={`mailto:${SUPPORT_EMAIL}`}><MessageCircle className="h-4 w-4" aria-hidden="true" />Ask about resuming</AnchorButton>
             : <LinkButton to={learnPath}>Open Learn<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
-          <LinkButton variant="secondary" to={myWorkPath('graded')}>View your past work</LinkButton>
+          <LinkButton variant="secondary" to={myWorkPath('graded')}>View past work</LinkButton>
         </div>
         {next && (
           <div className="mt-5 border-t border-line pt-4">
@@ -231,7 +260,7 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
       <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="today-hero">
         <h2 id="today-hero" className="text-xl font-bold text-ink">{brand.schoolAbbreviation} Alumni library</h2>
         <p className="mt-1 text-sm text-ink-secondary">Browse lessons and recordings at your own pace.</p>
-        <div className="mt-4"><LinkButton to={learnPath}>Open the library<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton></div>
+        <div className="mt-4"><LinkButton to={learnPath}>Browse library<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton></div>
         {today.continue_watching && <Link to={today.continue_watching.path} className="app-link mt-3 flex min-h-11 items-center [overflow-wrap:anywhere]">Continue watching: {today.continue_watching.title}</Link>}
         {first && (
           <div className="mt-5 border-t border-line pt-3">
@@ -260,9 +289,10 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
           {behindLine} {plan.target_date ? `Your plan gets you caught up by ${formatShortDate(plan.target_date, '', { withYear: false, weekday: true })}.` : plan.title}
         </h2>
         <p className="mt-1 text-sm text-ink-secondary">Required lessons only; optional ones can wait. {agreed}</p>
+        {continueTo?.status === 'redo' && <Badge tone="warning">Redo requested</Badge>}
         <PlanList plan={plan} paths={paths} />
         <div className="mt-4 flex flex-wrap gap-2">
-          {continueTo && <LinkButton to={paths.lesson(continueTo.id)} aria-label={`Continue with ${continueTo.title}`}>Continue your plan<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+          {continueTo && <LinkButton to={paths.lesson(continueTo.id)} aria-label={continueTo.status === 'redo' ? undefined : `Continue with ${continueTo.title}`}>{continueTo.status === 'redo' ? 'Fix your redo' : 'Continue your plan'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
           {contact && !today.read_only && <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(contact.id, { label: `My catch-up plan: ${plan.title}`, path: learnPath })}>Ask {contactName} to change it</Button>}
         </div>
       </article>
@@ -272,13 +302,14 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
   if (next) {
     return (
       <article className="app-surface p-5 sm:p-6" data-region="next-action" aria-labelledby="today-hero">
+        {next.status === 'redo' && <Badge tone="warning">Redo requested</Badge>}
         {behindLine ? <Badge tone="warning" icon={<Clock className="h-3.5 w-3.5" aria-hidden="true" />}>{behindLine}</Badge> : <p className="text-xs font-semibold text-ink-muted">Next up</p>}
         <h2 id="today-hero" className="mt-2 text-xl font-bold leading-7 text-ink [overflow-wrap:anywhere] sm:text-2xl">{next.title}</h2>
         <p className="mt-1 text-sm text-ink-secondary">{lessonPlace(next)}{progress && <> · {progress}</>}</p>
         {next.submission_window?.submissions_close_at && <p className="mt-2 text-sm text-ink-secondary">Submission deadline: {formatShortDateTime(next.submission_window.submissions_close_at)}</p>}
         {behindLine && <p className="mt-2 text-sm leading-6 text-ink-secondary">{next.status === 'redo' ? 'Start with your redo, then' : 'Start here, then'} keep going with the required lessons in Learn.{today.can_ask_for_plan && contactName ? ` ${contactName} can agree a catch-up plan with you.` : ''}</p>}
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <LinkButton to={paths.lesson(next.id)} size="lg">Continue<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+          <LinkButton to={paths.lesson(next.id)} size="lg">{next.status === 'redo' ? 'Fix your redo' : 'Continue'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
           {behindLine && today.can_ask_for_plan && contact
             ? <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(contact.id, { label: 'A catch-up plan', path: learnPath })}>Ask {contactName} for a catch-up plan</Button>
             : <Link to={learnPath} className="app-link inline-flex min-h-11 items-center px-2 text-sm">See the course outline</Link>}
@@ -286,6 +317,8 @@ function Hero({ data, today, paths, learnPath, myWorkPath, messenger }: { data: 
       </article>
     )
   }
+
+  if (hasClosedWork) return null
 
   const nothingOpen = !counts || counts.total_lessons === 0
   return (

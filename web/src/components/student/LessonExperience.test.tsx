@@ -174,6 +174,17 @@ it('labels a redo separately from a forward module transition', async () => {
     expect(page.host.textContent).not.toContain('Start next module')
   } finally { await page.close() }
 })
+it('saves a reading lesson before continuing', async () => {
+  const page = await render({ ...lesson, content_blocks: [{ id: 4, block_type: 'text' }] } as LessonDetail)
+  try {
+    const button = [...page.host.querySelectorAll('button')].find(node => node.textContent === 'Mark complete and continue')!
+    expect(page.host.querySelector('a[href="/lessons/9?cohort_id=1"]')).toBeNull()
+    await act(async () => button.click())
+    expect(update).toHaveBeenCalledWith(4, 'completed', 1)
+    expect(page.reload).toHaveBeenCalledOnce()
+  } finally { await page.close() }
+})
+
 it('keeps reading completion after submissions close', async () => {
   const page = await render({ ...lesson, submission_window: { submissions_closed: true } } as LessonDetail)
   try {

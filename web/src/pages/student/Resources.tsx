@@ -1,3 +1,4 @@
+import { PausedLearningBanner, useSelectedCoursePaused } from '../../components/student/PausedLearningBanner'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -28,6 +29,8 @@ const categoryConfig: Record<string, { label: string; icon: typeof Globe }> = {
 export function Resources() {
   const { v2 } = useStudentExperience()
   const { selectedCohortId } = useCohortContext()
+  const paused = useSelectedCoursePaused(selectedCohortId)
+  const pausedBanner = paused && <PausedLearningBanner cohortId={selectedCohortId} />
   const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,10 +119,10 @@ export function Resources() {
 
   if (resources.length === 0) {
     return (
-      <div className="app-page max-w-5xl"><EmptyState headingLevel={1}
+      <div className="app-page max-w-5xl">{pausedBanner}<EmptyState headingLevel={1}
         icon={Link2}
-        title="No resources yet"
-        description="Class resources will appear here once your instructor adds them."
+        title={paused ? 'No resources available before your pause' : 'No resources yet'}
+        description={paused ? 'Resources published before you paused appear here.' : 'Class resources will appear here once your instructor adds them.'}
         action={<Link to={todayPath} className="app-link inline-flex min-h-11 items-center gap-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Today</Link>}
       /></div>
     )
@@ -128,6 +131,7 @@ export function Resources() {
   const Header = v2 ? 'div' : 'header'
   return (
     <div className="app-page max-w-5xl">
+      {pausedBanner}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           Showing saved resources while your connection catches up.

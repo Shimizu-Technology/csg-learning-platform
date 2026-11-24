@@ -68,6 +68,23 @@ class CourseCompletionTest < ActionDispatch::IntegrationTest
     assert_equal certificate.code, response.parsed_body.dig("course_certificate", "certificate", "code")
   end
 
+  test "optional redo stays visible while required passing work earns a certificate" do
+    optional = @mod.lessons.create!(title: "Stretch project", position: 1, release_day: 0, required: false, lesson_type: :project)
+    stretch = optional.content_blocks.create!(title: "Add a feature", block_type: :exercise, position: 0, submission_type: :text_submission)
+    grade(submit(stretch), "R")
+    assert_difference "Certificate.count", 1 do
+      grade(submit(@project), "A")
+      CourseCompletion.evaluate!(@enrollment)
+    end
+
+    get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: headers(@learner)
+    assert_response :success
+    today = response.parsed_body.dig("dashboard", "student_today")
+    assert today.dig("course_completion", "course_completed")
+    assert today.dig("course_completion", "certificate", "code")
+    assert_includes today.dig("needs_you", "items").pluck("content_block_id"), stretch.id
+  end
+
   test "verification has an exact public allowlist and keeps snapshots while learner name edits are explicit" do
     grade(submit(@project), "A")
     certificate = @enrollment.certificates.active.sole

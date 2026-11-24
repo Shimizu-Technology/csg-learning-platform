@@ -60,11 +60,12 @@ export function TodayRoute() {
   return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading Today…" />} on={<StudentToday />} off={<Dashboard />} />
 }
 
-/** My work exists only in the new student experience (L-1.2); otherwise the address goes to Today. */
+/** Paused learners can open past work from the pause notice in either experience. */
 export function MyWorkRoute() {
-  const { user } = useAuthContext()
+  const { user, enrollments } = useAuthContext()
   const location = useLocation()
   const cohortId = Number(new URLSearchParams(location.search).get('cohort_id')) || null
   if (user?.is_staff) return <Navigate replace to="/admin" />
+  if (cohortId && enrollments?.some((entry) => entry.cohort.id === cohortId && entry.status === 'paused')) return <MyWork />
   return <StudentExperienceSwitch loading={<LoadingSpinner message="Loading My work…" />} on={<MyWork />} off={<Navigate replace to={cohortId ? `/dashboard?cohort_id=${cohortId}` : '/dashboard'} />} />
 }
