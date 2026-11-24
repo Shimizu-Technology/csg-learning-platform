@@ -207,6 +207,33 @@ it('offers recovery and direct feedback when the only remaining work is closed',
   expect(container.textContent).not.toContain('You’re caught up')
 })
 
+it('excludes optional and reopened work and labels closed lessons by available feedback', async () => {
+  state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
+  const plan = { title: 'Catch up', target_date: null, agreed_at: '2026-11-12T00:00:00Z', agreed_by: null, remaining_count: 0, items: [] }
+  const dashboard = onDashboard(studentToday({ catch_up_plan: plan, needs_you: { count: 0, items: [] } }))
+  const closed = { id: 104, title: 'Reviewed lesson', kind: 'exercise', available: true, required: true, completed: false,
+    submission_window: { submissions_closed: true, submissions_close_at: '2026-11-19T07:00:00Z' } }
+  const lessons = [
+    closed,
+    { ...closed, id: 105, title: 'Unsubmitted lesson' },
+    { ...closed, id: 108, title: 'Earlier graded lesson', review_status: 'reviewed' },
+    { ...closed, id: 106, title: 'Optional stretch', required: false },
+    { ...closed, id: 107, title: 'Reopened lesson', submission_window: { submissions_closed: false, submissions_close_at: '2026-11-29T07:00:00Z' } },
+  ]
+  mocks.getDashboard.mockResolvedValue({ data: { dashboard: { ...dashboard, modules: [{ id: 3, lessons }] } } })
+  await render('/dashboard?cohort_id=9', <TodayRoute />)
+  const recovery = container.querySelector('[aria-labelledby="closed-work-title"]')!
+  expect(recovery.textContent).not.toContain('Optional stretch')
+  expect(recovery.textContent).not.toContain('Reopened lesson')
+  expect(recovery.textContent).not.toContain('Ask for a catch-up plan')
+  expect(recovery.textContent).toContain('Ask to change your plan')
+  expect([...recovery.querySelectorAll('a')].map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+    ['Read feedback for Reviewed lesson', '/lessons/104?cohort_id=9#block-704'],
+    ['Open lesson for Unsubmitted lesson', '/lessons/105?cohort_id=9'],
+    ['Read feedback for Earlier graded lesson', '/lessons/108?cohort_id=9'],
+  ])
+})
+
 it('an agreed plan shows who agreed it, five of its lessons, Show all in place and Ask to change it', async () => {
   state.cohort = { ready: true, selectedCohort: cohort(9, true), selectedCohortId: 9, error: null }
   const items = Array.from({ length: 14 }, (_, index) => ({ lesson_id: 500 + index, title: `Plan lesson ${index + 1}`, kind: 'exercise', due_on: `2026-11-${20 + Math.floor(index / 2)}`, available: true, status: 'open' }))

@@ -160,7 +160,6 @@ export function Recordings() {
     if (legacyReturnTo) navigate(`${location.pathname}${location.search}`, { replace: true, state: { returnTo: legacyReturnTo, returnLabel: 'Notifications' } })
   }, [legacyReturnTo, location.pathname, location.search, navigate])
   const paused = useSelectedCoursePaused(selectedCohortId)
-  const pausedBanner = paused && <PausedLearningBanner cohortId={selectedCohortId} />
   const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
   const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' }, { legacyInbox: v2 })
   const backTo = v2 ? originBack.to : todayPath
@@ -171,6 +170,8 @@ export function Recordings() {
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
   const [capabilities, setCapabilities] = useState<LearnerCapabilities | undefined>()
+  const [pause, setPause] = useState<{ cohortId: number; since: string | null } | null>(null)
+  const pausedBanner = paused && <PausedLearningBanner cohortId={selectedCohortId} pausedSince={pause?.cohortId === selectedCohortId ? pause?.since ?? null : null} />
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
@@ -192,7 +193,10 @@ export function Recordings() {
     setLoading(true)
     setCapabilities(undefined)
     if (!isStaff && selectedCohortId) api.getDashboard(selectedCohortId).then((res) => {
-      if (generation === requestGeneration.current && res.data && !res.fromCache) setCapabilities(res.data.dashboard.capabilities)
+      if (generation !== requestGeneration.current || !res.data || res.fromCache) return
+      const dashboard = res.data.dashboard
+      setCapabilities(dashboard.capabilities)
+      if (dashboard.cohort?.id === selectedCohortId) setPause({ cohortId: selectedCohortId, since: dashboard.paused_since ?? null })
     }).catch(() => { /* No verified capabilities: playback remains read only. */ })
     setLegacyRecordings([])
     setS3Recordings([])

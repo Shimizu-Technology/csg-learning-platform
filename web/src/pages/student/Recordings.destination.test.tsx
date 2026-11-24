@@ -3,15 +3,16 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider, MemoryRouter, Routes, Route } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
-const state = vi.hoisted(() => ({ getRecordings: vi.fn(), v2: false }))
+const state = vi.hoisted(() => ({ getRecordings: vi.fn(), paused: false, v2: false }))
 vi.mock('../../lib/studentExperience', () => ({ useStudentExperience: () => ({ v2: state.v2 }) }))
-vi.mock('../../lib/api', () => ({ api: { getRecordings: state.getRecordings, getDashboard: vi.fn(async () => ({ data: { dashboard: { capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 1 } } }, error: null })) } }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 }, enrollments: [] }) }))
+vi.mock('../../lib/api', () => ({ api: { getRecordings: state.getRecordings, getDashboard: vi.fn(async () => ({ data: { dashboard: { cohort: { id: 2 }, paused_since: '2026-11-19', capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 1 } } }, error: null })) } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 }, enrollments: state.paused ? [{ status: 'paused', cohort: { id: 2 } }] : [] }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: 2 }) }))
 vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => true }))
 vi.mock('../../components/shared/VideoPlayer', () => ({ VideoPlayer: ({ title }: { title: string }) => <div data-testid="player">{title}</div> }))
 vi.mock('../../components/student/ContextualHelp', () => ({ ContextualHelp: () => null }))
 import { Recordings } from './Recordings'
+import { api } from '../../lib/api'
 it.each([['9', 'Requested recording'], ['legacy-2-2', 'Requested recording'], ['legacy-2-1', 'Legacy recording'], ['999', 'Recording unavailable']])('selects %s and never silently plays another recording', async (id, expected) => {
   state.getRecordings.mockResolvedValue({ data: { items: [{ id: 8, cohort_id: 2, title: 'First recording', source: 'uploaded' }, { id: 9, legacy_item_key: 'legacy-2-2', cohort_id: 2, title: 'Requested recording', source: 'uploaded' }, { id: 'legacy-2-1', cohort_id: 2, title: 'Legacy recording', source: 'external', url: 'https://example.com/video' }] } })
   const container = document.createElement('div'); const root = createRoot(container)
@@ -74,4 +75,20 @@ it.each(['/announcements?tab=inbox&inbox_page=3', '/materials?cohort_id=2'])('se
     expect(container.querySelector('[data-testid="player"]')?.textContent).toBe('Second replay')
     expect(container.querySelector(`a[href="${from}"]`)?.textContent ?? null).toBe(from.startsWith('/announcements') ? 'Back to Notifications' : null)
   } finally { state.v2 = false; act(() => root.unmount()) }
+})
+
+it('uses the existing recordings dashboard request for the pause date', async () => {
+  state.paused = true
+  vi.mocked(api.getDashboard).mockClear()
+  state.getRecordings.mockResolvedValue({ data: { items: [] } })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<MemoryRouter><Recordings /></MemoryRouter>))
+    expect(container.textContent).toContain('Paused since Nov 19, 2026')
+    expect(api.getDashboard).toHaveBeenCalledExactlyOnceWith(2)
+  } finally {
+    state.paused = false
+    act(() => root.unmount())
+  }
 })

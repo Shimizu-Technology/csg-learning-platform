@@ -95,8 +95,9 @@ function TodayView({ data, today, saved, onDismissStartHere, onPaceSaved }: { da
   const firstRun = today.first_run === true
   const closedWork = today.read_only || today.mode === 'library' ? [] : (data.modules ?? [])
     .flatMap((mod) => mod.lessons)
-    .filter((lesson) => lesson.available && !lesson.completed && lesson.submission_window?.submissions_closed
+    .filter((lesson) => lesson.available && lesson.required !== false && !lesson.completed && lesson.submission_window?.submissions_closed
       && lesson.submission_window.submissions_close_at && (lesson.learner_status === 'redo' || ['exercise', 'project', 'checkpoint'].includes(lesson.kind ?? '')))
+  const planRequestLabel = today.catch_up_plan ? 'Ask to change your plan' : 'Ask for a catch-up plan'
   const pace = today.personal_pace
   const paceChosen = pace?.plan_source === 'learner_pace' && pace.weeks !== null
   const paceCard = pace && !today.read_only ? (
@@ -139,18 +140,22 @@ function TodayView({ data, today, saved, onDismissStartHere, onPaceSaved }: { da
               <ul className="mt-3 divide-y divide-line">
                 {closedWork.map((item) => {
                   const redo = today.needs_you.items.find((entry) => entry.kind === 'redo' && entry.lesson_id === item.id)
+                  const feedback = (redo?.kind === 'redo' ? redo : undefined)
+                    ?? today.recently_graded.find((entry) => entry.lesson_id === item.id)
+                    ?? data.recently_graded?.find((entry) => entry.lesson_id === item.id)
+                  const hasFeedback = feedback || item.review_status === 'reviewed' || item.review_status === 'redo_requested'
                   return (
                     <li key={item.id} className="py-3 [overflow-wrap:anywhere]">
                       <p className="font-semibold text-ink">{item.title}</p>
                       <p className="text-sm text-ink-secondary">Closed {formatShortDateTime(item.submission_window?.submissions_close_at)}</p>
-                      <Link className="app-link inline-flex min-h-11 items-center" to={redo?.kind === 'redo' ? paths.redo(item.id, redo.content_block_id) : paths.lesson(item.id)}>Read feedback<span className="sr-only"> for {item.title}</span></Link>
+                      <Link className="app-link inline-flex min-h-11 items-center" to={feedback?.content_block_id ? paths.redo(item.id, feedback.content_block_id) : paths.lesson(item.id)}>{hasFeedback ? 'Read feedback' : 'Open lesson'}<span className="sr-only"> for {item.title}</span></Link>
                     </li>
                   )
                 })}
               </ul>
               {today.contact
-                ? <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(today.contact!.id, { label: 'A catch-up plan', path: learnPath })}>Ask for a catch-up plan</Button>
-                : <AnchorButton variant="secondary" href={`mailto:${SUPPORT_EMAIL}?subject=Catch-up%20plan`}>Ask for a catch-up plan</AnchorButton>}
+                ? <Button variant="secondary" disabled={messenger.opening} onClick={() => void messenger.open(today.contact!.id, { label: planRequestLabel, path: learnPath })}>{planRequestLabel}</Button>
+                : <AnchorButton variant="secondary" href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(planRequestLabel)}`}>{planRequestLabel}</AnchorButton>}
             </section>
           )}
           {today.mode === 'library' && otherCourses.length > 0 && <section className="app-surface p-5" aria-label="Your other courses"><h2 className="font-semibold text-ink">Your other courses</h2><p className="mt-1 text-sm text-ink-secondary">Check Today for your next lesson and work waiting for you.</p><ul>{otherCourses.map((item) => <li key={item.id}><Link to={`/dashboard?cohort_id=${item.id}`} className="app-link inline-flex min-h-11 items-center">Today in {item.name}<ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link></li>)}</ul></section>}

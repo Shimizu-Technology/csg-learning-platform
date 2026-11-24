@@ -13,6 +13,7 @@ export function useSelectedCoursePaused(cohortId?: number | null) {
 export function PausedLearningBanner({ cohortId, pausedSince }: { cohortId?: number | null; pausedSince?: string | null }) {
   const [pause, setPause] = useState<{ cohortId: number; since: string | null } | null>(null)
   useEffect(() => {
+    // A supplied date (including null) means the caller owns the lookup.
     if (!cohortId || pausedSince !== undefined) return
     let current = true
     void api.getDashboard(cohortId).then(({ data }) => {
