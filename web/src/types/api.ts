@@ -499,10 +499,11 @@ export interface CourseOfferingTerms {
   sold_out?: boolean;
   public_price_cents: number | null;
   stripe_price_id: string | null;
+  offering_price_verified?: components['schemas']['OfferingPriceVerification'] | null;
   support_instructor_id: number | null;
   self_paced_access_months: number;
   self_paced_support_weeks: number;
-  offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
+  offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'price_verified' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
 }
 
 export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'overall_progress'> & { overall_progress?: OverallProgress; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status' | 'kind'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };

@@ -13,10 +13,14 @@ contains the original serif outlines. A specific open-licensed font could not
 be verified; these are cleaned Potrace1.16 outlines of the source lettering at
 4× upscale, not a substitute font or an automatic trace of the gear.
 
-Candidate A combines the C with the original SG outlines, B is the gear alone,
-and C stacks the gear and CSG. A is selected: SG stays readable at60px, and
-at29px the gear remains recognizable with the initials. C's stacked lettering
-is smaller. Keep the tile square: the operating system applies its own mask.
+The approved app icon uses the Option 5B crest (candidate A): the enlarged
+official sage gear-C (`#9aae81` → `#76855f` vertical gradient) stacked above
+bold geometric sans `CSG` outlines (`#faf7f0`) on an elevated charcoal radial
+tile (`#272936` → `#14151c`). `csg-sans-lettering.svg` stores committed
+Manrope ExtraBold (`Manrope_800ExtraBold.ttf`, SIL Open Font License) glyph
+outlines so generation needs no system font. Candidate B is the gear alone and
+candidate C pairs the gear with the original serif `CSG` outlines. Keep the
+tile square: the operating system applies its own mask.
 
 From `mobile/`, run:
 

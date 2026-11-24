@@ -1,7 +1,10 @@
 require "test_helper"
 require "ostruct"
+require_relative "../support/offering_price_test_support"
 
 class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
+  include OfferingPriceTestSupport
+
   def setup
     @curriculum = Curriculum.create!(name: "Python Fundamentals", status: :active)
     @module = CurriculumModule.create!(curriculum: @curriculum, name: "Foundations", position: 0, schedule_days: "weekdays")
@@ -15,6 +18,7 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     )
     @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @cohort.update!(support_instructor: @instructor)
+    stamp_verified_offering_price(@cohort)
     @lesson.content_blocks.create!(block_type: :text, position: 0, body: "Learn variables")
   end
 
@@ -579,6 +583,7 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     %w[failed expired].each do |status|
       purchase.update!(status: status, stripe_session_id: "cs_old", checkout_url: nil, checkout_expires_at: nil)
       @cohort.update!(stripe_price_id: "price_new_#{status}", public_price_cents: 19_900, self_paced_access_months: 3, self_paced_support_weeks: 2)
+      stamp_verified_offering_price(@cohort)
       with_checkout_client do |_sessions, requests|
         CourseCheckout.start!(user: @student, cohort: @cohort)
         assert_equal [ 3, 2, 19_900, "price_new_#{status}" ], purchase.reload.attributes.values_at("access_months", "support_weeks", "price_cents", "stripe_price_id")
@@ -752,7 +757,9 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     fresh.cohort_instructor_assignments.create!(user: @instructor)
     as_user(admin) { patch "/api/v1/cohorts/#{fresh.id}", params: { stripe_price_id: "price_configured", public_price_cents: 14_900, support_instructor_id: @instructor.id, self_paced_access_months: 4, self_paced_support_weeks: 2 }, headers: auth_headers, as: :json }
     assert_response :success
-    assert JSON.parse(response.body).dig("cohort", "offering_readiness").values.all?
+    readiness = response.parsed_body.dig("cohort", "offering_readiness")
+    assert_equal false, readiness.fetch("price_verified")
+    assert readiness.except("price_verified").values.all?
     assert_not fresh.reload.public_checkout_enabled?
   end
 

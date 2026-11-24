@@ -188,6 +188,14 @@ fixture, and writes screenshots under `docs/qa/catalog-course-pages-2026-11-17/`
 The checkout spec intercepts the purchase request and hosted page; it never calls
 Stripe. Existing API regressions cover actual checkout/session/webhook logic.
 
+### Admin launch blockers
+
+Start a fresh harness with `QA_CHECKOUT_READY=1 QA_OFFERING_PRICE_VERIFICATION=1 scripts/qa/run start`.
+Run `QA_SPEC=admin-launch-blockers.spec.ts DEV_LIFECYCLE_SESSION=<session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts` from the repo root.
+The spec creates synthetic records and exercises the actual policy and offering
+endpoints at 1280 and 390 pixels in both themes. Stripe prices come from a local
+stub. Use `scripts/qa/run clean` to stop the harness and drop its database.
+
 ### Staff workspace phone layout (W7 PR 7.6b)
 
 Start the harness and load `student-workspace-fixtures.rb` as above. Run:

@@ -98,6 +98,7 @@ class Cohort < ApplicationRecord
   validate :support_instructor_is_staff
   validates :public_price_cents, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :stripe_price_id, format: { with: /\Aprice_[a-zA-Z0-9_]+\z/ }, allow_blank: true
+  before_update :clear_offering_price_verification, if: -> { will_save_change_to_stripe_price_id? || will_save_change_to_public_price_cents? }
   validates :github_organization_name, format: { with: /\A[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\z/i }, allow_blank: true
 
   before_save :record_class_resource_availability, if: :will_save_change_to_settings?
@@ -282,8 +283,12 @@ class Cohort < ApplicationRecord
     ends_at.nil? || ends_at > at
   end
 
-  def purchase_ready?(at: Time.current)
-    checkout_eligible_delivery? && public_checkout_enabled? && guided_access_window_open?(at: at) && offering_readiness.values.all?
+  def purchase_ready?(at: Time.current, require_verified_price: true)
+    return false unless checkout_eligible_delivery? && public_checkout_enabled? && guided_access_window_open?(at: at)
+
+    readiness = offering_readiness
+    readiness.delete(:price_verified) unless require_verified_price
+    readiness.values.all?
   end
 
   def occupied_enrollment_user_ids(at: Time.current)
@@ -340,10 +345,19 @@ class Cohort < ApplicationRecord
     {
       curriculum_assigned: curriculum.present? && curriculum.active?,
       price_set: stripe_price_id.present? && public_price_cents.to_i.positive?,
+      price_verified: offering_price_verification.present?,
       support_instructor_set: valid_support_instructor?,
       published_content: published_selected_content?,
       cohort_active: active?
     }
+  end
+
+  def offering_price_verification
+    stamp = settings.to_h["offering_price_verified"]
+    return unless stamp.is_a?(Hash) && stamp["verified_at"].present?
+    return unless stamp["stripe_price_id"] == stripe_price_id && stamp["price_cents"] == public_price_cents
+
+    stamp
   end
 
   def published_selected_content?
@@ -418,6 +432,10 @@ class Cohort < ApplicationRecord
   end
 
   private
+
+  def clear_offering_price_verification
+    self.settings = settings.to_h.except("offering_price_verified")
+  end
 
   def curriculum_change_allowed
     return unless persisted? && will_save_change_to_curriculum_id?

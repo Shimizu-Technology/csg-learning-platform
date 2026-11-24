@@ -1,8 +1,10 @@
 require "test_helper"
 require "ostruct"
+require_relative "../support/offering_price_test_support"
 
 class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
+  include OfferingPriceTestSupport
 
   ZONE = Time.find_zone!(LearningCalendar::TIMEZONE)
   NOW = ZONE.local(2026, 11, 22, 10)
@@ -40,6 +42,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     )
     @guided.cohort_instructor_assignments.create!(user: @instructor)
     @guided.update!(support_instructor: @instructor)
+    stamp_verified_offering_price(@guided)
 
     @program = Cohort.create!(
       curriculum: @curriculum,
@@ -252,6 +255,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     )
     fixed_cohort.cohort_instructor_assignments.create!(user: @instructor)
     fixed_cohort.update!(support_instructor: @instructor)
+    stamp_verified_offering_price(fixed_cohort)
 
     fixed_purchase = CoursePurchase.create!(user: @learner_b, cohort: fixed_cohort, stripe_price_id: "price_fixed_python", price_cents: 14_900, stripe_session_id: "cs_fixed")
     assert_nil fixed_purchase.access_months
@@ -335,6 +339,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     )
     past_fixed.cohort_instructor_assignments.create!(user: @instructor)
     past_fixed.update!(support_instructor: @instructor)
+    stamp_verified_offering_price(past_fixed)
 
     assert_not past_fixed.purchase_ready?
     with_checkout_client(cohort: past_fixed) do |_sessions, requests|
@@ -374,6 +379,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     )
     self_paced.cohort_instructor_assignments.create!(user: @instructor)
     self_paced.update!(support_instructor: @instructor)
+    stamp_verified_offering_price(self_paced)
     legacy_purchase = CoursePurchase.create!(
       user: @learner_c,
       cohort: self_paced,
@@ -409,6 +415,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     )
     open_ended.cohort_instructor_assignments.create!(user: @instructor)
     open_ended.update!(support_instructor: @instructor)
+    stamp_verified_offering_price(open_ended)
 
     with_checkout_client(cohort: open_ended, session_id: "cs_open_ended") do
       as_user(@learner_c) { post "/api/v1/course_checkouts", params: { cohort_id: open_ended.id }, headers: auth_headers, as: :json }
@@ -440,6 +447,7 @@ class GuidedCheckoutSeatCapTest < ActionDispatch::IntegrationTest
     )
     closing_fixed.cohort_instructor_assignments.create!(user: @instructor)
     closing_fixed.update!(support_instructor: @instructor)
+    stamp_verified_offering_price(closing_fixed)
 
     with_checkout_client(cohort: closing_fixed, session_id: "cs_closing_fixed") do
       as_user(@learner_b) { post "/api/v1/course_checkouts", params: { cohort_id: closing_fixed.id }, headers: auth_headers, as: :json }
