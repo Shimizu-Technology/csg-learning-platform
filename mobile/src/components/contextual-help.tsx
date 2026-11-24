@@ -28,16 +28,16 @@ function isStudentReply(reply: HelpRequestReply, studentId?: number) {
 }
 
 function helpReplies(request: HelpRequest, studentId?: number) {
-  if (request.replies?.length) {
-    return request.replies.map((reply) => ({
-      key: String(reply.id),
-      label: isStudentReply(reply, studentId) ? 'You replied' : `${reply.author.full_name} replied`,
-      body: reply.body,
-    }));
+  const replies = (request.replies ?? []).map((reply) => ({
+    key: String(reply.id),
+    label: isStudentReply(reply, studentId) ? 'You replied' : `${reply.author.full_name} replied`,
+    body: reply.body,
+  }));
+  const hasStaffReply = (request.replies ?? []).some((reply) => !isStudentReply(reply, studentId));
+  if (request.staff_response && !hasStaffReply) {
+    return [{ key: 'response', label: 'Your instructor replied', body: request.staff_response }, ...replies];
   }
-  return request.staff_response
-    ? [{ key: 'response', label: 'Your instructor replied', body: request.staff_response }]
-    : [];
+  return replies;
 }
 
 const categories: { value: HelpCategory; label: string }[] = [
@@ -73,7 +73,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [saving, setSaving] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Partial<Record<number, string>>>({});
-  const replyAttempts = useRef(new Map<number, string>());
+  const replyAttempts = useRef(new Map<number, { body: string; id: string }>());
   const queryKey = learningKeys.helpRequests(user?.id || 0, cohortId, contextType);
   const query = useQuery({
     queryKey,
@@ -104,14 +104,16 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
   const replyDraft = active ? replyDrafts[active.id] ?? '' : '';
 
   async function sendReply() {
-    if (!canReply || !active || saving || auth.demo || !replyDraft.trim()) return;
+    const cleanBody = replyDraft.trim();
+    if (!canReply || !active || saving || auth.demo || !cleanBody) return;
     const id = active.id;
-    const attempt = replyAttempts.current.get(id) ?? newReplyRequestId();
-    replyAttempts.current.set(id, attempt);
+    const existingAttempt = replyAttempts.current.get(id);
+    const attempt = existingAttempt?.body === cleanBody ? existingAttempt.id : newReplyRequestId();
+    replyAttempts.current.set(id, { body: cleanBody, id: attempt });
     setSaving(true);
     try {
       const result = await api.replyToHelpRequest(id, {
-        body: replyDraft.trim(),
+        body: cleanBody,
         resolve: false,
         client_request_id: attempt,
       });
@@ -231,7 +233,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
             </View>}
             {canAsk && <Button accessibilityRole="button" disabled={saving} onPress={() => void cancel()} style={styles.cancelButton} variant="secondary" label={saving ? 'Canceling…' : 'Cancel request'} textStyle={styles.cancelText} />}
           </View> : <View style={styles.stack}>
-            {resolved && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{(resolved.replies?.length ?? 0) > 1 ? 'Previous replies' : 'Previous response'}</Text>{helpReplies(resolved, user?.id).map((item) => <View key={item.key} style={styles.resolvedText}><Text style={styles.resolvedTitle}>{item.label}</Text><AuthoredContent body={item.body} compact written /></View>)}<Text style={styles.resolvedHint}>{canAsk ? 'You can ask again if you still need help.' : 'Your previous response remains available.'}</Text></View></View>}
+            {resolved && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{helpReplies(resolved, user?.id).length > 1 ? 'Previous replies' : 'Previous response'}</Text>{helpReplies(resolved, user?.id).map((item) => <View key={item.key} style={styles.resolvedText}><Text style={styles.resolvedTitle}>{item.label}</Text><AuthoredContent body={item.body} compact written /></View>)}<Text style={styles.resolvedHint}>{canAsk ? 'You can ask again if you still need help.' : 'Your previous response remains available.'}</Text></View></View>}
             {canAsk && <>
             <View><Text style={styles.fieldLabel}>WHAT KIND OF HELP?</Text><View style={styles.choices}>{categories.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: category === item.value }} onPress={() => setCategory(item.value)} style={[styles.choice, category === item.value && styles.choiceActive]}><Text style={[styles.choiceText, category === item.value && styles.choiceTextActive]}>{item.label}</Text></Pressable>)}</View></View>
             <View><Text style={styles.fieldLabel}>WHAT HAVE YOU TRIED?</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Describe where you are stuck" value={message} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setMessage} maxLength={2000} multiline placeholder="Share the step you reached, what you expected, and what happened instead." placeholderTextColor={c.text.body} style={styles.messageInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={saving} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Speak a draft, then review and edit it before sending.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.counter}>{message.length}/2,000</Text></View>

@@ -106,3 +106,42 @@ it('sends the inline reply, locks the composer while pending, and updates the ca
   expect(input().props.value).toBe('');
   expect(input().props.editable).toBe(true);
 });
+
+it('keeps a legacy staff_response visible when only student follow-up replies exist', async () => {
+  const legacyWithStudentReply: HelpRequest = { ...resolved, status: 'acknowledged', staff_response: 'Start with the loop condition.', replies: [studentReply] };
+  mockHelpRequests.mockResolvedValue({ help_requests: [legacyWithStudentReply] });
+  const screen = show();
+  fireEvent.press(await screen.findByLabelText('Help request status: Waiting for your instructor'));
+  expect(screen.getByText('Your instructor replied')).toBeTruthy();
+  expect(screen.getByText('Start with the loop condition.')).toBeTruthy();
+  expect(screen.getByText('You replied')).toBeTruthy();
+  expect(screen.getByText('It prints zero.')).toBeTruthy();
+});
+
+it('reuses client_request_id only for unchanged retries and generates a new id after editing', async () => {
+  mockHelpRequests.mockResolvedValue({ help_requests: [active] });
+  mockReply
+    .mockRejectedValueOnce(new Error('network lost'))
+    .mockRejectedValueOnce(new Error('still offline'))
+    .mockResolvedValueOnce({ help_request: { ...active, replies: [instructorReply, { ...studentReply, body: 'Updated draft' }] } });
+  const screen = show();
+  fireEvent.press(await screen.findByLabelText('Help request status: Your instructor replied'));
+  const input = () => screen.getByLabelText('Reply to your instructor');
+  const send = () => screen.getByRole('button', { name: 'Send reply' });
+
+  fireEvent.changeText(input(), 'Draft A');
+  await act(async () => { fireEvent.press(send()); });
+  const firstId = mockReply.mock.calls[0][1].client_request_id;
+
+  // Retry unchanged body (even with surrounding whitespace) -> same idempotency key
+  fireEvent.changeText(input(), ' Draft A ');
+  await act(async () => { fireEvent.press(send()); });
+  expect(mockReply.mock.calls[1][1].client_request_id).toBe(firstId);
+
+  // Edit draft after lost response -> fresh idempotency key
+  fireEvent.changeText(input(), 'Updated draft');
+  await act(async () => { fireEvent.press(send()); });
+  expect(mockReply.mock.calls[2][1].client_request_id).not.toBe(firstId);
+  expect(mockReply.mock.calls[2][1].body).toBe('Updated draft');
+  expect(input().props.value).toBe('');
+});
