@@ -33,14 +33,14 @@ export function ConversationList({ directory, conversation, search, alerts, show
   const hasOrigin = !back.fallback
   const { isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
   const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation
-  const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, setSearchResults, searchStatus } = search
+  const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, clearSearchResults, searchStatus } = search
   const { pushEnabled, pushMessage, handleTogglePush } = alerts
   if (!showListPane || sidebarCollapsed) return null
 
   const closeSearch = () => {
     setShowInboxSearch(false)
     setSearchQuery('')
-    setSearchResults([])
+    clearSearchResults()
   }
   const inboxActions: OverflowMenuItem[] = [
     ...(canManageChannels ? [{ key: 'channel', label: 'Create group chat', icon: <Plus aria-hidden="true" />, onSelect: () => { setChannelForm((current) => ({ ...current, workspace_id: String(selectedWorkspaceId) })); setShowChannelForm(true); setChannelError('') } }] : []),
@@ -105,7 +105,7 @@ export function ConversationList({ directory, conversation, search, alerts, show
               </div>
             )}
             {searchResults.length > 0 && (
-              <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-line bg-surface-raised p-2 shadow-overlay" aria-busy={searchStatus === 'loading'}>
+              <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-line bg-surface-raised p-2 shadow-overlay">
                 {searchResults.map((result) => (
                   <RowButton
                     key={result.id}

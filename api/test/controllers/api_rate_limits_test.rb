@@ -49,6 +49,19 @@ class ApiRateLimitsTest < ActionController::TestCase
     end
   end
 
+  test "help request replies share the help allowance, not the general limit" do
+    policy = ApiRateLimits::AUTHENTICATED.fetch(:help)
+    @controller.probe_path = "api/v1/help_requests"
+    @controller.probe_action = "create"
+    get :index
+    assert_response :success
+    @controller.probe_path = "api/v1/help_request_replies"
+    (policy[:to] - 1).times { get :index; assert_response :success }
+    get :index
+    assert_response :too_many_requests
+    assert_equal policy[:within].to_i.to_s, response.headers["Retry-After"]
+  end
+
   { bootstrap: "sessions", catalog: "course_offerings" }.each do |name, controller|
     test "#{name} keys by forwarded client IP and resets" do
       @controller.probe_user = nil

@@ -215,11 +215,13 @@ class NotificationDeliveryService
     [ notification ]
   end
 
-  # The owner hears about it; with no owner, every staff member on the cohort.
+  # The owner hears about it while they still teach the cohort; otherwise
+  # (no owner, archived, or reassigned) every current staff member on it.
   # Each one's request notification is updated in place and marked unread.
   def help_request_followed_up(help_request, reply:, push: true)
-    owner = help_request.owner if help_request.owner&.staff? && help_request.owner.archived_at.nil?
-    recipients = owner ? [ owner ] : staff_for_cohort(help_request.cohort).to_a
+    owner = help_request.owner
+    owner = nil unless owner&.staff? && owner.archived_at.nil? && owner.can_teach_cohort?(help_request.cohort)
+    recipients = (owner ? [ owner ] : staff_for_cohort(help_request.cohort).to_a).reject { |user| user.id == help_request.student_id }
     notifications = recipients.map do |staff|
       help_request_notification_for(
         staff,

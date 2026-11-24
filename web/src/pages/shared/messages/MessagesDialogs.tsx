@@ -33,7 +33,7 @@ type MessagesDialogsProps = {
 
 /** Every dialog the messages page opens: reactions, workspaces and members, channels, delete, message actions, new DM, author context and the image lightbox. */
 export function MessagesDialogs({ toast, sourceRecord, conversation, directory, feed, overlays, lightbox, mutations }: MessagesDialogsProps) {
-  const { isStaff, isAdmin, workspaces, workspaceDetail, availableUsers, selectedWorkspaceId, creatingChannel, creatingWorkspace, showChannelForm, setShowChannelForm, showDmForm, setShowDmForm, showWorkspaceForm, setShowWorkspaceForm, showWorkspaceSwitcher, setShowWorkspaceSwitcher, showWorkspaceMembers, setShowWorkspaceMembers, workspaceError, setWorkspaceError, channelError, setChannelError, dmUserIds, setDmUserIds, memberToAddId, setMemberToAddId, workspaceForm, setWorkspaceForm, channelForm, setChannelForm, selected, selectedDmStudent, selectedWorkspace, canManageChannels, sortedWorkspaceCards, memberCandidates, markWorkspaceRead, selectWorkspace, handleCreateChannel, handleCreateWorkspace, handleAddWorkspaceMember, handleRemoveWorkspaceMember, handleCreateDm } = directory
+  const { isStaff, isAdmin, workspaces, workspaceDetail, availableUsers, selectedWorkspaceId, creatingChannel, creatingWorkspace, showChannelForm, setShowChannelForm, showDmForm, setShowDmForm, showWorkspaceForm, setShowWorkspaceForm, showWorkspaceSwitcher, setShowWorkspaceSwitcher, showWorkspaceMembers, setShowWorkspaceMembers, workspaceError, setWorkspaceError, channelError, setChannelError, dmUserIds, setDmUserIds, recipientsStatus, retryRecipients, memberToAddId, setMemberToAddId, workspaceForm, setWorkspaceForm, channelForm, setChannelForm, selected, selectedDmStudent, selectedWorkspace, canManageChannels, sortedWorkspaceCards, memberCandidates, markWorkspaceRead, selectWorkspace, handleCreateChannel, handleCreateWorkspace, handleAddWorkspaceMember, handleRemoveWorkspaceMember, handleCreateDm } = directory
   const { conversationReturnContext, replyToMessage } = feed
   const { setReactionDetails, reactionDetailsMessage, selectedReaction, authorContext, setAuthorContext, mobileActionsMessage, setMobileActionsMessageId, messagePendingDelete, setMessagePendingDelete } = overlays
   const { lightboxAttachments, lightboxIndex, lightboxAttachment, lightboxTouchStartX, showPreviousLightboxImage, showNextLightboxImage, closeLightbox, downloadLightboxAttachment } = lightbox
@@ -431,7 +431,16 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
       size="md"
     >
       <form onSubmit={handleCreateDm} className="space-y-4">
-        <DirectMessagePicker people={availableUsers} workspace={selectedWorkspace?.name} selectedIds={dmUserIds} onChange={setDmUserIds} />
+        {recipientsStatus === 'error' ? (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">
+            <span>Couldn’t load the people you can message. Check your connection and try again.</span>
+            <Button variant="secondary" size="sm" onClick={retryRecipients}>Try again</Button>
+          </div>
+        ) : recipientsStatus === 'ready' ? (
+          <DirectMessagePicker people={availableUsers} workspace={selectedWorkspace?.name} selectedIds={dmUserIds} onChange={setDmUserIds} />
+        ) : (
+          <p role="status" className="py-6 text-center text-sm text-ink-muted">Loading people…</p>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <Button
             variant="secondary"
@@ -442,7 +451,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
           <Button
             variant="primary"
             type="submit"
-            disabled={!selectedWorkspaceId || dmUserIds.length === 0}
+            disabled={!selectedWorkspaceId || recipientsStatus !== 'ready' || dmUserIds.length === 0}
           >
             {dmUserIds.length > 1 ? `Start group message (${dmUserIds.length})` : 'Start direct message'}
           </Button>

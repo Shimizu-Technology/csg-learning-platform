@@ -161,6 +161,34 @@ describe('support identity and entitlements', () => {
     await click('Send reply')
     expect(api.replyToHelpRequest).toHaveBeenCalledExactlyOnceWith(93, expect.objectContaining({ body: 'NoMethodError on each', resolve: false, client_request_id: expect.any(String) }))
   })
+  it('keeps each follow-up draft and retry id with its own request when the context changes', async () => {
+    const staffReply = (id: number) => ({ id, body: `Question back ${id}`, resolved_request: false, from_student: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' })
+    const first = request({ id: 21, context_type: 'exercise', context_id: 51, status: 'acknowledged', staff_response: 'Question back 1', replies: [staffReply(1)] })
+    const second = request({ id: 22, context_type: 'exercise', context_id: 52, status: 'acknowledged', staff_response: 'Question back 2', replies: [staffReply(2)] })
+    vi.mocked(api.replyToHelpRequest).mockResolvedValue({ data: null, error: 'Offline' })
+    await render(<StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" contexts={[{ type: 'lesson', id: 42, label: 'Lists' }, { type: 'exercise', id: 51, label: 'First' }, { type: 'exercise', id: 52, label: 'Second' }]} requests={[first, second]} requestsLoading={false} /></StudentExperienceProvider>)
+    await click('View response')
+    const select = () => container.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement
+    const choose = async (value: string) => act(async () => { select().value = value; select().dispatchEvent(new Event('change', { bubbles: true })) })
+    const typeInto = async (id: number, text: string) => {
+      const box = container.querySelector<HTMLTextAreaElement>(`#help-follow-up-${id}`)!
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, text); box.dispatchEvent(new Event('input', { bubbles: true })) })
+    }
+    await choose('exercise:51')
+    await typeInto(21, 'Draft for the first exercise')
+    await click('Send reply')
+    await choose('exercise:52')
+    expect(container.querySelector<HTMLTextAreaElement>('#help-follow-up-22')!.value).toBe('')
+    await typeInto(22, 'Draft for the second exercise')
+    await click('Send reply')
+    await choose('exercise:51')
+    expect(container.querySelector<HTMLTextAreaElement>('#help-follow-up-21')!.value).toBe('Draft for the first exercise')
+    await click('Send reply')
+    const calls = vi.mocked(api.replyToHelpRequest).mock.calls
+    expect(calls.map(([id, data]) => [id, data.body])).toEqual([[21, 'Draft for the first exercise'], [22, 'Draft for the second exercise'], [21, 'Draft for the first exercise']])
+    expect(calls[2][1].client_request_id).toBe(calls[0][1].client_request_id)
+    expect(calls[1][1].client_request_id).not.toBe(calls[0][1].client_request_id)
+  })
   it('keeps the learner reply box closed until an instructor answers', async () => {
     await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ id: 93 })]} requestsLoading={false} />)
     await click('Sent to your instructor')

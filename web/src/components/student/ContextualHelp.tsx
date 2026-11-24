@@ -7,7 +7,7 @@ import { captureProductEvent } from '../../lib/analytics'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { CourseSupport } from './CourseSupport'
-import { HELP_REPLY_LIMIT, useReplyAttempt } from '../admin/HelpReplyBox'
+import { HELP_REPLY_LIMIT, newReplyRequestId } from '../admin/HelpReplyBox'
 import { Modal } from '../shared/Modal'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
@@ -55,8 +55,10 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const [category, setCategory] = useState<HelpCategory>('concept')
   const [urgency, setUrgency] = useState<HelpUrgency>('normal')
   const [message, setMessage] = useState('')
-  const [followUp, setFollowUp] = useState('')
-  const followUpAttempt = useReplyAttempt()
+  // Follow-up drafts and their retry ids belong to one request each, so switching the
+  // lesson or exercise never carries a draft, or a retry of it, onto another request.
+  const [followUpDrafts, setFollowUpDrafts] = useState<Record<number, string>>({})
+  const followUpAttempts = useRef(new Map<number, string>())
 
   const requestGeneration = useRef(0)
   const loadRequests = useCallback(async () => {
@@ -165,20 +167,25 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
 
   async function sendFollowUp(event: React.FormEvent) {
     event.preventDefault()
-    const body = followUp.trim()
-    if (!canRequest || !activeRequest || !body || body.length > HELP_REPLY_LIMIT) return
+    if (!canRequest || !activeRequest) return
+    const requestId = activeRequest.id
+    const body = (followUpDrafts[requestId] ?? '').trim()
+    if (!body || body.length > HELP_REPLY_LIMIT) return
+    // One id per attempt on this request, kept until a send is confirmed (as the staff reply box does).
+    let attempt = followUpAttempts.current.get(requestId)
+    if (!attempt) followUpAttempts.current.set(requestId, attempt = newReplyRequestId())
     const generation = requestGeneration.current
     setSaving(true)
-    const response = await api.replyToHelpRequest(activeRequest.id, { body, resolve: false, client_request_id: followUpAttempt.id() })
+    const response = await api.replyToHelpRequest(requestId, { body, resolve: false, client_request_id: attempt })
     if (generation !== requestGeneration.current) return
     setSaving(false)
     if (!response.data) {
       toast.error(response.error || 'Your reply could not be sent. Your draft is still here—please try again.')
       return
     }
-    followUpAttempt.done()
+    followUpAttempts.current.delete(requestId)
     replaceRequests(requests.map((item) => item.id === response.data!.help_request.id ? response.data!.help_request : item))
-    setFollowUp('')
+    setFollowUpDrafts((drafts) => { const rest = { ...drafts }; delete rest[requestId]; return rest })
     toast.success('Reply sent to your instructor.')
   }
 
@@ -188,6 +195,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const replied = staffReplied && !awaitingInstructor
   const statusLabel = awaitingInstructor ? 'You replied' : replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
   const canFollowUp = canRequest && staffReplied
+  const followUp = activeRequest ? followUpDrafts[activeRequest.id] ?? '' : ''
 
   if (capabilities?.features?.help_requests === false) return null
 
@@ -286,7 +294,11 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                 <textarea
                   id={`help-follow-up-${activeRequest.id}`}
                   value={followUp}
-                  onChange={(event) => setFollowUp(event.target.value)}
+                  onChange={(event) => {
+                    const requestId = activeRequest.id
+                    const value = event.target.value
+                    setFollowUpDrafts((drafts) => ({ ...drafts, [requestId]: value }))
+                  }}
                   maxLength={HELP_REPLY_LIMIT}
                   rows={3}
                   placeholder="Answer their question or share what happened when you tried it."

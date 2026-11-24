@@ -169,6 +169,23 @@ class HelpRequestRepliesTest < ActionDispatch::IntegrationTest
     assert_equal [ @admin.id, @instructor.id ].sort, recipients.sort
   end
 
+  test "a follow-up skips an owner who no longer teaches the cohort and reaches its current staff" do
+    reply(@instructor, "What did you try?")
+    @cohort.cohort_instructor_assignments.find_by!(user: @instructor).destroy!
+    replacement = person("replacement", :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: replacement)
+    Notification.where(notifiable: @help).update_all(read_at: Time.current)
+
+    reply(@student, "I tried a while loop.")
+
+    assert_response :created
+    title = "#{@student.full_name} followed up on their help request"
+    recipients = Notification.where(notifiable: @help, title: title, read_at: nil).pluck(:user_id)
+    assert_equal [ @admin.id, replacement.id ].sort, recipients.sort
+    assert_not_includes recipients, @instructor.id, "a former instructor is never told"
+    assert_not_includes recipients, @student.id
+  end
+
   test "learners cannot follow up on closed requests, other learners' requests, or without instructor help" do
     reply(@instructor, "Try again.", resolve: true)
     reply(@student, "Thanks!")

@@ -10,7 +10,7 @@ export const HELP_REPLY_LIMIT = 2000
 
 export type HelpReplyAction = 'reply' | 'resolve'
 
-const newReplyRequestId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+export const newReplyRequestId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto
   ? crypto.randomUUID()
   : `reply-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`)
 

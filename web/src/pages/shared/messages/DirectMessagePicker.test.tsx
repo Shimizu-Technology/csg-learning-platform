@@ -4,9 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DirectMessagePicker } from './DirectMessagePicker'
 import { useMessageSearch } from './useMessageSearch'
+import { useDirectRecipients } from './useDirectRecipients'
 
 const searchMessages = vi.hoisted(() => vi.fn())
-vi.mock('../../../lib/api', () => ({ api: { searchMessages } }))
+const getAvailableDirectUsers = vi.hoisted(() => vi.fn())
+vi.mock('../../../lib/api', () => ({ api: { searchMessages, getAvailableDirectUsers } }))
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const people = [
@@ -65,4 +67,56 @@ it('reports loading, then empty or failed search results instead of staying blan
   await type(input, 'arrays')
   await act(async () => { vi.advanceTimersByTime(300) })
   expect(container.querySelector('output')!.textContent).toBe('error:0')
+})
+
+it('never leaves earlier hits clickable while an edited query waits for its own search', async () => {
+  vi.useFakeTimers()
+  searchMessages.mockResolvedValueOnce({ data: { results: [{ id: 1 }, { id: 2 }] } }).mockResolvedValueOnce({ data: { results: [{ id: 3 }] } })
+  await act(async () => root.render(<SearchProbe />))
+  const input = container.querySelector<HTMLInputElement>('input')!
+  await type(input, 'loops')
+  await act(async () => { vi.advanceTimersByTime(300) })
+  expect(container.querySelector('output')!.textContent).toBe('done:2')
+  await type(input, 'loopsy')
+  expect(container.querySelector('output')!.textContent).toBe('loading:0')
+  await type(input, 'l')
+  expect(container.querySelector('output')!.textContent).toBe('idle:0')
+  await type(input, 'loops')
+  expect(container.querySelector('output')!.textContent).toBe('done:2')
+  await type(input, 'arrays')
+  await act(async () => { vi.advanceTimersByTime(300) })
+  expect(container.querySelector('output')!.textContent).toBe('done:1')
+})
+
+function RecipientsProbe({ workspaceId, pick }: { workspaceId: number | null; pick?: number[] }) {
+  const recipients = useDirectRecipients(workspaceId)
+  return <div>
+    <output>{recipients.status}:{recipients.users.map((user) => user.id).join(',')}:{recipients.selectedIds.join(',')}</output>
+    <button type="button" data-pick="" onClick={() => recipients.setSelectedIds(pick ?? [])} />
+    <button type="button" data-retry="" onClick={recipients.retry} />
+  </div>
+}
+
+it('keeps New DM recipients and picks to the current workspace and shows a retryable error', async () => {
+  let finishFirst!: (value: unknown) => void
+  getAvailableDirectUsers.mockReset()
+    .mockReturnValueOnce(new Promise((resolve) => { finishFirst = resolve }))
+    .mockResolvedValueOnce({ data: { users: [people[2]] } })
+    .mockResolvedValueOnce({ data: null, error: 'Offline' })
+    .mockResolvedValueOnce({ data: { users: [people[0], people[1]] } })
+  const output = () => container.querySelector('output')!.textContent
+  await act(async () => root.render(<RecipientsProbe workspaceId={1} pick={[1]} />))
+  expect(output()).toBe('loading::')
+  await act(async () => root.render(<RecipientsProbe workspaceId={2} pick={[3]} />))
+  expect(output()).toBe('ready:3:')
+  await act(async () => container.querySelector<HTMLButtonElement>('[data-pick]')!.click())
+  expect(output()).toBe('ready:3:3')
+  // Workspace 1 answers late: dropped, never shown over workspace 2.
+  await act(async () => finishFirst({ data: { users: [people[0]] } }))
+  expect(output()).toBe('ready:3:3')
+  // Back to workspace 1: its load fails, and workspace 2's pick is not carried over.
+  await act(async () => root.render(<RecipientsProbe workspaceId={1} pick={[1]} />))
+  expect(output()).toBe('error::')
+  await act(async () => container.querySelector<HTMLButtonElement>('[data-retry]')!.click())
+  expect(output()).toBe('ready:1,2:')
 })
