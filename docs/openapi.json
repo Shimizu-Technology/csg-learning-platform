@@ -6603,7 +6603,7 @@
     "/api/v1/cohorts/{cohort_id}/files/import_curriculum": {
       "post": {
         "summary": "Import the curriculum's template files",
-        "description": "Staff only. Copies every ready template file of the cohort's curriculum that this cohort doesn't have yet into its class files (each template at most once, so it is safe to repeat). A new cohort already starts with every template. Uploads are copied in storage and are skipped while storage is not configured; links and docs need none. Newly imported items marked `auto_copy_to_students` are then copied to every active learner's folder.",
+        "description": "Staff only. Copies every ready template file of the cohort's curriculum that this cohort doesn't have yet into its class files (each template at most once, so it is safe to repeat). A new cohort already starts with every template. Uploads are copied in storage; ones storage can't copy (or every upload, without storage) count in `failed_count` and are retried by the next import; links and docs need none. Newly imported items marked `auto_copy_to_students` are then copied to every active learner's folder.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -6631,7 +6631,7 @@
     "/api/v1/cohorts/{cohort_id}/files/copy_from_cohort": {
       "post": {
         "summary": "Copy another cohort's class files",
-        "description": "Staff only, with access to both cohorts (403 otherwise). Copies the source cohort's ready class files, links and docs (never student folders) that this cohort hasn't copied yet; the same cohort is refused (422). Uploads are skipped while storage is not configured. Newly copied items marked `auto_copy_to_students` are copied to every active learner's folder.",
+        "description": "Staff only, with access to both cohorts (403 otherwise). Copies the source cohort's ready class files, links and docs (never student folders) that this cohort hasn't copied yet; the same cohort is refused (422). Uploads storage can't copy count in `failed_count`. Newly copied items marked `auto_copy_to_students` are copied to every active learner's folder.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -33387,7 +33387,11 @@
           },
           "skipped_count": {
             "type": "integer",
-            "description": "Templates the cohort already has, or uploads skipped while storage is unavailable."
+            "description": "Items this cohort already has."
+          },
+          "failed_count": {
+            "type": "integer",
+            "description": "Uploads storage couldn't copy (or no storage is set up); another try copies them."
           },
           "auto_copied_count": {
             "type": "integer",
@@ -33403,6 +33407,7 @@
         "required": [
           "imported_count",
           "skipped_count",
+          "failed_count",
           "auto_copied_count",
           "files"
         ],
@@ -33416,7 +33421,11 @@
           },
           "skipped_count": {
             "type": "integer",
-            "description": "Items this cohort already copied, or uploads skipped while storage is unavailable."
+            "description": "Items this cohort already copied."
+          },
+          "failed_count": {
+            "type": "integer",
+            "description": "Uploads storage couldn't copy (or no storage is set up); another try copies them."
           },
           "auto_copied_count": {
             "type": "integer",
@@ -33432,6 +33441,7 @@
         "required": [
           "copied_count",
           "skipped_count",
+          "failed_count",
           "auto_copied_count",
           "files"
         ],

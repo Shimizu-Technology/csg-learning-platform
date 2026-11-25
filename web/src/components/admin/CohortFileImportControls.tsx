@@ -10,12 +10,25 @@ function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? '' : 's'}`
 }
 
-/** "Imported 2 items, 1 already here, copied to 3 student folders." */
-export function importSummary(verb: 'Imported' | 'Copied', added: number, skipped: number, autoCopied: number) {
+/**
+ * "Imported 2 items, 1 already here, copied to 3 student folders." Uploads
+ * storage couldn't copy are named separately, with a retry, never counted as
+ * already here.
+ */
+export function importSummary(verb: 'Imported' | 'Copied', added: number, skipped: number, autoCopied: number, failed = 0) {
   const parts = [`${verb} ${plural(added, 'item')}`]
-  if (skipped) parts.push(`${skipped} already here or waiting for storage`)
+  if (skipped) parts.push(`${skipped} already here`)
   if (autoCopied) parts.push(`copied to ${plural(autoCopied, 'student folder')}`)
-  return `${parts.join(', ')}.`
+  const summary = `${parts.join(', ')}.`
+  return failed ? `${summary} ${plural(failed, 'upload')} couldn't be copied because file storage isn't available. Try again later.` : summary
+}
+
+/** The toast for an import or copy: an error when anything failed. */
+function reportImport(toast: ReturnType<typeof useToast>, verb: 'Imported' | 'Copied', nothingNew: string,
+  counts: { added: number; skipped: number; failed: number; autoCopied: number }) {
+  const { added, skipped, failed, autoCopied } = counts
+  if (failed) return toast.error(importSummary(verb, added, skipped, autoCopied, failed))
+  toast.success(added === 0 && !autoCopied ? nothingNew : importSummary(verb, added, skipped, autoCopied))
 }
 
 /**
@@ -33,8 +46,8 @@ export function CohortFileImportControls({ cohortId, onImported }: { cohortId: n
     const result = await api.importCohortCurriculumFiles(cohortId)
     setImporting(false)
     if (!result.data) return toast.error(result.error || 'Could not import the curriculum files.')
-    const { imported_count: imported, skipped_count: skipped, auto_copied_count: autoCopied } = result.data
-    toast.success(imported === 0 && !autoCopied ? 'Everything from the curriculum is already here.' : importSummary('Imported', imported, skipped, autoCopied))
+    const { imported_count: added, skipped_count: skipped, failed_count: failed, auto_copied_count: autoCopied } = result.data
+    reportImport(toast, 'Imported', 'Everything from the curriculum is already here.', { added, skipped, failed, autoCopied })
     onImported()
   }
   return (
@@ -82,8 +95,8 @@ function CopyFromCohortDialog({ cohortId, onClose, onCopied }: { cohortId: numbe
     const result = await api.copyCohortFilesFromCohort(cohortId, sourceId)
     setCopying(false)
     if (!result.data) return setError(result.error || 'Could not copy these files.')
-    const { copied_count: copied, skipped_count: skipped, auto_copied_count: autoCopied } = result.data
-    toast.success(copied === 0 && !autoCopied ? 'This cohort already has those class files.' : importSummary('Copied', copied, skipped, autoCopied))
+    const { copied_count: added, skipped_count: skipped, failed_count: failed, auto_copied_count: autoCopied } = result.data
+    reportImport(toast, 'Copied', 'This cohort already has those class files.', { added, skipped, failed, autoCopied })
     onCopied()
   }
   return (

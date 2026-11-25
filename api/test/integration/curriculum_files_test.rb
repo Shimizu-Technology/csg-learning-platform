@@ -138,6 +138,40 @@ class CurriculumFilesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a curriculum deleted while an upload's copy runs leaves no published object behind" do
+    curriculum = Curriculum.create!(name: "Deleted mid-publish")
+    path = "/api/v1/curricula/#{curriculum.id}/files"
+    with_storage do
+      as_user(@admin) { post path, params: upload_params, headers: headers, as: :json }
+      file = CurriculumFile.find(response.parsed_body.dig("file", "id"))
+      deleted = []
+      record_external_calls(S3Service, :delete_object, returns: ->(key) { deleted << key; true }) do
+        record_external_calls(S3Service, :copy_object, returns: ->(*_args, **_kwargs) { deleted.clear; Curriculum.find(curriculum.id).destroy! }) do
+          as_user(@admin) { post "#{path}/#{file.id}/complete", headers: headers }
+        end
+      end
+      assert_response :unprocessable_entity
+      assert_not CurriculumFile.exists?(file.id)
+      assert_includes deleted, file.s3_key, "the copy made after the deletion drained its keys is removed"
+    end
+  end
+
+  test "a curriculum archived while an upload's copy runs keeps the pending upload's object" do
+    with_storage do
+      as_user(@admin) { post @templates_path, params: upload_params, headers: headers, as: :json }
+      file = CurriculumFile.find(response.parsed_body.dig("file", "id"))
+      deleted = []
+      record_external_calls(S3Service, :delete_object, returns: ->(key) { deleted << key; true }) do
+        record_external_calls(S3Service, :copy_object, returns: ->(*_args, **_kwargs) { @curriculum.update_columns(status: Curriculum.statuses.fetch("archived")) }) do
+          as_user(@admin) { post "#{@templates_path}/#{file.id}/complete", headers: headers }
+        end
+      end
+      assert_response :unprocessable_entity
+      assert_not_includes deleted, file.s3_key, "a row still names it, so the expiry purge cleans it later"
+      assert_not file.reload.ready?
+    end
+  end
+
   test "deleting a template queues its stored objects in the same transaction, kept while storage is unconfigured" do
     file = curriculum_template("guide.pdf")
     as_user(@admin) { delete "#{@templates_path}/#{file.id}", params: { pending_only: true }, headers: headers }

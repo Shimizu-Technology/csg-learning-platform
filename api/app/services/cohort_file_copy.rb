@@ -18,8 +18,9 @@ class CohortFileCopy
   Result = Struct.new(:copies, :skipped, keyword_init: true)
 
   class << self
-    # Copies `source` to every active learner without one yet.
-    def to_active_students(source, actor:, folder: nil)
+    # Copies `source` to every active learner without one yet. `auto` copies
+    # only while the item is still marked auto-copy when each copy is inserted.
+    def to_active_students(source, actor:, folder: nil, auto: false)
       raise ArgumentError, "only shared class items are copied to students" unless copyable?(source)
 
       folder = folder.presence || source.folder
@@ -27,7 +28,7 @@ class CohortFileCopy
       copies = []
       skipped = 0
       source.cohort.enrollments.active.order(:id).pluck(:id, :user_id).each do |enrollment_id, student_id|
-        copy = to_student(source, enrollment_id: enrollment_id, student_id: student_id, folder: folder, actor: actor) unless copied.include?(student_id)
+        copy = to_student(source, enrollment_id: enrollment_id, student_id: student_id, folder: folder, actor: actor, auto: auto) unless copied.include?(student_id)
         copy ? copies << copy : skipped += 1
       end
       Result.new(copies: copies, skipped: skipped)
@@ -48,7 +49,7 @@ class CohortFileCopy
       sources.reject { |source| have.include?(source.id) }.count do |source|
         next false if source.stored_file? && !S3Service.configured?
 
-        to_student(source, enrollment_id: enrollment.id, student_id: enrollment.user_id, folder: source.folder, actor: nil).present?
+        to_student(source, enrollment_id: enrollment.id, student_id: enrollment.user_id, folder: source.folder, actor: nil, auto: true).present?
       rescue StandardError => error
         Rails.logger.error("[CohortFileCopy] auto_copy_failed source_id=#{source.id} enrollment_id=#{enrollment.id} #{error.class}")
         false
@@ -65,7 +66,7 @@ class CohortFileCopy
       files.select { |file| file.auto_copy_to_students? && copyable?(file) }.sum do |file|
         next 0 if file.stored_file? && !S3Service.configured?
 
-        to_active_students(file, actor: actor).copies.size
+        to_active_students(file, actor: actor, auto: true).copies.size
       rescue StandardError => error
         Rails.logger.error("[CohortFileCopy] auto_copy_failed source_id=#{file.id} #{error.class}")
         0
@@ -76,15 +77,16 @@ class CohortFileCopy
       source.class_file? && source.ready? && !source.staff_only?
     end
 
-    # One learner's copy, or nil when they are no longer active or already have one.
-    def to_student(source, enrollment_id:, student_id:, folder:, actor:)
+    # One learner's copy, or nil when they are no longer active, already have
+    # one, or the item stopped being shared (or auto-copied, with `auto`).
+    def to_student(source, enrollment_id:, student_id:, folder:, actor:, auto: false)
       attributes = {
         kind: source.kind, student_id: student_id, uploaded_by_id: actor&.id || source.uploaded_by_id, source_file: source,
         title: source.title, description: source.description, folder: folder, visibility: "students", ready: true
       }
-      return insert(source, enrollment_id, attributes.merge(external_url: source.external_url)) if source.link?
+      return insert(source, enrollment_id, attributes.merge(external_url: source.external_url), auto) if source.link?
       if source.doc?
-        return insert(source, enrollment_id, attributes.merge(doc_content: source.doc_content.to_s, doc_updated_at: Time.current, doc_updated_by_id: actor&.id))
+        return insert(source, enrollment_id, attributes.merge(doc_content: source.doc_content.to_s, doc_updated_at: Time.current, doc_updated_by_id: actor&.id), auto)
       end
 
       token = SecureRandom.uuid
@@ -97,7 +99,7 @@ class CohortFileCopy
       copy.validate!
       begin
         S3Service.copy_object(source.s3_key, copy.s3_key)
-        saved = insert(source, enrollment_id, copy)
+        saved = insert(source, enrollment_id, copy, auto)
         remove_copied_object(copy.s3_key) unless saved
         saved
       rescue StandardError
@@ -109,12 +111,19 @@ class CohortFileCopy
     private
 
     # Inserts the copy with the learner's enrollment locked and still active
-    # (not paused, dropped or past its deadline); nil otherwise or when a
-    # concurrent copy got there first.
-    def insert(source, enrollment_id, copy)
+    # (not paused, dropped or past its deadline), then the class item held
+    # FOR SHARE (Enrollment before CohortFile, the order every file write
+    # takes) and rechecked: still a ready class item shared with students,
+    # and still auto-copy for an automatic copy. A withdrawal committed while
+    # storage was copying wins. nil otherwise, or when a concurrent copy got
+    # there first.
+    def insert(source, enrollment_id, copy, auto)
       Enrollment.transaction do
         recipient = Enrollment.lock.find_by(id: enrollment_id)
         next nil unless recipient&.active?
+
+        current = CohortFile.lock("FOR SHARE").find_by(id: source.id)
+        next nil unless current && copyable?(current) && (!auto || current.auto_copy_to_students?)
 
         copy = source.cohort.cohort_files.new(copy) if copy.is_a?(Hash)
         copy.save!

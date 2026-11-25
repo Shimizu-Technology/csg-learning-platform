@@ -7675,7 +7675,7 @@ export interface paths {
         put?: never;
         /**
          * Import the curriculum's template files
-         * @description Staff only. Copies every ready template file of the cohort's curriculum that this cohort doesn't have yet into its class files (each template at most once, so it is safe to repeat). A new cohort already starts with every template. Uploads are copied in storage and are skipped while storage is not configured; links and docs need none. Newly imported items marked `auto_copy_to_students` are then copied to every active learner's folder.
+         * @description Staff only. Copies every ready template file of the cohort's curriculum that this cohort doesn't have yet into its class files (each template at most once, so it is safe to repeat). A new cohort already starts with every template. Uploads are copied in storage; ones storage can't copy (or every upload, without storage) count in `failed_count` and are retried by the next import; links and docs need none. Newly imported items marked `auto_copy_to_students` are then copied to every active learner's folder.
          */
         post: {
             parameters: {
@@ -7716,7 +7716,7 @@ export interface paths {
         put?: never;
         /**
          * Copy another cohort's class files
-         * @description Staff only, with access to both cohorts (403 otherwise). Copies the source cohort's ready class files, links and docs (never student folders) that this cohort hasn't copied yet; the same cohort is refused (422). Uploads are skipped while storage is not configured. Newly copied items marked `auto_copy_to_students` are copied to every active learner's folder.
+         * @description Staff only, with access to both cohorts (403 otherwise). Copies the source cohort's ready class files, links and docs (never student folders) that this cohort hasn't copied yet; the same cohort is refused (422). Uploads storage can't copy count in `failed_count`. Newly copied items marked `auto_copy_to_students` are copied to every active learner's folder.
          */
         post: {
             parameters: {
@@ -13956,16 +13956,20 @@ export interface components {
         };
         CohortFileImportResponse: {
             imported_count: number;
-            /** @description Templates the cohort already has, or uploads skipped while storage is unavailable. */
+            /** @description Items this cohort already has. */
             skipped_count: number;
+            /** @description Uploads storage couldn't copy (or no storage is set up); another try copies them. */
+            failed_count: number;
             /** @description Learner copies made of newly imported auto-copy items. */
             auto_copied_count: number;
             files: components["schemas"]["CohortFile"][];
         };
         CohortFileCohortCopyResponse: {
             copied_count: number;
-            /** @description Items this cohort already copied, or uploads skipped while storage is unavailable. */
+            /** @description Items this cohort already copied. */
             skipped_count: number;
+            /** @description Uploads storage couldn't copy (or no storage is set up); another try copies them. */
+            failed_count: number;
             /** @description Learner copies made of newly copied auto-copy items. */
             auto_copied_count: number;
             files: components["schemas"]["CohortFile"][];

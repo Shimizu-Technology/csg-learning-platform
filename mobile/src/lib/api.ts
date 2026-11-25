@@ -65,8 +65,8 @@ import {
 } from 'expo/fetch';
 import {
   File,
-  Paths,
 } from 'expo-file-system';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import type {
   VoiceSurface,
 } from './analytics';
@@ -188,35 +188,53 @@ export class CsgApi {
 
   /**
    * A cohort folder as one ZIP (`my_files` for learners; `class` or one
-   * `student` for staff), downloaded with the session token into the app's
-   * cache and returned as a local file to share. Never retried or cached.
+   * `student` for staff), streamed by the native downloader straight to a
+   * fresh, private directory in the app's cache (never held in JS memory,
+   * never shared between exports). The file keeps the API's name for the
+   * share sheet. Callers must pass `directory` to discardCohortFilesZip once
+   * sharing ends; a failed export removes it here. Never retried or cached.
    */
-  async exportCohortFilesZip(cohortId: number, options: { scope: 'my_files' | 'class' | 'student'; studentId?: number; folder?: string }, attempt = 0): Promise<{ uri: string; filename: string }> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+  async exportCohortFilesZip(cohortId: number, options: { scope: 'my_files' | 'class' | 'student'; studentId?: number; folder?: string }, attempt = 0): Promise<{ uri: string; filename: string; directory: string }> {
+    if (!LegacyFileSystem.cacheDirectory) throw new ApiError('This device has no room for downloads right now.');
+    const directory = `${LegacyFileSystem.cacheDirectory}cohort-zip-exports/${Date.now()}-${Math.random().toString(36).slice(2, 12)}/`;
+    let retry = false;
     try {
+      await LegacyFileSystem.makeDirectoryAsync(directory, { intermediates: true });
       const token = await this.getToken({ skipCache: attempt > 0 });
-      const response = await expoFetch(`${API_URL}/api/v1/cohorts/${cohortId}/files/export_zip${queryString({ scope: options.scope, student_id: options.studentId, folder: options.folder })}`, {
-        signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({})) as { error?: string; errors?: string[]; code?: string };
-        if (attempt === 0 && response.status === 401) return this.exportCohortFilesZip(cohortId, options, attempt + 1);
-        throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${response.status})`, response.status, payload.code);
+      const url = `${API_URL}/api/v1/cohorts/${cohortId}/files/export_zip${queryString({ scope: options.scope, student_id: options.studentId, folder: options.folder })}`;
+      const download = await LegacyFileSystem.downloadAsync(url, `${directory}download.zip`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (download.status !== 200) {
+        // The body of a refused export is the API's JSON error, saved in place of the archive.
+        const text = await LegacyFileSystem.readAsStringAsync(download.uri).catch(() => '');
+        let payload: { error?: string; errors?: string[]; code?: string } = {};
+        try { payload = JSON.parse(text) as typeof payload; } catch { payload = {}; }
+        if (attempt === 0 && download.status === 401) {
+          retry = true;
+        } else {
+          throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${download.status})`, download.status, payload.code);
+        }
+      } else {
+        const disposition = Object.entries(download.headers || {}).find(([name]) => name.toLowerCase() === 'content-disposition')?.[1] || '';
+        const named = /filename="([^"]+)"/.exec(disposition)?.[1];
+        // The API names exports with letters, digits and dashes only; anything else falls back.
+        const filename = named && /^[a-z0-9-]+\.zip$/.test(named) ? named : 'files.zip';
+        const uri = `${directory}${filename}`;
+        await LegacyFileSystem.moveAsync({ from: download.uri, to: uri });
+        return { uri, filename, directory };
       }
-      const named = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1];
-      // The API names exports with letters, digits and dashes only; anything else falls back.
-      const filename = named && /^[a-z0-9-]+\.zip$/.test(named) ? named : 'files.zip';
-      const file = new File(Paths.cache, filename);
-      file.write(new Uint8Array(await response.arrayBuffer()));
-      return { uri: file.uri, filename };
     } catch (error) {
+      await this.discardCohortFilesZip(directory);
       if (error instanceof ApiError) throw error;
-      if ((error as Error).name === 'AbortError') throw new ApiError('The download timed out. Try one folder at a time.');
       throw new ApiError(`Could not reach ${brand.schoolShortName}. Check your connection and try again.`);
-    } finally {
-      clearTimeout(timeout);
     }
+    await this.discardCohortFilesZip(directory);
+    if (retry) return this.exportCohortFilesZip(cohortId, options, attempt + 1);
+    throw new ApiError('Could not export these files.');
+  }
+
+  /** Removes an exported ZIP and its directory; never throws. */
+  async discardCohortFilesZip(directory: string) {
+    await LegacyFileSystem.deleteAsync(directory, { idempotent: true }).catch(() => undefined);
   }
 
   privateMeetings = (signal?: AbortSignal) => this.request<PrivateMeetingsResponse>('/api/v1/private_meetings', { signal });

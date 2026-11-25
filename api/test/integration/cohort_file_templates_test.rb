@@ -40,7 +40,7 @@ class CohortFileTemplatesTest < ActionDispatch::IntegrationTest
       as_user(@admin) { post "/api/v1/cohorts/#{cohort.id}/files/import_curriculum", headers: headers }
     end
     assert_response :success
-    assert_equal [ 1, 3, 0 ], response.parsed_body.values_at("imported_count", "skipped_count", "auto_copied_count")
+    assert_equal [ 1, 3, 0, 0 ], response.parsed_body.values_at("imported_count", "skipped_count", "failed_count", "auto_copied_count")
     deck = cohort.cohort_files.find_by!(source_curriculum_file_id: @deck.id)
     assert_match %r{\Acohort_files/cohort_#{cohort.id}/shared/}, deck.s3_key
     assert_equal [ [ @deck.s3_key, deck.s3_key, nil ] ], @copied
@@ -60,11 +60,11 @@ class CohortFileTemplatesTest < ActionDispatch::IntegrationTest
     with_storage do
       as_user(@teacher) { post import_path, headers: headers }
       assert_response :success
-      assert_equal [ 4, 0, 1 ], response.parsed_body.values_at("imported_count", "skipped_count", "auto_copied_count")
+      assert_equal [ 4, 0, 0, 1 ], response.parsed_body.values_at("imported_count", "skipped_count", "failed_count", "auto_copied_count")
       assert_equal [ @classmate.id ], @cohort.cohort_files.where.not(student_id: nil).where(title: "Job Search Plan").pluck(:student_id)
 
       as_user(@teacher) { post import_path, headers: headers }
-      assert_equal [ 0, 4, 0 ], response.parsed_body.values_at("imported_count", "skipped_count", "auto_copied_count")
+      assert_equal [ 0, 4, 0, 0 ], response.parsed_body.values_at("imported_count", "skipped_count", "failed_count", "auto_copied_count")
     end
     assert_equal 4, @cohort.cohort_files.class_files.where.not(source_curriculum_file_id: nil).count
     as_user(@student) { post import_path, headers: headers }
@@ -104,11 +104,59 @@ class CohortFileTemplatesTest < ActionDispatch::IntegrationTest
         as_user(@teacher) { post "#{files_path}/import_curriculum", headers: headers }
       end
       assert_response :success
-      assert_equal [ 3, 1 ], response.parsed_body.values_at("imported_count", "skipped_count")
+      assert_equal [ 3, 0, 1 ], response.parsed_body.values_at("imported_count", "skipped_count", "failed_count"), "a storage failure is a failure, not a duplicate"
       assert_not @cohort.cohort_files.exists?(source_curriculum_file_id: @deck.id)
       as_user(@teacher) { post "#{files_path}/import_curriculum", headers: headers }
-      assert_equal [ 1, 3 ], response.parsed_body.values_at("imported_count", "skipped_count"), "the skipped upload imports on the next try"
+      assert_equal [ 1, 3, 0 ], response.parsed_body.values_at("imported_count", "skipped_count", "failed_count"), "the failed upload imports on the next try"
     end
+  end
+
+  test "without storage, uploads count as failed rather than already imported" do
+    assert_not S3Service.configured?
+    as_user(@teacher) { post "#{files_path}/import_curriculum", headers: headers }
+    assert_equal [ 3, 0, 1 ], response.parsed_body.values_at("imported_count", "skipped_count", "failed_count")
+    as_user(@teacher) { post "#{files_path}/import_curriculum", headers: headers }
+    assert_equal [ 0, 3, 1 ], response.parsed_body.values_at("imported_count", "skipped_count", "failed_count")
+  end
+
+  test "an automatic copy whose item stops being shared or auto-copied while storage copies is not inserted, and its copy is removed" do
+    with_storage do
+      file = ready_file(title: "Deck", filename: "deck.pdf")
+      file.update!(auto_copy_to_students: true)
+      late = user("late_withdraw", :student)
+      # Active without running its own enrollment hook.
+      enrollment = Enrollment.create!(user: late, cohort: @cohort, status: :paused)
+      enrollment.update_columns(status: Enrollment.statuses.fetch("active"), paused_at: nil)
+      [ ->(source) { source.update_columns(auto_copy_to_students: false) },
+        ->(source) { source.update_columns(auto_copy_to_students: false, visibility: "staff_only") },
+        ->(source) { source.update_columns(ready: false) } ].each_with_index do |withdraw, index|
+        file.update_columns(auto_copy_to_students: true, visibility: "students", ready: true)
+        deleted = []
+        record_external_calls(S3Service, :delete_object, returns: ->(key) { deleted << key; true }) do
+          record_external_calls(S3Service, :copy_object, returns: ->(_source, destination, **_kwargs) { withdraw.call(file); @raced_key = destination }) do
+            assert_equal 0, CohortFileCopy.auto_copy_for_enrollment(enrollment.reload), index
+          end
+        end
+        assert_not @cohort.cohort_files.exists?(student_id: late.id, source_file_id: file.id), index
+        assert_includes deleted, @raced_key, index
+      end
+    end
+  end
+
+  test "a manual copy rechecks that the class item is still shared once the learner's enrollment is locked" do
+    doc = @cohort.cohort_files.create!(kind: "doc", title: "Shared then staged", doc_content: "x", ready: true)
+    staged_after_check = Module.new do
+      define_method(:insert) do |source, enrollment_id, copy, auto|
+        CohortFile.where(id: source.id).update_all(visibility: "staff_only")
+        super(source, enrollment_id, copy, auto)
+      end
+    end
+    CohortFileCopy.singleton_class.prepend(staged_after_check)
+    result = CohortFileCopy.to_active_students(doc, actor: @admin)
+    assert_empty result.copies
+    assert_not @cohort.cohort_files.exists?(source_file_id: doc.id)
+  ensure
+    staged_after_check&.send(:remove_method, :insert)
   end
 
   test "copy from another cohort needs access to both, refuses the same cohort and never copies student folders" do
@@ -126,13 +174,13 @@ class CohortFileTemplatesTest < ActionDispatch::IntegrationTest
 
     as_user(@admin) { post path, params: { source_cohort_id: source.id }, headers: headers, as: :json }
     assert_response :success
-    assert_equal [ 1, 0, 2 ], response.parsed_body.values_at("copied_count", "skipped_count", "auto_copied_count")
+    assert_equal [ 1, 0, 0, 2 ], response.parsed_body.values_at("copied_count", "skipped_count", "failed_count", "auto_copied_count")
     assert_equal [ "Portfolio Checklist" ], response.parsed_body.fetch("files").map { |file| file["title"] }
     assert_not @cohort.cohort_files.exists?(title: "Private link")
     assert_equal 2, @cohort.cohort_files.where(title: "Portfolio Checklist").where.not(student_id: nil).count
 
     as_user(@admin) { post path, params: { source_cohort_id: source.id }, headers: headers, as: :json }
-    assert_equal [ 0, 1, 0 ], response.parsed_body.values_at("copied_count", "skipped_count", "auto_copied_count")
+    assert_equal [ 0, 1, 0, 0 ], response.parsed_body.values_at("copied_count", "skipped_count", "failed_count", "auto_copied_count")
   end
 
   test "a copied item that came from this cohort's own template is never imported again" do

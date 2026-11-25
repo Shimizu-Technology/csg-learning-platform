@@ -430,8 +430,9 @@ function TemplateDetailsEditor({ curriculumId, file, presets, onCancel, onSaved 
     setSaving(false)
     if (result.status === 409) {
       const latest = await api.getCurriculumDoc(curriculumId, file.id)
-      if (latest.data) setBaseVersion(latest.data.doc_version)
-      return setError(`This doc changed since you opened it${latest.data ? ` (now "${latest.data.file.title}")` : ''}. Save again to rename it.`)
+      if (!latest.data) return setError(`This doc changed since you opened it, and the latest version couldn't be loaded (${latest.error || 'try again'}). Cancel, then open it again.`)
+      setBaseVersion(latest.data.doc_version)
+      return setError(`This doc changed since you opened it (now "${latest.data.file.title}"). Save again to rename it.`)
     }
     if (!result.data) return setError(result.error || 'Could not save.')
     onSaved(result.data.file)
@@ -489,6 +490,11 @@ function TemplateDocModal({ curriculumId, file, canEdit, onClose, onSaved }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [conflict, setConflict] = useState<components['schemas']['CurriculumDocConflictResponse'] | null>(null)
+  // Someone else saved first, and their version hasn't loaded yet: saving
+  // waits for it, so the stale version is never sent again.
+  const [stale, setStale] = useState(false)
+  const [conflictError, setConflictError] = useState('')
+  const [fetchingLatest, setFetchingLatest] = useState(false)
   useEffect(() => {
     let ignore = false
     void api.getCurriculumDoc(curriculumId, file.id).then((result) => {
@@ -506,21 +512,37 @@ function TemplateDocModal({ curriculumId, file, canEdit, onClose, onSaved }: {
     const result = await api.updateCurriculumFile(curriculumId, file.id, { doc_content: content, base_doc_version: loaded.doc_version })
     setSaving(false)
     if (result.status === 409) {
-      const latest = await api.getCurriculumDoc(curriculumId, file.id)
-      if (latest.data) setConflict({ error: 'This doc was saved by someone else.', ...latest.data })
-      return
+      setStale(true)
+      return fetchLatest()
     }
     if (!result.data) return setError(result.error || 'Could not save this doc.')
     onSaved(result.data.file)
     setLoaded({ ...loaded, file: result.data.file, doc_content: content, doc_version: result.data.file.doc_version ?? loaded.doc_version + 1 })
     setEditing(false)
   }
+  const fetchLatest = async () => {
+    setFetchingLatest(true)
+    setConflictError('')
+    const latest = await api.getCurriculumDoc(curriculumId, file.id)
+    setFetchingLatest(false)
+    if (!latest.data) return setConflictError(latest.error || 'Could not load the latest version.')
+    setConflict({ error: 'This doc was saved by someone else.', ...latest.data })
+  }
   const loadLatest = () => {
     if (!conflict) return
     setLoaded(conflict)
     setContent(conflict.doc_content)
     setConflict(null)
+    setStale(false)
     onSaved(conflict.file)
+  }
+  const cancelEdit = () => {
+    if (!loaded) return
+    setEditing(false)
+    setContent(loaded.doc_content)
+    setConflict(null)
+    setConflictError('')
+    setStale(false)
   }
   const tooLong = content.length > MAX_DOC_LENGTH
   return (
@@ -529,8 +551,8 @@ function TemplateDocModal({ curriculumId, file, canEdit, onClose, onSaved }: {
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           {editing ? (
             <>
-              <Button variant="quiet" disabled={saving} onClick={() => { setEditing(false); setContent(loaded.doc_content); setConflict(null) }}>Cancel</Button>
-              <Button disabled={saving || tooLong || content === loaded.doc_content || Boolean(conflict)} onClick={() => void save()}>
+              <Button variant="quiet" disabled={saving} onClick={cancelEdit}>Cancel</Button>
+              <Button disabled={saving || tooLong || content === loaded.doc_content || stale} onClick={() => void save()}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
                 {saving ? 'Saving…' : 'Save doc'}
               </Button>
@@ -552,6 +574,18 @@ function TemplateDocModal({ curriculumId, file, canEdit, onClose, onSaved }: {
         )
       ) : editing ? (
         <div className="space-y-2">
+          {stale && !conflict && (
+            <div role="alert" aria-busy={fetchingLatest || undefined} className="space-y-2 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
+              <p>
+                Someone else saved this doc while you were editing. Your text is still here.{' '}
+                {fetchingLatest ? 'Loading their version…' : `Their version couldn't be loaded${conflictError ? `: ${conflictError}` : ''}.`}
+              </p>
+              <Button size="sm" variant="secondary" disabled={fetchingLatest} onClick={() => void fetchLatest()}>
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Try loading again
+              </Button>
+            </div>
+          )}
           {conflict && (
             <div role="alert" className="space-y-2 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
               <p>Someone else saved this doc while you were editing. Your text is still here; copy anything you need, then load their version.</p>

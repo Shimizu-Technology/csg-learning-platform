@@ -65,7 +65,8 @@ async function menuItem(title: string, label: string) {
 
 it('summarizes imports in plain words', () => {
   expect(importSummary('Imported', 1, 0, 0)).toBe('Imported 1 item.')
-  expect(importSummary('Copied', 2, 1, 3)).toBe('Copied 2 items, 1 already here or waiting for storage, copied to 3 student folders.')
+  expect(importSummary('Copied', 2, 1, 3)).toBe('Copied 2 items, 1 already here, copied to 3 student folders.')
+  expect(importSummary('Imported', 0, 3, 0, 1)).toBe("Imported 0 items, 3 already here. 1 upload couldn't be copied because file storage isn't available. Try again later.")
 })
 
 it('shows the auto-copy badge and turns auto-copy on after confirming, reporting the copies', async () => {
@@ -111,18 +112,37 @@ it('does not offer auto-copy on staff-only items', async () => {
 })
 
 it('imports from the curriculum with a summary and reloads the list', async () => {
-  mocks.importCohortCurriculumFiles.mockResolvedValue({ data: { imported_count: 1, skipped_count: 3, auto_copied_count: 2, files: [] }, error: null })
+  mocks.importCohortCurriculumFiles.mockResolvedValue({ data: { imported_count: 1, skipped_count: 3, failed_count: 0, auto_copied_count: 2, files: [] }, error: null })
   await mount()
   await act(async () => button('Import from curriculum').click())
   await flush()
   expect(mocks.importCohortCurriculumFiles).toHaveBeenCalledWith(4)
-  expect(mocks.success).toHaveBeenCalledWith('Imported 1 item, 3 already here or waiting for storage, copied to 2 student folders.')
+  expect(mocks.success).toHaveBeenCalledWith('Imported 1 item, 3 already here, copied to 2 student folders.')
   expect(mocks.getCohortFiles).toHaveBeenCalledTimes(2)
 
-  mocks.importCohortCurriculumFiles.mockResolvedValue({ data: { imported_count: 0, skipped_count: 4, auto_copied_count: 0, files: [] }, error: null })
+  mocks.importCohortCurriculumFiles.mockResolvedValue({ data: { imported_count: 0, skipped_count: 4, failed_count: 0, auto_copied_count: 0, files: [] }, error: null })
   await act(async () => button('Import from curriculum').click())
   await flush()
   expect(mocks.success).toHaveBeenLastCalledWith('Everything from the curriculum is already here.')
+})
+
+it('reports uploads storage could not copy as an error to retry, never as already here', async () => {
+  mocks.importCohortCurriculumFiles.mockResolvedValue({ data: { imported_count: 0, skipped_count: 3, failed_count: 2, auto_copied_count: 0, files: [] }, error: null })
+  await mount()
+  await act(async () => button('Import from curriculum').click())
+  await flush()
+  expect(mocks.success).not.toHaveBeenCalled()
+  expect(mocks.error).toHaveBeenCalledWith("Imported 0 items, 3 already here. 2 uploads couldn't be copied because file storage isn't available. Try again later.")
+
+  mocks.getAccessibleCohorts.mockResolvedValue({ data: { cohorts: [{ id: 8, name: 'Fall 2026', curriculum_name: 'Prework', status: 'active', cohort_type: 'cohort' }] }, error: null })
+  mocks.copyCohortFilesFromCohort.mockResolvedValue({ data: { copied_count: 1, skipped_count: 0, failed_count: 1, auto_copied_count: 0, files: [] }, error: null })
+  await act(async () => button('Copy from another cohort').click())
+  await flush()
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+  await act(async () => dialog.querySelector<HTMLInputElement>('input[type="radio"]')!.click())
+  await act(async () => button('Copy class files', dialog).click())
+  await flush()
+  expect(mocks.error).toHaveBeenLastCalledWith("Copied 1 item. 1 upload couldn't be copied because file storage isn't available. Try again later.")
 })
 
 it('copies from another accessible cohort chosen in a dialog', async () => {
@@ -130,7 +150,7 @@ it('copies from another accessible cohort chosen in a dialog', async () => {
     { id: 4, name: 'This cohort', curriculum_name: 'Prework', status: 'active', cohort_type: 'cohort' },
     { id: 8, name: 'Fall 2026', curriculum_name: 'Prework', status: 'active', cohort_type: 'cohort' },
   ] }, error: null })
-  mocks.copyCohortFilesFromCohort.mockResolvedValue({ data: { copied_count: 2, skipped_count: 0, auto_copied_count: 0, files: [] }, error: null })
+  mocks.copyCohortFilesFromCohort.mockResolvedValue({ data: { copied_count: 2, skipped_count: 0, failed_count: 0, auto_copied_count: 0, files: [] }, error: null })
   await mount()
   await act(async () => button('Copy from another cohort').click())
   await flush()

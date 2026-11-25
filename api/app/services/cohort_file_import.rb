@@ -11,15 +11,20 @@
 #
 # A file's bytes are copied in storage to a fresh key first, outside any
 # transaction or row lock. The row is then inserted in a short transaction
-# that holds the cohort row FOR SHARE (Cohort#destroy takes it FOR UPDATE
-# first, so a deletion either waits for the import or the import sees the
-# cohort gone) and rechecks that the item is still missing. When the insert
+# that holds the cohort row FOR SHARE before the insert (Cohort#destroy
+# takes it FOR NO KEY UPDATE first, which conflicts with FOR SHARE, so a
+# deletion either waits for the import or the import sees the cohort gone;
+# see Cohort) and rechecks that the item is still missing. When the insert
 # skips or rolls back, the copied object is deleted or queued for retry.
 #
 # New items marked auto_copy_to_students then go to every active learner
-# (CohortFileCopy).
+# (CohortFileCopy), once the imports have committed. `skipped` counts items
+# the cohort already has; `failed` counts uploads storage couldn't copy (or
+# no storage), which a later import retries.
 class CohortFileImport
-  Result = Struct.new(:files, :skipped, :auto_copied, keyword_init: true)
+  Result = Struct.new(:files, :skipped, :failed, :auto_copied, keyword_init: true)
+  # An upload can't be copied without storage.
+  class StorageUnavailable < StandardError; end
 
   class << self
     def from_curriculum(cohort, actor:)
@@ -50,6 +55,7 @@ class CohortFileImport
       templates = cohort.curriculum ? cohort.curriculum.curriculum_files.pluck(:id).to_set : Set.new
       files = []
       skipped = 0
+      failed = 0
       sources.each do |source|
         links = { link_column => source.id }
         template_id = source.try(:source_curriculum_file_id)
@@ -57,15 +63,16 @@ class CohortFileImport
         file = import_one(cohort, source, links, actor) unless links.any? { |column, id| have.fetch(column).include?(id) }
         file ? files << file : skipped += 1
       rescue StandardError => error
-        # One item storage can't copy (missing, failing) never stops the rest; it is skipped and can be imported again.
-        Rails.logger.error("[CohortFileImport] item_failed cohort_id=#{cohort.id} #{link_column}=#{source.id} #{error.class}")
-        skipped += 1
+        # One item storage can't copy (missing, failing, not set up) never stops the rest; it can be imported again.
+        level = error.is_a?(StorageUnavailable) ? :info : :error
+        Rails.logger.public_send(level, "[CohortFileImport] item_failed cohort_id=#{cohort.id} #{link_column}=#{source.id} #{error.class}")
+        failed += 1
       end
-      Result.new(files: files, skipped: skipped, auto_copied: CohortFileCopy.auto_copy_new_items(files, actor: actor))
+      Result.new(files: files, skipped: skipped, failed: failed, auto_copied: CohortFileCopy.auto_copy_new_items(files, actor: actor))
     end
 
-    # The new class item, or nil when it was already there, storage is
-    # unavailable for an upload, or the cohort is gone.
+    # The new class item, or nil when it was already there or the cohort is
+    # gone. Raises StorageUnavailable for an upload without storage.
     def import_one(cohort, source, links, actor)
       attributes = links.merge(
         kind: source.kind, student_id: nil, uploaded_by_id: actor&.id || source.uploaded_by_id,
@@ -82,7 +89,7 @@ class CohortFileImport
     end
 
     def import_stored_file(cohort, source, links, attributes)
-      return nil unless S3Service.configured?
+      raise StorageUnavailable unless S3Service.configured?
 
       token = SecureRandom.uuid
       key = "cohort_files/cohort_#{cohort.id}/shared/#{token}/#{source.filename}"

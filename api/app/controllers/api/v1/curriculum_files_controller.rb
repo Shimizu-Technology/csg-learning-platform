@@ -88,12 +88,20 @@ module Api
           return
         end
         S3Service.copy_object(file.upload_key, file.s3_key, etag: metadata.fetch(:etag))
-        published = with_content_lock do
-          locked = CurriculumFile.lock.find_by(id: file.id)
-          next nil unless locked
+        published = begin
+          with_content_lock do
+            locked = CurriculumFile.lock.find_by(id: file.id)
+            next nil unless locked
 
-          locked.update!(ready: true) unless locked.ready?
-          locked
+            locked.update!(ready: true) unless locked.ready?
+            locked
+          end
+        rescue NotEditable
+          # Archived or deleted while the copy ran. A deletion already drained
+          # this upload's queued keys, so the new copy is removed here (it is
+          # kept while a pending row still names it).
+          S3ObjectCleanup.delete_or_enqueue(file.s3_key, reason: "curriculum_file_publish_abandoned")
+          raise
         end
         unless published
           S3ObjectCleanup.delete_or_enqueue(file.s3_key, reason: "curriculum_file_publish_abandoned")

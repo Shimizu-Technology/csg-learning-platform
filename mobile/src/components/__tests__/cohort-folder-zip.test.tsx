@@ -26,7 +26,7 @@ const file = (overrides: Record<string, unknown>) => ({
   kind: 'doc', external_url: null, link_provider: null, version_number: 1, previewable: false, preview_mode: null, review_status: 'none', comment_count: 0,
   doc_version: 1, doc_updated_at: '2026-11-24T00:00:00.000000Z', doc_updated_by_name: null, can_edit_doc: false, ...overrides,
 });
-const api = { resources: jest.fn(), cohortFiles: jest.fn(), cohorts: jest.fn(), exportCohortFilesZip: jest.fn() };
+const api = { resources: jest.fn(), cohortFiles: jest.fn(), cohorts: jest.fn(), exportCohortFilesZip: jest.fn(), discardCohortFilesZip: jest.fn().mockResolvedValue(undefined) };
 let client: QueryClient;
 beforeEach(() => {
   jest.clearAllMocks();
@@ -35,7 +35,7 @@ beforeEach(() => {
   jest.mocked(useCohort).mockReturnValue({ selectedCohortId: 4 } as ReturnType<typeof useCohort>);
   api.resources.mockResolvedValue({ resources: [] });
   api.cohorts.mockResolvedValue({ cohorts: [{ id: 4, name: 'Prework Demo' }] });
-  api.exportCohortFilesZip.mockResolvedValue({ uri: 'file:///cache/prework-demo-my-files.zip', filename: 'prework-demo-my-files.zip' });
+  api.exportCohortFilesZip.mockResolvedValue({ uri: 'file:///cache/cohort-zip-exports/1-a/prework-demo-my-files.zip', filename: 'prework-demo-my-files.zip', directory: 'file:///cache/cohort-zip-exports/1-a/' });
 });
 afterEach(() => client.clear());
 const mount = (node: React.ReactElement) => render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
@@ -49,8 +49,14 @@ test('learners export My files as a ZIP through the share sheet, and see failure
   await screen.findByText('Resume Draft');
   expect(screen.queryByText('Auto-copy')).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));
-  await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledWith('file:///cache/prework-demo-my-files.zip', expect.objectContaining({ mimeType: 'application/zip' })));
+  await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledWith('file:///cache/cohort-zip-exports/1-a/prework-demo-my-files.zip', expect.objectContaining({ mimeType: 'application/zip' })));
   expect(api.exportCohortFilesZip).toHaveBeenCalledWith(4, { scope: 'my_files', studentId: undefined });
+  await waitFor(() => expect(api.discardCohortFilesZip).toHaveBeenCalledWith('file:///cache/cohort-zip-exports/1-a/'));
+
+  jest.mocked(Sharing.shareAsync).mockRejectedValueOnce(new Error('Share sheet failed'));
+  fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));
+  expect(await screen.findByText('Share sheet failed')).toBeTruthy();
+  expect(api.discardCohortFilesZip).toHaveBeenCalledTimes(2);
 
   api.exportCohortFilesZip.mockRejectedValueOnce(new ApiError('Too many requests', 429));
   fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));

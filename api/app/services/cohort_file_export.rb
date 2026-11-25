@@ -15,7 +15,9 @@ require "zip"
 # capped at MAX_ITEMS items and MAX_BYTES, checked on the stored sizes before
 # any download and again on the bytes actually read. Without storage,
 # uploads are left out (with a README.txt saying so) as long as something
-# else can be exported.
+# else can be exported. Every byte written (uploads, docs, Links.md and the
+# README) counts toward MAX_BYTES; callers load at most MAX_ITEMS + 1 rows
+# (see too_many!).
 class CohortFileExport
   MAX_ITEMS = 100
   MAX_BYTES = 100.megabytes
@@ -59,6 +61,10 @@ class CohortFileExport
     end
   end
 
+  def self.too_many!
+    raise Problem, "This has more than #{MAX_ITEMS} items. Download one folder at a time."
+  end
+
   # `file` is a CohortFile; `shown` the file or CohortFileVersion to export;
   # `doc_state` the CohortFile::DocState for a doc.
   def self.entry_for(file, shown: file, doc_state: nil)
@@ -92,7 +98,7 @@ class CohortFileExport
   def build!
     uploads, others = @entries.partition { |entry| entry.kind == "file" }
     raise Problem, "There's nothing to download here yet." if @entries.empty?
-    raise Problem, "This has more than #{MAX_ITEMS} items. Download one folder at a time." if @entries.size > MAX_ITEMS
+    self.class.too_many! if @entries.size > MAX_ITEMS
     raise Problem.new("File storage is unavailable, so these uploads can't be downloaded.", status: :service_unavailable) if !@storage && others.empty?
 
     uploads = [] unless @storage
@@ -118,29 +124,34 @@ class CohortFileExport
       uploads.each do |entry|
         zip.put_next_entry(unique_path(entry.folder, entry.filename))
         found = S3Service.stream_object(entry.s3_key) do |chunk|
-          @bytes += chunk.bytesize
-          raise Problem, too_large if @bytes > MAX_BYTES
-
-          zip.write(chunk)
+          emit(zip, chunk)
         end
         missing << entry.filename unless found
       end
       others.select { |entry| entry.kind == "doc" }.each do |entry|
         zip.put_next_entry(unique_path(entry.folder, "#{self.class.safe_segment(entry.title, 'Untitled')}.md"))
-        zip.write("# #{entry.title}\n\n#{entry.content.to_s.chomp}\n")
+        emit(zip, "# #{entry.title}\n\n#{entry.content.to_s.chomp}\n")
       end
       others.select { |entry| entry.kind == "link" }.group_by(&:folder).each do |folder, links|
         zip.put_next_entry(unique_path(folder, "Links.md"))
-        zip.write("# Links\n\n#{links.map { |link| "- [#{link_label(link.title)}](#{link_target(link.url)})" }.join("\n")}\n")
+        emit(zip, "# Links\n\n#{links.map { |link| "- [#{link_label(link.title)}](#{link_target(link.url)})" }.join("\n")}\n")
       end
       notes = []
       notes << "#{left_out} uploaded #{left_out == 1 ? 'file was' : 'files were'} left out because file storage isn't set up yet." if left_out.positive?
       notes << "These uploads could not be found in storage: #{missing.join(', ')}." if missing.any?
       if notes.any?
         zip.put_next_entry(unique_path(nil, "README.txt"))
-        zip.write("#{notes.join("\n")}\n")
+        emit(zip, "#{notes.join("\n")}\n")
       end
     end
+  end
+
+  # Writes into the current entry, counting it toward the size limit first.
+  def emit(zip, data)
+    @bytes += data.bytesize
+    raise Problem, too_large if @bytes > MAX_BYTES
+
+    zip.write(data)
   end
 
   def too_large

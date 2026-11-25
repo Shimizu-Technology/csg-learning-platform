@@ -13,7 +13,12 @@
 # use source_file_id like "Copy to all students", so the existing
 # one-copy-per-student index keeps the two paths from duplicating each other.
 class CreateCurriculumFilesAndAutoCopy < ActiveRecord::Migration[8.1]
+  # cohort_files is busy; give up quickly instead of queueing every request
+  # behind a lock wait. SET LOCAL lasts for the migration's transaction.
+  LOCK_TIMEOUT = "5s"
+
   def up
+    execute "SET LOCAL lock_timeout = '#{LOCK_TIMEOUT}'"
     create_table :curriculum_files do |t|
       t.references :curriculum, null: false, index: true, foreign_key: { to_table: :curricula }
       t.string :kind, null: false, default: "file", limit: 20
@@ -67,6 +72,7 @@ class CreateCurriculumFilesAndAutoCopy < ActiveRecord::Migration[8.1]
   # (delete them in the app, which cleans storage). The tables are locked
   # until the migration's transaction ends, so nothing is added after the check.
   def down
+    execute "SET LOCAL lock_timeout = '#{LOCK_TIMEOUT}'"
     execute "LOCK TABLE curriculum_files, cohort_files IN ACCESS EXCLUSIVE MODE"
     if select_value("SELECT 1 FROM curriculum_files LIMIT 1")
       raise ActiveRecord::IrreversibleMigration, "Delete curriculum template files (and their stored objects) before rolling back"

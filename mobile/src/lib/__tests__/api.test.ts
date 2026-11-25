@@ -1,19 +1,32 @@
 const mockExpoFetch = jest.fn();
 
 jest.mock('expo/fetch', () => ({ fetch: (...args: unknown[]) => mockExpoFetch(args[0], args[1]) }));
-const mockWrittenFiles: { uri: string; bytes: Uint8Array }[] = [];
 jest.mock('expo-file-system', () => ({
-  Paths: { cache: 'file:///cache' },
   File: class MockFile {
     uri: string;
-    constructor(...parts: string[]) { this.uri = parts.join('/'); }
-    write(bytes: Uint8Array) { mockWrittenFiles.push({ uri: this.uri, bytes }); }
+    constructor(uri: string) { this.uri = uri; }
   },
+}));
+const mockLegacy = {
+  makeDirectoryAsync: jest.fn().mockResolvedValue(undefined),
+  downloadAsync: jest.fn(),
+  readAsStringAsync: jest.fn().mockResolvedValue(''),
+  moveAsync: jest.fn().mockResolvedValue(undefined),
+  deleteAsync: jest.fn().mockResolvedValue(undefined),
+};
+// Delegates at call time: the module loads (imports are hoisted) before mockLegacy exists.
+jest.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///cache/',
+  makeDirectoryAsync: (...args: unknown[]) => mockLegacy.makeDirectoryAsync(...args),
+  downloadAsync: (...args: unknown[]) => mockLegacy.downloadAsync(...args),
+  readAsStringAsync: (...args: unknown[]) => mockLegacy.readAsStringAsync(...args),
+  moveAsync: (...args: unknown[]) => mockLegacy.moveAsync(...args),
+  deleteAsync: (...args: unknown[]) => mockLegacy.deleteAsync(...args),
 }));
 
 // The API module must load after the native Expo mocks above.
 // eslint-disable-next-line import/first
-import { CsgApi, websocketOrigin, websocketUrl } from '../api';
+import { ApiError, CsgApi, websocketOrigin, websocketUrl } from '../api';
 
 describe('CsgApi', () => {
   afterEach(() => {
@@ -456,24 +469,46 @@ test('stale cohort context cannot authorize writes and unlocks only after revali
 });
 
 describe('folder ZIP export', () => {
-  afterEach(() => mockExpoFetch.mockReset());
-
-  it('downloads a folder ZIP with the session token into the cache and keeps only safe names', async () => {
-    mockWrittenFiles.length = 0;
-    mockExpoFetch.mockResolvedValueOnce(new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { 'Content-Disposition': 'attachment; filename="prework-demo-my-files.zip"' } }))
-      .mockResolvedValueOnce(new Response(new Uint8Array([80, 75]), { status: 200, headers: { 'Content-Disposition': 'attachment; filename="../evil.zip"' } }));
-    const api = new CsgApi(async () => 'session-token');
-    await expect(api.exportCohortFilesZip(4, { scope: 'student', studentId: 3 })).resolves.toEqual({ uri: 'file:///cache/prework-demo-my-files.zip', filename: 'prework-demo-my-files.zip' });
-    expect(mockExpoFetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/cohorts\/4\/files\/export_zip\?scope=student&student_id=3$/), expect.objectContaining({ headers: { Authorization: 'Bearer session-token' } }));
-    expect(Array.from(mockWrittenFiles[0].bytes)).toEqual([80, 75, 3, 4]);
-    await expect(api.exportCohortFilesZip(4, { scope: 'my_files' })).resolves.toMatchObject({ filename: 'files.zip' });
+  afterEach(() => {
+    Object.values(mockLegacy).forEach((mock) => mock.mockClear());
+    mockLegacy.downloadAsync.mockReset();
   });
 
-  it('reports the API message when a folder ZIP is refused, retrying once after a 401', async () => {
+  it('downloads straight to a fresh cache directory per export, keeps only safe names, and leaves the file for sharing', async () => {
+    mockLegacy.downloadAsync
+      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 200, headers: { 'content-disposition': 'attachment; filename="prework-demo-my-files.zip"' } }))
+      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 200, headers: { 'Content-Disposition': 'attachment; filename="../evil.zip"' } }));
+    const api = new CsgApi(async () => 'session-token');
+    const first = await api.exportCohortFilesZip(4, { scope: 'student', studentId: 3 });
+    const second = await api.exportCohortFilesZip(4, { scope: 'my_files' });
+    expect(first.directory).toMatch(/^file:\/\/\/cache\/cohort-zip-exports\/\d+-[a-z0-9]+\/$/);
+    expect(second.directory).not.toBe(first.directory);
+    expect(first).toMatchObject({ filename: 'prework-demo-my-files.zip', uri: `${first.directory}prework-demo-my-files.zip` });
+    expect(second.filename).toBe('files.zip');
+    expect(mockLegacy.downloadAsync).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/cohorts\/4\/files\/export_zip\?scope=student&student_id=3$/), `${first.directory}download.zip`,
+      { headers: { Authorization: 'Bearer session-token' } });
+    expect(mockLegacy.moveAsync).toHaveBeenCalledWith({ from: `${first.directory}download.zip`, to: first.uri });
+    expect(mockLegacy.deleteAsync).not.toHaveBeenCalled();
+    await api.discardCohortFilesZip(first.directory);
+    expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(first.directory, { idempotent: true });
+  });
+
+  it('reports the API message for a refused export, retries once after a 401, and removes every temporary directory', async () => {
     const getToken = jest.fn().mockResolvedValue('session-token');
-    mockExpoFetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'You can only download your own folder' }), { status: 403 }));
+    mockLegacy.downloadAsync
+      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 401, headers: {} }))
+      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 403, headers: {} }));
+    mockLegacy.readAsStringAsync.mockResolvedValueOnce(JSON.stringify({ error: 'Unauthorized' })).mockResolvedValueOnce(JSON.stringify({ error: 'You can only download your own folder' }));
     await expect(new CsgApi(getToken).exportCohortFilesZip(4, { scope: 'class' })).rejects.toMatchObject({ message: 'You can only download your own folder', status: 403 });
     expect(getToken).toHaveBeenLastCalledWith({ skipCache: true });
+    const made = mockLegacy.makeDirectoryAsync.mock.calls.map(([directory]: [string]) => directory);
+    expect(made).toHaveLength(2);
+    expect(mockLegacy.deleteAsync.mock.calls.map(([directory]: [string]) => directory).sort()).toEqual([...made].sort());
+  });
+
+  it('removes the temporary directory when the download itself fails', async () => {
+    mockLegacy.downloadAsync.mockRejectedValueOnce(new Error('offline'));
+    await expect(new CsgApi(async () => 'session-token').exportCohortFilesZip(4, { scope: 'my_files' })).rejects.toBeInstanceOf(ApiError);
+    expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(mockLegacy.makeDirectoryAsync.mock.calls[0][0], { idempotent: true });
   });
 });

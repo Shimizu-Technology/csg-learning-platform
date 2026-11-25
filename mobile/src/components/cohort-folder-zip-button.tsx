@@ -10,7 +10,8 @@ import { makeStyles } from '@/providers/theme-provider';
 /**
  * Exports a folder as one ZIP and opens the share sheet to save or send it:
  * a learner's My files, the class files, or one student's folder (staff).
- * The archive downloads with the session token; nothing is cached for reuse.
+ * The archive downloads with the session token into its own temporary
+ * directory, which is removed once sharing ends, however it ends.
  */
 export function CohortFolderZipButton({ cohortId, scope, studentId, empty, label = 'Export ZIP', accessibilityLabel, style }: {
   cohortId: number
@@ -31,13 +32,17 @@ export function CohortFolderZipButton({ cohortId, scope, studentId, empty, label
     busy.current = true;
     setExporting(true);
     setError(null);
+    let directory: string | null = null;
     try {
       const archive = await api.exportCohortFilesZip(cohortId, { scope, studentId });
+      directory = archive.directory;
       if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available on this device.');
       await Sharing.shareAsync(archive.uri, { mimeType: 'application/zip', UTI: 'public.zip-archive', dialogTitle: archive.filename });
     } catch (failure) {
       setError((failure as Error).message || 'Could not export these files.');
     } finally {
+      // Shared, cancelled or failed: the private archive never stays on the device.
+      if (directory) await api.discardCohortFilesZip(directory);
       busy.current = false;
       setExporting(false);
     }

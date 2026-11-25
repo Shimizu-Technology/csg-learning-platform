@@ -149,6 +149,32 @@ class CohortFileExportTest < ActionDispatch::IntegrationTest
     assert_match(/more than 100/, response.parsed_body.fetch("error"))
   end
 
+  test "every byte written counts toward the size limit, docs and link lists included" do
+    original = CohortFileExport::MAX_BYTES
+    CohortFileExport.send(:remove_const, :MAX_BYTES)
+    CohortFileExport.const_set(:MAX_BYTES, 60)
+    @cohort.cohort_files.create!(kind: "link", title: "x" * 80, folder: "Links only", external_url: "https://example.com/long", ready: true)
+    as_user(@teacher) { get export_path(scope: "class", folder: "Links only"), headers: headers }
+    assert_response :unprocessable_entity, "a Links.md larger than the limit is refused"
+    @cohort.cohort_files.create!(kind: "doc", title: "Long doc", folder: "Docs only", doc_content: "y" * 50, ready: true)
+    as_user(@teacher) { get export_path(scope: "class", folder: "Docs only"), headers: headers }
+    assert_response :unprocessable_entity, "the doc's heading counts too"
+  ensure
+    CohortFileExport.send(:remove_const, :MAX_BYTES)
+    CohortFileExport.const_set(:MAX_BYTES, original)
+  end
+
+  test "an oversized folder is refused after loading at most one row past the limit" do
+    120.times { |index| @cohort.cohort_files.create!(kind: "doc", title: "Doc #{index}", folder: "Huge", doc_content: "x", ready: true) }
+    loaded = 0
+    counter = ->(*, payload) { loaded = [ loaded, payload[:record_count] ].max if payload[:class_name] == "CohortFile" }
+    ActiveSupport::Notifications.subscribed(counter, "instantiation.active_record") do
+      as_user(@teacher) { get export_path(scope: "class", folder: "Huge"), headers: headers }
+    end
+    assert_response :unprocessable_entity
+    assert_operator loaded, :<=, CohortFileExport::MAX_ITEMS + 1
+  end
+
   test "exports have their own rate limit" do
     assert ApiRateLimits.applies?(:exports, "api/v1/cohort_files", "export_zip")
     assert_not ApiRateLimits.applies?(:exports, "api/v1/cohort_files", "index")

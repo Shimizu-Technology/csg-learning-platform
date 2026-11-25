@@ -157,6 +157,44 @@ it('edits a doc from the version it loaded and offers the latest after a conflic
   expect(button('Edit doc', dialog())).toBeTruthy()
 })
 
+it('never goes silent when the latest version cannot load after a conflict, and saves only from it', async () => {
+  mocks.getCurriculumDoc
+    .mockResolvedValueOnce({ data: { file: plan, doc_content: 'v2', doc_version: 2, doc_updated_at: plan.doc_updated_at, doc_updated_by_name: 'Ada Admin', can_edit_doc: true }, error: null })
+    .mockResolvedValueOnce({ data: null, error: 'Request timed out.' })
+    .mockResolvedValueOnce({ data: { file: { ...plan, doc_version: 3 }, doc_content: 'v3', doc_version: 3, doc_updated_at: plan.doc_updated_at, doc_updated_by_name: 'Bo Admin', can_edit_doc: true }, error: null })
+  mocks.updateCurriculumFile
+    .mockResolvedValueOnce({ data: null, error: 'conflict', status: 409 })
+    .mockResolvedValueOnce({ data: { file: { ...plan, doc_version: 4 } }, error: null })
+  await mount()
+  await act(async () => button('Open doc', row('Job Search Plan')).click())
+  await flush()
+  const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')!
+  await act(async () => button('Edit doc', dialog()).click())
+  await act(async () => setValue(dialog().querySelector('textarea')!, 'mine'))
+  await act(async () => button('Save doc', dialog()).click())
+  await flush()
+  expect(dialog().textContent).toContain("Their version couldn't be loaded: Request timed out.")
+  expect(button('Save doc', dialog()).disabled).toBe(true)
+  expect(dialog().querySelector('textarea')!.value).toBe('mine')
+  await act(async () => button('Try loading again', dialog()).click())
+  await flush()
+  await act(async () => button('Load latest version', dialog()).click())
+  await act(async () => setValue(dialog().querySelector('textarea')!, 'v3 and mine'))
+  await act(async () => button('Save doc', dialog()).click())
+  await flush()
+  expect(mocks.updateCurriculumFile).toHaveBeenLastCalledWith(7, 1, { doc_content: 'v3 and mine', base_doc_version: 3 })
+})
+
+it('tells an admin renaming a doc when the latest version cannot load after a conflict', async () => {
+  mocks.updateCurriculumFile.mockResolvedValueOnce({ data: null, error: 'conflict', status: 409 })
+  mocks.getCurriculumDoc.mockResolvedValueOnce({ data: null, error: 'Request timed out.' })
+  await mount()
+  await act(async () => (await menuItem('Job Search Plan', 'Edit details'))!.click())
+  await act(async () => button('Save', container.querySelector('[aria-label="Template files"]')!).click())
+  await flush()
+  expect(container.textContent).toContain("the latest version couldn't be loaded (Request timed out.)")
+})
+
 it('deletes a template after confirming', async () => {
   mocks.deleteCurriculumFile.mockResolvedValue({ data: null, error: null })
   await mount()

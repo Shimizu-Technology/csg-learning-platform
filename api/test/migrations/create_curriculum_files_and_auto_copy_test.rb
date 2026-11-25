@@ -24,6 +24,26 @@ class CreateCurriculumFilesAndAutoCopyTest < ActiveSupport::TestCase
     reset_cache
   end
 
+  test "both directions set a short lock timeout before touching tables" do
+    migration = CreateCurriculumFilesAndAutoCopy.new
+    curriculum_file_count = CurriculumFile.count
+    statements = []
+    collect = ->(*, payload) { statements << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(collect, "sql.active_record") do
+      ActiveRecord::Base.transaction(requires_new: true) do
+        migration.migrate(:down) if curriculum_file_count.zero?
+        migration.migrate(:up)
+      end
+    end
+    reset_cache
+    timeouts = statements.each_index.select { |index| statements[index].include?("SET LOCAL lock_timeout = '5s'") }
+    assert_equal 2, timeouts.size, "up and down each set the timeout"
+    first_table_statement = statements.index { |sql| sql.match?(/\A\s*(LOCK TABLE|CREATE TABLE|ALTER TABLE|DROP TABLE)/) }
+    assert_operator timeouts.first, :<, first_table_statement
+  ensure
+    reset_cache
+  end
+
   private
 
   def reset_cache

@@ -614,7 +614,7 @@ module Api
 
       def import_json(result, count_key: :imported_count)
         {
-          count_key => result.files.size, skipped_count: result.skipped, auto_copied_count: result.auto_copied,
+          count_key => result.files.size, skipped_count: result.skipped, failed_count: result.failed, auto_copied_count: result.auto_copied,
           files: result.files.map { |file| file.file_json(can_manage: true, can_edit_doc: true) }
         }
       end
@@ -634,7 +634,7 @@ module Api
         else
           return render json: { error: "Staff download the class files or a student's folder" }, status: :unprocessable_entity
         end
-        export_scope(files).includes(:doc_updated_by).map { |file| CohortFileExport.entry_for(file) }
+        bounded(export_scope(files).includes(:doc_updated_by)).map { |file| CohortFileExport.entry_for(file) }
       end
 
       # The learner's own folder as they can read it, in one snapshot with
@@ -646,7 +646,7 @@ module Api
         with_read_snapshot do
           files = export_scope(@cohort.cohort_files.student_visible.where(student_id: current_user.id))
           files = files.includes(:versions) if @enrollment.paused?
-          entries = files.filter_map do |file|
+          entries = bounded(files).filter_map do |file|
             shown = @enrollment.file_version_for_read(file)
             next unless shown
 
@@ -655,6 +655,13 @@ module Api
           end
         end
         entries
+      end
+
+      # At most one row past the export limit is loaded; more refuses the export.
+      def bounded(files)
+        rows = files.limit(CohortFileExport::MAX_ITEMS + 1).to_a
+        CohortFileExport.too_many! if rows.size > CohortFileExport::MAX_ITEMS
+        rows
       end
 
       def export_scope(files)
