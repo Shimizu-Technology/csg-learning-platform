@@ -65,7 +65,7 @@ export function safeHttpsUrl(url: string | null | undefined) {
 /** Mirrors CohortFile::NON_PUBLIC_IPV4 on the API: [first address, prefix length]. */
 const NON_PUBLIC_IPV4: [string, number][] = [
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
-  ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+  ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
 ];
 const PUBLIC_HOSTNAME = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
 
@@ -81,19 +81,48 @@ function nonPublicIpv4(address: string) {
   return NON_PUBLIC_IPV4.some(([base, bits]) => Math.floor(value / 2 ** (32 - bits)) === Math.floor(ipv4Number(base)! / 2 ** (32 - bits)));
 }
 
-/** IPv6 literals must be global unicast (2000::/3); IPv4-mapped ones are checked as IPv4. */
-function nonPublicIpv6(address: string) {
-  const dotted = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (dotted) return nonPublicIpv4(dotted[1]);
-  const mapped = address.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
-  if (mapped) {
-    const high = parseInt(mapped[1], 16);
-    const low = parseInt(mapped[2], 16);
-    return nonPublicIpv4([high >> 8, high & 255, low >> 8, low & 255].join('.'));
+/** Mirrors CohortFile::NON_PUBLIC_IPV6: IANA special-use blocks inside 2000::/3. */
+const NON_PUBLIC_IPV6: [string, number][] = [
+  ['2001::', 32], ['2001:2::', 48], ['2001:10::', 28], ['2001:20::', 28], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20],
+];
+
+/** The eight 16-bit groups of an IPv6 address (with "::" and a trailing dotted IPv4 expanded), or null. */
+export function ipv6Groups(address: string): number[] | null {
+  let text = address.toLowerCase();
+  const dotted = text.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const value = ipv4Number(dotted[2]);
+    if (value === null) return null;
+    text = `${dotted[1]}${Math.floor(value / 65536).toString(16)}:${(value % 65536).toString(16)}`;
   }
-  if (!/^[0-9a-f:]+$/.test(address)) return true;
-  const first = address.startsWith('::') ? 0 : parseInt(address.split(':')[0], 16);
-  return !(first >= 0x2000 && first <= 0x3fff);
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+  const parse = (part: string) => (part ? part.split(':') : []);
+  const head = parse(halves[0]);
+  const tail = halves.length === 2 ? parse(halves[1]) : [];
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const groups = [...head, ...Array(halves.length === 2 ? missing : 0).fill('0'), ...tail];
+  return groups.every((group) => /^[0-9a-f]{1,4}$/.test(group)) ? groups.map((group) => parseInt(group, 16)) : null;
+}
+
+function inIpv6Prefix(groups: number[], base: string, bits: number) {
+  const prefix = ipv6Groups(base)!;
+  for (let index = 0; index < 8 && bits > 0; index += 1, bits -= 16) {
+    const mask = bits >= 16 ? 0xffff : (0xffff << (16 - bits)) & 0xffff;
+    if ((groups[index] & mask) !== (prefix[index] & mask)) return false;
+  }
+  return true;
+}
+
+/** IPv6 must be global unicast (2000::/3) outside special-use blocks; IPv4-mapped ones, in any spelling, are checked as IPv4. */
+function nonPublicIpv6(address: string) {
+  const groups = ipv6Groups(address);
+  if (!groups) return true;
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    return nonPublicIpv4([groups[6] >> 8, groups[6] & 255, groups[7] >> 8, groups[7] & 255].join('.'));
+  }
+  return !(groups[0] >= 0x2000 && groups[0] <= 0x3fff) || NON_PUBLIC_IPV6.some(([base, bits]) => inIpv6Prefix(groups, base, bits));
 }
 
 /**
@@ -110,7 +139,7 @@ export function publicHttpsProblem(url: string) {
   const host = authority.toLowerCase().replace(/:\d*$/, '').replace(/\.$/, '');
   if (host.startsWith('[')) return host.endsWith(']') && !nonPublicIpv6(host.slice(1, -1)) ? null : 'Use a public web address.';
   if (/^[\d.]+$/.test(host)) return nonPublicIpv4(host) ? 'Use a public web address.' : null;
-  if (/\.(localhost|local|internal|home\.arpa)$/.test(host) || !PUBLIC_HOSTNAME.test(host)) return 'Use a full public web address, like https://docs.google.com/…';
+  if (/(^|\.)(localhost|local|internal|home\.arpa)$/.test(host) || !PUBLIC_HOSTNAME.test(host)) return 'Use a full public web address, like https://docs.google.com/…';
   return null;
 }
 
@@ -131,27 +160,44 @@ export function matchesCohortFile(file: CohortFile, needle: string) {
   return `${file.title} ${file.filename || ''} ${file.folder} ${file.description || ''} ${file.external_url || ''}`.toLowerCase().includes(needle);
 }
 
-/** Minimal CSV parsing for previews: quoted fields, escaped quotes, CRLF. */
-export function parseCsv(text: string, maxRows = 200) {
+/** How much of a CSV a preview renders, so a very wide or long file can't freeze the screen. */
+export const CSV_PREVIEW_LIMITS = { rows: 200, columns: 50, cellLength: 200 };
+
+/**
+ * Minimal RFC 4180 CSV parsing for previews (quoted fields, escaped quotes,
+ * CRLF), bounded by CSV_PREVIEW_LIMITS: extra rows and columns are dropped and
+ * long cells end with "…". The flags say what was cut.
+ */
+export function parseCsv(text: string, limits = CSV_PREVIEW_LIMITS) {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
   let quoted = false;
-  for (let index = 0; index < text.length && rows.length < maxRows; index += 1) {
+  let clippedColumns = false;
+  const add = (char: string) => { if (field.length <= limits.cellLength) field += char; };
+  const endField = () => {
+    if (row.length < limits.columns) row.push(field.length > limits.cellLength ? `${field.slice(0, limits.cellLength)}…` : field);
+    else clippedColumns = true;
+    field = '';
+  };
+  for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
     if (quoted) {
-      if (char === '"' && text[index + 1] === '"') { field += '"'; index += 1; }
+      if (char === '"' && text[index + 1] === '"') { add('"'); index += 1; }
       else if (char === '"') quoted = false;
-      else field += char;
+      else add(char);
     } else if (char === '"' && field === '') quoted = true;
-    else if (char === ',') { row.push(field); field = ''; }
+    else if (char === ',') endField();
     else if (char === '\n' || char === '\r') {
       if (char === '\r' && text[index + 1] === '\n') index += 1;
-      row.push(field); field = ''; rows.push(row); row = [];
-    } else field += char;
+      endField();
+      rows.push(row);
+      row = [];
+      if (rows.length >= limits.rows) return { rows, clippedRows: index < text.length - 1, clippedColumns };
+    } else add(char);
   }
-  if (rows.length < maxRows && (field !== '' || row.length)) { row.push(field); rows.push(row); }
-  return rows;
+  if (field !== '' || row.length) { endField(); rows.push(row); }
+  return { rows, clippedRows: false, clippedColumns };
 }
 
 /** Folder name => files, folders sorted by name. */

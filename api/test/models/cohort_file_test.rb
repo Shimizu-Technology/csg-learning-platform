@@ -176,11 +176,15 @@ class CohortFileTest < ModelCoverageTestCase
       "https://[fdff::1]/", "https://[fe80::1]/", "https://[febf::1]/", "https://[::ffff:192.168.1.1]/", "https://[::ffff:100.64.0.1]/",
       "https://user:pw@example.com/", "https://example.com@evil.com/", "https://exa%6dple.com/", "https://bücher.de/", "https://localhost/",
       "https://intranet/", "https://printer.local/", "https://router.home.arpa/", "https://2130706433/", "https://0x7f.0.0.1/", "https://0177.0.0.1/",
-      "https://1.2.3/", "http://example.com/", "https:/\\example.com/" ].each do |url|
+      "https://1.2.3/", "https://192.88.99.2/", "https://192.88.99.200/", "https://[2001::1]/", "https://[2001:0:4136:e378::1]/",
+      "https://[2001:2::1]/", "https://[2001:10::1]/", "https://[2001:2f::1]/", "https://[2001:db8::1]/", "https://[2002:c000:204::1]/",
+      "https://[3fff::1]/", "https://[0:0:0:0:0:ffff:10.0.0.1]/", "https://home.arpa/", "https://local/", "https://internal/",
+      "https://app.internal/", "https://LOCALHOST/", "http://example.com/", "https:/\\example.com/" ].each do |url|
       assert CohortFile.link_problem(url), url
     end
     [ "https://example.com/", "https://docs.google.com/document/d/x", "https://8.8.8.8/", "https://100.128.0.1/", "https://172.32.0.1/",
-      "https://[2001:4860:4860::8888]/", "https://xn--bcher-kva.de/", "https://example.com:8443/a?b=1#c" ].each do |url|
+      "https://[2001:4860:4860::8888]/", "https://[2001:3::1]/", "https://[2001:30::1]/", "https://[2003::1]/", "https://[3ffe::1]/",
+      "https://[0:0:0:0:0:ffff:8.8.8.8]/", "https://192.88.100.1/", "https://xn--bcher-kva.de/", "https://example.com:8443/a?b=1#c" ].each do |url|
       assert_nil CohortFile.link_problem(url), url
     end
   end
@@ -221,7 +225,14 @@ class CohortFileTest < ModelCoverageTestCase
     require Rails.root.join("db/migrate/20261126110000_create_cohort_file_versions")
     migration = CreateCohortFileVersions.new
     migration.verbose = false
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
     assert_raises(ActiveRecord::IrreversibleMigration) { migration.migrate(:down) }
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+    # The table is locked before the emptiness check, so no version can slip in after it.
+    lock = statements.index { |sql| sql.include?("LOCK TABLE cohort_file_versions IN ACCESS EXCLUSIVE MODE") }
+    check = statements.index { |sql| sql.include?("FROM cohort_file_versions") }
+    assert lock && check && lock < check, statements.join("\n")
     assert CohortFileVersion.exists?
   end
 end

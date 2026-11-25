@@ -253,7 +253,7 @@ export function Resources() {
             <ul className="app-surface divide-y divide-line overflow-hidden" aria-label="Files in my folder">
               {myFiles.map((file) => (
                 <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} badges={<FolderBadge folder={file.folder} />} downloadDisabled={!cohortFiles?.storage_configured}
-                  canUploadVersion={file.can_manage && file.kind === 'file'} onVersionUploaded={replaceMyFile}
+                  canUploadVersion={Boolean(file.can_manage && file.kind === 'file' && cohortFiles?.can_upload_personal && cohortFiles?.storage_configured)} onVersionUploaded={replaceMyFile}
                   note={file.uploaded_by_role === 'student' ? 'Added by you' : 'Shared by your instructor'}
                   actions={file.can_manage ? (
                     <Button size="sm" variant="quiet" onClick={() => void removeMyFile(file)} aria-label={`Delete ${file.title}`}>

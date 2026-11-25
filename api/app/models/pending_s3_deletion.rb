@@ -29,12 +29,12 @@ class PendingS3Deletion < ApplicationRecord
   end
 
   # Tries queued keys right away (after their deleting transaction commits)
-  # and clears each one that is gone, still in use, or not ours to delete.
+  # and clears only the ones storage actually deleted. Anything else (storage
+  # not configured yet, a failure, a key in use again) stays queued for
+  # drain!, which decides once storage is available.
   def self.attempt_now!(keys)
     keys.compact_blank.uniq.each do |key|
-      next if S3ObjectCleanup.delete_unreferenced(key) == :failed
-
-      where(key: key).delete_all
+      where(key: key).delete_all if S3ObjectCleanup.delete_unreferenced(key) == :deleted
     end
   end
 

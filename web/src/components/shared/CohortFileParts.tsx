@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { Check, Download, Eye, ExternalLink, FileText, FileUp, History, Link2, Loader2, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
@@ -213,6 +213,7 @@ interface QueuedFile {
   status: QueueStatus
   progress: number
   error: string
+  removing?: boolean
 }
 
 /**
@@ -246,6 +247,13 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
   const queueRef = useRef<QueuedFile[]>([])
   // Each row's resumable upload, so Retry confirms the same pending file.
   const uploads = useRef(new Map<string, CohortUploadState>())
+  // Set when the uploader goes away (another folder opened, form closed):
+  // a running batch stops before starting its next file.
+  const unmounted = useRef(false)
+  useEffect(() => {
+    unmounted.current = false
+    return () => { unmounted.current = true }
+  }, [])
   const [folder, setFolder] = useState(defaultFolder || folderPresets[0] || 'General')
   const [customFolder, setCustomFolder] = useState('')
   const [notes, setNotes] = useState('')
@@ -262,15 +270,25 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     setQueue(queueRef.current)
   }
   const update = (key: string, change: Partial<QueuedFile>) => commitQueue((current) => current.map((item) => (item.key === key ? { ...item, ...change } : item)))
-  // Abandons a row's pending file unless it already published.
-  const forget = (items: QueuedFile[]) => items.forEach((item) => {
-    const state = uploads.current.get(item.key)
-    uploads.current.delete(item.key)
-    if (state && item.status !== 'done') void abandonCohortUpload(cohortId, state)
-  })
-  const remove = (key: string) => {
-    forget(queueRef.current.filter((item) => item.key === key))
-    commitQueue((current) => current.filter((item) => item.key !== key))
+  // Removes a row once its pending file (if any) is abandoned. If the server
+  // can't confirm that, the row stays with the error so nothing is left behind silently.
+  const remove = async (key: string) => {
+    const item = queueRef.current.find((entry) => entry.key === key)
+    if (!item) return true
+    if (item.status === 'uploading' || item.removing) return false
+    const state = uploads.current.get(key)
+    if (state && item.status !== 'done') {
+      update(key, { removing: true })
+      try {
+        await abandonCohortUpload(cohortId, state)
+      } catch (cause) {
+        update(key, { removing: false, status: 'failed', error: `Couldn't cancel this upload. ${cause instanceof Error ? cause.message : ''}`.trim() })
+        return false
+      }
+    }
+    uploads.current.delete(key)
+    commitQueue((current) => current.filter((entry) => entry.key !== key))
+    return true
   }
   const choose = (files: FileList | null | undefined) => {
     if (!files?.length) return
@@ -288,11 +306,12 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     commitQueue((current) => [...current.filter((item) => item.status !== 'done'), ...added])
     if (inputRef.current) inputRef.current.value = ''
   }
-  const reset = () => {
-    forget(queueRef.current)
-    commitQueue(() => [])
-    setNotes('')
-    setProblems([])
+  const reset = async () => {
+    const results = await Promise.all(queueRef.current.map((item) => remove(item.key)))
+    if (results.every(Boolean)) {
+      setNotes('')
+      setProblems([])
+    }
     if (inputRef.current) inputRef.current.value = ''
   }
   const uploadOne = async (item: QueuedFile) => {
@@ -317,13 +336,18 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     if (running || !chosenFolder || !keys.length) return
     setRunning(true)
     for (const key of keys) {
+      if (unmounted.current) return
       // Read the row as it is now: it may have been removed or retitled while it waited.
       const item = queueRef.current.find((entry) => entry.key === key)
       if (item && (item.status === 'ready' || item.status === 'failed')) await uploadOne(item)
     }
     setRunning(false)
+    if (unmounted.current) return
     if (queueRef.current.every((item) => item.status === 'done')) {
-      reset()
+      uploads.current.clear()
+      commitQueue(() => [])
+      setNotes('')
+      setProblems([])
       onFinished?.()
     }
   }
@@ -382,8 +406,8 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
                       {item.status === 'done' ? (
                         <span className="flex h-11 w-11 shrink-0 items-center justify-center text-success-ink lg:h-9 lg:w-9" aria-label="Uploaded"><Check className="h-5 w-5" aria-hidden="true" /></span>
                       ) : (
-                        <IconButton size="sm" label={`Remove ${item.file.name}`} disabled={item.status === 'uploading'}
-                          onClick={() => remove(item.key)}>
+                        <IconButton size="sm" label={`Remove ${item.file.name}`} disabled={item.status === 'uploading' || item.removing}
+                          onClick={() => void remove(item.key)}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </IconButton>
                       )}
@@ -417,7 +441,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
                   {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
                   {running ? 'Uploading…' : ready.length > 1 ? `Upload ${ready.length} files` : 'Upload file'}
                 </Button>
-                <Button variant="quiet" disabled={running} onClick={reset}>Clear</Button>
+                <Button variant="quiet" disabled={running} onClick={() => void reset()}>Clear</Button>
               </div>
             </>
           )}

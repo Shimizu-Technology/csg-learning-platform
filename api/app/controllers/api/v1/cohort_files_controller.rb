@@ -79,7 +79,7 @@ module Api
         return render_forbidden("Uploads to your folder are paused") unless current_user.staff? || student_can_write?
 
         file = manageable_files.find(params[:id])
-        file.with_lock do
+        with_writer_lock(file) do
           if file.ready?
             render json: { file: file.file_json(can_manage: true) }
             return
@@ -237,7 +237,7 @@ module Api
 
         file = manageable_files.find(params[:id])
         version = nil
-        file.with_lock do
+        with_writer_lock(file) do
           version = file.versions.lock.find(params[:version_id])
           if version.ready?
             render json: { file: file.file_json(can_manage: true), version: version.version_json(current: version.version_number == file.version_number) }
@@ -269,7 +269,7 @@ module Api
         ActiveRecord.after_all_transactions_commit { delete_staging_upload(version) }
         render json: { file: file.file_json(can_manage: true), version: version.version_json(current: true) }
       rescue WritePaused
-        abandon_paused_upload(version)
+        abandon_paused_upload(file, version_id: params[:version_id])
       rescue Aws::S3::Errors::PreconditionFailed
         render json: { error: "Upload changed while confirming; try again" }, status: :unprocessable_entity
       rescue Aws::S3::Errors::ServiceError => error
@@ -381,8 +381,9 @@ module Api
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
+      # The site's host, cut to the title limit (a host can be 253 characters).
       def link_title(url)
-        URI.parse(url).hostname.to_s.delete_prefix("www.").presence
+        URI.parse(url).hostname.to_s.delete_prefix("www.")[0, 160].presence
       rescue URI::InvalidURIError
         nil
       end
@@ -393,7 +394,7 @@ module Api
       def readable_target(allow_version: true)
         file = readable_files.ready.find(params[:id])
         expiry = CohortFile::DOWNLOAD_EXPIRY
-        return [ file, requested_version(file) || file, expiry ] if current_user.staff?
+        return [ file, (allow_version && requested_version(file)) || file, expiry ] if current_user.staff?
 
         shown = @enrollment.file_version_for_read(file)
         return render_forbidden("This file was not available before your pause") unless shown
@@ -414,20 +415,44 @@ module Api
         file.versions.ready.find(params[:version_id]) if params[:version_id].present?
       end
 
-      # Rechecks, under a lock on the learner's enrollment, that a student can
-      # still write as a publish commits; a pause that landed after the
-      # request's first check wins. Staff are not limited by enrollment.
-      def writer_still_active?
-        return true if current_user.staff?
-
-        @enrollment.lock!
-        @enrollment.active?
+      # One transaction for a publish. A student's enrollment is locked
+      # first, then the file (the order cohort deletion takes them), so a pause
+      # waits for an in-flight publish; a paused, ended or deleted enrollment
+      # raises WritePaused. Staff are not limited by enrollment.
+      def with_writer_lock(file)
+        CohortFile.transaction do
+          lock_writer_enrollment! unless current_user.staff?
+          file.lock!
+          yield
+        end
       end
 
-      # The publish rolled back. Abandon the pending upload or version; its
-      # destroy cleans the staging and copied objects after commit.
-      def abandon_paused_upload(record)
-        record.class.find_by(id: record.id, ready: false)&.destroy!
+      def lock_writer_enrollment!
+        @enrollment.lock!
+        raise WritePaused unless @enrollment.active?
+      rescue ActiveRecord::RecordNotFound
+        raise WritePaused
+      end
+
+      # Rechecks the locked enrollment as the publish commits.
+      def writer_still_active?
+        current_user.staff? || @enrollment.reload.active?
+      rescue ActiveRecord::RecordNotFound
+        false
+      end
+
+      # The publish rolled back. Under the same locks a publish takes, abandon
+      # the pending upload or version, unless a concurrent publish already made
+      # it ready; its destroy cleans the staging and copied objects after commit.
+      def abandon_paused_upload(file, version_id: nil)
+        begin
+          file.with_lock do
+            record = version_id ? file.versions.lock.find_by(id: version_id) : file
+            record.destroy! if record && !record.ready?
+          end
+        rescue ActiveRecord::RecordNotFound
+          # Already deleted; nothing left to abandon.
+        end
         render_forbidden("Uploads to your folder are paused")
       end
 

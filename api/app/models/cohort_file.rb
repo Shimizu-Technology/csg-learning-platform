@@ -10,8 +10,13 @@ class CohortFile < ApplicationRecord
   # Links must point at a public host. Every range below is local, private,
   # shared (CGNAT), link-local, reserved, multicast or documentation-only.
   NON_PUBLIC_IPV4 = %w[0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.0.2.0/24
-    192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4].map { |range| IPAddr.new(range) }.freeze
+    192.88.99.0/24 192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4].map { |range| IPAddr.new(range) }.freeze
   GLOBAL_IPV6 = IPAddr.new("2000::/3")
+  # Local-only names, refused on their own and as a suffix.
+  LOCAL_NAMES = %w[localhost local internal home.arpa].freeze
+  # IANA special-use blocks inside 2000::/3: Teredo, benchmarking, ORCHID,
+  # ORCHIDv2, documentation, 6to4 and the newer documentation block.
+  NON_PUBLIC_IPV6 = %w[2001::/32 2001:2::/48 2001:10::/28 2001:20::/28 2001:db8::/32 2002::/16 3fff::/20].map { |range| IPAddr.new(range) }.freeze
   # Dotted labels of letters, digits and hyphens, ending in an alphabetic
   # (or punycode) top-level label, so bare names and numeric hosts fail.
   PUBLIC_HOSTNAME = /\A(?=.{4,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})\z/
@@ -223,11 +228,11 @@ class CohortFile < ApplicationRecord
 
     address = IPAddr.new(host)
     address = address.native if address.ipv6? && address.ipv4_mapped?
-    return !GLOBAL_IPV6.include?(address) if address.ipv6?
+    return !GLOBAL_IPV6.include?(address) || NON_PUBLIC_IPV6.any? { |range| range.include?(address) } if address.ipv6?
 
     NON_PUBLIC_IPV4.any? { |range| range.include?(address) }
   rescue IPAddr::InvalidAddressError
-    return true if host.end_with?(".localhost", ".local", ".internal", ".home.arpa")
+    return true if LOCAL_NAMES.any? { |name| host == name || host.end_with?(".#{name}") }
 
     !host.match?(PUBLIC_HOSTNAME)
   end

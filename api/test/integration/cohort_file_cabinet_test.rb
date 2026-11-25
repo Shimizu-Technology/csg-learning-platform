@@ -451,4 +451,103 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
       assert_equal [ "text", "Week 1 notes" ], response.parsed_body.values_at("preview_mode", "text")
     end
   end
+
+  test "abandoning a paused publish never removes an upload or version another request just published" do
+    with_storage do
+      as_user(@student) { post versions_path(@mine), params: version_params(filename: "resume-v2.pdf"), headers: headers, as: :json }
+      version = CohortFileVersion.find(response.parsed_body.dig("version", "id"))
+      as_user(@student) { post files_path, params: upload_params, headers: headers, as: :json }
+      pending = CohortFile.find(response.parsed_body.dig("file", "id"))
+      enrollment_id = @enrollment.id
+      S3Service.define_singleton_method(:copy_object) { |*, **| Enrollment.where(id: enrollment_id).update_all(status: Enrollment.statuses.fetch("paused"), paused_at: Time.current) }
+      original_lock = CohortFile.instance_method(:with_lock)
+      published_elsewhere = nil
+      # A staff publish commits after the paused publish rolls back, before its abandon takes the lock.
+      CohortFile.define_method(:with_lock) do |*args, &block|
+        published_elsewhere&.call
+        original_lock.bind_call(self, *args, &block)
+      end
+      begin
+        record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+          published_elsewhere = -> { CohortFileVersion.where(id: version.id).update_all(ready: true, ready_at: Time.current) }
+          as_user(@student) { post complete_version_path(@mine, version), headers: headers }
+          assert_response :forbidden
+          Enrollment.where(id: enrollment_id).update_all(status: Enrollment.statuses.fetch("active"), paused_at: nil)
+          published_elsewhere = -> { CohortFile.where(id: pending.id).update_all(ready: true, ready_at: Time.current, shared_at: Time.current) }
+          as_user(@student) { post complete_path(pending), headers: headers }
+          assert_response :forbidden
+          assert_empty deletes
+        end
+      ensure
+        CohortFile.define_method(:with_lock, original_lock)
+      end
+      assert CohortFileVersion.find(version.id).ready?
+      assert CohortFile.find(pending.id).ready?
+      assert_not PendingS3Deletion.where(key: [ version.s3_key, pending.s3_key ]).exists?
+    end
+  end
+
+  test "a learner whose enrollment is deleted mid-publish gets 403 and the pending upload is cleaned" do
+    with_storage do
+      as_user(@student) { post files_path, params: upload_params, headers: headers, as: :json }
+      pending = CohortFile.find(response.parsed_body.dig("file", "id"))
+      enrollment_id = @enrollment.id
+      S3Service.define_singleton_method(:copy_object) { |*, **| Enrollment.where(id: enrollment_id).delete_all }
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        as_user(@student) { post complete_path(pending), headers: headers }
+        assert_response :forbidden
+        assert_equal [ pending.upload_key, pending.s3_key ].sort, deletes.map { |call| call[:args].first }.sort
+      end
+      assert_not CohortFile.exists?(pending.id)
+    end
+  end
+
+  test "a learner's publish locks their enrollment before the file" do
+    with_storage do
+      as_user(@student) { post files_path, params: upload_params, headers: headers, as: :json }
+      pending = CohortFile.find(response.parsed_body.dig("file", "id"))
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+      as_user(@student) { post complete_path(pending), headers: headers }
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+      assert_response :success
+      enrollment = statements.index { |sql| sql.match?(/FROM "enrollments".*FOR UPDATE/m) }
+      file = statements.index { |sql| sql.match?(/FROM "cohort_files".*FOR UPDATE/m) }
+      assert enrollment && file && enrollment < file, statements.grep(/FOR UPDATE/).join("\n")
+    end
+  end
+
+  test "deleting while storage is not configured keeps every key queued until storage can delete it" do
+    as_user(@student) { post versions_path(@mine), params: version_params, headers: headers, as: :json }
+    assert_response :service_unavailable
+    keys = [ @mine.upload_key, @mine.s3_key ]
+    as_user(@student) { delete file_path(@mine), headers: headers }
+    assert_response :no_content
+    assert_equal keys.sort, PendingS3Deletion.where(key: keys).pluck(:key).sort
+    with_storage do
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        assert_equal 2, PendingS3Deletion.drain!(now: 1.hour.from_now)
+        assert_equal keys.sort, deletes.map { |call| call[:args].first }.sort
+      end
+    end
+    assert_not PendingS3Deletion.where(key: keys).exists?
+  end
+
+  test "staff version history ignores version_id, so current always marks the file's own version" do
+    with_storage do
+      as_user(@teacher) { post versions_path(@slides), params: version_params, headers: headers, as: :json }
+      version = CohortFileVersion.find(response.parsed_body.dig("version", "id"))
+      as_user(@teacher) { post complete_version_path(@slides, version), headers: headers }
+      first = @slides.versions.find_by!(version_number: 1)
+      as_user(@teacher) { get versions_path(@slides), params: { version_id: first.id }, headers: headers }
+      assert_equal [ [ 2, true ], [ 1, false ] ], response.parsed_body.fetch("versions").map { |row| row.values_at("version_number", "current") }
+    end
+  end
+
+  test "a link without a title takes its host, cut to the title limit" do
+    host = "#{Array.new(4) { 'a' * 60 }.join('.')}.com"
+    as_user(@teacher) { post files_path, params: link_params(external_url: "https://#{host}/path", title: ""), headers: headers, as: :json }
+    assert_response :created
+    assert_equal host[0, 160], response.parsed_body.dig("file", "title")
+  end
 end

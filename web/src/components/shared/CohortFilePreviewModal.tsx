@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { Download, ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
+  CSV_PREVIEW_LIMITS,
   downloadCohortFile,
   formatFileSize,
   parseCsv,
@@ -104,25 +105,31 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
     <Modal open={open} onClose={close} title={file.title} subtitle={subtitle} size="xl" fixedHeight
       footer={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {versions.length > 1 ? (
-            <label className="flex flex-col gap-1 text-sm font-medium text-ink sm:flex-row sm:items-center sm:gap-2" htmlFor={`${id}-version`}>
-              Version
-              <select id={`${id}-version`} className="app-control w-full sm:w-auto" value={versionId ?? ''}
-                onChange={(event) => setVersionId(event.target.value ? Number(event.target.value) : null)}>
-                {versions.map((version) => (
-                  <option key={version.id} value={version.current ? '' : version.id}>
-                    {`v${version.version_number}${version.current ? ' (current)' : ''}${version.note ? ` · ${version.note}` : ''}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : versionsError ? (
-            <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger-ink">
-              <span>{versionsError}</span>
-              <Button size="sm" variant="secondary" onClick={() => setVersionsAttempt((value) => value + 1)}>
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Retry
-              </Button>
+          {versions.length > 1 || versionsError ? (
+            <div className="flex flex-col gap-2">
+              {versions.length > 1 && (
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink sm:flex-row sm:items-center sm:gap-2" htmlFor={`${id}-version`}>
+                  Version
+                  <select id={`${id}-version`} className="app-control w-full sm:w-auto" value={versionId ?? ''}
+                    onChange={(event) => setVersionId(event.target.value ? Number(event.target.value) : null)}>
+                    {versions.map((version) => (
+                      <option key={version.id} value={version.current ? '' : version.id}>
+                        {`v${version.version_number}${version.current ? ' (current)' : ''}${version.note ? ` · ${version.note}` : ''}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {/* A failed refresh still shows, with Retry, even when an earlier list is on screen. */}
+              {versionsError && (
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger-ink">
+                  <span>{versionsError}</span>
+                  <Button size="sm" variant="secondary" onClick={() => setVersionsAttempt((value) => value + 1)}>
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Retry
+                  </Button>
+                </div>
+              )}
             </div>
           ) : <span className="hidden sm:block" />}
           <div className="flex flex-wrap gap-2">
@@ -225,7 +232,7 @@ function PreviewBody({ preview, title }: { preview: CohortFilePreview; title: st
 }
 
 function CsvTable({ text, note }: { text: string; note: React.ReactNode }) {
-  const { rows, clipped } = useMemo(() => parseCsv(text), [text])
+  const { rows, clippedRows, clippedColumns } = useMemo(() => parseCsv(text), [text])
   if (!rows.length) return <p className="text-sm text-ink-secondary">This CSV file is empty.</p>
   const [header, ...body] = rows
   return (
@@ -243,9 +250,15 @@ function CsvTable({ text, note }: { text: string; note: React.ReactNode }) {
           </tbody>
         </table>
       </div>
-      {clipped && <p className="mt-2 text-xs text-ink-muted">Showing the first 500 rows.</p>}
+      {(clippedRows || clippedColumns) && <p className="mt-2 text-xs text-ink-muted">{csvClippedNote(clippedRows, clippedColumns)}</p>}
     </div>
   )
+}
+
+/** Says which part of a large CSV the preview leaves out. */
+function csvClippedNote(rows: boolean, columns: boolean) {
+  const parts = [rows && `${CSV_PREVIEW_LIMITS.rows} rows`, columns && `${CSV_PREVIEW_LIMITS.columns} columns`].filter(Boolean).join(' and ')
+  return `Showing the first ${parts}. Download the file to see all of it.`
 }
 
 function Unavailable() {

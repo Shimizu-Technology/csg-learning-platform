@@ -127,6 +127,8 @@ describe('Resources course switching', () => {
     expect(mine.textContent).toContain('Uploads are paused')
     expect(mine.textContent).toContain('Added by you')
     expect(mine.textContent).toContain('Shared by your instructor')
+    // Even a file still marked manageable gets no version upload while uploads are paused.
+    expect(mine.querySelector('button[aria-label^="Upload new version"]')).toBeNull()
     const deletes = [...mine.querySelectorAll<HTMLButtonElement>('button[aria-label^="Delete"]')]
     expect(deletes.map((button) => button.getAttribute('aria-label'))).toEqual(['Delete Resume Draft v1'])
     await act(async () => deletes[0].click())

@@ -6,7 +6,7 @@ import { AuthoredContent } from '@/components/authored-content';
 import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { fonts, monoFont } from '@/constants/csg-theme';
-import { parseCsv, safeHttpsUrl, type CohortFilePreview } from '@/lib/cohort-files';
+import { CSV_PREVIEW_LIMITS, parseCsv, safeHttpsUrl, type CohortFilePreview } from '@/lib/cohort-files';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 
 /**
@@ -38,11 +38,12 @@ export function CohortFilePreviewModal({ title, preview, onClose, onDownload }: 
 
 function CsvTable({ text }: { text: string }) {
   const styles = useStyles();
-  const rows = parseCsv(text);
+  const { rows, clippedRows, clippedColumns } = parseCsv(text);
   if (!rows.length) return <Text style={styles.meta}>This CSV file is empty.</Text>;
-  return <ScrollView horizontal accessibilityLabel="CSV preview">
+  const clipped = [clippedRows && `${CSV_PREVIEW_LIMITS.rows} rows`, clippedColumns && `${CSV_PREVIEW_LIMITS.columns} columns`].filter(Boolean).join(' and ');
+  return <View style={styles.csv}>{clipped ? <Text style={styles.notice}>Showing the first {clipped}. Download the file to see all of it.</Text> : null}<ScrollView horizontal accessibilityLabel="CSV preview">
     <View style={styles.table}>{rows.map((row, rowIndex) => <View key={rowIndex} style={[styles.tableRow, rowIndex === 0 && styles.tableHead]}>{row.map((cell, index) => <Text key={index} numberOfLines={3} style={[styles.cell, rowIndex === 0 && styles.headCell]}>{cell}</Text>)}</View>)}</View>
-  </ScrollView>;
+  </ScrollView></View>;
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
@@ -53,7 +54,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   body: { padding: 20, gap: 12 }, notice: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, borderRadius: 12, backgroundColor: c.surface.sunken, padding: 12 },
   mono: { color: c.text.strong, fontFamily: monoFont, fontSize: 13, lineHeight: 19 },
   image: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: c.surface.sunken },
-  table: { borderWidth: 1, borderColor: c.border.subtle, borderRadius: 12, overflow: 'hidden' }, tableRow: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, tableHead: { backgroundColor: c.surface.sunken, borderTopWidth: 0 },
+  csv: { gap: 10 }, table: { borderWidth: 1, borderColor: c.border.subtle, borderRadius: 12, overflow: 'hidden' }, tableRow: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, tableHead: { backgroundColor: c.surface.sunken, borderTopWidth: 0 },
   cell: { width: 140, paddingHorizontal: 10, paddingVertical: 8, color: c.text.body, fontFamily: fonts.regular, fontSize: 12 }, headCell: { color: c.text.strong, fontFamily: fonts.bold },
   footer: { paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
 }));

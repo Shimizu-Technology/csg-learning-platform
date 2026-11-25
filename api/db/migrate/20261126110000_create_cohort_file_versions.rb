@@ -24,8 +24,10 @@ class CreateCohortFileVersions < ActiveRecord::Migration[8.1]
   end
 
   # Dropping version rows would orphan their stored objects, so a rollback
-  # refuses while any exist.
+  # refuses while any exist. The table lock (held until the migration's
+  # transaction ends) stops a version being inserted after the check.
   def down
+    execute "LOCK TABLE cohort_file_versions IN ACCESS EXCLUSIVE MODE"
     if select_value("SELECT 1 FROM cohort_file_versions LIMIT 1")
       raise ActiveRecord::IrreversibleMigration, "Delete cohort file versions (and their stored objects) before rolling back"
     end

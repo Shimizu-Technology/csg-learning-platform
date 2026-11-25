@@ -18,6 +18,7 @@ let root: Root
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.uploadCohortFile.mockReset()
+  mocks.abandonCohortUpload.mockReset()
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
@@ -90,12 +91,38 @@ it('retries a failed row with the same upload state, so a lost confirmation neve
 })
 
 it('abandons a failed row\'s pending file when it is removed', async () => {
+  mocks.abandonCohortUpload.mockResolvedValue(undefined)
   mocks.uploadCohortFile.mockImplementationOnce(async (...args: unknown[]) => { Object.assign(args[4] as object, { fileId: 42 }); throw new Error('Network lost') })
   await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={vi.fn()} />))
   await choose([pdf('notes.pdf')])
   await act(async () => button('Upload file').click())
   await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove notes.pdf"]')!.click())
   expect(mocks.abandonCohortUpload).toHaveBeenCalledWith(4, expect.objectContaining({ fileId: 42 }))
+  expect(container.querySelector('ul[aria-label="Files to upload"]')).toBeNull()
+})
+
+it('keeps a row with an error when its pending file could not be abandoned', async () => {
+  mocks.abandonCohortUpload.mockRejectedValue(new Error('Server error'))
+  mocks.uploadCohortFile.mockImplementationOnce(async (...args: unknown[]) => { Object.assign(args[4] as object, { fileId: 43 }); throw new Error('Network lost') })
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={vi.fn()} />))
+  await choose([pdf('notes.pdf')])
+  await act(async () => button('Upload file').click())
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove notes.pdf"]')!.click())
+  expect(container.querySelectorAll('ul[aria-label="Files to upload"] li')).toHaveLength(1)
+  expect(container.textContent).toContain("Couldn't cancel this upload. Server error")
+})
+
+it('stops a running batch when the uploader unmounts, before starting the next file', async () => {
+  let release: () => void = () => {}
+  mocks.uploadCohortFile.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ id: 1, title: 'a' }) }))
+    .mockResolvedValue({ id: 2, title: 'b' })
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={vi.fn()} />))
+  await choose([pdf('a.pdf'), pdf('b.pdf'), pdf('c.pdf')])
+  await act(async () => { button('Upload 3 files').click() })
+  // Another student's folder opens: this uploader goes away mid-batch.
+  await act(async () => root.render(<p>Another folder</p>))
+  await act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+  expect(mocks.uploadCohortFile).toHaveBeenCalledTimes(1)
 })
 
 it('reads each waiting row when its turn comes: removed rows are skipped and edited titles are used', async () => {
