@@ -1,5 +1,5 @@
-export type StudentWorkspaceTab = 'overview' | 'activity' | 'work' | 'learning' | 'support' | 'communication' | 'access'
-export type CohortWorkspaceTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings' | 'settings'
+export type StudentWorkspaceTab = 'overview' | 'activity' | 'work' | 'learning' | 'support' | 'communication' | 'files' | 'access'
+export type CohortWorkspaceTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings' | 'files' | 'settings'
 
 export function announcementPath(announcementId: number) {
   return `/announcements/${announcementId}`

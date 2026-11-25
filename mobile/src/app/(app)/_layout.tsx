@@ -66,6 +66,7 @@ export default function AppLayout() {
       <Stack.Screen name="recording/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/student/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/access" options={{ title: 'Student access' }} />
+      <Stack.Screen name="staff/files" options={{ headerShown: false }} />
       <Stack.Screen name="staff/submission/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="my-work" options={{ headerShown: false }} />
       <Stack.Screen name="staff/grading" options={{ headerShown: false }} />

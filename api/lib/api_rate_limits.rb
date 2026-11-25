@@ -39,7 +39,7 @@ module ApiRateLimits
     when :uploads
       action.include?("presign") ||
         (controller == "api/v1/uploads" && action == "multipart_initiate") ||
-        (controller == "api/v1/curriculum_resources" && action == "create")
+        (controller.in?([ "api/v1/curriculum_resources", "api/v1/cohort_files" ]) && action == "create")
     when :enrollment
       (controller == "api/v1/users" && action.in?([ "create", "resend_invite" ])) ||
         (controller == "api/v1/enrollments" && action.in?([ "create", "bulk" ]))

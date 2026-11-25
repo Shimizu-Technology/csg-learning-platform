@@ -128,6 +128,11 @@ class Enrollment < ApplicationRecord
     resource.ready? && media_available_for_read?(resource.created_at, resource.ready_at || resource.updated_at)
   end
 
+  # Class and private-folder files follow the course-file pause cutoff.
+  def file_available_for_read?(cohort_file)
+    cohort_file.ready? && media_available_for_read?(cohort_file.created_at, cohort_file.ready_at || cohort_file.updated_at)
+  end
+
   def record_pause_date
     self.paused_at = paused? ? Time.current : nil if will_save_change_to_status?
   end

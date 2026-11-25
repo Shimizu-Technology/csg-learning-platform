@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -177,6 +177,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
     t.index ["issuer", "clerk_user_id"], name: "index_clerk_identities_on_issuer_and_clerk_user_id", unique: true
     t.index ["user_id", "issuer"], name: "index_clerk_identities_on_user_id_and_issuer", unique: true
     t.index ["user_id"], name: "index_clerk_identities_on_user_id"
+  end
+
+  create_table "cohort_files", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.bigint "student_id"
+    t.bigint "uploaded_by_id"
+    t.bigint "source_file_id"
+    t.string "folder", limit: 80, default: "General", null: false
+    t.string "visibility", limit: 20, default: "students", null: false
+    t.string "title", limit: 160, null: false
+    t.text "description"
+    t.string "filename", limit: 180, null: false
+    t.string "content_type", limit: 160, null: false
+    t.bigint "file_size", null: false
+    t.string "s3_key", null: false
+    t.string "upload_key", null: false
+    t.datetime "upload_expires_at", null: false
+    t.boolean "ready", default: false, null: false
+    t.datetime "ready_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cohort_id", "folder"], name: "index_cohort_files_on_cohort_id_and_folder"
+    t.index ["cohort_id", "student_id", "ready"], name: "index_cohort_files_on_cohort_id_and_student_id_and_ready"
+    t.index ["cohort_id", "student_id", "source_file_id"], name: "index_cohort_files_one_copy_per_student", unique: true, where: "((source_file_id IS NOT NULL) AND (student_id IS NOT NULL))"
+    t.index ["s3_key"], name: "index_cohort_files_on_s3_key", unique: true
+    t.index ["source_file_id"], name: "index_cohort_files_on_source_file_id"
+    t.index ["student_id"], name: "index_cohort_files_on_student_id"
+    t.index ["upload_key"], name: "index_cohort_files_on_upload_key", unique: true
+    t.index ["uploaded_by_id"], name: "index_cohort_files_on_uploaded_by_id"
   end
 
   create_table "cohort_instructor_assignments", force: :cascade do |t|
@@ -1684,6 +1713,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
   add_foreign_key "channels", "cohorts"
   add_foreign_key "channels", "workspaces"
   add_foreign_key "clerk_identities", "users"
+  add_foreign_key "cohort_files", "cohort_files", column: "source_file_id", on_delete: :nullify
+  add_foreign_key "cohort_files", "cohorts", on_delete: :cascade
+  add_foreign_key "cohort_files", "users", column: "student_id", on_delete: :cascade
+  add_foreign_key "cohort_files", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "cohort_instructor_assignments", "cohorts"
   add_foreign_key "cohort_instructor_assignments", "users"
   add_foreign_key "cohort_instructor_assignments", "users", column: "edit_granted_by_id", name: "fk_cohort_instructor_assignments_edit_granted_by", on_delete: :nullify

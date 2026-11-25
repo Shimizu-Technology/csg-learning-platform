@@ -2,6 +2,7 @@ import { Eye, Settings2, Users } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { BulkEnrollment } from '../../components/admin/BulkEnrollment'
 import { CohortEnrollment } from '../../components/admin/CohortEnrollment'
+import { CohortFilesPanel } from '../../components/admin/CohortFilesPanel'
 import { CohortHomePanel } from '../../components/admin/CohortHomePanel'
 import { CohortScheduleManager } from '../../components/admin/CohortScheduleManager'
 import { CohortSetupChecklist } from '../../components/admin/CohortSetupChecklist'
@@ -258,6 +259,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
             <RecordingUploadManager key={cohort.id} cohortId={cohort.id} editRecordingId={Number(searchParams.get('edit_recording')) || null} />
           </section>
         )}
+        {activeTab === 'files' && <CohortFilesPanel key={cohort.id} cohortId={cohort.id} />}
         {activeTab === 'insights' && (
           <Insights
             cohort={cohort}

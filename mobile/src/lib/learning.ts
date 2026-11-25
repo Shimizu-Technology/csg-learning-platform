@@ -12,6 +12,7 @@ export const learningKeys = {
   learningObjectives: (userId: number, curriculumId: number) => ['learning', userId, 'learning-objectives', curriculumId] as const,
   rubrics: (userId: number, curriculumId: number) => ['learning', userId, 'rubrics', curriculumId] as const,
   resources: (userId: number) => ['learning', userId, 'resources'] as const,
+  cohortFiles: (userId: number, cohortId: number) => ['learning', userId, 'cohort-files', cohortId] as const,
   recordings: (userId: number, cohortId?: number | null) => ['learning', userId, 'recordings', ...(cohortId ? [cohortId] : [])] as const,
   profile: (userId: number) => ['learning', userId, 'profile'] as const,
   studentDetail: (userId: number, studentId: number, cohortId?: number) => ['learning', userId, 'staff-student', cohortId || 'active', studentId] as const,

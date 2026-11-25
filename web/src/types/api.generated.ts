@@ -6798,10 +6798,358 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Class files and private student folders
+         * @description Staff (admins, or instructors assigned to the cohort) get every ready class file, including `staff_only` staged files, and `student_folders`: one per active or paused enrollment, even with no files. Students with read access get `class_files` (ready, visible to students, available before any pause) and `my_files` (their own folder, same rules); they never receive `student_folders`. `can_upload_personal` is true only for a student whose enrollment is active and unexpired. 403 outside the viewer's cohorts.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFilesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Start a class file or student folder upload
+         * @description Creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file (staff only); pass an enrolled student's id for their private folder. Students may upload only to their own folder, only while active, and only with `visibility: students`. Allowed types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 when storage is not configured. Shares the uploads rate limit.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortFileCreateInput"];
+                };
+            };
+            responses: {
+                /** @description Upload started */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileUploadResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a file and its stored objects
+         * @description Staff may delete any file in the cohort; a student only files they uploaded to their own folder. 502 when the stored object could not be removed.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Rename, move, share or stage a file
+         * @description Staff may change `title`, `description`, `folder` and `visibility`; a student only `title`, `description` and `folder` of files they uploaded to their own folder, while active. Other students' and staff files are 404 to a student.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortFileUpdateInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish an uploaded file
+         * @description Checks the staged object's type and size, copies it to its published key, and marks the file ready. Repeating it on a ready file returns the file unchanged. 422 when the upload expired or does not match.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Short-lived download link
+         * @description Returns an uncached presigned URL that downloads as an attachment. Students may download only ready class files visible to students and their own folder (others are 404), only if available before a pause (403), and the link never outlives course access.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileDownloadResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/copy_to_students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy a class file into every active student's folder
+         * @description Staff only. The source must be a ready class file (422 otherwise). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ "folder": string }` names the folder for the copies; it defaults to the source's folder.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileCopyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CohortFile: {
+            id: number;
+            cohort_id: number;
+            /** @description Null for a class file; the student's user id for a private folder file. */
+            student_id: number | null;
+            /** @description The class file this was copied from. */
+            source_file_id: number | null;
+            folder: string;
+            /** @enum {string} */
+            visibility: "students" | "staff_only";
+            title: string;
+            description: string | null;
+            filename: string;
+            content_type: string;
+            file_size: number;
+            ready: boolean;
+            ready_at: string | null;
+            created_at: string;
+            uploaded_by_name: string | null;
+            /** @enum {string|null} */
+            uploaded_by_role: "student" | "staff" | null;
+            /** @description Whether this viewer may rename or delete the file. */
+            can_manage: boolean;
+        };
+        CohortStudentFolder: {
+            student_id: number;
+            enrollment_id: number;
+            student_name: string;
+            student_email: string;
+            /** @enum {string} */
+            enrollment_status: "active" | "paused" | "expired";
+            file_count: number;
+            files: components["schemas"]["CohortFile"][];
+        };
+        CohortFilesResponse: {
+            class_files: components["schemas"]["CohortFile"][];
+            /** @description Students only. */
+            my_files?: components["schemas"]["CohortFile"][];
+            /** @description Staff only. */
+            student_folders?: components["schemas"]["CohortStudentFolder"][];
+            folders: string[];
+            storage_configured: boolean;
+            can_upload_personal: boolean;
+        };
+        CohortFileResponse: {
+            file: components["schemas"]["CohortFile"];
+        };
+        CohortFileUploadResponse: {
+            file: components["schemas"]["CohortFile"];
+            upload_url: string;
+            fields: {
+                [key: string]: string;
+            };
+        };
+        CohortFileDownloadResponse: {
+            url: string;
+            expires_in: number;
+            filename: string;
+        };
+        CohortFileCopyResponse: {
+            copied_count: number;
+            skipped_count: number;
+            files: components["schemas"]["CohortFile"][];
+        };
+        CohortFileCreateInput: {
+            filename: string;
+            content_type: string;
+            file_size: number;
+            title?: string;
+            description?: string;
+            folder?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+            student_id?: number;
+        };
+        CohortFileUpdateInput: {
+            title?: string;
+            description?: string;
+            folder?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+        };
         NotificationEntry: {
             destination: components["schemas"]["RecordDestination"] | null;
             destination_path: null | string;

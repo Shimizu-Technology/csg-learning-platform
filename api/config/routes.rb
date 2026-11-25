@@ -265,6 +265,15 @@ Rails.application.routes.draw do
 
         resources :office_hours, only: [ :index, :create, :update, :destroy ]
 
+        # Shared class files and per-student private folders (S3-backed)
+        resources :files, only: [ :index, :create, :update, :destroy ], controller: "cohort_files" do
+          member do
+            post :complete
+            get :download
+            post :copy_to_students
+          end
+        end
+
         # S3-backed recordings
         resources :recordings, only: [ :index, :show, :create, :update, :destroy ] do
           get :lesson_options, on: :collection

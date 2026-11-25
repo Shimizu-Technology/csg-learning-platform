@@ -1,4 +1,4 @@
-import { Activity, BookOpen, FileCheck2, KeyRound, LifeBuoy, MessageSquareText, UserRound } from 'lucide-react'
+import { Activity, BookOpen, FileCheck2, FolderLock, KeyRound, LifeBuoy, MessageSquareText, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuthContext } from '../../../contexts/AuthContext'
@@ -22,6 +22,7 @@ export const tabs: Array<{ id: StudentWorkspaceTab; label: string; icon: typeof 
   { id: 'learning', label: 'Learning', icon: BookOpen },
   { id: 'support', label: 'Support', icon: LifeBuoy },
   { id: 'communication', label: 'Communication', icon: MessageSquareText },
+  { id: 'files', label: 'Files', icon: FolderLock },
   { id: 'access', label: 'Access', icon: KeyRound },
 ]
 
