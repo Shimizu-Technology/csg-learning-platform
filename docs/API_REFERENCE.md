@@ -1108,7 +1108,7 @@ Each cohort has shared class files and one private folder per enrolled student (
 - `DELETE /api/v1/cohorts/:cohort_id/files/:id`: staff delete any file; learners only their own uploads. Removes stored objects first (502 if that fails).
 - `POST /api/v1/cohorts/:cohort_id/files/:id/copy_to_students`: staff copy a ready class file into every active student's folder (optional `folder`). Returns `copied_count` and `skipped_count`; students who already have a copy are skipped, enforced by a unique index.
 
-Staging is under `cohort_file_uploads/`; published files use `cohort_files/cohort_<id>/shared/` or `.../student_<id>/`. The same staging-only expiration policy applies.
+Staging is under `cohort_file_uploads/`; published files use `cohort_files/cohort_<id>/shared/` or `.../student_<id>/`. The same staging-only expiration policy applies. Object deletions that fail after a file or cohort is deleted, or after a copy rolls back, are queued in `pending_s3_deletions` and retried hourly by the scheduled tick (`s3_cleanup_retries`) with backoff; expired pending uploads are purged under the row lock, so a publish that commits first is kept.
 
 ## Enrollment access deadlines
 

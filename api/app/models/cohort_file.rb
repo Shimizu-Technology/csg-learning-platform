@@ -73,6 +73,8 @@ class CohortFile < ApplicationRecord
   # Set when a caller has already removed this file's objects (and reported
   # any failure) before destroying the row.
   attr_accessor :storage_cleaned
+  # Set when only the staging upload should be removed after destroy.
+  attr_accessor :staging_only_cleanup
 
   validates :title, presence: true, length: { maximum: 160 }
   validates :folder, presence: true, length: { maximum: 80 }
@@ -128,8 +130,21 @@ class CohortFile < ApplicationRecord
   end
 
   # Pending uploads whose presigned POST expired can never be published.
+  # Each row is rechecked under the same lock `complete` takes, so a publish
+  # that commits first is kept. Only the staging object is removed: an
+  # unready row has no published object to delete.
   def self.purge_expired_pending!(scope = all, now: Time.current, limit: 50)
-    scope.where(ready: false).where(upload_expires_at: ...now).limit(limit).each(&:destroy!)
+    scope.where(ready: false).where(upload_expires_at: ...now).limit(limit).pluck(:id).each do |id|
+      file = find_by(id: id)
+      next unless file
+
+      file.with_lock do
+        next if file.ready? || file.upload_expires_at >= now
+
+        file.staging_only_cleanup = true
+        file.destroy!
+      end
+    end
   end
 
   def class_file?
@@ -178,14 +193,12 @@ class CohortFile < ApplicationRecord
     end
   end
 
+  # Runs after the deletion commits. A failed delete is queued for retry.
   def delete_stored_objects
     return if storage_cleaned
 
-    [ upload_key, s3_key ].each do |key|
-      next if S3ObjectCleanup.delete_if_unreferenced(key)
-
-      Rails.logger.warn("[CohortFiles] stored_object_cleanup_failed file_id=#{id}")
-    end
+    keys = staging_only_cleanup ? [ upload_key ] : [ upload_key, s3_key ]
+    keys.each { |key| S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_destroyed") }
   end
 
   def allowed_file_type

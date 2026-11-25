@@ -32,6 +32,10 @@ class ScheduledTick
     # Hourly, so a 24h or 48h reminder lands within the hour it becomes due;
     # it sends nothing 21:00-08:00 school time (W9.3).
     Task.new(name: "learner_nudges", daily_hour: nil, call: ->(now, _last_date, metrics) { LearnerNudges.new.call(now: now, metrics: metrics) }),
+    # Hourly: retry stored-object deletions that failed (class and student files).
+    # Storage calls run outside the global advisory-lock transaction; each key
+    # takes its own short lock in S3ObjectCleanup.
+    Task.new(name: "s3_cleanup_retries", daily_hour: nil, hold_lock: false, call: ->(now, _last_date, metrics) { PendingS3Deletion.drain!(now: now, metrics: metrics) }),
     # Bounded batched pruning of expired webhook delivery receipts (X-6.5).
     Task.new(name: "github_webhook_retention", daily_hour: nil, call: ->(now, _last_date, metrics) { GithubWebhookDelivery.prune_for_tick!(now: now, metrics: metrics) }),
     # Hourly: reconcile opted-in GitHub App bindings, replay staged webhooks, refresh

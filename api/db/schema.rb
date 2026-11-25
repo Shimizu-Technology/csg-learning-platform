@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -1166,6 +1166,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_100000) do
     t.index ["cohort_id", "event_kind", "active"], name: "index_office_hours_on_cohort_kind_and_active"
     t.index ["cohort_id"], name: "index_office_hours_on_cohort_id"
     t.index ["created_by_id"], name: "index_office_hours_on_created_by_id"
+  end
+
+  create_table "pending_s3_deletions", force: :cascade do |t|
+    t.string "key", limit: 1024, null: false
+    t.string "reason", limit: 80, null: false
+    t.integer "attempts", default: 0, null: false
+    t.datetime "next_attempt_at", null: false
+    t.string "last_error", limit: 200
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_pending_s3_deletions_on_key", unique: true
+    t.index ["next_attempt_at"], name: "index_pending_s3_deletions_on_next_attempt_at"
   end
 
   create_table "private_meeting_booking_events", force: :cascade do |t|

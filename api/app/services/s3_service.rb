@@ -110,8 +110,12 @@ class S3Service
 
     # The first bytes of an object, for checking an upload is the format it
     # claims to be. Nil when the object is missing.
-    def read_prefix(key, bytes: 512)
-      s3_client.get_object(bucket: bucket_name, key: key, range: "bytes=0-#{bytes - 1}").body.read
+    # Pass the HEAD etag as `if_match` so the bytes checked are the object
+    # about to be copied; a changed object raises PreconditionFailed.
+    def read_prefix(key, bytes: 512, if_match: nil)
+      options = { bucket: bucket_name, key: key, range: "bytes=0-#{bytes - 1}" }
+      options[:if_match] = if_match if if_match
+      s3_client.get_object(**options).body.read
     rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
       nil
     end

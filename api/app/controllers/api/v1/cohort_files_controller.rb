@@ -89,7 +89,8 @@ module Api
             render json: { error: "Uploaded file is missing or does not match its declared size and type" }, status: :unprocessable_entity
             return
           end
-          unless CohortFile.content_matches?(file.filename, S3Service.read_prefix(file.upload_key))
+          # Bound to the HEAD etag, so the checked bytes are the object copied below.
+          unless CohortFile.content_matches?(file.filename, S3Service.read_prefix(file.upload_key, if_match: metadata.fetch(:etag)))
             render json: { error: "This file's contents don't match its .#{CohortFile.extension_for(file.filename)} type. Export it again and re-upload." },
               status: :unprocessable_entity
             return
@@ -101,6 +102,9 @@ module Api
         # Delete staging only once `ready` commits, so a rolled-back publish can retry.
         ActiveRecord.after_all_transactions_commit { delete_staging_upload(file) }
         render json: { file: file.file_json(can_manage: true) }
+      rescue Aws::S3::Errors::PreconditionFailed
+        # The staged object was replaced between the size check and the read or copy.
+        render json: { error: "Upload changed while confirming; try again" }, status: :unprocessable_entity
       rescue Aws::S3::Errors::ServiceError => error
         storage_error(error)
       end
@@ -263,8 +267,9 @@ module Api
         current_user.id
       end
 
-      # Validates the copy before touching storage. If saving fails after the
-      # object was copied, the copy is removed again (or logged for cleanup).
+      # Validates the copy before touching storage. If the copy or the save
+      # fails (even ambiguously, e.g. a timeout after S3 copied), the copied
+      # object is removed, or queued for a durable retry.
       def copy_for(source, student_id, folder)
         token = SecureRandom.uuid
         copy = @cohort.cohort_files.new(
@@ -276,8 +281,8 @@ module Api
           upload_expires_at: Time.current, ready: true
         )
         copy.validate!
-        S3Service.copy_object(source.s3_key, copy.s3_key)
         begin
+          S3Service.copy_object(source.s3_key, copy.s3_key)
           copy.save!
         rescue ActiveRecord::RecordNotUnique => error
           remove_copied_object(copy.s3_key)
@@ -294,9 +299,9 @@ module Api
       end
 
       def remove_copied_object(key)
-        return if S3ObjectCleanup.delete_if_unreferenced(key)
+        return unless S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_copy_rolled_back") == :failed
 
-        Rails.logger.error("[CohortFiles] orphaned_copy_cleanup_failed key=#{key}")
+        Rails.logger.error("[CohortFiles] copy_cleanup_queued_for_retry")
       end
 
       def delete_staging_upload(file)

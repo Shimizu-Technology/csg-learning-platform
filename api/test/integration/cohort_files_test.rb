@@ -36,6 +36,8 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
     @copied = []
     @metadata = { content_type: "application/pdf", content_length: 123, etag: "fixture-etag" }
     @prefix = "%PDF-1.7\n%synthetic".b
+    @prefix_reads = []
+    @prefix_error = nil
   end
 
   test "students see visible class files and only their own folder" do
@@ -207,7 +209,8 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
         assert_response :created
         assert_not CohortFile.exists?(@pending.id)
         assert CohortFile.exists?(other.id)
-        assert_equal [ @pending.upload_key, @pending.s3_key ].sort, deletes.map { |call| call[:args].first }.sort
+        # An unready row has no published object; only its staging upload is removed.
+        assert_equal [ @pending.upload_key ], deletes.map { |call| call[:args].first }
         assert_empty still_referenced
       end
     end
@@ -260,6 +263,7 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
         assert_response :success
         assert file.reload.ready?
         assert_equal [ [ file.upload_key, file.s3_key, "fixture-etag" ] ], @copied
+        assert_equal [ [ file.upload_key, "fixture-etag" ] ], @prefix_reads
         assert_equal [ [ file.upload_key ] ], deletes.map { |call| call[:args] }
         assert_sent_after_commit(deletes, "staging delete")
       end
@@ -421,6 +425,39 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
     assert_response :service_unavailable
   end
 
+  test "an upload replaced while confirming is not published" do
+    @pending.update!(file_size: 123)
+    with_storage do
+      @prefix_error = Aws::S3::Errors::PreconditionFailed.new(nil, "At least one of the pre-conditions you specified did not hold")
+      as_user(@admin) { post complete_path(@pending), headers: headers }
+      assert_response :unprocessable_entity
+      assert_equal "Upload changed while confirming; try again", response.parsed_body.fetch("error")
+      assert_equal [ [ @pending.upload_key, "fixture-etag" ] ], @prefix_reads
+      assert_not @pending.reload.ready?
+      assert_empty @copied
+      # A copy refused by its own etag precondition is the same answer.
+      @prefix_error = nil
+      S3Service.define_singleton_method(:copy_object) { |*_args, **_kwargs| raise Aws::S3::Errors::PreconditionFailed.new(nil, "changed") }
+      as_user(@admin) { post complete_path(@pending), headers: headers }
+      assert_response :unprocessable_entity
+      assert_not @pending.reload.ready?
+    end
+  end
+
+  test "a copy whose storage call fails ambiguously is rolled back and queued for cleanup" do
+    with_storage do
+      S3Service.define_singleton_method(:copy_object) { |*_args, **_kwargs| raise Aws::S3::Errors::ServiceError.new(nil, "timeout after copy") }
+      record_external_calls(S3Service, :delete_object, returns: false) do |deletes|
+        as_user(@teacher) { post copy_path(@template), headers: headers, as: :json }
+        assert_response :bad_gateway
+        key = deletes.sole[:args].first
+        assert_match %r{\Acohort_files/cohort_#{@cohort.id}/student_\d+/}, key
+        assert_equal [ [ key, "cohort_file_copy_rolled_back" ] ], PendingS3Deletion.pluck(:key, :reason)
+      end
+    end
+    assert_not CohortFile.exists?(source_file_id: @template.id)
+  end
+
   test "an invalid copy folder fails before any object is copied" do
     with_storage do
       as_user(@teacher) { post copy_path(@template), params: { folder: "x" * 81 }, headers: headers, as: :json }
@@ -464,6 +501,21 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
         assert_equal keys.sort, deletes.map { |call| call[:args].first }.sort
         assert_empty still_referenced
       end
+    end
+  end
+
+  test "stored objects a cohort deletion cannot remove are queued for retry" do
+    with_storage do
+      keys = @cohort.cohort_files.flat_map { |file| [ file.upload_key, file.s3_key ] }
+      record_external_calls(S3Service, :delete_object, returns: false) do
+        @cohort.destroy!
+      end
+      assert_equal keys.sort, PendingS3Deletion.where(reason: "cohort_file_destroyed").pluck(:key).sort
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        assert_equal keys.size, PendingS3Deletion.drain!(now: 1.hour.from_now)
+        assert_equal keys.sort, deletes.map { |call| call[:args].first }.sort
+      end
+      assert_not PendingS3Deletion.exists?
     end
   end
 
@@ -540,7 +592,13 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
     S3Service.define_singleton_method(:configured?) { true }
     S3Service.define_singleton_method(:generate_presigned_post) { |*_args, **_kwargs| Struct.new(:url, :fields).new("https://storage.test/upload", { "key" => "fixture" }) }
     S3Service.define_singleton_method(:object_metadata) { |_key| test_instance.instance_variable_get(:@metadata) }
-    S3Service.define_singleton_method(:read_prefix) { |_key, bytes: 512| test_instance.instance_variable_get(:@prefix) }
+    S3Service.define_singleton_method(:read_prefix) do |key, bytes: 512, if_match: nil|
+      test_instance.instance_variable_get(:@prefix_reads) << [ key, if_match ]
+      error = test_instance.instance_variable_get(:@prefix_error)
+      raise error if error
+
+      test_instance.instance_variable_get(:@prefix)
+    end
     S3Service.define_singleton_method(:copy_object) { |source, destination, etag: nil| copied << [ source, destination, etag ] }
     S3Service.define_singleton_method(:delete_object) { |_key| true }
     S3Service.define_singleton_method(:generate_presigned_url) do |key, expires_in:, response_content_disposition: nil|

@@ -102,4 +102,29 @@ class CohortFileTest < ModelCoverageTestCase
     assert CohortFile.exists?(fresh.id)
     assert CohortFile.exists?(published.id)
   end
+
+  test "purging keeps a pending upload that was published before its lock was taken" do
+    token = SecureRandom.uuid
+    racing = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Racing", filename: "race.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "cohort_files/cohort_#{course.id}/shared/#{token}/race.pdf",
+      upload_key: "cohort_file_uploads/cohort_#{course.id}/#{token}/race.pdf", upload_expires_at: 1.minute.ago)
+    original_lock = CohortFile.instance_method(:with_lock)
+    original_configured = S3Service.method(:configured?)
+    original_delete = S3Service.method(:delete_object)
+    deletes = []
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:delete_object) { |key| deletes << key; true }
+    # `complete` commits between the purge's selection and its lock.
+    CohortFile.define_method(:with_lock) do |*args, &block|
+      CohortFile.where(id: id).update_all(ready: true, ready_at: Time.current, shared_at: Time.current)
+      original_lock.bind_call(self, *args, &block)
+    end
+    CohortFile.purge_expired_pending!(course.cohort_files)
+    assert racing.reload.ready?
+    assert_empty deletes
+  ensure
+    CohortFile.define_method(:with_lock, original_lock) if original_lock
+    S3Service.define_singleton_method(:configured?, original_configured) if original_configured
+    S3Service.define_singleton_method(:delete_object, original_delete) if original_delete
+  end
 end

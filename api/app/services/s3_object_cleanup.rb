@@ -9,19 +9,35 @@ class S3ObjectCleanup
 
   class << self
     def delete_if_unreferenced(key)
-      return true if key.blank?
+      delete_unreferenced(key).in?(%i[deleted skipped])
+    end
+
+    # :deleted, :skipped (blank key or no storage configured), :referenced
+    # (still in use), :rejected (not a managed key) or :failed.
+    def delete_unreferenced(key)
+      return :skipped if key.blank?
       unless managed_key?(key)
         Rails.logger.warn("[S3ObjectCleanup] Rejected unmanaged object key: #{key}")
-        return false
+        return :rejected
       end
-      return true unless S3Service.configured?
+      return :skipped unless S3Service.configured?
 
       with_key_lock(key) do
-        referenced?(key) ? false : S3Service.delete_object(key)
+        next :referenced if referenced?(key)
+
+        S3Service.delete_object(key) ? :deleted : :failed
       end
     rescue StandardError => error
       Rails.logger.error("[S3ObjectCleanup] Failed to delete #{key}: #{error.class}: #{error.message}")
-      false
+      :failed
+    end
+
+    # Deletes an unreferenced object now, or queues a durable retry when
+    # storage fails. Returns the delete_unreferenced status.
+    def delete_or_enqueue(key, reason:)
+      status = delete_unreferenced(key)
+      PendingS3Deletion.enqueue!(key, reason: reason) if status == :failed
+      status
     end
 
     # Checks a new attachment key in storage before the caller takes any row
