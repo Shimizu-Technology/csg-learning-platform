@@ -301,3 +301,22 @@ it('unmounting with unsaved text saves it, but not after Discard changes', async
   await flush()
   expect(mocks.saveCohortDoc).toHaveBeenCalledTimes(1)
 })
+
+it('loadLatest syncs draft before onFileChange so an immediate filter unmount never overwrites the loaded version', async () => {
+  mocks.getCohortDoc.mockResolvedValueOnce(docResponse('Initial', 1))
+    .mockResolvedValueOnce(docResponse('Server latest', 2, { title: 'Renamed elsewhere' }))
+  mocks.saveCohortDoc.mockResolvedValueOnce({ data: null, error: 'Conflict', status: 409 })
+  await mount({
+    onFileChange: () => {
+      // Simulate parent filter removing the row immediately when its title changes.
+      root.render(<div />)
+    },
+  })
+  act(() => button('Edit').click())
+  type(dialog().querySelector<HTMLTextAreaElement>('textarea[aria-label="Doc content"]')!, 'Rejected local text')
+  await act(async () => button('Save').click())
+  await flush()
+  await act(async () => button('Load latest').click())
+  await flush()
+  expect(mocks.saveCohortDoc).toHaveBeenCalledTimes(1)
+})

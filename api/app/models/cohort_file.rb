@@ -334,6 +334,14 @@ class CohortFile < ApplicationRecord
   #   `checkpoint` (a named save or a restore).
   # An unchanged save is a no-op, so a repeated autosave never conflicts.
   def save_doc!(content:, editor:, title: nil, summary: nil, checkpoint: false, archive: false, now: Time.current)
+    if title.to_s.include?("\0")
+      errors.add(:title, "cannot contain null characters")
+      raise ActiveRecord::RecordInvalid, self
+    end
+    if summary.to_s.include?("\0")
+      errors.add(:base, "Summary cannot contain null characters")
+      raise ActiveRecord::RecordInvalid, self
+    end
     title = title.to_s.squish.presence
     return false if !checkpoint && content.to_s == doc_content.to_s && (title.nil? || title == self.title)
 

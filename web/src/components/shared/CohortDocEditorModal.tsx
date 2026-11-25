@@ -224,13 +224,14 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
     const result = await api.getCohortDoc(cohortId, file.id)
     if (!result.data) return setSaveError(result.error || 'Could not load the latest version.')
     conflict.current = false
+    draft.current = { title: result.data.file.title, content: result.data.doc_content }
     apply(result.data)
-    onFileChange(result.data.file)
     setTitle(result.data.file.title)
     setContent(result.data.doc_content)
     setStatus('saved')
     setSaveError('')
     setCloseBlocked(false)
+    onFileChange(result.data.file)
   }
   const copyDraft = async () => {
     try {

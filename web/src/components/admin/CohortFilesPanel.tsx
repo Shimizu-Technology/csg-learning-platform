@@ -392,27 +392,40 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
 }) {
   const [title, setTitle] = useState(file.title)
   const [folder, setFolder] = useState(file.folder)
+  const [baseFolder, setBaseFolder] = useState(file.folder)
   const [url, setUrl] = useState(file.external_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // The doc version a rename is made from; a conflict moves it to the latest.
   const [baseVersion, setBaseVersion] = useState(file.doc_version)
+  const [latestConflictFile, setLatestConflictFile] = useState<CohortFile | null>(null)
   const listId = `folders-${file.id}`
   const link = file.kind === 'link'
   const urlProblem = link ? linkUrlProblem(url) : null
+  const cancel = () => {
+    if (latestConflictFile) onRefreshed?.(latestConflictFile)
+    onCancel()
+  }
   const save = async () => {
     if (urlProblem) return setError(urlProblem)
     setSaving(true)
+    const folderChanged = folder.trim() !== baseFolder.trim()
     // Renaming a doc is a doc save, made from the version on screen.
+    // Omit folder when unchanged so retrying a rename doesn't undo a concurrent move.
     const result = await api.updateCohortFile(cohortId, file.id, {
-      title, folder, ...(link ? { external_url: url.trim() } : {}), ...(file.kind === 'doc' && baseVersion ? { base_doc_version: baseVersion } : {}),
+      title,
+      ...(folderChanged ? { folder } : {}),
+      ...(link ? { external_url: url.trim() } : {}),
+      ...(file.kind === 'doc' && baseVersion ? { base_doc_version: baseVersion } : {}),
     })
     if (result.status === 409) {
       const latest = await api.getCohortDoc(cohortId, file.id)
       setSaving(false)
       if (!latest.data) return setError(latest.error || 'This doc changed since you opened it. Cancel and try again.')
       setBaseVersion(latest.data.doc_version)
-      onRefreshed?.(latest.data.file)
+      if (!folderChanged) setFolder(latest.data.file.folder)
+      setBaseFolder(latest.data.file.folder)
+      setLatestConflictFile(latest.data.file)
       return setError(`This doc changed since you opened it (now "${latest.data.file.title}"). Save again to rename it.`)
     }
     setSaving(false)
@@ -444,7 +457,7 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
           <Check className="h-4 w-4" aria-hidden="true" />
           {saving ? 'Saving…' : 'Save'}
         </Button>
-        <Button size="sm" variant="quiet" disabled={saving} onClick={onCancel}>
+        <Button size="sm" variant="quiet" disabled={saving} onClick={cancel}>
           <X className="h-4 w-4" aria-hidden="true" />
           Cancel
         </Button>

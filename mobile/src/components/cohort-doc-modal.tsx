@@ -236,9 +236,11 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, on
       const next = await api.saveCohortDoc(cohortId, file.id, {
         doc_content: content, base_doc_version: doc.doc_version ?? 0, save_revision: true, ...(titleEditable && title.trim() ? { title: title.trim() } : {}),
       });
-      // The list still learns about the save; only the opening that sent it shows it.
-      onChanged?.(next.file);
-      if (sent === opening.current) apply(next);
+      // Only the opening that sent this save may update the list or sheet.
+      if (sent === opening.current) {
+        onChanged?.(next.file);
+        apply(next);
+      }
     } catch (failure) {
       if (gone(failure)) onStale?.();
       if (sent !== opening.current) return;

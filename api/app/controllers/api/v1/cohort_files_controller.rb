@@ -297,14 +297,18 @@ module Api
         file = manageable_files.find(params[:id])
         keys = current_user.staff? ? %i[title description folder visibility external_url] : %i[title description folder external_url]
         changes = params.slice(*keys).permit(*keys).to_h.compact
-        title = changes["title"].to_s.squish
+        raw_title = changes["title"]
+        if raw_title.to_s.include?("\0")
+          return render json: { errors: [ "Title cannot contain null characters" ] }, status: :unprocessable_entity
+        end
+        title = raw_title.to_s.squish
         if file.doc? && title.present? && title != file.title
           # Renaming a doc is a doc save: versioned, conflict-checked and kept in history.
           with_doc_lock(file) do
             return render_doc_conflict(file) unless doc_version_matches?(file)
 
             file.assign_attributes(changes.except("title"))
-            file.save_doc!(content: file.doc_content, title: title, editor: current_user, archive: true)
+            file.save_doc!(content: file.doc_content, title: raw_title, editor: current_user, archive: true)
           end
         else
           file.update!(changes)

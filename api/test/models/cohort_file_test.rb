@@ -274,4 +274,14 @@ class CohortFileTest < ModelCoverageTestCase
     end
     assert file.comments.new(user: student, body: "  fine  ").valid?
   end
+
+  test "save_doc! rejects null characters in title and summary before squishing or skipping revisions" do
+    file = course.cohort_files.create!(kind: "doc", title: "Doc", doc_content: "x", ready: true, uploaded_by: student)
+    assert_raises(ActiveRecord::RecordInvalid) do
+      file.save_doc!(content: "x", title: "\u0000Doc", editor: student)
+    end
+    assert_raises(ActiveRecord::RecordInvalid) do
+      file.save_doc!(content: "x", summary: "ok\u0000", editor: student)
+    end
+  end
 end
