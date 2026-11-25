@@ -347,7 +347,7 @@ it('escapes literal trailing hashes in edited lesson headings so reopening prese
   const result = markdownToEditorDoc(source, { target: 'lesson' })
   const rich = throughRichEditor(result.doc, true)
   const heading = rich.content![0]
-  heading.content = [{ type: 'text', text: 'Title #' }]
+  heading.content = [{ type: 'text', text: 'Title #', marks: [] }]
   const saved = editorJsonToMarkdownKeepingSource(rich, keySourceSegments(result, rich), 'lesson')
   expect(saved).toBe('# Title \\#')
   const reopened = markdownToEditorDoc(saved, { target: 'lesson' })
