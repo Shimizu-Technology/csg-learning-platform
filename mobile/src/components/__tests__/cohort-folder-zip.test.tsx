@@ -27,7 +27,7 @@ const file = (overrides: Record<string, unknown>) => ({
   kind: 'doc', external_url: null, link_provider: null, version_number: 1, previewable: false, preview_mode: null, review_status: 'none', comment_count: 0,
   doc_version: 1, doc_updated_at: '2026-11-24T00:00:00.000000Z', doc_updated_by_name: null, can_edit_doc: false, ...overrides,
 });
-const api = { resources: jest.fn(), cohortFiles: jest.fn(), cohorts: jest.fn(), exportCohortFilesZip: jest.fn(), discardCohortFilesZip: jest.fn().mockResolvedValue(undefined) };
+const api = { resources: jest.fn(), cohortFiles: jest.fn(), cohorts: jest.fn(), exportCohortFilesZip: jest.fn(), discardCohortFilesZip: jest.fn().mockResolvedValue(undefined), markCohortFilesZipShared: jest.fn() };
 let client: QueryClient;
 beforeEach(() => {
   jest.clearAllMocks();
@@ -109,6 +109,7 @@ test('on Android, successful shares stay cached for the recipient app while fail
     fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));
     await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledTimes(1));
     expect(api.discardCohortFilesZip).not.toHaveBeenCalled();
+    expect(api.markCohortFilesZipShared).toHaveBeenCalledWith('file:///cache/cohort-zip-exports/1-a/');
 
     jest.mocked(Sharing.shareAsync).mockRejectedValueOnce(new Error('Chooser failed'));
     fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));

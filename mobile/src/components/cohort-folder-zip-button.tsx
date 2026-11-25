@@ -59,8 +59,12 @@ export function CohortFolderZipButton({ cohortId, scope, studentId, empty, label
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null;
       // On Android, shareAsync resolves when the chooser launches the recipient;
-      // keep successful shares until age-expiry or sign-out so the recipient can read the URI.
-      if (directory && (!shared || Platform.OS !== 'android')) await api.discardCohortFilesZip(directory);
+      // keep successful shares until post-share retention expires or sign-out so the recipient can read the URI.
+      if (directory && (!shared || Platform.OS !== 'android')) {
+        await api.discardCohortFilesZip(directory);
+      } else if (directory && shared && Platform.OS === 'android') {
+        api.markCohortFilesZipShared?.(directory);
+      }
       busy.current = false;
       if (mounted.current) setExporting(false);
     }

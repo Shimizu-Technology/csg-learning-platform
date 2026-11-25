@@ -543,4 +543,32 @@ describe('folder ZIP export', () => {
     await expect(new CsgApi(async () => 'session-token').exportCohortFilesZip(4, { scope: 'my_files' })).rejects.toMatchObject({ message: expect.stringMatching(/interrupted/i) });
     expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(mockLegacy.makeDirectoryAsync.mock.calls[1][0], { idempotent: true });
   });
+
+  it('excludes active exports from pruning and starts Android retention when sharing completes', async () => {
+    jest.useFakeTimers();
+    const start = 1_700_000_000_000;
+    jest.setSystemTime(start);
+    mockResumable(async (_url, uri) => ({ uri, status: 200, headers: { 'content-disposition': 'attachment; filename="my-files.zip"' } }));
+    const api = new CsgApi(async () => 'session-token');
+    const archive = await api.exportCohortFilesZip(4, { scope: 'my_files' });
+    const entry = archive.directory.replace(/\/+$/, '').split('/').pop()!;
+
+    // Even 15 minutes later while the share sheet is still open, pruning skips the active export.
+    jest.setSystemTime(start + 15 * 60_000);
+    mockLegacy.readDirectoryAsync.mockResolvedValueOnce([entry]);
+    await api.pruneExpiredCohortFilesZips();
+    expect(mockLegacy.deleteAsync).not.toHaveBeenCalled();
+
+    // Once sharing completes, retention starts from that timestamp (10 minutes from completion).
+    api.markCohortFilesZipShared(archive.directory);
+    jest.setSystemTime(start + 20 * 60_000);
+    mockLegacy.readDirectoryAsync.mockResolvedValueOnce([entry]);
+    await api.pruneExpiredCohortFilesZips();
+    expect(mockLegacy.deleteAsync).not.toHaveBeenCalled();
+
+    jest.setSystemTime(start + 26 * 60_000);
+    mockLegacy.readDirectoryAsync.mockResolvedValueOnce([entry]);
+    await api.pruneExpiredCohortFilesZips();
+    expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(`file:///cache/cohort-zip-exports/${entry}`, { idempotent: true });
+  });
 });

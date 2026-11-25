@@ -113,6 +113,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const cachedUser = cachedSession?.user || null;
       if (isSessionAccessDenied(requestError)) {
         await clearHeldNotifications();
+        if (!isCurrentRefresh()) return;
         await api.clearCohortFilesZips?.();
         if (!isCurrentRefresh()) return;
         const cleanupUserId = userIdRef.current || cachedUser?.id || null;

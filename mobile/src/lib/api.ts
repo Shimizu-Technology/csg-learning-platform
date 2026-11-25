@@ -77,6 +77,16 @@ export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string 
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+// Active ZIP export directories (downloading or open in the share sheet) are
+// excluded from pruning; Android post-share retention begins when sharing ends.
+const activeZipExportDirs = new Set<string>();
+const retainedZipExportAt = new Map<string, number>();
+
+function zipExportEntryName(directory: string): string {
+  const trimmed = directory.replace(/\/+$/, '');
+  const idx = trimmed.lastIndexOf('/');
+  return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
+}
 
 export class ApiError extends Error {
   constructor(message: string, readonly status?: number, readonly code?: string) { super(message); }
@@ -200,7 +210,9 @@ export class CsgApi {
   ): Promise<{ uri: string; filename: string; directory: string }> {
     if (!LegacyFileSystem.cacheDirectory) throw new ApiError('This device has no room for downloads right now.');
     if (attempt === 0) await this.pruneExpiredCohortFilesZips();
-    const directory = `${LegacyFileSystem.cacheDirectory}cohort-zip-exports/${Date.now()}-${Math.random().toString(36).slice(2, 12)}/`;
+    const entry = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    const directory = `${LegacyFileSystem.cacheDirectory}cohort-zip-exports/${entry}/`;
+    activeZipExportDirs.add(entry);
     const timeoutMs = options.timeoutMs ?? 60_000;
     let retry = false;
     try {
@@ -267,7 +279,17 @@ export class CsgApi {
 
   /** Removes an exported ZIP and its directory; never throws. */
   async discardCohortFilesZip(directory: string) {
+    const entry = zipExportEntryName(directory);
+    activeZipExportDirs.delete(entry);
+    retainedZipExportAt.delete(entry);
     await LegacyFileSystem.deleteAsync(directory, { idempotent: true }).catch(() => undefined);
+  }
+
+  /** Marks an Android-shared ZIP as finished with the chooser so retention starts now. */
+  markCohortFilesZipShared(directory: string) {
+    const entry = zipExportEntryName(directory);
+    activeZipExportDirs.delete(entry);
+    retainedZipExportAt.set(entry, Date.now());
   }
 
   /** Removes expired exported ZIP directories (used to retire deferred Android shares). */
@@ -278,8 +300,11 @@ export class CsgApi {
     if (!entries) return;
     const cutoff = Date.now() - maxAgeMs;
     await Promise.all(entries.map(async (entry) => {
-      const createdAt = Number(entry.split('-')[0]);
-      if (!Number.isFinite(createdAt) || createdAt <= cutoff) {
+      if (activeZipExportDirs.has(entry)) return;
+      const retainedAt = retainedZipExportAt.get(entry);
+      const timestamp = retainedAt !== undefined ? retainedAt : Number(entry.split('-')[0]);
+      if (!Number.isFinite(timestamp) || timestamp <= cutoff) {
+        retainedZipExportAt.delete(entry);
         await LegacyFileSystem.deleteAsync(`${root}${entry}`, { idempotent: true }).catch(() => undefined);
       }
     }));
@@ -287,6 +312,8 @@ export class CsgApi {
 
   /** Removes all cached exported ZIP directories (e.g. on sign-out or account switch). */
   async clearCohortFilesZips() {
+    activeZipExportDirs.clear();
+    retainedZipExportAt.clear();
     if (!LegacyFileSystem.cacheDirectory) return;
     await LegacyFileSystem.deleteAsync(`${LegacyFileSystem.cacheDirectory}cohort-zip-exports/`, { idempotent: true }).catch(() => undefined);
   }
