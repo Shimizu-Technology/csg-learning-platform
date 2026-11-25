@@ -27,7 +27,7 @@ const file = (overrides: Record<string, unknown>) => ({
   kind: 'doc', external_url: null, link_provider: null, version_number: 1, previewable: false, preview_mode: null, review_status: 'none', comment_count: 0,
   doc_version: 1, doc_updated_at: '2026-11-24T00:00:00.000000Z', doc_updated_by_name: null, can_edit_doc: false, ...overrides,
 });
-const api = { resources: jest.fn(), cohortFiles: jest.fn(), cohorts: jest.fn(), exportCohortFilesZip: jest.fn(), discardCohortFilesZip: jest.fn().mockResolvedValue(undefined), markCohortFilesZipShared: jest.fn() };
+const api = { resources: jest.fn(), cohortFiles: jest.fn(), cohorts: jest.fn(), exportCohortFilesZip: jest.fn(), discardCohortFilesZip: jest.fn().mockResolvedValue(undefined), markCohortFilesZipShared: jest.fn().mockResolvedValue(undefined) };
 let client: QueryClient;
 beforeEach(() => {
   jest.clearAllMocks();

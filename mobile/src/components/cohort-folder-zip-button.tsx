@@ -63,7 +63,7 @@ export function CohortFolderZipButton({ cohortId, scope, studentId, empty, label
       if (directory && (!shared || Platform.OS !== 'android')) {
         await api.discardCohortFilesZip(directory);
       } else if (directory && shared && Platform.OS === 'android') {
-        api.markCohortFilesZipShared?.(directory);
+        await api.markCohortFilesZipShared?.(directory);
       }
       busy.current = false;
       if (mounted.current) setExporting(false);

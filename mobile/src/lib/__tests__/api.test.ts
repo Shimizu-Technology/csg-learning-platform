@@ -12,6 +12,7 @@ const mockLegacy = {
   createDownloadResumable: jest.fn(),
   readDirectoryAsync: jest.fn().mockResolvedValue([]),
   readAsStringAsync: jest.fn().mockResolvedValue(''),
+  writeAsStringAsync: jest.fn().mockResolvedValue(undefined),
   moveAsync: jest.fn().mockResolvedValue(undefined),
   deleteAsync: jest.fn().mockResolvedValue(undefined),
 };
@@ -22,6 +23,7 @@ jest.mock('expo-file-system/legacy', () => ({
   createDownloadResumable: (...args: unknown[]) => mockLegacy.createDownloadResumable(...args),
   readDirectoryAsync: (...args: unknown[]) => mockLegacy.readDirectoryAsync(...args),
   readAsStringAsync: (...args: unknown[]) => mockLegacy.readAsStringAsync(...args),
+  writeAsStringAsync: (...args: unknown[]) => mockLegacy.writeAsStringAsync(...args),
   moveAsync: (...args: unknown[]) => mockLegacy.moveAsync(...args),
   deleteAsync: (...args: unknown[]) => mockLegacy.deleteAsync(...args),
 }));
@@ -559,16 +561,26 @@ describe('folder ZIP export', () => {
     await api.pruneExpiredCohortFilesZips();
     expect(mockLegacy.deleteAsync).not.toHaveBeenCalled();
 
-    // Once sharing completes, retention starts from that timestamp (10 minutes from completion).
-    api.markCohortFilesZipShared(archive.directory);
+    // Once sharing completes, retention starts from that timestamp (persisted for restarts).
+    await api.markCohortFilesZipShared(archive.directory);
+    expect(mockLegacy.writeAsStringAsync).toHaveBeenCalledWith(`${archive.directory}.shared-at`, String(start + 15 * 60_000));
     jest.setSystemTime(start + 20 * 60_000);
     mockLegacy.readDirectoryAsync.mockResolvedValueOnce([entry]);
     await api.pruneExpiredCohortFilesZips();
     expect(mockLegacy.deleteAsync).not.toHaveBeenCalled();
 
+    // Simulate a cold restart where only the persisted .shared-at marker exists for an older directory.
+    const restartedEntry = `${start}-restarted`;
+    jest.setSystemTime(start + 20 * 60_000);
+    mockLegacy.readDirectoryAsync.mockResolvedValueOnce([restartedEntry]);
+    mockLegacy.readAsStringAsync.mockResolvedValueOnce(String(start + 15 * 60_000));
+    await api.pruneExpiredCohortFilesZips();
+    expect(mockLegacy.deleteAsync).not.toHaveBeenCalledWith(`file:///cache/cohort-zip-exports/${restartedEntry}`, { idempotent: true });
+
     jest.setSystemTime(start + 26 * 60_000);
-    mockLegacy.readDirectoryAsync.mockResolvedValueOnce([entry]);
+    mockLegacy.readDirectoryAsync.mockResolvedValueOnce([entry, restartedEntry]);
     await api.pruneExpiredCohortFilesZips();
     expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(`file:///cache/cohort-zip-exports/${entry}`, { idempotent: true });
+    expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(`file:///cache/cohort-zip-exports/${restartedEntry}`, { idempotent: true });
   });
 });

@@ -285,11 +285,14 @@ export class CsgApi {
     await LegacyFileSystem.deleteAsync(directory, { idempotent: true }).catch(() => undefined);
   }
 
-  /** Marks an Android-shared ZIP as finished with the chooser so retention starts now. */
-  markCohortFilesZipShared(directory: string) {
+  /** Marks an Android-shared ZIP as finished with the chooser so retention starts now (persisted across restarts). */
+  async markCohortFilesZipShared(directory: string) {
     const entry = zipExportEntryName(directory);
+    const sharedAt = Date.now();
+    retainedZipExportAt.set(entry, sharedAt);
+    const dir = directory.endsWith('/') ? directory : `${directory}/`;
+    await LegacyFileSystem.writeAsStringAsync(`${dir}.shared-at`, String(sharedAt)).catch(() => undefined);
     activeZipExportDirs.delete(entry);
-    retainedZipExportAt.set(entry, Date.now());
   }
 
   /** Removes expired exported ZIP directories (used to retire deferred Android shares). */
@@ -301,8 +304,17 @@ export class CsgApi {
     const cutoff = Date.now() - maxAgeMs;
     await Promise.all(entries.map(async (entry) => {
       if (activeZipExportDirs.has(entry)) return;
-      const retainedAt = retainedZipExportAt.get(entry);
-      const timestamp = retainedAt !== undefined ? retainedAt : Number(entry.split('-')[0]);
+      let timestamp = retainedZipExportAt.get(entry);
+      if (timestamp === undefined) {
+        const persisted = await LegacyFileSystem.readAsStringAsync(`${root}${entry}/.shared-at`).catch(() => null);
+        const parsed = persisted ? Number(persisted.trim()) : Number.NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+          timestamp = parsed;
+          retainedZipExportAt.set(entry, parsed);
+        } else {
+          timestamp = Number(entry.split('-')[0]);
+        }
+      }
       if (!Number.isFinite(timestamp) || timestamp <= cutoff) {
         retainedZipExportAt.delete(entry);
         await LegacyFileSystem.deleteAsync(`${root}${entry}`, { idempotent: true }).catch(() => undefined);
