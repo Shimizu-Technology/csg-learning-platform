@@ -190,6 +190,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(pane.getByText('Ready for a look.')).toBeVisible()
     await audit(page, `${theme}-learner-doc-review`, info)
     await page.keyboard.press('Escape')
+    await expect(editor).toHaveCount(0)
     const created = mine.getByRole('listitem').filter({ hasText: title })
     await expect(created.getByText('Needs review', { exact: true })).toBeVisible()
     await expect(created.getByRole('button', { name: `1 comment on ${title}` })).toBeVisible()
@@ -201,7 +202,8 @@ for (const theme of ['light', 'dark'] as const) {
     await reopened.getByRole('button', { name: 'Edit', exact: true }).click()
     const ids = (await (await request.get(`/api/v1/cohorts/${fixture.cohort_id}/files`, { headers: learnerHeaders })).json()).my_files as Array<{ id: number; title: string }>
     const id = ids.find(item => item.title === title)!.id
-    expect((await request.patch(`/api/v1/cohorts/${fixture.cohort_id}/files/${id}/doc`, { headers: staffHeaders, data: { doc_content: 'Instructor feedback written elsewhere' } })).ok()).toBe(true)
+    const current = await (await request.get(`/api/v1/cohorts/${fixture.cohort_id}/files/${id}/doc`, { headers: staffHeaders })).json() as { doc_version: number }
+    expect((await request.patch(`/api/v1/cohorts/${fixture.cohort_id}/files/${id}/doc`, { headers: staffHeaders, data: { doc_content: 'Instructor feedback written elsewhere', base_doc_version: current.doc_version } })).ok()).toBe(true)
     await reopened.locator('[contenteditable="true"]').first().click()
     await page.keyboard.type(' more')
     const banner = reopened.getByRole('alert').filter({ hasText: 'Someone else updated this doc' })

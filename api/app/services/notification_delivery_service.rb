@@ -59,22 +59,26 @@ class NotificationDeliveryService
 
   # Review requests, reviews and comments on a file in a student's folder.
   # In-app only; one row per person per file, refreshed and marked unread.
+  # The copy never holds a file title or comment text: the item is private,
+  # comments can be deleted, and notifications are cached on devices. The
+  # path opens the item for anyone who can still see it.
   def self.cohort_file_review_requested(file, actor:, new_version: false)
-    title = new_version ? "#{actor.full_name} uploaded a new version of #{file.title} for review" : "#{actor.full_name} asked for a review of #{file.title}"
-    new.cohort_file_to_staff(file, actor: actor, title: title, body: file.cohort.name)
+    title = new_version ? "Updated file ready for review" : "File ready for review"
+    body = new_version ? "#{actor.full_name} uploaded a new version for review." : "#{actor.full_name} asked for a review."
+    new.cohort_file_to_staff(file, actor: actor, title: title, body: body)
   end
 
   def self.cohort_file_reviewed(file, actor:)
-    new.cohort_file_to_student(file, actor: actor, title: "#{actor.full_name} reviewed #{file.title}", body: file.folder)
+    new.cohort_file_to_student(file, actor: actor, title: "File reviewed", body: "Your instructor reviewed a file in your folder.")
   end
 
   def self.cohort_file_commented(comment)
     file = comment.cohort_file
-    title = "#{comment.user.full_name} commented on #{file.title}"
-    body = comment.body.squish.truncate(140)
-    return new.cohort_file_to_staff(file, actor: comment.user, title: title, body: body) if comment.user.student?
+    if comment.user.student?
+      return new.cohort_file_to_staff(file, actor: comment.user, title: "New file comment", body: "#{comment.user.full_name} commented on a file in their folder.")
+    end
 
-    new.cohort_file_to_student(file, actor: comment.user, title: title, body: body)
+    new.cohort_file_to_student(file, actor: comment.user, title: "New file comment", body: "A new comment was added in your files.")
   end
 
   ANNOUNCEMENT_BATCH_SIZE = 100
@@ -314,10 +318,10 @@ class NotificationDeliveryService
     end
   end
 
-  # Only a student who can read the item now: still enrolled and not paused.
+  # Only a student who can act on the item now: active, not paused or ended.
   def cohort_file_to_student(file, actor:, title:, body:)
     return [] unless file.student_folder_item? && file.student_id != actor.id
-    return [] unless Enrollment.with_read_access.where.not(status: :paused).exists?(cohort_id: file.cohort_id, user_id: file.student_id)
+    return [] unless Enrollment.active.exists?(cohort_id: file.cohort_id, user_id: file.student_id)
 
     [ cohort_file_notification_for(file.student, file, actor: actor, title: title, body: body, path: "/resources?cohort_id=#{file.cohort_id}&file=#{file.id}") ]
   end
@@ -417,7 +421,9 @@ class NotificationDeliveryService
   end
 
   def cohort_file_notification_for(user, file, actor:, title:, body:, path:)
-    attributes = { actor: actor, notification_type: :cohort_file, title: title.truncate(250), body: body, path: path, read_at: nil }
+    # updated_at is the event's time, also when an earlier row is reused, so
+    # Notification.visible_to can hide events after a learner's pause.
+    attributes = { actor: actor, notification_type: :cohort_file, title: title, body: body, path: path, read_at: nil, updated_at: Time.current }
     Notification.transaction(requires_new: true) do
       notification = Notification.find_or_initialize_by(notifiable: file, user: user)
       notification.update!(attributes)

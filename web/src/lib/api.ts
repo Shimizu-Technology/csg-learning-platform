@@ -598,16 +598,17 @@ export const api = {
     fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify({ ...data, kind: 'doc' }) }),
   getCohortDoc: (cohortId: number, fileId: number) =>
     fetchApi<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/doc`, { cache: 'no-store' }),
-  /** 409 when someone else saved since `base_updated_at`; nothing is saved then. */
+  /** 409 when `base_doc_version` is missing or stale; nothing is saved then. */
   saveCohortDoc: (cohortId: number, fileId: number, data: components['schemas']['CohortDocUpdateInput']) =>
     fetchApi<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/doc`, { method: 'PATCH', body: JSON.stringify(data) }),
   getCohortDocRevisions: (cohortId: number, fileId: number) =>
     fetchApi<components['schemas']['CohortDocRevisionsResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/revisions`, { cache: 'no-store' }),
   getCohortDocRevision: (cohortId: number, fileId: number, revisionId: number) =>
     fetchApi<components['schemas']['CohortDocRevisionResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/revisions/${revisionId}`, { cache: 'no-store' }),
-  restoreCohortDocRevision: (cohortId: number, fileId: number, revisionId: number, baseUpdatedAt?: string | null) =>
+  /** 409 when the doc moved past `baseDocVersion`; nothing is restored then. */
+  restoreCohortDocRevision: (cohortId: number, fileId: number, revisionId: number, baseDocVersion: number) =>
     fetchApi<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/revisions/${revisionId}/restore`, {
-      method: 'POST', body: JSON.stringify(baseUpdatedAt ? { base_updated_at: baseUpdatedAt } : {}),
+      method: 'POST', body: JSON.stringify({ base_doc_version: baseDocVersion } satisfies components['schemas']['CohortDocRestoreInput']),
     }),
   setCohortFileReview: (cohortId: number, fileId: number, reviewStatus: components['schemas']['CohortFileReviewInput']['review_status']) =>
     fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/review`, { method: 'PATCH', body: JSON.stringify({ review_status: reviewStatus }) }),

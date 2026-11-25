@@ -12,6 +12,7 @@ class CohortDocRevision < ApplicationRecord
   validates :title, presence: true, length: { maximum: 160 }
   validates :content, length: { maximum: CohortFile::MAX_DOC_LENGTH }
   validates :summary, length: { maximum: 200 }
+  validate :no_null_bytes
 
   def revision_json(include_content: false)
     json = {
@@ -22,6 +23,10 @@ class CohortDocRevision < ApplicationRecord
   end
 
   private
+
+  def no_null_bytes
+    %i[title summary].each { |field| errors.add(field, "can't contain null characters") if self[field]&.include?("\u0000") }
+  end
 
   def normalize_text
     self.content = content.to_s

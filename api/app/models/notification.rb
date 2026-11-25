@@ -46,13 +46,18 @@ class Notification < ApplicationRecord
     # An admin alert stays with the role: someone who is no longer an admin stops seeing it.
     scope = scope.where.not(notification_type: ADMIN_ONLY_TYPES) unless user.admin?
     # A file notice stays with access to the file: staff of its cohort, or the
-    # student whose student-visible folder item it is, while still enrolled.
-    visible_file_ids = if user.staff?
-      CohortFile.where(cohort_id: user.accessible_cohorts.select(:id)).select(:id)
+    # student whose student-visible folder item it is, while still enrolled,
+    # and for a paused student only events from before the pause.
+    scope = if user.staff?
+      scope.where.not(notifiable_type: "CohortFile")
+        .or(scope.where(notifiable_type: "CohortFile", notifiable_id: CohortFile.where(cohort_id: user.accessible_cohorts.select(:id)).select(:id)))
     else
-      CohortFile.student_visible.where(student_id: [ nil, user.id ], cohort_id: user.enrollments.with_read_access.select(:cohort_id)).select(:id)
+      readable_file = CohortFile.student_visible.where(student_id: [ nil, user.id ]).where("cohort_files.id = notifications.notifiable_id")
+        .where(Enrollment.with_read_access.where(user_id: user.id).where("enrollments.cohort_id = cohort_files.cohort_id")
+          .where("enrollments.status <> ? OR COALESCE(enrollments.paused_at, enrollments.read_cutoff_at) >= notifications.updated_at",
+            Enrollment.statuses.fetch("paused")).arel.exists)
+      scope.where.not(notifiable_type: "CohortFile").or(scope.where(notifiable_type: "CohortFile").where(readable_file.arel.exists))
     end
-    scope = scope.where.not(notifiable_type: "CohortFile").or(scope.where(notifiable_type: "CohortFile", notifiable_id: visible_file_ids))
     scope.where.not(notifiable_type: "Intervention")
       .or(scope.where(notifiable_type: "Intervention", notifiable_id: owned_case_ids))
   }

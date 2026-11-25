@@ -5829,7 +5829,7 @@
     "/api/v1/cohorts/{cohort_id}/files/{id}": {
       "patch": {
         "summary": "Rename, move, share or stage a file or link",
-        "description": "Staff may change `title`, `description`, `folder`, `visibility` and a link's `external_url`; a student only `title`, `description`, `folder` and a link's `external_url` on items they added to their own folder, while active. A new link address is checked like a new link and reclassified. Other students' and staff files are 404 to a student.",
+        "description": "Staff may change `title`, `description`, `folder`, `visibility` and a link's `external_url`; a student only `title`, `description`, `folder` and a link's `external_url` on items they added to their own folder, while active. A new link address is checked like a new link and reclassified. Other students' and staff files are 404 to a student. Renaming a Learn Doc is a doc save: it needs `base_doc_version` (409 with the latest doc when missing or stale), advances `doc_version` and keeps the old title and content in History.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -5837,6 +5837,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CohortFileResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A Learn Doc rename whose base_doc_version is missing or stale",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocConflictResponse"
                 }
               }
             }
@@ -6036,7 +6046,7 @@
     "/api/v1/cohorts/{cohort_id}/files/{id}/copy_to_students": {
       "post": {
         "summary": "Copy a class file, link or Learn Doc into every active student's folder",
-        "description": "Staff only. The source must be a ready class file, link or Learn Doc (422 otherwise); links and docs copy without storage, files need it (503). Each student gets the doc's current content as their own doc to edit. Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ \"folder\": string }` names the folder for the copies; it defaults to the source's folder.",
+        "description": "Staff only. The source must be a ready class file, link or Learn Doc shared with students (422 for anything else, including staff-only items); links and docs copy without storage, files need it (503). Each student gets the doc's current content as their own doc to edit. Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ \"folder\": string }` names the folder for the copies; it defaults to the source's folder. Each recipient's enrollment is locked and rechecked before their copy is made; anyone paused, dropped or expired by then is skipped.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -6230,7 +6240,7 @@
       },
       "patch": {
         "summary": "Save a Learn Doc",
-        "description": "Staff save any doc in the cohort; an active student saves docs in their own folder, including copies staff put there (403 when paused, completed or expired, and for class docs). Send `base_updated_at` (the `doc_updated_at` you loaded): when the doc was saved since, nothing is saved and 409 returns the latest state. An unchanged save is a no-op. Revisions keep the original, each editor's last state, states left resting for 10 minutes, the state a paused learner was left with, and every `save_revision: true` save. A student's enrollment is locked before the doc. Same content rules as creating a doc (422).",
+        "description": "Staff save any doc in the cohort; an active student saves docs in their own folder, including copies staff put there (403 when paused, completed or expired, and for class docs). Learners can't rename a copy staff put in their folder: its `title` is ignored. Send `base_doc_version` (the `doc_version` you loaded): when it is missing or the doc was saved since, nothing is saved and 409 returns the latest state. An unchanged save is a no-op. Revisions keep the original, each editor's last state, states left resting for 10 minutes, the state a paused learner was left with, and every `save_revision: true` save. Locks, in order: a learner writer's enrollment, the enrollments of everyone who can read the doc, then the doc, so a pause lands wholly before or after the save. Same content rules as creating a doc (422).",
         "responses": {
           "200": {
             "description": "Saved",
@@ -6366,7 +6376,7 @@
     "/api/v1/cohorts/{cohort_id}/files/{id}/revisions/{revision_id}/restore": {
       "post": {
         "summary": "Restore a Learn Doc revision",
-        "description": "Makes the revision's title and content the current doc and records it as a new revision (\"Restored revision N\"). Same permissions, locks and `base_updated_at` conflict check as saving.",
+        "description": "Makes the revision's content (and title, for anyone who may rename the doc) the current doc. The state it replaces is always kept as a revision first, and the restored state is recorded as a new one (\"Restored revision N\"). Same permissions, locks and `base_doc_version` conflict check as saving.",
         "responses": {
           "200": {
             "description": "Restored",
@@ -6416,7 +6426,7 @@
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6758,7 +6768,7 @@
               "needs_review",
               "reviewed"
             ],
-            "description": "Review state of a student-folder item. Students send their own items for review; staff mark them reviewed."
+            "description": "Review state of a student-folder item. Students send their own items for review; staff mark them reviewed. A paused learner sees `none` unless it was reviewed before the pause."
           },
           "reviewed_by_name": {
             "type": [
@@ -6776,12 +6786,19 @@
             "type": "integer",
             "description": "Review comments this viewer can read (0 for class files and items hidden from students)."
           },
+          "doc_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "For a Learn Doc: advances on every save, rename and restore; send it back as `base_doc_version`. Null for files and links, and for the state a paused learner reads."
+          },
           "doc_updated_at": {
             "type": [
               "string",
               "null"
             ],
-            "description": "When the shown Learn Doc state was saved, ISO 8601 with microseconds; send it back as `base_updated_at`. Null for files and links."
+            "description": "When the shown Learn Doc state was saved, ISO 8601 with microseconds. Null for files and links."
           },
           "doc_updated_by_name": {
             "type": [
@@ -6822,6 +6839,7 @@
           "reviewed_by_name",
           "reviewed_at",
           "comment_count",
+          "doc_version",
           "doc_updated_at",
           "doc_updated_by_name",
           "can_edit_doc"
@@ -6878,9 +6896,16 @@
           "doc_content": {
             "type": "string"
           },
+          "doc_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Send it back as `base_doc_version`; null for the state a paused learner reads."
+          },
           "doc_updated_at": {
             "type": "string",
-            "description": "ISO 8601 with microseconds; send it back as `base_updated_at`."
+            "description": "When the shown state was saved, ISO 8601 with microseconds."
           },
           "doc_updated_by_name": {
             "type": [
@@ -6899,6 +6924,7 @@
         "required": [
           "file",
           "doc_content",
+          "doc_version",
           "doc_updated_at",
           "doc_updated_by_name",
           "can_edit_doc",
@@ -6918,9 +6944,16 @@
           "doc_content": {
             "type": "string"
           },
+          "doc_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Send it back as `base_doc_version`; null for the state a paused learner reads."
+          },
           "doc_updated_at": {
             "type": "string",
-            "description": "ISO 8601 with microseconds; send it back as `base_updated_at`."
+            "description": "When the shown state was saved, ISO 8601 with microseconds."
           },
           "doc_updated_by_name": {
             "type": [
@@ -6940,6 +6973,7 @@
           "error",
           "file",
           "doc_content",
+          "doc_version",
           "doc_updated_at",
           "doc_updated_by_name",
           "can_edit_doc",
@@ -6957,7 +6991,8 @@
           },
           "title": {
             "type": "string",
-            "maxLength": 160
+            "maxLength": 160,
+            "description": "Ignored for a learner who can't rename the doc (a copy staff put in their folder)."
           },
           "summary": {
             "type": "string",
@@ -6968,13 +7003,14 @@
             "type": "boolean",
             "description": "Record this save as its own revision."
           },
-          "base_updated_at": {
-            "type": "string",
-            "description": "The `doc_updated_at` the editor loaded; 409 when the doc was saved since."
+          "base_doc_version": {
+            "type": "integer",
+            "description": "The `doc_version` the editor loaded. Missing or stale: 409 with the latest doc, nothing saved."
           }
         },
         "required": [
-          "doc_content"
+          "doc_content",
+          "base_doc_version"
         ],
         "additionalProperties": false
       },
@@ -7106,11 +7142,14 @@
       "CohortDocRestoreInput": {
         "type": "object",
         "properties": {
-          "base_updated_at": {
-            "type": "string"
+          "base_doc_version": {
+            "type": "integer",
+            "description": "The `doc_version` the editor loaded. Missing or stale: 409."
           }
         },
-        "required": [],
+        "required": [
+          "base_doc_version"
+        ],
         "additionalProperties": false
       },
       "CohortFileReviewInput": {
@@ -7787,6 +7826,10 @@
             "type": "string",
             "maxLength": 2048,
             "description": "Links only: a new public https:// address."
+          },
+          "base_doc_version": {
+            "type": "integer",
+            "description": "Required to rename a Learn Doc: the `doc_version` the editor loaded (409 when missing or stale)."
           }
         },
         "required": [],

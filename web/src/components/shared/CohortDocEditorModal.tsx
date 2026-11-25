@@ -22,13 +22,14 @@ import { LazyMarkdownEditor } from './LazyMarkdownEditor'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { Modal } from './Modal'
 
-type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'conflict' | 'error'
+type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'restoring' | 'conflict' | 'error'
 type Side = 'history' | 'review'
 type Pane = 'doc' | Side
 
 const STATUS_TEXT: Record<SaveStatus, string> = {
   saved: 'Saved',
   saving: 'Saving…',
+  restoring: 'Restoring…',
   unsaved: 'Unsaved changes',
   conflict: 'Not saved: someone else updated this doc',
   error: 'Not saved',
@@ -43,11 +44,15 @@ function DocMarkdown({ content, onToggleTask }: { content: string; onToggleTask?
 /**
  * A Learn Doc: Markdown written in the app. Read shows it as students see it
  * (task boxes can be ticked by anyone who can edit); Edit uses the shared
- * editor and saves itself after a pause in typing. A save made from an older
- * copy than the server's is refused (409) and nothing is lost: the banner
- * offers the latest version and a copy of the unsaved text. History lists
+ * editor and saves itself after a pause in typing. Saves and restores run one
+ * at a time from a single queue, each sending the `doc_version` the last one
+ * returned. A save made from an older copy than the server's is refused (409)
+ * and nothing is lost: the banner offers the latest version and a copy of the
+ * unsaved text. Closing waits for the queue to finish; if a save fails, the
+ * doc stays open with the error and a Discard changes choice. History lists
  * saved states and restores one. Items in a student's folder show their
- * review status and comments beside the doc (a tab on phones).
+ * review status and comments beside the doc (a tab on phones). Learners can't
+ * rename a copy staff put in their folder, so its title is read only.
  */
 export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChange, reviewAccess, initialPane = 'doc' }: {
   cohortId: number
@@ -60,7 +65,6 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
   initialPane?: Pane
 }) {
   const id = useId()
-  const confirm = useConfirm()
   const showReview = Boolean(reviewAccess) && isStudentFolderItem(file)
   const [doc, setDoc] = useState<CohortDoc | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -74,14 +78,21 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
   const [pane, setPane] = useState<Pane>(initialPane === 'review' && !showReview ? 'doc' : initialPane)
   const [printing, setPrinting] = useState(false)
   const [copied, setCopied] = useState(false)
-  // What the server has, the edit it was based on, and saves in flight.
+  const [closeBlocked, setCloseBlocked] = useState(false)
+  const [closing, setClosing] = useState(false)
+  // What the server has and the version it is at, the text on screen, and
+  // the one queue every save and restore runs through.
   const saved = useRef({ title: file.title, content: '' })
-  const base = useRef<string | null>(null)
+  const version = useRef<number | null>(null)
   const draft = useRef({ title: file.title, content: '' })
-  const inFlight = useRef(false)
-  const queued = useRef<'plain' | 'checkpoint' | null>(null)
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const autosave = useRef<number | null>(null)
   const conflict = useRef(false)
+  const canEditRef = useRef(false)
   const canEdit = Boolean(doc?.can_edit_doc)
+  const titleEditable = canEdit && Boolean(doc?.file.can_manage)
+  const restoring = status === 'restoring'
+  canEditRef.current = canEdit
   // A cleared title keeps the saved one.
   const changedFrom = (next: { title: string; content: string }) => (next.title.trim() || saved.current.title) !== saved.current.title || next.content !== saved.current.content
   const dirty = changedFrom({ title, content })
@@ -90,7 +101,17 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
   const apply = useCallback((next: CohortDoc) => {
     setDoc(next)
     saved.current = { title: next.file.title, content: next.doc_content }
-    base.current = next.doc_updated_at
+    version.current = next.doc_version
+  }, [])
+  const cancelAutosave = () => {
+    if (autosave.current !== null) window.clearTimeout(autosave.current)
+    autosave.current = null
+  }
+  /** Runs `task` after every save or restore already queued. */
+  const enqueue = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const next = queue.current.then(task, task)
+    queue.current = next.catch(() => undefined)
+    return next
   }, [])
 
   useEffect(() => {
@@ -109,54 +130,59 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
     return () => { live = false }
   }, [apply, attempt, cohortId, file.id, open])
 
-  const save = useCallback(async (checkpoint = false) => {
-    if (!doc?.can_edit_doc || conflict.current) return
-    if (inFlight.current) {
-      queued.current = checkpoint || queued.current === 'checkpoint' ? 'checkpoint' : 'plain'
-      return
-    }
+  /** Saves what is on screen once earlier work finishes; resolves true when nothing is left unsaved. */
+  const save = useCallback((checkpoint = false) => enqueue(async () => {
+    if (!canEditRef.current) return true
+    if (conflict.current) return false
     const sending = { ...draft.current }
-    if (!checkpoint && !changedFrom(sending)) return setStatus('saved')
+    if (!checkpoint && !changedFrom(sending)) {
+      setStatus('saved')
+      return true
+    }
     if (sending.content.length > MAX_DOC_LENGTH) {
       setStatus('error')
-      return setSaveError(`Docs can be up to ${MAX_DOC_LENGTH.toLocaleString()} characters.`)
+      setSaveError(`Docs can be up to ${MAX_DOC_LENGTH.toLocaleString()} characters.`)
+      return false
     }
-    inFlight.current = true
     setStatus('saving')
     setSaveError('')
     const result = await api.saveCohortDoc(cohortId, file.id, {
       doc_content: sending.content,
+      base_doc_version: version.current ?? 0,
       ...(sending.title.trim() ? { title: sending.title.trim() } : {}),
-      ...(base.current ? { base_updated_at: base.current } : {}),
       ...(checkpoint ? { save_revision: true } : {}),
     })
-    inFlight.current = false
     if (result.data) {
       apply(result.data)
       onFileChange(result.data.file)
-      setStatus(changedFrom(draft.current) ? 'unsaved' : 'saved')
-      // A save asked for while this one was in flight runs now; later typing has its own timer.
-      const next = queued.current
-      queued.current = null
-      if (next) void save(next === 'checkpoint')
-    } else if (result.status === 409) {
+      // The server tidies titles (spaces); show its title unless it was edited again meanwhile.
+      if (draft.current.title === sending.title) setTitle(result.data.file.title)
+      const left = changedFrom({ title: draft.current.title === sending.title ? result.data.file.title : draft.current.title, content: draft.current.content })
+      setStatus(left ? 'unsaved' : 'saved')
+      return !left
+    }
+    if (result.status === 409) {
       conflict.current = true
-      queued.current = null
       setStatus('conflict')
     } else {
-      queued.current = null
       setStatus('error')
       setSaveError(result.error || 'Could not save this doc.')
     }
-  }, [apply, cohortId, doc?.can_edit_doc, file.id, onFileChange])
+    return false
+  // changedFrom reads refs only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [apply, cohortId, enqueue, file.id, onFileChange])
 
-  // Save a moment after typing stops.
+  // Save a moment after typing stops; a restore in progress holds autosave off.
   useEffect(() => {
-    if (!canEdit || !dirty || conflict.current) return
+    if (!canEdit || !dirty || conflict.current || restoring) return
     setStatus((current) => (current === 'saving' ? current : 'unsaved'))
-    const timer = window.setTimeout(() => void save(), DOC_AUTOSAVE_MS)
-    return () => window.clearTimeout(timer)
-  }, [canEdit, content, dirty, save, title])
+    autosave.current = window.setTimeout(() => {
+      autosave.current = null
+      void save()
+    }, DOC_AUTOSAVE_MS)
+    return cancelAutosave
+  }, [canEdit, content, dirty, restoring, save, title])
 
   // Warn before leaving the page with changes that haven't saved.
   useEffect(() => {
@@ -165,6 +191,16 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty, open])
+
+  // Unmounted with a pending change (the list moved on): save it rather than drop it.
+  const saveOnUnmount = useRef(save)
+  saveOnUnmount.current = save
+  useEffect(() => () => {
+    if (autosave.current !== null) {
+      window.clearTimeout(autosave.current)
+      void saveOnUnmount.current()
+    }
+  }, [])
 
   useEffect(() => {
     if (!printing) return
@@ -191,6 +227,7 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
     setContent(result.data.doc_content)
     setStatus('saved')
     setSaveError('')
+    setCloseBlocked(false)
   }
   const copyDraft = async () => {
     try {
@@ -201,33 +238,57 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
       setSaveError('Copying is blocked in this browser. Select the text in Edit and copy it.')
     }
   }
+  // Close only once everything is saved; otherwise stay open and say so.
   const close = async () => {
-    if (dirty && canEdit && (status === 'conflict' || status === 'error')) {
-      const ok = await confirm({ title: 'Close without saving?', description: 'Your latest changes have not been saved.', confirmLabel: 'Close without saving', tone: 'danger' })
-      if (!ok) return
-    } else if (dirty && canEdit) {
-      void save()
+    if (closing) return
+    if (canEdit && (dirty || autosave.current !== null || status === 'saving' || restoring)) {
+      cancelAutosave()
+      setClosing(true)
+      const ok = await save()
+      setClosing(false)
+      if (!ok) return setCloseBlocked(true)
     }
     onClose()
   }
   const toggleTask = (itemStart: number) => {
-    if (!canEdit || status === 'conflict') return
+    if (!canEdit || status === 'conflict' || restoring) return
     setContent((current) => toggleTaskAt(current, itemStart))
   }
-  const restored = (next: CohortDoc) => {
-    conflict.current = false
-    apply(next)
-    onFileChange(next.file)
-    setTitle(next.file.title)
-    setContent(next.doc_content)
-    setStatus('saved')
-    setPane('doc')
-    setMode('read')
+  /** Restores a revision through the same queue: autosave stops, editing waits, the result replaces the screen. */
+  const restore = (revisionId: number) => {
+    cancelAutosave()
+    setStatus('restoring')
+    return enqueue(async () => {
+      if (conflict.current) {
+        setStatus('conflict')
+        return false
+      }
+      const result = await api.restoreCohortDocRevision(cohortId, file.id, revisionId, version.current ?? 0)
+      if (result.data) {
+        apply(result.data)
+        onFileChange(result.data.file)
+        setTitle(result.data.file.title)
+        setContent(result.data.doc_content)
+        setStatus('saved')
+        setPane('doc')
+        setMode('read')
+        return true
+      }
+      if (result.status === 409) {
+        conflict.current = true
+        setStatus('conflict')
+      } else {
+        setStatus(changedFrom(draft.current) ? 'unsaved' : 'saved')
+        setSaveError(result.error || 'Could not restore this revision.')
+      }
+      return false
+    })
   }
   const choosePane = (next: Pane) => {
     setPane(next)
     if (next !== 'doc') setSide(next)
   }
+  const locked = status === 'conflict' || restoring
 
   const statusText = !doc ? undefined : canEdit ? STATUS_TEXT[status] : 'Read only'
   const sideTabs: Array<[Side, string, typeof History]> = [...(showReview ? [['review', 'Review', MessageSquare] as [Side, string, typeof History]] : []), ['history', 'History', History]]
@@ -247,8 +308,8 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
               { key: 'print', label: 'Print or save as PDF', icon: <Printer className="h-4 w-4" aria-hidden="true" />, onSelect: () => setPrinting(true) },
             ]} />
             {canEdit && (
-              <Button disabled={status === 'saving' || status === 'conflict'} onClick={() => void save(true)}>
-                {status === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              <Button disabled={status === 'saving' || locked || closing} onClick={() => void save(true)}>
+                {status === 'saving' || closing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                 Save
               </Button>
             )}
@@ -270,6 +331,15 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
+          {closeBlocked && (
+            <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink sm:flex-row sm:items-center sm:justify-between">
+              <p className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Your latest changes aren't saved{saveError ? `: ${saveError}` : '.'}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setCloseBlocked(false)}>Keep editing</Button>
+                <Button size="sm" variant="danger" onClick={onClose}>Discard changes</Button>
+              </div>
+            </div>
+          )}
           {status === 'conflict' && (
             <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center sm:justify-between">
               <p className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Someone else updated this doc. Load the latest version; copy your text first if you want to keep it.</p>
@@ -314,12 +384,14 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
                 <div className="space-y-3">
                   <label className="block text-sm font-medium text-ink">
                     Title
-                    <input className="app-control mt-1 w-full" value={title} maxLength={160} disabled={status === 'conflict'} onChange={(event) => setTitle(event.target.value)} />
+                    <input className="app-control mt-1 w-full" value={title} maxLength={160} disabled={locked || !titleEditable} readOnly={!titleEditable}
+                      aria-describedby={titleEditable ? undefined : `${id}-title-hint`} onChange={(event) => setTitle(event.target.value)} />
+                    {!titleEditable && <span id={`${id}-title-hint`} className="mt-1 block text-xs font-normal text-ink-muted">Your instructor named this doc, so its title stays the same.</span>}
                   </label>
                   <div>
                     <span id={`${id}-content-label`} className="block text-sm font-medium text-ink">Content</span>
                     <LazyMarkdownEditor label="Doc content" target="lesson" variant="field" value={content} onChange={(value) => setContent(value)}
-                      disabled={status === 'conflict'} minHeight={320} className="mt-1" describedBy={`${id}-content-label`}
+                      disabled={locked} minHeight={320} className="mt-1" describedBy={`${id}-content-label`}
                       renderPreview={(markdown) => <DocMarkdown content={markdown} />} />
                     <p className={`mt-1 text-right text-xs tabular-nums ${content.length > MAX_DOC_LENGTH ? 'font-semibold text-danger-ink' : 'text-ink-muted'}`}>
                       {content.length.toLocaleString()}/{MAX_DOC_LENGTH.toLocaleString()}
@@ -328,7 +400,7 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
                 </div>
               ) : (
                 <article className="min-w-0">
-                  <DocMarkdown content={content} onToggleTask={canEdit && status !== 'conflict' ? toggleTask : undefined} />
+                  <DocMarkdown content={content} onToggleTask={canEdit && !locked ? toggleTask : undefined} />
                 </article>
               )}
             </section>
@@ -349,8 +421,7 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
                 <CohortFileReviewPanel cohortId={cohortId} file={doc.file} access={reviewAccess}
                   onFileChange={(next) => { setDoc((current) => current && { ...current, file: next }); onFileChange(next) }} />
               ) : (
-                <DocHistory cohortId={cohortId} file={file} canRestore={canEdit} revisionCount={doc.revision_count}
-                  baseUpdatedAt={() => base.current} dirty={dirty} onRestored={restored} onConflict={() => { conflict.current = true; setStatus('conflict') }} />
+                <DocHistory cohortId={cohortId} file={file} canRestore={canEdit && !locked} revisionCount={doc.revision_count} dirty={dirty} onRestore={restore} />
               )}
             </aside>
           </div>
@@ -367,16 +438,14 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
   )
 }
 
-/** Saved states of the doc, newest first: inspect one, then restore it. */
-function DocHistory({ cohortId, file, canRestore, revisionCount, baseUpdatedAt, dirty, onRestored, onConflict }: {
+/** Saved states of the doc, newest first: inspect one, then restore it through the editor's queue. */
+function DocHistory({ cohortId, file, canRestore, revisionCount, dirty, onRestore }: {
   cohortId: number
   file: CohortFile
   canRestore: boolean
   revisionCount: number
-  baseUpdatedAt: () => string | null
   dirty: boolean
-  onRestored: (doc: CohortDoc) => void
-  onConflict: () => void
+  onRestore: (revisionId: number) => Promise<boolean>
 }) {
   const confirm = useConfirm()
   const [revisions, setRevisions] = useState<CohortDocRevision[] | null>(null)
@@ -412,14 +481,9 @@ function DocHistory({ cohortId, file, canRestore, revisionCount, baseUpdatedAt, 
     })
     if (!ok) return
     setRestoring(true)
-    const result = await api.restoreCohortDocRevision(cohortId, file.id, revision.id, baseUpdatedAt())
+    const restored = await onRestore(revision.id)
     setRestoring(false)
-    if (result.data) {
-      setSelected(null)
-      return onRestored(result.data)
-    }
-    if (result.status === 409) return onConflict()
-    setError(result.error || 'Could not restore this revision.')
+    if (restored) setSelected(null)
   }
 
   if (selected) {

@@ -76,6 +76,8 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
   const open = (pane: OpenView['pane'] = 'main') => setOpened({ pane })
   const autoOpened = useRef(false)
   useEffect(() => {
+    // Once the caller stops asking, a later request (another notification) opens it again.
+    if (!autoOpen) autoOpened.current = false
     if (!autoOpen || autoOpened.current) return
     autoOpened.current = true
     rowRef.current?.scrollIntoView?.({ block: 'center' })

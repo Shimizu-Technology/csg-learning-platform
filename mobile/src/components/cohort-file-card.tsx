@@ -25,9 +25,9 @@ const IN_APP_MODES = new Set(['markdown', 'text', 'csv', 'image']);
  * student's folder show their review status and comments; `autoOpen` opens
  * the item once (a notification link).
  */
-export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisabled = false, review, onChanged, autoOpen = false }: {
+export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisabled = false, review, onChanged, onStale, autoOpen = false }: {
   cohortId: number; file: CohortFile; note?: string; onDelete?: () => void; downloadDisabled?: boolean
-  review?: ReviewAccess; onChanged?: (file: CohortFile) => void; autoOpen?: boolean
+  review?: ReviewAccess; onChanged?: (file: CohortFile) => void; onStale?: () => void; autoOpen?: boolean
 }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -114,7 +114,7 @@ export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisable
     </View>
     {!link && !doc && <CohortFilePreviewModal title={file.title} preview={preview} onClose={() => setPreview(null)} onDownload={() => { setPreview(null); void download(); }}
       review={reviewing && preview ? <CohortFileReviewSection cohortId={cohortId} file={file} access={reviewing} onChanged={onChanged} /> : undefined} />}
-    {doc && <CohortDocModal cohortId={cohortId} file={file} visible={docOpen} onClose={() => setDocOpen(false)} onChanged={onChanged} reviewAccess={reviewing} />}
+    {doc && <CohortDocModal cohortId={cohortId} file={file} visible={docOpen} onClose={() => setDocOpen(false)} onChanged={onChanged} onStale={onStale} reviewAccess={reviewing} />}
     {reviewing && !doc && <CohortFileReviewModal cohortId={cohortId} file={file} access={reviewing} visible={reviewOpen} onClose={() => setReviewOpen(false)} onChanged={onChanged} />}
   </LearningCard>;
 }

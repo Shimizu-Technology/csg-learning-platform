@@ -5,6 +5,7 @@ import { useSession } from '@/providers/session-provider';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useCohort } from '@/providers/cohort-provider';
 import { ApiError } from '@/lib/api';
+import { themedAlert } from '@/lib/alerts';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => null }));
 jest.mock('expo-router', () => ({ useLocalSearchParams: jest.fn(), usePathname: () => '/', useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn() }) }));
@@ -23,9 +24,9 @@ const doc = (overrides: Record<string, unknown> = {}) => ({
   filename: null, content_type: null, file_size: null, ready: true, ready_at: null, created_at: '2026-11-24T00:00:00Z', uploaded_by_name: 'Ina Instructor',
   uploaded_by_role: 'staff', can_manage: false, kind: 'doc', external_url: null, link_provider: null, version_number: 1, previewable: false, preview_mode: null,
   review_status: 'needs_review', reviewed_by_name: null, reviewed_at: null, comment_count: 2,
-  doc_updated_at: '2026-11-24T01:00:00.000001Z', doc_updated_by_name: 'Student One', can_edit_doc: true, ...overrides,
+  doc_version: 1, doc_updated_at: '2026-11-24T01:00:00.000001Z', doc_updated_by_name: 'Student One', can_edit_doc: true, ...overrides,
 });
-const docResponse = (content: string, overrides: Record<string, unknown> = {}) => ({ file: doc(overrides), doc_content: content, doc_updated_at: (overrides.doc_updated_at as string) || '2026-11-24T01:00:00.000001Z', doc_updated_by_name: 'Student One', can_edit_doc: true, revision_count: 2 });
+const docResponse = (content: string, overrides: Record<string, unknown> = {}) => ({ file: doc(overrides), doc_content: content, doc_version: (overrides.doc_version as number) || 1, doc_updated_at: '2026-11-24T01:00:00.000001Z', doc_updated_by_name: 'Student One', can_edit_doc: overrides.can_edit_doc !== false, revision_count: 2 });
 const api = {
   resources: jest.fn(), cohortFiles: jest.fn(), cohorts: jest.fn(), createCohortDoc: jest.fn(), cohortDoc: jest.fn(), saveCohortDoc: jest.fn(),
   setCohortFileReview: jest.fn(), cohortFileComments: jest.fn(), createCohortFileComment: jest.fn(), deleteCohortFileComment: jest.fn(),
@@ -63,7 +64,7 @@ test('learners see a Learn Doc with its review state and can start a doc without
 });
 
 test('the doc sheet reads, edits and saves from the loaded version, and a 409 offers the latest', async () => {
-  api.saveCohortDoc.mockResolvedValueOnce(docResponse('# Plan\n\nDone', { doc_updated_at: '2026-11-24T02:00:00.000001Z' }))
+  api.saveCohortDoc.mockResolvedValueOnce(docResponse('# Plan\n\nDone', { doc_version: 2, can_manage: true }))
     .mockRejectedValueOnce(new ApiError('This document was updated by someone else.', 409));
   const screen = mount(<ResourcesScreen />);
   fireEvent.press(await screen.findByRole('button', { name: 'Open My Job Search Plan' }));
@@ -73,12 +74,13 @@ test('the doc sheet reads, edits and saves from the loaded version, and a 409 of
   fireEvent.changeText(screen.getByLabelText('Doc content'), '# Plan\n\nDone');
   expect(screen.getByText('Learn Doc · Unsaved changes')).toBeTruthy();
   fireEvent.press(screen.getByRole('button', { name: 'Save' }));
-  await waitFor(() => expect(api.saveCohortDoc).toHaveBeenCalledWith(4, 31, { doc_content: '# Plan\n\nDone', title: 'My Job Search Plan', base_updated_at: '2026-11-24T01:00:00.000001Z', save_revision: true }));
+  // A copy staff made keeps its title, so none is sent.
+  await waitFor(() => expect(api.saveCohortDoc).toHaveBeenCalledWith(4, 31, { doc_content: '# Plan\n\nDone', base_doc_version: 1, save_revision: true }));
   await screen.findByText('Learn Doc · Saved');
   fireEvent.changeText(screen.getByLabelText('Doc content'), '# Plan\n\nOverwrite');
   fireEvent.press(screen.getByRole('button', { name: 'Save' }));
   await screen.findByText(/Someone else updated this doc/);
-  expect(api.saveCohortDoc).toHaveBeenLastCalledWith(4, 31, expect.objectContaining({ base_updated_at: '2026-11-24T02:00:00.000001Z' }));
+  expect(api.saveCohortDoc).toHaveBeenLastCalledWith(4, 31, expect.objectContaining({ base_doc_version: 2, title: 'My Job Search Plan' }));
   fireEvent.press(screen.getByRole('button', { name: 'Load latest' }));
   await waitFor(() => expect(api.cohortDoc).toHaveBeenCalledTimes(2));
 })
@@ -119,3 +121,33 @@ test('staff filter folders waiting for review and open the linked item from a no
   expect(screen.getByRole('button', { name: 'Needs review (0)' })).toBeTruthy();
   expect(screen.getByText('Nothing is waiting for review.')).toBeTruthy();
 });
+
+test('a copy staff made keeps its title read only, and a doc that is gone refreshes the list', async () => {
+  const screen = mount(<ResourcesScreen />);
+  fireEvent.press(await screen.findByRole('button', { name: 'Open My Job Search Plan' }));
+  fireEvent.press(await screen.findByRole('tab', { name: 'Edit' }));
+  expect(screen.getByLabelText('Title').props.editable).toBe(false);
+  expect(screen.getByText('Your instructor named this doc, so its title stays the same.')).toBeTruthy();
+  api.saveCohortDoc.mockRejectedValueOnce(new ApiError('Changes to your folder are paused', 403));
+  fireEvent.changeText(screen.getByLabelText('Doc content'), 'Late edit');
+  fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+  await screen.findByText('Changes to your folder are paused');
+  await waitFor(() => expect(api.cohortFiles).toHaveBeenCalledTimes(2));
+});
+
+test('reopening the doc sheet shows nothing from the last opening until the doc loads again', async () => {
+  const screen = mount(<ResourcesScreen />);
+  fireEvent.press(await screen.findByRole('button', { name: 'Open My Job Search Plan' }));
+  fireEvent.press(await screen.findByRole('tab', { name: 'Edit' }));
+  fireEvent.changeText(screen.getByLabelText('Doc content'), 'Unsaved local text');
+  jest.spyOn(themedAlert, 'alert').mockImplementation((_title, _body, buttons) => { buttons?.find((button) => button.style === 'destructive')?.onPress?.(); });
+  fireEvent.press(screen.getByRole('button', { name: 'Close My Job Search Plan' }));
+  let finish: (value: unknown) => void = () => undefined;
+  api.cohortDoc.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  fireEvent.press(screen.getByRole('button', { name: 'Open My Job Search Plan' }));
+  expect(await screen.findByText('Opening My Job Search Plan…')).toBeTruthy();
+  expect(screen.queryByText('Unsaved local text')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  finish(docResponse('Fresh from the server', { can_edit_doc: false }));
+  await screen.findByText('Learn Doc · Read only');
+}, 15_000);

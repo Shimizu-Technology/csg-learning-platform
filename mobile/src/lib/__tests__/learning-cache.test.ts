@@ -1,4 +1,4 @@
-import { createLearningPersister, createRetryableInitializer, learningCacheKey } from '../learning-cache';
+import { withoutPrivateNotifications, createLearningPersister, createRetryableInitializer, learningCacheKey } from '../learning-cache';
 import { activateUserStorage, beginUserStorageCleanup } from '../user-storage-lifecycle';
 
 const persistedClient = {
@@ -53,4 +53,15 @@ describe('learning cache', () => {
     expect(staleDatabase.getFirstAsync).not.toHaveBeenCalled();
     expect(currentDatabase.runAsync).toHaveBeenCalledTimes(1);
   });
+});
+
+test('file review notifications never reach the offline cache', () => {
+  const notice = (id: number, type: string) => ({ id, notification_type: type, title: 'x' });
+  const client = { timestamp: 1, buster: 'b', clientState: { mutations: [], queries: [
+    { queryKey: ['updates', 3, 'notifications', 'pages'], queryHash: 'n', state: { data: { pages: [{ notifications: [notice(1, 'cohort_file'), notice(2, 'message')], unread_count: 2 }], pageParams: [1] } } },
+    { queryKey: ['learning', 3, 'resources'], queryHash: 'r', state: { data: { notifications: [notice(3, 'cohort_file')] } } },
+  ] } } as unknown as Parameters<typeof withoutPrivateNotifications>[0];
+  const kept = withoutPrivateNotifications(client).clientState.queries;
+  expect((kept[0].state.data as { pages: { notifications: { id: number }[] }[] }).pages[0].notifications.map((item) => item.id)).toEqual([2]);
+  expect(kept[1]).toBe(client.clientState.queries[1]);
 });

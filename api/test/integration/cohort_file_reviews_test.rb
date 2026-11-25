@@ -15,7 +15,7 @@ class CohortFileReviewsTest < ActionDispatch::IntegrationTest
     assert_equal [ @admin.id, @teacher.id ].sort, notified.pluck(:user_id).sort
     notice = notified.find_by!(user: @teacher)
     assert_equal "/admin/cohorts/#{@cohort.id}?tab=files&student=#{@student.id}&file=#{@from_staff.id}", notice.path
-    assert_equal [ "student asked for a review of Coaching notes", @student.id ], [ notice.title, notice.actor_id ]
+    assert_equal [ "File ready for review", "student asked for a review.", @student.id ], [ notice.title, notice.body, notice.actor_id ]
     assert_not Notification.exists?(user: @outside_teacher)
 
     as_user(@teacher) { get files_path, headers: headers }
@@ -39,7 +39,7 @@ class CohortFileReviewsTest < ActionDispatch::IntegrationTest
     assert_equal [ "reviewed", "teacher" ], response.parsed_body.fetch("file").values_at("review_status", "reviewed_by_name")
     assert_not_nil response.parsed_body.dig("file", "reviewed_at")
     student_notice = Notification.find_by!(notifiable: @from_staff, user: @student)
-    assert_equal [ "/resources?cohort_id=#{@cohort.id}&file=#{@from_staff.id}", "teacher reviewed Coaching notes", "cohort_file" ],
+    assert_equal [ "/resources?cohort_id=#{@cohort.id}&file=#{@from_staff.id}", "File reviewed", "cohort_file" ],
       [ student_notice.path, student_notice.title, student_notice.notification_type ]
     as_user(@teacher) { patch review_path(@slides), params: { review_status: "reviewed" }, headers: headers, as: :json }
     assert_response :unprocessable_entity
@@ -60,7 +60,7 @@ class CohortFileReviewsTest < ActionDispatch::IntegrationTest
       assert_response :success
     end
     notice = Notification.find_by!(notifiable: @mine, user: @teacher)
-    assert_equal "student uploaded a new version of Resume Draft for review", notice.title
+    assert_equal [ "Updated file ready for review", "student uploaded a new version for review." ], [ notice.title, notice.body ]
   end
 
   test "comments thread between the student and staff, notify the other side, and stay private to that folder" do
@@ -69,12 +69,13 @@ class CohortFileReviewsTest < ActionDispatch::IntegrationTest
     comment = response.parsed_body.fetch("comment")
     assert_equal [ "Can you check my summary?", "student", "student", true ], comment.values_at("body", "author_name", "author_role", "can_delete")
     staff_notice = Notification.find_by!(notifiable: @mine, user: @teacher)
-    assert_equal [ "student commented on Resume Draft", "Can you check my summary?" ], [ staff_notice.title, staff_notice.body ]
+    # No file title or comment text is copied into the notice.
+    assert_equal [ "New file comment", "student commented on a file in their folder." ], [ staff_notice.title, staff_notice.body ]
 
     as_user(@teacher) { post comments_path(@mine), params: { body: "Looks strong. Tighten the second bullet." }, headers: headers, as: :json }
     assert_response :created
     staff_comment = CohortFileComment.find(response.parsed_body.dig("comment", "id"))
-    assert_equal "teacher commented on Resume Draft", Notification.find_by!(notifiable: @mine, user: @student).title
+    assert_equal [ "New file comment", "A new comment was added in your files." ], Notification.find_by!(notifiable: @mine, user: @student).values_at(:title, :body)
     assert_not Notification.exists?(notifiable: @mine, user: @classmate)
 
     as_user(@student) { get comments_path(@mine), headers: headers }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_122000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -249,6 +249,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_122000) do
     t.string "link_provider", limit: 40
     t.integer "version_number", default: 1, null: false
     t.text "doc_content"
+    t.integer "doc_version", default: 1, null: false
     t.datetime "doc_updated_at"
     t.bigint "doc_updated_by_id"
     t.string "review_status", limit: 20, default: "none", null: false

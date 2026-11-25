@@ -108,11 +108,11 @@ export default function ResourcesScreen() {
           ? <CohortDocForm cohortId={selectedCohortId} folders={STUDENT_FOLDER_PRESETS} onCancel={() => setAdding(null)} onCreated={(created) => { setAdding(null); setOpenFileId(created.id); void queryClient.invalidateQueries({ queryKey: filesKey }); }} />
           : <View style={styles.buttonRow}><Button style={styles.grow} variant="secondary" label="Add a link" onPress={() => setAdding('link')} /><Button style={styles.grow} variant="secondary" label="New doc" onPress={() => setAdding('doc')} /></View>)}
       <View style={styles.stack}>{myFiles.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!storageReady} note={file.uploaded_by_role === 'student' ? 'Added by you' : 'Shared by your instructor'} onDelete={file.can_manage ? () => removeFile(file) : undefined}
-        review={{ staff: false, canChange: canAddLink }} onChanged={replaceMyFile} autoOpen={file.id === openFileId} />)}</View>
+        review={{ staff: false, canChange: canAddLink }} onChanged={replaceMyFile} onStale={() => void queryClient.invalidateQueries({ queryKey: filesKey })} autoOpen={file.id === openFileId} />)}</View>
       {!myFiles.length && <Text style={styles.resourceCopy}>{filter ? 'No files in your folder match this search.' : 'No files in your folder yet.'}</Text>}
     </View>
     <View style={styles.section}><Text accessibilityRole="header" style={styles.category}>Class files</Text><Text style={styles.resourceCopy}>Slides, guides and templates your instructors shared with your cohort.</Text>
-      {classFolders.map(([name, files]) => <View key={name} style={styles.stack}><Text style={styles.folderTitle}>{name}</Text>{files.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!storageReady} autoOpen={file.id === openFileId} />)}</View>)}
+      {classFolders.map(([name, files]) => <View key={name} style={styles.stack}><Text style={styles.folderTitle}>{name}</Text>{files.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!storageReady} onStale={() => void queryClient.invalidateQueries({ queryKey: filesKey })} autoOpen={file.id === openFileId} />)}</View>)}
       {!classFolders.length && <Text style={styles.resourceCopy}>{filter ? 'No class files match this search.' : 'No class files yet.'}</Text>}
     </View>
   </> : null;

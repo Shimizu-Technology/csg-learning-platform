@@ -369,7 +369,8 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
           {staged ? 'Share with students' : 'Move to staff only'}
         </Button>
         <OverflowMenu size="sm" label={`More actions for ${file.title}`} items={[
-          ...((storage || link || doc) && studentCount > 0 ? [{ key: 'copy', label: 'Copy to all students', icon: <CopyPlus className="h-4 w-4" aria-hidden="true" />, onSelect: () => void copy() }] : []),
+          // Staff-only items are shared with students before they can be copied to their folders.
+          ...((storage || link || doc) && studentCount > 0 && !staged ? [{ key: 'copy', label: 'Copy to all students', icon: <CopyPlus className="h-4 w-4" aria-hidden="true" />, onSelect: () => void copy() }] : []),
           { key: 'edit', label: 'Edit', icon: <Pencil className="h-4 w-4" aria-hidden="true" />, onSelect: () => setEditing(true) },
           { key: 'delete', label: 'Delete', tone: 'danger' as const, icon: <Trash2 className="h-4 w-4" aria-hidden="true" />, onSelect: () => void remove() },
         ]} />
@@ -395,8 +396,12 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved }: {
   const save = async () => {
     if (urlProblem) return setError(urlProblem)
     setSaving(true)
-    const result = await api.updateCohortFile(cohortId, file.id, { title, folder, ...(link ? { external_url: url.trim() } : {}) })
+    // Renaming a doc is a doc save, made from the version on screen.
+    const result = await api.updateCohortFile(cohortId, file.id, {
+      title, folder, ...(link ? { external_url: url.trim() } : {}), ...(file.kind === 'doc' && file.doc_version ? { base_doc_version: file.doc_version } : {}),
+    })
     setSaving(false)
+    if (result.status === 409) return setError('This doc changed since you opened it. Cancel, then rename it again.')
     if (!result.data) return setError(result.error || 'Could not save.')
     onSaved(result.data.file)
   }
@@ -528,6 +533,12 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
   const [adding, setAdding] = useState<'file' | 'link' | 'doc' | null>(null)
   const [openFileId, setOpenFileId] = useState<number | null>(linkedFileId)
   const clearOpenFile = useCallback(() => setOpenFileId(null), [])
+  // A newer notification link for this folder opens its item too.
+  const [seenLink, setSeenLink] = useState(linkedFileId)
+  if (linkedFileId !== seenLink) {
+    setSeenLink(linkedFileId)
+    if (linkedFileId) setOpenFileId(linkedFileId)
+  }
   const firstName = folder.student_name.split(' ')[0] || folder.student_name
   const presets = folderOptions(STUDENT_FOLDER_PRESETS, folder.files)
   const remove = async (file: CohortFile) => {

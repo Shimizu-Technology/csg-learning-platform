@@ -31,6 +31,24 @@ const database = createRetryableInitializer(async () => {
 
 type LearningDatabase = Pick<SQLite.SQLiteDatabase, 'getFirstAsync' | 'runAsync'>;
 
+type NotificationPages = { pages?: { notifications?: { notification_type?: string }[] }[] };
+
+/**
+ * File review notices point at private folder items; they stay in memory
+ * and never reach the offline cache, so access that ends can't leave them
+ * readable on the device.
+ */
+export function withoutPrivateNotifications(client: PersistedClient): PersistedClient {
+  const queries = client.clientState.queries.map((query) => {
+    const key = query.queryKey;
+    const data = query.state.data as NotificationPages | undefined;
+    if (!(key[0] === 'updates' && key[2] === 'notifications') || !data?.pages) return query;
+    const pages = data.pages.map((page) => ({ ...page, notifications: (page.notifications || []).filter((item) => item.notification_type !== 'cohort_file') }));
+    return { ...query, state: { ...query.state, data: { ...data, pages } } };
+  });
+  return { ...client, clientState: { ...client.clientState, queries } };
+}
+
 export function createLearningPersister(userId: number, loadDatabase: () => Promise<LearningDatabase> = database): Persister {
   const cacheKey = learningCacheKey(userId);
   return {
@@ -42,7 +60,7 @@ export function createLearningPersister(userId: number, loadDatabase: () => Prom
       await db.runAsync(
         `INSERT OR REPLACE INTO ${CACHE_TABLE} (cache_key, payload, updated_at) VALUES (?, ?, ?)`,
         cacheKey,
-        JSON.stringify(client),
+        JSON.stringify(withoutPrivateNotifications(client)),
         Date.now(),
       );
     },

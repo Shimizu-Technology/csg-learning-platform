@@ -29,7 +29,7 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     as_user(@student) { get doc_path(doc), headers: headers }
     assert_response :success
     assert_equal [ "# Plan\n\n- [ ] Draft", false, 0 ], response.parsed_body.values_at("doc_content", "can_edit_doc", "revision_count")
-    as_user(@student) { patch doc_path(doc), params: { doc_content: "mine now" }, headers: headers, as: :json }
+    as_user(@student) { patch doc_path(doc), params: { base_doc_version: doc.reload.doc_version, doc_content: "mine now" }, headers: headers, as: :json }
     assert_response :forbidden
     with_storage do
       as_user(@student) { get download_path(doc), headers: headers }
@@ -49,7 +49,7 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     as_user(@student) { get files_path, headers: headers }
     mine = response.parsed_body.fetch("my_files").find { |file| file["id"] == copy.id }
     assert_equal [ true, false ], mine.values_at("can_edit_doc", "can_manage")
-    as_user(@student) { patch doc_path(copy), params: { doc_content: "# Plan\n\n- [x] Draft" }, headers: headers, as: :json }
+    as_user(@student) { patch doc_path(copy), params: { base_doc_version: copy.reload.doc_version, doc_content: "# Plan\n\n- [x] Draft" }, headers: headers, as: :json }
     assert_response :success
     assert_equal "# Plan\n\n- [x] Draft", copy.reload.doc_content
     assert_equal "# Plan\n\n- [ ] Draft", doc.reload.doc_content
@@ -74,15 +74,15 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
 
     code = "Use a script tag:\n\n```html\n<script src=\"app.js\"></script>\n```\n\nor `<svg>` inline."
-    as_user(@student) { patch doc_path(doc), params: { doc_content: code }, headers: headers, as: :json }
+    as_user(@student) { patch doc_path(doc), params: { base_doc_version: doc.reload.doc_version, doc_content: code }, headers: headers, as: :json }
     assert_response :success
     [ "<script>alert(1)</script>", "Hi <svg onload=x>", "<!DOCTYPE html><html>", "nul \u0000 byte", "a" * (CohortFile::MAX_DOC_LENGTH + 1),
       "```\nfenced\n```\n<script>after</script>" ].each do |content|
-      as_user(@student) { patch doc_path(doc), params: { doc_content: content }, headers: headers, as: :json }
+      as_user(@student) { patch doc_path(doc), params: { base_doc_version: doc.reload.doc_version, doc_content: content }, headers: headers, as: :json }
       assert_response :unprocessable_entity, content.first(40)
     end
     assert_equal code, doc.reload.doc_content
-    as_user(@student) { patch doc_path(doc), params: { doc_content: { nested: true } }, headers: headers, as: :json }
+    as_user(@student) { patch doc_path(doc), params: { base_doc_version: doc.reload.doc_version, doc_content: { nested: true } }, headers: headers, as: :json }
     assert_response :unprocessable_entity
     as_user(@student) { post files_path, params: doc_params(doc_content: "<script>x</script>"), headers: headers, as: :json }
     assert_response :unprocessable_entity
@@ -98,7 +98,7 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     doc = create_doc(student: @student, uploaded_by: @student, content: "v0")
     original_at = doc.reload.doc_updated_at
     travel 1.minute
-    as_user(@student) { patch doc_path(doc), params: { doc_content: "v1", base_updated_at: doc.doc_updated_at.iso8601(6) }, headers: headers, as: :json }
+    as_user(@student) { patch doc_path(doc), params: { doc_content: "v1", base_doc_version: 1 }, headers: headers, as: :json }
     assert_response :success
     assert_equal 2, response.parsed_body.fetch("revision_count")
     assert_equal [ [ 1, "v0", original_at ], [ 2, "v1", doc.reload.doc_updated_at ] ],
@@ -137,7 +137,7 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "#{revisions_path(doc)}/#{first.id}", headers: headers }
     assert_equal "v0", response.parsed_body.dig("revision", "content")
 
-    as_user(@student) { post "#{revisions_path(doc)}/#{first.id}/restore", params: { base_updated_at: doc.reload.doc_updated_at.iso8601(6) }, headers: headers, as: :json }
+    as_user(@student) { post "#{revisions_path(doc)}/#{first.id}/restore", params: { base_doc_version: doc.reload.doc_version }, headers: headers, as: :json }
     assert_response :success
     assert_equal [ "v0", 8 ], response.parsed_body.values_at("doc_content", "revision_count")
     assert_equal "Restored revision 1", doc.doc_revisions.order(:revision_number).last.summary
@@ -149,32 +149,37 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "a stale base_updated_at returns 409 with the latest doc and nothing is saved" do
+  test "a missing or stale base_doc_version returns 409 with the latest doc and nothing is saved" do
     doc = create_doc(student: @student, uploaded_by: @student, content: "start")
-    loaded = doc.doc_updated_at.iso8601(6)
-    travel 1.second
+    loaded = doc.doc_version
     save(doc, @teacher, "teacher feedback")
-    as_user(@student) { patch doc_path(doc), params: { doc_content: "student overwrite", base_updated_at: loaded }, headers: headers, as: :json }
+    assert_equal loaded + 1, doc.doc_version
+    as_user(@student) { patch doc_path(doc), params: { doc_content: "student overwrite", base_doc_version: loaded }, headers: headers, as: :json }
     assert_response :conflict
     body = response.parsed_body
     assert_equal "This document was updated by someone else. Load the latest version before saving.", body.fetch("error")
-    assert_equal [ "teacher feedback", doc.reload.doc_updated_at.iso8601(6), "teacher" ], body.values_at("doc_content", "doc_updated_at", "doc_updated_by_name")
-    assert_equal doc.id, body.dig("file", "id")
+    assert_equal [ "teacher feedback", doc.doc_version, doc.reload.doc_updated_at.iso8601(6), "teacher" ], body.values_at("doc_content", "doc_version", "doc_updated_at", "doc_updated_by_name")
+    assert_equal [ doc.id, doc.doc_version ], body.fetch("file").values_at("id", "doc_version")
     assert_equal "teacher feedback", doc.doc_content
+    [ nil, "", "two", -1 ].each do |base|
+      as_user(@student) { patch doc_path(doc), params: { doc_content: "no base", base_doc_version: base }.compact, headers: headers, as: :json }
+      assert_response :conflict, base.inspect
+    end
 
     first = doc.doc_revisions.first
-    as_user(@student) { post "#{revisions_path(doc)}/#{first.id}/restore", params: { base_updated_at: loaded }, headers: headers, as: :json }
+    as_user(@student) { post "#{revisions_path(doc)}/#{first.id}/restore", params: { base_doc_version: loaded }, headers: headers, as: :json }
     assert_response :conflict
-    as_user(@student) { patch doc_path(doc), params: { doc_content: "x", base_updated_at: "yesterday" }, headers: headers, as: :json }
-    assert_response :unprocessable_entity
-    as_user(@student) { patch doc_path(doc), params: { doc_content: "student reply", base_updated_at: body.fetch("doc_updated_at"), title: "Renamed" }, headers: headers, as: :json }
+    as_user(@student) { post "#{revisions_path(doc)}/#{first.id}/restore", headers: headers, as: :json }
+    assert_response :conflict
+    as_user(@student) { patch doc_path(doc), params: { doc_content: "student reply", base_doc_version: body.fetch("doc_version"), title: "  Renamed   doc " }, headers: headers, as: :json }
     assert_response :success
-    assert_equal [ "student reply", "Renamed" ], doc.reload.values_at(:doc_content, :title)
-    # An unchanged repeat of the same save is a no-op, so it never conflicts.
+    assert_equal [ "student reply", "Renamed doc", loaded + 2 ], doc.reload.values_at(:doc_content, :title, :doc_version)
+    assert_equal loaded + 2, response.parsed_body.fetch("doc_version")
+    # An unchanged repeat of the same save is a no-op, so it never conflicts or advances the version.
     saved_at = doc.doc_updated_at
-    as_user(@student) { patch doc_path(doc), params: { doc_content: "student reply", base_updated_at: saved_at.iso8601(6) }, headers: headers, as: :json }
+    as_user(@student) { patch doc_path(doc), params: { doc_content: "student reply", title: "Renamed doc", base_doc_version: doc.doc_version }, headers: headers, as: :json }
     assert_response :success
-    assert_equal saved_at, doc.reload.doc_updated_at
+    assert_equal [ saved_at, loaded + 2 ], doc.reload.values_at(:doc_updated_at, :doc_version)
   end
 
   test "a learner's doc save, restore, review change and comment lock their enrollment before the file" do
@@ -182,8 +187,8 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     save(doc, @student, "next")
     revision = doc.doc_revisions.first
     requests = [
-      -> { patch doc_path(doc), params: { doc_content: "locked" }, headers: headers, as: :json },
-      -> { post "#{revisions_path(doc)}/#{revision.id}/restore", headers: headers, as: :json },
+      -> { patch doc_path(doc), params: { base_doc_version: doc.reload.doc_version, doc_content: "locked" }, headers: headers, as: :json },
+      -> { post "#{revisions_path(doc)}/#{revision.id}/restore", params: { base_doc_version: doc.reload.doc_version }, headers: headers, as: :json },
       -> { patch review_path(doc), params: { review_status: "needs_review" }, headers: headers, as: :json },
       -> { post comments_path(doc), params: { body: "Ready" }, headers: headers, as: :json },
       -> { delete "#{comments_path(doc)}/#{doc.comments.last.id}", headers: headers }
@@ -234,7 +239,7 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
     as_user(@student) { get doc_path(late), headers: headers }
     assert_response :forbidden
 
-    as_user(@student) { patch doc_path(mine), params: { doc_content: "paused edit" }, headers: headers, as: :json }
+    as_user(@student) { patch doc_path(mine), params: { base_doc_version: mine.reload.doc_version, doc_content: "paused edit" }, headers: headers, as: :json }
     assert_response :forbidden
     as_user(@student) { post "#{revisions_path(mine)}/#{mine.doc_revisions.first.id}/restore", headers: headers, as: :json }
     assert_response :forbidden
@@ -279,7 +284,7 @@ class CohortLearnDocsTest < ActionDispatch::IntegrationTest
   end
 
   def save(doc, user, content, **params)
-    as_user(user) { patch doc_path(doc), params: { doc_content: content, **params }, headers: headers, as: :json }
+    as_user(user) { patch doc_path(doc), params: { base_doc_version: doc.reload.doc_version, doc_content: content, **params }, headers: headers, as: :json }
     assert_response :success, response.body
     doc.reload
   end

@@ -154,9 +154,15 @@ function SheetHeader({ title, subtitle, onClose }: { title: string; subtitle?: s
  * A Learn Doc on the phone: Read shows it as written text, Edit is a plain
  * Markdown box with Save. A save from an older copy than the server's is
  * refused (409) and nothing is lost: the notice offers the latest version.
- * Items in a student's folder show review status and comments below.
+ * Items in a student's folder show review status and comments below. Every
+ * opening starts empty and shows nothing until the doc (and the viewer's
+ * rights to it) load again; a doc that is gone or no longer readable (403,
+ * 404) tells the screen to refresh its list through `onStale`. Learners
+ * can't rename a copy staff put in their folder, so its title is read only.
  */
-export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, reviewAccess }: { cohortId: number; file: CohortFile; visible: boolean; onClose: () => void; onChanged?: (file: CohortFile) => void; reviewAccess?: ReviewAccess }) {
+export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, onStale, reviewAccess }: {
+  cohortId: number; file: CohortFile; visible: boolean; onClose: () => void; onChanged?: (file: CohortFile) => void; onStale?: () => void; reviewAccess?: ReviewAccess
+}) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const { api } = useSession();
@@ -168,8 +174,21 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, re
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Opening or closing the sheet drops whatever the last opening showed.
+  const [shownFor, setShownFor] = useState(visible);
+  if (shownFor !== visible) {
+    setShownFor(visible);
+    setDoc(null);
+    setTitle(file.title);
+    setContent('');
+    setLoadError(null);
+    setError(null);
+    setConflict(false);
+    setMode('read');
+  }
   const showReview = Boolean(reviewAccess) && isStudentFolderItem(file);
   const canEdit = Boolean(doc?.can_edit_doc);
+  const titleEditable = canEdit && Boolean(doc?.file.can_manage);
   const dirty = Boolean(doc) && ((title.trim() || doc!.file.title) !== doc!.file.title || content !== doc!.doc_content);
 
   const apply = (next: CohortDoc) => {
@@ -183,7 +202,11 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, re
     setConflict(false);
     setMode(next.can_edit_doc && !next.doc_content.trim() ? 'edit' : 'read');
   };
-  const failed = (failure: unknown) => setLoadError((failure as Error).message || 'Could not open this doc.');
+  const gone = (failure: unknown) => failure instanceof ApiError && (failure.status === 403 || failure.status === 404);
+  const failed = (failure: unknown) => {
+    setLoadError((failure as Error).message || 'Could not open this doc.');
+    if (gone(failure)) onStale?.();
+  };
   const load = () => api.cohortDoc(cohortId, file.id).then(opened, failed);
   useEffect(() => {
     if (!visible) return;
@@ -200,12 +223,17 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, re
     setSaving(true);
     setError(null);
     try {
-      const next = await api.saveCohortDoc(cohortId, file.id, { doc_content: content, ...(title.trim() ? { title: title.trim() } : {}), base_updated_at: doc.doc_updated_at, save_revision: true });
+      const next = await api.saveCohortDoc(cohortId, file.id, {
+        doc_content: content, base_doc_version: doc.doc_version ?? 0, save_revision: true, ...(titleEditable && title.trim() ? { title: title.trim() } : {}),
+      });
       apply(next);
       onChanged?.(next.file);
     } catch (failure) {
       if (failure instanceof ApiError && failure.status === 409) setConflict(true);
-      else setError((failure as Error).message || 'Could not save this doc.');
+      else {
+        setError((failure as Error).message || 'Could not save this doc.');
+        if (gone(failure)) onStale?.();
+      }
     } finally {
       setSaving(false);
     }
@@ -228,7 +256,8 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, re
               {conflict && <View accessibilityRole="alert" style={styles.notice}><Text style={styles.noticeText}>Someone else updated this doc. Load the latest version to keep editing; copy your text first if you want to keep it.</Text><Button variant="secondary" label="Load latest" onPress={() => void load()} /></View>}
               {canEdit && <View style={styles.segment} accessibilityRole="tablist">{(['read', 'edit'] as const).map((value) => <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: mode === value }} onPress={() => setMode(value)} style={[styles.segmentItem, mode === value && styles.segmentSelected]}><Text style={styles.segmentText}>{value === 'read' ? 'Read' : 'Edit'}</Text></Pressable>)}</View>}
               {canEdit && mode === 'edit' ? <>
-                <TextInput keyboardAppearance={scheme} accessibilityLabel="Title" value={title} onChangeText={setTitle} maxLength={160} editable={!saving && !conflict} style={styles.input} />
+                <TextInput keyboardAppearance={scheme} accessibilityLabel="Title" value={title} onChangeText={setTitle} maxLength={160} editable={titleEditable && !saving && !conflict} style={[styles.input, !titleEditable && styles.readOnly]} />
+                {!titleEditable && <Text style={styles.meta}>Your instructor named this doc, so its title stays the same.</Text>}
                 <TextInput keyboardAppearance={scheme} accessibilityLabel="Doc content" value={content} onChangeText={setContent} placeholder="Write in Markdown: # headings, - [ ] tasks, | tables |" placeholderTextColor={c.text.body}
                   multiline textAlignVertical="top" autoCapitalize="sentences" editable={!saving && !conflict} style={[styles.input, styles.editor]} />
                 <Text style={styles.meta}>{content.length.toLocaleString()}/{MAX_DOC_LENGTH.toLocaleString()} characters</Text>
@@ -296,6 +325,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   comment: { gap: 4, borderRadius: 12, backgroundColor: c.surface.sunken, padding: 12 },
   link: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }, linkText: { color: c.status.danger.fg, fontFamily: fonts.semibold, fontSize: 13 },
   input: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 12, paddingVertical: 10, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14 },
+  readOnly: { backgroundColor: c.surface.sunken, color: c.text.body },
   editor: { minHeight: 280, fontFamily: monoFont, fontSize: 13, lineHeight: 19 }, commentInput: { minHeight: 88, textAlignVertical: 'top' },
   error: { color: c.status.danger.fg, fontFamily: fonts.medium, fontSize: 13 },
   notice: { gap: 10, borderRadius: 12, backgroundColor: c.status.warning.bg, padding: 12 }, noticeText: { color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 12, lineHeight: 17 },

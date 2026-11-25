@@ -6954,7 +6954,7 @@ export interface paths {
         head?: never;
         /**
          * Rename, move, share or stage a file or link
-         * @description Staff may change `title`, `description`, `folder`, `visibility` and a link's `external_url`; a student only `title`, `description`, `folder` and a link's `external_url` on items they added to their own folder, while active. A new link address is checked like a new link and reclassified. Other students' and staff files are 404 to a student.
+         * @description Staff may change `title`, `description`, `folder`, `visibility` and a link's `external_url`; a student only `title`, `description`, `folder` and a link's `external_url` on items they added to their own folder, while active. A new link address is checked like a new link and reclassified. Other students' and staff files are 404 to a student. Renaming a Learn Doc is a doc save: it needs `base_doc_version` (409 with the latest doc when missing or stale), advances `doc_version` and keeps the old title and content in History.
          */
         patch: {
             parameters: {
@@ -6979,6 +6979,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CohortFileResponse"];
+                    };
+                };
+                /** @description A Learn Doc rename whose base_doc_version is missing or stale */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocConflictResponse"];
                     };
                 };
             };
@@ -7128,7 +7137,7 @@ export interface paths {
         put?: never;
         /**
          * Copy a class file, link or Learn Doc into every active student's folder
-         * @description Staff only. The source must be a ready class file, link or Learn Doc (422 otherwise); links and docs copy without storage, files need it (503). Each student gets the doc's current content as their own doc to edit. Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ "folder": string }` names the folder for the copies; it defaults to the source's folder.
+         * @description Staff only. The source must be a ready class file, link or Learn Doc shared with students (422 for anything else, including staff-only items); links and docs copy without storage, files need it (503). Each student gets the doc's current content as their own doc to edit. Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ "folder": string }` names the folder for the copies; it defaults to the source's folder. Each recipient's enrollment is locked and rechecked before their copy is made; anyone paused, dropped or expired by then is skipped.
          */
         post: {
             parameters: {
@@ -7315,7 +7324,7 @@ export interface paths {
         head?: never;
         /**
          * Save a Learn Doc
-         * @description Staff save any doc in the cohort; an active student saves docs in their own folder, including copies staff put there (403 when paused, completed or expired, and for class docs). Send `base_updated_at` (the `doc_updated_at` you loaded): when the doc was saved since, nothing is saved and 409 returns the latest state. An unchanged save is a no-op. Revisions keep the original, each editor's last state, states left resting for 10 minutes, the state a paused learner was left with, and every `save_revision: true` save. A student's enrollment is locked before the doc. Same content rules as creating a doc (422).
+         * @description Staff save any doc in the cohort; an active student saves docs in their own folder, including copies staff put there (403 when paused, completed or expired, and for class docs). Learners can't rename a copy staff put in their folder: its `title` is ignored. Send `base_doc_version` (the `doc_version` you loaded): when it is missing or the doc was saved since, nothing is saved and 409 returns the latest state. An unchanged save is a no-op. Revisions keep the original, each editor's last state, states left resting for 10 minutes, the state a paused learner was left with, and every `save_revision: true` save. Locks, in order: a learner writer's enrollment, the enrollments of everyone who can read the doc, then the doc, so a pause lands wholly before or after the save. Same content rules as creating a doc (422).
          */
         patch: {
             parameters: {
@@ -7451,7 +7460,7 @@ export interface paths {
         put?: never;
         /**
          * Restore a Learn Doc revision
-         * @description Makes the revision's title and content the current doc and records it as a new revision ("Restored revision N"). Same permissions, locks and `base_updated_at` conflict check as saving.
+         * @description Makes the revision's content (and title, for anyone who may rename the doc) the current doc. The state it replaces is always kept as a revision first, and the restored state is recorded as a new one ("Restored revision N"). Same permissions, locks and `base_doc_version` conflict check as saving.
          */
         post: {
             parameters: {
@@ -7464,7 +7473,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": components["schemas"]["CohortDocRestoreInput"];
                 };
@@ -7707,7 +7716,7 @@ export interface components {
             /** @description Whether this viewer may rename or delete the file. */
             can_manage: boolean;
             /**
-             * @description Review state of a student-folder item. Students send their own items for review; staff mark them reviewed.
+             * @description Review state of a student-folder item. Students send their own items for review; staff mark them reviewed. A paused learner sees `none` unless it was reviewed before the pause.
              * @enum {string}
              */
             review_status: "none" | "needs_review" | "reviewed";
@@ -7715,7 +7724,9 @@ export interface components {
             reviewed_at: string | null;
             /** @description Review comments this viewer can read (0 for class files and items hidden from students). */
             comment_count: number;
-            /** @description When the shown Learn Doc state was saved, ISO 8601 with microseconds; send it back as `base_updated_at`. Null for files and links. */
+            /** @description For a Learn Doc: advances on every save, rename and restore; send it back as `base_doc_version`. Null for files and links, and for the state a paused learner reads. */
+            doc_version: number | null;
+            /** @description When the shown Learn Doc state was saved, ISO 8601 with microseconds. Null for files and links. */
             doc_updated_at: string | null;
             doc_updated_by_name: string | null;
             /** @description Whether this viewer may save this Learn Doc (false for other kinds). */
@@ -7737,7 +7748,9 @@ export interface components {
         CohortDocResponse: {
             file: components["schemas"]["CohortFile"];
             doc_content: string;
-            /** @description ISO 8601 with microseconds; send it back as `base_updated_at`. */
+            /** @description Send it back as `base_doc_version`; null for the state a paused learner reads. */
+            doc_version: number | null;
+            /** @description When the shown state was saved, ISO 8601 with microseconds. */
             doc_updated_at: string;
             doc_updated_by_name: string | null;
             can_edit_doc: boolean;
@@ -7749,7 +7762,9 @@ export interface components {
             error: string;
             file: components["schemas"]["CohortFile"];
             doc_content: string;
-            /** @description ISO 8601 with microseconds; send it back as `base_updated_at`. */
+            /** @description Send it back as `base_doc_version`; null for the state a paused learner reads. */
+            doc_version: number | null;
+            /** @description When the shown state was saved, ISO 8601 with microseconds. */
             doc_updated_at: string;
             doc_updated_by_name: string | null;
             can_edit_doc: boolean;
@@ -7758,13 +7773,14 @@ export interface components {
         };
         CohortDocUpdateInput: {
             doc_content: string;
+            /** @description Ignored for a learner who can't rename the doc (a copy staff put in their folder). */
             title?: string;
             /** @description Note for the revision a named save records. */
             summary?: string;
             /** @description Record this save as its own revision. */
             save_revision?: boolean;
-            /** @description The `doc_updated_at` the editor loaded; 409 when the doc was saved since. */
-            base_updated_at?: string;
+            /** @description The `doc_version` the editor loaded. Missing or stale: 409 with the latest doc, nothing saved. */
+            base_doc_version: number;
         };
         CohortDocRevision: {
             id: number;
@@ -7796,7 +7812,8 @@ export interface components {
             revision: components["schemas"]["CohortDocRevisionDetail"];
         };
         CohortDocRestoreInput: {
-            base_updated_at?: string;
+            /** @description The `doc_version` the editor loaded. Missing or stale: 409. */
+            base_doc_version: number;
         };
         CohortFileReviewInput: {
             /** @enum {string} */
@@ -7963,6 +7980,8 @@ export interface components {
             visibility?: "students" | "staff_only";
             /** @description Links only: a new public https:// address. */
             external_url?: string;
+            /** @description Required to rename a Learn Doc: the `doc_version` the editor loaded (409 when missing or stale). */
+            base_doc_version?: number;
         };
         NotificationEntry: {
             destination: components["schemas"]["RecordDestination"] | null;

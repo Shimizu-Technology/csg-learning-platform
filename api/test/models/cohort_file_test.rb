@@ -237,4 +237,28 @@ class CohortFileTest < ModelCoverageTestCase
     assert lock && check && lock < check, statements.join("\n")
     assert CohortFileVersion.exists?
   end
+
+  test "doc markup is checked on the parsed Markdown: code of every kind may show tags, nothing else may" do
+    allowed = [
+      "~~~\n<script>\n~~~~\nclosed by a longer fence",
+      "~~~\n<script>\n```\nstill inside the tilde fence",
+      "```\nunclosed fences run to the end <script>",
+      "````\n```\n<svg>\n```\n````",
+      "Inline `<svg onload=x>` and ``<script>`` code",
+      "    <script> indented code",
+      "a < `x` svg, text either side of code",
+      "text <\n\nsvg in the next paragraph"
+    ]
+    refused = [
+      "hi <script>alert(1)</script>",
+      "~~~\n<script>\n~~~~\nafter the fence <script>",
+      "```\ncode\n```\n<svg onload=x>",
+      "<div>\n<script>\n</div>",
+      "\\<script> escaped",
+      "&lt;html&gt; written as entities",
+      "| a |\n|---|\n| <svg> |"
+    ]
+    allowed.each { |markdown| assert_not CohortFile.active_markup_outside_code?(markdown), markdown }
+    refused.each { |markdown| assert CohortFile.active_markup_outside_code?(markdown), markdown }
+  end
 end
