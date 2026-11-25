@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
@@ -219,6 +219,7 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, on
       (failure) => { if (sent === opening.current) failed(failure); },
     );
   };
+  useLayoutEffect(() => () => { opening.current += 1; }, []);
   useEffect(() => {
     opening.current += 1;
     if (visible) void load();

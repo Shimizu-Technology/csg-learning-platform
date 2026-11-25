@@ -375,3 +375,26 @@ it('offers Copy to all students only for items shared with students, and renames
   expect(mocks.updateCohortFile).toHaveBeenLastCalledWith(4, 45, expect.objectContaining({ title: 'Shared guide', base_doc_version: 5 }))
   expect(row('Shared guide')).toBeTruthy()
 })
+
+it('reloads the list from the server when cancelling a doc edit after a 409 conflict', async () => {
+  const data = reviewResponse()
+  data.data.class_files.push(docItem({ id: 45, title: 'Staged guide', visibility: 'staff_only', doc_version: 3 }))
+  mocks.getCohortFiles.mockResolvedValueOnce(data)
+  mocks.updateCohortFile.mockResolvedValueOnce({ data: null, error: 'conflict', status: 409 })
+  mocks.getCohortDoc.mockResolvedValueOnce({ data: { file: docItem({ id: 45, title: 'Staged guide v2', visibility: 'staff_only', doc_version: 5 }), doc_content: 'x', doc_version: 5,
+    doc_updated_at: '2026-11-24T00:00:00.000001Z', doc_updated_by_name: 'Ina Instructor', can_edit_doc: true, revision_count: 1 }, error: null })
+  const refreshed = reviewResponse()
+  refreshed.data.class_files.push(docItem({ id: 45, title: 'Staged guide v2', folder: 'Week 2', visibility: 'staff_only', doc_version: 5 }))
+  mocks.getCohortFiles.mockResolvedValueOnce(refreshed)
+  await mount()
+  const row = (title: string) => [...container.querySelectorAll('[aria-label="Class files"] > li')].find((item) => item.textContent?.includes(title))!
+  await act(async () => row('Staged guide').querySelector<HTMLButtonElement>('[aria-label="More actions for Staged guide"]')!.click())
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === 'Edit')!.click())
+  const titleInput = [...container.querySelectorAll<HTMLInputElement>('input')].find((input) => input.value === 'Staged guide')!
+  setValue(titleInput, 'Shared guide')
+  await act(async () => button('Save').click())
+  expect(mocks.getCohortFiles).toHaveBeenCalledTimes(1)
+  await act(async () => button('Cancel').click())
+  expect(mocks.getCohortFiles).toHaveBeenCalledTimes(2)
+  expect(row('Staged guide v2').textContent).toContain('Week 2')
+})

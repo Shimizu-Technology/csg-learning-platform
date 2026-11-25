@@ -359,7 +359,7 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
   }
 
   if (editing) {
-    return <EditFile cohortId={cohortId} file={file} presets={CLASS_FOLDER_PRESETS} onCancel={() => setEditing(false)} onRefreshed={onSaved}
+    return <EditFile cohortId={cohortId} file={file} presets={CLASS_FOLDER_PRESETS} onCancel={() => setEditing(false)} onReload={onCopied}
       onSaved={(saved) => { onSaved(saved); setEditing(false) }} />
   }
   return (
@@ -381,14 +381,14 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
   )
 }
 
-function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
+function EditFile({ cohortId, file, presets, onCancel, onSaved, onReload }: {
   cohortId: number
   file: CohortFile
   presets: string[]
   onCancel: () => void
   onSaved: (file: CohortFile) => void
-  /** A doc changed under the form: the list takes the latest copy and the form stays open. */
-  onRefreshed?: (file: CohortFile) => void
+  /** Reloads the list from the server when cancelling after a 409 conflict. */
+  onReload?: () => void
 }) {
   const [title, setTitle] = useState(file.title)
   const [folder, setFolder] = useState(file.folder)
@@ -398,21 +398,12 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
   const [error, setError] = useState('')
   // The doc version a rename is made from; a conflict moves it to the latest.
   const [baseVersion, setBaseVersion] = useState(file.doc_version)
-  const [latestConflictFile, setLatestConflictFile] = useState<CohortFile | null>(null)
+  const [hadConflict, setHadConflict] = useState(false)
   const listId = `folders-${file.id}`
   const link = file.kind === 'link'
   const urlProblem = link ? linkUrlProblem(url) : null
   const cancel = () => {
-    if (latestConflictFile) {
-      // Preserve newer list updates (such as Rename folder) while syncing the latest doc metadata.
-      onRefreshed?.({
-        ...file,
-        title: latestConflictFile.title,
-        doc_version: latestConflictFile.doc_version,
-        doc_updated_at: latestConflictFile.doc_updated_at,
-        doc_updated_by_name: latestConflictFile.doc_updated_by_name,
-      })
-    }
+    if (hadConflict) onReload?.()
     onCancel()
   }
   const save = async () => {
@@ -428,13 +419,13 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
       ...(file.kind === 'doc' && baseVersion ? { base_doc_version: baseVersion } : {}),
     })
     if (result.status === 409) {
+      setHadConflict(true)
       const latest = await api.getCohortDoc(cohortId, file.id)
       setSaving(false)
       if (!latest.data) return setError(latest.error || 'This doc changed since you opened it. Cancel and try again.')
       setBaseVersion(latest.data.doc_version)
       if (!folderChanged) setFolder(latest.data.file.folder)
       setBaseFolder(latest.data.file.folder)
-      setLatestConflictFile(latest.data.file)
       return setError(`This doc changed since you opened it (now "${latest.data.file.title}"). Save again to rename it.`)
     }
     setSaving(false)
