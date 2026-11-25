@@ -181,3 +181,17 @@ it('shows a removed row\'s file when the server says it was already published', 
   expect(mocks.completeCohortFile).toHaveBeenCalledWith(4, 45)
   expect(onUploaded).toHaveBeenCalledWith({ id: 45, title: 'a' })
 })
+
+it('keeps the row and handle when reloading an already-published file fails during Remove', async () => {
+  const onUploaded = vi.fn()
+  mocks.abandonCohortUpload.mockResolvedValue('published')
+  mocks.completeCohortFile.mockResolvedValue({ data: null, error: 'Service unavailable', status: 503 })
+  mocks.uploadCohortFile.mockImplementationOnce(async (...args: unknown[]) => { Object.assign(args[4] as object, { fileId: 46 }); throw new Error('Network lost') })
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={onUploaded} />))
+  await choose([pdf('a.pdf')])
+  await act(async () => button('Upload file').click())
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove a.pdf"]')!.click())
+  expect(onUploaded).not.toHaveBeenCalled()
+  expect(container.querySelector('ul[aria-label="Files to upload"]')).not.toBeNull()
+  expect(container.textContent).toContain('Service unavailable')
+})

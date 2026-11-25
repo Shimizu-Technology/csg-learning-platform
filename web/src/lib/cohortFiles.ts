@@ -244,6 +244,8 @@ export interface CohortUploadState {
   versionId?: number
   upload?: { url: string; fields: Record<string, string> }
   uploaded?: boolean
+  /** True once a POST to S3 has been started; bytes may have landed even if the response was lost. */
+  s3Attempted?: boolean
   startedAt?: number
   details?: string
 }
@@ -284,7 +286,7 @@ export async function abandonCohortUpload(cohortId: number, state: CohortUploadS
     const result = await api.deleteCohortFile(cohortId, state.fileId, { pendingOnly: true })
     if (result.error) {
       if (result.status === 409 || (result.status === 422 && /already published/i.test(result.error))) return 'published'
-      if (result.status !== 404) throw new Error(result.error)
+      if (result.status !== 404 && result.status !== 410) throw new Error(result.error)
       outcome = 'gone'
     }
   }
@@ -346,7 +348,7 @@ export async function uploadCohortFile(cohortId: number, file: File, options: Co
   try {
     // At most one fresh start per call, after the pending file proved unusable.
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (progress.fileId && !progress.uploaded && (stale(progress) || progress.details !== signature)) {
+      if (progress.fileId && !progress.uploaded && !progress.s3Attempted && (stale(progress) || progress.details !== signature)) {
         const published = await restartUpload(cohortId, progress)
         if (published) return published
       }
@@ -362,9 +364,10 @@ export async function uploadCohortFile(cohortId: number, file: File, options: Co
           ...(options.studentId ? { student_id: options.studentId } : {}),
         })
         if (!started.data) throw new Error(started.error || 'Could not start the upload.')
-        Object.assign(progress, { fileId: started.data.file.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, startedAt: Date.now(), details: signature })
+        Object.assign(progress, { fileId: started.data.file.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, s3Attempted: false, startedAt: Date.now(), details: signature })
       }
-      if (!progress.uploaded) {
+      if (!progress.uploaded && !progress.s3Attempted) {
+        progress.s3Attempted = true
         await uploadToS3(progress.upload!.url, progress.upload!.fields, file, onProgress)
         progress.uploaded = true
       }
@@ -390,7 +393,7 @@ export async function uploadCohortFile(cohortId: number, file: File, options: Co
 export async function uploadCohortFileVersion(cohortId: number, fileId: number, file: File, note: string, onProgress?: (progress: UploadProgress) => void, state: CohortUploadState = {}): Promise<CohortFile> {
   const signature = note.trim()
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (state.versionId && !state.uploaded && (stale(state) || state.details !== signature)) clearUploadState(state)
+    if (state.versionId && !state.uploaded && !state.s3Attempted && (stale(state) || state.details !== signature)) clearUploadState(state)
     if (!state.versionId || !state.upload) {
       const started = await api.createCohortFileVersion(cohortId, fileId, {
         filename: file.name,
@@ -399,9 +402,10 @@ export async function uploadCohortFileVersion(cohortId: number, fileId: number, 
         ...(signature ? { note: signature } : {}),
       })
       if (!started.data) throw new Error(started.error || 'Could not start the upload.')
-      Object.assign(state, { versionId: started.data.version.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, startedAt: Date.now(), details: signature })
+      Object.assign(state, { versionId: started.data.version.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, s3Attempted: false, startedAt: Date.now(), details: signature })
     }
-    if (!state.uploaded) {
+    if (!state.uploaded && !state.s3Attempted) {
+      state.s3Attempted = true
       await uploadToS3(state.upload!.url, state.upload!.fields, file, onProgress)
       state.uploaded = true
     }

@@ -283,7 +283,8 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
         if ((await abandonCohortUpload(cohortId, state)) === 'published') {
           // It published after all (a lost confirmation): show it instead of losing it.
           const published = await api.completeCohortFile(cohortId, state.fileId!)
-          if (published.data) onUploaded(published.data.file)
+          if (!published.data) throw new Error(published.error || 'This file was already published, but could not be loaded.')
+          onUploaded(published.data.file)
         }
       } catch (cause) {
         update(key, { removing: false, status: 'failed', error: `Couldn't cancel this upload. ${cause instanceof Error ? cause.message : ''}`.trim() })
@@ -570,6 +571,7 @@ function CohortFileVersionUploader({ cohortId, file, onUploaded, onCancel }: {
   const [error, setError] = useState('')
   // Kept across Retry so a lost confirmation publishes the same pending version.
   const upload = useRef<CohortUploadState>({})
+  const [noteLocked, setNoteLocked] = useState(false)
   const uploading = progress !== null
   const choose = (next: File | undefined) => {
     if (!next) return
@@ -577,6 +579,7 @@ function CohortFileVersionUploader({ cohortId, file, onUploaded, onCancel }: {
     setError(problem || '')
     setPicked(problem ? null : next)
     upload.current = {}
+    setNoteLocked(false)
   }
   const submit = async () => {
     if (!picked || uploading) return
@@ -587,6 +590,7 @@ function CohortFileVersionUploader({ cohortId, file, onUploaded, onCancel }: {
       onUploaded(saved)
     } catch (cause) {
       setProgress(null)
+      setNoteLocked(Boolean(upload.current.versionId && (upload.current.uploaded || upload.current.s3Attempted)))
       setError(cause instanceof Error ? cause.message : 'Upload failed. Try again.')
     }
   }
@@ -602,7 +606,8 @@ function CohortFileVersionUploader({ cohortId, file, onUploaded, onCancel }: {
       </div>
       <label className="block text-sm font-medium text-ink">
         What changed <span className="font-normal text-ink-muted">(optional)</span>
-        <input className="app-control mt-1 w-full" value={note} maxLength={300} disabled={uploading} onChange={(event) => setNote(event.target.value)} />
+        <input className="app-control mt-1 w-full" value={note} maxLength={300} disabled={uploading || noteLocked} onChange={(event) => setNote(event.target.value)} />
+        {noteLocked && <span className="mt-1 block text-xs font-normal text-ink-muted">Note is locked while retrying this upload. Choose a different file to start over.</span>}
       </label>
       {uploading && <ProgressBar value={progress} label={`Uploading ${picked?.name ?? 'file'}`} size="sm" />}
       {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}

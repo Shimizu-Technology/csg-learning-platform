@@ -122,14 +122,16 @@ it('retries a lost confirmation on the same pending file instead of creating ano
   expect(mocks.deleteCohortFile).toHaveBeenCalledWith(4, 7, { pendingOnly: true })
 })
 
-it('retries a failed storage upload to the same presigned form', async () => {
+it('checks complete after a failed storage response and re-uploads cleanly when bytes never landed', async () => {
   mocks.uploadToS3.mockRejectedValueOnce(new Error('Network down')).mockResolvedValueOnce(undefined)
-  mocks.completeCohortFile.mockResolvedValue({ data: { file: { ...pending, ready: true } }, error: null })
+  mocks.completeCohortFile
+    .mockResolvedValueOnce({ data: null, error: 'Uploaded file is missing', status: 422 })
+    .mockResolvedValueOnce({ data: { file: { ...pending, id: 8, ready: true } }, error: null })
   const state: CohortUploadState = {}
   const file = new File(['resume'], 'resume.pdf')
   await expect(uploadCohortFile(4, file, { folder: 'General' }, undefined, state)).rejects.toThrow('Network down')
-  await uploadCohortFile(4, file, { folder: 'General' }, undefined, state)
-  expect(mocks.createCohortFile).toHaveBeenCalledTimes(1)
+  await expect(uploadCohortFile(4, file, { folder: 'General' }, undefined, state)).resolves.toMatchObject({ id: 8 })
+  expect(mocks.createCohortFile).toHaveBeenCalledTimes(2)
   expect(mocks.uploadToS3).toHaveBeenCalledTimes(2)
 })
 
@@ -163,9 +165,11 @@ it('starts a fresh upload when a retry finds the old one expired, using the curr
   expect(state.fileId).toBe(8)
 })
 
-it('starts fresh when the presigned form is too old to reuse', async () => {
+it('starts fresh when the presigned form is too old to reuse and bytes never reached storage', async () => {
   mocks.uploadToS3.mockRejectedValueOnce(new Error('Network down')).mockResolvedValue(undefined)
-  mocks.completeCohortFile.mockResolvedValue({ data: { file: { id: 7, ready: true } }, error: null })
+  mocks.completeCohortFile
+    .mockResolvedValueOnce({ data: null, error: 'Uploaded file is missing', status: 422 })
+    .mockResolvedValue({ data: { file: { id: 8, ready: true } }, error: null })
   const state: CohortUploadState = {}
   const file = new File(['resume'], 'resume.pdf')
   await expect(uploadCohortFile(4, file, { folder: 'General' }, undefined, state)).rejects.toThrow('Network down')
@@ -175,10 +179,13 @@ it('starts fresh when the presigned form is too old to reuse', async () => {
   expect(mocks.createCohortFile).toHaveBeenCalledTimes(2)
 })
 
-it('uses edited details on retry: fresh before the bytes were sent, saved on the pending file after', async () => {
+it('uses edited details on retry: recovers when bytes never reached storage, saves on the pending file when they did', async () => {
   const file = new File(['resume'], 'resume.pdf')
   mocks.uploadToS3.mockRejectedValueOnce(new Error('Network down')).mockResolvedValue(undefined)
-  mocks.completeCohortFile.mockResolvedValue({ data: { file: { id: 7, ready: true } }, error: null })
+  mocks.updateCohortFile.mockResolvedValue({ data: { file: pending }, error: null })
+  mocks.completeCohortFile
+    .mockResolvedValueOnce({ data: null, error: 'Uploaded file is missing', status: 422 })
+    .mockResolvedValue({ data: { file: { id: 8, ready: true } }, error: null })
   const before: CohortUploadState = {}
   await expect(uploadCohortFile(4, file, { folder: 'General', title: 'Old' }, undefined, before)).rejects.toThrow('Network down')
   await uploadCohortFile(4, file, { folder: 'Resumes', title: 'New' }, undefined, before)
@@ -196,6 +203,28 @@ it('uses edited details on retry: fresh before the bytes were sent, saved on the
   expect(mocks.createCohortFile).toHaveBeenCalledTimes(1)
   expect(mocks.uploadToS3).toHaveBeenCalledTimes(1)
   expect(mocks.updateCohortFile).toHaveBeenCalledWith(4, 7, { title: 'New', folder: 'General', description: 'Final' })
+  expect(mocks.deleteCohortFile).not.toHaveBeenCalled()
+})
+
+it('treats 410 on pending delete as gone and confirms an upload whose S3 response was lost', async () => {
+  mocks.deleteCohortFile.mockResolvedValueOnce({ data: null, error: 'Gone', status: 410 })
+  const gone410: CohortUploadState = { fileId: 7, uploaded: true }
+  await expect(abandonCohortUpload(4, gone410)).resolves.toBe('gone')
+  expect(gone410).toEqual({})
+
+  // S3 accepted the POST, then the HTTP response dropped: Retry confirms the existing upload without re-uploading or duplicating.
+  vi.clearAllMocks()
+  mocks.createCohortFile.mockResolvedValue({ data: { file: pending, upload_url: 'https://storage.test/upload', fields: { key: 'k' } }, error: null })
+  mocks.uploadToS3.mockRejectedValueOnce(new Error('Connection reset after POST'))
+  mocks.updateCohortFile.mockResolvedValue({ data: { file: pending }, error: null })
+  mocks.completeCohortFile.mockResolvedValue({ data: { file: { id: 7, ready: true } }, error: null })
+  const lostS3: CohortUploadState = {}
+  const file = new File(['resume'], 'resume.pdf')
+  await expect(uploadCohortFile(4, file, { folder: 'General', title: 'Old' }, undefined, lostS3)).rejects.toThrow('Connection reset')
+  lostS3.startedAt = Date.now() - UPLOAD_RESUME_WINDOW_MS * 2
+  await expect(uploadCohortFile(4, file, { folder: 'General', title: 'Edited' }, undefined, lostS3)).resolves.toMatchObject({ id: 7 })
+  expect(mocks.createCohortFile).toHaveBeenCalledTimes(1)
+  expect(mocks.uploadToS3).toHaveBeenCalledTimes(1)
   expect(mocks.deleteCohortFile).not.toHaveBeenCalled()
 })
 
@@ -285,12 +314,14 @@ it('confirms a sent version first even with a new note, and starts fresh only wh
   await expect(uploadCohortFileVersion(4, 5, file, 'Typo', undefined, expired)).resolves.toMatchObject({ version_number: 3 })
   expect(mocks.completeCohortFileVersion).toHaveBeenLastCalledWith(4, 5, 32)
 
-  // Never sent, and the note changed: a fresh version with the new note.
-  mocks.uploadToS3.mockRejectedValueOnce(new Error('Network down'))
+  // Attempted S3 upload whose bytes never landed: complete reports missing (422), then starts fresh with the new note.
+  mocks.uploadToS3.mockRejectedValueOnce(new Error('Network down')).mockResolvedValueOnce(undefined)
   const unsent: CohortUploadState = {}
   mocks.createCohortFileVersion.mockResolvedValueOnce({ data: { version: { id: 34 }, upload_url: 'https://storage.test/d', fields: {} }, error: null })
   await expect(uploadCohortFileVersion(4, 5, file, 'One', undefined, unsent)).rejects.toThrow('Network down')
-  mocks.completeCohortFileVersion.mockResolvedValueOnce({ data: { file: { id: 5, version_number: 4 } }, error: null })
+  mocks.completeCohortFileVersion
+    .mockResolvedValueOnce({ data: null, error: 'Uploaded file is missing', status: 422 })
+    .mockResolvedValueOnce({ data: { file: { id: 5, version_number: 4 } }, error: null })
   await uploadCohortFileVersion(4, 5, file, 'Two', undefined, unsent)
   expect(mocks.createCohortFileVersion).toHaveBeenLastCalledWith(4, 5, expect.objectContaining({ note: 'Two' }))
 })
