@@ -1244,6 +1244,8 @@ details[open] > :not(summary) {
   .exercise-content th { background-color: var(--color-surface-sunken); color: var(--color-ink); font-weight: 600; }
   .exercise-content li.task-list-item { list-style: none; margin-left: -1.25rem; }
   .exercise-content li.task-list-item input { margin-right: 0.5rem; vertical-align: -0.125em; accent-color: var(--color-action-primary); }
+  .doc-content li.task-list-item { min-height: 2rem; }
+  .doc-content li.task-list-item input.doc-task { width: 1.5rem; height: 1.5rem; cursor: pointer; vertical-align: -0.4em; }
 
   /* Text people write (updates, feedback, help replies): takes the card's size and color. */
   .exercise-content.written-content { font-size: inherit; line-height: 1.6; color: inherit; max-width: none; }
@@ -1361,6 +1363,27 @@ details[open] > :not(summary) {
 @page completion-certificate {
   size: A4 landscape;
   margin: 12mm;
+}
+
+/* Learn Doc printing: only the doc being printed is on the page. */
+.doc-print-root { display: none; }
+
+@media print {
+  body:has(> .doc-print-root) > :not(.doc-print-root) { display: none !important; }
+  .doc-print-root {
+    display: block;
+    color-scheme: light;
+    --color-ink: #0f172a;
+    --color-ink-secondary: #334155;
+    --color-ink-muted: #475569;
+    --color-line: #cbd5e1;
+    --color-surface-raised: #ffffff;
+    --color-surface-sunken: #f1f5f9;
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+  }
+  .doc-print-root h1.doc-print-title { font-size: 1.75rem; line-height: 2.25rem; font-weight: 700; margin: 0 0 1rem; }
+  .doc-print-root pre, .doc-print-root table, .doc-print-root li { break-inside: avoid; }
 }
 
 @media print {

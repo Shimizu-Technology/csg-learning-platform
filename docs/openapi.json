@@ -5752,11 +5752,11 @@
         ]
       },
       "post": {
-        "summary": "Add a link, or start a class file or student folder upload",
-        "description": "With `kind: link` (no storage needed) saves a public https:// link and returns it ready (201 `{ file }`); http, javascript, data and file links, credentials, percent-encoded or non-ASCII hosts, single-label and local names, and private, shared (CGNAT), loopback, link-local, reserved (including 6to4 relay) and non-global or special-purpose IPv6 addresses (2001::/23 except its globally reachable sub-allocations, 6to4, documentation) (IPv4-mapped ones unwrapped) are refused (422). Otherwise creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file or link (staff only); pass an enrolled student's id for their private folder. Students may add only to their own folder, only while active, and only with `visibility: students`. Allowed upload types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 for an upload when storage is not configured. Shares the uploads rate limit.",
+        "summary": "Add a link or Learn Doc, or start a class file or student folder upload",
+        "description": "With `kind: link` (no storage needed) saves a public https:// link and returns it ready (201 `{ file }`); http, javascript, data and file links, credentials, percent-encoded or non-ASCII hosts, single-label and local names, and private, shared (CGNAT), loopback, link-local, reserved (including 6to4 relay) and non-global or special-purpose IPv6 addresses (2001::/23 except its globally reachable sub-allocations, 6to4, documentation) (IPv4-mapped ones unwrapped) are refused (422). With `kind: doc` (no storage needed) saves a Learn Doc from `doc_content` Markdown and returns it ready (201 `{ file }`); null characters and page or script markup outside code blocks are refused (422). Otherwise creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file or link (staff only); pass an enrolled student's id for their private folder. Students may add only to their own folder, only while active, and only with `visibility: students`. Allowed upload types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 for an upload when storage is not configured. Shares the uploads rate limit.",
         "responses": {
           "201": {
-            "description": "Link saved or upload started",
+            "description": "Link or doc saved, or upload started",
             "content": {
               "application/json": {
                 "schema": {
@@ -6035,8 +6035,8 @@
     },
     "/api/v1/cohorts/{cohort_id}/files/{id}/copy_to_students": {
       "post": {
-        "summary": "Copy a class file or link into every active student's folder",
-        "description": "Staff only. The source must be a ready class file or link (422 otherwise); links copy without storage, files need it (503). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ \"folder\": string }` names the folder for the copies; it defaults to the source's folder.",
+        "summary": "Copy a class file, link or Learn Doc into every active student's folder",
+        "description": "Staff only. The source must be a ready class file, link or Learn Doc (422 otherwise); links and docs copy without storage, files need it (503). Each student gets the doc's current content as their own doc to edit. Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ \"folder\": string }` names the folder for the copies; it defaults to the source's folder.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -6192,6 +6192,403 @@
           }
         ]
       }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/doc": {
+      "get": {
+        "summary": "Read a Learn Doc",
+        "description": "The doc's Markdown with who saved it and when. Same access as `download`. A paused learner gets the newest state saved before their pause, read-only (`can_edit_doc: false`); a doc shared after the pause is 403. 422 for files and links.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Save a Learn Doc",
+        "description": "Staff save any doc in the cohort; an active student saves docs in their own folder, including copies staff put there (403 when paused, completed or expired, and for class docs). Send `base_updated_at` (the `doc_updated_at` you loaded): when the doc was saved since, nothing is saved and 409 returns the latest state. An unchanged save is a no-op. Revisions keep the original, each editor's last state, states left resting for 10 minutes, the state a paused learner was left with, and every `save_revision: true` save. A student's enrollment is locked before the doc. Same content rules as creating a doc (422).",
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saved by someone else since base_updated_at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocConflictResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortDocUpdateInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/revisions": {
+      "get": {
+        "summary": "Revisions of a Learn Doc",
+        "description": "Up to 100 saved states, newest first, without their content. Paused learners see only states saved before their pause. 422 for files and links.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocRevisionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/revisions/{revision_id}": {
+      "get": {
+        "summary": "One Learn Doc revision with its content",
+        "description": "404 for a revision of another doc or, for a paused learner, one saved after the pause.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocRevisionResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/revisions/{revision_id}/restore": {
+      "post": {
+        "summary": "Restore a Learn Doc revision",
+        "description": "Makes the revision's title and content the current doc and records it as a new revision (\"Restored revision N\"). Same permissions, locks and `base_updated_at` conflict check as saving.",
+        "responses": {
+          "200": {
+            "description": "Restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saved by someone else since base_updated_at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortDocConflictResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortDocRestoreInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/review": {
+      "patch": {
+        "summary": "Change a student-folder item's review status",
+        "description": "An active student sets `needs_review` or `none` on items in their own folder (cohort staff are notified when they ask for review); staff set any status on any student's item (`reviewed` notifies the student). 422 for class files and staff-only items; 403 for paused, completed or expired learners and for a student setting `reviewed`. A student's enrollment is locked before the file.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortFileReviewInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/comments": {
+      "get": {
+        "summary": "Review comments on a student-folder item",
+        "description": "Oldest first. The student whose folder it is and cohort staff can read them; a paused learner sees only comments written before the pause. 422 for class files and staff-only items.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileCommentsResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Comment on a student-folder item",
+        "description": "The active student whose folder it is, or cohort staff. Up to 4,000 characters (422). A student's comment notifies cohort staff; a staff comment notifies the student. Notifications go out after the comment saves and never undo it. Shares the messages rate limit.",
+        "responses": {
+          "201": {
+            "description": "Comment saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileCommentResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortFileCommentCreateInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/comments/{comment_id}": {
+      "delete": {
+        "summary": "Remove a review comment",
+        "description": "Authors remove their own comments while they can write; staff remove any (403 otherwise).",
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -6226,7 +6623,7 @@
               "link",
               "doc"
             ],
-            "description": "`file` is an upload, `link` a web address saved in a folder. `doc` is reserved for in-app documents."
+            "description": "`file` is an upload, `link` a web address saved in a folder, `doc` a Learn Doc written and edited in the app."
           },
           "folder": {
             "type": "string"
@@ -6353,6 +6750,48 @@
           "can_manage": {
             "type": "boolean",
             "description": "Whether this viewer may rename or delete the file."
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "needs_review",
+              "reviewed"
+            ],
+            "description": "Review state of a student-folder item. Students send their own items for review; staff mark them reviewed."
+          },
+          "reviewed_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comment_count": {
+            "type": "integer",
+            "description": "Review comments this viewer can read (0 for class files and items hidden from students)."
+          },
+          "doc_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the shown Learn Doc state was saved, ISO 8601 with microseconds; send it back as `base_updated_at`. Null for files and links."
+          },
+          "doc_updated_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_edit_doc": {
+            "type": "boolean",
+            "description": "Whether this viewer may save this Learn Doc (false for other kinds)."
           }
         },
         "required": [
@@ -6378,7 +6817,405 @@
           "created_at",
           "uploaded_by_name",
           "uploaded_by_role",
-          "can_manage"
+          "can_manage",
+          "review_status",
+          "reviewed_by_name",
+          "reviewed_at",
+          "comment_count",
+          "doc_updated_at",
+          "doc_updated_by_name",
+          "can_edit_doc"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocCreateInput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "doc"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Defaults to \"Untitled doc\"."
+          },
+          "doc_content": {
+            "type": "string",
+            "maxLength": 200000,
+            "description": "Markdown (GitHub flavored). No null characters, and no page or script markup outside code blocks (422)."
+          },
+          "description": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "student_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocResponse": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/CohortFile"
+          },
+          "doc_content": {
+            "type": "string"
+          },
+          "doc_updated_at": {
+            "type": "string",
+            "description": "ISO 8601 with microseconds; send it back as `base_updated_at`."
+          },
+          "doc_updated_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_edit_doc": {
+            "type": "boolean"
+          },
+          "revision_count": {
+            "type": "integer",
+            "description": "Revisions this viewer can see."
+          }
+        },
+        "required": [
+          "file",
+          "doc_content",
+          "doc_updated_at",
+          "doc_updated_by_name",
+          "can_edit_doc",
+          "revision_count"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocConflictResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "file": {
+            "$ref": "#/components/schemas/CohortFile"
+          },
+          "doc_content": {
+            "type": "string"
+          },
+          "doc_updated_at": {
+            "type": "string",
+            "description": "ISO 8601 with microseconds; send it back as `base_updated_at`."
+          },
+          "doc_updated_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_edit_doc": {
+            "type": "boolean"
+          },
+          "revision_count": {
+            "type": "integer",
+            "description": "Revisions this viewer can see."
+          }
+        },
+        "required": [
+          "error",
+          "file",
+          "doc_content",
+          "doc_updated_at",
+          "doc_updated_by_name",
+          "can_edit_doc",
+          "revision_count"
+        ],
+        "additionalProperties": false,
+        "description": "The doc was saved by someone else after `base_updated_at`; nothing was saved. Carries the latest state to load."
+      },
+      "CohortDocUpdateInput": {
+        "type": "object",
+        "properties": {
+          "doc_content": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Note for the revision a named save records."
+          },
+          "save_revision": {
+            "type": "boolean",
+            "description": "Record this save as its own revision."
+          },
+          "base_updated_at": {
+            "type": "string",
+            "description": "The `doc_updated_at` the editor loaded; 409 when the doc was saved since."
+          }
+        },
+        "required": [
+          "doc_content"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocRevision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_file_id": {
+            "type": "integer"
+          },
+          "revision_number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "edited_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "description": "When the doc had this state."
+          },
+          "content_length": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_file_id",
+          "revision_number",
+          "title",
+          "summary",
+          "edited_by_name",
+          "created_at",
+          "content_length"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocRevisionDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_file_id": {
+            "type": "integer"
+          },
+          "revision_number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "edited_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "description": "When the doc had this state."
+          },
+          "content_length": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_file_id",
+          "revision_number",
+          "title",
+          "summary",
+          "edited_by_name",
+          "created_at",
+          "content_length",
+          "content"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocRevisionsResponse": {
+        "type": "object",
+        "properties": {
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortDocRevision"
+            }
+          }
+        },
+        "required": [
+          "revisions"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocRevisionResponse": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "$ref": "#/components/schemas/CohortDocRevisionDetail"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "CohortDocRestoreInput": {
+        "type": "object",
+        "properties": {
+          "base_updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "CohortFileReviewInput": {
+        "type": "object",
+        "properties": {
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "needs_review",
+              "reviewed"
+            ]
+          }
+        },
+        "required": [
+          "review_status"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileComment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_file_id": {
+            "type": "integer"
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "author_id": {
+            "type": "integer"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "author_role": {
+            "type": "string",
+            "enum": [
+              "student",
+              "staff"
+            ]
+          },
+          "can_delete": {
+            "type": "boolean",
+            "description": "Authors remove their own comments while they can write; staff remove any."
+          }
+        },
+        "required": [
+          "id",
+          "cohort_file_id",
+          "body",
+          "created_at",
+          "author_id",
+          "author_name",
+          "author_role",
+          "can_delete"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCommentsResponse": {
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFileComment"
+            }
+          },
+          "can_comment": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "comments",
+          "can_comment"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCommentResponse": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "$ref": "#/components/schemas/CohortFileComment"
+          }
+        },
+        "required": [
+          "comment"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCommentCreateInput": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "body"
         ],
         "additionalProperties": false
       },
@@ -6413,6 +7250,10 @@
             "items": {
               "$ref": "#/components/schemas/CohortFile"
             }
+          },
+          "needs_review_count": {
+            "type": "integer",
+            "description": "Items in this folder waiting for review."
           }
         },
         "required": [
@@ -6422,7 +7263,8 @@
           "student_email",
           "enrollment_status",
           "file_count",
-          "files"
+          "files",
+          "needs_review_count"
         ],
         "additionalProperties": false
       },
@@ -6557,7 +7399,7 @@
             "$ref": "#/components/schemas/CohortFileResponse"
           }
         ],
-        "description": "An upload returns the pending file and its presigned POST; a link is returned ready."
+        "description": "An upload returns the pending file and its presigned POST; a link or Learn Doc is returned ready."
       },
       "CohortFilePreviewResponse": {
         "type": "object",
@@ -6785,6 +7627,9 @@
           },
           {
             "$ref": "#/components/schemas/CohortLinkCreateInput"
+          },
+          {
+            "$ref": "#/components/schemas/CohortDocCreateInput"
           }
         ]
       },

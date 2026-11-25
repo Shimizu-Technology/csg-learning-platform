@@ -278,6 +278,15 @@ Rails.application.routes.draw do
             get :versions
             post :versions, action: :create_version
             post "versions/:version_id/complete", action: :complete_version, as: :complete_version
+            get :doc
+            patch :doc, action: :update_doc
+            get :revisions
+            get "revisions/:revision_id", action: :revision, as: :revision
+            post "revisions/:revision_id/restore", action: :restore_revision, as: :restore_revision
+            patch :review
+            get :comments
+            post :comments, action: :create_comment
+            delete "comments/:comment_id", action: :destroy_comment, as: :comment
           end
         end
 

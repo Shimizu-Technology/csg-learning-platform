@@ -529,3 +529,18 @@ The harness has no file storage, so the spec stubs only the storage-backed
 parts in the browser (storage_configured and preview text); links, rename and
 versions use the real local API. It can be re-run; it removes the links it adds
 and renames the folder back.
+
+### Learn Docs and file review checks
+
+Learn Docs and the review loop on the real local API (docs need no storage):
+staff read a class doc (checklist, table, code), create one, edit it with
+auto-save, open History, download `.md`, copy it to students, filter
+Needs review and open a student's doc with review and comments beside it,
+and follow a review notification link; a learner creates a doc, sends it for
+review, comments, recovers from a 409 when someone else saves, and follows a
+notification link. 1280/390 in light and dark, with Axe, overflow and 390px
+tap-target checks. After `start`, from `api/`:
+`DATABASE_URL=postgresql://localhost/<owned csg_qa_ database> RAILS_ENV=test bundle exec ruby ../scripts/qa/cohort-learn-docs-fixtures.rb`,
+then from the repo root:
+`QA_SPEC=cohort-learn-docs.spec.ts DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
+It can be re-run; it removes the docs it creates (and their student copies).

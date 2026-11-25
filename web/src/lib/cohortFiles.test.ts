@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ createCohortFile: vi.fn(), completeCohortFile: vi.fn(), deleteCohortFile: vi.fn(), uploadToS3: vi.fn(), createCohortFileVersion: vi.fn(), completeCohortFileVersion: vi.fn(), updateCohortFile: vi.fn() }))
 vi.mock('./api', () => ({ api: mocks }))
 vi.mock('./uploadToS3', () => ({ uploadToS3: mocks.uploadToS3 }))
-import { CSV_PREVIEW_LIMITS, UPLOAD_RESUME_WINDOW_MS, abandonCohortUpload, ipv6Groups, cohortFileProblem, fileTypeIcon, linkProviderFor, linkUrlProblem, matchesFileQuery, parseCsv, safeExternalFileUrl, titleFromFilename, uploadCohortFile, uploadCohortFileVersion, type CohortFile, type CohortUploadState } from './cohortFiles'
+import { CSV_PREVIEW_LIMITS, UPLOAD_RESUME_WINDOW_MS, abandonCohortUpload, docFilename, isStudentFolderItem, toggleTaskAt, ipv6Groups, cohortFileProblem, fileTypeIcon, linkProviderFor, linkUrlProblem, matchesFileQuery, parseCsv, safeExternalFileUrl, titleFromFilename, uploadCohortFile, uploadCohortFileVersion, type CohortFile, type CohortUploadState } from './cohortFiles'
 
 const pending = { id: 7, title: 'resume' }
 beforeEach(() => {
@@ -324,4 +324,23 @@ it('confirms a sent version first even with a new note, and starts fresh only wh
     .mockResolvedValueOnce({ data: { file: { id: 5, version_number: 4 } }, error: null })
   await uploadCohortFileVersion(4, 5, file, 'Two', undefined, unsent)
   expect(mocks.createCohortFileVersion).toHaveBeenLastCalledWith(4, 5, expect.objectContaining({ note: 'Two' }))
+})
+
+it('ticks and unticks the task on a list item, leaving other lines and non-task items alone', () => {
+  const doc = '# Plan\n\n- [ ] Draft resume\n  1. [x] Nested step\n> - [ ] Quoted task\n- Plain item\n'
+  const at = (text: string) => doc.indexOf(text)
+  expect(toggleTaskAt(doc, at('- [ ] Draft'))).toBe(doc.replace('- [ ] Draft', '- [x] Draft'))
+  expect(toggleTaskAt(doc, at('1. [x]'))).toBe(doc.replace('1. [x]', '1. [ ]'))
+  expect(toggleTaskAt(doc, at('- [ ] Quoted'))).toBe(doc.replace('- [ ] Quoted', '- [x] Quoted'))
+  expect(toggleTaskAt(doc, at('- Plain'))).toBe(doc)
+  expect(toggleTaskAt(doc, at('# Plan'))).toBe(doc)
+})
+
+it('names Markdown downloads safely and recognizes student-folder items', () => {
+  expect(docFilename('Week 1: Job search plan!')).toBe('Week-1-Job-search-plan.md')
+  expect(docFilename('   ')).toBe('learn-doc.md')
+  expect(docFilename('../../etc/passwd')).toBe('etcpasswd.md')
+  expect(isStudentFolderItem({ student_id: 3, visibility: 'students' })).toBe(true)
+  expect(isStudentFolderItem({ student_id: 3, visibility: 'staff_only' })).toBe(false)
+  expect(isStudentFolderItem({ student_id: null, visibility: 'students' })).toBe(false)
 })

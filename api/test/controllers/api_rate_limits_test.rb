@@ -181,6 +181,15 @@ class ApiRateLimitsTest < ActionController::TestCase
     end
   end
 
+  test "file review comments share the messages allowance and doc saves only the general one" do
+    assert ApiRateLimits.applies?(:messages, "api/v1/cohort_files", "create_comment")
+    %w[doc update_doc revisions revision restore_revision review comments destroy_comment].each do |action|
+      (ApiRateLimits::AUTHENTICATED.keys - [ :all ]).each do |name|
+        assert_not ApiRateLimits.applies?(name, "api/v1/cohort_files", action), "#{name} #{action}"
+      end
+    end
+  end
+
   test "public bucket kill switch disables both buckets and preserves authenticated limits" do
     previous = ENV["RATE_LIMIT_PUBLIC_BUCKETS"]
     ENV["RATE_LIMIT_PUBLIC_BUCKETS"] = "off"

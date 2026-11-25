@@ -6833,8 +6833,8 @@ export interface paths {
         };
         put?: never;
         /**
-         * Add a link, or start a class file or student folder upload
-         * @description With `kind: link` (no storage needed) saves a public https:// link and returns it ready (201 `{ file }`); http, javascript, data and file links, credentials, percent-encoded or non-ASCII hosts, single-label and local names, and private, shared (CGNAT), loopback, link-local, reserved (including 6to4 relay) and non-global or special-purpose IPv6 addresses (2001::/23 except its globally reachable sub-allocations, 6to4, documentation) (IPv4-mapped ones unwrapped) are refused (422). Otherwise creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file or link (staff only); pass an enrolled student's id for their private folder. Students may add only to their own folder, only while active, and only with `visibility: students`. Allowed upload types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 for an upload when storage is not configured. Shares the uploads rate limit.
+         * Add a link or Learn Doc, or start a class file or student folder upload
+         * @description With `kind: link` (no storage needed) saves a public https:// link and returns it ready (201 `{ file }`); http, javascript, data and file links, credentials, percent-encoded or non-ASCII hosts, single-label and local names, and private, shared (CGNAT), loopback, link-local, reserved (including 6to4 relay) and non-global or special-purpose IPv6 addresses (2001::/23 except its globally reachable sub-allocations, 6to4, documentation) (IPv4-mapped ones unwrapped) are refused (422). With `kind: doc` (no storage needed) saves a Learn Doc from `doc_content` Markdown and returns it ready (201 `{ file }`); null characters and page or script markup outside code blocks are refused (422). Otherwise creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file or link (staff only); pass an enrolled student's id for their private folder. Students may add only to their own folder, only while active, and only with `visibility: students`. Allowed upload types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 for an upload when storage is not configured. Shares the uploads rate limit.
          */
         post: {
             parameters: {
@@ -6851,7 +6851,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Link saved or upload started */
+                /** @description Link or doc saved, or upload started */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -7127,8 +7127,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Copy a class file or link into every active student's folder
-         * @description Staff only. The source must be a ready class file or link (422 otherwise); links copy without storage, files need it (503). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ "folder": string }` names the folder for the copies; it defaults to the source's folder.
+         * Copy a class file, link or Learn Doc into every active student's folder
+         * @description Staff only. The source must be a ready class file, link or Learn Doc (422 otherwise); links and docs copy without storage, files need it (503). Each student gets the doc's current content as their own doc to edit. Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ "folder": string }` names the folder for the copies; it defaults to the source's folder.
          */
         post: {
             parameters: {
@@ -7274,6 +7274,387 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/doc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Learn Doc
+         * @description The doc's Markdown with who saved it and when. Same access as `download`. A paused learner gets the newest state saved before their pause, read-only (`can_edit_doc: false`); a doc shared after the pause is 403. 422 for files and links.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Save a Learn Doc
+         * @description Staff save any doc in the cohort; an active student saves docs in their own folder, including copies staff put there (403 when paused, completed or expired, and for class docs). Send `base_updated_at` (the `doc_updated_at` you loaded): when the doc was saved since, nothing is saved and 409 returns the latest state. An unchanged save is a no-op. Revisions keep the original, each editor's last state, states left resting for 10 minutes, the state a paused learner was left with, and every `save_revision: true` save. A student's enrollment is locked before the doc. Same content rules as creating a doc (422).
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortDocUpdateInput"];
+                };
+            };
+            responses: {
+                /** @description Saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocResponse"];
+                    };
+                };
+                /** @description Saved by someone else since base_updated_at */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocConflictResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Revisions of a Learn Doc
+         * @description Up to 100 saved states, newest first, without their content. Paused learners see only states saved before their pause. 422 for files and links.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocRevisionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One Learn Doc revision with its content
+         * @description 404 for a revision of another doc or, for a paused learner, one saved after the pause.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                    revision_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocRevisionResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/revisions/{revision_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a Learn Doc revision
+         * @description Makes the revision's title and content the current doc and records it as a new revision ("Restored revision N"). Same permissions, locks and `base_updated_at` conflict check as saving.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                    revision_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CohortDocRestoreInput"];
+                };
+            };
+            responses: {
+                /** @description Restored */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocResponse"];
+                    };
+                };
+                /** @description Saved by someone else since base_updated_at */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortDocConflictResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a student-folder item's review status
+         * @description An active student sets `needs_review` or `none` on items in their own folder (cohort staff are notified when they ask for review); staff set any status on any student's item (`reviewed` notifies the student). 422 for class files and staff-only items; 403 for paused, completed or expired learners and for a student setting `reviewed`. A student's enrollment is locked before the file.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortFileReviewInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review comments on a student-folder item
+         * @description Oldest first. The student whose folder it is and cohort staff can read them; a paused learner sees only comments written before the pause. 422 for class files and staff-only items.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileCommentsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Comment on a student-folder item
+         * @description The active student whose folder it is, or cohort staff. Up to 4,000 characters (422). A student's comment notifies cohort staff; a staff comment notifies the student. Notifications go out after the comment saves and never undo it. Shares the messages rate limit.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortFileCommentCreateInput"];
+                };
+            };
+            responses: {
+                /** @description Comment saved */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileCommentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a review comment
+         * @description Authors remove their own comments while they can write; staff remove any (403 otherwise).
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                    comment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7286,7 +7667,7 @@ export interface components {
             /** @description The class file this was copied from. */
             source_file_id: number | null;
             /**
-             * @description `file` is an upload, `link` a web address saved in a folder. `doc` is reserved for in-app documents.
+             * @description `file` is an upload, `link` a web address saved in a folder, `doc` a Learn Doc written and edited in the app.
              * @enum {string}
              */
             kind: "file" | "link" | "doc";
@@ -7325,6 +7706,123 @@ export interface components {
             uploaded_by_role: "student" | "staff" | null;
             /** @description Whether this viewer may rename or delete the file. */
             can_manage: boolean;
+            /**
+             * @description Review state of a student-folder item. Students send their own items for review; staff mark them reviewed.
+             * @enum {string}
+             */
+            review_status: "none" | "needs_review" | "reviewed";
+            reviewed_by_name: string | null;
+            reviewed_at: string | null;
+            /** @description Review comments this viewer can read (0 for class files and items hidden from students). */
+            comment_count: number;
+            /** @description When the shown Learn Doc state was saved, ISO 8601 with microseconds; send it back as `base_updated_at`. Null for files and links. */
+            doc_updated_at: string | null;
+            doc_updated_by_name: string | null;
+            /** @description Whether this viewer may save this Learn Doc (false for other kinds). */
+            can_edit_doc: boolean;
+        };
+        CohortDocCreateInput: {
+            /** @enum {string} */
+            kind: "doc";
+            /** @description Defaults to "Untitled doc". */
+            title?: string;
+            /** @description Markdown (GitHub flavored). No null characters, and no page or script markup outside code blocks (422). */
+            doc_content?: string;
+            description?: string;
+            folder?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+            student_id?: number;
+        };
+        CohortDocResponse: {
+            file: components["schemas"]["CohortFile"];
+            doc_content: string;
+            /** @description ISO 8601 with microseconds; send it back as `base_updated_at`. */
+            doc_updated_at: string;
+            doc_updated_by_name: string | null;
+            can_edit_doc: boolean;
+            /** @description Revisions this viewer can see. */
+            revision_count: number;
+        };
+        /** @description The doc was saved by someone else after `base_updated_at`; nothing was saved. Carries the latest state to load. */
+        CohortDocConflictResponse: {
+            error: string;
+            file: components["schemas"]["CohortFile"];
+            doc_content: string;
+            /** @description ISO 8601 with microseconds; send it back as `base_updated_at`. */
+            doc_updated_at: string;
+            doc_updated_by_name: string | null;
+            can_edit_doc: boolean;
+            /** @description Revisions this viewer can see. */
+            revision_count: number;
+        };
+        CohortDocUpdateInput: {
+            doc_content: string;
+            title?: string;
+            /** @description Note for the revision a named save records. */
+            summary?: string;
+            /** @description Record this save as its own revision. */
+            save_revision?: boolean;
+            /** @description The `doc_updated_at` the editor loaded; 409 when the doc was saved since. */
+            base_updated_at?: string;
+        };
+        CohortDocRevision: {
+            id: number;
+            cohort_file_id: number;
+            revision_number: number;
+            title: string;
+            summary: string | null;
+            edited_by_name: string | null;
+            /** @description When the doc had this state. */
+            created_at: string;
+            content_length: number;
+        };
+        CohortDocRevisionDetail: {
+            id: number;
+            cohort_file_id: number;
+            revision_number: number;
+            title: string;
+            summary: string | null;
+            edited_by_name: string | null;
+            /** @description When the doc had this state. */
+            created_at: string;
+            content_length: number;
+            content: string;
+        };
+        CohortDocRevisionsResponse: {
+            revisions: components["schemas"]["CohortDocRevision"][];
+        };
+        CohortDocRevisionResponse: {
+            revision: components["schemas"]["CohortDocRevisionDetail"];
+        };
+        CohortDocRestoreInput: {
+            base_updated_at?: string;
+        };
+        CohortFileReviewInput: {
+            /** @enum {string} */
+            review_status: "none" | "needs_review" | "reviewed";
+        };
+        CohortFileComment: {
+            id: number;
+            cohort_file_id: number;
+            body: string;
+            created_at: string;
+            author_id: number;
+            author_name: string;
+            /** @enum {string} */
+            author_role: "student" | "staff";
+            /** @description Authors remove their own comments while they can write; staff remove any. */
+            can_delete: boolean;
+        };
+        CohortFileCommentsResponse: {
+            comments: components["schemas"]["CohortFileComment"][];
+            can_comment: boolean;
+        };
+        CohortFileCommentResponse: {
+            comment: components["schemas"]["CohortFileComment"];
+        };
+        CohortFileCommentCreateInput: {
+            body: string;
         };
         CohortStudentFolder: {
             student_id: number;
@@ -7335,6 +7833,8 @@ export interface components {
             enrollment_status: "active" | "paused" | "expired";
             file_count: number;
             files: components["schemas"]["CohortFile"][];
+            /** @description Items in this folder waiting for review. */
+            needs_review_count: number;
         };
         CohortFilesResponse: {
             class_files: components["schemas"]["CohortFile"][];
@@ -7366,7 +7866,7 @@ export interface components {
             skipped_count: number;
             files: components["schemas"]["CohortFile"][];
         };
-        /** @description An upload returns the pending file and its presigned POST; a link is returned ready. */
+        /** @description An upload returns the pending file and its presigned POST; a link or Learn Doc is returned ready. */
         CohortFileCreateResponse: components["schemas"]["CohortFileUploadResponse"] | components["schemas"]["CohortFileResponse"];
         CohortFilePreviewResponse: {
             /** @enum {string} */
@@ -7418,7 +7918,7 @@ export interface components {
             updated_count: number;
             folder: string;
         };
-        CohortFileCreateInput: components["schemas"]["CohortFileUploadInput"] | components["schemas"]["CohortLinkCreateInput"];
+        CohortFileCreateInput: components["schemas"]["CohortFileUploadInput"] | components["schemas"]["CohortLinkCreateInput"] | components["schemas"]["CohortDocCreateInput"];
         CohortFileUploadInput: {
             /** @enum {string} */
             kind?: "file";

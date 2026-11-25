@@ -211,7 +211,7 @@ export const PROPER_NOUNS = new Set([
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
   'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
   'Jan', 'Feb', 'Mar', 'Apr', 'Jun', 'Jul', 'Aug', 'Sep', 'Sept', 'Oct', 'Nov', 'Dec',
-  'Code', 'School', 'Guam', 'Learn', 'Alumni', 'Clerk', 'Google', 'GitHub', 'Zoom', 'Vimeo', 'YouTube', 'Apple', 'App', 'Store', 'Play', 'Android', 'iPhone',
+  'Code', 'School', 'Guam', 'Learn', 'Doc', 'Alumni', 'Clerk', 'Google', 'GitHub', 'Zoom', 'Vimeo', 'YouTube', 'Apple', 'App', 'Store', 'Play', 'Android', 'iPhone',
   'Files', 'Photos', 'Markdown', 'Rich', 'JavaScript', 'TypeScript', 'Python', 'Ruby', 'React', 'Expo', 'Chamorro', 'English', 'Face', 'Settings', 'Safari', 'Chrome',
   'Today', 'Grading', 'Support', 'Messages', 'Updates', 'Content', 'Students', 'Cohorts', 'Recordings', 'Resources', 'Meetings', 'Team', 'Safety', 'Profile',
   'Redo', 'I', 'OK',

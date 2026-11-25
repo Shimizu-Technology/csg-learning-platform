@@ -150,6 +150,27 @@ class Enrollment < ApplicationRecord
     version.ready? && media_available_for_read?(version.ready_at || version.created_at)
   end
 
+  # The Learn Doc state this learner can read: the current one while it was
+  # saved before any pause, otherwise the newest revision saved before the
+  # pause, or nil.
+  def doc_state_for_read(cohort_file)
+    state = cohort_file.current_doc_state
+    return state if media_available_for_read?(state.updated_at)
+
+    cutoff = file_read_cutoff
+    revision = cutoff && cohort_file.doc_revisions.includes(:edited_by).where(created_at: ..cutoff).order(:revision_number).last
+    revision && CohortFile::DocState.new(title: revision.title, content: revision.content, updated_at: revision.created_at,
+      updated_by_name: revision.edited_by&.full_name)
+  end
+
+  # Records saved after this moment are hidden from a paused learner; nil
+  # when nothing is hidden. A pause without a cutoff hides everything new.
+  def file_read_cutoff
+    return nil unless paused?
+
+    paused_at || read_cutoff_at || Time.zone.at(0)
+  end
+
   def record_pause_date
     self.paused_at = paused? ? Time.current : nil if will_save_change_to_status?
   end

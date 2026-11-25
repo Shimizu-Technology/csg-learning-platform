@@ -28,6 +28,8 @@ export function remarkHtmlAsText() {
 export const LESSON_PLUGINS: PluggableList = [[remarkGfm, { singleTilde: false }]]
 /** Updates, grading feedback, help replies and text submissions (`MarkdownText`). */
 export const WRITTEN_PLUGINS: PluggableList = [[remarkGfm, { singleTilde: false }], remarkHtmlAsText, remarkBreaks]
+/** Learn Docs: lesson Markdown (headings, tables, task lists), with raw HTML shown as typed. */
+export const DOC_PLUGINS: PluggableList = [[remarkGfm, { singleTilde: false }], remarkHtmlAsText]
 
 const writtenProcessor = unified().use(remarkParse).use(WRITTEN_PLUGINS).freeze()
 const lessonProcessor = unified().use(remarkParse).use(LESSON_PLUGINS).freeze()

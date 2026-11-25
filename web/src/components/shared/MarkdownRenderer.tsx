@@ -1,8 +1,8 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import DOMPurify from 'dompurify'
-import { LESSON_PLUGINS, WRITTEN_PLUGINS } from '../../lib/writtenMarkdown'
+import { DOC_PLUGINS, LESSON_PLUGINS, WRITTEN_PLUGINS } from '../../lib/writtenMarkdown'
 import { CodeBlock } from './CodeBlock'
 import { isHafaStarterLink, withLessonReturn } from '../../lib/hafaStarterLinks'
 import { DEFAULT_STARTER_LABEL, HafaStarterLink, STARTER_HINTS, STARTER_HINT_CLASS, STARTER_LINK_CLASS, useStarterLinkSameTab, type StarterLinkContext } from './HafaStarterLink'
@@ -18,8 +18,16 @@ interface MarkdownRendererProps {
    * a single newline is a line break, like the message composer, and raw HTML
    * shows as typed instead of disappearing. See docs/MARKDOWN.md.
    */
-  variant?: 'lesson' | 'written'
+  variant?: 'lesson' | 'written' | 'doc'
+  /**
+   * Doc only: task checkboxes become real checkboxes; ticking one passes the
+   * offset where its list item starts in `content`.
+   */
+  onToggleTask?: (itemStart: number) => void
 }
+
+/** The task list item a checkbox belongs to: where it starts in the source, and its text for the label. */
+const TaskItemContext = createContext<{ start: number; label: string } | null>(null)
 
 
 const CODE_SLOT = 'data-code-block-slot'
@@ -154,9 +162,9 @@ function hastText(node: HastNode | undefined): string {
  * replies and text submissions. Fenced code always renders as <CodeBlock>,
  * including single-line and unlabeled fences.
  */
-export function MarkdownRenderer({ content, starterLinks, variant = 'lesson' }: MarkdownRendererProps) {
-  // Only lessons have legacy HTML bodies (the old rich-text editors). Written text
-  // is always Markdown, so "<div>…</div>" typed there shows as typed.
+export function MarkdownRenderer({ content, starterLinks, variant = 'lesson', onToggleTask }: MarkdownRendererProps) {
+  // Only lessons have legacy HTML bodies (the old rich-text editors). Written
+  // text and docs are always Markdown, so "<div>…</div>" typed there shows as typed.
   if (variant === 'lesson' && isLessonHtml(content)) {
     return <HtmlContentRenderer html={content} starterLinks={starterLinks} />
   }
@@ -173,6 +181,18 @@ export function MarkdownRenderer({ content, starterLinks, variant = 'lesson' }: 
       void _node
       return <code className="inline-code" {...props}>{children}</code>
     },
+    ...(variant === 'doc' && onToggleTask ? {
+      li({ children, node, ...props }) {
+        const item = node as (HastNode & { position?: { start?: { offset?: number } } }) | undefined
+        const start = item?.position?.start?.offset
+        if (typeof start !== 'number' || !String(props.className || '').includes('task-list-item')) return <li {...props}>{children}</li>
+        return <TaskItemContext.Provider value={{ start, label: hastText(item).trim().slice(0, 120) }}><li {...props}>{children}</li></TaskItemContext.Provider>
+      },
+      input({ node: _node, ...props }) {
+        void _node
+        return props.type === 'checkbox' ? <TaskCheckbox checked={Boolean(props.checked)} onToggle={onToggleTask} /> : <input {...props} />
+      },
+    } satisfies Components : {}),
     table({ children, node: _node, ...props }) {
       void _node
       return <div className="table-scroll"><table {...props}>{children}</table></div>
@@ -207,15 +227,21 @@ export function MarkdownRenderer({ content, starterLinks, variant = 'lesson' }: 
   }
 
   return (
-    <div className={variant === 'written' ? 'exercise-content written-content' : 'exercise-content'}>
+    <div className={variant === 'written' ? 'exercise-content written-content' : variant === 'doc' ? 'exercise-content doc-content' : 'exercise-content'}>
       <ReactMarkdown
-        remarkPlugins={variant === 'written' ? WRITTEN_PLUGINS : LESSON_PLUGINS}
+        remarkPlugins={variant === 'written' ? WRITTEN_PLUGINS : variant === 'doc' ? DOC_PLUGINS : LESSON_PLUGINS}
         components={components}
       >
         {content}
       </ReactMarkdown>
     </div>
   )
+}
+
+function TaskCheckbox({ checked, onToggle }: { checked: boolean; onToggle: (itemStart: number) => void }) {
+  const item = useContext(TaskItemContext)
+  if (!item) return <input type="checkbox" checked={checked} disabled readOnly aria-label="Task" />
+  return <input type="checkbox" className="doc-task" checked={checked} aria-label={item.label || 'Task'} onChange={() => onToggle(item.start)} />
 }
 
 /** Text people write (updates, feedback, help replies, submissions), through the one renderer. */

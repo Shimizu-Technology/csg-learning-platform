@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getCohortFiles: vi.fn(), updateCohortFile: vi.fn(), copyCohortFileToStudents: vi.fn(), deleteCohortFile: vi.fn(),
   downloadCohortFile: vi.fn(), createCohortFile: vi.fn(), completeCohortFile: vi.fn(), confirm: vi.fn(), success: vi.fn(), error: vi.fn(),
   createCohortLink: vi.fn(), renameCohortFolder: vi.fn(), getCohortFilePreview: vi.fn(), getCohortFileVersions: vi.fn(),
+  createCohortDoc: vi.fn(), getCohortDoc: vi.fn(), getCohortDocRevisions: vi.fn(), getCohortFileComments: vi.fn(), setCohortFileReview: vi.fn(),
 }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => mocks.confirm }))
@@ -50,8 +51,8 @@ beforeEach(() => {
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
 
-async function mount(node = <CohortFilesPanel cohortId={4} />) {
-  await act(async () => root.render(<MemoryRouter>{node}</MemoryRouter>))
+async function mount(node = <CohortFilesPanel cohortId={4} />, path = '/admin/cohorts/4?tab=files') {
+  await act(async () => root.render(<MemoryRouter initialEntries={[path]}>{node}</MemoryRouter>))
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
 }
 const button = (text: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent?.includes(text))!
@@ -247,4 +248,76 @@ it('clears the previous version while another loads, and offers Retry when histo
   await act(async () => { resolveOld({ data: { preview_mode: 'text', filename: 'notes.txt', content_type: 'text/plain', file_size: 18, version_number: 1, version_id: 7, url: null, expires_in: null, text: 'First notes', truncated: false }, error: null }) })
   expect(dialog().textContent).toContain('First notes')
   expect([...dialog().querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent?.includes('Download'))!.disabled).toBe(false)
+})
+
+const reviewFields = { review_status: 'none', reviewed_by_name: null, reviewed_at: null, comment_count: 0, doc_updated_at: null, doc_updated_by_name: null, can_edit_doc: false }
+const docItem = (overrides: Record<string, unknown>) => file({
+  ...reviewFields, kind: 'doc', filename: null, content_type: null, file_size: null, previewable: false, preview_mode: null,
+  doc_updated_at: '2026-11-24T00:00:00.000001Z', doc_updated_by_name: 'Ina Instructor', can_edit_doc: true, ...overrides,
+})
+const reviewResponse = () => ({
+  data: {
+    class_files: [docItem({ id: 40, title: 'Job Search Plan Template', folder: 'Career & Job Search' })],
+    student_folders: [
+      { student_id: 3, enrollment_id: 30, student_name: 'Student One', student_email: 'one@example.invalid', enrollment_status: 'active', file_count: 2, needs_review_count: 1, files: [
+        docItem({ id: 41, student_id: 3, title: 'My Job Search Plan', review_status: 'needs_review', comment_count: 2 }),
+        file({ ...reviewFields, id: 42, student_id: 3, title: 'Resume Draft', filename: 'resume.pdf', uploaded_by_role: 'student', review_status: 'reviewed' }),
+      ] },
+      { student_id: 5, enrollment_id: 50, student_name: 'Quiet Student', student_email: 'quiet@example.invalid', enrollment_status: 'active', file_count: 0, needs_review_count: 0, files: [] },
+    ],
+    folders: ['Career & Job Search'], storage_configured: false, can_upload_personal: false,
+  },
+  error: null,
+})
+
+it('filters student folders to the ones waiting for review and marks them', async () => {
+  mocks.getCohortFiles.mockResolvedValue(reviewResponse())
+  await mount()
+  await act(async () => button('Student folders').click())
+  const list = () => container.querySelector('[aria-label="Student folders"]')!
+  expect(list().textContent).toContain('Quiet Student')
+  expect(list().textContent).toContain('Needs review')
+  const chip = button('Needs review (1)')
+  expect(chip.getAttribute('aria-pressed')).toBe('false')
+  await act(async () => chip.click())
+  expect(list().textContent).toContain('Student One')
+  expect(list().textContent).not.toContain('Quiet Student')
+  await act(async () => button('Student One').click())
+  const folder = container.querySelector('[aria-label="Files in Student One\'s folder"]')!
+  expect(folder.textContent).toContain('Learn Doc')
+  expect(folder.textContent).toContain('Needs review')
+  expect(folder.textContent).toContain('Reviewed')
+  expect(container.querySelector('[aria-label="2 comments on My Job Search Plan"]')).toBeTruthy()
+})
+
+it('opens the linked student item from a review notification', async () => {
+  mocks.getCohortFiles.mockResolvedValue(reviewResponse())
+  mocks.getCohortDoc.mockResolvedValue({ data: { file: reviewResponse().data.student_folders[0].files[0], doc_content: '# Plan', doc_updated_at: '2026-11-24T00:00:00.000001Z', doc_updated_by_name: 'Student One', can_edit_doc: true, revision_count: 0 }, error: null })
+  mocks.getCohortDocRevisions.mockResolvedValue({ data: { revisions: [] }, error: null })
+  mocks.getCohortFileComments.mockResolvedValue({ data: { comments: [], can_comment: true }, error: null })
+  await mount(<CohortFilesPanel cohortId={4} />, '/admin/cohorts/4?tab=files&student=3&file=41')
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+  expect(mocks.getCohortDoc).toHaveBeenCalledWith(4, 41)
+  const dialog = document.querySelector('[role="dialog"]')!
+  expect(dialog.textContent).toContain('My Job Search Plan')
+  expect(dialog.querySelector('[aria-label="Review and comments"]')!.textContent).toContain('Mark reviewed')
+})
+
+it('creates a class doc without file storage and opens it in the editor', async () => {
+  mocks.getCohortFiles.mockResolvedValue(reviewResponse())
+  const created = docItem({ id: 43, title: 'Capstone checklist', doc_updated_at: '2026-11-24T01:00:00.000001Z' })
+  mocks.createCohortDoc.mockResolvedValue({ data: { file: created }, error: null })
+  mocks.getCohortDoc.mockResolvedValue({ data: { file: created, doc_content: '', doc_updated_at: '2026-11-24T01:00:00.000001Z', doc_updated_by_name: 'Ina Instructor', can_edit_doc: true, revision_count: 0 }, error: null })
+  mocks.getCohortDocRevisions.mockResolvedValue({ data: { revisions: [] }, error: null })
+  await mount()
+  expect(button('Upload files').disabled).toBe(true)
+  await act(async () => button('New doc').click())
+  const title = container.querySelector<HTMLInputElement>('input[placeholder="Job search plan"]')!
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+  act(() => { setter.call(title, 'Capstone checklist'); title.dispatchEvent(new Event('input', { bubbles: true })) })
+  await act(async () => button('Create doc').click())
+  expect(mocks.createCohortDoc).toHaveBeenCalledWith(4, expect.objectContaining({ title: 'Capstone checklist', doc_content: '', visibility: 'students' }))
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+  expect(container.querySelector('[aria-label="Class files"]')!.textContent).toContain('Capstone checklist')
+  expect(mocks.getCohortDoc).toHaveBeenCalledWith(4, 43)
 })

@@ -57,6 +57,26 @@ class NotificationDeliveryService
     new.intervention_follow_up_due(intervention, push: push)
   end
 
+  # Review requests, reviews and comments on a file in a student's folder.
+  # In-app only; one row per person per file, refreshed and marked unread.
+  def self.cohort_file_review_requested(file, actor:, new_version: false)
+    title = new_version ? "#{actor.full_name} uploaded a new version of #{file.title} for review" : "#{actor.full_name} asked for a review of #{file.title}"
+    new.cohort_file_to_staff(file, actor: actor, title: title, body: file.cohort.name)
+  end
+
+  def self.cohort_file_reviewed(file, actor:)
+    new.cohort_file_to_student(file, actor: actor, title: "#{actor.full_name} reviewed #{file.title}", body: file.folder)
+  end
+
+  def self.cohort_file_commented(comment)
+    file = comment.cohort_file
+    title = "#{comment.user.full_name} commented on #{file.title}"
+    body = comment.body.squish.truncate(140)
+    return new.cohort_file_to_staff(file, actor: comment.user, title: title, body: body) if comment.user.student?
+
+    new.cohort_file_to_student(file, actor: comment.user, title: title, body: body)
+  end
+
   ANNOUNCEMENT_BATCH_SIZE = 100
   ANNOUNCEMENT_INLINE_LIMIT = 50
 
@@ -287,6 +307,21 @@ class NotificationDeliveryService
     created
   end
 
+  def cohort_file_to_staff(file, actor:, title:, body:)
+    path = "/admin/cohorts/#{file.cohort_id}?tab=files&student=#{file.student_id}&file=#{file.id}"
+    staff_for_cohort(file.cohort).where.not(id: actor.id).find_each.map do |staff|
+      cohort_file_notification_for(staff, file, actor: actor, title: title, body: body, path: path)
+    end
+  end
+
+  # Only a student who can read the item now: still enrolled and not paused.
+  def cohort_file_to_student(file, actor:, title:, body:)
+    return [] unless file.student_folder_item? && file.student_id != actor.id
+    return [] unless Enrollment.with_read_access.where.not(status: :paused).exists?(cohort_id: file.cohort_id, user_id: file.student_id)
+
+    [ cohort_file_notification_for(file.student, file, actor: actor, title: title, body: body, path: "/resources?cohort_id=#{file.cohort_id}&file=#{file.id}") ]
+  end
+
   private
 
   def admin_alert_content(record)
@@ -379,6 +414,19 @@ class NotificationDeliveryService
   def close_staff_help_notifications(help_request)
     help_request.notifications.joins(:user).merge(User.where(role: %i[instructor admin]))
       .update_all(read_at: Time.current, updated_at: Time.current)
+  end
+
+  def cohort_file_notification_for(user, file, actor:, title:, body:, path:)
+    attributes = { actor: actor, notification_type: :cohort_file, title: title.truncate(250), body: body, path: path, read_at: nil }
+    Notification.transaction(requires_new: true) do
+      notification = Notification.find_or_initialize_by(notifiable: file, user: user)
+      notification.update!(attributes)
+      notification
+    end
+  rescue ActiveRecord::RecordNotUnique
+    existing = Notification.find_by!(notifiable: file, user: user)
+    existing.update!(attributes)
+    existing
   end
 
   def help_request_notification_for(user, help_request, actor:, title:, body:, path:)

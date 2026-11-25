@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import { Check, Download, Eye, ExternalLink, FileText, FileUp, History, Link2, Loader2, RotateCcw, Trash2, Upload, X } from 'lucide-react'
+import { BookOpen, Check, Download, Eye, ExternalLink, FileText, FileUp, History, Link2, Loader2, NotebookPen, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   COHORT_FILE_ACCEPT,
@@ -8,6 +8,7 @@ import {
   fileExtension,
   FILE_TYPE_ICONS,
   formatFileSize,
+  isStudentFolderItem,
   LINK_PROVIDERS,
   linkHost,
   linkProviderFor,
@@ -23,19 +24,27 @@ import {
 } from '../../lib/cohortFiles'
 import { Badge } from '../ui/Badge'
 import { AnchorButton, Button, IconButton } from '../ui/Button'
+import { formatShortDateTime } from '../../lib/format'
+import { CohortDocEditorModal } from './CohortDocEditorModal'
 import { CohortFilePreviewModal } from './CohortFilePreviewModal'
+import { CohortFileReviewModal, CommentCountChip, ReviewStatusBadge, type ReviewAccess } from './CohortFileReview'
 import { ProgressBar } from './ProgressBar'
 
 // A full 44px tap target on phones; a plain underlined title on desktop.
 const TITLE_CONTROL = 'inline-flex min-h-11 items-center text-left underline-offset-2 hover:underline focus-visible:underline lg:min-h-0'
 
+type OpenView = { pane: 'main' | 'review' }
+
 /**
- * One file or link: icon, title, details, badges, and the caller's actions.
- * Files get Preview (when the type can show in the app) and Download, a
- * version badge and Versions once there is more than one version, and Upload
- * new version for people who manage them. Links get Open link.
+ * One file, link or Learn Doc: icon, title, details, badges, and the caller's
+ * actions. Files get Preview (when the type can show in the app) and
+ * Download, a version badge and Versions once there is more than one
+ * version, and Upload new version for people who manage them. Links get Open
+ * link; docs open in the doc editor. With `review`, items in a student's
+ * folder show their review status and comment count, and open with review
+ * and comments beside them. `autoOpen` opens the item once (a notification link).
  */
-export function CohortFileRow({ cohortId, file, badges, actions, note, downloadDisabled = false, canUploadVersion = false, onVersionUploaded }: {
+export function CohortFileRow({ cohortId, file, badges, actions, note, downloadDisabled = false, canUploadVersion = false, onVersionUploaded, review, onFileChange, autoOpen = false, onAutoOpened }: {
   cohortId: number
   file: CohortFile
   badges?: ReactNode
@@ -45,15 +54,35 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
   downloadDisabled?: boolean
   canUploadVersion?: boolean
   onVersionUploaded?: (file: CohortFile) => void
+  review?: ReviewAccess
+  /** A doc save, review change or comment changed the file. */
+  onFileChange?: (file: CohortFile) => void
+  autoOpen?: boolean
+  /** Called once `autoOpen` has opened the item, so the caller can stop asking. */
+  onAutoOpened?: () => void
 }) {
-  const Icon = file.kind === 'link' ? LINK_PROVIDERS[file.link_provider || 'web'].icon : FILE_TYPE_ICONS[fileExtension(file.filename || '')] || FileText
+  const doc = file.kind === 'doc'
+  const Icon = doc ? NotebookPen : file.kind === 'link' ? LINK_PROVIDERS[file.link_provider || 'web'].icon : FILE_TYPE_ICONS[fileExtension(file.filename || '')] || FileText
+  const rowRef = useRef<HTMLLIElement>(null)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
-  const [previewing, setPreviewing] = useState(false)
+  const [opened, setOpened] = useState<OpenView | null>(null)
   const [addingVersion, setAddingVersion] = useState(false)
   const link = file.kind === 'link'
   const href = link ? safeExternalFileUrl(file.external_url) : null
-  const canPreview = !link && file.previewable && !downloadDisabled
+  const canPreview = !link && !doc && file.previewable && !downloadDisabled
+  const reviewing = review && isStudentFolderItem(file) ? review : undefined
+  const changed = (next: CohortFile) => onFileChange?.(next)
+  const open = (pane: OpenView['pane'] = 'main') => setOpened({ pane })
+  const autoOpened = useRef(false)
+  useEffect(() => {
+    if (!autoOpen || autoOpened.current) return
+    autoOpened.current = true
+    rowRef.current?.scrollIntoView?.({ block: 'center' })
+    if (doc || canPreview) setOpened({ pane: 'main' })
+    else if (reviewing) setOpened({ pane: 'review' })
+    onAutoOpened?.()
+  }, [autoOpen, canPreview, doc, onAutoOpened, reviewing])
   const download = async () => {
     if (downloading) return
     setDownloading(true)
@@ -66,12 +95,14 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
       setDownloading(false)
     }
   }
-  const details = link
-    ? <>{LINK_PROVIDERS[file.link_provider || 'web'].label} · {linkHost(file.external_url)}</>
-    : <>{file.filename} · <span className="tabular-nums">{formatFileSize(file.file_size || 0)}</span></>
+  const details = doc
+    ? <>Learn Doc{file.doc_updated_at ? <> · Updated {formatShortDateTime(file.doc_updated_at, '')}{file.doc_updated_by_name ? ` by ${file.doc_updated_by_name}` : ''}</> : null}</>
+    : link
+      ? <>{LINK_PROVIDERS[file.link_provider || 'web'].label} · {linkHost(file.external_url)}</>
+      : <>{file.filename} · <span className="tabular-nums">{formatFileSize(file.file_size || 0)}</span></>
 
   return (
-    <li className="px-4 py-3.5">
+    <li ref={rowRef} className="px-4 py-3.5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary">
@@ -80,14 +111,16 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="min-w-0 text-sm font-semibold text-ink [overflow-wrap:anywhere]">
-                {canPreview ? (
-                  <button type="button" onClick={() => setPreviewing(true)} className={TITLE_CONTROL}>{file.title}</button>
+                {canPreview || doc ? (
+                  <button type="button" onClick={() => open()} className={TITLE_CONTROL}>{file.title}</button>
                 ) : link && href ? (
                   <a href={href} target="_blank" rel="noopener noreferrer" className={TITLE_CONTROL}>{file.title}</a>
                 ) : file.title}
               </h3>
               {link && <LinkProviderBadge provider={file.link_provider || 'web'} />}
-              {!link && file.version_number > 1 && <Badge tone="info">{`v${file.version_number}`}</Badge>}
+              {doc && <Badge tone="brand" icon={<NotebookPen className="h-3 w-3" aria-hidden="true" />}>Learn Doc</Badge>}
+              {!link && !doc && file.version_number > 1 && <Badge tone="info">{`v${file.version_number}`}</Badge>}
+              {reviewing && <ReviewStatusBadge status={file.review_status} />}
               {badges}
             </div>
             <p className="mt-0.5 text-xs text-ink-muted [overflow-wrap:anywhere]">
@@ -96,11 +129,16 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
             </p>
             {file.description && <p className="mt-1 text-sm text-ink-secondary [overflow-wrap:anywhere]">{file.description}</p>}
             {error && <p role="alert" className="mt-1 text-sm text-danger-ink">{error}</p>}
-            {!link && downloadDisabled && <p id={`file-${file.id}-download-hint`} className="mt-1 text-xs text-ink-muted">Downloads are unavailable until file storage is set up.</p>}
+            {!link && !doc && downloadDisabled && <p id={`file-${file.id}-download-hint`} className="mt-1 text-xs text-ink-muted">Downloads are unavailable until file storage is set up.</p>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 pl-[3.25rem] sm:max-w-[60%] sm:shrink-0 sm:justify-end sm:pl-0">
-          {link ? (
+          {doc ? (
+            <Button size="sm" variant="secondary" onClick={() => open()} aria-label={`Open ${file.title}`}>
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+              {file.can_edit_doc ? 'Open and edit' : 'Open'}
+            </Button>
+          ) : link ? (
             href ? (
               <AnchorButton size="sm" variant="secondary" href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open link ${file.title} (opens in a new tab)`}>
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -110,7 +148,7 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
           ) : (
             <>
               {canPreview && (
-                <Button size="sm" variant="secondary" onClick={() => setPreviewing(true)} aria-label={`Preview ${file.title}`}>
+                <Button size="sm" variant="secondary" onClick={() => open()} aria-label={`Preview ${file.title}`}>
                   <Eye className="h-4 w-4" aria-hidden="true" />
                   Preview
                 </Button>
@@ -121,7 +159,7 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
                 {downloading ? 'Preparing…' : 'Download'}
               </Button>
               {file.version_number > 1 && !downloadDisabled && (
-                <Button size="sm" variant="quiet" onClick={() => setPreviewing(true)} aria-label={`Versions of ${file.title}`}>
+                <Button size="sm" variant="quiet" onClick={() => open()} aria-label={`Versions of ${file.title}`}>
                   <History className="h-4 w-4" aria-hidden="true" />
                   Versions
                 </Button>
@@ -134,6 +172,7 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
               )}
             </>
           )}
+          {reviewing && <CommentCountChip count={file.comment_count} title={file.title} onClick={() => open('review')} />}
           {actions}
         </div>
       </div>
@@ -141,8 +180,17 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
         <CohortFileVersionUploader cohortId={cohortId} file={file} onCancel={() => setAddingVersion(false)}
           onUploaded={(saved) => { setAddingVersion(false); onVersionUploaded?.(saved) }} />
       )}
-      {!link && previewing && (
-        <CohortFilePreviewModal cohortId={cohortId} file={file} open={previewing} onClose={() => setPreviewing(false)} downloadDisabled={downloadDisabled} />
+      {opened && doc && (
+        <CohortDocEditorModal cohortId={cohortId} file={file} open onClose={() => setOpened(null)} onFileChange={changed}
+          reviewAccess={reviewing} initialPane={opened.pane === 'review' ? 'review' : 'doc'} />
+      )}
+      {/* Versions opens the preview for any uploaded file; a download-only type shows its download card there. */}
+      {opened && !doc && !link && (canPreview || opened.pane === 'main') && (
+        <CohortFilePreviewModal cohortId={cohortId} file={file} open onClose={() => setOpened(null)} downloadDisabled={downloadDisabled}
+          review={reviewing} onFileChange={changed} initialPane={opened.pane === 'review' ? 'review' : 'preview'} />
+      )}
+      {opened && opened.pane === 'review' && !doc && !canPreview && reviewing && (
+        <CohortFileReviewModal cohortId={cohortId} file={file} access={reviewing} open onClose={() => setOpened(null)} onFileChange={changed} />
       )}
     </li>
   )
@@ -549,6 +597,90 @@ export function CohortLinkForm({ cohortId, studentId, folderPresets, defaultFold
           <Button type="submit" disabled={saving || !url.trim() || !chosenFolder}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
             {saving ? 'Saving…' : 'Save link'}
+          </Button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+/**
+ * Start a Learn Doc: a title and folder, then it opens in the editor. Docs are
+ * Markdown saved in the app, so they work without file storage.
+ */
+export function CohortDocForm({ cohortId, studentId, folderPresets, defaultFolder, allowVisibility = false, heading = 'New doc', description, onCreated, onCancel }: {
+  cohortId: number
+  studentId?: number | null
+  folderPresets: string[]
+  defaultFolder?: string
+  allowVisibility?: boolean
+  heading?: string
+  description?: string
+  onCreated: (file: CohortFile) => void
+  onCancel?: () => void
+}) {
+  const id = useId()
+  const [title, setTitle] = useState('')
+  const [folder, setFolder] = useState(defaultFolder || folderPresets[0] || 'General')
+  const [customFolder, setCustomFolder] = useState('')
+  const [notes, setNotes] = useState('')
+  const [staffOnly, setStaffOnly] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const chosenFolder = folder === '__custom' ? customFolder.trim() : folder
+
+  const save = async () => {
+    if (!title.trim() || !chosenFolder || saving) return
+    setSaving(true)
+    setError('')
+    const result = await api.createCohortDoc(cohortId, {
+      title: title.trim(), folder: chosenFolder, doc_content: '',
+      ...(notes.trim() ? { description: notes.trim() } : {}),
+      ...(studentId ? { student_id: studentId } : {}),
+      ...(allowVisibility ? { visibility: staffOnly ? 'staff_only' as const : 'students' as const } : {}),
+    })
+    setSaving(false)
+    if (!result.data) return setError(result.error || 'Could not create this doc.')
+    setTitle('')
+    setNotes('')
+    onCreated(result.data.file)
+  }
+
+  return (
+    <section aria-labelledby={`${id}-heading`} className="app-surface p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={`${id}-heading`} className="flex items-center gap-2 text-base font-semibold text-ink [overflow-wrap:anywhere]"><NotebookPen className="h-4 w-4 text-ink-muted" aria-hidden="true" />{heading}</h3>
+          <p className="mt-1 text-sm text-ink-secondary">{description || 'A Learn Doc you write right here: notes, plans, checklists and tables. It saves as you type and keeps its history.'}</p>
+        </div>
+        {onCancel && (
+          <Button size="sm" variant="quiet" onClick={onCancel} disabled={saving}>
+            <X className="h-4 w-4" aria-hidden="true" />
+            Close
+          </Button>
+        )}
+      </div>
+      <form className="mt-4 grid gap-3 sm:grid-cols-2" noValidate onSubmit={(event) => { event.preventDefault(); void save() }}>
+        <label className="block text-sm font-medium text-ink sm:col-span-2">
+          Title
+          <input className="app-control mt-1 w-full" value={title} maxLength={160} disabled={saving} placeholder="Job search plan" onChange={(event) => setTitle(event.target.value)} />
+        </label>
+        <FolderField presets={folderPresets} value={folder} custom={customFolder} onChange={setFolder} onCustomChange={setCustomFolder} disabled={saving} />
+        <label className="block text-sm font-medium text-ink sm:col-span-2">
+          Description <span className="font-normal text-ink-muted">(optional)</span>
+          <textarea className="app-control mt-1 w-full" rows={2} maxLength={500} value={notes} disabled={saving} onChange={(event) => setNotes(event.target.value)} />
+        </label>
+        {allowVisibility && (
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-ink sm:col-span-2">
+            <input type="checkbox" checked={staffOnly} disabled={saving} onChange={(event) => setStaffOnly(event.target.checked)} />
+            <span><span className="font-semibold">Staff only</span> <span className="text-ink-secondary">(share it with students later)</span></span>
+          </label>
+        )}
+        {error && <p role="alert" className="text-sm text-danger-ink sm:col-span-2">{error}</p>}
+        <div className="flex flex-wrap gap-2 sm:col-span-2">
+          <Button type="submit" disabled={saving || !title.trim() || !chosenFolder}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <NotebookPen className="h-4 w-4" aria-hidden="true" />}
+            {saving ? 'Creating…' : 'Create doc'}
           </Button>
         </div>
       </form>

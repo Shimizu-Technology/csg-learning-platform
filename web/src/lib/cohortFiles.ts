@@ -13,6 +13,17 @@ export type CohortFilesResponse = components['schemas']['CohortFilesResponse']
 export type CohortFileVersion = components['schemas']['CohortFileVersion']
 export type CohortFilePreview = components['schemas']['CohortFilePreviewResponse']
 export type LinkProvider = NonNullable<CohortFile['link_provider']>
+export type CohortDoc = components['schemas']['CohortDocResponse']
+export type CohortDocRevision = components['schemas']['CohortDocRevision']
+export type CohortDocRevisionDetail = components['schemas']['CohortDocRevisionDetail']
+export type CohortFileComment = components['schemas']['CohortFileComment']
+export type ReviewStatus = CohortFile['review_status']
+
+/** Mirrors CohortFile::MAX_DOC_LENGTH and CohortFileComment::MAX_BODY_LENGTH on the API. */
+export const MAX_DOC_LENGTH = 200_000
+export const MAX_COMMENT_LENGTH = 4_000
+/** How long typing pauses before a Learn Doc saves itself. */
+export const DOC_AUTOSAVE_MS = 1500
 
 export const MAX_COHORT_FILE_SIZE = 100 * 1024 * 1024
 /** Mirrors CohortFile::ALLOWED_TYPES on the API. Pages, SVGs and scripts are refused there too. */
@@ -217,6 +228,43 @@ export function linkHost(url: string | null) {
 export function safeExternalFileUrl(url: string | null) {
   const href = url ? sanitizeUrl(url) : '#'
   return /^https:\/\//i.test(href) && !publicHttpsProblem(href) ? href : null
+}
+
+/** Review loop: any item in a student's folder that students can see. */
+export function isStudentFolderItem(file: Pick<CohortFile, 'student_id' | 'visibility'>) {
+  return file.student_id !== null && file.visibility === 'students'
+}
+
+/** A file-safe name for a doc's Markdown download: "Week 1: Plan" becomes "Week-1-Plan.md". */
+export function docFilename(title: string) {
+  const base = title.normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 80)
+  return `${base || 'learn-doc'}.md`
+}
+
+export function downloadMarkdown(title: string, content: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = docFilename(title)
+  link.rel = 'noreferrer'
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+const TASK_MARKER = /^([ \t>]*(?:[-*+]|\d+[.)])[ \t]+)\[([ xX])\]/
+
+/**
+ * Ticks or unticks the GitHub task ("- [ ] step") on the line starting at
+ * `lineStart` (a character offset into `markdown`). Returns the Markdown
+ * unchanged when that line has no task.
+ */
+export function toggleTaskAt(markdown: string, lineStart: number) {
+  const end = markdown.indexOf('\n', lineStart)
+  const line = markdown.slice(lineStart, end === -1 ? undefined : end)
+  const match = line.match(TASK_MARKER)
+  if (!match) return markdown
+  const at = lineStart + match[1].length + 1
+  return `${markdown.slice(0, at)}${match[2] === ' ' ? 'x' : ' '}${markdown.slice(at + 1)}`
 }
 
 export function matchesFileQuery(file: CohortFile, query: string) {
