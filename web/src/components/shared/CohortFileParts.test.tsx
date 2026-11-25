@@ -3,10 +3,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ uploadCohortFile: vi.fn() }))
+const mocks = vi.hoisted(() => ({ uploadCohortFile: vi.fn(), abandonCohortUpload: vi.fn() }))
 vi.mock('../../lib/cohortFiles', async (original) => ({
   ...(await original<typeof import('../../lib/cohortFiles')>()),
   uploadCohortFile: mocks.uploadCohortFile,
+  abandonCohortUpload: mocks.abandonCohortUpload,
 }))
 import { CohortFileUploader } from './CohortFileParts'
 
@@ -16,6 +17,7 @@ let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.uploadCohortFile.mockReset()
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
@@ -58,7 +60,7 @@ it('queues several files with editable titles, uploads each, and retries only a 
   })
 
   await act(async () => button('Upload 2 files').click())
-  expect(mocks.uploadCohortFile).toHaveBeenNthCalledWith(1, 4, expect.any(File), expect.objectContaining({ title: 'Week 1 Slides', folder: 'Slides' }), expect.any(Function))
+  expect(mocks.uploadCohortFile).toHaveBeenNthCalledWith(1, 4, expect.any(File), expect.objectContaining({ title: 'Week 1 Slides', folder: 'Slides' }), expect.any(Function), expect.any(Object))
   expect(onUploaded).toHaveBeenCalledTimes(1)
   expect(onFinished).not.toHaveBeenCalled()
   expect(container.textContent).toContain('Could not upload week-2.pdf.')
@@ -68,4 +70,54 @@ it('queues several files with editable titles, uploads each, and retries only a 
   expect(onUploaded).toHaveBeenCalledTimes(2)
   expect(onFinished).toHaveBeenCalledTimes(1)
   expect(container.querySelector('ul[aria-label="Files to upload"]')).toBeNull()
+})
+
+it('retries a failed row with the same upload state, so a lost confirmation never creates a second file', async () => {
+  const states: unknown[] = []
+  mocks.uploadCohortFile
+    .mockImplementationOnce(async (...args: unknown[]) => { states.push(args[4]); Object.assign(args[4] as object, { fileId: 41, uploaded: true }); throw new Error('Network lost') })
+    .mockImplementationOnce(async (...args: unknown[]) => { states.push(args[4]); return { id: 41, title: 'notes' } })
+  const onUploaded = vi.fn()
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={onUploaded} />))
+  await choose([pdf('notes.pdf')])
+  await act(async () => button('Upload file').click())
+  await act(async () => button('Retry').click())
+  expect(states).toHaveLength(2)
+  expect(states[1]).toBe(states[0])
+  expect(states[1]).toMatchObject({ fileId: 41, uploaded: true })
+  expect(onUploaded).toHaveBeenCalledWith({ id: 41, title: 'notes' })
+  expect(mocks.abandonCohortUpload).not.toHaveBeenCalled()
+})
+
+it('abandons a failed row\'s pending file when it is removed', async () => {
+  mocks.uploadCohortFile.mockImplementationOnce(async (...args: unknown[]) => { Object.assign(args[4] as object, { fileId: 42 }); throw new Error('Network lost') })
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={vi.fn()} />))
+  await choose([pdf('notes.pdf')])
+  await act(async () => button('Upload file').click())
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove notes.pdf"]')!.click())
+  expect(mocks.abandonCohortUpload).toHaveBeenCalledWith(4, expect.objectContaining({ fileId: 42 }))
+})
+
+it('reads each waiting row when its turn comes: removed rows are skipped and edited titles are used', async () => {
+  let release: () => void = () => {}
+  mocks.uploadCohortFile
+    .mockImplementationOnce((_cohort: number, file: File, options: { title: string }) => new Promise((resolve) => { release = () => resolve({ id: 1, title: options.title, filename: file.name }) }))
+    .mockImplementation(async (_cohort: number, file: File, options: { title: string }) => ({ id: 2, title: options.title, filename: file.name }))
+  const onFinished = vi.fn()
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={vi.fn()} onFinished={onFinished} />))
+  await choose([pdf('a.pdf'), pdf('b.pdf'), pdf('c.pdf')])
+  await act(async () => { button('Upload 3 files').click() })
+  // The uploading row is locked; waiting rows can still change.
+  expect(container.querySelector<HTMLButtonElement>('button[aria-label="Remove a.pdf"]')!.disabled).toBe(true)
+  expect(container.querySelector<HTMLInputElement>('input[aria-label="Title for a.pdf"]')!.disabled).toBe(true)
+  const title = container.querySelector<HTMLInputElement>('input[aria-label="Title for b.pdf"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'Renamed B')
+    title.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove c.pdf"]')!.click())
+  await act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+  expect(mocks.uploadCohortFile).toHaveBeenCalledTimes(2)
+  expect(mocks.uploadCohortFile).toHaveBeenLastCalledWith(4, expect.any(File), expect.objectContaining({ title: 'Renamed B' }), expect.any(Function), expect.any(Object))
+  expect(onFinished).toHaveBeenCalledTimes(1)
 })

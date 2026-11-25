@@ -7,6 +7,14 @@ class CohortFile < ApplicationRecord
   # "doc" is reserved for in-app documents; the API creates files and links.
   KINDS = %w[file link doc].freeze
   MAX_URL_LENGTH = 2048
+  # Links must point at a public host. Every range below is local, private,
+  # shared (CGNAT), link-local, reserved, multicast or documentation-only.
+  NON_PUBLIC_IPV4 = %w[0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.0.2.0/24
+    192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4].map { |range| IPAddr.new(range) }.freeze
+  GLOBAL_IPV6 = IPAddr.new("2000::/3")
+  # Dotted labels of letters, digits and hyphens, ending in an alphabetic
+  # (or punycode) top-level label, so bare names and numeric hosts fail.
+  PUBLIC_HOSTNAME = /\A(?=.{4,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})\z/
   # Inline previews read at most this much of a text file.
   TEXT_PREVIEW_BYTES = 512.kilobytes
 
@@ -91,8 +99,9 @@ class CohortFile < ApplicationRecord
   belongs_to :student, class_name: "User", optional: true
   belongs_to :uploaded_by, class_name: "User", optional: true
   belongs_to :source_file, class_name: "CohortFile", optional: true
-  # Collected before the rows go, then removed after the deletion commits.
-  before_destroy :collect_stored_keys, prepend: true
+  # Locks the row, then queues every stored key in the deleting transaction,
+  # before the versions go; the objects are removed after it commits.
+  before_destroy :queue_stored_objects, prepend: true
   has_many :versions, class_name: "CohortFileVersion", dependent: :delete_all
 
   scope :ready, -> { where(ready: true) }
@@ -105,9 +114,6 @@ class CohortFile < ApplicationRecord
   before_save :record_shared_date
   after_destroy_commit :delete_stored_objects
 
-  # Set when a caller has already removed this file's objects (and reported
-  # any failure) before destroying the row.
-  attr_accessor :storage_cleaned
   # Set when only the staging upload should be removed after destroy.
 
   validates :title, presence: true, length: { maximum: 160 }
@@ -183,17 +189,23 @@ class CohortFile < ApplicationRecord
   # The reason a link can't be saved, or nil. Only public https:// addresses:
   # no other scheme, credentials, local or private hosts, or bare names.
   def self.link_problem(url)
-    url = url.to_s
+    url = url.to_s.dup.force_encoding(Encoding::UTF_8)
+    return "is not a valid web address" unless url.valid_encoding?
     return "can't be blank" if url.blank?
     return "is too long (maximum is #{MAX_URL_LENGTH} characters)" if url.length > MAX_URL_LENGTH
     return "must be a web address without spaces" if url.match?(/[\s\p{Cc}]/)
 
-    uri = URI.parse(url)
-    return "must start with https://" unless uri.is_a?(URI::HTTPS) && url.downcase.start_with?("https://")
+    return "must start with https://" unless url.downcase.start_with?("https://")
 
-    host = uri.hostname.to_s.downcase.delete_suffix(".")
+    authority = url[8..].to_s[%r{\A[^/?#]*}]
+    return "can't include a username or password" if authority.include?("@")
+    return "must be a public website" unless authority.ascii_only? && !authority.match?(/[%\\]/)
+
+    uri = URI.parse(url)
+    return "must start with https://" unless uri.is_a?(URI::HTTPS)
+
+    host = uri.host.to_s.downcase.delete_suffix(".")
     return "must include a website address" if host.blank?
-    return "can't include a username or password" if uri.userinfo.present?
     return "must be a public website" if private_host?(host)
 
     nil
@@ -201,15 +213,23 @@ class CohortFile < ApplicationRecord
     "is not a valid web address"
   end
 
+  # Whether a host is anything but a public name or public address: local
+  # and internal names, single labels, encoded or ambiguous authorities, and
+  # every non-public IPv4 range (IPv4-mapped IPv6 is unwrapped first). IPv6
+  # literals must be global unicast (2000::/3).
   def self.private_host?(host)
-    return true if host == "localhost" || host.end_with?(".localhost", ".local", ".internal")
+    host = host.to_s.downcase.delete_prefix("[").delete_suffix("]")
+    return true unless host.ascii_only? && !host.include?("%")
 
     address = IPAddr.new(host)
-    address.loopback? || address.private? || address.link_local? || address.to_i.zero? ||
-      (address.ipv4? && address.to_s.start_with?("0.", "100.64.", "169.254.")) || (address.ipv6? && address.ipv4_mapped? && private_host?(address.native.to_s))
+    address = address.native if address.ipv6? && address.ipv4_mapped?
+    return !GLOBAL_IPV6.include?(address) if address.ipv6?
+
+    NON_PUBLIC_IPV4.any? { |range| range.include?(address) }
   rescue IPAddr::InvalidAddressError
-    # Not an IP literal: a public name needs a dot, and an all-numeric name is an encoded address.
-    !host.include?(".") || host.match?(/\A[\d.]+\z/) || host.match?(/\A0x/i)
+    return true if host.end_with?(".localhost", ".local", ".internal", ".home.arpa")
+
+    !host.match?(PUBLIC_HOSTNAME)
   end
 
   def self.link_provider_for(url)
@@ -242,6 +262,9 @@ class CohortFile < ApplicationRecord
 
         file.destroy!
       end
+    rescue ActiveRecord::RecordNotFound
+      # Removed by a concurrent purge or delete; the other candidates still run.
+      next
     end
   end
 
@@ -321,21 +344,24 @@ class CohortFile < ApplicationRecord
   def record_shared_date
     if staff_only? || !ready?
       self.shared_at = nil
-    elsif shared_at.nil? || will_save_change_to_visibility?
+    elsif shared_at.nil? || will_save_change_to_visibility? || (link? && persisted? && will_save_change_to_external_url?)
       self.shared_at = Time.current
     end
   end
 
-  def collect_stored_keys
-    @stored_keys_to_delete = stored_keys
+  # Runs inside the destroy transaction. The row lock waits out a version
+  # being started or published, so the snapshot holds every key, and the
+  # durable queue rows commit (or roll back) with the deletion itself.
+  def queue_stored_objects
+    locked = self.class.lock.find_by(id: id)
+    @stored_keys_to_delete = (locked || self).stored_keys
+    PendingS3Deletion.enqueue_all!(@stored_keys_to_delete, reason: "cohort_file_destroyed")
   end
 
-  # Runs after the deletion commits, for every key the file and its versions
-  # used. A failed delete is queued for retry.
+  # Runs after the deletion commits: tries each queued key now and clears
+  # its queue row; a failed delete stays queued for ScheduledTick to retry.
   def delete_stored_objects
-    return if storage_cleaned
-
-    Array(@stored_keys_to_delete).each { |key| S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_destroyed") }
+    PendingS3Deletion.attempt_now!(Array(@stored_keys_to_delete))
   end
 
   def allowed_file_type

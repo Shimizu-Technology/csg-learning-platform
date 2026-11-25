@@ -15,6 +15,8 @@ module Api
       before_action :require_staff!, only: %i[copy_to_students rename_folder]
 
       FOLDER_STATUSES = %i[active paused].freeze
+      # A learner was paused or lost access while their upload was publishing.
+      class WritePaused < StandardError; end
 
       def index
         return render json: staff_index if current_user.staff?
@@ -99,11 +101,15 @@ module Api
           end
           # The still-valid upload POST can only overwrite staging, never a published file.
           S3Service.copy_object(file.upload_key, file.s3_key, etag: metadata.fetch(:etag))
+          raise WritePaused unless writer_still_active?
+
           file.update!(ready: true)
         end
         # Delete staging only once `ready` commits, so a rolled-back publish can retry.
         ActiveRecord.after_all_transactions_commit { delete_staging_upload(file) }
         render json: { file: file.file_json(can_manage: true) }
+      rescue WritePaused
+        abandon_paused_upload(file)
       rescue Aws::S3::Errors::PreconditionFailed
         # The staged object was replaced between the size check and the read or copy.
         render json: { error: "Upload changed while confirming; try again" }, status: :unprocessable_entity
@@ -154,10 +160,15 @@ module Api
           bytes = S3Service.read_prefix(shown.s3_key, bytes: CohortFile::TEXT_PREVIEW_BYTES)
           return render json: { error: "This file is missing from storage" }, status: :not_found if bytes.nil?
 
-          body[:truncated] = shown.file_size > CohortFile::TEXT_PREVIEW_BYTES
-          text = bytes.dup.force_encoding(Encoding::UTF_8).scrub("\uFFFD")
-          # A cut at the byte limit can split the last character.
-          body[:text] = body[:truncated] ? text.sub(/\uFFFD+\z/, "") : text
+          if CohortFile.content_matches?(shown.filename, bytes)
+            body[:truncated] = shown.file_size > CohortFile::TEXT_PREVIEW_BYTES
+            text = bytes.dup.force_encoding(Encoding::UTF_8).scrub("\uFFFD")
+            # A cut at the byte limit can split the last character.
+            body[:text] = body[:truncated] ? text.sub(/\uFFFD+\z/, "") : text
+          else
+            # Null bytes or page/script markup past the bytes checked at upload: download only.
+            body[:preview_mode] = "download_only"
+          end
         end
         response.headers["Cache-Control"] = "no-store"
         render json: body
@@ -167,18 +178,19 @@ module Api
 
       # Published versions, newest first. Paused learners see only versions
       # published before their pause.
+      # `current` marks the version this viewer gets by default: for a paused
+      # learner, the newest one published before the pause.
       def versions
-        file, = readable_target(allow_version: false)
+        file, shown = readable_target(allow_version: false)
         return if performed?
 
         versions = file.versions.ready.includes(:uploaded_by).order(version_number: :desc).to_a
         versions = versions.select { |version| @enrollment.file_version_available_for_read?(version) } unless current_user.staff?
-        render json: { versions: versions.map { |version| version.version_json(current: version.version_number == file.version_number) } }
+        render json: { versions: versions.map { |version| version.version_json(current: version.version_number == shown.version_number) } }
       end
 
       # Starts a new version of an uploaded file: staff on any ready file,
       # an active student on a ready file they uploaded to their own folder.
-      # Version 1 is archived first, so history always starts with it.
       def create_version
         return storage_unavailable unless S3Service.configured?
         return render_forbidden("Uploads to your folder are paused") unless current_user.staff? || student_can_write?
@@ -199,7 +211,6 @@ module Api
         token = SecureRandom.uuid
         owner = file.student_id ? "student_#{file.student_id}" : "shared"
         version = file.with_lock do
-          archive_first_version(file)
           file.versions.create!(
             version_number: [ file.version_number, file.versions.maximum(:version_number).to_i ].max + 1,
             uploaded_by: current_user, note: params[:note], filename: filename, content_type: content_type, file_size: params[:file_size],
@@ -218,7 +229,8 @@ module Api
 
       # Publishes a version with the same checks as `complete`, then points the
       # file at it. Versions publish in order, so a later-started upload that
-      # finishes first takes the next number.
+      # finishes first takes the next number. The first publish archives the
+      # original upload as version 1, so history appears with version 2.
       def complete_version
         return storage_unavailable unless S3Service.configured?
         return render_forbidden("Uploads to your folder are paused") unless current_user.staff? || student_can_write?
@@ -246,6 +258,9 @@ module Api
             return
           end
           S3Service.copy_object(version.upload_key, version.s3_key, etag: metadata.fetch(:etag))
+          raise WritePaused unless writer_still_active?
+
+          archive_first_version(file)
           take_next_version_number(file, version)
           version.update!(ready: true, ready_at: Time.current)
           file.update!(version_number: version.version_number, s3_key: version.s3_key, upload_key: version.upload_key, filename: version.filename,
@@ -253,6 +268,8 @@ module Api
         end
         ActiveRecord.after_all_transactions_commit { delete_staging_upload(version) }
         render json: { file: file.file_json(can_manage: true), version: version.version_json(current: true) }
+      rescue WritePaused
+        abandon_paused_upload(version)
       rescue Aws::S3::Errors::PreconditionFailed
         render json: { error: "Upload changed while confirming; try again" }, status: :unprocessable_entity
       rescue Aws::S3::Errors::ServiceError => error
@@ -296,13 +313,8 @@ module Api
             render json: { error: "This file was already published" }, status: :unprocessable_entity
             return
           end
-          # Local and demo rows, and links, have no stored objects to clean up.
-          # Older versions go first, so a failure leaves the current one intact.
-          if S3Service.configured? && !file.stored_keys.all? { |key| S3Service.delete_object(key) }
-            render json: { error: "Could not delete the stored file; try again" }, status: :bad_gateway
-            return
-          end
-          file.storage_cleaned = true
+          # The file and its versions go in one transaction that also queues
+          # every stored key; storage is cleaned after commit (see CohortFile).
           file.destroy!
         end
         head :no_content
@@ -402,7 +414,24 @@ module Api
         file.versions.ready.find(params[:version_id]) if params[:version_id].present?
       end
 
-      # Archives the original upload as version 1 the first time a file gets a new version.
+      # Rechecks, under a lock on the learner's enrollment, that a student can
+      # still write as a publish commits; a pause that landed after the
+      # request's first check wins. Staff are not limited by enrollment.
+      def writer_still_active?
+        return true if current_user.staff?
+
+        @enrollment.lock!
+        @enrollment.active?
+      end
+
+      # The publish rolled back. Abandon the pending upload or version; its
+      # destroy cleans the staging and copied objects after commit.
+      def abandon_paused_upload(record)
+        record.class.find_by(id: record.id, ready: false)&.destroy!
+        render_forbidden("Uploads to your folder are paused")
+      end
+
+      # Archives the original upload as version 1 when its second version publishes.
       def archive_first_version(file)
         return if file.versions.exists?(version_number: 1)
 

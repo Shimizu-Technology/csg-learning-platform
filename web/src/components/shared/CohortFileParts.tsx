@@ -12,11 +12,13 @@ import {
   linkHost,
   linkProviderFor,
   linkUrlProblem,
-  safeLinkHref,
+  safeExternalFileUrl,
   titleFromFilename,
+  abandonCohortUpload,
   uploadCohortFile,
   uploadCohortFileVersion,
   type CohortFile,
+  type CohortUploadState,
   type LinkProvider,
 } from '../../lib/cohortFiles'
 import { Badge } from '../ui/Badge'
@@ -50,7 +52,7 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
   const [previewing, setPreviewing] = useState(false)
   const [addingVersion, setAddingVersion] = useState(false)
   const link = file.kind === 'link'
-  const href = link ? safeLinkHref(file.external_url) : null
+  const href = link ? safeExternalFileUrl(file.external_url) : null
   const canPreview = !link && file.previewable && !downloadDisabled
   const download = async () => {
     if (downloading) return
@@ -239,6 +241,11 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
   const inputRef = useRef<HTMLInputElement>(null)
   const sequence = useRef(0)
   const [queue, setQueue] = useState<QueuedFile[]>([])
+  // The queue as of the latest change, read by a running batch so rows
+  // removed or retitled while they wait are honored.
+  const queueRef = useRef<QueuedFile[]>([])
+  // Each row's resumable upload, so Retry confirms the same pending file.
+  const uploads = useRef(new Map<string, CohortUploadState>())
   const [folder, setFolder] = useState(defaultFolder || folderPresets[0] || 'General')
   const [customFolder, setCustomFolder] = useState('')
   const [notes, setNotes] = useState('')
@@ -250,7 +257,21 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
   const pending = queue.filter((item) => item.status !== 'done')
   const single = queue.length === 1
 
-  const update = (key: string, change: Partial<QueuedFile>) => setQueue((current) => current.map((item) => (item.key === key ? { ...item, ...change } : item)))
+  const commitQueue = (change: (current: QueuedFile[]) => QueuedFile[]) => {
+    queueRef.current = change(queueRef.current)
+    setQueue(queueRef.current)
+  }
+  const update = (key: string, change: Partial<QueuedFile>) => commitQueue((current) => current.map((item) => (item.key === key ? { ...item, ...change } : item)))
+  // Abandons a row's pending file unless it already published.
+  const forget = (items: QueuedFile[]) => items.forEach((item) => {
+    const state = uploads.current.get(item.key)
+    uploads.current.delete(item.key)
+    if (state && item.status !== 'done') void abandonCohortUpload(cohortId, state)
+  })
+  const remove = (key: string) => {
+    forget(queueRef.current.filter((item) => item.key === key))
+    commitQueue((current) => current.filter((item) => item.key !== key))
+  }
   const choose = (files: FileList | null | undefined) => {
     if (!files?.length) return
     const added: QueuedFile[] = []
@@ -264,22 +285,26 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
       }
     })
     setProblems(refused)
-    setQueue((current) => [...current.filter((item) => item.status !== 'done'), ...added])
+    commitQueue((current) => [...current.filter((item) => item.status !== 'done'), ...added])
     if (inputRef.current) inputRef.current.value = ''
   }
   const reset = () => {
-    setQueue([])
+    forget(queueRef.current)
+    commitQueue(() => [])
     setNotes('')
     setProblems([])
     if (inputRef.current) inputRef.current.value = ''
   }
   const uploadOne = async (item: QueuedFile) => {
     update(item.key, { status: 'uploading', progress: 0, error: '' })
+    const state = uploads.current.get(item.key) || {}
+    uploads.current.set(item.key, state)
     try {
       const uploaded = await uploadCohortFile(cohortId, item.file, {
         title: item.title, folder: chosenFolder, description: single ? notes : undefined, studentId,
         ...(allowVisibility ? { visibility } : {}),
-      }, (next) => update(item.key, { progress: next.percent }))
+      }, (next) => update(item.key, { progress: next.percent }), state)
+      uploads.current.delete(item.key)
       update(item.key, { status: 'done', progress: 100 })
       onUploaded(uploaded)
       return true
@@ -288,16 +313,16 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
       return false
     }
   }
-  const run = async (items: QueuedFile[]) => {
-    if (running || !chosenFolder || !items.length) return
-    const othersWaiting = queue.some((item) => item.status !== 'done' && !items.includes(item))
+  const run = async (keys: string[]) => {
+    if (running || !chosenFolder || !keys.length) return
     setRunning(true)
-    let failed = false
-    for (const item of items) {
-      if (!(await uploadOne(item))) failed = true
+    for (const key of keys) {
+      // Read the row as it is now: it may have been removed or retitled while it waited.
+      const item = queueRef.current.find((entry) => entry.key === key)
+      if (item && (item.status === 'ready' || item.status === 'failed')) await uploadOne(item)
     }
     setRunning(false)
-    if (!failed && !othersWaiting) {
+    if (queueRef.current.every((item) => item.status === 'done')) {
       reset()
       onFinished?.()
     }
@@ -358,7 +383,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
                         <span className="flex h-11 w-11 shrink-0 items-center justify-center text-success-ink lg:h-9 lg:w-9" aria-label="Uploaded"><Check className="h-5 w-5" aria-hidden="true" /></span>
                       ) : (
                         <IconButton size="sm" label={`Remove ${item.file.name}`} disabled={item.status === 'uploading'}
-                          onClick={() => setQueue((current) => current.filter((entry) => entry.key !== item.key))}>
+                          onClick={() => remove(item.key)}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </IconButton>
                       )}
@@ -368,7 +393,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
                     {item.status === 'failed' && (
                       <div className="flex flex-wrap items-center gap-2">
                         <p role="alert" className="min-w-0 flex-1 text-sm text-danger-ink [overflow-wrap:anywhere]">{item.error}</p>
-                        <Button size="sm" variant="secondary" disabled={running || !chosenFolder} onClick={() => void run([item])}>
+                        <Button size="sm" variant="secondary" disabled={running || !chosenFolder} onClick={() => void run([item.key])}>
                           <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           Retry
                         </Button>
@@ -388,7 +413,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
                 {allowVisibility && <VisibilityField name={`${id}-visibility`} value={visibility} onChange={setVisibility} disabled={running} />}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button disabled={running || !chosenFolder || !ready.length || ready.some((item) => !item.title.trim())} onClick={() => void run(ready)}>
+                <Button disabled={running || !chosenFolder || !ready.length || ready.some((item) => !item.title.trim())} onClick={() => void run(ready.map((item) => item.key))}>
                   {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
                   {running ? 'Uploading…' : ready.length > 1 ? `Upload ${ready.length} files` : 'Upload file'}
                 </Button>
@@ -515,19 +540,22 @@ function CohortFileVersionUploader({ cohortId, file, onUploaded, onCancel }: {
   const [note, setNote] = useState('')
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState('')
+  // Kept across Retry so a lost confirmation publishes the same pending version.
+  const upload = useRef<CohortUploadState>({})
   const uploading = progress !== null
   const choose = (next: File | undefined) => {
     if (!next) return
     const problem = cohortFileProblem(next)
     setError(problem || '')
     setPicked(problem ? null : next)
+    upload.current = {}
   }
   const submit = async () => {
     if (!picked || uploading) return
     setError('')
     setProgress(0)
     try {
-      const saved = await uploadCohortFileVersion(cohortId, file.id, picked, note, (next) => setProgress(next.percent))
+      const saved = await uploadCohortFileVersion(cohortId, file.id, picked, note, (next) => setProgress(next.percent), upload.current)
       onUploaded(saved)
     } catch (cause) {
       setProgress(null)

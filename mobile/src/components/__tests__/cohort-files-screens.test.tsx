@@ -207,3 +207,14 @@ test('staff add a class link from the phone', async () => {
   await waitFor(() => expect(api.createCohortLink).toHaveBeenCalledWith(4, { external_url: 'https://www.figma.com/design/x', folder: 'Slides', title: 'Capstone board' }));
   await waitFor(() => expect(api.cohortFiles).toHaveBeenCalledTimes(2));
 });
+
+test('a saved link to a private address never opens', async () => {
+  const link = file({ id: 11, kind: 'link', title: 'Router admin', filename: null, content_type: null, file_size: null, previewable: false, preview_mode: null,
+    external_url: 'https://192.168.1.1/admin', link_provider: 'web' });
+  api.cohortFiles.mockResolvedValue({ class_files: [link], my_files: [], folders: [], storage_configured: true, can_upload_personal: true });
+  const screen = mount(<ResourcesScreen />);
+  await screen.findByText('Router admin');
+  expect(screen.getByRole('link', { name: 'Open Router admin' }).props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(screen.getByRole('link', { name: 'Open Router admin' }));
+  expect(Linking.openURL).not.toHaveBeenCalled();
+});

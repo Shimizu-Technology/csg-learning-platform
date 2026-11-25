@@ -34,6 +34,9 @@ class CohortFileVersion < ApplicationRecord
 
         version.destroy!
       end
+    rescue ActiveRecord::RecordNotFound
+      # Removed by a concurrent purge or delete; the other candidates still run.
+      next
     end
   end
 

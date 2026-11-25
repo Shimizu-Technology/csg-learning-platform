@@ -169,4 +169,59 @@ class CohortFileTest < ModelCoverageTestCase
   ensure
     CohortFileVersion.define_method(:with_lock, original_lock) if original_lock
   end
+
+  test "only public https hosts pass, across every non-public range and authority trick" do
+    [ "https://10.255.0.1/", "https://172.16.0.1/", "https://172.31.255.255/", "https://192.168.10.1/", "https://100.64.0.1/", "https://100.127.255.254/",
+      "https://127.1.2.3/", "https://169.254.1.1/", "https://0.1.2.3/", "https://224.0.0.1/", "https://[::]/", "https://[::1]/", "https://[fc00::1]/",
+      "https://[fdff::1]/", "https://[fe80::1]/", "https://[febf::1]/", "https://[::ffff:192.168.1.1]/", "https://[::ffff:100.64.0.1]/",
+      "https://user:pw@example.com/", "https://example.com@evil.com/", "https://exa%6dple.com/", "https://bücher.de/", "https://localhost/",
+      "https://intranet/", "https://printer.local/", "https://router.home.arpa/", "https://2130706433/", "https://0x7f.0.0.1/", "https://0177.0.0.1/",
+      "https://1.2.3/", "http://example.com/", "https:/\\example.com/" ].each do |url|
+      assert CohortFile.link_problem(url), url
+    end
+    [ "https://example.com/", "https://docs.google.com/document/d/x", "https://8.8.8.8/", "https://100.128.0.1/", "https://172.32.0.1/",
+      "https://[2001:4860:4860::8888]/", "https://xn--bcher-kva.de/", "https://example.com:8443/a?b=1#c" ].each do |url|
+      assert_nil CohortFile.link_problem(url), url
+    end
+  end
+
+  test "a row that vanishes before its purge lock is skipped and the rest still purge" do
+    file = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Deck", filename: "deck.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k8", upload_key: "u8", upload_expires_at: 1.hour.ago, ready: true)
+    vanishing = file.versions.create!(version_number: 2, filename: "a.pdf", content_type: "application/pdf", file_size: 10, s3_key: "k9", upload_key: "u9", upload_expires_at: 1.minute.ago)
+    expired = file.versions.create!(version_number: 3, filename: "b.pdf", content_type: "application/pdf", file_size: 10, s3_key: "k10", upload_key: "u10", upload_expires_at: 1.minute.ago)
+    gone = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Lost", filename: "lost.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k11", upload_key: "u11", upload_expires_at: 1.minute.ago)
+    stale = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Stale", filename: "stale.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k12", upload_key: "u12", upload_expires_at: 1.minute.ago)
+    original_version_lock = CohortFileVersion.instance_method(:with_lock)
+    original_file_lock = CohortFile.instance_method(:with_lock)
+    # A concurrent delete removes the first candidate of each kind between selection and lock.
+    CohortFileVersion.define_method(:with_lock) do |*args, &block|
+      CohortFileVersion.where(id: id).delete_all if id == vanishing.id
+      original_version_lock.bind_call(self, *args, &block)
+    end
+    CohortFile.define_method(:with_lock) do |*args, &block|
+      CohortFile.where(id: id).delete_all if id == gone.id
+      original_file_lock.bind_call(self, *args, &block)
+    end
+    CohortFile.purge_expired_pending!(course.cohort_files)
+    assert_not CohortFileVersion.exists?(expired.id)
+    assert_not CohortFile.exists?(stale.id)
+    assert CohortFile.exists?(file.id)
+  ensure
+    CohortFileVersion.define_method(:with_lock, original_version_lock) if original_version_lock
+    CohortFile.define_method(:with_lock, original_file_lock) if original_file_lock
+  end
+
+  test "rolling back the versions table refuses while versions exist" do
+    file = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Deck", filename: "deck.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k13", upload_key: "u13", upload_expires_at: 1.hour.ago, ready: true)
+    file.versions.create!(version_number: 1, ready: true, filename: "deck.pdf", content_type: "application/pdf", file_size: 10, s3_key: "k13", upload_key: "u13", upload_expires_at: 1.hour.ago)
+    require Rails.root.join("db/migrate/20261126110000_create_cohort_file_versions")
+    migration = CreateCohortFileVersions.new
+    migration.verbose = false
+    assert_raises(ActiveRecord::IrreversibleMigration) { migration.migrate(:down) }
+    assert CohortFileVersion.exists?
+  end
 end

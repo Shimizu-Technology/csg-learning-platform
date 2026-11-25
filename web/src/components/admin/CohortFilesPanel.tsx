@@ -146,14 +146,14 @@ function ClassFiles({ cohortId, files, storage, studentCount, onChange, onCopied
   return (
     <div className="space-y-4">
       {adding === 'file' ? (
-        <CohortFileUploader cohortId={cohortId} heading="Upload class files" allowVisibility defaultFolder={defaultFolder}
+        <CohortFileUploader key={`${cohortId}-class`} cohortId={cohortId} heading="Upload class files" allowVisibility defaultFolder={defaultFolder}
           description="Add several files at once. Choose Staff only to review them before students can see them."
           folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
           onCancel={() => setAdding(null)}
           onUploaded={(file) => onChange((current) => [...current, file])}
           onFinished={() => setAdding(null)} />
       ) : adding === 'link' ? (
-        <CohortLinkForm cohortId={cohortId} heading="Add a class link" allowVisibility folderPresets={presets} defaultFolder={defaultFolder}
+        <CohortLinkForm key={`${cohortId}-class`} cohortId={cohortId} heading="Add a class link" allowVisibility folderPresets={presets} defaultFolder={defaultFolder}
           onCancel={() => setAdding(null)}
           onSaved={(file) => { onChange((current) => [...current, file]); setAdding(null) }} />
       ) : (
@@ -438,7 +438,8 @@ function StudentFolders({ cohortId, folders, storage, openStudentId, onOpen, onC
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             All student folders
           </Button>
-          <StudentFolderView cohortId={cohortId} folder={open} storage={storage} onChange={(update) => onChange(update, open.student_id)} />
+          {/* Keyed per student, so a half-filled upload or link never carries into another student's folder. */}
+          <StudentFolderView key={`${cohortId}-${open.student_id}`} cohortId={cohortId} folder={open} storage={storage} onChange={(update) => onChange(update, open.student_id)} />
         </div>
       ) : (
         <div className="app-surface max-lg:hidden">
@@ -492,14 +493,14 @@ export function StudentFolderView({ cohortId, folder, storage, onChange }: {
         )}
       </div>
       {adding === 'file' && (
-        <CohortFileUploader cohortId={cohortId} studentId={folder.student_id} heading={`Upload to ${firstName}'s folder`}
+        <CohortFileUploader key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`Upload to ${firstName}'s folder`}
           folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
           onCancel={() => setAdding(null)}
           onUploaded={(file) => { onChange((files) => [...files, file]); toast.success(`Uploaded ${file.title}`) }}
           onFinished={() => setAdding(null)} />
       )}
       {adding === 'link' && (
-        <CohortLinkForm cohortId={cohortId} studentId={folder.student_id} heading={`Add a link to ${firstName}'s folder`} folderPresets={presets}
+        <CohortLinkForm key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`Add a link to ${firstName}'s folder`} folderPresets={presets}
           onCancel={() => setAdding(null)}
           onSaved={(file) => { onChange((files) => [...files, file]); setAdding(null); toast.success(`Added ${file.title}`) }} />
       )}
@@ -541,7 +542,7 @@ export function StudentFilesTab({ cohortId, studentId }: { cohortId: number; stu
     )
   }
   return (
-    <StudentFolderView cohortId={cohortId} folder={folder} storage={data.storage_configured}
+    <StudentFolderView key={`${cohortId}-${studentId}`} cohortId={cohortId} folder={folder} storage={data.storage_configured}
       onChange={(update) => setData((current) => current && {
         ...current,
         student_folders: (current.student_folders || []).map((item) => {

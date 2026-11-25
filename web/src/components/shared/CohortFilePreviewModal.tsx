@@ -38,6 +38,8 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
   const id = useId()
   const [versionId, setVersionId] = useState<number | null>(null)
   const [versions, setVersions] = useState<CohortFileVersion[]>([])
+  const [versionsError, setVersionsError] = useState('')
+  const [versionsAttempt, setVersionsAttempt] = useState(0)
   const [preview, setPreview] = useState<CohortFilePreview | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,15 +51,20 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
   useEffect(() => {
     if (!open || !hasVersions) return
     let live = true
+    setVersionsError('')
     void api.getCohortFileVersions(cohortId, file.id).then((result) => {
-      if (live && result.data) setVersions(result.data.versions)
+      if (!live) return
+      if (result.data) setVersions(result.data.versions)
+      else setVersionsError(result.error || 'Could not load earlier versions.')
     })
     return () => { live = false }
-  }, [cohortId, file.id, file.version_number, hasVersions, open])
+  }, [cohortId, file.id, file.version_number, hasVersions, open, versionsAttempt])
 
   useEffect(() => {
     if (!open) return
     let live = true
+    // Never show the previous version's PDF or text while another one loads.
+    setPreview(null)
     setLoading(true)
     setError('')
     void api.getCohortFilePreview(cohortId, file.id, versionId).then((result) => {
@@ -109,6 +116,14 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
                 ))}
               </select>
             </label>
+          ) : versionsError ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger-ink">
+              <span>{versionsError}</span>
+              <Button size="sm" variant="secondary" onClick={() => setVersionsAttempt((value) => value + 1)}>
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Retry
+              </Button>
+            </div>
           ) : <span className="hidden sm:block" />}
           <div className="flex flex-wrap gap-2">
             {preview?.preview_mode === 'pdf' && storageUrl(preview.url) && (
@@ -117,7 +132,7 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
                 Open in new tab
               </AnchorButton>
             )}
-            <Button variant="secondary" disabled={downloading || downloadDisabled} onClick={() => void download()}>
+            <Button variant="secondary" disabled={downloading || downloadDisabled || loading} onClick={() => void download()}>
               {downloading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
               {downloading ? 'Preparing…' : 'Download'}
             </Button>
@@ -125,7 +140,7 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
           {downloadError && <p role="alert" className="text-sm text-danger-ink sm:basis-full">{downloadError}</p>}
         </div>
       }>
-      {loading && !preview ? (
+      {loading ? (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-ink-secondary" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Opening {file.title}…

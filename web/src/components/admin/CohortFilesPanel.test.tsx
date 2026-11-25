@@ -204,3 +204,47 @@ function setValue(input: HTMLInputElement, value: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
+
+it('switching student folders drops a half-filled link or upload for the previous student', async () => {
+  await mount()
+  await act(async () => button('Student folders').click())
+  await act(async () => button('Student One').click())
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Add a link to Student\'s folder"]')!.click())
+  await act(async () => { setValue(container.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://docs.google.com/document/d/one') })
+  await act(async () => button('Paused Student').click())
+  expect(container.querySelector('section[aria-label="Paused Student\'s folder"]')).toBeTruthy()
+  expect(container.querySelector('input[type="url"]')).toBeNull()
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Upload to Paused\'s folder"]')!.click())
+  expect(container.textContent).toContain("Upload to Paused's folder")
+  await act(async () => button('Student One').click())
+  expect(container.querySelector('input[type="url"]')).toBeNull()
+  expect(container.querySelector('input[type="file"]')).toBeNull()
+})
+
+it('clears the previous version while another loads, and offers Retry when history fails', async () => {
+  mocks.getCohortFiles.mockResolvedValue({ data: { ...response().data, class_files: [file({ version_number: 2, preview_mode: 'text', filename: 'notes.txt', title: 'Notes' })] }, error: null })
+  mocks.getCohortFileVersions.mockResolvedValueOnce({ data: null, error: 'Server error' }).mockResolvedValue({ data: { versions: [
+    { id: 8, cohort_file_id: 1, version_number: 2, filename: 'notes.txt', content_type: 'text/plain', file_size: 20, note: null, ready_at: null, uploaded_by_name: null, current: true, preview_mode: 'text', previewable: true },
+    { id: 7, cohort_file_id: 1, version_number: 1, filename: 'notes.txt', content_type: 'text/plain', file_size: 18, note: null, ready_at: null, uploaded_by_name: null, current: false, preview_mode: 'text', previewable: true },
+  ] }, error: null })
+  let resolveOld: (value: unknown) => void = () => {}
+  mocks.getCohortFilePreview.mockImplementation((_cohort: number, _file: number, versionId?: number | null) => versionId
+    ? new Promise((resolve) => { resolveOld = resolve })
+    : Promise.resolve({ data: { preview_mode: 'text', filename: 'notes.txt', content_type: 'text/plain', file_size: 20, version_number: 2, version_id: null, url: null, expires_in: null, text: 'Current notes', truncated: false }, error: null }))
+  await mount()
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Preview Notes"]')!.click())
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+  const dialog = () => document.querySelector('[role="dialog"]')!
+  expect(dialog().textContent).toContain('Current notes')
+  expect(dialog().textContent).toContain('Server error')
+  await act(async () => [...dialog().querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent?.includes('Retry'))!.click())
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+  const select = dialog().querySelector<HTMLSelectElement>('select')!
+  await act(async () => { select.value = '7'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  expect(dialog().textContent).not.toContain('Current notes')
+  expect(dialog().textContent).toContain('Opening Notes')
+  expect([...dialog().querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent?.includes('Download'))!.disabled).toBe(true)
+  await act(async () => { resolveOld({ data: { preview_mode: 'text', filename: 'notes.txt', content_type: 'text/plain', file_size: 18, version_number: 1, version_id: 7, url: null, expires_in: null, text: 'First notes', truncated: false }, error: null }) })
+  expect(dialog().textContent).toContain('First notes')
+  expect([...dialog().querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent?.includes('Download'))!.disabled).toBe(false)
+})

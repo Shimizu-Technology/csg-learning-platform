@@ -62,17 +62,69 @@ export function safeHttpsUrl(url: string | null | undefined) {
   }
 }
 
-/** Quick check before saving a link; the API also refuses local and private addresses. */
+/** Mirrors CohortFile::NON_PUBLIC_IPV4 on the API: [first address, prefix length]. */
+const NON_PUBLIC_IPV4: [string, number][] = [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
+  ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+];
+const PUBLIC_HOSTNAME = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
+
+function ipv4Number(address: string) {
+  const parts = address.split('.');
+  if (parts.length !== 4 || !parts.every((part) => /^(0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255)) return null;
+  return parts.reduce((total, part) => total * 256 + Number(part), 0);
+}
+
+function nonPublicIpv4(address: string) {
+  const value = ipv4Number(address);
+  if (value === null) return true;
+  return NON_PUBLIC_IPV4.some(([base, bits]) => Math.floor(value / 2 ** (32 - bits)) === Math.floor(ipv4Number(base)! / 2 ** (32 - bits)));
+}
+
+/** IPv6 literals must be global unicast (2000::/3); IPv4-mapped ones are checked as IPv4. */
+function nonPublicIpv6(address: string) {
+  const dotted = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) return nonPublicIpv4(dotted[1]);
+  const mapped = address.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (mapped) {
+    const high = parseInt(mapped[1], 16);
+    const low = parseInt(mapped[2], 16);
+    return nonPublicIpv4([high >> 8, high & 255, low >> 8, low & 255].join('.'));
+  }
+  if (!/^[0-9a-f:]+$/.test(address)) return true;
+  const first = address.startsWith('::') ? 0 : parseInt(address.split(':')[0], 16);
+  return !(first >= 0x2000 && first <= 0x3fff);
+}
+
+/**
+ * The reason a link isn't a public https address, or null. Mirrors
+ * CohortFile.link_problem: https only, no credentials, an ASCII authority with
+ * no percent-encoding, and a dotted public name or a public IP written out in full.
+ */
+export function publicHttpsProblem(url: string) {
+  const value = url.trim();
+  if (!/^https:\/\//i.test(value)) return 'Links must start with https://';
+  const authority = value.slice(8).match(/^[^/?#]*/)?.[0] || '';
+  if (authority.includes('@')) return "Links can't include a username or password.";
+  if (/[^\x21-\x7e]|[%\\]/.test(authority)) return 'Use a public web address.';
+  const host = authority.toLowerCase().replace(/:\d*$/, '').replace(/\.$/, '');
+  if (host.startsWith('[')) return host.endsWith(']') && !nonPublicIpv6(host.slice(1, -1)) ? null : 'Use a public web address.';
+  if (/^[\d.]+$/.test(host)) return nonPublicIpv4(host) ? 'Use a public web address.' : null;
+  if (/\.(localhost|local|internal|home\.arpa)$/.test(host) || !PUBLIC_HOSTNAME.test(host)) return 'Use a full public web address, like https://docs.google.com/…';
+  return null;
+}
+
+/** Quick check before saving a link; the API makes the same checks. */
 export function linkUrlProblem(url: string) {
   const value = url.trim();
   if (!value) return 'Paste a link.';
-  if (!/^https:\/\//i.test(value)) return 'Links must start with https://';
-  try {
-    if (!new URL(value).hostname.includes('.')) return 'Use a full web address, like https://docs.google.com/…';
-  } catch {
-    return "That doesn't look like a web address.";
-  }
-  return value.length > 2048 ? 'That link is too long.' : null;
+  if (value.length > 2048) return 'That link is too long.';
+  return publicHttpsProblem(value);
+}
+
+/** A saved link, only if it is a public https address. */
+export function safeExternalFileUrl(url: string | null | undefined) {
+  return url && !publicHttpsProblem(url) ? url.trim() : null;
 }
 
 export function matchesCohortFile(file: CohortFile, needle: string) {

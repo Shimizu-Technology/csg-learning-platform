@@ -7,7 +7,7 @@ import { LearningCard } from '@/components/learning-ui';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { fonts } from '@/constants/csg-theme';
-import { LINK_PROVIDER_LABELS, cohortFileMeta, safeHttpsUrl, type CohortFile, type CohortFilePreview } from '@/lib/cohort-files';
+import { LINK_PROVIDER_LABELS, cohortFileMeta, safeExternalFileUrl, safeHttpsUrl, type CohortFile, type CohortFilePreview } from '@/lib/cohort-files';
 import { openExternalPage } from '@/lib/external-links';
 import { safeExternalUrl } from '@/lib/learning';
 import { useSession } from '@/providers/session-provider';
@@ -32,7 +32,7 @@ export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisable
   const [failed, setFailed] = useState<'download' | 'preview' | null>(null);
   const [preview, setPreview] = useState<CohortFilePreview | null>(null);
   const link = file.kind === 'link';
-  const href = link ? safeHttpsUrl(file.external_url) : null;
+  const href = link ? safeExternalFileUrl(file.external_url) : null;
 
   async function run(kind: 'download' | 'preview', task: () => Promise<void>) {
     if (busy.current) return;
@@ -66,7 +66,7 @@ export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisable
   const openLink = async () => {
     setError(null);
     try {
-      if (!href) throw new Error('This link is not a valid https address.');
+      if (!href) throw new Error('This link is not a public https address.');
       await Linking.openURL(href);
     } catch (failure) {
       setError((failure as Error).message || 'Could not open the link.');

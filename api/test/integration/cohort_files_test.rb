@@ -333,7 +333,8 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
 
   test "delete removes stored objects and is scoped to the owner" do
     with_storage do
-      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+      still_referenced = []
+      record_external_calls(S3Service, :delete_object, returns: ->(key) { still_referenced << key if CohortFile.where(s3_key: key).or(CohortFile.where(upload_key: key)).exists?; true }) do |deletes|
         [ @from_staff, @classmate_file, @slides ].each do |file|
           as_user(@student) { delete file_path(file), headers: headers }
           assert_response :not_found
@@ -342,16 +343,21 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
         assert_response :no_content
         assert_not CohortFile.exists?(@mine.id)
         assert_equal [ [ @mine.upload_key ], [ @mine.s3_key ] ], deletes.map { |call| call[:args] }
+        # Storage is touched only after the row's deletion committed.
+        assert_empty still_referenced
+        assert_not PendingS3Deletion.where(key: [ @mine.upload_key, @mine.s3_key ]).exists?
       end
+      # A storage outage no longer blocks the delete: the row goes and its keys stay queued.
       record_external_calls(S3Service, :delete_object, returns: false) do
         as_user(@teacher) { delete file_path(@classmate_file), headers: headers }
-        assert_response :bad_gateway
-        assert CohortFile.exists?(@classmate_file.id)
+        assert_response :no_content
+        assert_not CohortFile.exists?(@classmate_file.id)
+      end
+      assert_equal [ @classmate_file.upload_key, @classmate_file.s3_key ].sort, PendingS3Deletion.where(reason: "cohort_file_destroyed").pluck(:key).sort
+      record_external_calls(S3Service, :delete_object, returns: true) do
+        assert_equal 2, PendingS3Deletion.drain!(now: 1.hour.from_now)
       end
     end
-    as_user(@teacher) { delete file_path(@classmate_file), headers: headers }
-    assert_response :no_content
-    assert_not CohortFile.exists?(@classmate_file.id)
   end
 
   test "copy to all students copies once per active student and only reaches new students later" do

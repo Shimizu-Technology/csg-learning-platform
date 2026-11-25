@@ -100,18 +100,72 @@ export function linkProviderFor(url: string): LinkProvider {
   return 'web'
 }
 
-/** A quick client-side check before saving a link; the API also refuses private and local addresses. */
-export function linkUrlProblem(url: string) {
+/** Mirrors CohortFile::NON_PUBLIC_IPV4 on the API: [first address, prefix length]. */
+const NON_PUBLIC_IPV4: Array<[string, number]> = [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
+  ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+]
+const PUBLIC_HOSTNAME = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/
+
+function ipv4Number(address: string) {
+  const parts = address.split('.').map(Number)
+  return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
+    ? ((parts[0] * 256 + parts[1]) * 256 + parts[2]) * 256 + parts[3]
+    : null
+}
+
+function nonPublicIpv4(address: string) {
+  const value = ipv4Number(address)
+  if (value === null) return true
+  return NON_PUBLIC_IPV4.some(([base, bits]) => Math.floor(value / 2 ** (32 - bits)) === Math.floor(ipv4Number(base)! / 2 ** (32 - bits)))
+}
+
+/** IPv6 literals must be global unicast (2000::/3); IPv4-mapped ones are checked as IPv4. */
+function nonPublicIpv6(address: string) {
+  const mapped = address.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
+  if (mapped) {
+    const high = parseInt(mapped[1], 16)
+    const low = parseInt(mapped[2], 16)
+    return nonPublicIpv4([high >> 8, high & 255, low >> 8, low & 255].join('.'))
+  }
+  const first = address.startsWith('::') ? 0 : parseInt(address.split(':')[0], 16)
+  return !(first >= 0x2000 && first <= 0x3fff)
+}
+
+/**
+ * The reason a link isn't a public https address, or null. Mirrors
+ * CohortFile.link_problem: https only, no credentials, ASCII authority with
+ * no percent-encoding, a dotted public name or a public IP.
+ */
+export function publicHttpsProblem(url: string) {
   const value = url.trim()
-  if (!value) return 'Paste a link.'
   if (!/^https:\/\//i.test(value)) return 'Links must start with https://'
+  const authority = value.slice(8).match(/^[^/?#]*/)?.[0] || ''
+  if (authority.includes('@')) return 'Links can\'t include a username or password.'
+  // eslint-disable-next-line no-control-regex
+  if (/[^\x21-\x7e]|[%\\]/.test(authority)) return 'Use a public web address.'
+  let parsed: URL
   try {
-    if (!new URL(value).hostname.includes('.')) return 'Use a full web address, like https://docs.google.com/…'
+    parsed = new URL(value)
   } catch {
     return 'That doesn\'t look like a web address.'
   }
-  if (value.length > 2048) return 'That link is too long.'
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, '')
+  // The browser rewrites shorthand and encoded addresses ("2130706433", "0x7f.1") to a dotted IP; the API refuses those as ambiguous.
+  const typed = authority.toLowerCase().replace(/:\d*$/, '').replace(/\.$/, '')
+  if (!typed.startsWith('[') && typed !== host) return 'Use a public web address.'
+  if (host.startsWith('[')) return nonPublicIpv6(host.slice(1, -1)) ? 'Use a public web address.' : null
+  if (/^[\d.]+$/.test(host)) return nonPublicIpv4(host) ? 'Use a public web address.' : null
+  if (/\.(localhost|local|internal|home\.arpa)$/.test(host) || !PUBLIC_HOSTNAME.test(host)) return 'Use a full public web address, like https://docs.google.com/…'
   return null
+}
+
+/** A quick client-side check before saving a link; the API makes the same checks. */
+export function linkUrlProblem(url: string) {
+  const value = url.trim()
+  if (!value) return 'Paste a link.'
+  if (value.length > 2048) return 'That link is too long.'
+  return publicHttpsProblem(value)
 }
 
 /** The host of a link without "www.", for the row's details line. */
@@ -123,10 +177,10 @@ export function linkHost(url: string | null) {
   }
 }
 
-/** A saved link, ready to open in a new tab, or null if it isn't https. */
-export function safeLinkHref(url: string | null) {
+/** A saved link, ready to open in a new tab, or null unless it is a public https address. */
+export function safeExternalFileUrl(url: string | null) {
   const href = url ? sanitizeUrl(url) : '#'
-  return href.startsWith('https://') ? href : null
+  return href.startsWith('https://') && !publicHttpsProblem(href) ? href : null
 }
 
 export function matchesFileQuery(file: CohortFile, query: string) {
@@ -143,48 +197,84 @@ export interface CohortFileUploadOptions {
 }
 
 /**
- * Presign, upload straight to storage, then publish. If anything fails, the
- * pending file is abandoned with `pendingOnly`, so a publish whose response
- * was lost is never deleted.
+ * Where a resumable upload got to: the pending file (or version) it created,
+ * its presigned POST, and whether the bytes reached storage. Retrying with the
+ * same state replays only the missing steps, so a lost `complete` response is
+ * confirmed on the same id instead of creating a second file or version.
  */
-export async function uploadCohortFile(cohortId: number, file: File, options: CohortFileUploadOptions, onProgress?: (progress: UploadProgress) => void) {
-  const started = await api.createCohortFile(cohortId, {
-    filename: file.name,
-    content_type: file.type,
-    file_size: file.size,
-    title: options.title?.trim() || titleFromFilename(file.name),
-    folder: options.folder,
-    ...(options.description?.trim() ? { description: options.description.trim() } : {}),
-    ...(options.visibility ? { visibility: options.visibility } : {}),
-    ...(options.studentId ? { student_id: options.studentId } : {}),
-  })
-  if (!started.data) throw new Error(started.error || 'Could not start the upload.')
-  const pending = started.data.file
+export interface CohortUploadState {
+  fileId?: number
+  versionId?: number
+  upload?: { url: string; fields: Record<string, string> }
+  uploaded?: boolean
+}
+
+/**
+ * Presign, upload straight to storage, then publish. Without `state`, a
+ * failure abandons the pending file with `pendingOnly` (a publish whose
+ * response was lost is never deleted). With `state`, the caller keeps it for
+ * Retry and abandons it with `abandonCohortUpload` when the file is removed.
+ */
+export async function uploadCohortFile(cohortId: number, file: File, options: CohortFileUploadOptions, onProgress?: (progress: UploadProgress) => void, state?: CohortUploadState) {
+  const progress: CohortUploadState = state || {}
+  if (!progress.fileId || !progress.upload) {
+    const started = await api.createCohortFile(cohortId, {
+      filename: file.name,
+      content_type: file.type,
+      file_size: file.size,
+      title: options.title?.trim() || titleFromFilename(file.name),
+      folder: options.folder,
+      ...(options.description?.trim() ? { description: options.description.trim() } : {}),
+      ...(options.visibility ? { visibility: options.visibility } : {}),
+      ...(options.studentId ? { student_id: options.studentId } : {}),
+    })
+    if (!started.data) throw new Error(started.error || 'Could not start the upload.')
+    progress.fileId = started.data.file.id
+    progress.upload = { url: started.data.upload_url, fields: started.data.fields }
+    progress.uploaded = false
+  }
   try {
-    await uploadToS3(started.data.upload_url, started.data.fields, file, onProgress)
-    const completed = await api.completeCohortFile(cohortId, pending.id)
+    if (!progress.uploaded) {
+      await uploadToS3(progress.upload.url, progress.upload.fields, file, onProgress)
+      progress.uploaded = true
+    }
+    const completed = await api.completeCohortFile(cohortId, progress.fileId)
     if (!completed.data) throw new Error(completed.error || 'The upload could not be saved.')
     return completed.data.file
   } catch (cause) {
-    void api.deleteCohortFile(cohortId, pending.id, { pendingOnly: true })
+    if (!state) void abandonCohortUpload(cohortId, progress)
     throw cause
   }
 }
 
+/** Abandons a resumable upload's pending file; refused once it is published. */
+export async function abandonCohortUpload(cohortId: number, state: CohortUploadState) {
+  if (state.fileId) await api.deleteCohortFile(cohortId, state.fileId, { pendingOnly: true })
+}
+
 /**
  * Starts a new version of a published file, uploads it, then publishes it.
- * A failed upload stays pending and is purged once its presigned POST expires.
+ * Pass the same `state` to retry: it confirms the same pending version. An
+ * abandoned version stays pending and is purged once its presigned POST expires.
  */
-export async function uploadCohortFileVersion(cohortId: number, fileId: number, file: File, note: string, onProgress?: (progress: UploadProgress) => void) {
-  const started = await api.createCohortFileVersion(cohortId, fileId, {
-    filename: file.name,
-    content_type: file.type,
-    file_size: file.size,
-    ...(note.trim() ? { note: note.trim() } : {}),
-  })
-  if (!started.data) throw new Error(started.error || 'Could not start the upload.')
-  await uploadToS3(started.data.upload_url, started.data.fields, file, onProgress)
-  const completed = await api.completeCohortFileVersion(cohortId, fileId, started.data.version.id)
+export async function uploadCohortFileVersion(cohortId: number, fileId: number, file: File, note: string, onProgress?: (progress: UploadProgress) => void, state: CohortUploadState = {}) {
+  if (!state.versionId || !state.upload) {
+    const started = await api.createCohortFileVersion(cohortId, fileId, {
+      filename: file.name,
+      content_type: file.type,
+      file_size: file.size,
+      ...(note.trim() ? { note: note.trim() } : {}),
+    })
+    if (!started.data) throw new Error(started.error || 'Could not start the upload.')
+    state.versionId = started.data.version.id
+    state.upload = { url: started.data.upload_url, fields: started.data.fields }
+    state.uploaded = false
+  }
+  if (!state.uploaded) {
+    await uploadToS3(state.upload.url, state.upload.fields, file, onProgress)
+    state.uploaded = true
+  }
+  const completed = await api.completeCohortFileVersion(cohortId, fileId, state.versionId)
   if (!completed.data) throw new Error(completed.error || 'The new version could not be saved.')
   return completed.data.file
 }

@@ -1,9 +1,9 @@
-# Every published version of an uploaded cohort file. The cohort_files row
-# mirrors the current version; older rows keep their own stored objects.
-# A row starts pending (ready: false) like a new upload and is published by
-# the version `complete` call.
+# Every published (or pending) version of an uploaded cohort file. The
+# cohort_files row mirrors the current version; older rows keep their own
+# stored objects. A row starts pending (ready: false) like a new upload and is
+# published by the version `complete` call.
 class CreateCohortFileVersions < ActiveRecord::Migration[8.1]
-  def change
+  def up
     create_table :cohort_file_versions do |t|
       t.references :cohort_file, null: false, index: true, foreign_key: { on_delete: :cascade }
       t.integer :version_number, null: false
@@ -21,5 +21,15 @@ class CreateCohortFileVersions < ActiveRecord::Migration[8.1]
     end
     add_index :cohort_file_versions, [ :cohort_file_id, :version_number ], unique: true, name: "index_cohort_file_versions_one_number_per_file"
     add_index :cohort_file_versions, [ :ready, :upload_expires_at ]
+  end
+
+  # Dropping version rows would orphan their stored objects, so a rollback
+  # refuses while any exist.
+  def down
+    if select_value("SELECT 1 FROM cohort_file_versions LIMIT 1")
+      raise ActiveRecord::IrreversibleMigration, "Delete cohort file versions (and their stored objects) before rolling back"
+    end
+
+    drop_table :cohort_file_versions
   end
 end

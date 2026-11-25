@@ -140,7 +140,7 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "a new version archives version 1, publishes after its checks, and keeps earlier versions readable" do
+  test "publishing version 2 archives version 1, after the same checks, and keeps earlier versions readable" do
     original_key = @slides.s3_key
     original_ready_at = @slides.ready_at
     with_storage do
@@ -148,9 +148,10 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
       assert_response :created
       version = CohortFileVersion.find(response.parsed_body.dig("version", "id"))
       assert_equal [ 2, false ], [ version.version_number, version.ready? ]
-      first = @slides.versions.find_by!(version_number: 1)
-      assert_equal [ original_key, true, "week-1.pdf" ], [ first.s3_key, first.ready?, first.filename ]
-      assert_in_delta original_ready_at, first.ready_at, 1
+      # History stays empty until a second version actually publishes.
+      assert_equal [ version.id ], @slides.versions.pluck(:id)
+      as_user(@student) { get versions_path(@slides), headers: headers }
+      assert_equal [], response.parsed_body.fetch("versions")
       assert_equal 1, @slides.reload.version_number
       assert_match %r{\Acohort_file_uploads/cohort_#{@cohort.id}/}, version.upload_key
 
@@ -158,6 +159,7 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
       as_user(@teacher) { post complete_version_path(@slides, version), headers: headers }
       assert_response :unprocessable_entity
       assert_not version.reload.ready?
+      assert_not @slides.versions.exists?(version_number: 1)
       @prefix = "%PDF-1.7\n".b
       record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
         as_user(@teacher) { post complete_version_path(@slides, version), headers: headers }
@@ -168,6 +170,9 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
       assert_equal [ version.upload_key, version.s3_key, "fixture-etag" ], @copied.last
       @slides.reload
       assert_equal [ 2, version.s3_key, "week-1-v2.pdf" ], [ @slides.version_number, @slides.s3_key, @slides.filename ]
+      first = @slides.versions.find_by!(version_number: 1)
+      assert_equal [ original_key, true, "week-1.pdf" ], [ first.s3_key, first.ready?, first.filename ]
+      assert_in_delta original_ready_at, first.ready_at, 1
       assert_equal 2, response.parsed_body.dig("file", "version_number")
       as_user(@teacher) { post complete_version_path(@slides, version), headers: headers }
       assert_response :success
@@ -256,7 +261,9 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
       as_user(@student) { get preview_path(@slides), params: { version_id: second.id }, headers: headers }
       assert_response :forbidden
       as_user(@student) { get versions_path(@slides), headers: headers }
-      assert_equal [ 1 ], response.parsed_body.fetch("versions").map { |row| row["version_number"] }
+      assert_equal [ [ 1, true ] ], response.parsed_body.fetch("versions").map { |row| row.values_at("version_number", "current") }
+      as_user(@classmate) { get versions_path(@slides), headers: headers }
+      assert_equal [ [ 2, true ], [ 1, false ] ], response.parsed_body.fetch("versions").map { |row| row.values_at("version_number", "current") }
       # Active classmates get the current version.
       as_user(@classmate) { get download_path(@slides), headers: headers }
       assert_equal second.s3_key, @signed.last.first
@@ -293,8 +300,11 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
   test "expired pending versions are purged under lock with their objects, and ready versions are kept" do
     with_storage do
       as_user(@teacher) { post versions_path(@slides), params: version_params, headers: headers, as: :json }
+      first = CohortFileVersion.find(response.parsed_body.dig("version", "id"))
+      as_user(@teacher) { post complete_version_path(@slides, first), headers: headers }
+      first.reload
+      as_user(@teacher) { post versions_path(@slides), params: version_params, headers: headers, as: :json }
       pending = CohortFileVersion.find(response.parsed_body.dig("version", "id"))
-      first = @slides.versions.find_by!(version_number: 1)
       pending.update_columns(upload_expires_at: 1.minute.ago)
       first.update_columns(upload_expires_at: 1.minute.ago)
       # Storage cleanup runs only once no row references the key any more.
@@ -333,5 +343,112 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
     as_user(@outside_teacher) { patch "#{files_path}/rename_folder", params: { from_folder: "Week 1 Slides", to_folder: "Mine" }, headers: headers, as: :json }
     assert_response :forbidden
+  end
+
+  test "a link whose address changes after a pause leaves the paused library" do
+    link = @cohort.cohort_files.create!(kind: "link", title: "Capstone brief", external_url: "https://docs.google.com/document/d/old", uploaded_by: @admin, ready: true)
+    link.update_columns(created_at: 3.days.ago, ready_at: 3.days.ago, shared_at: 3.days.ago)
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    as_user(@student) { get files_path, headers: headers }
+    assert_includes response.parsed_body.fetch("class_files").map { |file| file["id"] }, link.id
+
+    as_user(@teacher) { patch file_path(link), params: { title: "Capstone brief (renamed)" }, headers: headers, as: :json }
+    assert_in_delta 3.days.ago, link.reload.shared_at, 5
+    as_user(@teacher) { patch file_path(link), params: { external_url: "https://docs.google.com/document/d/new" }, headers: headers, as: :json }
+    assert_response :success
+    assert_in_delta Time.current, link.reload.shared_at, 5
+    as_user(@student) { get files_path, headers: headers }
+    assert_not_includes response.parsed_body.fetch("class_files").map { |file| file["id"] }, link.id
+    refute_includes response.body, "document/d/new"
+    # Active classmates follow the new address.
+    as_user(@classmate) { get files_path, headers: headers }
+    assert_equal "https://docs.google.com/document/d/new", response.parsed_body.fetch("class_files").find { |file| file["id"] == link.id }.fetch("external_url")
+  end
+
+  test "deleting a versioned file is atomic: rows and queued keys commit together, then storage is cleaned" do
+    with_storage do
+      as_user(@teacher) { post versions_path(@slides), params: version_params, headers: headers, as: :json }
+      version = CohortFileVersion.find(response.parsed_body.dig("version", "id"))
+      as_user(@teacher) { post complete_version_path(@slides, version), headers: headers }
+      first = @slides.versions.find_by!(version_number: 1)
+      keys = [ first.upload_key, first.s3_key, version.upload_key, version.s3_key ]
+      # Storage fails for the archived version only: nothing half-deleted stays readable.
+      record_external_calls(S3Service, :delete_object, returns: ->(key) { key != first.s3_key }) do |deletes|
+        as_user(@teacher) { delete file_path(@slides), headers: headers }
+        assert_response :no_content
+        assert_equal keys.sort, deletes.map { |call| call[:args].first }.sort
+      end
+      assert_not CohortFile.exists?(@slides.id)
+      assert_not CohortFileVersion.exists?(cohort_file_id: @slides.id)
+      assert_equal [ first.s3_key ], PendingS3Deletion.where(key: keys).pluck(:key)
+      as_user(@teacher) { get download_path(@slides), params: { version_id: first.id }, headers: headers }
+      assert_response :not_found
+    end
+  end
+
+  test "a destroy that rolls back queues nothing and leaves storage alone" do
+    with_storage do
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        CohortFile.transaction do
+          @template.destroy!
+          assert PendingS3Deletion.exists?(key: @template.s3_key)
+          raise ActiveRecord::Rollback
+        end
+        assert_empty deletes
+      end
+      assert CohortFile.exists?(@template.id)
+      assert_not PendingS3Deletion.exists?(key: [ @template.s3_key, @template.upload_key ])
+    end
+  end
+
+  test "destroy locks the file row before snapshotting its keys" do
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+    @template.destroy!
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+    lock = statements.index { |sql| sql.match?(/FROM "cohort_files".*FOR UPDATE/m) }
+    snapshot = statements.index { |sql| sql.include?(%(FROM "cohort_file_versions")) }
+    assert lock && snapshot && lock < snapshot, statements.join("\n")
+    assert PendingS3Deletion.exists?(key: @template.s3_key) || !S3Service.configured?
+  end
+
+  test "a pause that lands while an upload or version publishes rolls it back and cleans its objects" do
+    with_storage do
+      as_user(@student) { post versions_path(@mine), params: version_params(filename: "resume-v2.pdf"), headers: headers, as: :json }
+      version = CohortFileVersion.find(response.parsed_body.dig("version", "id"))
+      as_user(@student) { post files_path, params: upload_params, headers: headers, as: :json }
+      pending = CohortFile.find(response.parsed_body.dig("file", "id"))
+      enrollment_id = @enrollment.id
+      # The pause commits between the request's first check and its publish.
+      S3Service.define_singleton_method(:copy_object) { |*, **| Enrollment.where(id: enrollment_id).update_all(status: Enrollment.statuses.fetch("paused"), paused_at: Time.current) }
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        as_user(@student) { post complete_version_path(@mine, version), headers: headers }
+        assert_response :forbidden
+        assert_not CohortFileVersion.exists?(version.id)
+        assert_equal [ 1, "resume.pdf" ], @mine.reload.values_at(:version_number, :filename)
+        assert_not @mine.versions.exists?
+        Enrollment.where(id: enrollment_id).update_all(status: Enrollment.statuses.fetch("active"), paused_at: nil)
+        as_user(@student) { post complete_path(pending), headers: headers }
+        assert_response :forbidden
+        assert_not CohortFile.exists?(pending.id)
+        assert_equal [ version.upload_key, version.s3_key, pending.upload_key, pending.s3_key ].sort, deletes.map { |call| call[:args].first }.sort
+      end
+    end
+  end
+
+  test "text previews with null bytes or page markup past the upload check are download only" do
+    notes = ready_file(title: "Notes", filename: "notes.txt", content_type: "text/plain")
+    with_storage do
+      [ "Week 1\n#{'a' * 600}\x00binary".b, "Week 1\n#{'a' * 600}<script>steal()</script>" ].each do |prefix|
+        @prefix = prefix
+        as_user(@student) { get preview_path(notes), headers: headers }
+        assert_response :success
+        assert_equal [ "download_only", nil ], response.parsed_body.values_at("preview_mode", "text")
+      end
+      @prefix = "Week 1 notes"
+      as_user(@student) { get preview_path(notes), headers: headers }
+      assert_equal [ "text", "Week 1 notes" ], response.parsed_body.values_at("preview_mode", "text")
+    end
   end
 end
