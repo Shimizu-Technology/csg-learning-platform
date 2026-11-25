@@ -40,7 +40,7 @@ export type MessageListItem = { text: string; children: MessageListChild[] }
 
 export type MessageBlock =
   | { type: 'paragraph'; text: string }
-  | { type: 'heading'; level: 2 | 3; text: string }
+  | { type: 'heading'; level: 1 | 2 | 3; text: string }
   | MessageListBlock
   | { type: 'blockquote'; text: string }
   | MessageCodeBlock
@@ -48,6 +48,7 @@ export type MessageBlock =
 
 const FENCE_OPEN = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/
 const LIST_ITEM = /^([ \t]*)([-*+]|\d{1,9}[.)])[ \t]+(.+)$/
+const LESSON_HEADING = /^ {0,3}(#{1,3})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
 const HEADING = /^ {0,3}(#{2,3})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/
 
 function indentation(whitespace: string) {
@@ -103,8 +104,8 @@ const HTML_BLOCKS: { start: RegExp; end: RegExp | null; interrupts: boolean }[] 
 
 type ParsedBlock = MessageBlock | { type: 'html'; text: string }
 
-export function parseMessageBlocks(source: string): MessageBlock[] {
-  return parseBlocks(source, false) as MessageBlock[]
+export function parseMessageBlocks(source: string, { lessonHeadings = false } = {}): MessageBlock[] {
+  return parseBlocks(source, false, lessonHeadings) as MessageBlock[]
 }
 
 /**
@@ -112,7 +113,7 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
  * HTML block outside a list item become one `html` block, as typed, the way
  * long-form text reads them (`markdownToPlainText`'s `longForm`).
  */
-function parseBlocks(source: string, html: boolean): ParsedBlock[] {
+function parseBlocks(source: string, html: boolean, lessonHeadings = false): ParsedBlock[] {
   // CommonMark reads a NUL character as U+FFFD.
   const body = source.replace(/\r\n?/g, '\n').replace(/\0/g, '\ufffd')
   const blocks: ParsedBlock[] = []
@@ -288,10 +289,10 @@ function parseBlocks(source: string, html: boolean): ParsedBlock[] {
 
     if (appendListContinuation(line)) continue
 
-    const heading = line.match(HEADING)
+    const heading = line.match(lessonHeadings ? LESSON_HEADING : HEADING)
     if (heading) {
       flushAll()
-      blocks.push({ type: 'heading', level: heading[1].length as 2 | 3, text: heading[2] })
+      blocks.push({ type: 'heading', level: heading[1].length as 1 | 2 | 3, text: heading[2] || '' })
       continue
     }
 

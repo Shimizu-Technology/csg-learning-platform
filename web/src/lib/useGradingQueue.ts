@@ -27,16 +27,20 @@ export function useGradingQueue(request: GradingQueueRequest, focusId: number | 
   })
   const initialFocus = useRef(focusId)
   const loadedKey = useRef<string | null>(null)
+  const inflightKey = useRef<string | null>(null)
   const generation = useRef(0)
-  const [state, setState] = useState<{ data: GradingQueueResponse | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true })
+  const [state, setState] = useState<{ key?: string; data: GradingQueueResponse | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true })
 
   const reload = useCallback(async (focus?: number | null) => {
     const current = requestRef.current
+    const requestKey = JSON.stringify(current)
     const id = ++generation.current
+    inflightKey.current = requestKey
     setState((previous) => ({ ...previous, loading: true }))
     try {
       const result = await api.getGradingQueue({ ...current, per_page: GRADING_QUEUE_PAGE_SIZE, focus_id: focus ?? null })
       if (id !== generation.current) return
+      inflightKey.current = null
       if (!result.data) {
         setState((previous) => ({ ...previous, loading: false, error: result.error || 'Could not load the grading queue.' }))
         return
@@ -44,20 +48,28 @@ export function useGradingQueue(request: GradingQueueRequest, focusId: number | 
       const served = result.data.meta.page
       initialFocus.current = null
       loadedKey.current = JSON.stringify({ ...current, page: served })
-      setState({ data: result.data, loading: false, error: result.error || (result.fromCache ? 'Showing saved data. Reconnect to refresh.' : null) })
+      setState({ key: loadedKey.current, data: result.data, loading: false, error: result.error || (result.fromCache ? 'Showing saved data. Reconnect to refresh.' : null) })
       if (served !== current.page) servedRef.current(served)
     } catch (error) {
       if (id !== generation.current) return
+      inflightKey.current = null
       setState((previous) => ({ ...previous, loading: false, error: error instanceof Error ? error.message : 'Could not load the grading queue.' }))
     }
   }, [])
 
   useEffect(() => {
     // The page the server just served (after a focused load): already on screen.
-    if (loadedKey.current === key) return
+    if (loadedKey.current === key) {
+      if (inflightKey.current && inflightKey.current !== key) {
+        generation.current += 1
+        inflightKey.current = null
+        setState((previous) => (previous.loading ? { ...previous, loading: false } : previous))
+      }
+      return
+    }
     void reload(initialFocus.current)
   }, [key, reload])
-  useEffect(() => () => { generation.current += 1 }, [])
+  useEffect(() => () => { generation.current += 1; inflightKey.current = null }, [])
 
-  return { ...state, reload }
+  return { ...state, dataIsCurrent: state.key === key, reload }
 }

@@ -37,6 +37,14 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+const githubSaveMessages = {
+  open_or_comment: 'Redo saved · GitHub issue queued',
+  close: 'Grade saved · GitHub issue will close',
+} as const;
+type GithubAction = keyof typeof githubSaveMessages;
+type GithubNoticeEntry = { action: GithubAction; expiresAt: number };
+const GITHUB_NOTICE_LIFETIME_MS = 30_000;
+
 export default function StaffSubmissionScreen() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
@@ -56,6 +64,26 @@ export default function StaffSubmissionScreen() {
   });
   const queueData = queue && user?.is_staff ? queueQuery.data : undefined;
   const position = gradingQueuePosition(queueData, submissionId);
+  const githubNoticeKey = (id: number) => ['staff-grading-github-notice', user?.id, queue, id] as const;
+  const githubNoticeEntry = useQuery<GithubNoticeEntry>({
+    queryKey: githubNoticeKey(submissionId), queryFn: skipToken, enabled: false,
+    gcTime: GITHUB_NOTICE_LIFETIME_MS, meta: { persist: false },
+  }).data;
+  const [noticeNow, setNoticeNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!githubNoticeEntry) return;
+    const remaining = githubNoticeEntry.expiresAt - Date.now();
+    if (remaining <= 0) {
+      queryClient.removeQueries({ queryKey: ['staff-grading-github-notice', user?.id, queue, submissionId], exact: true });
+      return;
+    }
+    const timer = setTimeout(() => {
+      setNoticeNow(Date.now());
+      queryClient.removeQueries({ queryKey: ['staff-grading-github-notice', user?.id, queue, submissionId], exact: true });
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [githubNoticeEntry, queryClient, queue, submissionId, user?.id]);
+  const githubNotice = githubNoticeEntry && githubNoticeEntry.expiresAt > noticeNow ? githubNoticeEntry.action : undefined;
   const moveInQueue = (target: GradingQueueTarget | undefined) => {
     if (!target) return;
     router.replace({ pathname: '/staff/submission/[id]', params: { id: String(target.id), queue, ...(target.cohort_id ? { cohort_id: String(target.cohort_id), student_id: String(target.user_id) } : {}) } });
@@ -111,6 +139,7 @@ export default function StaffSubmissionScreen() {
   const criterionResults = useMemo(() => criterionDraft?.submissionId === submissionId
     ? criterionDraft.values
     : Object.fromEntries((submission?.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])), [criterionDraft, submission, submissionId]);
+  const unratedCount = submission?.rubric?.criteria.filter((criterion) => !criterionResults[criterion.id]?.rating).length || 0;
   const selectedGrade = gradeDraft?.submissionId === submissionId ? gradeDraft.value : (submission?.grade as GradingOutcome | null) || null;
   const reviewBaseUpdatedAt = reviewBaseVersion?.submissionId === submissionId ? reviewBaseVersion.value : submissionUpdatedAt;
   const staleReview = staleReviewVersion?.submissionId === submissionId ? staleReviewVersion : null;
@@ -233,6 +262,17 @@ export default function StaffSubmissionScreen() {
         queryClient.invalidateQueries({ queryKey: learningKeys.submissions(user?.id || 0), refetchType: 'none' }),
         submission && validatedCohortId ? queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user?.id || 0, submission.user_id, validatedCohortId) }) : Promise.resolve(),
       ]);
+      const delivery = result.submission.github_issue_delivery;
+      const expectedAction = variables.grade === 'R' ? 'open_or_comment' : 'close';
+      const githubAction = delivery?.status === 'pending' && delivery.action === expectedAction
+        && delivery.updated_at !== submission?.github_issue_delivery?.updated_at ? expectedAction : undefined;
+      const noticeKey = githubNoticeKey(position.next?.id ?? submissionId);
+      if (githubAction) {
+        const now = Date.now();
+        setNoticeNow(now);
+        queryClient.setQueryDefaults(noticeKey, { gcTime: GITHUB_NOTICE_LIFETIME_MS, meta: { persist: false } });
+        queryClient.setQueryData<GithubNoticeEntry>(noticeKey, { action: githubAction, expiresAt: now + GITHUB_NOTICE_LIFETIME_MS });
+      }
       moveInQueue(position.next);
     },
     onError: (error) => {
@@ -327,11 +367,13 @@ export default function StaffSubmissionScreen() {
   if (query.error && !submission) return <SafeAreaView style={styles.safe}><BackButton />{queueNavigation}<ErrorState title={(query.error as { status?: number }).status === 403 ? 'No access' : undefined} message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
   if (!submission) return <SafeAreaView style={styles.safe}><BackButton />{queueNavigation}<ErrorState message="Submission not found." /></SafeAreaView>;
   const links = submissionLinks(submission);
+  const githubMessage = githubNotice ? githubSaveMessages[githubNotice] : null;
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><BackButton style={styles.back} /><View style={styles.headerCopy}><Text style={styles.kicker}>QUICK REVIEW</Text><Text numberOfLines={1} style={styles.headerTitle}>{submission.user_name}</Text></View>{submission.grade && submission.grade !== 'R' ? <View style={styles.gradePill}><Text style={styles.gradePillText}>{`GRADE ${gradeLabel(submission.grade)}`}</Text></View> : <View style={styles.headerStatus}><StatusBadge status={submission.grade === 'R' ? 'redo' : 'awaiting_review'} short /></View>}</View>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flexRoot}>
       <ScrollView ref={scrollRef} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         {queueNavigation}
+        {githubMessage && <View style={styles.saved}><CheckCircle2 color={c.status.success.fg} size={18} /><Text accessibilityLiveRegion="polite" style={styles.savedText}>{githubMessage}</Text></View>}
         <View><Pressable accessibilityRole="link" accessibilityLabel={`Open lesson: ${submission.lesson_title}`} style={{ minHeight: 44, justifyContent: "center" }} disabled={!submission.lesson_id} onPress={submission.lesson_id ? () => router.push(`/lesson/${submission.lesson_id}${validatedCohortId ? `?cohort_id=${validatedCohortId}` : ""}`) : undefined}><Text style={styles.eyebrow}>{submission.lesson_title}</Text></Pressable><Text style={styles.title}>{submission.content_block_title}</Text><Text style={styles.meta}>Attempt {submission.num_submissions} · submitted {formatDate(submission.created_at)}</Text></View>
         {validatedProgress && <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${submission.user_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(submission.user_id), cohort_id: String(validatedProgress.cohort.id) } })} style={styles.relationshipButton}><FileText color={c.text.body} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${submission.user_name} in ${validatedProgress.cohort.name}`} onPress={() => void openDirectMessage()} style={styles.relationshipButton}><MessageSquareText color={c.text.body} size={17} /><Text style={styles.relationshipText}>Message in {validatedProgress.cohort.name}</Text></Pressable></View>}
         {submission.exercise_body && <LearningCard><View style={styles.cardHeading}><FileText color={c.text.body} size={18} /><Text style={styles.cardHeadingText}>Assignment</Text></View><AuthoredContent body={submission.exercise_body} compact /></LearningCard>}
@@ -347,7 +389,7 @@ export default function StaffSubmissionScreen() {
           queryClient.setQueryData(learningKeys.submission(user?.id || 0, submissionId), { submission: { ...result.submission, github_issue_delivery: result.github_issue_delivery } });
         }} />
         {selectedGrade === 'R' && (submission.submission_type === 'prework_github_sync' || submission.github_issue_url) && <Text style={styles.draftNotice}>Saving Redo can post your feedback to the student’s GitHub issue.</Text>}
-        <View><GradingReviewActions previousAttempt={previousAttempt} onLatest={() => router.push(staffSubmissionPath(submission.latest_submission_id!, validatedCohortId ? { cohortId: validatedCohortId, studentId: submission.user_id } : undefined))} selected={selectedGrade} changed={reviewChanged} saving={mutation.isPending} disabled={previousAttempt || draftRestoring} saveBlocked={Boolean(staleReview)} onSelect={(grade) => setGradeDraft({ submissionId, value: grade })} onSave={submitGrade} />{reviewChanged && <Text style={[styles.draftStatus, visibleDraftSaveState === 'error' && styles.draftStatusError]}>{visibleDraftSaveState === 'error' ? 'Draft could not be saved on this device. Keep this screen open and try another edit.' : visibleDraftSaveState === 'saved' ? 'Review draft saved on this device.' : 'Saving review draft…'}</Text>}{visibleDraftNotice && <Text style={styles.draftNotice}>{visibleDraftNotice}</Text>}{staleReview && !previousAttempt && <Pressable accessibilityRole="button" accessibilityLabel={staleReview.value ? 'Use latest submission and keep draft' : 'Refresh latest submission'} accessibilityState={{ disabled: query.isFetching }} disabled={query.isFetching} onPress={acceptLatestSubmission} style={({ pressed }) => [styles.latestSubmissionButton, pressed && styles.pressed, query.isFetching && styles.disabled]}><RefreshCw color={c.status.warning.fg} size={17} /><Text style={styles.latestSubmissionButtonText}>{query.isFetching ? 'Refreshing latest submission…' : staleReview.value ? 'I reviewed the latest work — keep my draft' : 'Refresh latest submission'}</Text></Pressable>}</View>
+        <View><GradingReviewActions previousAttempt={previousAttempt} onLatest={() => router.push(staffSubmissionPath(submission.latest_submission_id!, validatedCohortId ? { cohortId: validatedCohortId, studentId: submission.user_id } : undefined))} selected={selectedGrade} changed={reviewChanged} saving={mutation.isPending} disabled={previousAttempt || draftRestoring} saveBlocked={Boolean(staleReview)} unratedCount={unratedCount} onSelect={(grade) => setGradeDraft({ submissionId, value: grade })} onSave={submitGrade} />{reviewChanged && <Text style={[styles.draftStatus, visibleDraftSaveState === 'error' && styles.draftStatusError]}>{visibleDraftSaveState === 'error' ? 'Draft could not be saved on this device. Keep this screen open and try another edit.' : visibleDraftSaveState === 'saved' ? 'Review draft saved on this device.' : 'Saving review draft…'}</Text>}{visibleDraftNotice && <Text style={styles.draftNotice}>{visibleDraftNotice}</Text>}{staleReview && !previousAttempt && <Pressable accessibilityRole="button" accessibilityLabel={staleReview.value ? 'Use latest submission and keep draft' : 'Refresh latest submission'} accessibilityState={{ disabled: query.isFetching }} disabled={query.isFetching} onPress={acceptLatestSubmission} style={({ pressed }) => [styles.latestSubmissionButton, pressed && styles.pressed, query.isFetching && styles.disabled]}><RefreshCw color={c.status.warning.fg} size={17} /><Text style={styles.latestSubmissionButtonText}>{query.isFetching ? 'Refreshing latest submission…' : staleReview.value ? 'I reviewed the latest work — keep my draft' : 'Refresh latest submission'}</Text></Pressable>}</View>
         {mutation.isSuccess && <View style={styles.saved}><CheckCircle2 color={c.status.success.fg} size={18} /><Text style={styles.savedText}>Review saved and student notification queued.</Text></View>}
         <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, validatedCohortId ? `/admin/submissions/${submission.id}?cohort_id=${validatedCohortId}&student_id=${submission.user_id}` : `/admin/submissions/${submission.id}`).catch((error) => Alert.alert('Could not open full grading', (error as Error).message))} style={styles.handoff}><ExternalLink color={c.text.body} size={17} /><View style={styles.linkCopy}><Text style={styles.handoffTitle}>Open full submission</Text><Text style={styles.handoffCopy}>{validatedCohortId ? 'Continue on the web with student, cohort, and grading context intact.' : 'Continue on the web in the full submission.'}</Text></View></Pressable>
         <View style={{ height: 20 }} />

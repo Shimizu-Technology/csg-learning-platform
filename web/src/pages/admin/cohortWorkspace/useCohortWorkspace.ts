@@ -1,5 +1,6 @@
 import {
   Activity,
+  BarChart3,
   BookOpen,
   CalendarDays,
   FolderOpen,
@@ -33,6 +34,7 @@ export const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> =
   { id: 'overview', label: 'Overview', icon: GraduationCap },
   { id: 'students', label: 'Students', icon: Users },
   { id: 'learning', label: 'Learning', icon: BookOpen },
+  { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'activity', label: 'Activity', icon: Activity },
   { id: 'recordings', label: 'Recordings', icon: PlayCircle },
   { id: 'files', label: 'Files', icon: FolderOpen },
@@ -57,7 +59,7 @@ export function useCohortWorkspace({ cohortId }: { cohortId: number }) {
   const requestedTab = searchParams.get('tab')
   // An unknown tab, or one this viewer can't open (Teaching team is admin-only), shows the overview.
   const activeTab =
-    requestedTab === 'insights' || visibleTabs.some((tab) => tab.id === requestedTab)
+    visibleTabs.some((tab) => tab.id === requestedTab)
       ? (requestedTab as CohortTab)
       : 'overview'
   const [cohort, setCohort] = useState<CohortDetail | null>(null)

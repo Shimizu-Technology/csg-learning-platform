@@ -263,6 +263,20 @@ it.each([
 })
 
 describe.each(entries)('canonical review at %s', (entry) => {
+  it('guides a selected grade to the first unrated criterion', async () => {
+    await render(entry)
+    await click('B')
+    const gradeBar = container.querySelector('[data-grade-bar]')!
+    expect(gradeBar.textContent).toContain('1 rubric item left')
+    const rating = container.querySelector('#rubric [role="group"] button')
+    await click('1 rubric item left')
+    expect(document.activeElement).toBe(rating)
+    await grade('B')
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.activeElement).toBe(rating)
+    expect(gradeBar.querySelector('[role="alert"]')?.textContent).toContain('Rate every rubric criterion')
+  })
+
   it('validates rubric then submits the same version, feedback and criterion contract', async () => {
     await render(entry)
     await grade('A')
@@ -918,5 +932,17 @@ describe('GitHub Redo issue delivery status in SubmissionReviewPanel', () => {
     expect(delivered?.textContent).toContain('GitHub feedback delivered')
     const link = delivered?.querySelector<HTMLAnchorElement>('a[href="https://github.com/app-learner/prework-exercises/issues/14"]')
     expect(link?.textContent).toContain('View GitHub issue')
+  })
+
+  it('announces remaining rubric count and completion in a persistent polite live region', async () => {
+    await render('/admin/submissions/42')
+    const liveStatus = () =>
+      [...container.querySelectorAll('[data-grade-bar] [role="status"][aria-live="polite"]')][0]
+    expect(liveStatus()).toBeTruthy()
+    expect(liveStatus().textContent).toBe('')
+    await click('B')
+    expect(liveStatus().textContent).toBe('1 rubric item left')
+    await click('Meets')
+    expect(liveStatus().textContent).toBe('All rubric items rated')
   })
 })
