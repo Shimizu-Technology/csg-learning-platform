@@ -45,7 +45,7 @@ import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
 import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
-import { REDO_NEEDS_FEEDBACK, submissionWhereLabel } from '../../lib/submissionQueue'
+import { REDO_NEEDS_FEEDBACK, isBlankFeedback, submissionWhereLabel } from '../../lib/submissionQueue'
 import {
   canSelectSuggestedB,
   extractSuggestionChecks,
@@ -170,6 +170,15 @@ export function SubmissionReviewPanel({
   const panelElement = useRef<HTMLElement>(null)
   const gradeControls = useRef<HTMLDivElement>(null)
   const feedbackEditor = useRef<MarkdownEditorHandle>(null)
+  const unratedCount = selectedGrade && selectedGrade !== 'R' ? review.unratedCriteria.length : 0
+  function focusUnratedCriterion() {
+    const first = review.unratedCriteria[0]
+    if (!first) return
+    const criterion = panelElement.current?.querySelector<HTMLElement>(`#rubric [data-criterion-id="${first.id}"]`)
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    criterion?.scrollIntoView?.({ block: 'nearest', behavior: reduceMotion ? 'instant' : 'smooth' })
+    criterion?.querySelector('button')?.focus({ preventScroll: true })
+  }
   // The grade bar is pinned in view; in a short host it may still sit below, so a failed grade shows it.
   useEffect(() => {
     if (error) gradeControls.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
@@ -180,6 +189,7 @@ export function SubmissionReviewPanel({
       value,
       overriding ? { suggestionOverrideReason: overrideReason } : undefined,
     )
+    if (result === 'needs_rubric') requestAnimationFrame(focusUnratedCriterion)
     if (result !== 'needs_feedback') return
     requestAnimationFrame(() => {
       feedbackEditor.current?.focus()
@@ -193,6 +203,7 @@ export function SubmissionReviewPanel({
     review.setError((current) =>
       current === CHOOSE_GRADE_FIRST || (current === REDO_NEEDS_FEEDBACK && value !== 'R') ? null : current,
     )
+    if (value === 'R' && isBlankFeedback(feedbackEditor.current?.getMarkdown() ?? feedback)) feedbackEditor.current?.focus()
     if (revealGradeBar) {
       requestAnimationFrame(() => {
         gradeControls.current?.scrollIntoView?.({ block: 'nearest' })
@@ -749,7 +760,7 @@ export function SubmissionReviewPanel({
                 <Badge tone="neutral">Optional for Redo</Badge>
               </div>
               {submission.rubric.criteria.map((criterion) => (
-                <div key={criterion.id} className="scroll-mt-24 scroll-mb-72 rounded-xl border border-line p-3 lg:scroll-mb-48">
+                <div key={criterion.id} data-criterion-id={criterion.id} className="scroll-mt-24 scroll-mb-72 rounded-xl border border-line p-3 focus-within:border-focus lg:scroll-mb-48">
                   <p className="text-sm font-semibold">{criterion.title}</p>
                   <p className="mt-1 text-xs text-ink-muted">{criterion.description}</p>
                   <div
@@ -939,7 +950,7 @@ export function SubmissionReviewPanel({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <div role="group" aria-label="Grade" className="grid min-w-0 flex-1 grid-cols-4 gap-1.5 sm:flex-none sm:gap-2">
+            <div role="group" aria-label="Grade" className={`grid min-w-0 flex-1 grid-cols-4 gap-1.5 sm:flex-none sm:gap-2 ${unratedCount ? 'basis-full sm:basis-auto' : ''}`}>
               {(['A', 'B', 'C', 'R'] as const).map((value) => {
                 const isSelected = selectedGrade === value
                 return (
@@ -960,10 +971,22 @@ export function SubmissionReviewPanel({
                 )
               })}
             </div>
+            {unratedCount > 0 && (
+              <Button variant="quiet" size="sm" className="bg-surface-sunken" onClick={focusUnratedCriterion}>
+                {unratedCount} rubric {unratedCount === 1 ? 'item' : 'items'} left
+              </Button>
+            )}
+            <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+              {(submission.rubric?.criteria.length ?? 0) > 0 && selectedGrade && selectedGrade !== 'R'
+                ? unratedCount > 0
+                  ? `${unratedCount} rubric ${unratedCount === 1 ? 'item' : 'items'} left`
+                  : 'All rubric items rated'
+                : ''}
+            </p>
             <Button
               variant="primary"
               size="md"
-              className="w-full sm:w-auto"
+              className={unratedCount ? 'flex-1 sm:flex-none' : 'w-full sm:w-auto'}
               disabled={!selectedGrade || locked}
               aria-keyshortcuts="Meta+Enter Control+Enter"
               onClick={saveSelected}

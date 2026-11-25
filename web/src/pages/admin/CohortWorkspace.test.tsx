@@ -201,7 +201,7 @@ describe('cohort evidence request lifecycle', () => {
     expect(insights).toHaveBeenCalledTimes(1)
     await act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Try again'))!.click())
     expect(insights).toHaveBeenCalledTimes(2)
-    expect(container.querySelector('nav[aria-label="Learning sections"]')?.textContent).toContain('Learning insights')
+    expect(container.querySelector('nav[aria-label="Cohort sections"] a[aria-current="page"]')?.textContent).toBe('Insights')
     expect(container.querySelector('nav[aria-label="Cohort sections"]')?.textContent).not.toContain('Evidence')
   })
   it('ignores a delayed result from the previous cohort and resets its failure state', async () => {

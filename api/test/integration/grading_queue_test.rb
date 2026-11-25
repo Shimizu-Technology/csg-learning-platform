@@ -41,6 +41,27 @@ class GradingQueueTest < ActionDispatch::IntegrationTest
     @other_cohort = submit(@casey_e, @tickets, now - 9.days)
   end
 
+  test "reports GitHub sync eligibility even for a module with no submissions" do
+    mod = CurriculumModule.create!(curriculum: @curriculum, name: "GitHub practice", position: 3, day_offset: 14, schedule_days: "weekdays")
+    lesson = Lesson.create!(curriculum_module: mod, title: "Arrays", position: 0, release_day: 84, published: true)
+    lesson.content_blocks.create!(block_type: :exercise, position: 0, title: "Array guard", filename: "guard.js",
+      submission_type: :prework_github_sync)
+
+    queue(@instructor, cohort_id: @cohort.id, module_id: mod.id)
+    assert_empty ids
+    assert_equal [ mod.id ], response.parsed_body["github_sync_module_ids"]
+    queue(@instructor, cohort_id: @cohort.id)
+    assert_equal [ mod.id ], response.parsed_body["github_sync_module_ids"]
+    queue(@instructor, cohort_id: @cohort.id, module_id: @js.id)
+    assert_empty response.parsed_body["github_sync_module_ids"]
+    queue(@instructor)
+    assert_empty response.parsed_body["github_sync_module_ids"]
+
+    @cohort.update!(settings: { features: { github_sync: false } })
+    queue(@instructor, cohort_id: @cohort.id)
+    assert_empty response.parsed_body["github_sync_module_ids"]
+  end
+
   test "returns one page, oldest first, with a total and the items around it, and no answer text" do
     queue(@instructor, per_page: 2)
     assert_response :success

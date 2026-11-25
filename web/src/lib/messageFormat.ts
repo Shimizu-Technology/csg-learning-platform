@@ -23,22 +23,24 @@ export { trimBlankLines, normalizeMessageMarkdown } from './messageNormalization
  * around code stays bold), literal Markdown characters are escaped, and code
  * uses a backtick run longer than any inside it.
  */
-export function editorJsonToMarkdown(node?: JSONContent): string {
+export function editorJsonToMarkdown(node?: JSONContent, options: { lessonHeadings?: boolean } = {}): string {
   if (!node) return ''
   if (node.type === 'text') return serializeInline([node])
+  const serializeChild = (child: JSONContent) => editorJsonToMarkdown(child, options)
 
   if (node.type === 'bulletList' || node.type === 'orderedList') {
-    return serializeList(node, node.type === 'orderedList')
+    return serializeList(node, node.type === 'orderedList', serializeChild)
   }
 
   switch (node.type) {
     case 'doc':
-      return serializeDoc(node.content || [])
+      return serializeDoc(node.content || [], serializeChild)
     case 'paragraph':
       return serializeInline(node.content || [])
     case 'heading': {
-      const level = Math.min(Math.max(Number(node.attrs?.level) || 2, 2), 3)
-      return `${'#'.repeat(level)} ${serializeInline(node.content || [])}`
+      const level = Math.min(Math.max(Number(node.attrs?.level) || 2, options.lessonHeadings ? 1 : 2), 3)
+      const content = escapeClosingHeadingHashes(serializeInline(node.content || []))
+      return `${'#'.repeat(level)} ${content}`
     }
     case 'hardBreak':
       return '\n'
@@ -48,11 +50,19 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
     case 'codeBlock':
       return codeFence((node.content || []).map((child) => child.text || '').join(''), String(node.attrs?.language || ''))
     case 'blockquote':
-      return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('\n')
+      return (node.content || []).map(serializeChild).join('\n')
         .split('\n').map((line) => line ? `> ${line}` : '>').join('\n')
     default:
-      return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('')
+      return (node.content || []).map(serializeChild).join('')
   }
+}
+
+/**
+ * Escape literal trailing `#` runs in an ATX heading so reopening doesn't strip them as closing hashes.
+ */
+function escapeClosingHeadingHashes(text: string): string {
+  if (/^#+[ \t]*$/.test(text)) return `\\${text}`
+  return text.replace(/([ \t]+)(#+)([ \t]*)$/, '$1\\$2$3')
 }
 
 /**
@@ -62,8 +72,8 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
  * paragraphs at either end, spaces at the outer edges of editable blocks) is
  * trimmed.
  */
-function serializeDoc(children: JSONContent[]): string {
-  const parts = children.map((child) => ({ raw: child.type === 'rawMarkdown', text: editorJsonToMarkdown(child) }))
+function serializeDoc(children: JSONContent[], serializeChild: (child: JSONContent) => string): string {
+  const parts = children.map((child) => ({ raw: child.type === 'rawMarkdown', text: serializeChild(child) }))
   const droppable = (part: { raw: boolean; text: string }) => (part.raw ? part.text === '' : !part.text.trim())
   while (parts.length && droppable(parts[0])) parts.shift()
   while (parts.length && droppable(parts[parts.length - 1])) parts.pop()
@@ -75,12 +85,12 @@ function serializeDoc(children: JSONContent[]): string {
   return parts.map((part) => part.text).join('\n\n')
 }
 
-function serializeList(node: JSONContent, ordered: boolean): string {
+function serializeList(node: JSONContent, ordered: boolean, serializeChild: (child: JSONContent) => string): string {
   const items = (node.content || []).map((item) => {
     const [firstChild, ...remainingChildren] = item.content || []
-    const lines = [firstChild ? editorJsonToMarkdown(firstChild) : '']
+    const lines = [firstChild ? serializeChild(firstChild) : '']
     const continuation = remainingChildren
-      .map((child) => editorJsonToMarkdown(child))
+      .map(serializeChild)
       .filter(Boolean)
     return [...lines, ...continuation].join('\n').trimEnd()
   }).filter((item) => item.trim().length > 0)

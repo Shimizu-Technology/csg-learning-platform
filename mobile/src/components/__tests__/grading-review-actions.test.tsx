@@ -31,6 +31,16 @@ describe('GradingReviewActions', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it('shows how many rubric items remain for a letter grade and hides the hint for Redo', () => {
+    const props = { changed: true, saving: false, onSelect: jest.fn(), onSave: jest.fn() };
+    const screen = render(<GradingReviewActions {...props} selected="B" unratedCount={2} />);
+    expect(screen.getByText('2 rubric items left')).toBeTruthy();
+    screen.rerender(<GradingReviewActions {...props} selected="B" unratedCount={1} />);
+    expect(screen.getByText('1 rubric item left')).toBeTruthy();
+    screen.rerender(<GradingReviewActions {...props} selected="R" unratedCount={1} />);
+    expect(screen.queryByText('1 rubric item left')).toBeNull();
+  });
+
   it('saves only through the explicit action after a review changes', () => {
     const onSave = jest.fn();
     const screen = render(<GradingReviewActions selected="A" changed saving={false} onSelect={jest.fn()} onSave={onSave} />);

@@ -134,8 +134,8 @@ function blockJson(block: MessageBlock): JSONContent | null {
   }
 }
 
-function blocksToJson(markdown: string): JSONContent[] {
-  return parseMessageBlocks(markdown).map(blockJson).filter((node): node is JSONContent => Boolean(node))
+function blocksToJson(markdown: string, target: MarkdownTarget = 'message'): JSONContent[] {
+  return parseMessageBlocks(markdown, { lessonHeadings: target === 'lesson' }).map(blockJson).filter((node): node is JSONContent => Boolean(node))
 }
 
 /** The parsed structure readers see, for comparing two Markdown strings (a link's spelling doesn't change it). */
@@ -163,8 +163,8 @@ function childStructure(child: MessageListChild): unknown {
   return { type: child.type, text: inlineStructure(child.text) }
 }
 
-export function markdownStructure(markdown: string): unknown[] {
-  return parseMessageBlocks(markdown).filter((block) => block.type !== 'spacer').map((block) => {
+export function markdownStructure(markdown: string, target: MarkdownTarget = 'message'): unknown[] {
+  return parseMessageBlocks(markdown, { lessonHeadings: target === 'lesson' }).filter((block) => block.type !== 'spacer').map((block) => {
     if (block.type === 'code') return block
     if (block.type === 'bulletList' || block.type === 'orderedList') return listStructure(block)
     if (block.type === 'heading') return { type: 'heading', level: block.level, text: inlineStructure(block.text) }
@@ -174,7 +174,7 @@ export function markdownStructure(markdown: string): unknown[] {
 
 /** Do two Markdown strings read the same in the message parser and, for written or lesson text, where that text is shown? */
 export function sameMarkdownStructure(left: string, right: string, target: MarkdownTarget = 'message') {
-  if (JSON.stringify(markdownStructure(left)) !== JSON.stringify(markdownStructure(right))) return false
+  if (JSON.stringify(markdownStructure(left, target)) !== JSON.stringify(markdownStructure(right, target))) return false
   if (target === 'written') return writtenMarkdownStructure(left) === writtenMarkdownStructure(right)
   if (target === 'lesson') return lessonMarkdownStructure(left) === lessonMarkdownStructure(right)
   return true
@@ -265,10 +265,11 @@ function usesLinkReference(lines: string[], labels: Set<string>) {
   return lines.some((line) => Array.from(line.matchAll(/\[([^[\]\n]+)\]/g)).some((match) => labels.has(normalizeLinkLabel(match[1]))))
 }
 
-function unsupportedKind(chunk: string, linkLabels: Set<string> = new Set()): UnsupportedKind | null {
+function unsupportedKind(chunk: string, linkLabels: Set<string>, target: MarkdownTarget): UnsupportedKind | null {
   if (/^( {4,}|\t)\S/.test(chunk) && !FENCE.test(chunk.split('\n')[0])) return 'an indented code block'
   const lines = linesOutsideFences(chunk)
   for (const line of lines) {
+    if (target === 'lesson' && /^ {0,3}#(?:[ \t]|$)/.test(line)) continue
     const match = UNSUPPORTED.find(({ pattern }) => pattern.test(line))
     if (match) return match.kind
   }
@@ -377,12 +378,12 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
   const linkLabels = definedLinkLabels(source)
   const referenceLines = linkReferenceLines(source)
   for (const chunk of markdownChunks(source)) {
-    const unsupported = unsupportedKind(chunk.text, linkLabels) || (usesReferenceLine(source, chunk, referenceLines) ? 'a link reference' : null)
+    const unsupported = unsupportedKind(chunk.text, linkLabels, target) || (usesReferenceLine(source, chunk, referenceLines) ? 'a link reference' : null)
     if (!unsupported) {
-      const blocks = blocksToJson(chunk.text)
-      if (blocks.length && sameMarkdownStructure(chunk.text, editorJsonToMarkdown({ type: 'doc', content: blocks }), target)) {
+      const blocks = blocksToJson(chunk.text, target)
+      if (blocks.length && sameMarkdownStructure(chunk.text, editorJsonToMarkdown({ type: 'doc', content: blocks }, { lessonHeadings: target === 'lesson' }), target)) {
         content.push(...blocks)
-        segments.push(...blockSegments(chunk, blocks))
+        segments.push(...blockSegments(chunk, blocks, target))
         lastRaw = null
         continue
       }
@@ -409,7 +410,7 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
 
   const doc = { type: 'doc', content: withTrailingParagraph(content) }
   // The pieces must read the same together too (a list continuation split across chunks, say).
-  if (!sameMarkdownStructure(source, editorJsonToMarkdown(doc), target)) {
+  if (!sameMarkdownStructure(source, editorJsonToMarkdown(doc, { lessonHeadings: target === 'lesson' }), target)) {
     return wholeRaw(source, raw, issues.length ? [...new Set(issues)] : [GENERIC_KIND])
   }
   return { doc, issues, source, raw, segments }
@@ -420,11 +421,11 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
  * one (a heading with its paragraph right below it), so an edit to one keeps
  * the others as stored. Otherwise the chunk is one segment for all its blocks.
  */
-function blockSegments(chunk: MarkdownChunk, blocks: JSONContent[]): SourceSegment[] {
+function blockSegments(chunk: MarkdownChunk, blocks: JSONContent[], target: MarkdownTarget): SourceSegment[] {
   const whole = [{ text: chunk.text, start: chunk.start, end: chunk.end, count: blocks.length }]
   if (blocks.length < 2) return whole
   const lines = chunk.text.split('\n')
-  const same = (text: string, expected: JSONContent[]) => JSON.stringify(blocksToJson(text)) === JSON.stringify(expected)
+  const same = (text: string, expected: JSONContent[]) => JSON.stringify(blocksToJson(text, target)) === JSON.stringify(expected)
   const segments: SourceSegment[] = []
   let line = 0
   let offset = chunk.start
@@ -531,7 +532,8 @@ export function keySourceSegments(result: Pick<MarkdownToEditorResult, 'raw' | '
  * order by content.
  */
 export function editorJsonToMarkdownKeepingSource(doc: JSONContent, kept: KeyedSource | null, target: MarkdownTarget = 'message', identity?: (number | null)[]): string {
-  const plain = editorJsonToMarkdown(doc)
+  const options = { lessonHeadings: target === 'lesson' }
+  const plain = editorJsonToMarkdown(doc, options)
   if (!kept || kept.segments.length === 0) return plain
   const nodes = doc.content || []
   const parts: { text: string; segment: number | null; raw: boolean }[] = []
@@ -560,7 +562,7 @@ export function editorJsonToMarkdownKeepingSource(doc: JSONContent, kept: KeyedS
       next = matched + 1
     } else {
       const node = nodes[index]
-      parts.push({ text: editorJsonToMarkdown(node), segment: null, raw: node.type === RAW_MARKDOWN_NODE })
+      parts.push({ text: editorJsonToMarkdown(node, options), segment: null, raw: node.type === RAW_MARKDOWN_NODE })
       index += 1
     }
   }

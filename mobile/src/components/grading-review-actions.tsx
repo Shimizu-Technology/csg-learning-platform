@@ -16,11 +16,12 @@ interface GradingReviewActionsProps {
   saving: boolean;
   disabled?: boolean;
   saveBlocked?: boolean;
+  unratedCount?: number;
   onSelect: (grade: GradingOutcome) => void;
   onSave: () => void;
 }
 
-export function GradingReviewActions({ previousAttempt = false, onLatest, selected, changed, saving, disabled = false, saveBlocked = false, onSelect, onSave }: GradingReviewActionsProps) {
+export function GradingReviewActions({ previousAttempt = false, onLatest, selected, changed, saving, disabled = false, saveBlocked = false, unratedCount = 0, onSelect, onSave }: GradingReviewActionsProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   if (previousAttempt) return <View style={styles.container}>
@@ -59,6 +60,7 @@ export function GradingReviewActions({ previousAttempt = false, onLatest, select
       <RotateCcw color={c.status.warning.fg} size={18} />
       <Text style={styles.redoButtonText}>Request redo</Text>
     </Pressable>
+    {selected && selected !== 'R' && unratedCount > 0 && <Text accessibilityLiveRegion="polite" style={styles.rubricHint}>{unratedCount} rubric {unratedCount === 1 ? 'item' : 'items'} left</Text>}
     <Button variant="primary"
       accessibilityRole="button"
       accessibilityLabel={saveLabel}
@@ -78,6 +80,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   container: { marginTop: 6 },
   label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3, marginBottom: 8 },
   hint: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: -3, marginBottom: 10 },
+  rubricHint: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12, marginTop: 10 },
   gradeRow: { flexDirection: 'row', gap: 8 },
   gradeButton: { flex: 1, minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   gradeButtonActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 },

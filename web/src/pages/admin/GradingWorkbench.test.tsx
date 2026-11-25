@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { gradingQueuePage } from '../../test/gradingQueueMock'
 import { withLeaveGuard } from '../../test/TestRouter'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Grading } from './Grading'
@@ -11,8 +12,9 @@ import type { Submission } from '../../types/api'
 
 // W7 PR 7.3: the Grading workbench (U-4.1, U-4.5, L-2.1, L-2.2) and the module grid (U-4.2, L-2.4, T-13).
 
+const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 const confirm = vi.hoisted(() => vi.fn().mockResolvedValue(true))
-vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
+vi.mock('../../contexts/ToastContext', () => ({ useToast: () => toast }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => confirm }))
 const auth = vi.hoisted(() => ({ user: { id: 1, is_staff: true, is_admin: false } as null | { id: number; is_staff: boolean; is_admin: boolean } }))
 vi.mock('../../contexts/AuthContext', async (importOriginal) => {
@@ -41,6 +43,7 @@ const scrolled: Element[] = []
 beforeEach(() => {
   auth.user = { id: 1, is_staff: true, is_admin: false }
   confirm.mockReset().mockResolvedValue(true)
+  toast.success.mockClear()
   window.localStorage.setItem('csg-editor-preferences:1', JSON.stringify({ mode: 'markdown', enterSends: true }))
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -97,6 +100,39 @@ const chooseAndSave = async (name: string) => {
 }
 
 describe('Grading workbench', () => {
+  it('syncs a cohort module with an empty queue and reloads the results in place', async () => {
+    store = []
+    const queue = vi.mocked(api.getGradingQueue).mockImplementation(async (params) => ({
+      data: { ...gradingQueuePage(store, params), github_sync_module_ids: [2] },
+      error: null,
+    }))
+    const sync = vi.spyOn(api, 'syncCohortModuleGithub').mockImplementation(async () => {
+      store = [make(2)]
+      return { data: { synced: 1, errors: [] }, error: null }
+    })
+    const router = await render('/admin/grading?cohort_id=4')
+    expect(rows()).toHaveLength(0)
+    await act(async () => buttonNamed('Sync GitHub').click())
+    expect(sync).toHaveBeenCalledExactlyOnceWith(4, 2)
+    expect(queue).toHaveBeenCalledTimes(2)
+    expect(rows()).toHaveLength(1)
+    expect(query(router).get('cohort_id')).toBe('4')
+  })
+
+  it('confirms a queued close only when the saved response reports a new pending delivery', async () => {
+    store = store.map((item) => item.id === 1 ? { ...item, grade: 'R', github_issue_url: 'https://github.com/example/repo/issues/1' } : item)
+    vi.mocked(api.gradeSubmission).mockResolvedValueOnce({
+      data: { submission: make(1, {
+        grade: 'B',
+        github_issue_delivery: { status: 'pending', action: 'close', issue_url: null, attempts: 0, last_error: null, delivered_at: null, updated_at: '2026-11-25T00:00:00Z' },
+      }) },
+      error: null,
+    })
+    await render('/admin/grading?cohort_id=4&filter=redo&submission=1')
+    await chooseAndSave('B')
+    expect(toast.success).toHaveBeenCalledWith('Grade saved · GitHub issue will close')
+  })
+
   it('lists compact rows oldest first: student, item, cohort with week or self-paced, and waiting time', async () => {
     await render('/admin/grading')
     expect(rows().map((row) => row.id)).toEqual(['submission-row-1', 'submission-row-2', 'submission-row-3'])

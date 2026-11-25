@@ -116,14 +116,14 @@ export function useSubmissionReview(
     if (!isBlankFeedback(feedback)) setError((current) => (current === REDO_NEEDS_FEEDBACK ? null : current))
   }, [feedback])
 
-  /** Saves a grade. Resolves to 'needs_feedback' when a Redo was refused for having no written feedback. */
+  const unratedCriteria = (submission?.rubric?.criteria || []).filter((criterion) => !criteria[criterion.id]?.rating)
   async function grade(
     value: string,
     options?: {
       suggestionDecision?: 'accepted' | 'overridden' | 'dismissed'
       suggestionOverrideReason?: string
     },
-  ): Promise<'saved' | 'needs_feedback' | 'not_saved'> {
+  ): Promise<'saved' | 'needs_feedback' | 'needs_rubric' | 'not_saved'> {
     if (!submission || loading || conflict || saving.current || isPreviousAttempt(submission))
       return 'not_saved'
     const rubricCriteria = submission.rubric?.criteria || []
@@ -133,9 +133,9 @@ export function useSubmissionReview(
       setError(REDO_NEEDS_FEEDBACK)
       return 'needs_feedback'
     }
-    if (!redo && rubricCriteria.some((criterion) => !criteria[criterion.id]?.rating)) {
+    if (!redo && unratedCriteria.length) {
       setError('Rate every rubric criterion before grading A, B, or C. A redo only needs written feedback.')
-      return 'not_saved'
+      return 'needs_rubric'
     }
     // A redo may leave criteria unrated, but a comment needs a rating to be stored.
     if (redo && rubricCriteria.some((criterion) => !criteria[criterion.id]?.rating && criteria[criterion.id]?.feedback.trim())) {
@@ -179,7 +179,15 @@ export function useSubmissionReview(
       setCriteria(criteriaFor(result.data.submission))
       setSelectedGrade(null)
       setOverrideReason(result.data.submission.grade_suggestion?.override_reason || '')
-      toast.success(result.data.submission.user_name ? `Saved ${gradeLabel(value)} for ${result.data.submission.user_name}` : `Saved ${gradeLabel(value)}`)
+      const saved = result.data.submission
+      const delivery = saved.github_issue_delivery
+      const pendingIssue = delivery?.status === 'pending' && delivery.updated_at !== submission.github_issue_delivery?.updated_at
+      if (pendingIssue && value === 'R' && delivery.action === 'open_or_comment')
+        toast.success('Redo saved · GitHub issue queued')
+      else if (pendingIssue && value !== 'R' && delivery.action === 'close')
+        toast.success('Grade saved · GitHub issue will close')
+      else
+        toast.success(saved.user_name ? `Saved ${gradeLabel(value)} for ${saved.user_name}` : `Saved ${gradeLabel(value)}`)
       // Saved: Save and next may navigate before the clean draft renders.
       guard.release()
       // Every queue that listed this submission is out of date; the next record asks again.
@@ -206,6 +214,7 @@ export function useSubmissionReview(
     setFeedback,
     criteria,
     setCriteria,
+    unratedCriteria,
     selectedGrade,
     setSelectedGrade,
     overrideReason,
