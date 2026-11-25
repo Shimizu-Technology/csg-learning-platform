@@ -14,9 +14,13 @@ class CohortFile < ApplicationRecord
   GLOBAL_IPV6 = IPAddr.new("2000::/3")
   # Local-only names, refused on their own and as a suffix.
   LOCAL_NAMES = %w[localhost local internal home.arpa].freeze
-  # IANA special-use blocks inside 2000::/3: Teredo, benchmarking, ORCHID,
-  # ORCHIDv2, documentation, 6to4 and the newer documentation block.
-  NON_PUBLIC_IPV6 = %w[2001::/32 2001:2::/48 2001:10::/28 2001:20::/28 2001:db8::/32 2002::/16 3fff::/20].map { |range| IPAddr.new(range) }.freeze
+  # IANA special-purpose blocks inside 2000::/3: all of 2001::/23 (Teredo,
+  # benchmarking, ORCHID and the rest), documentation, 6to4 and the newer
+  # documentation block...
+  NON_PUBLIC_IPV6 = %w[2001::/23 2001:db8::/32 2002::/16 3fff::/20].map { |range| IPAddr.new(range) }.freeze
+  # ...except the sub-allocations IANA lists as globally reachable.
+  PUBLIC_IPV6_EXCEPTIONS = %w[2001:1::1/128 2001:1::2/128 2001:1::3/128 2001:3::/32 2001:4:112::/48 2001:20::/28 2001:30::/28]
+    .map { |range| IPAddr.new(range) }.freeze
   # Dotted labels of letters, digits and hyphens, ending in an alphabetic
   # (or punycode) top-level label, so bare names and numeric hosts fail.
   PUBLIC_HOSTNAME = /\A(?=.{4,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})\z/
@@ -228,7 +232,11 @@ class CohortFile < ApplicationRecord
 
     address = IPAddr.new(host)
     address = address.native if address.ipv6? && address.ipv4_mapped?
-    return !GLOBAL_IPV6.include?(address) || NON_PUBLIC_IPV6.any? { |range| range.include?(address) } if address.ipv6?
+    if address.ipv6?
+      return true unless GLOBAL_IPV6.include?(address)
+
+      return NON_PUBLIC_IPV6.any? { |range| range.include?(address) } && PUBLIC_IPV6_EXCEPTIONS.none? { |range| range.include?(address) }
+    end
 
     NON_PUBLIC_IPV4.any? { |range| range.include?(address) }
   rescue IPAddr::InvalidAddressError

@@ -550,4 +550,29 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
     assert_response :created
     assert_equal host[0, 160], response.parsed_body.dig("file", "title")
   end
+
+  test "an expired pending version purged while storage is not configured keeps both keys queued" do
+    assert_not S3Service.configured?
+    token = SecureRandom.uuid
+    pending = @slides.versions.create!(version_number: 2, filename: "week-1-v2.pdf", content_type: "application/pdf", file_size: 123,
+      s3_key: "cohort_files/cohort_#{@cohort.id}/shared/#{token}/week-1-v2.pdf",
+      upload_key: "cohort_file_uploads/cohort_#{@cohort.id}/#{token}/week-1-v2.pdf", upload_expires_at: 1.minute.ago)
+    CohortFile.purge_expired_pending!(@cohort.cohort_files)
+    assert_not CohortFileVersion.exists?(pending.id)
+    assert_equal [ pending.upload_key, pending.s3_key ].sort, PendingS3Deletion.where(reason: "cohort_file_version_destroyed").pluck(:key).sort
+    with_storage do
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        assert_equal 2, PendingS3Deletion.drain!(now: 1.hour.from_now)
+        assert_equal [ pending.upload_key, pending.s3_key ].sort, deletes.map { |call| call[:args].first }.sort
+      end
+    end
+  end
+
+  test "a cleanup that storage can't run yet stays queued" do
+    key = "cohort_files/cohort_#{@cohort.id}/shared/#{SecureRandom.uuid}/orphan.pdf"
+    assert_equal :skipped, S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_copy_rolled_back")
+    assert PendingS3Deletion.exists?(key: key)
+    assert_equal :skipped, S3ObjectCleanup.delete_or_enqueue("", reason: "cohort_file_copy_rolled_back")
+    assert_equal 1, PendingS3Deletion.count
+  end
 end

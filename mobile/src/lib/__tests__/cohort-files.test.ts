@@ -8,7 +8,7 @@ test('only public https hosts open or save, like the API', () => {
     'https://exa%6dple.com/', 'https://bücher.de/', 'https://localhost/', 'https://intranet/', 'https://printer.local/', 'https://2130706433/',
     'https://0x7f.0.0.1/', 'https://0177.0.0.1/', 'https://1.2.3/', 'http://example.com/', 'javascript:alert(1)',
     'https://192.88.99.2/', 'https://[2001::1]/', 'https://[2001:0:4136:e378::1]/', 'https://[2001:2::1]/', 'https://[2001:10::1]/',
-    'https://[2001:2f::1]/', 'https://[2001:db8::1]/', 'https://[2002:c000:204::1]/', 'https://[3fff::1]/',
+    'https://[2001:100::1]/', 'https://[2001:1ff::1]/', 'https://[2001:1::4]/', 'https://[2001:4:113::1]/', 'https://[2001:db8::1]/', 'https://[2002:c000:204::1]/', 'https://[3fff::1]/',
     'https://[0:0:0:0:0:ffff:10.0.0.1]/', 'https://[0000:0000:0000:0000:0000:ffff:0a00:0001]/',
     'https://home.arpa/', 'https://router.home.arpa/', 'https://local/', 'https://internal/', 'https://app.internal/', 'https://LOCALHOST/',
   ]) {
@@ -16,7 +16,8 @@ test('only public https hosts open or save, like the API', () => {
     expect(safeExternalFileUrl(url)).toBeNull();
   }
   for (const url of ['https://example.com/', 'https://8.8.8.8/', 'https://100.128.0.1/', 'https://172.32.0.1/', 'https://[2001:4860:4860::8888]/', 'https://xn--bcher-kva.de/', 'https://example.com:8443/a?b=1#c',
-    'https://[2001:3::1]/', 'https://[2003::1]/', 'https://192.88.100.1/',
+    'https://[2001:3::1]/', 'https://[2001:1::1]/', 'https://[2001:1::3]/', 'https://[2001:4:112::1]/', 'https://[2001:20::1]/', 'https://[2001:2f::1]/',
+    'https://[2001:30::1]/', 'https://[2001:200::1]/', 'https://[2003::1]/', 'https://192.88.100.1/',
     // Fully expanded IPv4-mapped spellings of a public address unwrap like the API's.
     'https://[0:0:0:0:0:ffff:8.8.8.8]/', 'https://[0000:0000:0000:0000:0000:ffff:0808:0808]/']) {
     expect(linkUrlProblem(url)).toBeNull();

@@ -10,6 +10,7 @@ class CohortFileVersion < ApplicationRecord
 
   before_validation :normalize_note
   before_save :record_ready_date
+  before_destroy :queue_stored_objects
   after_destroy_commit :delete_stored_objects
 
   validates :version_number, numericality: { only_integer: true, greater_than: 0 }
@@ -63,12 +64,20 @@ class CohortFileVersion < ApplicationRecord
     self.ready_at ||= Time.current if ready?
   end
 
-  # Runs after the deletion commits. A failed delete is queued for retry; a
-  # key another row still uses is kept by S3ObjectCleanup's reference check.
+  # Like CohortFile: both keys are queued in the deleting transaction, then
+  # tried after it commits. A key stays queued until storage has actually
+  # deleted it, including while storage is not configured; a key another row
+  # still uses is kept by S3ObjectCleanup's reference check.
+  def queue_stored_objects
+    return if destroyed_by_association
+
+    PendingS3Deletion.enqueue_all!([ upload_key, s3_key ], reason: "cohort_file_version_destroyed")
+  end
+
   def delete_stored_objects
     return if destroyed_by_association
 
-    [ upload_key, s3_key ].uniq.each { |key| S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_version_destroyed") }
+    PendingS3Deletion.attempt_now!([ upload_key, s3_key ])
   end
 
   def allowed_file_type

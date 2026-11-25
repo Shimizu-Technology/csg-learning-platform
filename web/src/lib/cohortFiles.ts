@@ -120,9 +120,12 @@ function nonPublicIpv4(address: string) {
   return NON_PUBLIC_IPV4.some(([base, bits]) => Math.floor(value / 2 ** (32 - bits)) === Math.floor(ipv4Number(base)! / 2 ** (32 - bits)))
 }
 
-/** Mirrors CohortFile::NON_PUBLIC_IPV6: IANA special-use blocks inside 2000::/3. */
+/** Mirrors CohortFile::NON_PUBLIC_IPV6 and PUBLIC_IPV6_EXCEPTIONS: IANA special-purpose blocks inside 2000::/3, less their globally reachable parts. */
 const NON_PUBLIC_IPV6: Array<[string, number]> = [
-  ['2001::', 32], ['2001:2::', 48], ['2001:10::', 28], ['2001:20::', 28], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20],
+  ['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20],
+]
+const PUBLIC_IPV6_EXCEPTIONS: Array<[string, number]> = [
+  ['2001:1::1', 128], ['2001:1::2', 128], ['2001:1::3', 128], ['2001:3::', 32], ['2001:4:112::', 48], ['2001:20::', 28], ['2001:30::', 28],
 ]
 
 /** The eight 16-bit groups of an IPv6 address (with "::" and a trailing dotted IPv4 expanded), or null. */
@@ -161,7 +164,8 @@ function nonPublicIpv6(address: string) {
   if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
     return nonPublicIpv4([groups[6] >> 8, groups[6] & 255, groups[7] >> 8, groups[7] & 255].join('.'))
   }
-  return !(groups[0] >= 0x2000 && groups[0] <= 0x3fff) || NON_PUBLIC_IPV6.some(([base, bits]) => inIpv6Prefix(groups, base, bits))
+  if (!(groups[0] >= 0x2000 && groups[0] <= 0x3fff)) return true
+  return NON_PUBLIC_IPV6.some(([base, bits]) => inIpv6Prefix(groups, base, bits)) && !PUBLIC_IPV6_EXCEPTIONS.some(([base, bits]) => inIpv6Prefix(groups, base, bits))
 }
 
 /**
@@ -244,28 +248,91 @@ export interface CohortUploadState {
   details?: string
 }
 
-/** Presigned POSTs last an hour; resume one only well inside that. */
+/** Presigned POSTs last an hour; reuse one for unsent bytes only well inside that. */
 export const UPLOAD_RESUME_WINDOW_MS = 55 * 60 * 1000
 
-/** The pending record is gone or its upload window closed: start over. */
-function uploadExpired(result: { status?: number; error: string | null }) {
-  return result.status === 404 || result.status === 410 || (result.status === 422 && /expired/i.test(result.error || ''))
+/**
+ * Whether a failed confirmation can be fixed by uploading again: the pending
+ * record is gone (404, 410) or its staged upload expired or is missing (422).
+ * Any other 422 (contents that don't match the type) would fail again.
+ */
+export function isRecoverableUploadError(result: { status?: number; error: string | null }) {
+  return result.status === 404 || result.status === 410 || (result.status === 422 && /expired|missing|start a new upload/i.test(result.error || ''))
 }
 
 function stale(state: CohortUploadState) {
   return !state.startedAt || Date.now() - state.startedAt > UPLOAD_RESUME_WINDOW_MS
 }
 
-class UploadExpiredError extends Error {}
+function clearUploadState(state: CohortUploadState) {
+  for (const key of Object.keys(state) as Array<keyof CohortUploadState>) delete state[key]
+}
+
+/** What became of a pending file when it was abandoned. */
+export type AbandonOutcome = 'abandoned' | 'gone' | 'published'
+
+/**
+ * Abandons a resumable upload's pending file and clears the state. A file
+ * already gone (404) needs nothing more. One already published (409, or the
+ * API's 422 "already published") keeps its handle, so the caller can show it
+ * rather than upload it twice. Any other failure throws, so the caller can
+ * keep the row and say so.
+ */
+export async function abandonCohortUpload(cohortId: number, state: CohortUploadState): Promise<AbandonOutcome> {
+  let outcome: AbandonOutcome = 'abandoned'
+  if (state.fileId) {
+    const result = await api.deleteCohortFile(cohortId, state.fileId, { pendingOnly: true })
+    if (result.error) {
+      if (result.status === 409 || (result.status === 422 && /already published/i.test(result.error))) return 'published'
+      if (result.status !== 404) throw new Error(result.error)
+      outcome = 'gone'
+    }
+  }
+  clearUploadState(state)
+  return outcome
+}
+
+/** Abandons a stale pending file before starting over; returns the file instead if it was already published. */
+async function restartUpload(cohortId: number, state: CohortUploadState): Promise<CohortFile | null> {
+  if ((await abandonCohortUpload(cohortId, state)) !== 'published') return null
+  // Confirming a published file returns it unchanged.
+  const published = await api.completeCohortFile(cohortId, state.fileId!)
+  if (!published.data) throw new Error(published.error || 'This file was already published.')
+  clearUploadState(state)
+  return published.data.file
+}
+
+/**
+ * Publishes a pending file whose bytes reached storage, saving edited
+ * details first. Returns null (with the state cleared) when the pending file
+ * is gone or its upload expired, so the caller uploads again.
+ */
+async function confirmUpload(cohortId: number, state: CohortUploadState, details: Record<string, string>, signature: string) {
+  if (state.details !== signature) {
+    const saved = await api.updateCohortFile(cohortId, state.fileId!, details)
+    if (!saved.data) {
+      if (saved.status === 404 || saved.status === 410) return restartUpload(cohortId, state)
+      throw new Error(saved.error || 'Could not save the new details.')
+    }
+    state.details = signature
+  }
+  const completed = await api.completeCohortFile(cohortId, state.fileId!)
+  if (completed.data) return completed.data.file
+  if (!isRecoverableUploadError(completed)) throw new Error(completed.error || 'The upload could not be saved.')
+  return restartUpload(cohortId, state)
+}
 
 /**
  * Presign, upload straight to storage, then publish. Without `state`, a
  * failure abandons the pending file with `pendingOnly` (a publish whose
  * response was lost is never deleted). With `state`, the caller keeps it for
  * Retry and abandons it with `abandonCohortUpload` when the file is removed.
- * A retry whose upload window closed, or whose details changed before the
- * bytes were sent, starts a fresh upload; details changed after the bytes
- * were sent are saved on the pending file before it publishes.
+ *
+ * On Retry, a pending file whose bytes already reached storage is always
+ * confirmed first (edited details are saved on it), so a lost confirmation
+ * never publishes a duplicate; only a missing or expired pending file starts
+ * over. One that never received its bytes starts over when its upload window
+ * closed or its details changed.
  */
 export async function uploadCohortFile(cohortId: number, file: File, options: CohortFileUploadOptions, onProgress?: (progress: UploadProgress) => void, state?: CohortUploadState): Promise<CohortFile> {
   const progress: CohortUploadState = state || {}
@@ -276,98 +343,74 @@ export async function uploadCohortFile(cohortId: number, file: File, options: Co
     ...(options.visibility ? { visibility: options.visibility } : {}),
   }
   const signature = JSON.stringify(details)
-  if (progress.fileId && (stale(progress) || (!progress.uploaded && progress.details !== signature))) {
-    await abandonCohortUpload(cohortId, progress)
-  }
-  const resuming = Boolean(progress.fileId)
-  if (!progress.fileId || !progress.upload) {
-    const started = await api.createCohortFile(cohortId, {
-      filename: file.name,
-      content_type: file.type,
-      file_size: file.size,
-      title: details.title,
-      folder: details.folder,
-      ...(details.description ? { description: details.description } : {}),
-      ...(options.visibility ? { visibility: options.visibility } : {}),
-      ...(options.studentId ? { student_id: options.studentId } : {}),
-    })
-    if (!started.data) throw new Error(started.error || 'Could not start the upload.')
-    Object.assign(progress, { fileId: started.data.file.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, startedAt: Date.now(), details: signature })
-  }
   try {
-    if (!progress.uploaded) {
-      await uploadToS3(progress.upload!.url, progress.upload!.fields, file, onProgress)
-      progress.uploaded = true
+    // At most one fresh start per call, after the pending file proved unusable.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (progress.fileId && !progress.uploaded && (stale(progress) || progress.details !== signature)) {
+        const published = await restartUpload(cohortId, progress)
+        if (published) return published
+      }
+      if (!progress.fileId || !progress.upload) {
+        const started = await api.createCohortFile(cohortId, {
+          filename: file.name,
+          content_type: file.type,
+          file_size: file.size,
+          title: details.title,
+          folder: details.folder,
+          ...(details.description ? { description: details.description } : {}),
+          ...(options.visibility ? { visibility: options.visibility } : {}),
+          ...(options.studentId ? { student_id: options.studentId } : {}),
+        })
+        if (!started.data) throw new Error(started.error || 'Could not start the upload.')
+        Object.assign(progress, { fileId: started.data.file.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, startedAt: Date.now(), details: signature })
+      }
+      if (!progress.uploaded) {
+        await uploadToS3(progress.upload!.url, progress.upload!.fields, file, onProgress)
+        progress.uploaded = true
+      }
+      const confirmed = await confirmUpload(cohortId, progress, details, signature)
+      if (confirmed) return confirmed
     }
-    if (progress.details !== signature) {
-      const saved = await api.updateCohortFile(cohortId, progress.fileId!, details)
-      if (!saved.data) throw new Error(saved.error || 'Could not save the new details.')
-      progress.details = signature
-    }
-    const completed = await api.completeCohortFile(cohortId, progress.fileId!)
-    if (!completed.data) {
-      if (resuming && uploadExpired(completed)) throw new UploadExpiredError(completed.error || 'Upload expired')
-      throw new Error(completed.error || 'The upload could not be saved.')
-    }
-    return completed.data.file
+    throw new Error('The upload expired before it could be saved. Try again.')
   } catch (cause) {
-    if (cause instanceof UploadExpiredError) {
-      // The saved pending file can't publish any more: start over once with the current details.
-      await abandonCohortUpload(cohortId, progress)
-      return uploadCohortFile(cohortId, file, options, onProgress, progress)
-    }
     if (!state) void abandonCohortUpload(cohortId, progress).catch(() => undefined)
     throw cause
   }
 }
 
 /**
- * Abandons a resumable upload's pending file and clears the state. A file
- * that is already gone (404) or already published (422) needs nothing more;
- * any other failure throws, so the caller can keep the row and say so.
- */
-export async function abandonCohortUpload(cohortId: number, state: CohortUploadState) {
-  if (state.fileId) {
-    const result = await api.deleteCohortFile(cohortId, state.fileId, { pendingOnly: true })
-    if (result.error && result.status !== 404 && result.status !== 422) throw new Error(result.error)
-  }
-  for (const key of Object.keys(state) as Array<keyof CohortUploadState>) delete state[key]
-}
-
-/**
  * Starts a new version of a published file, uploads it, then publishes it.
- * Pass the same `state` to retry: it confirms the same pending version. A
- * retry whose upload window closed or whose note changed starts a fresh
- * version; an abandoned one stays pending until its presigned POST expires
- * and is then purged.
+ * Pass the same `state` to retry. A version whose bytes reached storage is
+ * always confirmed first, even if its note changed or time passed, so a lost
+ * confirmation never publishes twice; only a missing or expired pending
+ * version starts over. One that never received its bytes starts over when its
+ * upload window closed or its note changed. Abandoned versions are purged
+ * once their presigned POST expires.
  */
 export async function uploadCohortFileVersion(cohortId: number, fileId: number, file: File, note: string, onProgress?: (progress: UploadProgress) => void, state: CohortUploadState = {}): Promise<CohortFile> {
   const signature = note.trim()
-  if (state.versionId && (stale(state) || state.details !== signature)) for (const key of Object.keys(state) as Array<keyof CohortUploadState>) delete state[key]
-  const resuming = Boolean(state.versionId)
-  if (!state.versionId || !state.upload) {
-    const started = await api.createCohortFileVersion(cohortId, fileId, {
-      filename: file.name,
-      content_type: file.type,
-      file_size: file.size,
-      ...(signature ? { note: signature } : {}),
-    })
-    if (!started.data) throw new Error(started.error || 'Could not start the upload.')
-    Object.assign(state, { versionId: started.data.version.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, startedAt: Date.now(), details: signature })
-  }
-  if (!state.uploaded) {
-    await uploadToS3(state.upload!.url, state.upload!.fields, file, onProgress)
-    state.uploaded = true
-  }
-  const completed = await api.completeCohortFileVersion(cohortId, fileId, state.versionId!)
-  if (!completed.data) {
-    if (resuming && uploadExpired(completed)) {
-      for (const key of Object.keys(state) as Array<keyof CohortUploadState>) delete state[key]
-      return uploadCohortFileVersion(cohortId, fileId, file, note, onProgress, state)
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (state.versionId && !state.uploaded && (stale(state) || state.details !== signature)) clearUploadState(state)
+    if (!state.versionId || !state.upload) {
+      const started = await api.createCohortFileVersion(cohortId, fileId, {
+        filename: file.name,
+        content_type: file.type,
+        file_size: file.size,
+        ...(signature ? { note: signature } : {}),
+      })
+      if (!started.data) throw new Error(started.error || 'Could not start the upload.')
+      Object.assign(state, { versionId: started.data.version.id, upload: { url: started.data.upload_url, fields: started.data.fields }, uploaded: false, startedAt: Date.now(), details: signature })
     }
-    throw new Error(completed.error || 'The new version could not be saved.')
+    if (!state.uploaded) {
+      await uploadToS3(state.upload!.url, state.upload!.fields, file, onProgress)
+      state.uploaded = true
+    }
+    const completed = await api.completeCohortFileVersion(cohortId, fileId, state.versionId!)
+    if (completed.data) return completed.data.file
+    if (!isRecoverableUploadError(completed)) throw new Error(completed.error || 'The new version could not be saved.')
+    clearUploadState(state)
   }
-  return completed.data.file
+  throw new Error('The upload expired before it could be saved. Try again.')
 }
 
 export async function downloadCohortFile(cohortId: number, file: Pick<CohortFile, 'id' | 'filename'>, versionId?: number | null) {

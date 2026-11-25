@@ -3,7 +3,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ uploadCohortFile: vi.fn(), abandonCohortUpload: vi.fn() }))
+const mocks = vi.hoisted(() => ({ uploadCohortFile: vi.fn(), abandonCohortUpload: vi.fn(), completeCohortFile: vi.fn() }))
+vi.mock('../../lib/api', () => ({ api: { completeCohortFile: mocks.completeCohortFile } }))
 vi.mock('../../lib/cohortFiles', async (original) => ({
   ...(await original<typeof import('../../lib/cohortFiles')>()),
   uploadCohortFile: mocks.uploadCohortFile,
@@ -147,4 +148,36 @@ it('reads each waiting row when its turn comes: removed rows are skipped and edi
   expect(mocks.uploadCohortFile).toHaveBeenCalledTimes(2)
   expect(mocks.uploadCohortFile).toHaveBeenLastCalledWith(4, expect.any(File), expect.objectContaining({ title: 'Renamed B' }), expect.any(Function), expect.any(Object))
   expect(onFinished).toHaveBeenCalledTimes(1)
+})
+
+it('never retries or batch-uploads a row while it is being removed', async () => {
+  let finishRemoving: (value: string) => void = () => {}
+  mocks.abandonCohortUpload.mockImplementation(() => new Promise((resolve) => { finishRemoving = resolve }))
+  mocks.uploadCohortFile.mockImplementationOnce(async (...args: unknown[]) => { Object.assign(args[4] as object, { fileId: 44 }); throw new Error('Network lost') })
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={vi.fn()} />))
+  await choose([pdf('a.pdf')])
+  await act(async () => button('Upload file').click())
+  await act(async () => { container.querySelector<HTMLButtonElement>('button[aria-label="Remove a.pdf"]')!.click() })
+  // While the server cancels the pending file, neither Retry nor the batch button can start it again.
+  expect(button('Retry').disabled).toBe(true)
+  expect(container.querySelector<HTMLButtonElement>('button[aria-label="Remove a.pdf"]')!.disabled).toBe(true)
+  const batch = [...container.querySelectorAll<HTMLButtonElement>('button')].find((item) => /^Upload( \d+)? files?$/.test(item.textContent || ''))!
+  expect(batch.disabled).toBe(true)
+  await act(async () => { batch.click(); button('Retry').click() })
+  expect(mocks.uploadCohortFile).toHaveBeenCalledTimes(1)
+  await act(async () => { finishRemoving('abandoned') })
+  expect(container.querySelector('ul[aria-label="Files to upload"]')).toBeNull()
+})
+
+it('shows a removed row\'s file when the server says it was already published', async () => {
+  const onUploaded = vi.fn()
+  mocks.abandonCohortUpload.mockResolvedValue('published')
+  mocks.completeCohortFile.mockResolvedValue({ data: { file: { id: 45, title: 'a' } }, error: null })
+  mocks.uploadCohortFile.mockImplementationOnce(async (...args: unknown[]) => { Object.assign(args[4] as object, { fileId: 45 }); throw new Error('Network lost') })
+  await act(async () => root.render(<CohortFileUploader cohortId={4} heading="Upload class files" folderPresets={['Slides']} onUploaded={onUploaded} />))
+  await choose([pdf('a.pdf')])
+  await act(async () => button('Upload file').click())
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove a.pdf"]')!.click())
+  expect(mocks.completeCohortFile).toHaveBeenCalledWith(4, 45)
+  expect(onUploaded).toHaveBeenCalledWith({ id: 45, title: 'a' })
 })

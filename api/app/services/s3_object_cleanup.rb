@@ -33,10 +33,10 @@ class S3ObjectCleanup
     end
 
     # Deletes an unreferenced object now, or queues a durable retry when
-    # storage fails. Returns the delete_unreferenced status.
+    # storage fails or is not configured yet. Returns the delete_unreferenced status.
     def delete_or_enqueue(key, reason:)
       status = delete_unreferenced(key)
-      PendingS3Deletion.enqueue!(key, reason: reason) if status == :failed
+      PendingS3Deletion.enqueue!(key, reason: reason) if status == :failed || (status == :skipped && key.present?)
       status
     end
 

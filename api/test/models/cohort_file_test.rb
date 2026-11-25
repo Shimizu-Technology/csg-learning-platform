@@ -177,13 +177,15 @@ class CohortFileTest < ModelCoverageTestCase
       "https://user:pw@example.com/", "https://example.com@evil.com/", "https://exa%6dple.com/", "https://bücher.de/", "https://localhost/",
       "https://intranet/", "https://printer.local/", "https://router.home.arpa/", "https://2130706433/", "https://0x7f.0.0.1/", "https://0177.0.0.1/",
       "https://1.2.3/", "https://192.88.99.2/", "https://192.88.99.200/", "https://[2001::1]/", "https://[2001:0:4136:e378::1]/",
-      "https://[2001:2::1]/", "https://[2001:10::1]/", "https://[2001:2f::1]/", "https://[2001:db8::1]/", "https://[2002:c000:204::1]/",
+      "https://[2001:2::1]/", "https://[2001:10::1]/", "https://[2001:100::1]/", "https://[2001:1ff::1]/", "https://[2001:1::4]/",
+      "https://[2001:4:113::1]/", "https://[2001:db8::1]/", "https://[2002:c000:204::1]/",
       "https://[3fff::1]/", "https://[0:0:0:0:0:ffff:10.0.0.1]/", "https://home.arpa/", "https://local/", "https://internal/",
       "https://app.internal/", "https://LOCALHOST/", "http://example.com/", "https:/\\example.com/" ].each do |url|
       assert CohortFile.link_problem(url), url
     end
     [ "https://example.com/", "https://docs.google.com/document/d/x", "https://8.8.8.8/", "https://100.128.0.1/", "https://172.32.0.1/",
-      "https://[2001:4860:4860::8888]/", "https://[2001:3::1]/", "https://[2001:30::1]/", "https://[2003::1]/", "https://[3ffe::1]/",
+      "https://[2001:4860:4860::8888]/", "https://[2001:3::1]/", "https://[2001:1::1]/", "https://[2001:1::3]/", "https://[2001:4:112::1]/",
+      "https://[2001:20::1]/", "https://[2001:2f::1]/", "https://[2001:200::1]/", "https://[2001:30::1]/", "https://[2003::1]/", "https://[3ffe::1]/",
       "https://[0:0:0:0:0:ffff:8.8.8.8]/", "https://192.88.100.1/", "https://xn--bcher-kva.de/", "https://example.com:8443/a?b=1#c" ].each do |url|
       assert_nil CohortFile.link_problem(url), url
     end

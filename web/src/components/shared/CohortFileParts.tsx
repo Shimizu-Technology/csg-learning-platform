@@ -280,7 +280,11 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     if (state && item.status !== 'done') {
       update(key, { removing: true })
       try {
-        await abandonCohortUpload(cohortId, state)
+        if ((await abandonCohortUpload(cohortId, state)) === 'published') {
+          // It published after all (a lost confirmation): show it instead of losing it.
+          const published = await api.completeCohortFile(cohortId, state.fileId!)
+          if (published.data) onUploaded(published.data.file)
+        }
       } catch (cause) {
         update(key, { removing: false, status: 'failed', error: `Couldn't cancel this upload. ${cause instanceof Error ? cause.message : ''}`.trim() })
         return false
@@ -339,7 +343,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
       if (unmounted.current) return
       // Read the row as it is now: it may have been removed or retitled while it waited.
       const item = queueRef.current.find((entry) => entry.key === key)
-      if (item && (item.status === 'ready' || item.status === 'failed')) await uploadOne(item)
+      if (item && !item.removing && (item.status === 'ready' || item.status === 'failed')) await uploadOne(item)
     }
     setRunning(false)
     if (unmounted.current) return
@@ -356,7 +360,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     setDragging(false)
     if (!disabled && !running) choose(event.dataTransfer.files)
   }
-  const ready = pending.filter((item) => item.status === 'ready' || item.status === 'failed')
+  const ready = pending.filter((item) => !item.removing && (item.status === 'ready' || item.status === 'failed'))
 
   return (
     <section aria-labelledby={`${id}-heading`} className="app-surface p-4 sm:p-5">
@@ -402,7 +406,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
                   <li key={item.key} className="space-y-2 px-3.5 py-3">
                     <div className="flex items-start gap-2">
                       <input className="app-control min-w-0 flex-1" value={item.title} maxLength={160} aria-label={`Title for ${item.file.name}`}
-                        disabled={item.status === 'uploading' || item.status === 'done'} onChange={(event) => update(item.key, { title: event.target.value })} />
+                        disabled={item.status === 'uploading' || item.status === 'done' || item.removing} onChange={(event) => update(item.key, { title: event.target.value })} />
                       {item.status === 'done' ? (
                         <span className="flex h-11 w-11 shrink-0 items-center justify-center text-success-ink lg:h-9 lg:w-9" aria-label="Uploaded"><Check className="h-5 w-5" aria-hidden="true" /></span>
                       ) : (
@@ -417,7 +421,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
                     {item.status === 'failed' && (
                       <div className="flex flex-wrap items-center gap-2">
                         <p role="alert" className="min-w-0 flex-1 text-sm text-danger-ink [overflow-wrap:anywhere]">{item.error}</p>
-                        <Button size="sm" variant="secondary" disabled={running || !chosenFolder} onClick={() => void run([item.key])}>
+                        <Button size="sm" variant="secondary" disabled={running || !chosenFolder || item.removing} onClick={() => void run([item.key])}>
                           <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           Retry
                         </Button>

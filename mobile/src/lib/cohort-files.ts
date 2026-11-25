@@ -81,9 +81,12 @@ function nonPublicIpv4(address: string) {
   return NON_PUBLIC_IPV4.some(([base, bits]) => Math.floor(value / 2 ** (32 - bits)) === Math.floor(ipv4Number(base)! / 2 ** (32 - bits)));
 }
 
-/** Mirrors CohortFile::NON_PUBLIC_IPV6: IANA special-use blocks inside 2000::/3. */
+/** Mirrors CohortFile::NON_PUBLIC_IPV6 and PUBLIC_IPV6_EXCEPTIONS: IANA special-purpose blocks inside 2000::/3, less their globally reachable parts. */
 const NON_PUBLIC_IPV6: [string, number][] = [
-  ['2001::', 32], ['2001:2::', 48], ['2001:10::', 28], ['2001:20::', 28], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20],
+  ['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20],
+];
+const PUBLIC_IPV6_EXCEPTIONS: [string, number][] = [
+  ['2001:1::1', 128], ['2001:1::2', 128], ['2001:1::3', 128], ['2001:3::', 32], ['2001:4:112::', 48], ['2001:20::', 28], ['2001:30::', 28],
 ];
 
 /** The eight 16-bit groups of an IPv6 address (with "::" and a trailing dotted IPv4 expanded), or null. */
@@ -122,7 +125,8 @@ function nonPublicIpv6(address: string) {
   if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
     return nonPublicIpv4([groups[6] >> 8, groups[6] & 255, groups[7] >> 8, groups[7] & 255].join('.'));
   }
-  return !(groups[0] >= 0x2000 && groups[0] <= 0x3fff) || NON_PUBLIC_IPV6.some(([base, bits]) => inIpv6Prefix(groups, base, bits));
+  if (!(groups[0] >= 0x2000 && groups[0] <= 0x3fff)) return true;
+  return NON_PUBLIC_IPV6.some(([base, bits]) => inIpv6Prefix(groups, base, bits)) && !PUBLIC_IPV6_EXCEPTIONS.some(([base, bits]) => inIpv6Prefix(groups, base, bits));
 }
 
 /**
