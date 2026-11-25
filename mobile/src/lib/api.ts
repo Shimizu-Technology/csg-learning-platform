@@ -217,6 +217,12 @@ export class CsgApi {
   webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });
   downloadCurriculumResource = (curriculumId: number, resourceId: number) => this.request<{ url: string; expires_in: number }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/download`, { method: 'POST' });
   resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources?include_course_files=true', { signal });
+  // Class files and private student folders. Signed download links are requested per tap.
+  cohortFiles = (cohortId: number, signal?: AbortSignal) => this.request<components['schemas']['CohortFilesResponse']>(`/api/v1/cohorts/${cohortId}/files`, { signal });
+  createCohortFile = (cohortId: number, input: components['schemas']['CohortFileCreateInput']) => this.request<components['schemas']['CohortFileUploadResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify(input) });
+  completeCohortFile = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/complete`, { method: 'POST' });
+  deleteCohortFile = (cohortId: number, fileId: number, options: { pendingOnly?: boolean } = {}) => this.request<void>(`/api/v1/cohorts/${cohortId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' });
+  downloadCohortFile = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download`);
   curricula = (signal?: AbortSignal) => this.request<{ curricula: StaffCurriculumSummary[] }>('/api/v1/curricula', { signal });
   curriculum = (id: number, signal?: AbortSignal) => this.request<{ curriculum: StaffCurriculum }>(`/api/v1/curricula/${id}`, { signal });
   lesson = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}${queryString({ cohort_id: cohortId })}`, { signal });

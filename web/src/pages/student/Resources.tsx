@@ -2,7 +2,7 @@ import { PausedLearningBanner, useSelectedCoursePaused } from '../../components/
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check, FolderLock, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useStudentExperience } from '../../lib/studentExperience'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -13,6 +13,10 @@ import { Button, IconButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { ResourceEntry } from '../../types/api'
 import { downloadCourseResource } from '../../lib/downloadCourseResource'
+import { STUDENT_FOLDER_PRESETS, matchesFileQuery, type CohortFile, type CohortFilesResponse } from '../../lib/cohortFiles'
+import { CohortFileRow, CohortFileUploader, FolderBadge } from '../../components/shared/CohortFileParts'
+import { useConfirm } from '../../contexts/ConfirmContext'
+import { useToast } from '../../contexts/ToastContext'
 
 type ResourceItem = ResourceEntry
 
@@ -41,6 +45,42 @@ export function Resources() {
   useEffect(() => { setQuery(searchParams.get('q') || '') }, [searchParams])
   const [copiedResourceId, setCopiedResourceId] = useState<number | string | null>(null)
   const resourcesRequest = useRef(0)
+  const [cohortFiles, setCohortFiles] = useState<CohortFilesResponse | null>(null)
+  const [filesError, setFilesError] = useState<string | null>(null)
+  const filesRequest = useRef(0)
+  // The cohort on screen now; an upload that finishes after a switch must not land in the new cohort's list.
+  const shownCohortId = useRef(selectedCohortId)
+  useEffect(() => { shownCohortId.current = selectedCohortId }, [selectedCohortId])
+  const toast = useToast()
+  const confirm = useConfirm()
+
+  const loadCohortFiles = useCallback(() => {
+    const request = ++filesRequest.current
+    setCohortFiles(null)
+    setFilesError(null)
+    if (!selectedCohortId) return
+    // Staff, and learners without read access (401/403), get no private folder here.
+    void api.getCohortFiles(selectedCohortId).then((res) => {
+      if (request !== filesRequest.current) return
+      if (res.data?.my_files) setCohortFiles(res.data)
+      else if (!res.data && res.status !== 401 && res.status !== 403) setFilesError(res.error || 'Could not load your files.')
+    })
+  }, [selectedCohortId])
+  useEffect(() => { loadCohortFiles() }, [loadCohortFiles])
+  const updateMyFiles = (update: (files: CohortFile[]) => CohortFile[]) =>
+    setCohortFiles((current) => current && { ...current, my_files: update(current.my_files || []) })
+  const addUploadedFile = (file: CohortFile) => {
+    toast.success(`Uploaded ${file.title}`)
+    if (file.cohort_id === shownCohortId.current) updateMyFiles((files) => [...files, file])
+  }
+  const removeMyFile = async (file: CohortFile) => {
+    const ok = await confirm({ title: `Delete ${file.title}?`, description: 'It is removed from your private folder for you and your instructors.', confirmLabel: 'Delete file', tone: 'danger' })
+    if (!ok || !selectedCohortId) return
+    const result = await api.deleteCohortFile(selectedCohortId, file.id)
+    if (result.error) return toast.error(result.error)
+    updateMyFiles((files) => files.filter((item) => item.id !== file.id))
+    toast.success(`Deleted ${file.title}`)
+  }
 
   const loadResources = useCallback(() => {
     const request = ++resourcesRequest.current
@@ -90,6 +130,15 @@ export function Resources() {
     return { hotkeys, regular, files }
   }, [filtered])
 
+  const myFiles = useMemo(() => (cohortFiles?.my_files || []).filter((file) => matchesFileQuery(file, query)), [cohortFiles, query])
+  const classFolders = useMemo(() => {
+    const groups = new Map<string, CohortFile[]>()
+    ;(cohortFiles?.class_files || []).filter((file) => matchesFileQuery(file, query)).forEach((file) => groups.set(file.folder, [...(groups.get(file.folder) || []), file]))
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
+  }, [cohortFiles, query])
+  const hasFolder = Boolean(cohortFiles)
+  const fileCount = (cohortFiles?.my_files?.length || 0) + (cohortFiles?.class_files.length || 0)
+
   const copyResource = useCallback((resource: ResourceItem) => {
     if (!navigator.clipboard) return
 
@@ -117,7 +166,8 @@ export function Resources() {
     )
   }
 
-  if (resources.length === 0) {
+  // A private folder (with files, or room to upload) is never a "No resources yet" dead end.
+  if (resources.length === 0 && fileCount === 0 && !cohortFiles?.can_upload_personal && !filesError) {
     return (
       <div className="app-page max-w-5xl">{pausedBanner}<EmptyState headingLevel={1}
         icon={Link2}
@@ -149,7 +199,7 @@ export function Resources() {
         </>}
       </Header>
 
-      {(resources.length > 4 || query.length > 0) && (
+      {(resources.length + fileCount > 4 || query.length > 0) && (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
           <input
@@ -161,6 +211,62 @@ export function Resources() {
             className="app-control w-full pl-10"
           />
         </div>
+      )}
+
+      {filesError && selectedCohortId && (
+        <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center sm:justify-between">
+          <p>Your files and class files could not load. {filesError}</p>
+          <Button size="sm" variant="secondary" onClick={loadCohortFiles}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {hasFolder && selectedCohortId && (
+        <section className="space-y-3" aria-label="My files">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><FolderLock className="h-5 w-5 text-ink-muted" aria-hidden="true" />My files</h2>
+            <p className="text-sm text-ink-muted">Your private folder — only you and your instructors can see files here.</p>
+          </div>
+          <CohortFileUploader key={selectedCohortId} cohortId={selectedCohortId} heading="Upload file" folderPresets={STUDENT_FOLDER_PRESETS}
+            description="Resumes, cover letters, workbooks and notes. Up to 100 MB."
+            disabled={!cohortFiles?.can_upload_personal || !cohortFiles?.storage_configured}
+            disabledReason={!cohortFiles?.can_upload_personal ? 'Uploads are paused while your course is paused or your access has ended. You can still download your files.' : "File uploads aren't available right now."}
+            onUploaded={addUploadedFile} />
+          {myFiles.length > 0 ? (
+            <ul className="app-surface divide-y divide-line overflow-hidden" aria-label="Files in my folder">
+              {myFiles.map((file) => (
+                <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} badges={<FolderBadge folder={file.folder} />} downloadDisabled={!cohortFiles?.storage_configured}
+                  note={file.uploaded_by_role === 'student' ? 'Uploaded by you' : 'Shared by your instructor'}
+                  actions={file.can_manage ? (
+                    <Button size="sm" variant="quiet" onClick={() => void removeMyFile(file)} aria-label={`Delete ${file.title}`}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Delete
+                    </Button>
+                  ) : undefined} />
+              ))}
+            </ul>
+          ) : <p className="text-sm text-ink-muted">{query ? 'No files in your folder match this search.' : 'No files in your folder yet.'}</p>}
+        </section>
+      )}
+
+      {hasFolder && selectedCohortId && (
+        <section className="space-y-3" aria-label="Class files">
+          <div>
+            <h2 className="text-lg font-bold text-ink">Class files</h2>
+            <p className="text-sm text-ink-muted">Slides, guides and templates your instructors shared with your cohort.</p>
+          </div>
+          {classFolders.map(([folder, files]) => (
+            <div key={folder} className="space-y-2">
+              <h3 className="text-sm font-semibold text-ink-secondary">{folder}</h3>
+              <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`${folder} files`}>
+                {files.map((file) => <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!cohortFiles?.storage_configured} />)}
+              </ul>
+            </div>
+          ))}
+          {!classFolders.length && <p className="text-sm text-ink-muted">{query ? 'No class files match this search.' : 'No class files yet.'}</p>}
+        </section>
       )}
 
       <section className="space-y-3" aria-label="Cohort links">

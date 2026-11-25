@@ -1096,6 +1096,20 @@ Staff prepare a course-specific ZIP in a draft curriculum through Content → Le
 
 Use the existing private S3 bucket and authenticated frontend CORS configuration. Do not make course objects public. Staging is isolated under `course_resource_uploads/`; published files use `course_resources/`. Configure a short staging-only object expiration policy operationally to clean interrupted/expired uploads or late PUTs; never apply it to published course files. No storage policy or credentials are changed by this feature. Actual deployed upload and enrolled/unenrolled download checks remain a release rehearsal, using a course-specific bundle and approved test accounts.
 
+## Class files and student folders
+
+Each cohort has shared class files and one private folder per enrolled student (Cohort workspace → Files, the student page's Files tab, and learner Resources). Uploads use the same two-phase S3 flow as learner ZIPs. Allowed: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4 up to 100 MB; HTML, SVG, scripts and executables are rejected by extension and MIME type. Downloads are short-lived, uncached and always served as attachments.
+
+- `GET /api/v1/cohorts/:cohort_id/files`: staff get `class_files` (including `staff_only` staged files) and `student_folders` for every active or paused student, even empty ones. Learners get `class_files` visible to students and `my_files` (their own folder), both limited to files available before any pause; never other students' files. `can_upload_personal` is true only while the learner's enrollment is active and unexpired.
+- `POST /api/v1/cohorts/:cohort_id/files`: `filename`, `content_type`, integer `file_size`, optional `title`, `folder`, `description`, `visibility` (`students` or `staff_only`, staff only) and `student_id` (omit for a class file). Learners upload only to their own folder while active. Returns the pending file and a presigned POST. Uses the uploads rate limit; 503 without storage.
+- `POST /api/v1/cohorts/:cohort_id/files/:id/complete`: checks the staged object's type and size, copies it to the published key, marks it ready, and deletes staging after commit.
+- `GET /api/v1/cohorts/:cohort_id/files/:id/download`: `{ url, expires_in, filename }`; the link never outlives course access.
+- `PATCH /api/v1/cohorts/:cohort_id/files/:id`: staff change `title`, `description`, `folder`, `visibility` ("Share with students" without re-uploading); learners rename or move only their own uploads.
+- `DELETE /api/v1/cohorts/:cohort_id/files/:id`: staff delete any file; learners only their own uploads. Removes stored objects first (502 if that fails).
+- `POST /api/v1/cohorts/:cohort_id/files/:id/copy_to_students`: staff copy a ready class file into every active student's folder (optional `folder`). Returns `copied_count` and `skipped_count`; students who already have a copy are skipped, enforced by a unique index.
+
+Staging is under `cohort_file_uploads/`; published files use `cohort_files/cohort_<id>/shared/` or `.../student_<id>/`. The same staging-only expiration policy applies. Object deletions that fail after a file or cohort is deleted, or after a copy rolls back, are queued in `pending_s3_deletions` and retried hourly by the scheduled tick (`s3_cleanup_retries`) with backoff; expired pending uploads are purged under the row lock, so a publish that commits first is kept.
+
 ## Enrollment access deadlines
 
 Learner read access requires an active or completed enrollment whose snapshotted `access_expires_at` is unset or still in the future. An explicit `cohort_id` follows the same deadline as automatic cohort selection. Expired courses disappear from the learner cohort switcher, workspaces, recordings, and cohort announcements; selected-course dashboard, lesson, module, recording, workspace, and weekly-plan requests return `403`. Completed program enrollments without a deadline retain read-only history. Staff retain their existing role and cohort authorization.

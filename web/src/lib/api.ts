@@ -568,6 +568,24 @@ export const api = {
     fetchApi<null>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}`, { method: 'DELETE' }),
   downloadCurriculumResource: (curriculumId: number, resourceId: number) =>
     fetchApi<{ url: string; expires_in: number }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/download`, { method: 'POST' }),
+  // Class files and private student folders. Never cached: folders are private and links expire.
+  getCohortFiles: (cohortId: number) =>
+    fetchApi<components['schemas']['CohortFilesResponse']>(`/api/v1/cohorts/${cohortId}/files`, { cache: 'no-store' }),
+  createCohortFile: (cohortId: number, data: components['schemas']['CohortFileCreateInput']) =>
+    fetchApi<components['schemas']['CohortFileUploadResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify(data) }),
+  completeCohortFile: (cohortId: number, fileId: number) =>
+    fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/complete`, { method: 'POST' }),
+  updateCohortFile: (cohortId: number, fileId: number, data: components['schemas']['CohortFileUpdateInput']) =>
+    fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  /** `pendingOnly` abandons an unfinished upload and is refused once the file is published. */
+  deleteCohortFile: (cohortId: number, fileId: number, options: { pendingOnly?: boolean } = {}) =>
+    fetchApi<null>(`/api/v1/cohorts/${cohortId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' }),
+  downloadCohortFile: (cohortId: number, fileId: number) =>
+    fetchApi<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download`, { cache: 'no-store' }),
+  copyCohortFileToStudents: (cohortId: number, fileId: number, folder?: string) =>
+    fetchApi<components['schemas']['CohortFileCopyResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/copy_to_students`, {
+      method: 'POST', body: JSON.stringify(folder ? { folder } : {}),
+    }),
   getAnnouncements: (params?: {
     scope?: 'manage';
     page?: number;

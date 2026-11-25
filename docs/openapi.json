@@ -5723,10 +5723,599 @@
           }
         }
       }
+    },
+    "/api/v1/cohorts/{cohort_id}/files": {
+      "get": {
+        "summary": "Class files and private student folders",
+        "description": "Staff (admins, or instructors assigned to the cohort) get every ready class file, including `staff_only` staged files, and `student_folders`: one per active or paused enrollment, even with no files. Students with read access get `class_files` (ready, visible to students, available before any pause) and `my_files` (their own folder, same rules); they never receive `student_folders`. `can_upload_personal` is true only for a student whose enrollment is active and unexpired. 403 outside the viewer's cohorts.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFilesResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Start a class file or student folder upload",
+        "description": "Creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file (staff only); pass an enrolled student's id for their private folder. Students may upload only to their own folder, only while active, and only with `visibility: students`. Allowed types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 when storage is not configured. Shares the uploads rate limit.",
+        "responses": {
+          "201": {
+            "description": "Upload started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileUploadResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortFileCreateInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}": {
+      "patch": {
+        "summary": "Rename, move, share or stage a file",
+        "description": "Staff may change `title`, `description`, `folder` and `visibility`; a student only `title`, `description` and `folder` of files they uploaded to their own folder, while active. Other students' and staff files are 404 to a student.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortFileUpdateInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a file and its stored objects",
+        "description": "Staff may delete any file in the cohort; a student only files they uploaded to their own folder, and only while active (403 when paused, completed or expired). With `pending_only=true` it abandons an unfinished upload and refuses (422) once the file is published, so retrying after a lost `complete` never removes a published file. 502 when the stored object could not be removed.",
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pending_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/complete": {
+      "post": {
+        "summary": "Publish an uploaded file",
+        "description": "Checks the staged object's type and size, copies it to its published key, and marks the file ready. Repeating it on a ready file returns the file unchanged. 422 when the upload expired or does not match.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/download": {
+      "get": {
+        "summary": "Short-lived download link",
+        "description": "Returns an uncached presigned URL that downloads as an attachment. Students may download only ready class files visible to students and their own folder (others are 404), only if available before a pause (403), and the link never outlives course access.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileDownloadResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/copy_to_students": {
+      "post": {
+        "summary": "Copy a class file into every active student's folder",
+        "description": "Staff only. The source must be a ready class file (422 otherwise). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ \"folder\": string }` names the folder for the copies; it defaults to the source's folder.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileCopyResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "CohortFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "student_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null for a class file; the student's user id for a private folder file."
+          },
+          "source_file_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The class file this was copied from."
+          },
+          "folder": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "ready_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "uploaded_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uploaded_by_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "student",
+              "staff",
+              null
+            ]
+          },
+          "can_manage": {
+            "type": "boolean",
+            "description": "Whether this viewer may rename or delete the file."
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "student_id",
+          "source_file_id",
+          "folder",
+          "visibility",
+          "title",
+          "description",
+          "filename",
+          "content_type",
+          "file_size",
+          "ready",
+          "ready_at",
+          "created_at",
+          "uploaded_by_name",
+          "uploaded_by_role",
+          "can_manage"
+        ],
+        "additionalProperties": false
+      },
+      "CohortStudentFolder": {
+        "type": "object",
+        "properties": {
+          "student_id": {
+            "type": "integer"
+          },
+          "enrollment_id": {
+            "type": "integer"
+          },
+          "student_name": {
+            "type": "string"
+          },
+          "student_email": {
+            "type": "string"
+          },
+          "enrollment_status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "expired"
+            ]
+          },
+          "file_count": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFile"
+            }
+          }
+        },
+        "required": [
+          "student_id",
+          "enrollment_id",
+          "student_name",
+          "student_email",
+          "enrollment_status",
+          "file_count",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFilesResponse": {
+        "type": "object",
+        "properties": {
+          "class_files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFile"
+            }
+          },
+          "my_files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFile"
+            },
+            "description": "Students only."
+          },
+          "student_folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortStudentFolder"
+            },
+            "description": "Staff only."
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "storage_configured": {
+            "type": "boolean"
+          },
+          "can_upload_personal": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "class_files",
+          "folders",
+          "storage_configured",
+          "can_upload_personal"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileResponse": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/CohortFile"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileUploadResponse": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/CohortFile"
+          },
+          "upload_url": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "file",
+          "upload_url",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileDownloadResponse": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "filename": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_in",
+          "filename"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCopyResponse": {
+        "type": "object",
+        "properties": {
+          "copied_count": {
+            "type": "integer"
+          },
+          "skipped_count": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFile"
+            }
+          }
+        },
+        "required": [
+          "copied_count",
+          "skipped_count",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCreateInput": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 104857600
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "student_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "file_size"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileUpdateInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
       "NotificationEntry": {
         "type": "object",
         "properties": {

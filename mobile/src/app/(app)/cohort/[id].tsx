@@ -4,7 +4,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, ArrowRight, Bell, BookOpen, CalendarDays, ChevronRight, ClipboardCheck, Clock3, LifeBuoy, MessageSquare, Users, type LucideIcon } from 'lucide-react-native';
+import { Activity, ArrowRight, Bell, BookOpen, CalendarDays, ChevronRight, ClipboardCheck, Clock3, FolderOpen, LifeBuoy, MessageSquare, Users, type LucideIcon } from 'lucide-react-native';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,6 +73,7 @@ export default function CohortHomeScreen() {
   const openGrading = () => router.push({ pathname: '/staff/grading', params: { cohort_id: String(cohortId) } });
   const openSupport = () => router.push({ pathname: '/staff/support', params: { cohort_id: String(cohortId) } });
   const openPeople = () => router.push({ pathname: '/staff/access', params: { cohort_id: String(cohortId) } });
+  const openFiles = () => router.push(`/staff/files?cohort_id=${cohortId}` as Href);
 
   if (!Number.isInteger(cohortId) || cohortId <= 0) return <SafeAreaView style={styles.safe}><BackButton /><EmptyState title="Cohort unavailable" copy="Choose a cohort from Today to continue." /></SafeAreaView>;
   if (query.isPending && !home) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Opening cohort" /></SafeAreaView>;
@@ -93,6 +94,7 @@ export default function CohortHomeScreen() {
         <View style={styles.section}><Text style={styles.sectionLabel}>PEOPLE & ACCESS</Text><Text style={styles.sectionTitle}>Know who is here</Text><View style={styles.peopleSplit}><View><Text style={styles.largeNumber}>{home.counts.joined}</Text><Text style={styles.smallCaption}>joined cohort</Text></View><View><Text style={styles.largeNumber}>{home.counts.invited}</Text><Text style={styles.smallCaption}>added, not yet opened</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Manage cohort people" onPress={openPeople} style={styles.inlineAction}><ChevronRight color={c.text.body} size={23} /></Pressable></View>
           {students.slice(0, 4).map((student) => <Pressable key={student.enrollment_id} accessibilityRole="button" accessibilityLabel={`Open ${student.full_name}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(cohortId) } })} style={styles.person}><View style={styles.avatar}><Text style={styles.avatarText}>{initials(student.full_name)}</Text></View><View style={styles.flex}><Text style={styles.personName}>{student.full_name}</Text><Text style={styles.personMeta}>{student.joined_at ? 'Joined cohort' : 'Added, not yet opened'} · {Math.round(student.progress_percentage)}% complete</Text>{student.invite_delivery_status !== 'accepted' && <Text style={styles.personMeta}>Account {inviteLabel(student.invite_delivery_status)}</Text>}</View><ChevronRight color={c.text.muted} size={18} /></Pressable>)}
           <Action label="See full roster and invites" icon={Users} onPress={openPeople} />
+          <Action label="Class and student files" icon={FolderOpen} onPress={openFiles} />
         </View>
         <View style={styles.section}><Text style={styles.sectionLabel}>NEXT TO DO</Text><Text style={styles.sectionTitle}>Teach with context</Text><View style={styles.actionStack}><Action label={`Grade work${home.counts.ungraded ? ` · ${home.counts.ungraded}` : ''}`} icon={ClipboardCheck} onPress={openGrading} /><Action label={`Help requests${home.counts.open_help ? ` · ${home.counts.open_help}` : ''}`} icon={LifeBuoy} onPress={openSupport} /><Action label="Cohort activity" icon={Activity} onPress={() => router.push({ pathname: '/activity', params: { feed: 'cohort', cohort_id: String(cohortId), name: home.cohort.name } })} /><Action label="Class messages" icon={MessageSquare} onPress={openMessages} /><Action label="Post update" icon={Bell} onPress={() => router.push({ pathname: '/updates', params: { cohort_id: String(cohortId) } })} /></View>
           <StaffAttention students={attention} cohortId={cohortId} />

@@ -220,6 +220,30 @@ module X6ActualizeDemo
       GithubWebhookDelivery.where(repository_id: repo_ids).or(GithubWebhookDelivery.where(installation_id: inst_ids)).delete_all
     end
 
+    # Synthetic class files and one private folder file each way, so Files and
+    # Resources open populated. Keys are invented; no object storage is touched.
+    def seed_cohort_files!(cohort, instructor, student)
+      seeded = [
+        { title: "Week 1 Ruby Slides", filename: "week-1-ruby-slides.pdf", folder: "Slides", visibility: "students", uploaded_by: instructor },
+        { title: "Job Search Plan Template", filename: "job-search-plan-template.docx", folder: "Career & Job Search", visibility: "students", uploaded_by: instructor },
+        { title: "Instructor Week 1 Notes", filename: "week-1-instructor-notes.pdf", folder: "Slides", visibility: "staff_only", uploaded_by: instructor },
+        { title: "Job Search Plan", filename: "student-one-job-search-plan.docx", folder: "Job Search & Career", visibility: "students", uploaded_by: instructor, student: student },
+        { title: "Resume Draft v1", filename: "resume-draft-v1.pdf", folder: "Resumes & Portfolio", visibility: "students", uploaded_by: student, student: student }
+      ].map do |attributes|
+        owner = attributes[:student] ? "student_#{attributes[:student].id}" : "shared"
+        # A stable UUID-shaped token, so cleanup recognises the synthetic keys as managed.
+        token = Digest::SHA256.hexdigest("#{cohort.id}:#{attributes[:filename]}")[0, 32].unpack("a8a4a4a4a12").join("-")
+        cohort.cohort_files.create!(
+          **attributes, description: "Synthetic demo file",
+          content_type: CohortFile.normalized_content_type(attributes[:filename], ""), file_size: 48_000,
+          s3_key: "cohort_files/cohort_#{cohort.id}/#{owner}/#{token}/#{attributes[:filename]}",
+          upload_key: "cohort_file_uploads/cohort_#{cohort.id}/#{token}/#{attributes[:filename]}",
+          upload_expires_at: 1.day.ago, ready: true
+        ).tap { |file| file.update_columns(created_at: 1.day.ago, ready_at: 1.day.ago, shared_at: (1.day.ago unless file.staff_only?)) }
+      end
+      seeded.to_h { |file| [ file.filename, file.id ] }
+    end
+
     def setup!
       admin = User.find(1)
       instructor = User.find(2)
@@ -614,6 +638,8 @@ module X6ActualizeDemo
           }
         )
 
+        cohort_files = seed_cohort_files!(cohort, instructor, program_student)
+
         web_port = read_web_port
         metadata = {
           simulated: true,
@@ -634,6 +660,7 @@ module X6ActualizeDemo
             ex113: { id: ex113.id, filename: ex113.filename, title: ex113.title, policy_id: nil }
           },
           prior_redo_submission_id: prior_redo_sub.id,
+          cohort_files: cohort_files,
           shas: SHAS,
           workflow_path: WORKFLOW_PATH,
           workflow_sha256: WORKFLOW_SHA256,

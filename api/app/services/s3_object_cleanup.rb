@@ -2,24 +2,42 @@ class S3ObjectCleanup
   MANAGED_KEY_PATTERNS = [
     %r{\Arecordings/cohort_\d+/\d{14}_[0-9a-f]{8}_[^/]+\z},
     %r{\Acontent_videos/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
-    %r{\Acontent_videos/block_\d+/\d{14}_[^/]+\z}
+    %r{\Acontent_videos/block_\d+/\d{14}_[^/]+\z},
+    %r{\Acohort_files/cohort_\d+/(?:shared|student_\d+)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
+    %r{\Acohort_file_uploads/cohort_\d+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z}
   ].freeze
 
   class << self
     def delete_if_unreferenced(key)
-      return true if key.blank?
+      delete_unreferenced(key).in?(%i[deleted skipped])
+    end
+
+    # :deleted, :skipped (blank key or no storage configured), :referenced
+    # (still in use), :rejected (not a managed key) or :failed.
+    def delete_unreferenced(key)
+      return :skipped if key.blank?
       unless managed_key?(key)
         Rails.logger.warn("[S3ObjectCleanup] Rejected unmanaged object key: #{key}")
-        return false
+        return :rejected
       end
-      return true unless S3Service.configured?
+      return :skipped unless S3Service.configured?
 
       with_key_lock(key) do
-        referenced?(key) ? false : S3Service.delete_object(key)
+        next :referenced if referenced?(key)
+
+        S3Service.delete_object(key) ? :deleted : :failed
       end
     rescue StandardError => error
       Rails.logger.error("[S3ObjectCleanup] Failed to delete #{key}: #{error.class}: #{error.message}")
-      false
+      :failed
+    end
+
+    # Deletes an unreferenced object now, or queues a durable retry when
+    # storage fails. Returns the delete_unreferenced status.
+    def delete_or_enqueue(key, reason:)
+      status = delete_unreferenced(key)
+      PendingS3Deletion.enqueue!(key, reason: reason) if status == :failed
+      status
     end
 
     # Checks a new attachment key in storage before the caller takes any row
@@ -86,6 +104,7 @@ class S3ObjectCleanup
 
     def referenced?(key)
       Recording.exists?(s3_key: key) || ContentBlock.exists?(s3_video_key: key) ||
+        CohortFile.exists?(s3_key: key) || CohortFile.exists?(upload_key: key) ||
         ContentBlock.where("metadata @> ?::jsonb", { video_versions: [ { s3_video_key: key } ] }.to_json).exists?
     end
   end

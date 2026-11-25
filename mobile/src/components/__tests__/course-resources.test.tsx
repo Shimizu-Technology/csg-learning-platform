@@ -12,6 +12,7 @@ jest.mock('@/providers/session-provider', () => ({ useSession: jest.fn() }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: jest.fn() }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: jest.fn() }));
 jest.mock('@/lib/external-links', () => ({ openExternalPage: jest.fn() }));
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 // eslint-disable-next-line import/first
 import ResourcesScreen from '../../app/(app)/resources';
 
@@ -22,7 +23,7 @@ let client: QueryClient;
 beforeEach(() => {
   jest.clearAllMocks();
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
-  jest.mocked(useSession).mockReturnValue({ user: { id: 1 }, api: { resources, downloadCurriculumResource: download } } as unknown as ReturnType<typeof useSession>);
+  jest.mocked(useSession).mockReturnValue({ user: { id: 1 }, api: { resources, downloadCurriculumResource: download, cohortFiles: jest.fn().mockResolvedValue({ class_files: [], my_files: [], folders: [], storage_configured: false, can_upload_personal: false }) } } as unknown as ReturnType<typeof useSession>);
   jest.mocked(useCsgAuth).mockReturnValue({ demo: false } as ReturnType<typeof useCsgAuth>);
   jest.mocked(useCohort).mockReturnValue({ selectedCohortId: 4 } as ReturnType<typeof useCohort>);
   jest.mocked(openExternalPage).mockResolvedValue(undefined);

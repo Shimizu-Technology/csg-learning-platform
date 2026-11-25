@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { RefreshCw, UserRound } from 'lucide-react'
 import { NavLink, useParams } from 'react-router-dom'
+import { StudentFilesTab } from '../../components/admin/CohortFilesPanel'
 import { StudentAccess } from '../../components/admin/StudentAccess'
 import { StudentCertificatePanel } from '../../components/admin/StudentCertificatePanel'
 import { StudentCommunication } from '../../components/admin/StudentCommunication'
@@ -268,6 +269,7 @@ function Workspace() {
             onOpen={() => void openDirectMessage()}
           />
         )}
+        {activeTab === 'files' && <StudentFilesTab cohortId={cohortId} studentId={studentId} />}
         {activeTab === 'access' && <StudentAccess progress={progress} cohort={cohort} onSaved={refresh} />}
       </div>
     </ReturnOrigin>

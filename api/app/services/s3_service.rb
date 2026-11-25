@@ -24,14 +24,11 @@ class S3Service
       end
     end
 
-    def generate_presigned_url(key, expires_in: PRESIGN_EXPIRY)
+    def generate_presigned_url(key, expires_in: PRESIGN_EXPIRY, response_content_disposition: nil)
       presigner = Aws::S3::Presigner.new(client: s3_client)
-      presigner.presigned_url(
-        :get_object,
-        bucket: bucket_name,
-        key: key,
-        expires_in: expires_in
-      )
+      options = { bucket: bucket_name, key: key, expires_in: expires_in }
+      options[:response_content_disposition] = response_content_disposition if response_content_disposition
+      presigner.presigned_url(:get_object, **options)
     end
 
     def create_multipart_upload(key, content_type)
@@ -111,11 +108,24 @@ class S3Service
       nil
     end
 
-    def copy_object(source_key, destination_key, etag:)
-      s3_client.copy_object(
-        bucket: bucket_name, key: destination_key,
-        copy_source: "#{bucket_name}/#{source_key}", copy_source_if_match: etag
-      )
+    # The first bytes of an object, for checking an upload is the format it
+    # claims to be. Nil when the object is missing.
+    # Pass the HEAD etag as `if_match` so the bytes checked are the object
+    # about to be copied; a changed object raises PreconditionFailed.
+    def read_prefix(key, bytes: 512, if_match: nil)
+      options = { bucket: bucket_name, key: key, range: "bytes=0-#{bytes - 1}" }
+      options[:if_match] = if_match if if_match
+      s3_client.get_object(**options).body.read
+    rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
+      nil
+    end
+
+    # Pass the staging object's etag when publishing an upload, so a racing
+    # re-upload cannot be published. Copies of already-published objects omit it.
+    def copy_object(source_key, destination_key, etag: nil)
+      options = { bucket: bucket_name, key: destination_key, copy_source: "#{bucket_name}/#{source_key}" }
+      options[:copy_source_if_match] = etag if etag
+      s3_client.copy_object(**options)
     end
 
     private
