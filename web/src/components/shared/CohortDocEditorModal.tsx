@@ -192,14 +192,17 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty, open])
 
-  // Unmounted with a pending change (the list moved on): save it rather than drop it.
-  const saveOnUnmount = useRef(save)
-  saveOnUnmount.current = save
+  // Unmounted with text that isn't saved (the page or list moved on): save
+  // it rather than drop it, unless Discard changes said to. The autosave
+  // timer is already cleared by then, so the text itself decides.
+  const discarded = useRef(false)
+  const flushOnUnmount = useRef(() => {})
+  flushOnUnmount.current = () => {
+    if (!discarded.current && canEditRef.current && !conflict.current && changedFrom(draft.current)) void save()
+  }
   useEffect(() => () => {
-    if (autosave.current !== null) {
-      window.clearTimeout(autosave.current)
-      void saveOnUnmount.current()
-    }
+    cancelAutosave()
+    flushOnUnmount.current()
   }, [])
 
   useEffect(() => {
@@ -265,6 +268,9 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
       }
       const result = await api.restoreCohortDocRevision(cohortId, file.id, revisionId, version.current ?? 0)
       if (result.data) {
+        // The restored text is what is on screen from now on, before the new
+        // version is taken: a close queued behind this can't save older text with it.
+        draft.current = { title: result.data.file.title, content: result.data.doc_content }
         apply(result.data)
         onFileChange(result.data.file)
         setTitle(result.data.file.title)
@@ -336,7 +342,7 @@ export function CohortDocEditorModal({ cohortId, file, open, onClose, onFileChan
               <p className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Your latest changes aren't saved{saveError ? `: ${saveError}` : '.'}</p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setCloseBlocked(false)}>Keep editing</Button>
-                <Button size="sm" variant="danger" onClick={onClose}>Discard changes</Button>
+                <Button size="sm" variant="danger" onClick={() => { discarded.current = true; onClose() }}>Discard changes</Button>
               </div>
             </div>
           )}

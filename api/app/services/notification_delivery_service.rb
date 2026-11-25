@@ -421,9 +421,11 @@ class NotificationDeliveryService
   end
 
   def cohort_file_notification_for(user, file, actor:, title:, body:, path:)
-    # updated_at is the event's time, also when an earlier row is reused, so
-    # Notification.visible_to can hide events after a learner's pause.
-    attributes = { actor: actor, notification_type: :cohort_file, title: title, body: body, path: path, read_at: nil, updated_at: Time.current }
+    # created_at is the event's time, also when an earlier row is reused, so
+    # Notification.visible_to can hide events after a learner's pause; marking
+    # it read never moves it.
+    now = Time.current
+    attributes = { actor: actor, notification_type: :cohort_file, title: title, body: body, path: path, read_at: nil, created_at: now, updated_at: now }
     Notification.transaction(requires_new: true) do
       notification = Notification.find_or_initialize_by(notifiable: file, user: user)
       notification.update!(attributes)

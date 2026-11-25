@@ -25,10 +25,12 @@ class CohortDocRevision < ApplicationRecord
   private
 
   def no_null_bytes
-    %i[title summary].each { |field| errors.add(field, "can't contain null characters") if self[field]&.include?("\u0000") }
+    %i[title summary].each { |field| errors.add(field, "can't contain null characters") if @null_fields&.include?(field) || self[field]&.include?("\u0000") }
   end
 
+  # Null characters are noted before squishing, which would drop trailing ones.
   def normalize_text
+    @null_fields = %i[title summary].select { |field| self[field].to_s.include?("\u0000") }
     self.content = content.to_s
     self.summary = summary.to_s.squish.presence
   end

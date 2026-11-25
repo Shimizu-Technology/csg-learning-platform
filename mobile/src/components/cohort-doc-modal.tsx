@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
@@ -184,6 +184,7 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, on
     setLoadError(null);
     setError(null);
     setConflict(false);
+    setSaving(false);
     setMode('read');
   }
   const showReview = Boolean(reviewAccess) && isStudentFolderItem(file);
@@ -207,12 +208,20 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, on
     setLoadError((failure as Error).message || 'Could not open this doc.');
     if (gone(failure)) onStale?.();
   };
-  const load = () => api.cohortDoc(cohortId, file.id).then(opened, failed);
+  // Each opening (and each closing) gets a new number. A load, retry or save
+  // answers only the opening that sent it, so a slow reply from an earlier
+  // opening never paints content or edit controls into a later one.
+  const opening = useRef(0);
+  const load = () => {
+    const sent = opening.current;
+    return api.cohortDoc(cohortId, file.id).then(
+      (next) => { if (sent === opening.current) opened(next); },
+      (failure) => { if (sent === opening.current) failed(failure); },
+    );
+  };
   useEffect(() => {
-    if (!visible) return;
-    let live = true;
-    api.cohortDoc(cohortId, file.id).then((next) => { if (live) opened(next); }, (failure) => { if (live) failed(failure); });
-    return () => { live = false; };
+    opening.current += 1;
+    if (visible) void load();
     // Reload only when the sheet opens or the doc changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, visible, cohortId, file.id]);
@@ -220,22 +229,23 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, on
   async function save() {
     if (!doc || saving || conflict) return;
     if (content.length > MAX_DOC_LENGTH) return setError(`Docs can be up to ${MAX_DOC_LENGTH.toLocaleString()} characters.`);
+    const sent = opening.current;
     setSaving(true);
     setError(null);
     try {
       const next = await api.saveCohortDoc(cohortId, file.id, {
         doc_content: content, base_doc_version: doc.doc_version ?? 0, save_revision: true, ...(titleEditable && title.trim() ? { title: title.trim() } : {}),
       });
-      apply(next);
+      // The list still learns about the save; only the opening that sent it shows it.
       onChanged?.(next.file);
+      if (sent === opening.current) apply(next);
     } catch (failure) {
+      if (gone(failure)) onStale?.();
+      if (sent !== opening.current) return;
       if (failure instanceof ApiError && failure.status === 409) setConflict(true);
-      else {
-        setError((failure as Error).message || 'Could not save this doc.');
-        if (gone(failure)) onStale?.();
-      }
+      else setError((failure as Error).message || 'Could not save this doc.');
     } finally {
-      setSaving(false);
+      if (sent === opening.current) setSaving(false);
     }
   }
   const close = () => {

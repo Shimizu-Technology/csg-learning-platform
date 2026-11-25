@@ -676,27 +676,34 @@ module Api
       end
 
       # A doc write locks, in order: the writer's enrollment (a learner), the
-      # enrollments of everyone who can read the doc (its student, or the
-      # whole cohort for a class doc), then the doc. A pause locks the
-      # enrollment before it stamps paused_at (EnrollmentsController#update),
-      # so it lands wholly before or after the save, and the pause snapshot
-      # rule in CohortFile#save_doc! always sees it.
+      # enrollments of everyone who can read the doc or be paused into
+      # reading it (CohortFile#reader_enrollments), then the doc. A pause
+      # locks the enrollment before it stamps paused_at
+      # (EnrollmentsController#update), so it lands wholly before or after
+      # the save, and the pause snapshot rule in CohortFile#save_doc! always sees it.
       def with_doc_lock(file)
         CohortFile.transaction do
           lock_writer_enrollment! unless current_user.staff?
-          readers = Enrollment.where(cohort_id: file.cohort_id, status: FOLDER_STATUSES)
-          readers = readers.where(user_id: file.student_id) if file.student_id
-          readers.order(:id).lock.pluck(:id)
+          file.reader_enrollments.order(:id).lock.pluck(:id)
           file.lock!
           yield
         end
       end
 
-      # Review changes and comments: the same locks as a publish, then, with
-      # both held, the item must still be a student-visible student-folder
-      # item (a learner's own) and the learner still active, deadline included.
+      # Review changes and comments lock the student's enrollment, then the
+      # file: a learner's own (which must be active), or for staff the folder
+      # owner's whatever its status, so feedback times line up with a
+      # concurrent pause. With both held, the item must still be a
+      # student-visible student-folder item (a learner's own) and the learner
+      # still active, deadline included.
       def with_feedback_lock(file)
-        with_writer_lock(file) do
+        CohortFile.transaction do
+          if current_user.staff?
+            file.reader_enrollments.order(:id).lock.pluck(:id) if file.student_id
+          else
+            lock_writer_enrollment!
+          end
+          file.lock!
           raise NotFeedbackTarget unless file.student_folder_item? && (current_user.staff? || file.student_id == current_user.id)
           raise WritePaused unless current_user.staff? || @enrollment.active?
 

@@ -261,4 +261,17 @@ class CohortFileTest < ModelCoverageTestCase
     allowed.each { |markdown| assert_not CohortFile.active_markup_outside_code?(markdown), markdown }
     refused.each { |markdown| assert CohortFile.active_markup_outside_code?(markdown), markdown }
   end
+
+  test "null characters are refused in comments and revision text even at either end, before stripping" do
+    file = course.cohort_files.create!(kind: "doc", title: "Doc", doc_content: "x", ready: true, uploaded_by: student)
+    [ "\u0000hello", "hello\u0000", "hel\u0000lo" ].each do |text|
+      comment = file.comments.new(user: student, body: text)
+      assert_not comment.valid?, text.inspect
+      assert_includes comment.errors[:body], "can't contain null characters"
+      revision = file.doc_revisions.new(revision_number: 1, title: "Doc", content: "x", summary: text, created_at: Time.current)
+      assert_not revision.valid?, text.inspect
+      assert_includes revision.errors[:summary], "can't contain null characters"
+    end
+    assert file.comments.new(user: student, body: "  fine  ").valid?
+  end
 end

@@ -21,11 +21,13 @@ class CohortFileComment < ApplicationRecord
 
   private
 
+  # Null characters are noted before stripping, which would drop trailing ones.
   def normalize_body
+    @null_in_body = body.to_s.include?("\u0000")
     self.body = body.to_s.strip.presence
   end
 
   def no_null_bytes
-    errors.add(:body, "can't contain null characters") if body&.include?("\u0000")
+    errors.add(:body, "can't contain null characters") if @null_in_body || body&.include?("\u0000")
   end
 end

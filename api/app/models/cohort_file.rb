@@ -374,6 +374,14 @@ class CohortFile < ApplicationRecord
     text.match?(ACTIVE_MARKUP)
   end
 
+  # Enrollments whose learner can read this item, or could be paused into
+  # reading it: the folder's student, or everyone in the cohort for a class
+  # item, whatever their status (a completed enrollment can still be paused).
+  def reader_enrollments
+    readers = Enrollment.where(cohort_id: cohort_id)
+    student_id ? readers.where(user_id: student_id) : readers
+  end
+
   def student_folder_item?
     student_id.present? && !staff_only?
   end

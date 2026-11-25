@@ -126,16 +126,60 @@ class CohortLearnDocsRacesTest < ActionDispatch::IntegrationTest
     notice = Notification.create!(user: @student, notifiable: @mine, notification_type: :cohort_file, title: "File reviewed", path: "/resources")
     @enrollment.update!(status: :paused)
     assert Notification.visible_to(@student).exists?(id: notice.id)
-    notice.update_columns(updated_at: 1.minute.from_now)
+    notice.update_columns(created_at: 1.minute.from_now)
     assert_not Notification.visible_to(@student).exists?(id: notice.id)
     @enrollment.update!(status: :active)
     assert Notification.visible_to(@student).exists?(id: notice.id)
 
     # A reused row takes the new event's time.
-    notice.update_columns(updated_at: 1.day.ago)
+    notice.update_columns(created_at: 1.day.ago, updated_at: 1.day.ago)
     as_user(@teacher) { post comments_path(@mine), params: { body: "New thoughts" }, headers: headers, as: :json }
-    assert_operator notice.reload.updated_at, :>, 1.minute.ago
+    assert_operator notice.reload.created_at, :>, 1.minute.ago
     assert_equal [ "New file comment", "A new comment was added in your files." ], notice.values_at(:title, :body)
+  end
+
+  test "marking a file notice from before the pause read keeps it in the paused learner's inbox" do
+    notice = Notification.create!(user: @student, notifiable: @mine, notification_type: :cohort_file, title: "File reviewed", path: "/resources")
+    other = Notification.create!(user: @student, notifiable: @from_staff, notification_type: :cohort_file, title: "New file comment", path: "/resources")
+    travel 1.minute
+    @enrollment.update!(status: :paused)
+    travel 1.minute
+    as_user(@student) { patch "/api/v1/notifications/#{notice.id}/read", headers: headers }
+    assert_response :success
+    as_user(@student) { patch "/api/v1/notifications/mark_all_read", headers: headers }
+    assert_response :success
+    as_user(@student) { get "/api/v1/notifications", headers: headers }
+    listed = response.parsed_body.fetch("notifications").pluck("id")
+    assert_includes listed, notice.id
+    assert_includes listed, other.id
+    assert_not_nil notice.reload.read_at
+  end
+
+  test "staff feedback on a student's item locks that student's enrollment before the file, whatever its status" do
+    @enrollment.update!(status: :completed)
+    comment = @mine.comments.create!(user: @student, body: "Mine")
+    [ -> { patch review_path(@mine), params: { review_status: "reviewed" }, headers: headers, as: :json },
+      -> { post comments_path(@mine), params: { body: "Nice" }, headers: headers, as: :json },
+      -> { delete "#{comments_path(@mine)}/#{comment.id}", headers: headers } ].each_with_index do |request, index|
+      statements = capture_sql { as_user(@teacher) { instance_exec(&request) } }
+      assert_includes [ 200, 201, 204 ], response.status, "request #{index}"
+      enrollment = statements.index { |sql| sql.match?(/FROM "enrollments".*FOR UPDATE/m) }
+      file = statements.index { |sql| sql.match?(/FROM "cohort_files".*FOR UPDATE/m) }
+      assert enrollment && file && enrollment < file, "request #{index}: #{statements.grep(/FOR UPDATE/).join("\n")}"
+    end
+  end
+
+  test "doc saves lock every enrollment that could be paused into reading the doc, completed ones included" do
+    @classmate_enrollment.update!(status: :completed)
+    dropped = Enrollment.create!(user: @outsider, cohort: @cohort, status: :dropped)
+    class_doc = @cohort.cohort_files.create!(kind: "doc", title: "Guide", doc_content: "x", ready: true, uploaded_by: @admin)
+    folder_doc = @cohort.cohort_files.create!(kind: "doc", title: "Notes", doc_content: "x", ready: true, student: @classmate, uploaded_by: @admin)
+    assert_equal [ @enrollment.id, @classmate_enrollment.id, dropped.id ].sort, class_doc.reader_enrollments.order(:id).pluck(:id)
+    assert_equal [ @classmate_enrollment.id ], folder_doc.reader_enrollments.pluck(:id)
+    statements = capture_sql { save(folder_doc, @teacher, "edited") }
+    lock = statements.find { |sql| sql.match?(/FROM "enrollments".*FOR UPDATE/m) }
+    assert lock, statements.grep(/FOR UPDATE/).join("\n")
+    assert_no_match(/status/, lock, "readers are locked whatever their status")
   end
 
   test "copies are refused for staff-only items and skip a recipient paused before their copy is made" do

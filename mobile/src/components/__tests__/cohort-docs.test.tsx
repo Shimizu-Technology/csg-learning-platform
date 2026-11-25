@@ -151,3 +151,43 @@ test('reopening the doc sheet shows nothing from the last opening until the doc 
   finish(docResponse('Fresh from the server', { can_edit_doc: false }));
   await screen.findByText('Learn Doc · Read only');
 }, 15_000);
+
+test('a retry or save from an earlier opening never paints into a later one', async () => {
+  const pending: ((value: unknown) => void)[] = [];
+  const later = () => new Promise((resolve) => { pending.push(resolve); });
+  api.cohortDoc.mockRejectedValueOnce(new Error('Offline'));
+  const screen = mount(<ResourcesScreen />);
+  fireEvent.press(await screen.findByRole('button', { name: 'Open My Job Search Plan' }));
+  await screen.findByText('Offline');
+  // Retry, then close and reopen before it answers.
+  api.cohortDoc.mockImplementationOnce(later).mockImplementationOnce(later);
+  fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+  fireEvent.press(screen.getByRole('button', { name: 'Close My Job Search Plan' }));
+  fireEvent.press(screen.getByRole('button', { name: 'Open My Job Search Plan' }));
+  await screen.findByText('Opening My Job Search Plan…');
+  expect(pending).toHaveLength(2);
+  pending[0](docResponse('From the earlier opening'));
+  await waitFor(() => expect(screen.getByText('Opening My Job Search Plan…')).toBeTruthy());
+  expect(screen.queryByText('From the earlier opening')).toBeNull();
+  expect(screen.queryByRole('tab', { name: 'Edit' })).toBeNull();
+  pending[1](docResponse('Fresh', { can_edit_doc: false }));
+  await screen.findByText('Learn Doc · Read only');
+
+  // A save sent before closing answers after a reopen: the reopened sheet keeps its own state.
+  api.cohortDoc.mockResolvedValueOnce(docResponse('Editable'));
+  fireEvent.press(screen.getByRole('button', { name: 'Close My Job Search Plan' }));
+  fireEvent.press(screen.getByRole('button', { name: 'Open My Job Search Plan' }));
+  fireEvent.press(await screen.findByRole('tab', { name: 'Edit' }));
+  fireEvent.changeText(screen.getByLabelText('Doc content'), 'Sent before closing');
+  let finishSave: (value: unknown) => void = () => undefined;
+  api.saveCohortDoc.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));
+  fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+  jest.spyOn(themedAlert, 'alert').mockImplementation((_title, _body, buttons) => { buttons?.find((button) => button.style === 'destructive')?.onPress?.(); });
+  fireEvent.press(screen.getByRole('button', { name: 'Close My Job Search Plan' }));
+  api.cohortDoc.mockImplementationOnce(later);
+  fireEvent.press(screen.getByRole('button', { name: 'Open My Job Search Plan' }));
+  await screen.findByText('Opening My Job Search Plan…');
+  finishSave(docResponse('Saved from the earlier opening', { doc_version: 2 }));
+  await waitFor(() => expect(screen.getByText('Opening My Job Search Plan…')).toBeTruthy());
+  expect(screen.queryByText('Saved from the earlier opening')).toBeNull();
+}, 20_000);

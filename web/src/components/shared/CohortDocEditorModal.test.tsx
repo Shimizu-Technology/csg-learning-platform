@@ -255,3 +255,49 @@ it('keeps a copy staff put in a learner folder under its own title', async () =>
   expect(title.readOnly).toBe(true)
   expect(dialog().textContent).toContain('Your instructor named this doc')
 })
+
+it('closing while a restore runs never saves the older text with the restored version', async () => {
+  mocks.getCohortDoc.mockResolvedValue(docResponse('Current'))
+  mocks.getCohortDocRevisions.mockResolvedValue({ data: { revisions: [
+    { id: 20, cohort_file_id: 7, revision_number: 1, title: 'Job search plan', summary: null, edited_by_name: 'Student One', created_at: '2026-11-23T00:00:00Z', content_length: 8 },
+  ] }, error: null })
+  mocks.getCohortDocRevision.mockResolvedValue({ data: { revision: { id: 20, cohort_file_id: 7, revision_number: 1, title: 'Job search plan', summary: null, edited_by_name: 'Student One', created_at: '2026-11-23T00:00:00Z', content_length: 8, content: 'Original' } }, error: null })
+  let finishRestore: (value: unknown) => void = () => undefined
+  mocks.restoreCohortDocRevision.mockImplementationOnce(() => new Promise((resolve) => { finishRestore = resolve }))
+  const onClose = vi.fn()
+  await mount({ file: docFile({ student_id: null }), onClose })
+  const history = dialog().querySelector('[aria-label="Revision history"]')!
+  await act(async () => history.querySelector('button')!.click())
+  await flush()
+  await act(async () => button('Restore this version').click())
+  await flush()
+  await act(async () => button('Close Job search plan').click())
+  await act(async () => { finishRestore(docResponse('Original', 2)) })
+  await flush()
+  expect(mocks.saveCohortDoc).not.toHaveBeenCalled()
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+it('unmounting with unsaved text saves it, but not after Discard changes', async () => {
+  mocks.getCohortDoc.mockResolvedValue(docResponse('Start'))
+  mocks.saveCohortDoc.mockResolvedValue(docResponse('Typed before the page moved on', 2))
+  await mount()
+  act(() => button('Edit').click())
+  type(dialog().querySelector<HTMLTextAreaElement>('textarea[aria-label="Doc content"]')!, 'Typed before the page moved on')
+  await flush(200)
+  act(() => root.render(<div />))
+  await flush()
+  expect(mocks.saveCohortDoc).toHaveBeenCalledWith(4, 7, expect.objectContaining({ doc_content: 'Typed before the page moved on', base_doc_version: 1 }))
+
+  mocks.saveCohortDoc.mockReset()
+  mocks.saveCohortDoc.mockResolvedValue({ data: null, error: 'Network down', status: undefined })
+  await mount({ onClose: vi.fn() })
+  act(() => button('Edit').click())
+  type(dialog().querySelector<HTMLTextAreaElement>('textarea[aria-label="Doc content"]')!, 'Throw this away')
+  await act(async () => button('Close Job search plan').click())
+  await flush()
+  await act(async () => button('Discard changes').click())
+  act(() => root.render(<div />))
+  await flush()
+  expect(mocks.saveCohortDoc).toHaveBeenCalledTimes(1)
+})

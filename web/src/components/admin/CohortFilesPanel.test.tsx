@@ -364,7 +364,14 @@ it('offers Copy to all students only for items shared with students, and renames
   const titleInput = [...container.querySelectorAll<HTMLInputElement>('input')].find((input) => input.value === 'Staged guide')!
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
   act(() => { setter.call(titleInput, 'Shared guide'); titleInput.dispatchEvent(new Event('input', { bubbles: true })) })
+  mocks.getCohortDoc.mockResolvedValue({ data: { file: docItem({ id: 45, title: 'Staged guide v2', visibility: 'staff_only', doc_version: 5 }), doc_content: 'x', doc_version: 5,
+    doc_updated_at: '2026-11-24T00:00:00.000001Z', doc_updated_by_name: 'Ina Instructor', can_edit_doc: true, revision_count: 1 }, error: null })
   await act(async () => button('Save').click())
   expect(mocks.updateCohortFile).toHaveBeenCalledWith(4, 45, expect.objectContaining({ title: 'Shared guide', base_doc_version: 3 }))
-  expect(container.textContent).toContain('This doc changed since you opened it')
+  expect(container.textContent).toContain('This doc changed since you opened it (now "Staged guide v2"). Save again to rename it.')
+  // The retry is made from the latest version, not the stale one.
+  mocks.updateCohortFile.mockResolvedValueOnce({ data: { file: docItem({ id: 45, title: 'Shared guide', visibility: 'staff_only', doc_version: 6 }) }, error: null })
+  await act(async () => button('Save').click())
+  expect(mocks.updateCohortFile).toHaveBeenLastCalledWith(4, 45, expect.objectContaining({ title: 'Shared guide', base_doc_version: 5 }))
+  expect(row('Shared guide')).toBeTruthy()
 })

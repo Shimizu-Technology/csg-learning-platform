@@ -358,7 +358,10 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
     toast.success(`Deleted ${file.title}`)
   }
 
-  if (editing) return <EditFile cohortId={cohortId} file={file} presets={CLASS_FOLDER_PRESETS} onCancel={() => setEditing(false)} onSaved={(saved) => { onSaved(saved); setEditing(false) }} />
+  if (editing) {
+    return <EditFile cohortId={cohortId} file={file} presets={CLASS_FOLDER_PRESETS} onCancel={() => setEditing(false)} onRefreshed={onSaved}
+      onSaved={(saved) => { onSaved(saved); setEditing(false) }} />
+  }
   return (
     <CohortFileRow cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'} onVersionUploaded={(saved) => { onSaved(saved); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
       onFileChange={onSaved} autoOpen={autoOpen} onAutoOpened={onAutoOpened}
@@ -378,18 +381,22 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
   )
 }
 
-function EditFile({ cohortId, file, presets, onCancel, onSaved }: {
+function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
   cohortId: number
   file: CohortFile
   presets: string[]
   onCancel: () => void
   onSaved: (file: CohortFile) => void
+  /** A doc changed under the form: the list takes the latest copy and the form stays open. */
+  onRefreshed?: (file: CohortFile) => void
 }) {
   const [title, setTitle] = useState(file.title)
   const [folder, setFolder] = useState(file.folder)
   const [url, setUrl] = useState(file.external_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // The doc version a rename is made from; a conflict moves it to the latest.
+  const [baseVersion, setBaseVersion] = useState(file.doc_version)
   const listId = `folders-${file.id}`
   const link = file.kind === 'link'
   const urlProblem = link ? linkUrlProblem(url) : null
@@ -398,10 +405,17 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved }: {
     setSaving(true)
     // Renaming a doc is a doc save, made from the version on screen.
     const result = await api.updateCohortFile(cohortId, file.id, {
-      title, folder, ...(link ? { external_url: url.trim() } : {}), ...(file.kind === 'doc' && file.doc_version ? { base_doc_version: file.doc_version } : {}),
+      title, folder, ...(link ? { external_url: url.trim() } : {}), ...(file.kind === 'doc' && baseVersion ? { base_doc_version: baseVersion } : {}),
     })
+    if (result.status === 409) {
+      const latest = await api.getCohortDoc(cohortId, file.id)
+      setSaving(false)
+      if (!latest.data) return setError(latest.error || 'This doc changed since you opened it. Cancel and try again.')
+      setBaseVersion(latest.data.doc_version)
+      onRefreshed?.(latest.data.file)
+      return setError(`This doc changed since you opened it (now "${latest.data.file.title}"). Save again to rename it.`)
+    }
     setSaving(false)
-    if (result.status === 409) return setError('This doc changed since you opened it. Cancel, then rename it again.')
     if (!result.data) return setError(result.error || 'Could not save.')
     onSaved(result.data.file)
   }
