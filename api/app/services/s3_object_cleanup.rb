@@ -4,7 +4,9 @@ class S3ObjectCleanup
     %r{\Acontent_videos/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
     %r{\Acontent_videos/block_\d+/\d{14}_[^/]+\z},
     %r{\Acohort_files/cohort_\d+/(?:shared|student_\d+)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
-    %r{\Acohort_file_uploads/cohort_\d+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z}
+    %r{\Acohort_file_uploads/cohort_\d+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
+    %r{\Acurriculum_files/curriculum_\d+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
+    %r{\Acurriculum_file_uploads/curriculum_\d+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z}
   ].freeze
 
   class << self
@@ -106,6 +108,7 @@ class S3ObjectCleanup
       Recording.exists?(s3_key: key) || ContentBlock.exists?(s3_video_key: key) ||
         CohortFile.exists?(s3_key: key) || CohortFile.exists?(upload_key: key) ||
         CohortFileVersion.exists?(s3_key: key) || CohortFileVersion.exists?(upload_key: key) ||
+        CurriculumFile.exists?(s3_key: key) || CurriculumFile.exists?(upload_key: key) ||
         ContentBlock.where("metadata @> ?::jsonb", { video_versions: [ { s3_video_key: key } ] }.to_json).exists?
     end
   end

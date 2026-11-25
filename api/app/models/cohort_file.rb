@@ -129,37 +129,27 @@ class CohortFile < ApplicationRecord
   belongs_to :doc_updated_by, class_name: "User", optional: true
   belongs_to :reviewed_by, class_name: "User", optional: true
 
+  # The template this class item was imported from, or the other cohort's
+  # class item it was copied from (CohortFileImport).
+  belongs_to :source_curriculum_file, class_name: "CurriculumFile", optional: true
+  belongs_to :source_cohort_file, class_name: "CohortFile", optional: true
+
   scope :ready, -> { where(ready: true) }
   scope :class_files, -> { where(student_id: nil) }
   scope :student_visible, -> { where(visibility: "students") }
+  # Shared class items every active learner gets a copy of (CohortFileCopy).
+  scope :auto_copied, -> { class_files.ready.student_visible.where(auto_copy_to_students: true) }
 
-  before_validation :normalize_text
-  before_validation :classify_link
-  before_save :record_ready_date
+  # Title, folder, kind, type, link and Markdown rules, shared with CurriculumFile.
+  include CabinetItem
   before_save :record_shared_date
   after_destroy_commit :delete_stored_objects
 
-  # Set when only the staging upload should be removed after destroy.
-
-  validates :title, presence: true, length: { maximum: 160 }
-  validates :folder, presence: true, length: { maximum: 80 }
-  validates :description, length: { maximum: 500 }
-  validates :visibility, inclusion: { in: VISIBILITIES }
-  validates :kind, inclusion: { in: KINDS }
   validates :version_number, numericality: { only_integer: true, greater_than: 0 }
-  with_options if: :stored_file? do
-    validates :filename, presence: true, length: { maximum: 180 }
-    validates :file_size, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
-    validates :s3_key, :upload_key, :upload_expires_at, :content_type, presence: true
-    validate :allowed_file_type
-  end
-  validates :external_url, absence: true, unless: :link?
   validates :review_status, inclusion: { in: REVIEW_STATUSES }
-  validates :doc_content, absence: true, unless: :doc?
-  validate :safe_doc_content, if: :doc?
-  validate :safe_external_url, if: :link?
   validate :student_enrolled_in_cohort
   validate :students_cannot_stage_files
+  validate :auto_copy_class_items_only
 
   # Replace anything outside letters, digits, dot, dash and underscore. Returns
   # nil for names that are only dots or underscores, hidden, or contain "..".
@@ -304,18 +294,6 @@ class CohortFile < ApplicationRecord
     student_id.nil?
   end
 
-  def stored_file?
-    kind == "file"
-  end
-
-  def link?
-    kind == "link"
-  end
-
-  def doc?
-    kind == "doc"
-  end
-
   def current_doc_state
     DocState.new(title: title, content: doc_content.to_s, updated_at: doc_updated_at || created_at, updated_by_name: doc_updated_by&.full_name, version: doc_version)
   end
@@ -394,14 +372,6 @@ class CohortFile < ApplicationRecord
     student_id.present? && !staff_only?
   end
 
-  def preview_mode
-    stored_file? ? self.class.preview_mode_for(filename) : nil
-  end
-
-  def staff_only?
-    visibility == "staff_only"
-  end
-
   def uploaded_by_student?
     uploaded_by.present? && uploaded_by.student?
   end
@@ -424,7 +394,8 @@ class CohortFile < ApplicationRecord
     review = review_cutoff && !(review_status == "reviewed" && reviewed_at && reviewed_at <= review_cutoff) ? {} : { status: review_status, by: reviewed_by, at: reviewed_at }
     {
       id: id, cohort_id: cohort_id, student_id: student_id, source_file_id: source_file_id,
-      kind: kind, folder: folder, visibility: visibility, title: doc_state&.title || title, description: description,
+      source_curriculum_file_id: source_curriculum_file_id, source_cohort_file_id: source_cohort_file_id,
+      auto_copy_to_students: auto_copy_to_students?, kind: kind, folder: folder, visibility: visibility, title: doc_state&.title || title, description: description,
       filename: shown.filename, content_type: shown.content_type, file_size: shown.file_size,
       external_url: external_url, link_provider: link_provider, version_number: shown.version_number,
       previewable: self.class.previewable_mode?(mode), preview_mode: mode,
@@ -441,14 +412,6 @@ class CohortFile < ApplicationRecord
 
   private
 
-  def normalize_text
-    self.title = title.to_s.squish.presence
-    self.folder = folder.to_s.squish.presence || "General"
-    self.description = description.to_s.strip.presence
-    self.external_url = external_url.to_s.strip.presence
-    self.doc_content = doc? ? doc_content.to_s : nil
-  end
-
   # A paused learner who can read this doc paused after its last save.
   def paused_since_last_doc_save?
     return false if doc_updated_at.nil?
@@ -456,31 +419,6 @@ class CohortFile < ApplicationRecord
     readers = Enrollment.where(cohort_id: cohort_id, status: Enrollment.statuses.fetch("paused"))
     readers = readers.where(user_id: student_id) if student_id
     readers.where("COALESCE(enrollments.paused_at, enrollments.read_cutoff_at) >= ?", doc_updated_at).exists?
-  end
-
-  # Markdown only: no null bytes, and no page or script markup outside code.
-  def safe_doc_content
-    content = doc_content.to_s
-    if content.length > MAX_DOC_LENGTH
-      errors.add(:doc_content, "is too long (maximum is #{MAX_DOC_LENGTH} characters)")
-    elsif content.include?("\u0000")
-      errors.add(:doc_content, "can't contain null characters")
-    elsif self.class.active_markup_outside_code?(content)
-      errors.add(:doc_content, "can't contain page or script markup outside code blocks")
-    end
-  end
-
-  def classify_link
-    self.link_provider = link? && external_url.present? ? self.class.link_provider_for(external_url) : nil
-  end
-
-  def safe_external_url
-    problem = self.class.link_problem(external_url)
-    errors.add(:external_url, problem) if problem
-  end
-
-  def record_ready_date
-    self.ready_at = Time.current if ready? && (will_save_change_to_ready? || ready_at.nil?)
   end
 
   # Students can see a file from the moment it is ready and visible to them.
@@ -508,14 +446,6 @@ class CohortFile < ApplicationRecord
     PendingS3Deletion.attempt_now!(Array(@stored_keys_to_delete))
   end
 
-  def allowed_file_type
-    if filename.present? && self.class.sanitize_filename(filename) != filename
-      errors.add(:filename, "must use letters, numbers, dots, dashes or underscores")
-    elsif filename.present? && self.class.normalized_content_type(filename, content_type) != content_type
-      errors.add(:filename, "is not an allowed file type")
-    end
-  end
-
   def student_enrolled_in_cohort
     return if student_id.nil? || cohort_id.nil?
 
@@ -524,5 +454,10 @@ class CohortFile < ApplicationRecord
 
   def students_cannot_stage_files
     errors.add(:visibility, "must be visible to students for student uploads") if uploaded_by&.student? && visibility != "students"
+  end
+
+  # A student's folder item is already theirs; only class items are copied out.
+  def auto_copy_class_items_only
+    errors.add(:auto_copy_to_students, "is only for class files") if auto_copy_to_students? && student_id.present?
   end
 end

@@ -122,6 +122,16 @@ class S3Service
       nil
     end
 
+    # Streams an object to the block in chunks, for building an archive
+    # without holding it in memory. Raising from the block stops the
+    # download. False when the object is missing.
+    def stream_object(key, &block)
+      s3_client.get_object(bucket: bucket_name, key: key, &block)
+      true
+    rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
+      false
+    end
+
     # Pass the staging object's etag when publishing an upload, so a racing
     # re-upload cannot be published. Copies of already-published objects omit it.
     def copy_object(source_key, destination_key, etag: nil)

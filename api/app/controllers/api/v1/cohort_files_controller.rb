@@ -9,13 +9,17 @@ module Api
     # two-phase flow; older versions stay readable. Learn Docs (kind "doc")
     # are Markdown written in the app, with revision history and no storage.
     # Items in a student's folder carry a review status and a comment thread
-    # between that student and staff.
+    # between that student and staff. Class items can come from the
+    # curriculum's template files or another cohort (CohortFileImport), and
+    # those marked auto-copy reach every learner's folder (CohortFileCopy).
+    # A folder downloads as one ZIP (CohortFileExport).
     class CohortFilesController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :set_cohort
       before_action :authorize_cohort!
-      before_action :require_staff!, only: %i[copy_to_students rename_folder]
+      before_action :require_staff!, only: %i[copy_to_students rename_folder import_curriculum copy_from_cohort]
+      EXPORT_SCOPES = %w[my_files class student].freeze
 
       FOLDER_STATUSES = %i[active paused].freeze
       # A learner was paused or lost access while their upload was publishing.
@@ -295,8 +299,14 @@ module Api
         return render_forbidden("Changes to your folder are paused") unless current_user.staff? || student_can_write?
 
         file = manageable_files.find(params[:id])
-        keys = current_user.staff? ? %i[title description folder visibility external_url] : %i[title description folder external_url]
+        keys = current_user.staff? ? %i[title description folder visibility external_url auto_copy_to_students] : %i[title description folder external_url]
         changes = params.slice(*keys).permit(*keys).to_h.compact
+        if changes.key?("auto_copy_to_students")
+          auto_copy = ActiveModel::Type::Boolean.new.cast(changes["auto_copy_to_students"])
+          return render json: { errors: [ "auto_copy_to_students must be true or false" ] }, status: :unprocessable_entity if auto_copy.nil?
+
+          changes["auto_copy_to_students"] = auto_copy
+        end
         raw_title = changes["title"]
         if raw_title.to_s.include?("\0")
           return render json: { errors: [ "Title cannot contain null characters" ] }, status: :unprocessable_entity
@@ -313,11 +323,16 @@ module Api
         else
           file.update!(changes)
         end
-        render json: { file: viewer_file_json(file) }
+        # Turning auto-copy on reaches everyone already enrolled; anyone who
+        # enrolls later is copied by Enrollment#copy_auto_copy_files.
+        auto_copied = auto_copy_started?(file) ? CohortFileCopy.auto_copy_new_items([ file ], actor: current_user) : 0
+        render json: { file: viewer_file_json(file), auto_copied_count: auto_copied }
       rescue WritePaused
         render_forbidden("Changes to your folder are paused")
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      rescue Aws::S3::Errors::ServiceError => error
+        storage_error(error)
       end
 
       # `pending_only` abandons an unfinished upload and never removes a
@@ -355,19 +370,8 @@ module Api
         end
         return storage_unavailable if source.stored_file? && !S3Service.configured?
 
-        folder = params[:folder].presence || source.folder
-        copied_ids = @cohort.cohort_files.where(source_file_id: source.id).where.not(student_id: nil).pluck(:student_id).to_set
-        copies = []
-        skipped = 0
-        @cohort.enrollments.active.order(:id).pluck(:id, :user_id).each do |enrollment_id, student_id|
-          copy = copy_for(source, student_id, enrollment_id, folder) unless copied_ids.include?(student_id)
-          if copy
-            copies << copy
-          else
-            skipped += 1
-          end
-        end
-        render json: { copied_count: copies.size, skipped_count: skipped, files: copies.map { |file| file.file_json(can_manage: true) } }
+        result = CohortFileCopy.to_active_students(source, actor: current_user, folder: params[:folder])
+        render json: { copied_count: result.copies.size, skipped_count: result.skipped, files: result.copies.map { |file| file.file_json(can_manage: true) } }
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       rescue Aws::S3::Errors::ServiceError => error
@@ -551,7 +555,120 @@ module Api
         no_review_thread
       end
 
+      # Brings in the curriculum's ready template files this cohort doesn't
+      # have yet (all of them were copied when the cohort was created), then
+      # copies new auto-copy items to every active learner. Uploads need storage
+      # and are skipped without it.
+      def import_curriculum
+        result = CohortFileImport.from_curriculum(@cohort, actor: current_user)
+        render json: import_json(result)
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      rescue Aws::S3::Errors::ServiceError => error
+        storage_error(error)
+      end
+
+      # Copies another cohort's ready class items (never its student folders)
+      # into this one. Staff need access to both cohorts.
+      def copy_from_cohort
+        source = Cohort.find_by(id: params[:source_cohort_id])
+        return render json: { error: "Choose the cohort to copy from" }, status: :unprocessable_entity unless source
+        return render json: { error: "Choose a different cohort to copy from" }, status: :unprocessable_entity if source.id == @cohort.id
+        return render_forbidden("Cannot access that cohort") unless current_user.can_access_cohort?(source)
+
+        result = CohortFileImport.from_cohort(@cohort, source, actor: current_user)
+        render json: import_json(result, count_key: :copied_count)
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      rescue Aws::S3::Errors::ServiceError => error
+        storage_error(error)
+      end
+
+      # A folder as one ZIP. Learners download only their own folder
+      # (`scope=my_files`), as they can read it now: a paused learner gets
+      # what was there before the pause. Staff download the class files
+      # (`scope=class`) or one student's folder (`scope=student&student_id=`).
+      # `folder` narrows any of them to one folder.
+      def export_zip
+        scope = params[:scope].to_s
+        return render json: { error: "scope must be my_files, class or student" }, status: :unprocessable_entity unless EXPORT_SCOPES.include?(scope)
+
+        entries = current_user.staff? ? staff_export_entries(scope) : learner_export_entries(scope)
+        return if performed?
+
+        body = CohortFileExport.new(entries).build!
+        response.headers["Content-Type"] = "application/zip"
+        response.headers["Content-Disposition"] = %(attachment; filename="#{export_filename(scope)}")
+        response.headers["Content-Length"] = body.size.to_s
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        self.status = :ok
+        self.response_body = body
+      rescue CohortFileExport::Problem => error
+        render json: { error: error.message }, status: error.status
+      rescue Aws::S3::Errors::ServiceError, Seahorse::Client::NetworkingError => error
+        storage_error(error)
+      end
+
       private
+
+      def import_json(result, count_key: :imported_count)
+        {
+          count_key => result.files.size, skipped_count: result.skipped, auto_copied_count: result.auto_copied,
+          files: result.files.map { |file| file.file_json(can_manage: true, can_edit_doc: true) }
+        }
+      end
+
+      def auto_copy_started?(file)
+        file.auto_copy_to_students? && file.saved_change_to_auto_copy_to_students?
+      end
+
+      def staff_export_entries(scope)
+        files = case scope
+        when "class" then @cohort.cohort_files.class_files
+        when "student"
+          @export_student = @cohort.enrollments.includes(:user).find_by(user_id: params[:student_id].presence&.to_i)&.user
+          return render json: { error: "That student is not enrolled in this cohort" }, status: :unprocessable_entity unless @export_student
+
+          @cohort.cohort_files.where(student_id: @export_student.id)
+        else
+          return render json: { error: "Staff download the class files or a student's folder" }, status: :unprocessable_entity
+        end
+        export_scope(files).includes(:doc_updated_by).map { |file| CohortFileExport.entry_for(file) }
+      end
+
+      # The learner's own folder as they can read it, in one snapshot with
+      # their enrollment (the same rules as `index`).
+      def learner_export_entries(scope)
+        return render_forbidden("You can only download your own folder") unless scope == "my_files"
+
+        entries = nil
+        with_read_snapshot do
+          files = export_scope(@cohort.cohort_files.student_visible.where(student_id: current_user.id))
+          files = files.includes(:versions) if @enrollment.paused?
+          entries = files.filter_map do |file|
+            shown = @enrollment.file_version_for_read(file)
+            next unless shown
+
+            doc_state = @enrollment.doc_state_for_read(file) if file.doc?
+            CohortFileExport.entry_for(file, shown: shown, doc_state: doc_state) unless file.doc? && doc_state.nil?
+          end
+        end
+        entries
+      end
+
+      def export_scope(files)
+        files = files.ready.order(:folder, :title, :id)
+        folder = params[:folder].to_s.squish
+        folder.present? ? files.where(folder: folder) : files
+      end
+
+      # ASCII only, so the header needs no encoding.
+      def export_filename(scope)
+        owner = scope == "student" ? @export_student.full_name : scope == "class" ? "class files" : "my files"
+        name = [ @cohort.name, owner, params[:folder].to_s.squish.presence ].compact.join(" ").parameterize
+        "#{name.presence&.first(120) || 'files'}.zip"
+      end
 
       # A learner's files, read in one snapshot with their enrollment.
       def learner_index
@@ -971,87 +1088,6 @@ module Api
         return render_forbidden("Student uploads are always visible to your instructors") if params[:visibility].present? && params[:visibility] != "students"
 
         current_user.id
-      end
-
-      # Validates the copy before touching storage. If the copy or the save
-      # fails (even ambiguously, e.g. a timeout after S3 copied), the copied
-      # object is removed, or queued for a durable retry.
-      def copy_for(source, student_id, enrollment_id, folder)
-        return copy_link_for(source, student_id, enrollment_id, folder) if source.link?
-        return copy_doc_for(source, student_id, enrollment_id, folder) if source.doc?
-
-        token = SecureRandom.uuid
-        copy = @cohort.cohort_files.new(
-          student_id: student_id, uploaded_by: current_user, source_file: source,
-          title: source.title, description: source.description, folder: folder, visibility: "students",
-          filename: source.filename, content_type: source.content_type, file_size: source.file_size,
-          s3_key: "cohort_files/cohort_#{@cohort.id}/student_#{student_id}/#{token}/#{source.filename}",
-          upload_key: "cohort_file_uploads/cohort_#{@cohort.id}/#{token}/#{source.filename}",
-          upload_expires_at: Time.current, ready: true
-        )
-        copy.validate!
-        begin
-          S3Service.copy_object(source.s3_key, copy.s3_key)
-          unless for_active_recipient(enrollment_id) { copy.save! }
-            remove_copied_object(copy.s3_key)
-            return nil
-          end
-        rescue ActiveRecord::RecordNotUnique => error
-          remove_copied_object(copy.s3_key)
-          # Only "this student already has a copy" is a skip; anything else is a real failure.
-          raise unless @cohort.cohort_files.exists?(student_id: student_id, source_file_id: source.id)
-
-          Rails.logger.info("[CohortFiles] concurrent_copy_skipped source_id=#{source.id} student_id=#{student_id} #{error.class}")
-          return nil
-        rescue StandardError
-          remove_copied_object(copy.s3_key)
-          raise
-        end
-        copy
-      end
-
-      def copy_link_for(source, student_id, enrollment_id, folder)
-        for_active_recipient(enrollment_id) do
-          @cohort.cohort_files.create!(
-            kind: "link", student_id: student_id, uploaded_by: current_user, source_file: source,
-            title: source.title, description: source.description, folder: folder, visibility: "students",
-            external_url: source.external_url, ready: true
-          )
-        end
-      rescue ActiveRecord::RecordNotUnique
-        raise unless @cohort.cohort_files.exists?(student_id: student_id, source_file_id: source.id)
-
-        nil
-      end
-
-      # Each student gets the doc's current content as their own doc to edit.
-      def copy_doc_for(source, student_id, enrollment_id, folder)
-        for_active_recipient(enrollment_id) do
-          @cohort.cohort_files.create!(
-            kind: "doc", student_id: student_id, uploaded_by: current_user, source_file: source,
-            title: source.title, description: source.description, folder: folder, visibility: "students",
-            doc_content: source.doc_content.to_s, doc_updated_at: Time.current, doc_updated_by: current_user, ready: true
-          )
-        end
-      rescue ActiveRecord::RecordNotUnique
-        raise unless @cohort.cohort_files.exists?(student_id: student_id, source_file_id: source.id)
-
-        nil
-      end
-
-      # Runs the insert with the recipient's enrollment locked and still
-      # active (not paused, dropped or past its deadline); nil otherwise.
-      def for_active_recipient(enrollment_id)
-        Enrollment.transaction do
-          recipient = Enrollment.lock.find_by(id: enrollment_id)
-          yield if recipient&.active?
-        end
-      end
-
-      def remove_copied_object(key)
-        return unless S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_copy_rolled_back") == :failed
-
-        Rails.logger.error("[CohortFiles] copy_cleanup_queued_for_retry")
       end
 
       def delete_staging_upload(file)

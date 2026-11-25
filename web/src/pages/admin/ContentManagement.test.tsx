@@ -12,6 +12,7 @@ vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => session }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: mocks.error, success: mocks.success }) }))
 vi.mock('../../contexts/UploadContext', () => ({ useUpload: () => ({ attachUpload: vi.fn() }) }))
 vi.mock('./CourseResourcesPanel', () => ({ CourseResourcesPanel: () => null }))
+vi.mock('../../components/admin/CurriculumTemplateFilesPanel', () => ({ CurriculumTemplateFilesPanel: () => null }))
 vi.mock('./NewExerciseModal', () => ({ NewExerciseModal: (props: { defaultWeek: number; defaultDayIndex: number; onCreate: (data: { title: string }) => Promise<void> }) => <><div data-testid="exercise-placement">{props.defaultWeek}:{props.defaultDayIndex}</div><button onClick={() => void props.onCreate({ title: "New exercise" })}>Create test exercise</button></> }))
 import { ContentManagement } from './ContentManagement'
 

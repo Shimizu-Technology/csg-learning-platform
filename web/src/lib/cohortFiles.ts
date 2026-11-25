@@ -477,6 +477,26 @@ export async function downloadCohortFile(cohortId: number, file: Pick<CohortFile
   link.click()
 }
 
+/**
+ * Downloads a folder as one ZIP: a learner's own folder (`my_files`), the
+ * class files, or one student's folder (staff). The archive is fetched with
+ * the session token, then saved through a short-lived object URL.
+ */
+export async function downloadCohortFolderZip(cohortId: number, options: { scope: 'my_files' | 'class' | 'student'; studentId?: number; folder?: string }) {
+  const result = await api.exportCohortFilesZip(cohortId, options)
+  if (!result.data) throw new Error(result.error || 'Could not download these files.')
+  const url = URL.createObjectURL(result.data.blob)
+  try {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = result.data.filename
+    link.rel = 'noreferrer'
+    link.click()
+  } finally {
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+}
+
 /** How much of a CSV a preview renders, so a very wide or long file can't freeze the screen. */
 export const CSV_PREVIEW_LIMITS = { rows: 200, columns: 50, cellLength: 200 }
 

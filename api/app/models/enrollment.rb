@@ -230,6 +230,11 @@ class Enrollment < ApplicationRecord
   before_create :set_invited_at
   after_create :assign_alumni_curriculum_modules, if: :active_alumni_enrollment?
   after_update :assign_alumni_curriculum_modules, if: :reactivated_alumni_enrollment?
+  # Every way a learner starts or comes back (an admin, a bulk import, a
+  # purchase, a restart or a reactivation) gets the class items marked
+  # auto-copy in their own folder, after the enrollment commits so storage
+  # copies never run inside its transaction. Never undoes the enrollment.
+  after_commit :copy_auto_copy_files, on: %i[create update], if: :auto_copy_due?
 
   # Only a restart advances this token; unrelated access edits do not stale it.
   def restart_version
@@ -454,5 +459,14 @@ class Enrollment < ApplicationRecord
 
   def assign_alumni_curriculum_modules
     ensure_alumni_curriculum_modules!
+  end
+
+  # A new active enrollment, or one made active again (or given more time).
+  def auto_copy_due?
+    active? && (previously_new_record? || saved_change_to_status? || saved_change_to_access_expires_at?)
+  end
+
+  def copy_auto_copy_files
+    CohortFileCopy.auto_copy_for_enrollment(self)
   end
 end

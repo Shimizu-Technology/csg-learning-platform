@@ -63,6 +63,10 @@ class Cohort < ApplicationRecord
   # staff audit rows, kept after the cohort goes: the delete detaches them
   # instead of being blocked by their cohort reference.
   before_destroy :detach_content_audit_events
+  # Locks the cohort before its enrollments and files go, so a class-file
+  # import (CohortFileImport, FOR SHARE) either finishes first, and its row is
+  # destroyed with the rest, or sees the cohort gone.
+  before_destroy -> { self.class.where(id: id).lock.pluck(:id) }, prepend: true
 
   validates :name, presence: true
   validates :start_date, presence: true

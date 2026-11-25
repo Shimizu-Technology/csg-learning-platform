@@ -160,7 +160,8 @@ for (const theme of ['light', 'dark'] as const) {
 
   test(`learner ${theme}: my files, links and preview on Resources`, async ({ page, request }, info) => {
     await page.addInitScript(value => localStorage.setItem('csg-learn:theme', value), theme)
-    await page.goto('/resources?qa_user=3')
+    // Persona 3 is also in the X6 demo cohort when that fixture is loaded; name this cohort.
+    await page.goto(`/resources?cohort_id=${fixture.cohort_id}&qa_user=3`)
     const mine = page.getByRole('region', { name: 'My files' })
     await expect(mine.getByText('QA cabinet portfolio repo')).toBeVisible({ timeout: 15_000 })
     await expect(mine.getByText('GitHub', { exact: true })).toBeVisible()

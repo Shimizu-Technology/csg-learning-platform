@@ -7664,6 +7664,547 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/files/import_curriculum": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import the curriculum's template files
+         * @description Staff only. Copies every ready template file of the cohort's curriculum that this cohort doesn't have yet into its class files (each template at most once, so it is safe to repeat). A new cohort already starts with every template. Uploads are copied in storage and are skipped while storage is not configured; links and docs need none. Newly imported items marked `auto_copy_to_students` are then copied to every active learner's folder.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileImportResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/copy_from_cohort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy another cohort's class files
+         * @description Staff only, with access to both cohorts (403 otherwise). Copies the source cohort's ready class files, links and docs (never student folders) that this cohort hasn't copied yet; the same cohort is refused (422). Uploads are skipped while storage is not configured. Newly copied items marked `auto_copy_to_students` are copied to every active learner's folder.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortFileCohortCopyInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileCohortCopyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/export_zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a folder as a ZIP
+         * @description Learners may download only their own folder (`scope=my_files`, 403 for anything else), as they can read it: a paused learner gets the versions and doc states from before the pause. Staff download the class files (`scope=class`) or one enrolled student's folder (`scope=student` with `student_id`, 422 when not enrolled). `folder` narrows to one folder. Docs become `<folder>/<title>.md`, a folder's links `<folder>/Links.md`, and uploads keep their filenames; names are cleaned and made unique. Without storage, uploads are left out with a README.txt note (503 when only uploads would be exported). 422 for an empty export, more than 100 items, or more than 100 MB. Served `private, no-store` and rate limited.
+         */
+        get: {
+            parameters: {
+                query: {
+                    scope: "my_files" | "class" | "student";
+                    /** @description Required with `scope=student`. */
+                    student_id?: number;
+                    folder?: string;
+                };
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The ZIP archive */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/zip": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Curriculum template files
+         * @description Admins, and instructors teaching a cohort on this curriculum (403 otherwise, and always for learners). Every ready template file, link and doc. New cohorts on the curriculum start with a class copy of each; `Import from curriculum` brings in ones added later.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumFilesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Start a template file upload
+         * @description Admins only, on a draft or active curriculum (422 when archived). Creates a pending template and returns a presigned S3 POST; publish it with `complete`. Same allowed types and 100 MB limit as cohort files (422 otherwise). 503 when storage is not configured. Shares the uploads rate limit.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CurriculumFileUploadInput"];
+                };
+            };
+            responses: {
+                /** @description Upload started */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumFileUploadResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a template link
+         * @description Admins only, on a draft or active curriculum (422 when archived). Saves a public https:// link, checked exactly like cohort links (422 otherwise).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CurriculumLinkCreateInput"];
+                };
+            };
+            responses: {
+                /** @description Link saved */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumFileResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files/docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a template Learn Doc
+         * @description Admins only, on a draft or active curriculum (422 when archived). Saves a Markdown doc; null characters and page or script markup outside code blocks are refused (422).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CurriculumDocCreateInput"];
+                };
+            };
+            responses: {
+                /** @description Doc saved */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumFileResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a template
+         * @description Admins only, on a draft or active curriculum (422 when archived). With `pending_only=true` it only abandons an unfinished upload (422 once published). Stored objects are queued for deletion in the same transaction and removed after it commits. Cohort copies stay.
+         */
+        delete: {
+            parameters: {
+                query?: {
+                    pending_only?: boolean;
+                };
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edit a template
+         * @description Admins only, on a draft or active curriculum (422 when archived). Changes details, sharing, auto-copy and, for docs, the Markdown. Auto-copy on a `staff_only` template is refused (422) unless it is being turned off. Changing a doc's content or title needs `base_doc_version` (409 with the latest doc when missing or stale). Cohorts keep the copies they already have.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CurriculumFileUpdateInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumFileResponse"];
+                    };
+                };
+                /** @description A doc change whose base_doc_version is missing or stale */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumDocConflictResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a template upload
+         * @description Admins only, on a draft or active curriculum (422 when archived). Checks the staged object's size and type, then its first bytes (bound to the object's etag), and copies it to the published key outside any database transaction (422 when it doesn't match, the upload expired or changed meanwhile; 404 when the upload was abandoned during the copy). Repeating it on a published template returns it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumFileResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files/{id}/doc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A template doc's Markdown
+         * @description Admins and the curriculum's instructors. 422 for templates that aren't docs.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumDocResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Short-lived template download link
+         * @description Admins and the curriculum's instructors. Links and docs have no download (422); 503 without storage.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileDownloadResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/files/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview a template upload
+         * @description Admins and the curriculum's instructors. The same modes as cohort file previews.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFilePreviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7731,6 +8272,12 @@ export interface components {
             doc_updated_by_name: string | null;
             /** @description Whether this viewer may save this Learn Doc (false for other kinds). */
             can_edit_doc: boolean;
+            /** @description The curriculum template file this class item was imported from. */
+            source_curriculum_file_id: number | null;
+            /** @description The other cohort's class item this was copied from. */
+            source_cohort_file_id: number | null;
+            /** @description When true (class items shared with students), every active learner gets their own copy, including learners who enroll later. */
+            auto_copy_to_students: boolean;
         };
         CohortDocCreateInput: {
             /** @enum {string} */
@@ -7865,6 +8412,8 @@ export interface components {
         };
         CohortFileResponse: {
             file: components["schemas"]["CohortFile"];
+            /** @description Learners who got a copy because this update turned on auto-copy. */
+            auto_copied_count?: number;
         };
         CohortFileUploadResponse: {
             file: components["schemas"]["CohortFile"];
@@ -7982,6 +8531,8 @@ export interface components {
             external_url?: string;
             /** @description Required to rename a Learn Doc: the `doc_version` the editor loaded (409 when missing or stale). */
             base_doc_version?: number;
+            /** @description Staff, class items shared with students only (422 otherwise). Turning it on copies the item to every active learner now and to anyone who enrolls later. */
+            auto_copy_to_students?: boolean;
         };
         NotificationEntry: {
             destination: components["schemas"]["RecordDestination"] | null;
@@ -13402,6 +13953,150 @@ export interface components {
                 app_not_ready_count: number;
             };
             learners: components["schemas"]["CohortGithubSyncHealthLearner"][];
+        };
+        CohortFileImportResponse: {
+            imported_count: number;
+            /** @description Templates the cohort already has, or uploads skipped while storage is unavailable. */
+            skipped_count: number;
+            /** @description Learner copies made of newly imported auto-copy items. */
+            auto_copied_count: number;
+            files: components["schemas"]["CohortFile"][];
+        };
+        CohortFileCohortCopyResponse: {
+            copied_count: number;
+            /** @description Items this cohort already copied, or uploads skipped while storage is unavailable. */
+            skipped_count: number;
+            /** @description Learner copies made of newly copied auto-copy items. */
+            auto_copied_count: number;
+            files: components["schemas"]["CohortFile"][];
+        };
+        CohortFileCohortCopyInput: {
+            /** @description Another cohort the staff member can access. */
+            source_cohort_id: number;
+        };
+        CurriculumFile: {
+            id: number;
+            curriculum_id: number;
+            /** @enum {string} */
+            kind: "file" | "link" | "doc";
+            folder: string;
+            /**
+             * @description What each cohort's class copy starts as.
+             * @enum {string}
+             */
+            visibility: "students" | "staff_only";
+            title: string;
+            description: string | null;
+            /** @description Each cohort's copy also goes into every learner's own folder. */
+            auto_copy_to_students: boolean;
+            filename: string | null;
+            content_type: string | null;
+            file_size: number | null;
+            external_url: string | null;
+            /**
+             * @description Classified from the link's address; null for files.
+             * @enum {string|null}
+             */
+            link_provider: "google_doc" | "google_sheet" | "google_slides" | "google_drive" | "figma" | "notion" | "canva" | "loom" | "github" | "web" | null;
+            previewable: boolean;
+            /**
+             * @description How `preview` shows the file; null for links.
+             * @enum {string|null}
+             */
+            preview_mode: "pdf" | "image" | "audio" | "video" | "markdown" | "text" | "csv" | "download_only" | null;
+            ready: boolean;
+            ready_at: string | null;
+            created_at: string;
+            uploaded_by_name: string | null;
+            /** @description Docs: send it back as `base_doc_version`. */
+            doc_version: number | null;
+            doc_updated_at: string | null;
+            doc_updated_by_name: string | null;
+            can_manage: boolean;
+        };
+        CurriculumFilesResponse: {
+            files: components["schemas"]["CurriculumFile"][];
+            folders: string[];
+            storage_configured: boolean;
+            /** @description Admins on a draft or active curriculum. */
+            can_manage: boolean;
+        };
+        CurriculumFileResponse: {
+            file: components["schemas"]["CurriculumFile"];
+        };
+        CurriculumFileUploadResponse: {
+            file: components["schemas"]["CurriculumFile"];
+            upload_url: string;
+            fields: {
+                [key: string]: string;
+            };
+        };
+        CurriculumDocResponse: {
+            file: components["schemas"]["CurriculumFile"];
+            doc_content: string;
+            /** @description Send it back as `base_doc_version`. */
+            doc_version: number;
+            doc_updated_at: string;
+            doc_updated_by_name: string | null;
+            can_edit_doc: boolean;
+        };
+        /** @description The doc was saved since `base_doc_version`; nothing was saved. Carries the latest state to load. */
+        CurriculumDocConflictResponse: {
+            error: string;
+            file: components["schemas"]["CurriculumFile"];
+            doc_content: string;
+            /** @description Send it back as `base_doc_version`. */
+            doc_version: number;
+            doc_updated_at: string;
+            doc_updated_by_name: string | null;
+            can_edit_doc: boolean;
+        };
+        CurriculumFileUploadInput: {
+            filename: string;
+            content_type: string;
+            file_size: number;
+            title?: string;
+            folder?: string;
+            description?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+            /** @description Not with `staff_only` (422). */
+            auto_copy_to_students?: boolean;
+        };
+        CurriculumLinkCreateInput: {
+            external_url: string;
+            title?: string;
+            folder?: string;
+            description?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+            /** @description Not with `staff_only` (422). */
+            auto_copy_to_students?: boolean;
+        };
+        CurriculumDocCreateInput: {
+            doc_content?: string;
+            title?: string;
+            folder?: string;
+            description?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+            /** @description Not with `staff_only` (422). */
+            auto_copy_to_students?: boolean;
+        };
+        CurriculumFileUpdateInput: {
+            title?: string;
+            folder?: string;
+            description?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+            /** @description Not with `staff_only` (422). */
+            auto_copy_to_students?: boolean;
+            /** @description Links only. */
+            external_url?: string;
+            /** @description Docs only. */
+            doc_content?: string;
+            /** @description Required to change a doc's content or title: the `doc_version` the editor loaded (409 when missing or stale). */
+            base_doc_version?: number;
         };
     };
     responses: {

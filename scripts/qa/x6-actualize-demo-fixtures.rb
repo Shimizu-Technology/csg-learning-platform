@@ -176,7 +176,21 @@ module X6ActualizeDemo
       existing_cohorts = Cohort.where(name: COHORT_NAME).to_a
       existing_curricula = Curriculum.where(name: CURRICULUM_NAME).to_a
 
+      # Synthetic file keys queued for deletion by an earlier reset. They were
+      # never stored anywhere, so their queue rows are cleared with the rows.
+      file_keys = []
+
       existing_cohorts.each do |cohort|
+        file_ids = CohortFile.where(cohort_id: cohort.id).pluck(:id)
+        file_keys.concat(CohortFile.where(id: file_ids).pluck(:s3_key, :upload_key).flatten)
+        file_keys.concat(CohortFileVersion.where(cohort_file_id: file_ids).pluck(:s3_key, :upload_key).flatten)
+        Notification.where(notifiable_type: "CohortFile", notifiable_id: file_ids).delete_all
+        CohortFileComment.where(cohort_file_id: file_ids).delete_all
+        CohortDocRevision.where(cohort_file_id: file_ids).delete_all
+        CohortFileVersion.where(cohort_file_id: file_ids).delete_all
+        # Student copies first: they name the class items they came from.
+        CohortFile.where(id: file_ids).where.not(student_id: nil).delete_all
+        CohortFile.where(id: file_ids).delete_all
         enrollment_ids = Enrollment.where(cohort_id: cohort.id).pluck(:id)
         if enrollment_ids.any?
           submission_ids = Submission.where(enrollment_id: enrollment_ids).pluck(:id)
@@ -205,6 +219,9 @@ module X6ActualizeDemo
       end
 
       existing_curricula.each do |curriculum|
+        file_keys.concat(CurriculumFile.where(curriculum_id: curriculum.id).pluck(:s3_key, :upload_key).flatten)
+        CohortFile.where(source_curriculum_file_id: CurriculumFile.where(curriculum_id: curriculum.id).select(:id)).update_all(source_curriculum_file_id: nil)
+        CurriculumFile.where(curriculum_id: curriculum.id).delete_all
         lesson_ids = Lesson.joins(:curriculum_module).where(modules: { curriculum_id: curriculum.id }).pluck(:id)
         block_ids = ContentBlock.where(lesson_id: lesson_ids).pluck(:id)
         ObjectiveAlignment.where(lesson_id: lesson_ids).delete_all if lesson_ids.any?
@@ -214,20 +231,92 @@ module X6ActualizeDemo
         curriculum.destroy!
       end
 
+      PendingS3Deletion.where(key: file_keys.compact_blank.uniq).delete_all
       FeedbackSnippet.where(title: "Handle empty and negative inputs explicitly").delete_all
       repo_ids = PERSONA_CONFIGS.values.map { |c| c[:repository_id] }
       inst_ids = PERSONA_CONFIGS.values.map { |c| c[:installation_id] }
       GithubWebhookDelivery.where(repository_id: repo_ids).or(GithubWebhookDelivery.where(installation_id: inst_ids)).delete_all
     end
 
-    # Synthetic class files and one private folder file each way, so Files and
-    # Resources open populated. Keys are invented; no object storage is touched.
-    def seed_cohort_files!(cohort, instructor, student)
+    JOB_SEARCH_PLAN = <<~MARKDOWN
+      Fill this in before Friday's career check-in.
+
+      ## This week
+
+      - [x] Update my resume with the Rails capstone
+      - [ ] Apply to three junior developer roles
+      - [ ] Ask a classmate to review my portfolio
+      - [ ] Book a mock interview with an instructor
+
+      ## Target companies
+
+      | Company | Role | Status |
+      |---|---|---|
+      | Island Tech Co. (synthetic) | Junior Rails Developer | Researching |
+      | Pacific Apps (synthetic) | Frontend Apprentice | Applied |
+      | Guam Logistics (synthetic) | Software Support Engineer | Not started |
+    MARKDOWN
+
+    RUBY_CHEAT_SHEET = <<~MARKDOWN
+      ## Strings and numbers
+
+      ```ruby
+      name = "Ada"
+      puts "Hafa adai, \#{name}!"
+      total = [3, 4, 5].sum
+      ```
+
+      ## Methods and blocks
+
+      ```ruby
+      def greeting_badge(name)
+        "Hello, \#{name.strip}!"
+      end
+
+      [1, 2, 3].map { |n| n * 2 }
+      ```
+
+      **Tip:** run `ruby 111.rb` after every small change.
+    MARKDOWN
+
+    FACILITATION_GUIDE = <<~MARKDOWN
+      - Open with a 5-minute warm-up on string interpolation.
+      - Pair students for exercise 111; rotate pairs for 112.
+      - Watch for students who skip edge cases in `score_summary`.
+    MARKDOWN
+
+    PORTFOLIO_CHECKLIST = <<~MARKDOWN
+      - [ ] Buy or pick a domain
+      - [ ] Deploy the Rails capstone
+      - [ ] Write a short project story for each app
+      - [ ] Add links to GitHub and LinkedIn
+    MARKDOWN
+
+    # Template files on the demo curriculum. The cohort imports the first
+    # four; Portfolio Launch Checklist is added after the import so staff can
+    # bring it in live with "Import from curriculum".
+    def seed_curriculum_templates!(curriculum, admin)
+      [
+        { kind: "doc", title: "Job Search Plan", folder: "Career & Job Search", auto_copy_to_students: true, doc_content: JOB_SEARCH_PLAN },
+        { kind: "link", title: "Cohort Schedule & Office Hours", folder: "General", external_url: "https://docs.google.com/spreadsheets/d/demo-cohort-schedule/edit" },
+        { kind: "doc", title: "Week 1 Ruby Cheat Sheet", folder: "Week 1", doc_content: RUBY_CHEAT_SHEET },
+        { kind: "doc", title: "Instructor Week 1 Facilitation Guide", folder: "Instructor Notes", visibility: "staff_only", doc_content: FACILITATION_GUIDE }
+      ].to_h do |attributes|
+        template = curriculum.curriculum_files.create!(**attributes, uploaded_by: admin, ready: true,
+          doc_updated_at: (Time.current if attributes[:kind] == "doc"), doc_updated_by: (admin if attributes[:kind] == "doc"))
+        [ template.title, template ]
+      end
+    end
+
+    # Synthetic class files and private folder items, so Files and Resources
+    # open populated. Upload keys are invented; no object storage is touched.
+    # The cohort's template copies come from the real import (which also
+    # auto-copies Job Search Plan into each active learner's folder).
+    def seed_cohort_files!(cohort, curriculum, admin, instructor, student)
       seeded = [
         { title: "Week 1 Ruby Slides", filename: "week-1-ruby-slides.pdf", folder: "Slides", visibility: "students", uploaded_by: instructor },
         { title: "Job Search Plan Template", filename: "job-search-plan-template.docx", folder: "Career & Job Search", visibility: "students", uploaded_by: instructor },
         { title: "Instructor Week 1 Notes", filename: "week-1-instructor-notes.pdf", folder: "Slides", visibility: "staff_only", uploaded_by: instructor },
-        { title: "Job Search Plan", filename: "student-one-job-search-plan.docx", folder: "Job Search & Career", visibility: "students", uploaded_by: instructor, student: student },
         { title: "Resume Draft v1", filename: "resume-draft-v1.pdf", folder: "Resumes & Portfolio", visibility: "students", uploaded_by: student, student: student }
       ].map do |attributes|
         owner = attributes[:student] ? "student_#{attributes[:student].id}" : "shared"
@@ -241,7 +330,32 @@ module X6ActualizeDemo
           upload_expires_at: 1.day.ago, ready: true
         ).tap { |file| file.update_columns(created_at: 1.day.ago, ready_at: 1.day.ago, shared_at: (1.day.ago unless file.staff_only?)) }
       end
-      seeded.to_h { |file| [ file.filename, file.id ] }
+
+      templates = seed_curriculum_templates!(curriculum, admin)
+      imported = CohortFileImport.from_curriculum(cohort, actor: instructor)
+      raise "Expected the four demo templates to import, got #{imported.files.size}" unless imported.files.size == 4
+      portfolio = curriculum.curriculum_files.create!(kind: "doc", title: "Portfolio Launch Checklist", folder: "Career & Job Search", auto_copy_to_students: true,
+        doc_content: PORTFOLIO_CHECKLIST, doc_updated_at: Time.current, doc_updated_by: admin, uploaded_by: admin, ready: true)
+
+      # Student One's own Job Search Plan: the auto-copy, edited once, so
+      # Revision History shows the original and the student's save.
+      class_plan = cohort.cohort_files.class_files.find_by!(source_curriculum_file_id: templates.fetch("Job Search Plan").id)
+      plan = cohort.cohort_files.find_by!(student_id: student.id, source_file_id: class_plan.id)
+      plan.update_columns(created_at: 2.days.ago, ready_at: 2.days.ago, shared_at: 2.days.ago, doc_updated_at: 2.days.ago)
+      plan.save_doc!(content: JOB_SEARCH_PLAN.sub("- [ ] Apply to three junior developer roles", "- [x] Apply to three junior developer roles"),
+        editor: student, summary: "Applied to three roles", now: 1.day.ago)
+      resume = cohort.cohort_files.create!(kind: "doc", title: "Resume Draft", folder: "Resumes & Portfolio", student: student, uploaded_by: student,
+        doc_content: "## Projects\n\n- Rails capstone: a booking app for a synthetic Guam dive shop\n- Ruby CLI: prework exercise tracker\n",
+        doc_updated_at: 1.day.ago, doc_updated_by: student, ready: true, review_status: "needs_review")
+      resume.comments.create!(user: instructor, body: "Strong projects section — add measurable outcomes to your Rails capstone bullets.")
+      wireframe = cohort.cohort_files.create!(kind: "link", title: "Portfolio Wireframe", folder: "Resumes & Portfolio", student: student, uploaded_by: student,
+        external_url: "https://www.figma.com/design/demo-portfolio-wireframe", ready: true)
+
+      seeded.to_h { |file| [ file.filename, file.id ] }.merge(
+        "templates" => templates.transform_values(&:id).merge(portfolio.title => portfolio.id),
+        "class_imports" => imported.files.to_h { |file| [ file.title, file.id ] },
+        "student_one" => { "job_search_plan" => plan.id, "resume_draft" => resume.id, "portfolio_wireframe" => wireframe.id }
+      )
     end
 
     def setup!
@@ -638,7 +752,7 @@ module X6ActualizeDemo
           }
         )
 
-        cohort_files = seed_cohort_files!(cohort, instructor, program_student)
+        cohort_files = seed_cohort_files!(cohort, curriculum, admin, instructor, program_student)
 
         web_port = read_web_port
         metadata = {

@@ -65,6 +65,7 @@ import {
 } from 'expo/fetch';
 import {
   File,
+  Paths,
 } from 'expo-file-system';
 import type {
   VoiceSurface,
@@ -182,6 +183,39 @@ export class CsgApi {
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', cancel);
+    }
+  }
+
+  /**
+   * A cohort folder as one ZIP (`my_files` for learners; `class` or one
+   * `student` for staff), downloaded with the session token into the app's
+   * cache and returned as a local file to share. Never retried or cached.
+   */
+  async exportCohortFilesZip(cohortId: number, options: { scope: 'my_files' | 'class' | 'student'; studentId?: number; folder?: string }, attempt = 0): Promise<{ uri: string; filename: string }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    try {
+      const token = await this.getToken({ skipCache: attempt > 0 });
+      const response = await expoFetch(`${API_URL}/api/v1/cohorts/${cohortId}/files/export_zip${queryString({ scope: options.scope, student_id: options.studentId, folder: options.folder })}`, {
+        signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string; errors?: string[]; code?: string };
+        if (attempt === 0 && response.status === 401) return this.exportCohortFilesZip(cohortId, options, attempt + 1);
+        throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${response.status})`, response.status, payload.code);
+      }
+      const named = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1];
+      // The API names exports with letters, digits and dashes only; anything else falls back.
+      const filename = named && /^[a-z0-9-]+\.zip$/.test(named) ? named : 'files.zip';
+      const file = new File(Paths.cache, filename);
+      file.write(new Uint8Array(await response.arrayBuffer()));
+      return { uri: file.uri, filename };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if ((error as Error).name === 'AbortError') throw new ApiError('The download timed out. Try one folder at a time.');
+      throw new ApiError(`Could not reach ${brand.schoolShortName}. Check your connection and try again.`);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

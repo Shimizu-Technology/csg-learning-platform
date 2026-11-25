@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import { BookOpen, Check, Download, Eye, ExternalLink, FileText, FileUp, History, Link2, Loader2, NotebookPen, RotateCcw, Trash2, Upload, X } from 'lucide-react'
+import { BookOpen, Check, Download, Eye, ExternalLink, FileText, FileUp, History, Link2, Loader2, NotebookPen, Repeat, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   COHORT_FILE_ACCEPT,
@@ -204,6 +204,11 @@ export function FolderBadge({ folder }: { folder: string }) {
 
 export function StaffOnlyBadge() {
   return <Badge tone="warning">Staff only</Badge>
+}
+
+/** Class items every learner gets a copy of, now and when they join. */
+export function AutoCopyBadge() {
+  return <Badge tone="info" icon={<Repeat className="h-3 w-3" aria-hidden="true" />}>Auto-copy</Badge>
 }
 
 export function LinkProviderBadge({ provider }: { provider: LinkProvider }) {

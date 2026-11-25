@@ -6599,6 +6599,506 @@
           }
         ]
       }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/import_curriculum": {
+      "post": {
+        "summary": "Import the curriculum's template files",
+        "description": "Staff only. Copies every ready template file of the cohort's curriculum that this cohort doesn't have yet into its class files (each template at most once, so it is safe to repeat). A new cohort already starts with every template. Uploads are copied in storage and are skipped while storage is not configured; links and docs need none. Newly imported items marked `auto_copy_to_students` are then copied to every active learner's folder.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileImportResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/copy_from_cohort": {
+      "post": {
+        "summary": "Copy another cohort's class files",
+        "description": "Staff only, with access to both cohorts (403 otherwise). Copies the source cohort's ready class files, links and docs (never student folders) that this cohort hasn't copied yet; the same cohort is refused (422). Uploads are skipped while storage is not configured. Newly copied items marked `auto_copy_to_students` are copied to every active learner's folder.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileCohortCopyResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortFileCohortCopyInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/export_zip": {
+      "get": {
+        "summary": "Download a folder as a ZIP",
+        "description": "Learners may download only their own folder (`scope=my_files`, 403 for anything else), as they can read it: a paused learner gets the versions and doc states from before the pause. Staff download the class files (`scope=class`) or one enrolled student's folder (`scope=student` with `student_id`, 422 when not enrolled). `folder` narrows to one folder. Docs become `<folder>/<title>.md`, a folder's links `<folder>/Links.md`, and uploads keep their filenames; names are cleaned and made unique. Without storage, uploads are left out with a README.txt note (503 when only uploads would be exported). 422 for an empty export, more than 100 items, or more than 100 MB. Served `private, no-store` and rate limited.",
+        "responses": {
+          "200": {
+            "description": "The ZIP archive",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "application/zip"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "my_files",
+                "class",
+                "student"
+              ]
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Required with `scope=student`."
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files": {
+      "get": {
+        "summary": "Curriculum template files",
+        "description": "Admins, and instructors teaching a cohort on this curriculum (403 otherwise, and always for learners). Every ready template file, link and doc. New cohorts on the curriculum start with a class copy of each; `Import from curriculum` brings in ones added later.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumFilesResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Start a template file upload",
+        "description": "Admins only, on a draft or active curriculum (422 when archived). Creates a pending template and returns a presigned S3 POST; publish it with `complete`. Same allowed types and 100 MB limit as cohort files (422 otherwise). 503 when storage is not configured. Shares the uploads rate limit.",
+        "responses": {
+          "201": {
+            "description": "Upload started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumFileUploadResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurriculumFileUploadInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files/links": {
+      "post": {
+        "summary": "Add a template link",
+        "description": "Admins only, on a draft or active curriculum (422 when archived). Saves a public https:// link, checked exactly like cohort links (422 otherwise).",
+        "responses": {
+          "201": {
+            "description": "Link saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurriculumLinkCreateInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files/docs": {
+      "post": {
+        "summary": "Add a template Learn Doc",
+        "description": "Admins only, on a draft or active curriculum (422 when archived). Saves a Markdown doc; null characters and page or script markup outside code blocks are refused (422).",
+        "responses": {
+          "201": {
+            "description": "Doc saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurriculumDocCreateInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files/{id}": {
+      "patch": {
+        "summary": "Edit a template",
+        "description": "Admins only, on a draft or active curriculum (422 when archived). Changes details, sharing, auto-copy and, for docs, the Markdown. Auto-copy on a `staff_only` template is refused (422) unless it is being turned off. Changing a doc's content or title needs `base_doc_version` (409 with the latest doc when missing or stale). Cohorts keep the copies they already have.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumFileResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A doc change whose base_doc_version is missing or stale",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumDocConflictResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurriculumFileUpdateInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a template",
+        "description": "Admins only, on a draft or active curriculum (422 when archived). With `pending_only=true` it only abandons an unfinished upload (422 once published). Stored objects are queued for deletion in the same transaction and removed after it commits. Cohort copies stay.",
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pending_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files/{id}/complete": {
+      "post": {
+        "summary": "Publish a template upload",
+        "description": "Admins only, on a draft or active curriculum (422 when archived). Checks the staged object's size and type, then its first bytes (bound to the object's etag), and copies it to the published key outside any database transaction (422 when it doesn't match, the upload expired or changed meanwhile; 404 when the upload was abandoned during the copy). Repeating it on a published template returns it.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files/{id}/doc": {
+      "get": {
+        "summary": "A template doc's Markdown",
+        "description": "Admins and the curriculum's instructors. 422 for templates that aren't docs.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumDocResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files/{id}/download": {
+      "get": {
+        "summary": "Short-lived template download link",
+        "description": "Admins and the curriculum's instructors. Links and docs have no download (422); 503 without storage.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileDownloadResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/files/{id}/preview": {
+      "get": {
+        "summary": "Preview a template upload",
+        "description": "Admins and the curriculum's instructors. The same modes as cohort file previews.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFilePreviewResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "curriculum_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -6809,6 +7309,24 @@
           "can_edit_doc": {
             "type": "boolean",
             "description": "Whether this viewer may save this Learn Doc (false for other kinds)."
+          },
+          "source_curriculum_file_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The curriculum template file this class item was imported from."
+          },
+          "source_cohort_file_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The other cohort's class item this was copied from."
+          },
+          "auto_copy_to_students": {
+            "type": "boolean",
+            "description": "When true (class items shared with students), every active learner gets their own copy, including learners who enroll later."
           }
         },
         "required": [
@@ -6816,6 +7334,9 @@
           "cohort_id",
           "student_id",
           "source_file_id",
+          "source_curriculum_file_id",
+          "source_cohort_file_id",
+          "auto_copy_to_students",
           "kind",
           "folder",
           "visibility",
@@ -7356,6 +7877,10 @@
         "properties": {
           "file": {
             "$ref": "#/components/schemas/CohortFile"
+          },
+          "auto_copied_count": {
+            "type": "integer",
+            "description": "Learners who got a copy because this update turned on auto-copy."
           }
         },
         "required": [
@@ -7830,6 +8355,10 @@
           "base_doc_version": {
             "type": "integer",
             "description": "Required to rename a Learn Doc: the `doc_version` the editor loaded (409 when missing or stale)."
+          },
+          "auto_copy_to_students": {
+            "type": "boolean",
+            "description": "Staff, class items shared with students only (422 otherwise). Turning it on copies the item to every active learner now and to anyone who enrolls later."
           }
         },
         "required": [],
@@ -32848,6 +33377,551 @@
           "summary",
           "learners"
         ],
+        "additionalProperties": false
+      },
+      "CohortFileImportResponse": {
+        "type": "object",
+        "properties": {
+          "imported_count": {
+            "type": "integer"
+          },
+          "skipped_count": {
+            "type": "integer",
+            "description": "Templates the cohort already has, or uploads skipped while storage is unavailable."
+          },
+          "auto_copied_count": {
+            "type": "integer",
+            "description": "Learner copies made of newly imported auto-copy items."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFile"
+            }
+          }
+        },
+        "required": [
+          "imported_count",
+          "skipped_count",
+          "auto_copied_count",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCohortCopyResponse": {
+        "type": "object",
+        "properties": {
+          "copied_count": {
+            "type": "integer"
+          },
+          "skipped_count": {
+            "type": "integer",
+            "description": "Items this cohort already copied, or uploads skipped while storage is unavailable."
+          },
+          "auto_copied_count": {
+            "type": "integer",
+            "description": "Learner copies made of newly copied auto-copy items."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFile"
+            }
+          }
+        },
+        "required": [
+          "copied_count",
+          "skipped_count",
+          "auto_copied_count",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCohortCopyInput": {
+        "type": "object",
+        "properties": {
+          "source_cohort_id": {
+            "type": "integer",
+            "description": "Another cohort the staff member can access."
+          }
+        },
+        "required": [
+          "source_cohort_id"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "curriculum_id": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "link",
+              "doc"
+            ]
+          },
+          "folder": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ],
+            "description": "What each cohort's class copy starts as."
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auto_copy_to_students": {
+            "type": "boolean",
+            "description": "Each cohort's copy also goes into every learner's own folder."
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_size": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "external_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "link_provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "google_doc",
+              "google_sheet",
+              "google_slides",
+              "google_drive",
+              "figma",
+              "notion",
+              "canva",
+              "loom",
+              "github",
+              "web",
+              null
+            ],
+            "description": "Classified from the link's address; null for files."
+          },
+          "previewable": {
+            "type": "boolean"
+          },
+          "preview_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pdf",
+              "image",
+              "audio",
+              "video",
+              "markdown",
+              "text",
+              "csv",
+              "download_only",
+              null
+            ],
+            "description": "How `preview` shows the file; null for links."
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "ready_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "uploaded_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "doc_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Docs: send it back as `base_doc_version`."
+          },
+          "doc_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "doc_updated_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_manage": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "curriculum_id",
+          "kind",
+          "folder",
+          "visibility",
+          "title",
+          "description",
+          "auto_copy_to_students",
+          "filename",
+          "content_type",
+          "file_size",
+          "external_url",
+          "link_provider",
+          "previewable",
+          "preview_mode",
+          "ready",
+          "ready_at",
+          "created_at",
+          "uploaded_by_name",
+          "doc_version",
+          "doc_updated_at",
+          "doc_updated_by_name",
+          "can_manage"
+        ]
+      },
+      "CurriculumFilesResponse": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurriculumFile"
+            }
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "storage_configured": {
+            "type": "boolean"
+          },
+          "can_manage": {
+            "type": "boolean",
+            "description": "Admins on a draft or active curriculum."
+          }
+        },
+        "required": [
+          "files",
+          "folders",
+          "storage_configured",
+          "can_manage"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumFileResponse": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/CurriculumFile"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumFileUploadResponse": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/CurriculumFile"
+          },
+          "upload_url": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "file",
+          "upload_url",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumDocResponse": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/CurriculumFile"
+          },
+          "doc_content": {
+            "type": "string"
+          },
+          "doc_version": {
+            "type": "integer",
+            "description": "Send it back as `base_doc_version`."
+          },
+          "doc_updated_at": {
+            "type": "string"
+          },
+          "doc_updated_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_edit_doc": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file",
+          "doc_content",
+          "doc_version",
+          "doc_updated_at",
+          "doc_updated_by_name",
+          "can_edit_doc"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumDocConflictResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "file": {
+            "$ref": "#/components/schemas/CurriculumFile"
+          },
+          "doc_content": {
+            "type": "string"
+          },
+          "doc_version": {
+            "type": "integer",
+            "description": "Send it back as `base_doc_version`."
+          },
+          "doc_updated_at": {
+            "type": "string"
+          },
+          "doc_updated_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_edit_doc": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "error",
+          "file",
+          "doc_content",
+          "doc_version",
+          "doc_updated_at",
+          "doc_updated_by_name",
+          "can_edit_doc"
+        ],
+        "additionalProperties": false,
+        "description": "The doc was saved since `base_doc_version`; nothing was saved. Carries the latest state to load."
+      },
+      "CurriculumFileUploadInput": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "folder": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "auto_copy_to_students": {
+            "type": "boolean",
+            "description": "Not with `staff_only` (422)."
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "file_size"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumLinkCreateInput": {
+        "type": "object",
+        "properties": {
+          "external_url": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "folder": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "auto_copy_to_students": {
+            "type": "boolean",
+            "description": "Not with `staff_only` (422)."
+          }
+        },
+        "required": [
+          "external_url"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumDocCreateInput": {
+        "type": "object",
+        "properties": {
+          "doc_content": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "folder": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "auto_copy_to_students": {
+            "type": "boolean",
+            "description": "Not with `staff_only` (422)."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "CurriculumFileUpdateInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "folder": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "auto_copy_to_students": {
+            "type": "boolean",
+            "description": "Not with `staff_only` (422)."
+          },
+          "external_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Links only."
+          },
+          "doc_content": {
+            "type": "string",
+            "maxLength": 200000,
+            "description": "Docs only."
+          },
+          "base_doc_version": {
+            "type": "integer",
+            "description": "Required to change a doc's content or title: the `doc_version` the editor loaded (409 when missing or stale)."
+          }
+        },
+        "required": [],
         "additionalProperties": false
       }
     },

@@ -169,6 +169,19 @@ Rails.application.routes.draw do
             post :download
           end
         end
+        # Template files every new cohort on the curriculum starts with
+        resources :files, only: [ :index, :create, :update, :destroy ], controller: "curriculum_files" do
+          collection do
+            post :links, action: :create_link
+            post :docs, action: :create_doc
+          end
+          member do
+            post :complete
+            get :doc
+            get :download
+            get :preview
+          end
+        end
         post "modules/reorder", to: "modules#reorder"
         resources :modules, only: [ :index, :create ]
       end
@@ -269,6 +282,9 @@ Rails.application.routes.draw do
         resources :files, only: [ :index, :create, :update, :destroy ], controller: "cohort_files" do
           collection do
             patch :rename_folder
+            post :import_curriculum
+            post :copy_from_cohort
+            get :export_zip
           end
           member do
             post :complete

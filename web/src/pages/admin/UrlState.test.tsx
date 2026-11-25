@@ -17,6 +17,7 @@ vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: () => 
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => async () => true }))
 vi.mock('../../contexts/UploadContext', () => ({ useUpload: () => ({ attachUpload: () => {} }) }))
 vi.mock('./CourseResourcesPanel', () => ({ CourseResourcesPanel: () => null }))
+vi.mock('../../components/admin/CurriculumTemplateFilesPanel', () => ({ CurriculumTemplateFilesPanel: () => null }))
 vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDrawer: () => null }))
 
 import { api } from '../../lib/api'

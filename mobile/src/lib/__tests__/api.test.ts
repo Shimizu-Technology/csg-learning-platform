@@ -1,10 +1,13 @@
 const mockExpoFetch = jest.fn();
 
 jest.mock('expo/fetch', () => ({ fetch: (...args: unknown[]) => mockExpoFetch(args[0], args[1]) }));
+const mockWrittenFiles: { uri: string; bytes: Uint8Array }[] = [];
 jest.mock('expo-file-system', () => ({
+  Paths: { cache: 'file:///cache' },
   File: class MockFile {
     uri: string;
-    constructor(uri: string) { this.uri = uri; }
+    constructor(...parts: string[]) { this.uri = parts.join('/'); }
+    write(bytes: Uint8Array) { mockWrittenFiles.push({ uri: this.uri, bytes }); }
   },
 }));
 
@@ -450,4 +453,27 @@ test('stale cohort context cannot authorize writes and unlocks only after revali
     await api.request('/api/v1/progress', { method: 'POST' });
     expect(fetchMock).toHaveBeenCalledTimes(4);
   } finally { fetchMock.mockRestore(); }
+});
+
+describe('folder ZIP export', () => {
+  afterEach(() => mockExpoFetch.mockReset());
+
+  it('downloads a folder ZIP with the session token into the cache and keeps only safe names', async () => {
+    mockWrittenFiles.length = 0;
+    mockExpoFetch.mockResolvedValueOnce(new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { 'Content-Disposition': 'attachment; filename="prework-demo-my-files.zip"' } }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([80, 75]), { status: 200, headers: { 'Content-Disposition': 'attachment; filename="../evil.zip"' } }));
+    const api = new CsgApi(async () => 'session-token');
+    await expect(api.exportCohortFilesZip(4, { scope: 'student', studentId: 3 })).resolves.toEqual({ uri: 'file:///cache/prework-demo-my-files.zip', filename: 'prework-demo-my-files.zip' });
+    expect(mockExpoFetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/cohorts\/4\/files\/export_zip\?scope=student&student_id=3$/), expect.objectContaining({ headers: { Authorization: 'Bearer session-token' } }));
+    expect(Array.from(mockWrittenFiles[0].bytes)).toEqual([80, 75, 3, 4]);
+    await expect(api.exportCohortFilesZip(4, { scope: 'my_files' })).resolves.toMatchObject({ filename: 'files.zip' });
+  });
+
+  it('reports the API message when a folder ZIP is refused, retrying once after a 401', async () => {
+    const getToken = jest.fn().mockResolvedValue('session-token');
+    mockExpoFetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'You can only download your own folder' }), { status: 403 }));
+    await expect(new CsgApi(getToken).exportCohortFilesZip(4, { scope: 'class' })).rejects.toMatchObject({ message: 'You can only download your own folder', status: 403 });
+    expect(getToken).toHaveBeenLastCalledWith({ skipCache: true });
+  });
 });

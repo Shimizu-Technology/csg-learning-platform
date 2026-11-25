@@ -11,7 +11,8 @@ module ApiRateLimits
     uploads: { to: 180, within: 1.minute },
     enrollment: { to: 180, within: 10.minutes },
     checkout: { to: 30, within: 10.minutes },
-    search: { to: 900, within: 1.minute }
+    search: { to: 900, within: 1.minute },
+    exports: { to: 20, within: 10.minutes }
   }.freeze
 
   PUBLIC = {
@@ -40,13 +41,15 @@ module ApiRateLimits
     when :uploads
       action.include?("presign") ||
         (controller == "api/v1/uploads" && action == "multipart_initiate") ||
-        (controller.in?([ "api/v1/curriculum_resources", "api/v1/cohort_files" ]) && action == "create") ||
+        (controller.in?([ "api/v1/curriculum_resources", "api/v1/cohort_files", "api/v1/curriculum_files" ]) && action == "create") ||
         (controller == "api/v1/cohort_files" && action == "create_version")
     when :enrollment
       (controller == "api/v1/users" && action.in?([ "create", "resend_invite" ])) ||
         (controller == "api/v1/enrollments" && action.in?([ "create", "bulk" ]))
     when :checkout then controller == "api/v1/course_checkouts" && action == "create"
     when :search then controller.in?([ "api/v1/messages_search", "api/v1/search" ])
+    # Each folder ZIP can stream up to 100 MB out of storage.
+    when :exports then controller == "api/v1/cohort_files" && action == "export_zip"
     when :bootstrap then controller == "api/v1/sessions"
     when :catalog then controller == "api/v1/course_offerings"
     when :certificate then controller == "api/v1/certificates" && action == "show"

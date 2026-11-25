@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -255,18 +255,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_120000) do
     t.string "review_status", limit: 20, default: "none", null: false
     t.bigint "reviewed_by_id"
     t.datetime "reviewed_at"
+    t.boolean "auto_copy_to_students", default: false, null: false
+    t.bigint "source_curriculum_file_id"
+    t.bigint "source_cohort_file_id"
     t.index ["cohort_id", "folder"], name: "index_cohort_files_on_cohort_id_and_folder"
     t.index ["cohort_id", "kind"], name: "index_cohort_files_on_cohort_id_and_kind"
     t.index ["cohort_id", "review_status"], name: "index_cohort_files_on_cohort_id_and_review_status"
+    t.index ["cohort_id", "source_cohort_file_id"], name: "index_cohort_files_one_copy_per_cohort_item", unique: true, where: "((student_id IS NULL) AND (source_cohort_file_id IS NOT NULL))"
+    t.index ["cohort_id", "source_curriculum_file_id"], name: "index_cohort_files_one_import_per_template", unique: true, where: "((student_id IS NULL) AND (source_curriculum_file_id IS NOT NULL))"
     t.index ["cohort_id", "student_id", "ready"], name: "index_cohort_files_on_cohort_id_and_student_id_and_ready"
     t.index ["cohort_id", "student_id", "source_file_id"], name: "index_cohort_files_one_copy_per_student", unique: true, where: "((source_file_id IS NOT NULL) AND (student_id IS NOT NULL))"
+    t.index ["cohort_id"], name: "index_cohort_files_auto_copy", where: "((auto_copy_to_students = true) AND (student_id IS NULL))"
     t.index ["doc_updated_by_id"], name: "index_cohort_files_on_doc_updated_by_id"
     t.index ["reviewed_by_id"], name: "index_cohort_files_on_reviewed_by_id"
     t.index ["s3_key"], name: "index_cohort_files_on_s3_key", unique: true
+    t.index ["source_cohort_file_id"], name: "index_cohort_files_on_source_cohort_file_id"
+    t.index ["source_curriculum_file_id"], name: "index_cohort_files_on_source_curriculum_file_id"
     t.index ["source_file_id"], name: "index_cohort_files_on_source_file_id"
     t.index ["student_id"], name: "index_cohort_files_on_student_id"
     t.index ["upload_key"], name: "index_cohort_files_on_upload_key", unique: true
     t.index ["uploaded_by_id"], name: "index_cohort_files_on_uploaded_by_id"
+    t.check_constraint "NOT (student_id IS NOT NULL AND auto_copy_to_students = true)", name: "cohort_files_auto_copy_class_only"
+    t.check_constraint "NOT (visibility::text = 'staff_only'::text AND auto_copy_to_students = true)", name: "cohort_files_auto_copy_shared"
   end
 
   create_table "cohort_instructor_assignments", force: :cascade do |t|
@@ -479,6 +489,43 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_120000) do
     t.index ["copy_curriculum_id"], name: "index_curriculum_copies_on_copy_curriculum_id", unique: true
     t.index ["created_by_id"], name: "index_curriculum_copies_on_created_by_id"
     t.index ["source_curriculum_id"], name: "index_curriculum_copies_on_source_curriculum_id"
+  end
+
+  create_table "curriculum_files", force: :cascade do |t|
+    t.bigint "curriculum_id", null: false
+    t.string "kind", limit: 20, default: "file", null: false
+    t.string "title", limit: 160, null: false
+    t.string "folder", limit: 80, default: "General", null: false
+    t.text "description"
+    t.string "visibility", limit: 20, default: "students", null: false
+    t.boolean "auto_copy_to_students", default: false, null: false
+    t.string "filename", limit: 180
+    t.string "content_type", limit: 160
+    t.bigint "file_size"
+    t.string "s3_key"
+    t.string "upload_key"
+    t.datetime "upload_expires_at"
+    t.text "external_url"
+    t.string "link_provider", limit: 40
+    t.text "doc_content"
+    t.integer "doc_version", default: 1, null: false
+    t.datetime "doc_updated_at"
+    t.bigint "doc_updated_by_id"
+    t.boolean "ready", default: false, null: false
+    t.datetime "ready_at"
+    t.bigint "uploaded_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_id", "folder"], name: "index_curriculum_files_on_curriculum_id_and_folder"
+    t.index ["curriculum_id"], name: "index_curriculum_files_on_curriculum_id"
+    t.index ["doc_updated_by_id"], name: "index_curriculum_files_on_doc_updated_by_id"
+    t.index ["ready", "upload_expires_at"], name: "index_curriculum_files_on_ready_and_upload_expires_at"
+    t.index ["s3_key"], name: "index_curriculum_files_on_s3_key"
+    t.index ["upload_key"], name: "index_curriculum_files_on_upload_key", unique: true
+    t.index ["uploaded_by_id"], name: "index_curriculum_files_on_uploaded_by_id"
+    t.check_constraint "NOT (visibility::text = 'staff_only'::text AND auto_copy_to_students = true)", name: "curriculum_files_auto_copy_shared"
+    t.check_constraint "kind::text = ANY (ARRAY['file'::character varying, 'link'::character varying, 'doc'::character varying]::text[])", name: "curriculum_files_kind_valid"
+    t.check_constraint "visibility::text = ANY (ARRAY['students'::character varying, 'staff_only'::character varying]::text[])", name: "curriculum_files_visibility_valid"
   end
 
   create_table "curriculum_resources", force: :cascade do |t|
@@ -1792,8 +1839,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_120000) do
   add_foreign_key "cohort_file_comments", "users", on_delete: :cascade
   add_foreign_key "cohort_file_versions", "cohort_files", on_delete: :cascade
   add_foreign_key "cohort_file_versions", "users", column: "uploaded_by_id", on_delete: :nullify
+  add_foreign_key "cohort_files", "cohort_files", column: "source_cohort_file_id", on_delete: :nullify
   add_foreign_key "cohort_files", "cohort_files", column: "source_file_id", on_delete: :nullify
   add_foreign_key "cohort_files", "cohorts", on_delete: :cascade
+  add_foreign_key "cohort_files", "curriculum_files", column: "source_curriculum_file_id", on_delete: :nullify
   add_foreign_key "cohort_files", "users", column: "doc_updated_by_id", on_delete: :nullify
   add_foreign_key "cohort_files", "users", column: "reviewed_by_id", on_delete: :nullify
   add_foreign_key "cohort_files", "users", column: "student_id", on_delete: :cascade
@@ -1824,6 +1873,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_120000) do
   add_foreign_key "curriculum_copies", "curricula", column: "copy_curriculum_id", on_delete: :cascade
   add_foreign_key "curriculum_copies", "curricula", column: "source_curriculum_id", on_delete: :nullify
   add_foreign_key "curriculum_copies", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "curriculum_files", "curricula", column: "curriculum_id"
+  add_foreign_key "curriculum_files", "users", column: "doc_updated_by_id", on_delete: :nullify
+  add_foreign_key "curriculum_files", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "curriculum_resources", "curricula", column: "curriculum_id"
   add_foreign_key "data_deletion_requests", "users"
   add_foreign_key "data_deletion_requests", "users", column: "resolved_by_id"

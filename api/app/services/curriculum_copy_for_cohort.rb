@@ -23,6 +23,12 @@
 #   deleted (abandon refuses ready files, and a curriculum with files can't
 #   be destroyed), so the copy's row names the same object. Pending uploads
 #   belong to the shared curriculum's draft and aren't copied.
+# - Template files (curriculum_files.s3_key): ready templates are copied
+#   naming the same object, with a fresh staging key. S3ObjectCleanup only
+#   deletes an object once no template or cohort file names it, so deleting
+#   either template leaves the other's bytes in place. The cohort's class
+#   items imported from the shared templates are pointed at the copies, so
+#   "Import from curriculum" never brings them in twice.
 # Copying objects would double storage and leave orphans behind on a
 # rollback; a shared reference is free and rolls back cleanly.
 #
@@ -135,6 +141,7 @@ class CurriculumCopyForCohort
     "curricula" => :copy, "learning_objectives" => :copy, "rubrics" => :copy, "rubric_criteria" => :copy,
     "modules" => :copy, "lessons" => :copy, "content_blocks" => :copy, "knowledge_checks" => :copy,
     "exercise_check_policies" => :copy, "objective_alignments" => :copy, "curriculum_resources" => :copy,
+    "curriculum_files" => :copy,
     # The cohort's rows move to the copy's ids
     "cohorts" => :remap, "cohort_module_schedules" => :remap, "cohort_module_submission_windows" => :remap,
     "github_repository_bindings" => :remap, "github_issue_deliveries" => :remap, "submission_grade_suggestions" => :remap, "lesson_recordings" => :remap,
@@ -362,6 +369,11 @@ class CurriculumCopyForCohort
       row["upload_key"] = "course_resource_uploads/curriculum_#{@copy.id}/#{SecureRandom.uuid}/#{row['filename']}"
     end
     @counts["curriculum_resources"] = resources.size
+    @template_map = copy_rows(CurriculumFile, CurriculumFile.where(curriculum_id: @source_id, ready: true)) do |row|
+      row["curriculum_id"] = @copy.id
+      row["upload_key"] = "curriculum_file_uploads/curriculum_#{@copy.id}/#{SecureRandom.uuid}/#{row['filename']}" if row["upload_key"]
+    end
+    @counts["curriculum_files"] = @template_map.size
   end
 
   # The cohort's curriculum, and its module-keyed JSON: content_defaults and
@@ -384,6 +396,7 @@ class CurriculumCopyForCohort
     @counts["lesson_recordings"] = remap_column(LessonRecording.where(recording_id: cohort.recordings.select(:id)), :lesson_id, @lesson_map)
     @counts["cohort_module_schedules"] = remap_column(CohortModuleSchedule.where(cohort_id: cohort.id), :module_id, @module_map)
     @counts["cohort_module_submission_windows"] = remap_column(CohortModuleSubmissionWindow.where(cohort_id: cohort.id), :module_id, @module_map)
+    remap_column(CohortFile.where(cohort_id: cohort.id), :source_curriculum_file_id, @template_map)
   end
 
   def remap_learner_data!
@@ -713,6 +726,7 @@ class CurriculumCopyForCohort
       "exercise_check_policies" => ExerciseCheckPolicy.where(content_block_id: block_ids).count,
       "objective_alignments" => ObjectiveAlignment.where(lesson_id: lesson_ids).count,
       "curriculum_resources" => CurriculumResource.where(curriculum_id: source.id, ready: true).count,
+      "curriculum_files" => CurriculumFile.where(curriculum_id: source.id, ready: true).count,
       "cohorts" => 1,
       "cohort_module_schedules" => CohortModuleSchedule.where(cohort_id: cohort.id, module_id: module_ids).count,
       "cohort_module_submission_windows" => CohortModuleSubmissionWindow.where(cohort_id: cohort.id, module_id: module_ids).count,

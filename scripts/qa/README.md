@@ -544,3 +544,20 @@ tap-target checks. After `start`, from `api/`:
 then from the repo root:
 `QA_SPEC=cohort-learn-docs.spec.ts DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
 It can be re-run; it removes the docs it creates (and their student copies).
+
+### Template files, imports and folder ZIP checks
+
+Curriculum template files (Content Management, Files pane), Import from
+curriculum, Copy from another cohort, auto-copy on enrollment and Download ZIP
+(staff class files, a student's folder, and a learner's My files, unzipping each
+archive to check its entries), at 1280/390 in light and dark with Axe, overflow
+and 390px tap-target checks. Start the harness with `QA_X6_DEMO=1`, run
+`x6-actualize-demo-fixtures.rb setup` (or `reset`) as above, then from the repo root:
+`QA_SPEC=cohort-templates-and-export.spec.ts DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
+The demo seeds five templates on "Prework Demo — synthetic"; the cohort holds
+copies of the first four, and Portfolio Launch Checklist stays un-imported so
+Import from curriculum can be shown live. Student One (persona 3) has an
+auto-copied Job Search Plan with two revisions, a Resume Draft doc waiting for
+review with an instructor comment, and a Figma link. The spec puts the demo back
+after each test (no live import or cohort copies, persona 5 paused).
+

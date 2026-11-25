@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronRight, CircleDot, CopyPlus, Eye, EyeOff, FolderLock, FolderOpen, FolderPen, Link2, NotebookPen, Pencil, Plus, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, CircleDot, CopyPlus, Eye, EyeOff, FolderLock, FolderOpen, FolderPen, Link2, NotebookPen, Pencil, Plus, RefreshCw, Repeat, Search, Trash2, Upload, X } from 'lucide-react'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
 import { api } from '../../lib/api'
@@ -14,7 +14,9 @@ import {
   type CohortFilesResponse,
   type CohortStudentFolder,
 } from '../../lib/cohortFiles'
-import { CohortDocForm, CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge, StaffOnlyBadge } from '../shared/CohortFileParts'
+import { AutoCopyBadge, CohortDocForm, CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge, StaffOnlyBadge } from '../shared/CohortFileParts'
+import { FolderZipButton } from '../shared/FolderZipButton'
+import { CohortFileImportControls } from './CohortFileImportControls'
 import type { ReviewAccess } from '../shared/CohortFileReview'
 import { EmptyState } from '../shared/EmptyState'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
@@ -215,6 +217,13 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
           </div>
         </div>
       )}
+      {!adding && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="More ways to add and download class files">
+          <CohortFileImportControls cohortId={cohortId} onImported={onCopied} />
+          <FolderZipButton cohortId={cohortId} scope="class" folder={defaultFolder} size="sm" variant="quiet" empty={!files.some((file) => activeFolder === 'All' || file.folder === activeFolder)}
+            label={defaultFolder ? `Download ${defaultFolder} as ZIP` : 'Download ZIP'} ariaLabel={defaultFolder ? `Download the ${defaultFolder} folder as a ZIP` : 'Download all class files as a ZIP'} />
+        </div>
+      )}
       {folders.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by folder">
@@ -324,13 +333,30 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
   const doc = file.kind === 'doc'
   const kindLabel = link ? 'link' : doc ? 'doc' : 'file'
 
+  const autoCopy = file.auto_copy_to_students
   const toggle = async () => {
     setBusy(true)
-    const result = await api.updateCohortFile(cohortId, file.id, { visibility: staged ? 'students' : 'staff_only' })
+    // Staff-only items can't auto-copy, so moving one to staff only turns auto-copy off with it.
+    const result = await api.updateCohortFile(cohortId, file.id, staged ? { visibility: 'students' } : { visibility: 'staff_only', ...(autoCopy ? { auto_copy_to_students: false } : {}) })
     setBusy(false)
     if (!result.data) return toast.error(result.error || `Could not change who can see this ${kindLabel}.`)
     onSaved(result.data.file)
-    toast.success(staged ? `Shared ${file.title} with students` : `${file.title} is staff only`)
+    toast.success(staged ? `Shared ${file.title} with students` : `${file.title} is staff only${autoCopy ? ' and no longer auto-copies' : ''}`)
+  }
+  const toggleAutoCopy = async () => {
+    if (!autoCopy && !(await confirm({
+      title: `Auto-copy ${file.title} to every student?`,
+      description: `Each active student (${studentCount}) gets their own copy now, and students who join later get one automatically. Students who already have a copy are skipped.${file.kind === 'file' && !storage ? ' Uploaded files are copied once file storage is set up.' : ''}`,
+      confirmLabel: 'Turn on auto-copy',
+    }))) return
+    setBusy(true)
+    const result = await api.updateCohortFile(cohortId, file.id, { auto_copy_to_students: !autoCopy })
+    setBusy(false)
+    if (!result.data) return toast.error(result.error || 'Could not change auto-copy.')
+    onSaved(result.data.file)
+    const copied = result.data.auto_copied_count ?? 0
+    toast.success(autoCopy ? `${file.title} no longer auto-copies to new students` : `Auto-copy is on${copied ? ` and ${copied} student${copied === 1 ? '' : 's'} got a copy` : ''}`)
+    if (copied) onCopied()
   }
   const copy = async () => {
     const ok = await confirm({
@@ -365,7 +391,7 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
   return (
     <CohortFileRow cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'} onVersionUploaded={(saved) => { onSaved(saved); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
       onFileChange={onSaved} autoOpen={autoOpen} onAutoOpened={onAutoOpened}
-      badges={<><FolderBadge folder={file.folder} />{staged && <StaffOnlyBadge />}</>}
+      badges={<><FolderBadge folder={file.folder} />{staged && <StaffOnlyBadge />}{autoCopy && <AutoCopyBadge />}</>}
       actions={<>
         <Button size="sm" variant={staged ? 'primary' : 'quiet'} disabled={busy} onClick={() => void toggle()}>
           {staged ? <Eye className="h-4 w-4" aria-hidden="true" /> : <EyeOff className="h-4 w-4" aria-hidden="true" />}
@@ -374,6 +400,7 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
         <OverflowMenu size="sm" label={`More actions for ${file.title}`} items={[
           // Staff-only items are shared with students before they can be copied to their folders.
           ...((storage || link || doc) && studentCount > 0 && !staged ? [{ key: 'copy', label: 'Copy to all students', icon: <CopyPlus className="h-4 w-4" aria-hidden="true" />, onSelect: () => void copy() }] : []),
+          ...(!staged ? [{ key: 'auto-copy', label: autoCopy ? 'Turn off auto-copy' : 'Auto-copy to new students', icon: <Repeat className="h-4 w-4" aria-hidden="true" />, onSelect: () => void toggleAutoCopy() }] : []),
           { key: 'edit', label: 'Edit', icon: <Pencil className="h-4 w-4" aria-hidden="true" />, onSelect: () => setEditing(true) },
           { key: 'delete', label: 'Delete', tone: 'danger' as const, icon: <Trash2 className="h-4 w-4" aria-hidden="true" />, onSelect: () => void remove() },
         ]} />
@@ -586,7 +613,7 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
           <p className="mt-1 text-sm text-ink-secondary">Private: only {firstName} and cohort staff can see these files.</p>
         </div>
         {!adding && (
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0 sm:flex-wrap sm:justify-end">
             <Button onClick={() => setAdding('file')} disabled={!storage} aria-label={`Upload to ${firstName}'s folder`}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               Upload files
@@ -595,10 +622,12 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
               <Link2 className="h-4 w-4" aria-hidden="true" />
               Add link
             </Button>
-            <Button variant="secondary" className="col-span-2 sm:col-span-1" onClick={() => setAdding('doc')} aria-label={`New doc in ${firstName}'s folder`}>
+            <Button variant="secondary" onClick={() => setAdding('doc')} aria-label={`New doc in ${firstName}'s folder`}>
               <NotebookPen className="h-4 w-4" aria-hidden="true" />
               New doc
             </Button>
+            <FolderZipButton cohortId={cohortId} scope="student" studentId={folder.student_id} empty={folder.files.length === 0} variant="quiet"
+              ariaLabel={`Download ${folder.student_name}'s folder as a ZIP`} />
           </div>
         )}
       </div>
