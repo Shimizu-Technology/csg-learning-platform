@@ -101,7 +101,7 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(feedbackBox).toBeVisible()
       await expect(feedbackBox).toBeInViewport()
       await expect(gradeGroup).toBeInViewport()
-      await expect(bar.getByRole('button', { name: /^Save/ })).toBeInViewport()
+      await expect(bar.getByRole('button', { name: /^Save (grade|and next)$/ })).toBeInViewport()
       const [feedbackTop, gradesTop] = await Promise.all([feedbackBox.boundingBox(), gradeGroup.boundingBox()])
       expect(feedbackTop!.y).toBeLessThan(gradesTop!.y)
       await expect(bar.getByRole('button', { name: 'Feedback', exact: true })).toHaveCount(0)

@@ -179,7 +179,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
             ) : (
               <p className="text-sm text-ink-secondary">Drop a file here, or choose one. Up to 100 MB.</p>
             )}
-            <input ref={inputRef} id={`${id}-file`} type="file" accept={COHORT_FILE_ACCEPT} className="sr-only" disabled={uploading}
+            <input ref={inputRef} id={`${id}-file`} type="file" accept={COHORT_FILE_ACCEPT} aria-label={heading} className="sr-only" disabled={uploading}
               onChange={(event) => choose(event.target.files?.[0])} />
             <Button size="sm" variant="secondary" disabled={uploading} onClick={() => inputRef.current?.click()}>
               {file ? 'Choose a different file' : 'Choose file'}
