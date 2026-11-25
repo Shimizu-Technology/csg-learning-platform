@@ -209,8 +209,8 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
         assert_response :created
         assert_not CohortFile.exists?(@pending.id)
         assert CohortFile.exists?(other.id)
-        # An unready row has no published object; only its staging upload is removed.
-        assert_equal [ @pending.upload_key ], deletes.map { |call| call[:args].first }
+        # Clean both staging and any orphaned destination object from a failed/rolled-back complete.
+        assert_equal [ @pending.upload_key, @pending.s3_key ], deletes.map { |call| call[:args].first }
         assert_empty still_referenced
       end
     end
