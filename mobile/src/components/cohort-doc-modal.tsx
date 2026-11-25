@@ -222,6 +222,7 @@ export function CohortDocModal({ cohortId, file, visible, onClose, onChanged, on
   useEffect(() => {
     opening.current += 1;
     if (visible) void load();
+    return () => { opening.current += 1; };
     // Reload only when the sheet opens or the doc changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, visible, cohortId, file.id]);

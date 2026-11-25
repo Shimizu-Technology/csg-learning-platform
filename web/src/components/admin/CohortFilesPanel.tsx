@@ -403,7 +403,16 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
   const link = file.kind === 'link'
   const urlProblem = link ? linkUrlProblem(url) : null
   const cancel = () => {
-    if (latestConflictFile) onRefreshed?.(latestConflictFile)
+    if (latestConflictFile) {
+      // Preserve newer list updates (such as Rename folder) while syncing the latest doc metadata.
+      onRefreshed?.({
+        ...file,
+        title: latestConflictFile.title,
+        doc_version: latestConflictFile.doc_version,
+        doc_updated_at: latestConflictFile.doc_updated_at,
+        doc_updated_by_name: latestConflictFile.doc_updated_by_name,
+      })
+    }
     onCancel()
   }
   const save = async () => {
@@ -437,17 +446,17 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved, onRefreshed }: {
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-medium text-ink">
           Title
-          <input className="app-control mt-1 w-full" value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} />
+          <input className="app-control mt-1 w-full" value={title} maxLength={160} disabled={saving} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <label className="block text-sm font-medium text-ink">
           Folder
-          <input className="app-control mt-1 w-full" list={listId} value={folder} maxLength={80} onChange={(event) => setFolder(event.target.value)} />
+          <input className="app-control mt-1 w-full" list={listId} value={folder} maxLength={80} disabled={saving} onChange={(event) => setFolder(event.target.value)} />
           <datalist id={listId}>{presets.map((preset) => <option key={preset} value={preset} />)}</datalist>
         </label>
         {link && (
           <label className="block text-sm font-medium text-ink sm:col-span-2">
             Link
-            <input className="app-control mt-1 w-full" type="url" inputMode="url" spellCheck={false} value={url} maxLength={2048} onChange={(event) => setUrl(event.target.value)} />
+            <input className="app-control mt-1 w-full" type="url" inputMode="url" spellCheck={false} value={url} maxLength={2048} disabled={saving} onChange={(event) => setUrl(event.target.value)} />
           </label>
         )}
       </div>
