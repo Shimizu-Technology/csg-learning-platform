@@ -4,11 +4,18 @@ import { formatFileSize } from './attachments';
 
 export type CohortFile = components['schemas']['CohortFile'];
 export type CohortStudentFolder = components['schemas']['CohortStudentFolder'];
+export type CohortFilePreview = components['schemas']['CohortFilePreviewResponse'];
+export type LinkProvider = NonNullable<CohortFile['link_provider']>;
 
 export const MAX_COHORT_FILE_SIZE = 100 * 1024 * 1024;
 /** Mirrors CohortFile::ALLOWED_TYPES on the API, which also refuses pages, SVGs and scripts. */
 export const COHORT_FILE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'csv', 'txt', 'md', 'zip', 'png', 'jpg', 'jpeg', 'webp', 'mp3', 'm4a', 'mp4']);
 export const STUDENT_FOLDER_PRESETS = ['Job Search & Career', 'Resumes & Portfolio', 'Class Notes', 'General'];
+export const CLASS_FOLDER_PRESETS = ['Slides', 'Guides & Handouts', 'Career & Job Search', 'Starter Kits', 'General'];
+export const LINK_PROVIDER_LABELS: Record<LinkProvider, string> = {
+  google_doc: 'Google Doc', google_sheet: 'Google Sheet', google_slides: 'Google Slides', google_drive: 'Google Drive',
+  figma: 'Figma', notion: 'Notion', canva: 'Canva', loom: 'Loom', github: 'GitHub', web: 'Link',
+};
 
 /**
  * Loads a cohort's files, or null once access is gone (401/403), so a revoked
@@ -32,8 +39,67 @@ export function fileExtension(filename: string) {
   return dot > 0 ? filename.slice(dot + 1).toLowerCase() : '';
 }
 
-export function cohortFileMeta(file: Pick<CohortFile, 'filename' | 'file_size' | 'folder'>) {
-  return `${file.filename} · ${formatFileSize(file.file_size)} · ${file.folder}`;
+export function cohortFileMeta(file: Pick<CohortFile, 'kind' | 'filename' | 'file_size' | 'folder' | 'external_url'>) {
+  if (file.kind === 'link') return `${linkHost(file.external_url)} · ${file.folder}`;
+  return `${file.filename} · ${formatFileSize(file.file_size || 0)} · ${file.folder}`;
+}
+
+export function linkHost(url: string | null) {
+  try {
+    return url ? new URL(url).hostname.replace(/^www\./, '') : '';
+  } catch {
+    return '';
+  }
+}
+
+/** A saved link or storage URL, only if it is https. */
+export function safeHttpsUrl(url: string | null | undefined) {
+  if (!url) return null;
+  try {
+    return new URL(url).protocol === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Quick check before saving a link; the API also refuses local and private addresses. */
+export function linkUrlProblem(url: string) {
+  const value = url.trim();
+  if (!value) return 'Paste a link.';
+  if (!/^https:\/\//i.test(value)) return 'Links must start with https://';
+  try {
+    if (!new URL(value).hostname.includes('.')) return 'Use a full web address, like https://docs.google.com/…';
+  } catch {
+    return "That doesn't look like a web address.";
+  }
+  return value.length > 2048 ? 'That link is too long.' : null;
+}
+
+export function matchesCohortFile(file: CohortFile, needle: string) {
+  return `${file.title} ${file.filename || ''} ${file.folder} ${file.description || ''} ${file.external_url || ''}`.toLowerCase().includes(needle);
+}
+
+/** Minimal CSV parsing for previews: quoted fields, escaped quotes, CRLF. */
+export function parseCsv(text: string, maxRows = 200) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let index = 0; index < text.length && rows.length < maxRows; index += 1) {
+    const char = text[index];
+    if (quoted) {
+      if (char === '"' && text[index + 1] === '"') { field += '"'; index += 1; }
+      else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"' && field === '') quoted = true;
+    else if (char === ',') { row.push(field); field = ''; }
+    else if (char === '\n' || char === '\r') {
+      if (char === '\r' && text[index + 1] === '\n') index += 1;
+      row.push(field); field = ''; rows.push(row); row = [];
+    } else field += char;
+  }
+  if (rows.length < maxRows && (field !== '' || row.length)) { row.push(field); rows.push(row); }
+  return rows;
 }
 
 /** Folder name => files, folders sorted by name. */
@@ -58,7 +124,7 @@ export async function uploadToMyFolder(api: CsgApi, cohortId: number, asset: Pic
   const started = await api.createCohortFile(cohortId, { filename, content_type: contentType, file_size: size, folder });
   try {
     // The presigned policy pins the stored type; send the file as that type.
-    await postPresignedFile(started.upload_url, started.fields, { uri: asset.uri, name: filename, type: started.fields['Content-Type'] || started.file.content_type }, onProgress);
+    await postPresignedFile(started.upload_url, started.fields, { uri: asset.uri, name: filename, type: started.fields['Content-Type'] || started.file.content_type || contentType }, onProgress);
     return (await api.completeCohortFile(cohortId, started.file.id)).file;
   } catch (error) {
     // pending_only: a publish whose response was lost is never deleted.

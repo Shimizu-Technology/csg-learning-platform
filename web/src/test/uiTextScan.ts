@@ -219,6 +219,8 @@ export const PROPER_NOUNS = new Set([
   // The school, products and services
   'Code', 'School', 'Guam', 'Learn', 'Alumni', 'Clerk', 'Google', 'GitHub', 'Zoom', 'Vimeo', 'YouTube', 'Loom', 'Mux', 'Netlify', 'Render',
   'Apple', 'App', 'Store', 'Play', 'Android', 'Chrome', 'Safari', 'Firefox', 'Windows', 'Mac', 'Linux', 'Slack', 'Discord', 'Stripe', 'Gmail',
+  // Google Doc, Sheet, Slides and Drive, and other services links can point to
+  'Doc', 'Sheet', 'Slides', 'Drive', 'Figma', 'Notion', 'Canva',
   'Markdown', 'Rich', 'JavaScript', 'TypeScript', 'Python', 'Ruby', 'Rails', 'React', 'Node', 'Git', 'Expo', 'Monaco', 'Chamorro', 'English', 'Shimizu', 'Technology',
   // Places in the app, used as names in "Back to …" and "Open …"
   'Today', 'Grading', 'Support', 'Messages', 'Updates', 'Content', 'Students', 'Cohorts', 'Recordings', 'Resources', 'Meetings', 'Team', 'Safety',

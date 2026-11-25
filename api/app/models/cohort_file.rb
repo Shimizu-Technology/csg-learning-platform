@@ -1,7 +1,14 @@
+require "ipaddr"
+
 class CohortFile < ApplicationRecord
   MAX_FILE_SIZE = 100.megabytes
   DOWNLOAD_EXPIRY = 5.minutes.to_i
   VISIBILITIES = %w[students staff_only].freeze
+  # "doc" is reserved for in-app documents; the API creates files and links.
+  KINDS = %w[file link doc].freeze
+  MAX_URL_LENGTH = 2048
+  # Inline previews read at most this much of a text file.
+  TEXT_PREVIEW_BYTES = 512.kilobytes
 
   # Extension => accepted MIME types. The first is the type the file is stored
   # and served as; the others are what browsers and phones commonly report.
@@ -53,6 +60,30 @@ class CohortFile < ApplicationRecord
     "mp3" => ->(bytes) { bytes.start_with?("ID3") || (bytes.getbyte(0) == 0xFF && bytes.getbyte(1).to_i & 0xE0 == 0xE0) }
   }.freeze
   TEXT_EXTENSIONS = %w[txt md csv].freeze
+  # How each type previews in the app. Media is served inline from storage
+  # with its allowlisted type; text is read by the API and returned as text.
+  # Pages, SVGs, scripts and XML are never allowed, so never served inline.
+  PREVIEW_MODES = {
+    "pdf" => "pdf", "png" => "image", "jpg" => "image", "jpeg" => "image", "webp" => "image",
+    "mp3" => "audio", "m4a" => "audio", "mp4" => "video",
+    "md" => "markdown", "txt" => "text", "csv" => "csv"
+  }.freeze
+  INLINE_PREVIEW_MODES = %w[pdf image audio video].freeze
+  TEXT_PREVIEW_MODES = %w[markdown text csv].freeze
+  # Host (and optional path prefix) => provider, checked in order.
+  LINK_PROVIDERS = [
+    [ "docs.google.com", "/document/", "google_doc" ],
+    [ "docs.google.com", "/spreadsheets/", "google_sheet" ],
+    [ "docs.google.com", "/presentation/", "google_slides" ],
+    [ "docs.google.com", nil, "google_drive" ],
+    [ "drive.google.com", nil, "google_drive" ],
+    [ "figma.com", nil, "figma" ],
+    [ "notion.so", nil, "notion" ],
+    [ "notion.site", nil, "notion" ],
+    [ "canva.com", nil, "canva" ],
+    [ "loom.com", nil, "loom" ],
+    [ "github.com", nil, "github" ]
+  ].freeze
   # Markup a browser would run or render, refused inside text uploads.
   ACTIVE_MARKUP = /<!doctype\s+html|<html|<svg|<script/i
 
@@ -60,12 +91,16 @@ class CohortFile < ApplicationRecord
   belongs_to :student, class_name: "User", optional: true
   belongs_to :uploaded_by, class_name: "User", optional: true
   belongs_to :source_file, class_name: "CohortFile", optional: true
+  # Collected before the rows go, then removed after the deletion commits.
+  before_destroy :collect_stored_keys, prepend: true
+  has_many :versions, class_name: "CohortFileVersion", dependent: :delete_all
 
   scope :ready, -> { where(ready: true) }
   scope :class_files, -> { where(student_id: nil) }
   scope :student_visible, -> { where(visibility: "students") }
 
   before_validation :normalize_text
+  before_validation :classify_link
   before_save :record_ready_date
   before_save :record_shared_date
   after_destroy_commit :delete_stored_objects
@@ -79,10 +114,16 @@ class CohortFile < ApplicationRecord
   validates :folder, presence: true, length: { maximum: 80 }
   validates :description, length: { maximum: 500 }
   validates :visibility, inclusion: { in: VISIBILITIES }
-  validates :filename, presence: true, length: { maximum: 180 }
-  validates :file_size, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
-  validates :s3_key, :upload_key, :upload_expires_at, :content_type, presence: true
-  validate :allowed_file_type
+  validates :kind, inclusion: { in: KINDS }
+  validates :version_number, numericality: { only_integer: true, greater_than: 0 }
+  with_options if: :stored_file? do
+    validates :filename, presence: true, length: { maximum: 180 }
+    validates :file_size, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
+    validates :s3_key, :upload_key, :upload_expires_at, :content_type, presence: true
+    validate :allowed_file_type
+  end
+  validates :external_url, absence: true, unless: :link?
+  validate :safe_external_url, if: :link?
   validate :student_enrolled_in_cohort
   validate :students_cannot_stage_files
 
@@ -128,12 +169,70 @@ class CohortFile < ApplicationRecord
     end
   end
 
+  # How a file previews in the app, or nil for anything without stored bytes.
+  def self.preview_mode_for(filename)
+    return nil if filename.blank?
+
+    PREVIEW_MODES.fetch(extension_for(filename), "download_only")
+  end
+
+  def self.previewable_mode?(mode)
+    mode.present? && mode != "download_only"
+  end
+
+  # The reason a link can't be saved, or nil. Only public https:// addresses:
+  # no other scheme, credentials, local or private hosts, or bare names.
+  def self.link_problem(url)
+    url = url.to_s
+    return "can't be blank" if url.blank?
+    return "is too long (maximum is #{MAX_URL_LENGTH} characters)" if url.length > MAX_URL_LENGTH
+    return "must be a web address without spaces" if url.match?(/[\s\p{Cc}]/)
+
+    uri = URI.parse(url)
+    return "must start with https://" unless uri.is_a?(URI::HTTPS) && url.downcase.start_with?("https://")
+
+    host = uri.hostname.to_s.downcase.delete_suffix(".")
+    return "must include a website address" if host.blank?
+    return "can't include a username or password" if uri.userinfo.present?
+    return "must be a public website" if private_host?(host)
+
+    nil
+  rescue URI::InvalidURIError
+    "is not a valid web address"
+  end
+
+  def self.private_host?(host)
+    return true if host == "localhost" || host.end_with?(".localhost", ".local", ".internal")
+
+    address = IPAddr.new(host)
+    address.loopback? || address.private? || address.link_local? || address.to_i.zero? ||
+      (address.ipv4? && address.to_s.start_with?("0.", "100.64.", "169.254.")) || (address.ipv6? && address.ipv4_mapped? && private_host?(address.native.to_s))
+  rescue IPAddr::InvalidAddressError
+    # Not an IP literal: a public name needs a dot, and an all-numeric name is an encoded address.
+    !host.include?(".") || host.match?(/\A[\d.]+\z/) || host.match?(/\A0x/i)
+  end
+
+  def self.link_provider_for(url)
+    uri = URI.parse(url.to_s)
+    host = uri.hostname.to_s.downcase.delete_prefix("www.")
+    path = uri.path.to_s
+    LINK_PROVIDERS.each do |domain, prefix, provider|
+      next unless host == domain || host.end_with?(".#{domain}")
+      return provider if prefix.nil? || path.start_with?(prefix)
+    end
+    "web"
+  rescue URI::InvalidURIError
+    "web"
+  end
+
   # Pending uploads whose presigned POST expired can never be published.
   # Each row is rechecked under the same lock `complete` takes, so a publish
   # that commits first is kept. Once the unready row is destroyed, both
   # upload_key and s3_key are cleaned up so a destination object left by a
-  # timed-out or rolled-back `complete` copy is never orphaned.
+  # timed-out or rolled-back `complete` copy is never orphaned. Expired
+  # pending versions of files in the same scope are purged the same way.
   def self.purge_expired_pending!(scope = all, now: Time.current, limit: 50)
+    CohortFileVersion.purge_expired_pending!(CohortFileVersion.where(cohort_file_id: scope.select(:id)), now: now, limit: limit)
     scope.where(ready: false).where(upload_expires_at: ...now).limit(limit).pluck(:id).each do |id|
       file = find_by(id: id)
       next unless file
@@ -150,6 +249,18 @@ class CohortFile < ApplicationRecord
     student_id.nil?
   end
 
+  def stored_file?
+    kind == "file"
+  end
+
+  def link?
+    kind == "link"
+  end
+
+  def preview_mode
+    stored_file? ? self.class.preview_mode_for(filename) : nil
+  end
+
   def staff_only?
     visibility == "staff_only"
   end
@@ -158,11 +269,24 @@ class CohortFile < ApplicationRecord
     uploaded_by.present? && uploaded_by.student?
   end
 
-  def file_json(can_manage: false)
+  # Every object this file and its versions point at, staging uploads first
+  # and the current object last.
+  def stored_keys
+    keys = versions.order(:version_number).pluck(:upload_key, :s3_key).flatten
+    older, current = [ upload_key, *keys, s3_key ].compact_blank.uniq.partition { |key| key != s3_key }
+    older + current
+  end
+
+  # `shown` is the version a paused learner can read when the current one
+  # was published after their pause; its file details replace the current ones.
+  def file_json(can_manage: false, shown: self)
+    mode = shown.preview_mode
     {
       id: id, cohort_id: cohort_id, student_id: student_id, source_file_id: source_file_id,
-      folder: folder, visibility: visibility, title: title, description: description,
-      filename: filename, content_type: content_type, file_size: file_size,
+      kind: kind, folder: folder, visibility: visibility, title: title, description: description,
+      filename: shown.filename, content_type: shown.content_type, file_size: shown.file_size,
+      external_url: external_url, link_provider: link_provider, version_number: shown.version_number,
+      previewable: self.class.previewable_mode?(mode), preview_mode: mode,
       ready: ready?, ready_at: ready_at&.iso8601, created_at: created_at.iso8601,
       uploaded_by_name: uploaded_by&.full_name,
       uploaded_by_role: uploaded_by && (uploaded_by.student? ? "student" : "staff"),
@@ -176,6 +300,16 @@ class CohortFile < ApplicationRecord
     self.title = title.to_s.squish.presence
     self.folder = folder.to_s.squish.presence || "General"
     self.description = description.to_s.strip.presence
+    self.external_url = external_url.to_s.strip.presence
+  end
+
+  def classify_link
+    self.link_provider = link? && external_url.present? ? self.class.link_provider_for(external_url) : nil
+  end
+
+  def safe_external_url
+    problem = self.class.link_problem(external_url)
+    errors.add(:external_url, problem) if problem
   end
 
   def record_ready_date
@@ -192,12 +326,16 @@ class CohortFile < ApplicationRecord
     end
   end
 
-  # Runs after the deletion commits. A failed delete is queued for retry.
+  def collect_stored_keys
+    @stored_keys_to_delete = stored_keys
+  end
+
+  # Runs after the deletion commits, for every key the file and its versions
+  # used. A failed delete is queued for retry.
   def delete_stored_objects
     return if storage_cleaned
 
-    keys = [ upload_key, s3_key ]
-    keys.each { |key| S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_destroyed") }
+    Array(@stored_keys_to_delete).each { |key| S3ObjectCleanup.delete_or_enqueue(key, reason: "cohort_file_destroyed") }
   end
 
   def allowed_file_type

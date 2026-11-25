@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, ChevronRight, CopyPlus, Eye, EyeOff, FolderLock, FolderOpen, Pencil, Plus, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, CopyPlus, Eye, EyeOff, FolderLock, FolderOpen, FolderPen, Link2, Pencil, Plus, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
 import { api } from '../../lib/api'
 import {
   CLASS_FOLDER_PRESETS,
   STUDENT_FOLDER_PRESETS,
+  linkUrlProblem,
   matchesFileQuery,
   type CohortFile,
   type CohortFilesResponse,
   type CohortStudentFolder,
 } from '../../lib/cohortFiles'
-import { CohortFileRow, CohortFileUploader, FolderBadge, StaffOnlyBadge } from '../shared/CohortFileParts'
+import { CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge, StaffOnlyBadge } from '../shared/CohortFileParts'
 import { EmptyState } from '../shared/EmptyState'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { RecordLink } from '../shared/RecordLink'
@@ -90,7 +91,7 @@ export function CohortFilesPanel({ cohortId }: { cohortId: number }) {
       </div>
       {!data.storage_configured && (
         <p role="status" className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
-          File storage isn't set up for this school yet, so uploads and downloads are unavailable.
+          File storage isn't set up for this school yet, so uploads and downloads are unavailable. You can still add links.
         </p>
       )}
       {view === 'class' ? (
@@ -134,36 +135,67 @@ function ClassFiles({ cohortId, files, storage, studentCount, onChange, onCopied
 }) {
   const [folder, setFolder] = useState('All')
   const [query, setQuery] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [adding, setAdding] = useState<'file' | 'link' | null>(null)
+  const [renaming, setRenaming] = useState(false)
   const folders = useMemo(() => [...new Set(files.map((file) => file.folder))].sort(), [files])
-  const shown = files.filter((file) => (folder === 'All' || file.folder === folder) && matchesFileQuery(file, query))
+  const activeFolder = folder !== 'All' && folders.includes(folder) ? folder : 'All'
+  const shown = files.filter((file) => (activeFolder === 'All' || file.folder === activeFolder) && matchesFileQuery(file, query))
+  const presets = folderOptions(CLASS_FOLDER_PRESETS, files)
+  const defaultFolder = activeFolder === 'All' ? undefined : activeFolder
 
   return (
     <div className="space-y-4">
-      {uploading ? (
-        <CohortFileUploader cohortId={cohortId} heading="Upload a class file" allowVisibility
-          description="Choose Staff only to review a file before students can see it."
-          folderPresets={folderOptions(CLASS_FOLDER_PRESETS, files)} disabled={!storage} disabledReason="File storage isn't set up yet."
-          onCancel={() => setUploading(false)}
-          onUploaded={(file) => { onChange((current) => [...current, file]); setUploading(false) }} />
+      {adding === 'file' ? (
+        <CohortFileUploader cohortId={cohortId} heading="Upload class files" allowVisibility defaultFolder={defaultFolder}
+          description="Add several files at once. Choose Staff only to review them before students can see them."
+          folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
+          onCancel={() => setAdding(null)}
+          onUploaded={(file) => onChange((current) => [...current, file])}
+          onFinished={() => setAdding(null)} />
+      ) : adding === 'link' ? (
+        <CohortLinkForm cohortId={cohortId} heading="Add a class link" allowVisibility folderPresets={presets} defaultFolder={defaultFolder}
+          onCancel={() => setAdding(null)}
+          onSaved={(file) => { onChange((current) => [...current, file]); setAdding(null) }} />
       ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <SearchBox value={query} onChange={setQuery} label="Search class files" />
-          <Button onClick={() => setUploading(true)} disabled={!storage}>
-            <Upload className="h-4 w-4" aria-hidden="true" />
-            Upload file
-          </Button>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button onClick={() => setAdding('file')} disabled={!storage}>
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Upload files
+            </Button>
+            <Button variant="secondary" onClick={() => setAdding('link')}>
+              <Link2 className="h-4 w-4" aria-hidden="true" />
+              Add link
+            </Button>
+          </div>
         </div>
       )}
       {folders.length > 0 && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by folder">
-          {['All', ...folders].map((name) => (
-            <button key={name} type="button" aria-pressed={folder === name} onClick={() => setFolder(name)}
-              className={`inline-flex min-h-11 items-center rounded-full border px-3.5 text-sm font-semibold transition-colors duration-150 lg:min-h-9 ${folder === name ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}>
-              {name}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by folder">
+            {['All', ...folders].map((name) => (
+              <button key={name} type="button" aria-pressed={activeFolder === name} onClick={() => { setFolder(name); setRenaming(false) }}
+                className={`inline-flex min-h-11 items-center rounded-full border px-3.5 text-sm font-semibold transition-colors duration-150 lg:min-h-9 ${activeFolder === name ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}>
+                {name}
+              </button>
+            ))}
+          </div>
+          {activeFolder !== 'All' && !renaming && (
+            <Button size="sm" variant="quiet" onClick={() => setRenaming(true)} aria-label={`Rename folder ${activeFolder}`}>
+              <FolderPen className="h-4 w-4" aria-hidden="true" />
+              Rename folder
+            </Button>
+          )}
         </div>
+      )}
+      {renaming && activeFolder !== 'All' && (
+        <RenameFolder cohortId={cohortId} folder={activeFolder} onCancel={() => setRenaming(false)}
+          onRenamed={(name) => {
+            onChange((current) => current.map((file) => (file.folder === activeFolder ? { ...file, folder: name } : file)))
+            setFolder(name)
+            setRenaming(false)
+          }} />
       )}
       {files.length === 0 ? (
         <div className="app-surface">
@@ -185,6 +217,49 @@ function ClassFiles({ cohortId, files, storage, studentCount, onChange, onCopied
   )
 }
 
+/** Rename the selected class-file folder in one step. Student folders keep their names. */
+function RenameFolder({ cohortId, folder, onRenamed, onCancel }: {
+  cohortId: number
+  folder: string
+  onRenamed: (name: string) => void
+  onCancel: () => void
+}) {
+  const toast = useToast()
+  const [name, setName] = useState(folder)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const trimmed = name.trim()
+  const save = async () => {
+    if (!trimmed || saving) return
+    if (trimmed === folder) return onCancel()
+    setSaving(true)
+    const result = await api.renameCohortFolder(cohortId, { from_folder: folder, to_folder: trimmed })
+    setSaving(false)
+    if (!result.data) return setError(result.error || 'Could not rename this folder.')
+    toast.success(`Renamed ${folder} to ${result.data.folder}`)
+    onRenamed(result.data.folder)
+  }
+  return (
+    <form className="app-surface flex flex-col gap-3 p-4 sm:flex-row sm:items-end" onSubmit={(event) => { event.preventDefault(); void save() }}>
+      <label className="block min-w-0 flex-1 text-sm font-medium text-ink">
+        {`Rename ${folder}`}
+        <input className="app-control mt-1 w-full" value={name} maxLength={80} disabled={saving} autoFocus onChange={(event) => setName(event.target.value)} />
+      </label>
+      {error && <p role="alert" className="text-sm text-danger-ink sm:order-last sm:basis-full">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={saving || !trimmed}>
+          <Check className="h-4 w-4" aria-hidden="true" />
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+        <Button variant="quiet" disabled={saving} onClick={onCancel}>
+          <X className="h-4 w-4" aria-hidden="true" />
+          Cancel
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function ClassFileItem({ cohortId, file, studentCount, storage, onSaved, onDeleted, onCopied }: {
   cohortId: number
   file: CohortFile
@@ -199,12 +274,14 @@ function ClassFileItem({ cohortId, file, studentCount, storage, onSaved, onDelet
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
   const staged = file.visibility === 'staff_only'
+  const link = file.kind === 'link'
+  const kindLabel = link ? 'link' : 'file'
 
   const toggle = async () => {
     setBusy(true)
     const result = await api.updateCohortFile(cohortId, file.id, { visibility: staged ? 'students' : 'staff_only' })
     setBusy(false)
-    if (!result.data) return toast.error(result.error || 'Could not change who can see this file.')
+    if (!result.data) return toast.error(result.error || `Could not change who can see this ${kindLabel}.`)
     onSaved(result.data.file)
     toast.success(staged ? `Shared ${file.title} with students` : `${file.title} is staff only`)
   }
@@ -218,13 +295,13 @@ function ClassFileItem({ cohortId, file, studentCount, storage, onSaved, onDelet
     setBusy(true)
     const result = await api.copyCohortFileToStudents(cohortId, file.id)
     setBusy(false)
-    if (!result.data) return toast.error(result.error || 'Could not copy this file.')
+    if (!result.data) return toast.error(result.error || `Could not copy this ${kindLabel}.`)
     const { copied_count: copied, skipped_count: skipped } = result.data
     toast.success(`Copied to ${copied} student${copied === 1 ? '' : 's'}${skipped ? ` (${skipped} already had it)` : ''}`)
     onCopied()
   }
   const remove = async () => {
-    const ok = await confirm({ title: `Delete ${file.title}?`, description: 'Students lose access to it right away. Copies already in student folders stay.', confirmLabel: 'Delete file', tone: 'danger' })
+    const ok = await confirm({ title: `Delete ${file.title}?`, description: `Students lose access to it right away.${link ? '' : ' Every version is deleted.'} Copies already in student folders stay.`, confirmLabel: `Delete ${kindLabel}`, tone: 'danger' })
     if (!ok) return
     setBusy(true)
     const result = await api.deleteCohortFile(cohortId, file.id)
@@ -236,7 +313,7 @@ function ClassFileItem({ cohortId, file, studentCount, storage, onSaved, onDelet
 
   if (editing) return <EditFile cohortId={cohortId} file={file} presets={CLASS_FOLDER_PRESETS} onCancel={() => setEditing(false)} onSaved={(saved) => { onSaved(saved); setEditing(false) }} />
   return (
-    <CohortFileRow cohortId={cohortId} file={file} downloadDisabled={!storage}
+    <CohortFileRow cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={!link} onVersionUploaded={(saved) => { onSaved(saved); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
       badges={<><FolderBadge folder={file.folder} />{staged && <StaffOnlyBadge />}</>}
       actions={<>
         <Button size="sm" variant={staged ? 'primary' : 'quiet'} disabled={busy} onClick={() => void toggle()}>
@@ -244,7 +321,7 @@ function ClassFileItem({ cohortId, file, studentCount, storage, onSaved, onDelet
           {staged ? 'Share with students' : 'Move to staff only'}
         </Button>
         <OverflowMenu size="sm" label={`More actions for ${file.title}`} items={[
-          ...(storage && studentCount > 0 ? [{ key: 'copy', label: 'Copy to all students', icon: <CopyPlus className="h-4 w-4" aria-hidden="true" />, onSelect: () => void copy() }] : []),
+          ...((storage || link) && studentCount > 0 ? [{ key: 'copy', label: 'Copy to all students', icon: <CopyPlus className="h-4 w-4" aria-hidden="true" />, onSelect: () => void copy() }] : []),
           { key: 'edit', label: 'Edit', icon: <Pencil className="h-4 w-4" aria-hidden="true" />, onSelect: () => setEditing(true) },
           { key: 'delete', label: 'Delete', tone: 'danger' as const, icon: <Trash2 className="h-4 w-4" aria-hidden="true" />, onSelect: () => void remove() },
         ]} />
@@ -261,12 +338,16 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved }: {
 }) {
   const [title, setTitle] = useState(file.title)
   const [folder, setFolder] = useState(file.folder)
+  const [url, setUrl] = useState(file.external_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const listId = `folders-${file.id}`
+  const link = file.kind === 'link'
+  const urlProblem = link ? linkUrlProblem(url) : null
   const save = async () => {
+    if (urlProblem) return setError(urlProblem)
     setSaving(true)
-    const result = await api.updateCohortFile(cohortId, file.id, { title, folder })
+    const result = await api.updateCohortFile(cohortId, file.id, { title, folder, ...(link ? { external_url: url.trim() } : {}) })
     setSaving(false)
     if (!result.data) return setError(result.error || 'Could not save.')
     onSaved(result.data.file)
@@ -283,10 +364,16 @@ function EditFile({ cohortId, file, presets, onCancel, onSaved }: {
           <input className="app-control mt-1 w-full" list={listId} value={folder} maxLength={80} onChange={(event) => setFolder(event.target.value)} />
           <datalist id={listId}>{presets.map((preset) => <option key={preset} value={preset} />)}</datalist>
         </label>
+        {link && (
+          <label className="block text-sm font-medium text-ink sm:col-span-2">
+            Link
+            <input className="app-control mt-1 w-full" type="url" inputMode="url" spellCheck={false} value={url} maxLength={2048} onChange={(event) => setUrl(event.target.value)} />
+          </label>
+        )}
       </div>
       {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={saving || !title.trim() || !folder.trim()} onClick={() => void save()}>
+        <Button size="sm" disabled={saving || !title.trim() || !folder.trim() || (link && !url.trim())} onClick={() => void save()}>
           <Check className="h-4 w-4" aria-hidden="true" />
           {saving ? 'Saving…' : 'Save'}
         </Button>
@@ -371,10 +458,11 @@ export function StudentFolderView({ cohortId, folder, storage, onChange }: {
 }) {
   const toast = useToast()
   const confirm = useConfirm()
-  const [uploading, setUploading] = useState(false)
+  const [adding, setAdding] = useState<'file' | 'link' | null>(null)
   const firstName = folder.student_name.split(' ')[0] || folder.student_name
+  const presets = folderOptions(STUDENT_FOLDER_PRESETS, folder.files)
   const remove = async (file: CohortFile) => {
-    const ok = await confirm({ title: `Delete ${file.title}?`, description: `${folder.student_name} loses access to it right away.`, confirmLabel: 'Delete file', tone: 'danger' })
+    const ok = await confirm({ title: `Delete ${file.title}?`, description: `${folder.student_name} loses access to it right away.`, confirmLabel: file.kind === 'link' ? 'Delete link' : 'Delete file', tone: 'danger' })
     if (!ok) return
     const result = await api.deleteCohortFile(cohortId, file.id)
     if (result.error) return toast.error(result.error)
@@ -390,28 +478,41 @@ export function StudentFolderView({ cohortId, folder, storage, onChange }: {
           </h3>
           <p className="mt-1 text-sm text-ink-secondary">Private: only {firstName} and cohort staff can see these files.</p>
         </div>
-        {!uploading && (
-          <Button onClick={() => setUploading(true)} disabled={!storage}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Upload to {firstName}'s folder
-          </Button>
+        {!adding && (
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <Button onClick={() => setAdding('file')} disabled={!storage} aria-label={`Upload to ${firstName}'s folder`}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Upload files
+            </Button>
+            <Button variant="secondary" onClick={() => setAdding('link')} aria-label={`Add a link to ${firstName}'s folder`}>
+              <Link2 className="h-4 w-4" aria-hidden="true" />
+              Add link
+            </Button>
+          </div>
         )}
       </div>
-      {uploading && (
+      {adding === 'file' && (
         <CohortFileUploader cohortId={cohortId} studentId={folder.student_id} heading={`Upload to ${firstName}'s folder`}
-          folderPresets={folderOptions(STUDENT_FOLDER_PRESETS, folder.files)} disabled={!storage} disabledReason="File storage isn't set up yet."
-          onCancel={() => setUploading(false)}
-          onUploaded={(file) => { onChange((files) => [...files, file]); setUploading(false); toast.success(`Uploaded ${file.title}`) }} />
+          folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
+          onCancel={() => setAdding(null)}
+          onUploaded={(file) => { onChange((files) => [...files, file]); toast.success(`Uploaded ${file.title}`) }}
+          onFinished={() => setAdding(null)} />
+      )}
+      {adding === 'link' && (
+        <CohortLinkForm cohortId={cohortId} studentId={folder.student_id} heading={`Add a link to ${firstName}'s folder`} folderPresets={presets}
+          onCancel={() => setAdding(null)}
+          onSaved={(file) => { onChange((files) => [...files, file]); setAdding(null); toast.success(`Added ${file.title}`) }} />
       )}
       {folder.files.length === 0 ? (
         <div className="app-surface">
-          <EmptyState icon={FolderOpen} title="This folder is empty" description={`Files you or ${firstName} upload appear here. Use Copy to all students on a class file to add a template.`} />
+          <EmptyState icon={FolderOpen} title="This folder is empty" description={`Files and links you or ${firstName} add appear here. Use Copy to all students on a class file to add a template.`} />
         </div>
       ) : (
         <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`Files in ${folder.student_name}'s folder`}>
           {folder.files.map((file) => (
-            <CohortFileRow key={file.id} cohortId={cohortId} file={file} downloadDisabled={!storage}
-              note={file.uploaded_by_role === 'student' ? 'Uploaded by student' : 'Shared by staff'}
+            <CohortFileRow key={file.id} cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'}
+              onVersionUploaded={(saved) => { onChange((files) => files.map((item) => (item.id === saved.id ? saved : item))); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
+              note={file.uploaded_by_role === 'student' ? 'Added by student' : 'Shared by staff'}
               badges={<><FolderBadge folder={file.folder} />{file.visibility === 'staff_only' && <StaffOnlyBadge />}</>}
               actions={
                 <Button size="sm" variant="quiet" onClick={() => void remove(file)} aria-label={`Delete ${file.title}`}>

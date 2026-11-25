@@ -24,7 +24,7 @@ import { Resources } from './Resources'
 const file = (overrides: Record<string, unknown>) => ({
   id: 1, cohort_id: 1, student_id: 3, source_file_id: null, folder: 'General', visibility: 'students', title: 'File', description: null,
   filename: 'file.pdf', content_type: 'application/pdf', file_size: 10, ready: true, ready_at: null, created_at: '2026-11-24T00:00:00Z',
-  uploaded_by_name: 'Student', uploaded_by_role: 'student', can_manage: true, ...overrides,
+  uploaded_by_name: 'Student', uploaded_by_role: 'student', can_manage: true, kind: 'file', external_url: null, link_provider: null, version_number: 1, previewable: true, preview_mode: 'pdf', ...overrides,
 })
 let container: HTMLDivElement
 let root: Root

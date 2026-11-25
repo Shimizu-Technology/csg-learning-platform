@@ -135,6 +135,21 @@ class Enrollment < ApplicationRecord
       media_available_for_read?(cohort_file.created_at, cohort_file.ready_at || cohort_file.updated_at, cohort_file.shared_at)
   end
 
+  # The newest version of a file this learner can read: the file itself while
+  # its current version is readable, otherwise (paused learners) the newest
+  # earlier version published before the pause, or nil.
+  def file_version_for_read(cohort_file)
+    return cohort_file if file_available_for_read?(cohort_file)
+    return nil unless paused? && cohort_file.ready? && cohort_file.shared_at.present? &&
+      media_available_for_read?(cohort_file.created_at, cohort_file.shared_at)
+
+    cohort_file.versions.select(&:ready?).sort_by(&:version_number).reverse.find { |version| file_version_available_for_read?(version) }
+  end
+
+  def file_version_available_for_read?(version)
+    version.ready? && media_available_for_read?(version.ready_at || version.created_at)
+  end
+
   def record_pause_date
     self.paused_at = paused? ? Time.current : nil if will_save_change_to_status?
   end

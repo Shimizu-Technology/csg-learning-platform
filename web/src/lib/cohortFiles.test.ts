@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ createCohortFile: vi.fn(), completeCohortFile: vi.fn(), deleteCohortFile: vi.fn(), uploadToS3: vi.fn() }))
 vi.mock('./api', () => ({ api: mocks }))
 vi.mock('./uploadToS3', () => ({ uploadToS3: mocks.uploadToS3 }))
-import { cohortFileProblem, fileTypeIcon, titleFromFilename, uploadCohortFile } from './cohortFiles'
+import { cohortFileProblem, fileTypeIcon, linkProviderFor, linkUrlProblem, matchesFileQuery, parseCsv, safeLinkHref, titleFromFilename, uploadCohortFile, type CohortFile } from './cohortFiles'
 
 const pending = { id: 7, title: 'resume' }
 beforeEach(() => {
@@ -44,4 +44,28 @@ it('abandons the pending file when the upload fails', async () => {
   await expect(uploadCohortFile(4, new File(['x'], 'notes.md'), { folder: 'Class Notes' })).rejects.toThrow('Network down')
   expect(mocks.deleteCohortFile).toHaveBeenCalledWith(4, 7, { pendingOnly: true })
   expect(mocks.completeCohortFile).not.toHaveBeenCalled()
+})
+
+it('checks links client side and shows their provider while typing', () => {
+  expect(linkUrlProblem('')).toBe('Paste a link.')
+  for (const url of ['http://example.com', 'javascript:alert(1)', 'data:text/html,hi', 'ftp://example.com']) expect(linkUrlProblem(url)).toBe('Links must start with https://')
+  expect(linkUrlProblem('https://intranet/page')).toMatch(/full web address/)
+  expect(linkUrlProblem('https://docs.google.com/document/d/x')).toBeNull()
+  expect(linkProviderFor('https://docs.google.com/document/d/x/edit')).toBe('google_doc')
+  expect(linkProviderFor('https://docs.google.com/spreadsheets/d/x')).toBe('google_sheet')
+  expect(linkProviderFor('https://docs.google.com/presentation/d/x')).toBe('google_slides')
+  expect(linkProviderFor('https://www.figma.com/design/x')).toBe('figma')
+  expect(linkProviderFor('https://team.notion.site/x')).toBe('notion')
+  expect(linkProviderFor('https://example.com/figma.com')).toBe('web')
+  expect(safeLinkHref('javascript:alert(1)')).toBeNull()
+  expect(safeLinkHref('http://example.com')).toBeNull()
+  expect(safeLinkHref('https://example.com/a')).toBe('https://example.com/a')
+  const link = { title: 'Brief', filename: null, folder: 'General', description: null, external_url: 'https://www.canva.com/design/x' } as unknown as CohortFile
+  expect(matchesFileQuery(link, 'canva')).toBe(true)
+})
+
+it('parses CSV previews with quotes, escaped quotes and CRLF', () => {
+  expect(parseCsv('name,notes\r\n"Ada, L.","said ""hi"""\nGrace,\n').rows).toEqual([['name', 'notes'], ['Ada, L.', 'said "hi"'], ['Grace', '']])
+  const many = Array.from({ length: 10 }, (_, index) => `${index}`).join('\n')
+  expect(parseCsv(many, 3)).toEqual({ rows: [['0'], ['1'], ['2']], clipped: true })
 })

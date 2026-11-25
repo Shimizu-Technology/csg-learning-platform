@@ -267,10 +267,17 @@ Rails.application.routes.draw do
 
         # Shared class files and per-student private folders (S3-backed)
         resources :files, only: [ :index, :create, :update, :destroy ], controller: "cohort_files" do
+          collection do
+            patch :rename_folder
+          end
           member do
             post :complete
             get :download
+            get :preview
             post :copy_to_students
+            get :versions
+            post :versions, action: :create_version
+            post "versions/:version_id/complete", action: :complete_version, as: :complete_version
           end
         end
 

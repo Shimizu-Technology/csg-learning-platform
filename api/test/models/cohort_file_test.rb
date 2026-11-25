@@ -127,4 +127,46 @@ class CohortFileTest < ModelCoverageTestCase
     S3Service.define_singleton_method(:configured?, original_configured) if original_configured
     S3Service.define_singleton_method(:delete_object, original_delete) if original_delete
   end
+  test "links need a public https address and no stored object; files still need one" do
+    link = CohortFile.new(cohort: course, uploaded_by: staff, kind: "link", title: "Brief", external_url: " https://docs.google.com/spreadsheets/d/x ", ready: true)
+    assert link.valid?, link.errors.full_messages.inspect
+    assert_equal [ "https://docs.google.com/spreadsheets/d/x", "google_sheet" ], [ link.external_url, link.link_provider ]
+    link.external_url = "https://192.168.1.10/admin"
+    assert_not link.valid?
+    assert_includes link.errors.full_messages, "Link must be a public website"
+    link.external_url = nil
+    assert_not link.valid?
+    assert_includes link.errors.full_messages, "Link can't be blank"
+
+    file = CohortFile.new(cohort: course, uploaded_by: staff, title: "Slides", external_url: "https://example.com")
+    assert_not file.valid?
+    assert file.errors.attribute_names.to_set >= %i[external_url filename s3_key upload_key content_type file_size].to_set
+    assert_not CohortFile.new(cohort: course, title: "Odd", kind: "folder").valid?
+
+    { "https://drive.google.com/file/d/x" => "google_drive", "https://docs.google.com/forms/d/x" => "google_drive",
+      "https://www.canva.com/design/x" => "canva", "https://www.loom.com/share/x" => "loom", "https://team.notion.site/page" => "notion",
+      "https://example.com/figma.com" => "web", "https://notfigma.com/x" => "web" }.each do |url, provider|
+      assert_equal provider, CohortFile.link_provider_for(url), url
+    end
+    [ "https://0.0.0.0/", "https://100.64.0.1/", "https://[fe80::1]/", "https://[fd00::1]/", "https://printer.local/", "https://app.localhost/",
+      "https://3232235777/" ].each { |url| assert CohortFile.link_problem(url), url }
+    assert_nil CohortFile.link_problem("https://example.com/path?q=1#top")
+  end
+
+  test "purging keeps a pending version that was published before its lock was taken" do
+    file = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Deck", filename: "deck.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k6", upload_key: "u6", upload_expires_at: 1.hour.ago, ready: true)
+    version = file.versions.create!(version_number: 2, filename: "deck-v2.pdf", content_type: "application/pdf", file_size: 10,
+      s3_key: "k7", upload_key: "u7", upload_expires_at: 1.minute.ago)
+    original_lock = CohortFileVersion.instance_method(:with_lock)
+    CohortFileVersion.define_method(:with_lock) do |*args, &block|
+      CohortFileVersion.where(id: id).update_all(ready: true, ready_at: Time.current)
+      original_lock.bind_call(self, *args, &block)
+    end
+    CohortFile.purge_expired_pending!(course.cohort_files)
+    assert version.reload.ready?
+    assert CohortFile.exists?(file.id)
+  ensure
+    CohortFileVersion.define_method(:with_lock, original_lock) if original_lock
+  end
 end

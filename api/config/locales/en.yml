@@ -33,3 +33,5 @@ en:
     attributes:
       message:
         client_message_id: "Client message ID"
+      cohort_file:
+        external_url: "Link"

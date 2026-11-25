@@ -91,7 +91,7 @@ describe('Resources course switching', () => {
     id: 1, cohort_id: 1, student_id: null, source_file_id: null, folder: 'Slides', visibility: 'students', title: 'Week 1 Ruby Slides',
     description: null, filename: 'week-1-ruby-slides.pdf', content_type: 'application/pdf', file_size: 2048, ready: true,
     ready_at: '2026-11-24T00:00:00Z', created_at: '2026-11-24T00:00:00Z', uploaded_by_name: 'Ina Instructor', uploaded_by_role: 'staff',
-    can_manage: false, ...overrides,
+    can_manage: false, kind: 'file', external_url: null, link_provider: null, version_number: 1, previewable: true, preview_mode: 'pdf', ...overrides,
   })
 
   it('shows a private folder with upload instead of the empty dead end, and class files grouped by folder', async () => {
@@ -125,7 +125,7 @@ describe('Resources course switching', () => {
     await act(async () => pending.get(1)?.({ data: { resources: [] }, error: null }))
     const mine = container.querySelector('section[aria-label="My files"]')!
     expect(mine.textContent).toContain('Uploads are paused')
-    expect(mine.textContent).toContain('Uploaded by you')
+    expect(mine.textContent).toContain('Added by you')
     expect(mine.textContent).toContain('Shared by your instructor')
     const deletes = [...mine.querySelectorAll<HTMLButtonElement>('button[aria-label^="Delete"]')]
     expect(deletes.map((button) => button.getAttribute('aria-label'))).toEqual(['Delete Resume Draft v1'])
