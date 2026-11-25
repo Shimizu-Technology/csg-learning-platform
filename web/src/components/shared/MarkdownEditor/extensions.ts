@@ -186,16 +186,17 @@ export type RichExtensionOptions = {
   underlineShortcut?: boolean
   onLink: () => void
   extra?: AnyExtension[]
+  lessonHeadings?: boolean
 }
 
-export function createRichExtensions({ placeholder = '', underlineShortcut = false, onLink, extra = [] }: RichExtensionOptions): AnyExtension[] {
+export function createRichExtensions({ placeholder = '', underlineShortcut = false, onLink, extra = [], lessonHeadings = false }: RichExtensionOptions): AnyExtension[] {
   return [
     StarterKit.configure({
       link: false,
       underline: false,
       code: false,
       horizontalRule: false,
-      heading: { levels: [2, 3] },
+      heading: { levels: lessonHeadings ? [1, 2, 3] : [2, 3] },
       codeBlock: {
         enableTabIndentation: true,
         tabSize: 2,

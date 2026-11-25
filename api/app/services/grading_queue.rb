@@ -65,6 +65,7 @@ class GradingQueue
       modules: module_options,
       students: student_options,
       module_grids: module_grids,
+      github_sync_module_ids: github_sync_module_ids,
       lesson: lesson_json
     }
   end
@@ -219,6 +220,24 @@ class GradingQueue
         cohort_id, cohort_name, module_id, module_name, = key
         { cohort_id: cohort_id, cohort_name: cohort_name, module_id: module_id, module_name: module_name, waiting: waiting.fetch(key, 0) }
       end
+  end
+
+  def github_sync_module_ids
+    return [] unless @cohort && FeatureSwitches.for(cohort: @cohort)["github_sync"]
+
+    modules = @cohort.curriculum.modules.order(:position, :id)
+    modules = modules.where(id: @module_id) if @module_id
+    configs = (@cohort.settings || {})["module_github_config"] || {}
+    blocks_by_module = ContentBlock.joins(:lesson)
+      .where(lessons: { module_id: modules.reorder(nil).select(:id), archived_at: nil, published: true })
+      .where(block_type: [ :exercise, :code_challenge ])
+      .where.not(filename: [ nil, "" ])
+      .includes(lesson: :curriculum_module)
+      .group_by { |block| block.lesson.module_id }
+    modules.pluck(:id).select do |id|
+      requires_github = configs.dig(id.to_s, "requires_github") == true
+      blocks_by_module.fetch(id, []).any? { |block| block.github_sync_submission?(requires_github: requires_github) }
+    end
   end
 
   def lesson_json

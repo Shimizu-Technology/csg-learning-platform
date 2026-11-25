@@ -12,7 +12,7 @@ import {
 } from '../../../lib/markdownFixtures'
 import { writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
 import { createRichExtensions } from './extensions'
-import { lockedKinds, lockedWarning, looksLikeMarkdown, markdownToEditorDoc, sameMarkdownStructure, splitMarkdownChunks, type MarkdownTarget } from './markdownToEditorJson'
+import { editorJsonToMarkdownKeepingSource, keySourceSegments, lockedKinds, lockedWarning, looksLikeMarkdown, markdownToEditorDoc, sameMarkdownStructure, splitMarkdownChunks, type MarkdownTarget } from './markdownToEditorJson'
 
 let editor: Editor | null = null
 afterEach(() => {
@@ -21,9 +21,9 @@ afterEach(() => {
 })
 
 /** Loads JSON into the real Rich schema and reads it back, as switching modes does. */
-function throughRichEditor(doc: JSONContent) {
+function throughRichEditor(doc: JSONContent, lessonHeadings = false) {
   editor?.destroy()
-  editor = new Editor({ extensions: createRichExtensions({ onLink: () => undefined, underlineShortcut: true }), content: doc })
+  editor = new Editor({ extensions: createRichExtensions({ onLink: () => undefined, underlineShortcut: true, lessonHeadings }), content: doc })
   return editor.getJSON()
 }
 
@@ -328,4 +328,16 @@ describe('reference links keep their definitions (review round 2)', () => {
     expect(issues).toEqual([])
     expect(doc.content?.[0].type).toBe('paragraph')
   })
+})
+
+it('keeps lesson H1, H2 and H3 editable and preserves their exact Markdown levels', () => {
+  const source = '# Heading\nLesson body.\n\n## Subheading\n### Section'
+  const result = markdownToEditorDoc(source, { target: 'lesson' })
+  const { doc } = result
+  expect(lockedKinds(doc)).toEqual([])
+  expect(doc.content?.map(({ type, attrs }) => [type, attrs?.level])).toEqual([
+    ['heading', 1], ['paragraph', undefined], ['heading', 2], ['heading', 3],
+  ])
+  const rich = throughRichEditor(doc, true)
+  expect(editorJsonToMarkdownKeepingSource(rich, keySourceSegments(result, rich), 'lesson')).toBe(source)
 })

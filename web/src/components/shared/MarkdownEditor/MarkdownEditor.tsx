@@ -297,6 +297,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const initialMarkdown = value ?? defaultValue
   /** The Markdown the parent last saw (from onChange or `value`). */
   const lastEmittedRef = useRef(initialMarkdown)
+  const pendingValuesRef = useRef<string[]>([])
   /** The current Markdown when Rich mode has nothing unwritten. */
   const markdownRef = useRef(initialMarkdown)
   const richDirtyRef = useRef(false)
@@ -349,6 +350,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     markdownRef.current = markdown
     if (markdown === lastEmittedRef.current) return
     lastEmittedRef.current = markdown
+    if (propsRef.current.value !== undefined && propsRef.current.onChange) pendingValuesRef.current.push(markdown)
     propsRef.current.onChange?.(markdown, richContent)
   }, [])
 
@@ -411,6 +413,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     underlineShortcut,
     onLink: () => openLink(),
     extra: props.extensions,
+    lessonHeadings: target === 'lesson',
   }), []) // eslint-disable-line react-hooks/exhaustive-deps -- the editor is created once; refs carry later changes
 
   const initialDoc = useMemo<JSONContent>(() => {
@@ -662,9 +665,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     }
   }, [applyRichDoc, emit, toDoc])
 
-  // A controlled value that changed outside the editor (a feedback snippet, a reset after saving).
   useEffect(() => {
-    if (value === undefined || value === lastEmittedRef.current) return
+    if (value === undefined) return
+    const pending = pendingValuesRef.current
+    // A parent can commit an earlier onChange while the next edit is already in the document.
+    const acknowledgement = pending.indexOf(value)
+    if (acknowledgement >= 0) {
+      pending.splice(0, acknowledgement + 1)
+      return
+    }
+    if (value === lastEmittedRef.current) return
+    pending.length = 0
     replaceAll(value, null, false)
   }, [replaceAll, value])
 
@@ -678,7 +689,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         // Keep the caret's block: the caret goes to the end of the same block in the Markdown.
         const index = current.state.selection.$from.index(0)
         const json = current.getJSON()
-        const before = editorJsonToMarkdown({ type: 'doc', content: (json.content || []).slice(0, index + 1) })
+        const before = editorJsonToMarkdown({ type: 'doc', content: (json.content || []).slice(0, index + 1) }, { lessonHeadings: targetRef.current === 'lesson' })
         caret = Math.min(markdown.length, before.length)
       }
       modeRef.current = 'markdown'
@@ -846,7 +857,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   useImperativeHandle(ref, () => ({
     focus: () => {
-      if (modeRef.current === 'rich') editorRef.current?.commands.focus()
+      if (modeRef.current === 'rich') editorRef.current?.view.focus()
       else textareaRef.current?.focus()
     },
     getMarkdown: () => (modeRef.current === 'rich' ? flush() : markdownRef.current),

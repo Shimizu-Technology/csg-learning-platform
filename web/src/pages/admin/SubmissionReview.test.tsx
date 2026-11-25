@@ -263,6 +263,20 @@ it.each([
 })
 
 describe.each(entries)('canonical review at %s', (entry) => {
+  it('guides a selected grade to the first unrated criterion', async () => {
+    await render(entry)
+    await click('B')
+    const gradeBar = container.querySelector('[data-grade-bar]')!
+    expect(gradeBar.textContent).toContain('1 rubric item left')
+    const rating = container.querySelector('#rubric [role="group"] button')
+    await click('1 rubric item left')
+    expect(document.activeElement).toBe(rating)
+    await grade('B')
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.activeElement).toBe(rating)
+    expect(gradeBar.querySelector('[role="alert"]')?.textContent).toContain('Rate every rubric criterion')
+  })
+
   it('validates rubric then submits the same version, feedback and criterion contract', async () => {
     await render(entry)
     await grade('A')

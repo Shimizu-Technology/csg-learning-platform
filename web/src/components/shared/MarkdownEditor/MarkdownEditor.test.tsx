@@ -391,6 +391,23 @@ describe('accessibility (§9.8)', () => {
 })
 
 describe('controlled value', () => {
+  it('keeps rapid typing in an empty editor when the parent commits an earlier value', async () => {
+    const emissions: string[] = []
+    const { editor, ref, surface } = await mount({ value: '', onChange: (value) => emissions.push(value) })
+    act(() => ref.current!.focus())
+    expect(document.activeElement).toBe(surface())
+    type(editor(), 'G')
+    await tick()
+    expect(emissions).toEqual(['G'])
+    type(editor(), 'uard empty ')
+    await tick()
+    expect(emissions.at(-1)).toBe('Guard empty')
+    await act(async () => root!.render(<MarkdownEditor ref={ref} label="Message" value="G" onChange={(value) => emissions.push(value)} />))
+    type(editor(), 'array.')
+    await tick()
+    expect(ref.current?.getMarkdown()).toBe('Guard empty array.')
+  })
+
   it('takes changes made outside the editor, like an inserted feedback snippet', async () => {
     function Harness() {
       const [value, setValue] = useState('Start')
@@ -416,6 +433,20 @@ describe('controlled value', () => {
 })
 
 describe('lesson text (U-6.8)', () => {
+  it.each([[1, 'Heading'], [2, 'Subheading'], [3, 'Section']] as const)(
+    'edits a level %i heading without a locked block',
+    async (level, title) => {
+      const marker = '#'.repeat(level)
+      const { host, editor, onChange } = await mount({ defaultValue: `${marker} ${title}`, target: 'lesson' })
+      expect(host.querySelector(`.ProseMirror h${level}`)?.textContent).toBe(title)
+      expect(host.textContent).not.toContain("Rich mode can't edit")
+      act(() => { editor().commands.setTextSelection(title.length + 1) })
+      type(editor(), ' updated')
+      await tick()
+      expect(onChange).toHaveBeenLastCalledWith(`${marker} ${title} updated`, expect.objectContaining({ type: 'doc' }))
+    },
+  )
+
   const lesson = 'Practice using `ls` and `cd`.\n\n- [https://pine.fm/LearnToProgram/chap\\_01.html](https://pine.fm/LearnToProgram/chap_01.html)\n\n&nbsp;View -\\> Developer -\\> JavaScript Console\n\n```ruby\nputs "hi"\n```\n\n\n\nCommit your code.'
 
   it('saves nothing when a lesson is opened and closed in Rich mode', async () => {

@@ -18668,6 +18668,11 @@
               "$ref": "#/components/schemas/GradingQueueModuleGrid"
             }
           },
+          "github_sync_module_ids": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "Modules eligible for GitHub sync within the selected cohort and module filter."
+          },
           "lesson": {
             "anyOf": [
               {

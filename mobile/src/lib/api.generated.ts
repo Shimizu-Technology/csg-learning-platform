@@ -9608,6 +9608,8 @@ export interface components {
             modules: components["schemas"]["GradingQueueOption"][];
             students: components["schemas"]["GradingQueueOption"][];
             module_grids: components["schemas"]["GradingQueueModuleGrid"][];
+            /** @description Modules eligible for GitHub sync within the selected cohort and module filter. */
+            github_sync_module_ids?: number[];
             /** @description The lesson filter's title, when one is set. */
             lesson: components["schemas"]["GradingQueueLesson"] | null;
         };

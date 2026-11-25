@@ -123,6 +123,7 @@ export function Grading() {
     error: loadError,
     loading,
     reload: reloadQueue,
+    dataIsCurrent,
   } = useGradingQueue(
     {
       cohort_id: cohortId ?? null,
@@ -152,6 +153,8 @@ export function Grading() {
     }),
     [queueFilter, urlState.module_id, urlState.student_id, urlState.lesson_id, urlState.sort],
   )
+  const [syncing, setSyncing] = useState(false)
+  const syncModuleIds = dataIsCurrent ? inbox?.github_sync_module_ids ?? [] : []
   const selectedId = urlState.submission
   const panel = useRef<SubmissionReviewHandle>(null)
   const reviewTop = useRef<HTMLElement>(null)
@@ -234,6 +237,32 @@ export function Grading() {
     void reloadQueue(following?.id)
   }
   const loadSubmissions = () => reloadQueue(selectedId)
+  async function syncGithub() {
+    if (!cohortId || syncing || !syncModuleIds.length) return
+    setSyncing(true)
+    let synced = 0
+    let firstError: string | undefined
+    try {
+      for (const moduleId of syncModuleIds) {
+        try {
+          const result = await api.syncCohortModuleGithub(cohortId, moduleId)
+          if (result.error || !result.data) firstError ??= result.error || 'Could not sync this module.'
+          else {
+            synced += result.data.synced
+            firstError ??= result.data.errors?.[0]
+          }
+        } catch (error) {
+          firstError ??= error instanceof Error ? error.message : 'Could not sync this module.'
+        }
+      }
+      const summary = `Synced ${synced} new submission${synced === 1 ? '' : 's'}`
+      if (firstError) toast.error(`${synced ? `${summary}. ` : ''}GitHub sync incomplete. ${firstError}`)
+      else toast.success(synced ? summary : 'Already up to date')
+      await reloadQueue()
+    } finally {
+      setSyncing(false)
+    }
+  }
   const step = (target: QueueItem | undefined) =>
     target ? async () => { if (await leaveReview()) select(target.id) } : undefined
   // The list without its open review: where Back to queue goes on a phone.
@@ -309,6 +338,12 @@ export function Grading() {
           title="Grading"
           description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortName ? <> in {cohortName}</> : ' across cohorts'} · {counts.redo} redo requested{counts.overdue ? <> · {counts.overdue} past review target</> : null}</>}
           scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: cohortList ? 'Not one of your cohorts' : 'Loading cohort…' }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })} />}
+          actions={(cohortId && syncModuleIds.length > 0) || syncing ? (
+            <Button variant="secondary" disabled={syncing || loading} onClick={() => void syncGithub()}>
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
+              {syncing ? 'Syncing…' : 'Sync GitHub'}
+            </Button>
+          ) : undefined}
           menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
         />
       </div>

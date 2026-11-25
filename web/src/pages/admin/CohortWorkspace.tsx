@@ -135,7 +135,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
         <nav aria-label="Cohort sections" className="workspace-sections border-b border-line lg:overflow-x-auto">
           <WorkspaceSectionMenu
             label="Cohort sections"
-            value={cohortPath(cohort.id, activeTab === 'insights' ? 'learning' : activeTab)}
+            value={cohortPath(cohort.id, activeTab)}
             state={forwardReturnState(location.state)}
             sections={visibleTabs.map((tab) => ({ to: cohortPath(cohort.id, tab.id), label: tab.label }))}
           />
@@ -146,12 +146,12 @@ function Workspace({ cohortId }: { cohortId: number }) {
                 to={tabId === 'overview' ? cohortPath(cohort.id) : cohortPath(cohort.id, tabId)}
                 state={forwardReturnState(location.state)}
                 aria-current={
-                  activeTab === tabId || (activeTab === 'insights' && tabId === 'learning') ? 'page' : undefined
+                  activeTab === tabId ? 'page' : undefined
                 }
                 className={
                   'inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm ' +
                   'font-semibold transition-colors duration-150 sm:px-4 ' +
-                  (activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')
+                  (activeTab === tabId
                     ? 'tab-selected'
                     : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink')
                 }
@@ -233,22 +233,6 @@ function Workspace({ cohortId }: { cohortId: number }) {
             )}
             <Students key={cohort.id} cohort={cohort} />
           </>
-        )}
-        {(activeTab === 'learning' || activeTab === 'insights') && (
-          <nav aria-label="Learning sections" className="flex flex-wrap gap-2">
-            <LinkButton
-              variant={activeTab === 'learning' ? 'secondary' : 'quiet'}
-              to={cohortPath(cohort.id, 'learning')}
-            >
-              Assigned learning
-            </LinkButton>
-            <LinkButton
-              variant={activeTab === 'insights' ? 'secondary' : 'quiet'}
-              to={cohortPath(cohort.id, 'insights')}
-            >
-              Learning insights
-            </LinkButton>
-          </nav>
         )}
         {activeTab === 'learning' && <Learning cohort={cohort} canConfigure={Boolean(user?.is_admin)} />}
         {activeTab === 'activity' && <StaffActivityFeed cohort={cohort} />}

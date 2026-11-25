@@ -21,7 +21,7 @@ it('retains teacher recording/session operations while administrative learning s
     await act(async () => root.render(<RouterProvider router={router} />))
     expect(container.textContent).not.toContain('Configure learning')
     expect(container.textContent).not.toContain('Manage cohort')
-    expect(container.textContent).toContain('Learning insights')
+    expect(container.textContent).toContain('Insights')
     await act(async () => router.navigate('/admin/cohorts/4?tab=recordings&settings_notice=1'))
     expect(container.textContent).toContain('Recording manager for 4')
     expect(container.textContent).toContain('Cohort settings are managed by admins.')

@@ -11,11 +11,19 @@ export function Overview({ cohort }: { cohort: CohortDetail }) {
   const occurrences = cohort.office_hour_occurrences || []
   return (
     <div className="space-y-6">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric value={cohort.students.length} label="enrolled students" />
-        <Metric value={assigned.length} label="assigned modules" />
-        <Metric value={cohort.uploaded_recordings_count || 0} label="uploaded recordings" />
-        <Metric value={occurrences.length} label="upcoming sessions" />
+      <section aria-labelledby="overview-at-glance" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="overview-at-glance" className="text-lg font-bold text-ink">At a glance</h2>
+          <Link className="app-link inline-flex min-h-11 items-center gap-1 text-sm" to={cohortPath(cohort.id, 'insights')}>
+            View insights <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric value={cohort.students.length} label="enrolled students" />
+          <Metric value={assigned.length} label="assigned modules" />
+          <Metric value={cohort.uploaded_recordings_count || 0} label="uploaded recordings" />
+          <Metric value={occurrences.length} label="upcoming sessions" />
+        </div>
       </section>
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="app-surface p-5 sm:p-6">

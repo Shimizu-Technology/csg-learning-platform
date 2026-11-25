@@ -28,7 +28,7 @@ export function useGradingQueue(request: GradingQueueRequest, focusId: number | 
   const initialFocus = useRef(focusId)
   const loadedKey = useRef<string | null>(null)
   const generation = useRef(0)
-  const [state, setState] = useState<{ data: GradingQueueResponse | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true })
+  const [state, setState] = useState<{ key?: string; data: GradingQueueResponse | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true })
 
   const reload = useCallback(async (focus?: number | null) => {
     const current = requestRef.current
@@ -44,7 +44,7 @@ export function useGradingQueue(request: GradingQueueRequest, focusId: number | 
       const served = result.data.meta.page
       initialFocus.current = null
       loadedKey.current = JSON.stringify({ ...current, page: served })
-      setState({ data: result.data, loading: false, error: result.error || (result.fromCache ? 'Showing saved data. Reconnect to refresh.' : null) })
+      setState({ key: loadedKey.current, data: result.data, loading: false, error: result.error || (result.fromCache ? 'Showing saved data. Reconnect to refresh.' : null) })
       if (served !== current.page) servedRef.current(served)
     } catch (error) {
       if (id !== generation.current) return
@@ -59,5 +59,5 @@ export function useGradingQueue(request: GradingQueueRequest, focusId: number | 
   }, [key, reload])
   useEffect(() => () => { generation.current += 1 }, [])
 
-  return { ...state, reload }
+  return { ...state, dataIsCurrent: state.key === key, reload }
 }
