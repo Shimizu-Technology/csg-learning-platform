@@ -120,3 +120,10 @@ it('explains when storage is not set up and disables uploads', async () => {
   expect(button('Upload file').disabled).toBe(true)
   expect(container.querySelector<HTMLButtonElement>('button[aria-label="Download Week 1 Ruby Slides"]')!.disabled).toBe(true)
 })
+
+it("labels the hidden file input inside CohortFileUploader for assistive tech", async () => {
+  await mount()
+  await act(async () => button("Upload file").click())
+  const fileInput = container.querySelector<HTMLInputElement>("input[type=\"file\"]")
+  expect(fileInput?.getAttribute("aria-label")).toBe("Upload a class file")
+})
