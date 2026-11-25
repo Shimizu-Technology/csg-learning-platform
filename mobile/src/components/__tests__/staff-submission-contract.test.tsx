@@ -168,3 +168,50 @@ it('advances to the next attempt only after the selected grade is saved', async 
   await act(async () => { fireEvent.press(screen.getByLabelText('Save grade A')); });
   expect(mockReplace).toHaveBeenCalledWith({ pathname: '/staff/submission/[id]', params: { id: '42', queue: 'test-queue', cohort_id: '4', student_id: '81' } });
 });
+
+it('expires the GitHub save notice after 30 seconds while staying mounted on the last queue item', async () => {
+  jest.useFakeTimers();
+  try {
+    mockQueue = 'test-queue';
+    const submission = {
+      ...demoStaffSubmissions[0],
+      id: 41,
+      latest_submission_id: 41,
+      grade: null,
+      feedback: null,
+      rubric: null,
+      github_issue_delivery: null,
+    };
+    mockApi.submission.mockResolvedValue({ submission });
+    mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+    mockApi.gradeSubmission.mockResolvedValue({
+      submission: {
+        ...submission,
+        grade: 'R',
+        feedback: 'Handle empty input',
+        github_issue_delivery: {
+          status: 'pending',
+          action: 'open_or_comment',
+          issue_url: null,
+          attempts: 0,
+          last_error: null,
+          delivered_at: null,
+          updated_at: '2026-11-25T12:00:00Z',
+        },
+      },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+    clients.push(client);
+    client.setQueryData(['grading-navigation', 7, mockQueue], { submissions: [submission] });
+    const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+    await act(async () => {});
+    fireEvent.press(screen.getByLabelText('Request redo'));
+    fireEvent.changeText(screen.getByLabelText('Feedback for student'), 'Handle empty input');
+    await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+    expect(screen.getByText('Redo saved · GitHub issue queued')).toBeTruthy();
+    await act(async () => { jest.advanceTimersByTime(31_000); });
+    expect(screen.queryByText('Redo saved · GitHub issue queued')).toBeNull();
+  } finally {
+    jest.useRealTimers();
+  }
+});

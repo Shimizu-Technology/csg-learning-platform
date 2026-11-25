@@ -39,7 +39,8 @@ export function editorJsonToMarkdown(node?: JSONContent, options: { lessonHeadin
       return serializeInline(node.content || [])
     case 'heading': {
       const level = Math.min(Math.max(Number(node.attrs?.level) || 2, options.lessonHeadings ? 1 : 2), 3)
-      return `${'#'.repeat(level)} ${serializeInline(node.content || [])}`
+      const content = escapeClosingHeadingHashes(serializeInline(node.content || []))
+      return `${'#'.repeat(level)} ${content}`
     }
     case 'hardBreak':
       return '\n'
@@ -54,6 +55,14 @@ export function editorJsonToMarkdown(node?: JSONContent, options: { lessonHeadin
     default:
       return (node.content || []).map(serializeChild).join('')
   }
+}
+
+/**
+ * Escape literal trailing `#` runs in an ATX heading so reopening doesn't strip them as closing hashes.
+ */
+function escapeClosingHeadingHashes(text: string): string {
+  if (/^#+[ \t]*$/.test(text)) return `\\${text}`
+  return text.replace(/([ \t]+)(#+)([ \t]*)$/, '$1\\$2$3')
 }
 
 /**

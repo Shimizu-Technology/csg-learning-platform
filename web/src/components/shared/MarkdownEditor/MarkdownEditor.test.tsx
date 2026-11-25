@@ -729,3 +729,10 @@ it('Markdown toolbar and shortcut remove active bold and update pressed state', 
   await tick()
   expect(textarea().value).toBe('bold text')
 })
+
+it('handles focus() safely after unmount without throwing', async () => {
+  const mounted = await mount({ variant: 'field', defaultValue: 'Hello' })
+  const handle = mounted.ref.current!
+  act(() => { root?.unmount(); root = null })
+  expect(() => handle.focus()).not.toThrow()
+})

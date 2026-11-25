@@ -660,6 +660,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     setPasteNotice(null)
     if (emitChange) emit(markdown)
     else {
+      pendingValuesRef.current.length = 0
       markdownRef.current = markdown
       lastEmittedRef.current = markdown
     }
@@ -683,6 +684,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const current = editorRef.current
     if (next === modeRef.current) return
     if (next === 'markdown') {
+      pendingValuesRef.current.length = 0
       let caret = markdownRef.current.length
       const markdown = flush()
       if (current && !current.isDestroyed) {
@@ -710,6 +712,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         textarea.setSelectionRange(caret, caret)
       }
     } else {
+      pendingValuesRef.current.length = 0
       const typed = sourceRef.current
       // The text as stored (its own line endings) when it's the same text, so Rich mode keeps them.
       const markdown = normalizeLineEndings(markdownRef.current) === typed ? markdownRef.current : typed
@@ -734,7 +737,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         setModeState('rich')
         setPreview(false)
       })
-      if (focus && current && !current.isDestroyed) current.view.focus()
+      if (focus && current && !current.isDestroyed && current.isInitialized) current.view.focus()
       announce('Rich mode. Same text, shown with formatting.')
     }
     if (remember) rememberMode(next)
@@ -857,8 +860,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   useImperativeHandle(ref, () => ({
     focus: () => {
-      if (modeRef.current === 'rich') editorRef.current?.view.focus()
-      else textareaRef.current?.focus()
+      if (modeRef.current === 'rich') {
+        const current = editorRef.current
+        if (current && !current.isDestroyed && current.isInitialized) current.view.focus()
+      } else textareaRef.current?.focus()
     },
     getMarkdown: () => (modeRef.current === 'rich' ? flush() : markdownRef.current),
     getRichContent: () => {

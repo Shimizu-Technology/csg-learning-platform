@@ -258,7 +258,7 @@ export function Grading() {
       const summary = `Synced ${synced} new submission${synced === 1 ? '' : 's'}`
       if (firstError) toast.error(`${synced ? `${summary}. ` : ''}GitHub sync incomplete. ${firstError}`)
       else toast.success(synced ? summary : 'Already up to date')
-      await reloadQueue()
+      await reloadQueue(selectedId)
     } finally {
       setSyncing(false)
     }

@@ -933,4 +933,16 @@ describe('GitHub Redo issue delivery status in SubmissionReviewPanel', () => {
     const link = delivered?.querySelector<HTMLAnchorElement>('a[href="https://github.com/app-learner/prework-exercises/issues/14"]')
     expect(link?.textContent).toContain('View GitHub issue')
   })
+
+  it('announces remaining rubric count and completion in a persistent polite live region', async () => {
+    await render('/admin/submissions/42')
+    const liveStatus = () =>
+      [...container.querySelectorAll('[data-grade-bar] [role="status"][aria-live="polite"]')][0]
+    expect(liveStatus()).toBeTruthy()
+    expect(liveStatus().textContent).toBe('')
+    await click('B')
+    expect(liveStatus().textContent).toBe('1 rubric item left')
+    await click('Meets')
+    expect(liveStatus().textContent).toBe('All rubric items rated')
+  })
 })

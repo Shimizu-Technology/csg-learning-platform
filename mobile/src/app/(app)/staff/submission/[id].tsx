@@ -42,6 +42,8 @@ const githubSaveMessages = {
   close: 'Grade saved · GitHub issue will close',
 } as const;
 type GithubAction = keyof typeof githubSaveMessages;
+type GithubNoticeEntry = { action: GithubAction; expiresAt: number };
+const GITHUB_NOTICE_LIFETIME_MS = 30_000;
 
 export default function StaffSubmissionScreen() {
   const styles = useStyles();
@@ -63,10 +65,25 @@ export default function StaffSubmissionScreen() {
   const queueData = queue && user?.is_staff ? queueQuery.data : undefined;
   const position = gradingQueuePosition(queueData, submissionId);
   const githubNoticeKey = (id: number) => ['staff-grading-github-notice', user?.id, queue, id] as const;
-  const githubNotice = useQuery<GithubAction>({
+  const githubNoticeEntry = useQuery<GithubNoticeEntry>({
     queryKey: githubNoticeKey(submissionId), queryFn: skipToken, enabled: false,
-    gcTime: 30_000, meta: { persist: false },
+    gcTime: GITHUB_NOTICE_LIFETIME_MS, meta: { persist: false },
   }).data;
+  const [noticeNow, setNoticeNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!githubNoticeEntry) return;
+    const remaining = githubNoticeEntry.expiresAt - Date.now();
+    if (remaining <= 0) {
+      queryClient.removeQueries({ queryKey: ['staff-grading-github-notice', user?.id, queue, submissionId], exact: true });
+      return;
+    }
+    const timer = setTimeout(() => {
+      setNoticeNow(Date.now());
+      queryClient.removeQueries({ queryKey: ['staff-grading-github-notice', user?.id, queue, submissionId], exact: true });
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [githubNoticeEntry, queryClient, queue, submissionId, user?.id]);
+  const githubNotice = githubNoticeEntry && githubNoticeEntry.expiresAt > noticeNow ? githubNoticeEntry.action : undefined;
   const moveInQueue = (target: GradingQueueTarget | undefined) => {
     if (!target) return;
     router.replace({ pathname: '/staff/submission/[id]', params: { id: String(target.id), queue, ...(target.cohort_id ? { cohort_id: String(target.cohort_id), student_id: String(target.user_id) } : {}) } });
@@ -251,8 +268,10 @@ export default function StaffSubmissionScreen() {
         && delivery.updated_at !== submission?.github_issue_delivery?.updated_at ? expectedAction : undefined;
       const noticeKey = githubNoticeKey(position.next?.id ?? submissionId);
       if (githubAction) {
-        queryClient.setQueryDefaults(noticeKey, { gcTime: 30_000, meta: { persist: false } });
-        queryClient.setQueryData(noticeKey, githubAction);
+        const now = Date.now();
+        setNoticeNow(now);
+        queryClient.setQueryDefaults(noticeKey, { gcTime: GITHUB_NOTICE_LIFETIME_MS, meta: { persist: false } });
+        queryClient.setQueryData<GithubNoticeEntry>(noticeKey, { action: githubAction, expiresAt: now + GITHUB_NOTICE_LIFETIME_MS });
       }
       moveInQueue(position.next);
     },

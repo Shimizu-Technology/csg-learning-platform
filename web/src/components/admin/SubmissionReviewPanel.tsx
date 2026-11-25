@@ -976,6 +976,13 @@ export function SubmissionReviewPanel({
                 {unratedCount} rubric {unratedCount === 1 ? 'item' : 'items'} left
               </Button>
             )}
+            <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+              {(submission.rubric?.criteria.length ?? 0) > 0 && selectedGrade && selectedGrade !== 'R'
+                ? unratedCount > 0
+                  ? `${unratedCount} rubric ${unratedCount === 1 ? 'item' : 'items'} left`
+                  : 'All rubric items rated'
+                : ''}
+            </p>
             <Button
               variant="primary"
               size="md"

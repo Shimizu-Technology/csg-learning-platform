@@ -341,3 +341,16 @@ it('keeps lesson H1, H2 and H3 editable and preserves their exact Markdown level
   const rich = throughRichEditor(doc, true)
   expect(editorJsonToMarkdownKeepingSource(rich, keySourceSegments(result, rich), 'lesson')).toBe(source)
 })
+
+it('escapes literal trailing hashes in edited lesson headings so reopening preserves them', () => {
+  const source = '# Title'
+  const result = markdownToEditorDoc(source, { target: 'lesson' })
+  const rich = throughRichEditor(result.doc, true)
+  const heading = rich.content![0]
+  heading.content = [{ type: 'text', text: 'Title #' }]
+  const saved = editorJsonToMarkdownKeepingSource(rich, keySourceSegments(result, rich), 'lesson')
+  expect(saved).toBe('# Title \\#')
+  const reopened = markdownToEditorDoc(saved, { target: 'lesson' })
+  expect(lockedKinds(reopened.doc)).toEqual([])
+  expect(reopened.doc.content?.[0].content?.map((n) => n.text).join('')).toBe('Title #')
+})
