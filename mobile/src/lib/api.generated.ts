@@ -6880,11 +6880,13 @@ export interface paths {
         post?: never;
         /**
          * Delete a file and its stored objects
-         * @description Staff may delete any file in the cohort; a student only files they uploaded to their own folder. 502 when the stored object could not be removed.
+         * @description Staff may delete any file in the cohort; a student only files they uploaded to their own folder, and only while active (403 when paused, completed or expired). With `pending_only=true` it abandons an unfinished upload and refuses (422) once the file is published, so retrying after a lost `complete` never removes a published file. 502 when the stored object could not be removed.
          */
         delete: {
             parameters: {
-                query?: never;
+                query?: {
+                    pending_only?: boolean;
+                };
                 header?: never;
                 path: {
                     cohort_id: number;

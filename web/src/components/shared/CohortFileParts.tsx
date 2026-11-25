@@ -16,12 +16,14 @@ import { Button } from '../ui/Button'
 import { ProgressBar } from './ProgressBar'
 
 /** One file: type icon, title, filename and size, badges, and the caller's actions (Download first). */
-export function CohortFileRow({ cohortId, file, badges, actions, note }: {
+export function CohortFileRow({ cohortId, file, badges, actions, note, downloadDisabled = false }: {
   cohortId: number
   file: CohortFile
   badges?: ReactNode
   actions?: ReactNode
   note?: ReactNode
+  /** File storage is unavailable: show Download disabled with a hint. */
+  downloadDisabled?: boolean
 }) {
   const Icon = FILE_TYPE_ICONS[fileExtension(file.filename)] || FileText
   const [downloading, setDownloading] = useState(false)
@@ -55,10 +57,12 @@ export function CohortFileRow({ cohortId, file, badges, actions, note }: {
           </p>
           {file.description && <p className="mt-1 text-sm text-ink-secondary [overflow-wrap:anywhere]">{file.description}</p>}
           {error && <p role="alert" className="mt-1 text-sm text-danger-ink">{error}</p>}
+          {downloadDisabled && <p id={`file-${file.id}-download-hint`} className="mt-1 text-xs text-ink-muted">Downloads are unavailable until file storage is set up.</p>}
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 pl-[3.25rem] sm:pl-0">
-        <Button size="sm" variant="secondary" disabled={downloading} onClick={() => void download()} aria-label={`Download ${file.title}`}>
+        <Button size="sm" variant="secondary" disabled={downloading || downloadDisabled} onClick={() => void download()} aria-label={`Download ${file.title}`}
+          aria-describedby={downloadDisabled ? `file-${file.id}-download-hint` : undefined}>
           {downloading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
           {downloading ? 'Preparing…' : 'Download'}
         </Button>

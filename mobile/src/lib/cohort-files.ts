@@ -10,6 +10,21 @@ export const MAX_COHORT_FILE_SIZE = 100 * 1024 * 1024;
 export const COHORT_FILE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'csv', 'txt', 'md', 'zip', 'png', 'jpg', 'jpeg', 'webp', 'mp3', 'm4a', 'mp4']);
 export const STUDENT_FOLDER_PRESETS = ['Job Search & Career', 'Resumes & Portfolio', 'Class Notes', 'General'];
 
+/**
+ * Loads a cohort's files, or null once access is gone (401/403), so a revoked
+ * viewer never keeps seeing a folder from memory. Callers also opt out of
+ * offline persistence (`meta: { persist: false }`).
+ */
+export async function loadCohortFiles(api: CsgApi, cohortId: number, signal?: AbortSignal) {
+  try {
+    return await api.cohortFiles(cohortId, signal);
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    if (status === 401 || status === 403) return null;
+    throw error;
+  }
+}
+
 export type PickedFile = { uri: string; name?: string | null; size?: number | null; mimeType?: string | null };
 
 export function fileExtension(filename: string) {
@@ -37,7 +52,7 @@ export function validatePickedFile(asset: PickedFile) {
   return { filename, size, contentType: asset.mimeType || '' };
 }
 
-/** Presign, post the file straight to storage, then publish it. Abandons the pending file if any step fails. */
+/** Presign, post the file straight to storage, then publish it. Abandons the still-pending file if any step fails. */
 export async function uploadToMyFolder(api: CsgApi, cohortId: number, asset: PickedFile, folder: string, onProgress: (progress: number) => void) {
   const { filename, size, contentType } = validatePickedFile(asset);
   const started = await api.createCohortFile(cohortId, { filename, content_type: contentType, file_size: size, folder });
@@ -46,7 +61,8 @@ export async function uploadToMyFolder(api: CsgApi, cohortId: number, asset: Pic
     await postPresignedFile(started.upload_url, started.fields, { uri: asset.uri, name: filename, type: started.fields['Content-Type'] || started.file.content_type }, onProgress);
     return (await api.completeCohortFile(cohortId, started.file.id)).file;
   } catch (error) {
-    void api.deleteCohortFile(cohortId, started.file.id).catch(() => undefined);
+    // pending_only: a publish whose response was lost is never deleted.
+    void api.deleteCohortFile(cohortId, started.file.id, { pendingOnly: true }).catch(() => undefined);
     throw error;
   }
 }

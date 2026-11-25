@@ -128,9 +128,11 @@ class Enrollment < ApplicationRecord
     resource.ready? && media_available_for_read?(resource.created_at, resource.ready_at || resource.updated_at)
   end
 
-  # Class and private-folder files follow the course-file pause cutoff.
+  # Class and private-folder files follow the course-file pause cutoff. A file
+  # staged before a pause and shared after it is not part of the paused library.
   def file_available_for_read?(cohort_file)
-    cohort_file.ready? && media_available_for_read?(cohort_file.created_at, cohort_file.ready_at || cohort_file.updated_at)
+    cohort_file.ready? && cohort_file.shared_at.present? &&
+      media_available_for_read?(cohort_file.created_at, cohort_file.ready_at || cohort_file.updated_at, cohort_file.shared_at)
   end
 
   def record_pause_date

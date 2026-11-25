@@ -2,7 +2,9 @@ class S3ObjectCleanup
   MANAGED_KEY_PATTERNS = [
     %r{\Arecordings/cohort_\d+/\d{14}_[0-9a-f]{8}_[^/]+\z},
     %r{\Acontent_videos/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
-    %r{\Acontent_videos/block_\d+/\d{14}_[^/]+\z}
+    %r{\Acontent_videos/block_\d+/\d{14}_[^/]+\z},
+    %r{\Acohort_files/cohort_\d+/(?:shared|student_\d+)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z},
+    %r{\Acohort_file_uploads/cohort_\d+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+\z}
   ].freeze
 
   class << self
@@ -86,6 +88,7 @@ class S3ObjectCleanup
 
     def referenced?(key)
       Recording.exists?(s3_key: key) || ContentBlock.exists?(s3_video_key: key) ||
+        CohortFile.exists?(s3_key: key) || CohortFile.exists?(upload_key: key) ||
         ContentBlock.where("metadata @> ?::jsonb", { video_versions: [ { s3_video_key: key } ] }.to_json).exists?
     end
   end

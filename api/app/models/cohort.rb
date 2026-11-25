@@ -41,7 +41,8 @@ class Cohort < ApplicationRecord
   has_many :cohort_instructor_assignments, dependent: :destroy
   has_many :instructors, through: :cohort_instructor_assignments, source: :user
   has_many :recordings, dependent: :destroy
-  has_many :cohort_files, dependent: :delete_all
+  # Each file removes its stored objects after the deletion commits.
+  has_many :cohort_files, dependent: :destroy
   has_many :announcements, dependent: :destroy
   has_one :workspace, dependent: :destroy
   has_many :channels, dependent: :destroy

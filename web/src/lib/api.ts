@@ -577,8 +577,9 @@ export const api = {
     fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/complete`, { method: 'POST' }),
   updateCohortFile: (cohortId: number, fileId: number, data: components['schemas']['CohortFileUpdateInput']) =>
     fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteCohortFile: (cohortId: number, fileId: number) =>
-    fetchApi<null>(`/api/v1/cohorts/${cohortId}/files/${fileId}`, { method: 'DELETE' }),
+  /** `pendingOnly` abandons an unfinished upload and is refused once the file is published. */
+  deleteCohortFile: (cohortId: number, fileId: number, options: { pendingOnly?: boolean } = {}) =>
+    fetchApi<null>(`/api/v1/cohorts/${cohortId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' }),
   downloadCohortFile: (cohortId: number, fileId: number) =>
     fetchApi<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download`, { cache: 'no-store' }),
   copyCohortFileToStudents: (cohortId: number, fileId: number, folder?: string) =>

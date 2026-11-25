@@ -5835,13 +5835,21 @@
       },
       "delete": {
         "summary": "Delete a file and its stored objects",
-        "description": "Staff may delete any file in the cohort; a student only files they uploaded to their own folder. 502 when the stored object could not be removed.",
+        "description": "Staff may delete any file in the cohort; a student only files they uploaded to their own folder, and only while active (403 when paused, completed or expired). With `pending_only=true` it abandons an unfinished upload and refuses (422) once the file is published, so retrying after a lost `complete` never removes a published file. 502 when the stored object could not be removed.",
         "responses": {
           "204": {
             "description": "No content"
           }
         },
         "parameters": [
+          {
+            "name": "pending_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
           {
             "name": "cohort_id",
             "in": "path",

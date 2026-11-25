@@ -196,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_100000) do
     t.datetime "upload_expires_at", null: false
     t.boolean "ready", default: false, null: false
     t.datetime "ready_at"
+    t.datetime "shared_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["cohort_id", "folder"], name: "index_cohort_files_on_cohort_id_and_folder"

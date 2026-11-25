@@ -231,14 +231,15 @@ module X6ActualizeDemo
         { title: "Resume Draft v1", filename: "resume-draft-v1.pdf", folder: "Resumes & Portfolio", visibility: "students", uploaded_by: student, student: student }
       ].map do |attributes|
         owner = attributes[:student] ? "student_#{attributes[:student].id}" : "shared"
-        token = Digest::SHA256.hexdigest("#{cohort.id}:#{attributes[:filename]}")[0, 16]
+        # A stable UUID-shaped token, so cleanup recognises the synthetic keys as managed.
+        token = Digest::SHA256.hexdigest("#{cohort.id}:#{attributes[:filename]}")[0, 32].unpack("a8a4a4a4a12").join("-")
         cohort.cohort_files.create!(
           **attributes, description: "Synthetic demo file",
           content_type: CohortFile.normalized_content_type(attributes[:filename], ""), file_size: 48_000,
-          s3_key: "cohort_files/cohort_#{cohort.id}/#{owner}/synthetic-#{token}/#{attributes[:filename]}",
-          upload_key: "cohort_file_uploads/cohort_#{cohort.id}/synthetic-#{token}/#{attributes[:filename]}",
+          s3_key: "cohort_files/cohort_#{cohort.id}/#{owner}/#{token}/#{attributes[:filename]}",
+          upload_key: "cohort_file_uploads/cohort_#{cohort.id}/#{token}/#{attributes[:filename]}",
           upload_expires_at: 1.day.ago, ready: true
-        ).tap { |file| file.update_columns(created_at: 1.day.ago, ready_at: 1.day.ago) }
+        ).tap { |file| file.update_columns(created_at: 1.day.ago, ready_at: 1.day.ago, shared_at: (1.day.ago unless file.staff_only?)) }
       end
       seeded.to_h { |file| [ file.filename, file.id ] }
     end

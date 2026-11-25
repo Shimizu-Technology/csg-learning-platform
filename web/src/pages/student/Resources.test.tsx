@@ -156,4 +156,21 @@ describe('Resources course switching', () => {
     expect(container.querySelector('section[aria-label="Cohort links"]')!.textContent).not.toContain('Class meeting')
   })
 
+  it('shows a retry banner when files fail to load, and stays quiet for 403', async () => {
+    state.getCohortFiles.mockResolvedValueOnce({ data: null, error: 'Request timed out', status: 504 })
+    await act(async () => root.render(<MemoryRouter><Resources /></MemoryRouter>))
+    await act(async () => pending.get(1)?.({ data: { resources: [] }, error: null }))
+    const banner = container.querySelector('[role="alert"]')!
+    expect(banner.textContent).toContain('Your files and class files could not load. Request timed out')
+    expect(container.textContent).not.toContain('No resources yet')
+    state.getCohortFiles.mockResolvedValueOnce({ data: {
+      class_files: [classFile({})], my_files: [], folders: [], storage_configured: false, can_upload_personal: true,
+    }, error: null })
+    await act(async () => [...banner.querySelectorAll('button')].find((button) => button.textContent?.includes('Retry'))!.click())
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    const download = container.querySelector<HTMLButtonElement>('button[aria-label="Download Week 1 Ruby Slides"]')!
+    expect(download.disabled).toBe(true)
+    expect(container.textContent).toContain('Downloads are unavailable until file storage is set up.')
+  })
+
 })

@@ -39,6 +39,8 @@ module Api
         student_id = upload_student_id
         return if performed?
 
+        CohortFile.purge_expired_pending!(@cohort.cohort_files)
+
         filename = CohortFile.sanitize_filename(params[:filename])
         content_type = CohortFile.normalized_content_type(filename, params[:content_type]) if filename
         unless content_type
@@ -87,6 +89,11 @@ module Api
             render json: { error: "Uploaded file is missing or does not match its declared size and type" }, status: :unprocessable_entity
             return
           end
+          unless CohortFile.content_matches?(file.filename, S3Service.read_prefix(file.upload_key))
+            render json: { error: "This file's contents don't match its .#{CohortFile.extension_for(file.filename)} type. Export it again and re-upload." },
+              status: :unprocessable_entity
+            return
+          end
           # The still-valid upload POST can only overwrite staging, never a published file.
           S3Service.copy_object(file.upload_key, file.s3_key, etag: metadata.fetch(:etag))
           file.update!(ready: true)
@@ -130,14 +137,23 @@ module Api
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
+      # `pending_only` abandons an unfinished upload and never removes a
+      # published file, so a client retrying after a lost `complete` is safe.
       def destroy
+        return render_forbidden("Changes to your folder are paused") unless current_user.staff? || student_can_write?
+
         file = manageable_files.find(params[:id])
         file.with_lock do
+          if ActiveModel::Type::Boolean.new.cast(params[:pending_only]) && file.ready?
+            render json: { error: "This file was already published" }, status: :unprocessable_entity
+            return
+          end
           # Local and demo rows have no stored objects to clean up.
           if S3Service.configured? && !(S3Service.delete_object(file.upload_key) && S3Service.delete_object(file.s3_key))
             render json: { error: "Could not delete the stored file; try again" }, status: :bad_gateway
             return
           end
+          file.storage_cleaned = true
           file.destroy!
         end
         head :no_content
@@ -247,19 +263,40 @@ module Api
         current_user.id
       end
 
+      # Validates the copy before touching storage. If saving fails after the
+      # object was copied, the copy is removed again (or logged for cleanup).
       def copy_for(source, student_id, folder)
-        key = "cohort_files/cohort_#{@cohort.id}/student_#{student_id}/#{SecureRandom.uuid}/#{source.filename}"
-        S3Service.copy_object(source.s3_key, key)
-        @cohort.cohort_files.create!(
+        token = SecureRandom.uuid
+        copy = @cohort.cohort_files.new(
           student_id: student_id, uploaded_by: current_user, source_file: source,
           title: source.title, description: source.description, folder: folder, visibility: "students",
           filename: source.filename, content_type: source.content_type, file_size: source.file_size,
-          s3_key: key, upload_key: "cohort_file_copies/#{key}", upload_expires_at: Time.current, ready: true
+          s3_key: "cohort_files/cohort_#{@cohort.id}/student_#{student_id}/#{token}/#{source.filename}",
+          upload_key: "cohort_file_uploads/cohort_#{@cohort.id}/#{token}/#{source.filename}",
+          upload_expires_at: Time.current, ready: true
         )
-      rescue ActiveRecord::RecordNotUnique
-        # A concurrent copy reached this student first; drop the duplicate object.
-        S3Service.delete_object(key)
-        nil
+        copy.validate!
+        S3Service.copy_object(source.s3_key, copy.s3_key)
+        begin
+          copy.save!
+        rescue ActiveRecord::RecordNotUnique => error
+          remove_copied_object(copy.s3_key)
+          # Only "this student already has a copy" is a skip; anything else is a real failure.
+          raise unless @cohort.cohort_files.exists?(student_id: student_id, source_file_id: source.id)
+
+          Rails.logger.info("[CohortFiles] concurrent_copy_skipped source_id=#{source.id} student_id=#{student_id} #{error.class}")
+          return nil
+        rescue StandardError
+          remove_copied_object(copy.s3_key)
+          raise
+        end
+        copy
+      end
+
+      def remove_copied_object(key)
+        return if S3ObjectCleanup.delete_if_unreferenced(key)
+
+        Rails.logger.error("[CohortFiles] orphaned_copy_cleanup_failed key=#{key}")
       end
 
       def delete_staging_upload(file)

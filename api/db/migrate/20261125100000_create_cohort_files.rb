@@ -19,6 +19,9 @@ class CreateCohortFiles < ActiveRecord::Migration[8.1]
       t.datetime :upload_expires_at, null: false
       t.boolean :ready, null: false, default: false
       t.datetime :ready_at
+      # When students could first see the current version: set on publish or on
+      # Share with students, cleared while staff only. Pause cutoffs read this.
+      t.datetime :shared_at
       t.timestamps
     end
     add_index :cohort_files, :s3_key, unique: true

@@ -69,7 +69,11 @@ export interface CohortFileUploadOptions {
   studentId?: number | null
 }
 
-/** Presign, upload straight to storage, then publish. Abandons the pending row if the upload fails. */
+/**
+ * Presign, upload straight to storage, then publish. If anything fails, the
+ * pending file is abandoned with `pendingOnly`, so a publish whose response
+ * was lost is never deleted.
+ */
 export async function uploadCohortFile(cohortId: number, file: File, options: CohortFileUploadOptions, onProgress?: (progress: UploadProgress) => void) {
   const started = await api.createCohortFile(cohortId, {
     filename: file.name,
@@ -89,7 +93,7 @@ export async function uploadCohortFile(cohortId: number, file: File, options: Co
     if (!completed.data) throw new Error(completed.error || 'The upload could not be saved.')
     return completed.data.file
   } catch (cause) {
-    void api.deleteCohortFile(cohortId, pending.id)
+    void api.deleteCohortFile(cohortId, pending.id, { pendingOnly: true })
     throw cause
   }
 }

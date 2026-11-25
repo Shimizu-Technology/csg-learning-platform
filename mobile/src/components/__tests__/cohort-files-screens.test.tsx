@@ -5,6 +5,8 @@ import { useSession } from '@/providers/session-provider';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useCohort } from '@/providers/cohort-provider';
 import { themedAlert } from '@/lib/alerts';
+import { ApiError } from '@/lib/api';
+import { uploadToMyFolder } from '@/lib/cohort-files';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => null }));
 jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ cohort_id: '4' }), usePathname: () => '/', useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn() }) }));
@@ -97,3 +99,53 @@ test('learners who reach the staff files screen see staff-only guidance', () => 
   expect(screen.getByText('Staff access only')).toBeTruthy();
   expect(api.cohorts).not.toHaveBeenCalled();
 });
+
+test('private folder queries stay out of offline storage and vanish once access is revoked', async () => {
+  const screen = mount(<ResourcesScreen />);
+  await screen.findByText('Resume Draft v1');
+  const cached = client.getQueryCache().findAll({ queryKey: ['learning', 3, 'cohort-files', 4] });
+  expect(cached).toHaveLength(1);
+  expect(cached[0].meta).toEqual({ persist: false });
+  api.cohortFiles.mockRejectedValue(new ApiError('Not enrolled in this cohort', 403));
+  await cached[0].fetch();
+  await waitFor(() => expect(screen.queryByText('Resume Draft v1')).toBeNull());
+  expect(client.getQueryData(['learning', 3, 'cohort-files', 4])).toBeNull();
+  expect(screen.queryByText(/could not load/)).toBeNull();
+});
+
+test('staff who lose a cohort stop seeing its student folders', async () => {
+  jest.mocked(useSession).mockReturnValue({ user: { id: 2, is_staff: true }, api } as unknown as ReturnType<typeof useSession>);
+  api.cohorts.mockResolvedValue({ cohorts: [{ id: 4, name: 'Prework Demo' }] });
+  api.cohortFiles.mockRejectedValue(new ApiError('Cannot access this cohort', 403));
+  const screen = mount(<StaffCohortFilesScreen />);
+  await screen.findByText('No access to these files');
+  expect(client.getQueryCache().findAll({ queryKey: ['staff-cohort-files', 4] })[0].meta).toEqual({ persist: false });
+});
+
+test('a failed files request shows a retry banner, and downloads wait for storage', async () => {
+  api.cohortFiles.mockRejectedValueOnce(new ApiError('The request timed out.', 504))
+    .mockResolvedValue({ class_files: [file({})], my_files: [], folders: [], storage_configured: false, can_upload_personal: true });
+  const screen = mount(<ResourcesScreen />);
+  await screen.findByText(/Your files and class files could not load/);
+  expect(screen.queryByText('No resources yet')).toBeNull();
+  fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+  await screen.findByText('Week 1 Ruby Slides');
+  expect(screen.getByRole('button', { name: 'Download Week 1 Ruby Slides' }).props.accessibilityState.disabled).toBe(true);
+  expect(screen.getByText('Downloads are unavailable until file storage is set up.')).toBeTruthy();
+});
+
+test('a failed native upload abandons only the still-pending file', async () => {
+  api.createCohortFile.mockResolvedValue({ file: { id: 41, content_type: 'application/pdf' }, upload_url: 'https://storage.test/upload', fields: { 'Content-Type': 'application/pdf' } });
+  api.completeCohortFile.mockRejectedValue(new ApiError('Network lost'));
+  api.deleteCohortFile.mockResolvedValue(undefined);
+  const send = jest.fn(function (this: { status: number; onload: () => void }) { this.status = 204; this.onload(); });
+  const original = global.XMLHttpRequest;
+  global.XMLHttpRequest = jest.fn(() => ({ open: jest.fn(), send, upload: {}, status: 0 })) as unknown as typeof XMLHttpRequest;
+  try {
+    await expect(uploadToMyFolder(api as never, 4, { uri: 'file:///resume.pdf', name: 'resume.pdf', size: 10, mimeType: 'application/pdf' }, 'General', jest.fn())).rejects.toThrow('Network lost');
+  } finally {
+    global.XMLHttpRequest = original;
+  }
+  expect(api.deleteCohortFile).toHaveBeenCalledWith(4, 41, { pendingOnly: true });
+});
+

@@ -27,12 +27,15 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
     @from_staff = ready_file(title: "Coaching notes", filename: "coaching.pdf", folder: "Job Search & Career", student: @student)
     @staff_only_private = ready_file(title: "Staff note about student", filename: "private.pdf", student: @student, visibility: "staff_only")
     @classmate_file = ready_file(title: "Classmate resume", filename: "classmate.pdf", student: @classmate, uploaded_by: @classmate)
+    pending_token = SecureRandom.uuid
     @pending = @cohort.cohort_files.create!(title: "Pending", filename: "pending.pdf", content_type: "application/pdf", file_size: 10,
-      s3_key: "cohort_files/pending.pdf", upload_key: "cohort_file_uploads/pending.pdf", upload_expires_at: 1.hour.from_now, uploaded_by: @admin)
+      s3_key: "cohort_files/cohort_#{@cohort.id}/shared/#{pending_token}/pending.pdf",
+      upload_key: "cohort_file_uploads/cohort_#{@cohort.id}/#{pending_token}/pending.pdf", upload_expires_at: 1.hour.from_now, uploaded_by: @admin)
 
     @signed = []
     @copied = []
     @metadata = { content_type: "application/pdf", content_length: 123, etag: "fixture-etag" }
+    @prefix = "%PDF-1.7\n%synthetic".b
   end
 
   test "students see visible class files and only their own folder" do
@@ -121,8 +124,8 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
   end
 
   test "paused students read files available before the pause but cannot write" do
-    @slides.update_columns(created_at: 3.days.ago, ready_at: 2.days.ago)
-    @mine.update_columns(created_at: 3.days.ago, ready_at: 2.days.ago)
+    @slides.update_columns(created_at: 3.days.ago, ready_at: 2.days.ago, shared_at: 2.days.ago)
+    @mine.update_columns(created_at: 3.days.ago, ready_at: 2.days.ago, shared_at: 2.days.ago)
     @enrollment.update!(status: :paused)
     @enrollment.update_column(:paused_at, 1.day.ago)
     with_storage do
@@ -139,6 +142,102 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
       assert_response :forbidden
       as_user(@student) { patch file_path(@mine), params: { title: "Renamed" }, headers: headers, as: :json }
       assert_response :forbidden
+    end
+  end
+
+  test "paused and completed students cannot delete their own uploads" do
+    with_storage do
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        [ { status: :paused }, { status: :completed } ].each do |change|
+          @enrollment.update!(change)
+          as_user(@student) { delete file_path(@mine), headers: headers }
+          assert_response :forbidden
+        end
+        assert CohortFile.exists?(@mine.id)
+        assert_empty deletes
+      end
+    end
+  end
+
+  test "a file staged before a pause and shared after it stays outside the paused library" do
+    @staged.update_columns(created_at: 3.days.ago, ready_at: 3.days.ago)
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    as_user(@teacher) { patch file_path(@staged), params: { visibility: "students" }, headers: headers, as: :json }
+    assert_response :success
+    assert_in_delta Time.current, @staged.reload.shared_at, 5
+    with_storage do
+      as_user(@student) { get files_path, headers: headers }
+      refute_includes response.parsed_body.fetch("class_files").map { |file| file["id"] }, @staged.id
+      as_user(@student) { get download_path(@staged), headers: headers }
+      assert_response :forbidden
+    end
+    assert_empty @signed
+    # Staging again clears the sharing time; active classmates still see the shared file.
+    as_user(@classmate) { get files_path, headers: headers }
+    assert_includes response.parsed_body.fetch("class_files").map { |file| file["id"] }, @staged.id
+    as_user(@teacher) { patch file_path(@staged), params: { visibility: "staff_only" }, headers: headers, as: :json }
+    assert_nil @staged.reload.shared_at
+  end
+
+  test "pending_only abandons an unfinished upload but never a published file" do
+    with_storage do
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        as_user(@admin) { delete "#{file_path(@slides)}?pending_only=true", headers: headers }
+        assert_response :unprocessable_entity
+        assert CohortFile.exists?(@slides.id)
+        assert_empty deletes
+        as_user(@admin) { delete "#{file_path(@pending)}?pending_only=true", headers: headers }
+        assert_response :no_content
+        assert_not CohortFile.exists?(@pending.id)
+      end
+    end
+  end
+
+  test "starting an upload clears this cohort's expired pending uploads and their staging" do
+    @pending.update_columns(upload_expires_at: 1.minute.ago)
+    other = @other_cohort.cohort_files.create!(title: "Other pending", filename: "other.pdf", content_type: "application/pdf", file_size: 10,
+      s3_key: "cohort_files/cohort_#{@other_cohort.id}/shared/#{SecureRandom.uuid}/other.pdf",
+      upload_key: "cohort_file_uploads/cohort_#{@other_cohort.id}/#{SecureRandom.uuid}/other.pdf", upload_expires_at: 1.minute.ago)
+    with_storage do
+      # Storage cleanup runs only once no row references the key any more.
+      still_referenced = []
+      record_external_calls(S3Service, :delete_object, returns: ->(key) { still_referenced << key if CohortFile.where(s3_key: key).or(CohortFile.where(upload_key: key)).exists?; true }) do |deletes|
+        as_user(@admin) { post files_path, params: upload_params, headers: headers, as: :json }
+        assert_response :created
+        assert_not CohortFile.exists?(@pending.id)
+        assert CohortFile.exists?(other.id)
+        assert_equal [ @pending.upload_key, @pending.s3_key ].sort, deletes.map { |call| call[:args].first }.sort
+        assert_empty still_referenced
+      end
+    end
+  end
+
+  test "uploads whose bytes do not match their type are not published" do
+    @pending.update!(file_size: 123)
+    with_storage do
+      [ [ "<!DOCTYPE html><script>alert(1)</script>", "pdf" ], [ "<svg onload=alert(1)>", "pdf" ] ].each do |prefix, _|
+        @prefix = prefix
+        as_user(@admin) { post complete_path(@pending), headers: headers }
+        assert_response :unprocessable_entity
+        assert_match(/don't match its .pdf type/, response.parsed_body.fetch("error"))
+      end
+      token = SecureRandom.uuid
+      notes = @cohort.cohort_files.create!(title: "Notes", filename: "notes.txt", content_type: "text/plain", file_size: 123, uploaded_by: @admin,
+        s3_key: "cohort_files/cohort_#{@cohort.id}/shared/#{token}/notes.txt", upload_key: "cohort_file_uploads/cohort_#{@cohort.id}/#{token}/notes.txt",
+        upload_expires_at: 1.hour.from_now)
+      @metadata = @metadata.merge(content_type: "text/plain")
+      [ "Week 1 notes\n<svg><script>steal()</script></svg>", "plain\x00binary" ].each do |prefix|
+        @prefix = prefix
+        as_user(@admin) { post complete_path(notes), headers: headers }
+        assert_response :unprocessable_entity
+      end
+      assert_not notes.reload.ready?
+      assert_empty @copied
+      @prefix = "Week 1 notes: arrays, hashes and loops.\n"
+      as_user(@admin) { post complete_path(notes), headers: headers }
+      assert_response :success
+      assert notes.reload.ready?
     end
   end
 
@@ -322,6 +421,52 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
     assert_response :service_unavailable
   end
 
+  test "an invalid copy folder fails before any object is copied" do
+    with_storage do
+      as_user(@teacher) { post copy_path(@template), params: { folder: "x" * 81 }, headers: headers, as: :json }
+      assert_response :unprocessable_entity
+    end
+    assert_empty @copied
+    assert_not CohortFile.exists?(source_file_id: @template.id)
+  end
+
+  test "a copy that loses a race to a concurrent copy is skipped and its object removed" do
+    racing = nil
+    test_case = self
+    with_storage do
+      S3Service.define_singleton_method(:copy_object) do |source, destination, etag: nil|
+        test_case.instance_variable_get(:@copied) << [ source, destination, etag ]
+        # Another request saves this student's copy between our copy and our save.
+        if destination.include?("/student_#{test_case.instance_variable_get(:@student).id}/") && racing.nil?
+          racing = test_case.send(:ready_file, title: "Raced copy", filename: "plan.docx", student: test_case.instance_variable_get(:@student),
+            source_file: test_case.instance_variable_get(:@template), content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        end
+      end
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        as_user(@teacher) { post copy_path(@template), headers: headers, as: :json }
+        assert_response :success
+        assert_equal 1, response.parsed_body.fetch("copied_count")
+        assert_equal 1, response.parsed_body.fetch("skipped_count")
+        lost = @copied.find { |_, destination, _| destination.include?("/student_#{@student.id}/") }.second
+        assert_equal [ [ lost ] ], deletes.map { |call| call[:args] }
+      end
+    end
+    assert_equal [ racing.id ], CohortFile.where(source_file_id: @template.id, student_id: @student.id).pluck(:id)
+  end
+
+  test "deleting a cohort removes its stored file objects after commit" do
+    still_referenced = []
+    with_storage do
+      record_external_calls(S3Service, :delete_object, returns: ->(key) { still_referenced << key if CohortFile.where(s3_key: key).or(CohortFile.where(upload_key: key)).exists?; true }) do |deletes|
+        keys = @cohort.cohort_files.flat_map { |file| [ file.upload_key, file.s3_key ] }
+        @cohort.destroy!
+        assert_not CohortFile.where(cohort_id: @cohort.id).exists?
+        assert_equal keys.sort, deletes.map { |call| call[:args].first }.sort
+        assert_empty still_referenced
+      end
+    end
+  end
+
   test "the database keeps one copy of a class file per student folder" do
     copy = ready_file(title: "Copy", filename: "plan.docx", student: @student, source_file: @template,
       content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
@@ -341,10 +486,11 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
   private
 
   def ready_file(title:, filename:, folder: "General", visibility: "students", student: nil, uploaded_by: @admin, content_type: "application/pdf", source_file: nil)
-    token = SecureRandom.hex(4)
+    token = SecureRandom.uuid
+    owner = student ? "student_#{student.id}" : "shared"
     @cohort.cohort_files.create!(title: title, filename: filename, folder: folder, visibility: visibility, student: student,
       uploaded_by: uploaded_by, content_type: content_type, file_size: 123, source_file: source_file,
-      s3_key: "cohort_files/cohort_#{@cohort.id}/#{token}/#{filename}", upload_key: "cohort_file_uploads/#{token}/#{filename}",
+      s3_key: "cohort_files/cohort_#{@cohort.id}/#{owner}/#{token}/#{filename}", upload_key: "cohort_file_uploads/cohort_#{@cohort.id}/#{token}/#{filename}",
       upload_expires_at: 1.hour.from_now, ready: true)
   end
 
@@ -389,11 +535,12 @@ class CohortFilesTest < ActionDispatch::IntegrationTest
   end
 
   def with_storage
-    originals = %i[configured? generate_presigned_post object_metadata copy_object delete_object generate_presigned_url].to_h { |name| [ name, S3Service.method(name) ] }
+    originals = %i[configured? generate_presigned_post object_metadata read_prefix copy_object delete_object generate_presigned_url].to_h { |name| [ name, S3Service.method(name) ] }
     signed, copied, test_instance = @signed, @copied, self
     S3Service.define_singleton_method(:configured?) { true }
     S3Service.define_singleton_method(:generate_presigned_post) { |*_args, **_kwargs| Struct.new(:url, :fields).new("https://storage.test/upload", { "key" => "fixture" }) }
     S3Service.define_singleton_method(:object_metadata) { |_key| test_instance.instance_variable_get(:@metadata) }
+    S3Service.define_singleton_method(:read_prefix) { |_key, bytes: 512| test_instance.instance_variable_get(:@prefix) }
     S3Service.define_singleton_method(:copy_object) { |source, destination, etag: nil| copied << [ source, destination, etag ] }
     S3Service.define_singleton_method(:delete_object) { |_key| true }
     S3Service.define_singleton_method(:generate_presigned_url) do |key, expires_in:, response_content_disposition: nil|

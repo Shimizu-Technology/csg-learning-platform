@@ -108,6 +108,14 @@ class S3Service
       nil
     end
 
+    # The first bytes of an object, for checking an upload is the format it
+    # claims to be. Nil when the object is missing.
+    def read_prefix(key, bytes: 512)
+      s3_client.get_object(bucket: bucket_name, key: key, range: "bytes=0-#{bytes - 1}").body.read
+    rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
+      nil
+    end
+
     # Pass the staging object's etag when publishing an upload, so a racing
     # re-upload cannot be published. Copies of already-published objects omit it.
     def copy_object(source_key, destination_key, etag: nil)

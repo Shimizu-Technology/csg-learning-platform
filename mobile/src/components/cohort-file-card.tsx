@@ -11,7 +11,7 @@ import { useSession } from '@/providers/session-provider';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 
 /** A class or private-folder file with a 1-tap download. The signed link is requested per tap and never stored. */
-export function CohortFileCard({ cohortId, file, note, onDelete }: { cohortId: number; file: CohortFile; note?: string; onDelete?: () => void }) {
+export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisabled = false }: { cohortId: number; file: CohortFile; note?: string; onDelete?: () => void; downloadDisabled?: boolean }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const { api } = useSession();
@@ -42,8 +42,9 @@ export function CohortFileCard({ cohortId, file, note, onDelete }: { cohortId: n
     <Text style={styles.meta}>{cohortFileMeta(file)}{note ? ` · ${note}` : ''}</Text>
     {file.description && <Text style={styles.meta}>{file.description}</Text>}
     {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    {downloadDisabled && <Text style={styles.meta}>Downloads are unavailable until file storage is set up.</Text>}
     <View style={styles.actions}>
-      <Button style={styles.action} variant="secondary" accessibilityLabel={`Download ${file.title}`} label={preparing ? 'Preparing download…' : error ? 'Retry download' : 'Download'} loading={preparing} disabled={preparing} onPress={() => void download()} />
+      <Button style={styles.action} variant="secondary" accessibilityLabel={`Download ${file.title}`} label={preparing ? 'Preparing download…' : error ? 'Retry download' : 'Download'} loading={preparing} disabled={preparing || downloadDisabled} onPress={() => void download()} />
       {onDelete && <Button style={styles.action} variant="danger" accessibilityLabel={`Delete ${file.title}`} label="Delete" onPress={onDelete} />}
     </View>
   </LearningCard>;

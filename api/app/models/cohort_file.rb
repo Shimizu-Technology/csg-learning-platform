@@ -32,6 +32,29 @@ class CohortFile < ApplicationRecord
     application/ecmascript application/x-sh application/x-msdownload application/x-msdos-program application/java-archive].freeze
   # A client that cannot tell the type sends one of these; the extension decides.
   UNKNOWN_TYPES = [ "", "application/octet-stream", "binary/octet-stream" ].freeze
+  ZIP_SIGNATURES = [ "PK\x03\x04".b, "PK\x05\x06".b, "PK\x07\x08".b ].freeze
+  OLE_SIGNATURE = "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1".b
+  # Opening bytes each binary format must start with, checked on `complete`.
+  SIGNATURES = {
+    "pdf" => ->(bytes) { bytes.start_with?("%PDF-") },
+    "zip" => ->(bytes) { ZIP_SIGNATURES.any? { |signature| bytes.start_with?(signature) } },
+    "docx" => ->(bytes) { ZIP_SIGNATURES.any? { |signature| bytes.start_with?(signature) } },
+    "xlsx" => ->(bytes) { ZIP_SIGNATURES.any? { |signature| bytes.start_with?(signature) } },
+    "pptx" => ->(bytes) { ZIP_SIGNATURES.any? { |signature| bytes.start_with?(signature) } },
+    "doc" => ->(bytes) { bytes.start_with?(OLE_SIGNATURE) },
+    "xls" => ->(bytes) { bytes.start_with?(OLE_SIGNATURE) },
+    "ppt" => ->(bytes) { bytes.start_with?(OLE_SIGNATURE) },
+    "png" => ->(bytes) { bytes.start_with?("\x89PNG\r\n\x1A\n".b) },
+    "jpg" => ->(bytes) { bytes.start_with?("\xFF\xD8\xFF".b) },
+    "jpeg" => ->(bytes) { bytes.start_with?("\xFF\xD8\xFF".b) },
+    "webp" => ->(bytes) { bytes.start_with?("RIFF") && bytes.byteslice(8, 4) == "WEBP" },
+    "mp4" => ->(bytes) { bytes.byteslice(4, 4) == "ftyp" },
+    "m4a" => ->(bytes) { bytes.byteslice(4, 4) == "ftyp" },
+    "mp3" => ->(bytes) { bytes.start_with?("ID3") || (bytes.getbyte(0) == 0xFF && bytes.getbyte(1).to_i & 0xE0 == 0xE0) }
+  }.freeze
+  TEXT_EXTENSIONS = %w[txt md csv].freeze
+  # Markup a browser would run or render, refused inside text uploads.
+  ACTIVE_MARKUP = /<!doctype\s+html|<html|<svg|<script/i
 
   belongs_to :cohort
   belongs_to :student, class_name: "User", optional: true
@@ -44,6 +67,12 @@ class CohortFile < ApplicationRecord
 
   before_validation :normalize_text
   before_save :record_ready_date
+  before_save :record_shared_date
+  after_destroy_commit :delete_stored_objects
+
+  # Set when a caller has already removed this file's objects (and reported
+  # any failure) before destroying the row.
+  attr_accessor :storage_cleaned
 
   validates :title, presence: true, length: { maximum: 160 }
   validates :folder, presence: true, length: { maximum: 80 }
@@ -84,6 +113,25 @@ class CohortFile < ApplicationRecord
     accepted.first
   end
 
+  # Whether an object's first bytes match its extension. Text formats must
+  # not hold null bytes or page/script markup.
+  def self.content_matches?(filename, prefix)
+    return false if prefix.blank?
+
+    bytes = prefix.b
+    extension = extension_for(filename)
+    if TEXT_EXTENSIONS.include?(extension)
+      !bytes.include?("\x00") && !bytes.force_encoding(Encoding::UTF_8).scrub.match?(ACTIVE_MARKUP)
+    else
+      SIGNATURES[extension]&.call(bytes) || false
+    end
+  end
+
+  # Pending uploads whose presigned POST expired can never be published.
+  def self.purge_expired_pending!(scope = all, now: Time.current, limit: 50)
+    scope.where(ready: false).where(upload_expires_at: ...now).limit(limit).each(&:destroy!)
+  end
+
   def class_file?
     student_id.nil?
   end
@@ -118,6 +166,26 @@ class CohortFile < ApplicationRecord
 
   def record_ready_date
     self.ready_at = Time.current if ready? && (will_save_change_to_ready? || ready_at.nil?)
+  end
+
+  # Students can see a file from the moment it is ready and visible to them.
+  # Sharing a staged file starts that moment over; staging clears it.
+  def record_shared_date
+    if staff_only? || !ready?
+      self.shared_at = nil
+    elsif shared_at.nil? || will_save_change_to_visibility?
+      self.shared_at = Time.current
+    end
+  end
+
+  def delete_stored_objects
+    return if storage_cleaned
+
+    [ upload_key, s3_key ].each do |key|
+      next if S3ObjectCleanup.delete_if_unreferenced(key)
+
+      Rails.logger.warn("[CohortFiles] stored_object_cleanup_failed file_id=#{id}")
+    end
   end
 
   def allowed_file_type

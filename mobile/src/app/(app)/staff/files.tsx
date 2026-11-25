@@ -14,7 +14,7 @@ import { StaffOnlyScreen } from '@/components/staff-only-screen';
 import { Button } from '@/components/ui/button';
 import { fonts } from '@/constants/csg-theme';
 import { themedAlert as Alert } from '@/lib/alerts';
-import { groupByFolder } from '@/lib/cohort-files';
+import { groupByFolder, loadCohortFiles } from '@/lib/cohort-files';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -36,7 +36,8 @@ export default function StaffCohortFilesScreen() {
   const cohortsQuery = useQuery({ queryKey: ['staff-files-cohorts', user?.id], queryFn: ({ signal }) => api.cohorts(signal), enabled: Boolean(user?.is_staff && !auth.demo) });
   const cohorts = cohortsQuery.data?.cohorts || [];
   const selectedCohortId = cohortId ?? cohorts[0]?.id ?? null;
-  const filesQuery = useQuery({ queryKey: ['staff-cohort-files', selectedCohortId], queryFn: ({ signal }) => api.cohortFiles(selectedCohortId!, signal), enabled: Boolean(user?.is_staff && selectedCohortId && !auth.demo) });
+  // Student folders are private: memory only, and dropped once access is revoked (loadCohortFiles returns null).
+  const filesQuery = useQuery({ queryKey: ['staff-cohort-files', selectedCohortId], queryFn: ({ signal }) => loadCohortFiles(api, selectedCohortId!, signal), enabled: Boolean(user?.is_staff && selectedCohortId && !auth.demo), meta: { persist: false } });
 
   if (!user?.is_staff) return <StaffOnlyScreen message="Cohort files and student folders are for instructors and admins." />;
   const shell = (body: ReactNode) => <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View><Text style={styles.kicker}>COHORT FILES</Text><Text style={styles.headerTitle}>Files</Text></View></View>{body}</SafeAreaView>;
@@ -55,14 +56,14 @@ export default function StaffCohortFilesScreen() {
     refreshControl={<RefreshControl refreshing={filesQuery.isRefetching} onRefresh={() => void filesQuery.refetch()} tintColor={c.text.body} />}>
     <ScrollView horizontal style={styles.strip} contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="button" accessibilityState={{ selected: cohort.id === selectedCohortId }} onPress={() => { Keyboard.dismiss(); setCohortId(cohort.id); setStudentId(null); setSearch(''); }} style={[styles.chip, cohort.id === selectedCohortId && styles.selected]}><Text numberOfLines={1} style={[styles.chipText, cohort.id === selectedCohortId && styles.selectedText]}>{cohort.name}</Text></Pressable>)}</ScrollView>
     <View style={styles.segment} accessibilityRole="tablist">{([['class', `Class files · ${data?.class_files.length ?? 0}`], ['students', `Student folders · ${folders.length}`]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: view === value }} onPress={() => { setView(value); setStudentId(null); }} style={[styles.segmentItem, view === value && styles.segmentSelected]}><Text style={[styles.chipText, view === value && styles.selectedText]}>{label}</Text></Pressable>)}</View>
-    {filesQuery.isPending ? <LoadingState label="Loading files" /> : filesQuery.error ? <ErrorState message={(filesQuery.error as Error).message} retry={() => void filesQuery.refetch()} /> : view === 'class' ? <>
-      {groupByFolder(data?.class_files || []).map(([name, files]) => <View key={name} style={styles.stack}><Text accessibilityRole="header" style={styles.folderTitle}>{name}</Text>{files.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} note={file.visibility === 'staff_only' ? 'Staff only' : undefined} />)}</View>)}
+    {filesQuery.isPending ? <LoadingState label="Loading files" /> : filesQuery.error ? <ErrorState message={(filesQuery.error as Error).message} retry={() => void filesQuery.refetch()} /> : data === null ? <EmptyState title="No access to these files" copy="You are no longer on this cohort's teaching team. Choose another cohort." /> : view === 'class' ? <>
+      {groupByFolder(data?.class_files || []).map(([name, files]) => <View key={name} style={styles.stack}><Text accessibilityRole="header" style={styles.folderTitle}>{name}</Text>{files.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!data?.storage_configured} note={file.visibility === 'staff_only' ? 'Staff only' : undefined} />)}</View>)}
       {!data?.class_files.length && <EmptyState title="No class files yet" copy="Upload slides, guides and templates from the full staff tools." />}
       <Button variant="secondary" label="Upload and share on the web" onPress={openWebFiles} />
     </> : openFolder ? <>
       <Pressable accessibilityRole="button" accessibilityLabel="All student folders" onPress={() => setStudentId(null)} style={styles.backRow}><ChevronLeft color={c.text.body} size={18} /><Text style={styles.chipText}>All student folders</Text></Pressable>
       <Text style={styles.title}>{openFolder.student_name}</Text><Text style={styles.copy}>Private: only this student and cohort staff can see these files.</Text>
-      {openFolder.files.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} note={file.uploaded_by_role === 'student' ? 'Uploaded by student' : 'Shared by staff'} />)}
+      {openFolder.files.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!data?.storage_configured} note={file.uploaded_by_role === 'student' ? 'Uploaded by student' : 'Shared by staff'} />)}
       {!openFolder.files.length && <EmptyState title="This folder is empty" copy="Files you or the student upload appear here." />}
     </> : <>
       <View style={styles.search}><Search color={c.text.body} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search students" value={search} onChangeText={setSearch} placeholder="Search students" placeholderTextColor={c.text.body} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={styles.input} /></View>

@@ -118,4 +118,5 @@ it('explains when storage is not set up and disables uploads', async () => {
   await mount()
   expect(container.textContent).toContain("File storage isn't set up")
   expect(button('Upload file').disabled).toBe(true)
+  expect(container.querySelector<HTMLButtonElement>('button[aria-label="Download Week 1 Ruby Slides"]')!.disabled).toBe(true)
 })

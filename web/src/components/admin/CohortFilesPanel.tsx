@@ -236,7 +236,7 @@ function ClassFileItem({ cohortId, file, studentCount, storage, onSaved, onDelet
 
   if (editing) return <EditFile cohortId={cohortId} file={file} presets={CLASS_FOLDER_PRESETS} onCancel={() => setEditing(false)} onSaved={(saved) => { onSaved(saved); setEditing(false) }} />
   return (
-    <CohortFileRow cohortId={cohortId} file={file}
+    <CohortFileRow cohortId={cohortId} file={file} downloadDisabled={!storage}
       badges={<><FolderBadge folder={file.folder} />{staged && <StaffOnlyBadge />}</>}
       actions={<>
         <Button size="sm" variant={staged ? 'primary' : 'quiet'} disabled={busy} onClick={() => void toggle()}>
@@ -410,7 +410,7 @@ export function StudentFolderView({ cohortId, folder, storage, onChange }: {
       ) : (
         <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`Files in ${folder.student_name}'s folder`}>
           {folder.files.map((file) => (
-            <CohortFileRow key={file.id} cohortId={cohortId} file={file}
+            <CohortFileRow key={file.id} cohortId={cohortId} file={file} downloadDisabled={!storage}
               note={file.uploaded_by_role === 'student' ? 'Uploaded by student' : 'Shared by staff'}
               badges={<><FolderBadge folder={file.folder} />{file.visibility === 'staff_only' && <StaffOnlyBadge />}</>}
               actions={

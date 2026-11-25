@@ -32,9 +32,16 @@ it('uploads to the presigned form, publishes, and sends the folder and student',
   expect(mocks.deleteCohortFile).not.toHaveBeenCalled()
 })
 
+it('abandons only the pending file when publishing fails, never a published one', async () => {
+  mocks.uploadToS3.mockResolvedValue(undefined)
+  mocks.completeCohortFile.mockRejectedValue(new Error('Network lost'))
+  await expect(uploadCohortFile(4, new File(['x'], 'notes.md'), { folder: 'Class Notes' })).rejects.toThrow('Network lost')
+  expect(mocks.deleteCohortFile).toHaveBeenCalledWith(4, 7, { pendingOnly: true })
+})
+
 it('abandons the pending file when the upload fails', async () => {
   mocks.uploadToS3.mockRejectedValue(new Error('Network down'))
   await expect(uploadCohortFile(4, new File(['x'], 'notes.md'), { folder: 'Class Notes' })).rejects.toThrow('Network down')
-  expect(mocks.deleteCohortFile).toHaveBeenCalledWith(4, 7)
+  expect(mocks.deleteCohortFile).toHaveBeenCalledWith(4, 7, { pendingOnly: true })
   expect(mocks.completeCohortFile).not.toHaveBeenCalled()
 })

@@ -46,22 +46,33 @@ export function Resources() {
   const [copiedResourceId, setCopiedResourceId] = useState<number | string | null>(null)
   const resourcesRequest = useRef(0)
   const [cohortFiles, setCohortFiles] = useState<CohortFilesResponse | null>(null)
+  const [filesError, setFilesError] = useState<string | null>(null)
   const filesRequest = useRef(0)
+  // The cohort on screen now; an upload that finishes after a switch must not land in the new cohort's list.
+  const shownCohortId = useRef(selectedCohortId)
+  useEffect(() => { shownCohortId.current = selectedCohortId }, [selectedCohortId])
   const toast = useToast()
   const confirm = useConfirm()
 
   const loadCohortFiles = useCallback(() => {
     const request = ++filesRequest.current
     setCohortFiles(null)
+    setFilesError(null)
     if (!selectedCohortId) return
-    // Staff, and learners without read access, get no private folder here.
+    // Staff, and learners without read access (401/403), get no private folder here.
     void api.getCohortFiles(selectedCohortId).then((res) => {
-      if (request === filesRequest.current && res.data?.my_files) setCohortFiles(res.data)
+      if (request !== filesRequest.current) return
+      if (res.data?.my_files) setCohortFiles(res.data)
+      else if (!res.data && res.status !== 401 && res.status !== 403) setFilesError(res.error || 'Could not load your files.')
     })
   }, [selectedCohortId])
   useEffect(() => { loadCohortFiles() }, [loadCohortFiles])
   const updateMyFiles = (update: (files: CohortFile[]) => CohortFile[]) =>
     setCohortFiles((current) => current && { ...current, my_files: update(current.my_files || []) })
+  const addUploadedFile = (file: CohortFile) => {
+    toast.success(`Uploaded ${file.title}`)
+    if (file.cohort_id === shownCohortId.current) updateMyFiles((files) => [...files, file])
+  }
   const removeMyFile = async (file: CohortFile) => {
     const ok = await confirm({ title: `Delete ${file.title}?`, description: 'It is removed from your private folder for you and your instructors.', confirmLabel: 'Delete file', tone: 'danger' })
     if (!ok || !selectedCohortId) return
@@ -156,7 +167,7 @@ export function Resources() {
   }
 
   // A private folder (with files, or room to upload) is never a "No resources yet" dead end.
-  if (resources.length === 0 && fileCount === 0 && !cohortFiles?.can_upload_personal) {
+  if (resources.length === 0 && fileCount === 0 && !cohortFiles?.can_upload_personal && !filesError) {
     return (
       <div className="app-page max-w-5xl">{pausedBanner}<EmptyState headingLevel={1}
         icon={Link2}
@@ -202,21 +213,31 @@ export function Resources() {
         </div>
       )}
 
+      {filesError && selectedCohortId && (
+        <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center sm:justify-between">
+          <p>Your files and class files could not load. {filesError}</p>
+          <Button size="sm" variant="secondary" onClick={loadCohortFiles}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Retry
+          </Button>
+        </div>
+      )}
+
       {hasFolder && selectedCohortId && (
         <section className="space-y-3" aria-label="My files">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><FolderLock className="h-5 w-5 text-ink-muted" aria-hidden="true" />My files</h2>
             <p className="text-sm text-ink-muted">Your private folder — only you and your instructors can see files here.</p>
           </div>
-          <CohortFileUploader cohortId={selectedCohortId} heading="Upload file" folderPresets={STUDENT_FOLDER_PRESETS}
+          <CohortFileUploader key={selectedCohortId} cohortId={selectedCohortId} heading="Upload file" folderPresets={STUDENT_FOLDER_PRESETS}
             description="Resumes, cover letters, workbooks and notes. Up to 100 MB."
             disabled={!cohortFiles?.can_upload_personal || !cohortFiles?.storage_configured}
             disabledReason={!cohortFiles?.can_upload_personal ? 'Uploads are paused while your course is paused or your access has ended. You can still download your files.' : "File uploads aren't available right now."}
-            onUploaded={(file) => { updateMyFiles((files) => [...files, file]); toast.success(`Uploaded ${file.title}`) }} />
+            onUploaded={addUploadedFile} />
           {myFiles.length > 0 ? (
             <ul className="app-surface divide-y divide-line overflow-hidden" aria-label="Files in my folder">
               {myFiles.map((file) => (
-                <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} badges={<FolderBadge folder={file.folder} />}
+                <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} badges={<FolderBadge folder={file.folder} />} downloadDisabled={!cohortFiles?.storage_configured}
                   note={file.uploaded_by_role === 'student' ? 'Uploaded by you' : 'Shared by your instructor'}
                   actions={file.can_manage ? (
                     <Button size="sm" variant="quiet" onClick={() => void removeMyFile(file)} aria-label={`Delete ${file.title}`}>
@@ -240,7 +261,7 @@ export function Resources() {
             <div key={folder} className="space-y-2">
               <h3 className="text-sm font-semibold text-ink-secondary">{folder}</h3>
               <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`${folder} files`}>
-                {files.map((file) => <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} />)}
+                {files.map((file) => <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!cohortFiles?.storage_configured} />)}
               </ul>
             </div>
           ))}
