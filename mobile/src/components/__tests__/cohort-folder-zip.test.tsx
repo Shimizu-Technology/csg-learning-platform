@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as Sharing from 'expo-sharing';
@@ -50,7 +51,7 @@ test('learners export My files as a ZIP through the share sheet, and see failure
   expect(screen.queryByText('Auto-copy')).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));
   await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledWith('file:///cache/cohort-zip-exports/1-a/prework-demo-my-files.zip', expect.objectContaining({ mimeType: 'application/zip' })));
-  expect(api.exportCohortFilesZip).toHaveBeenCalledWith(4, { scope: 'my_files', studentId: undefined });
+  expect(api.exportCohortFilesZip).toHaveBeenCalledWith(4, expect.objectContaining({ scope: 'my_files', studentId: undefined }));
   await waitFor(() => expect(api.discardCohortFilesZip).toHaveBeenCalledWith('file:///cache/cohort-zip-exports/1-a/'));
 
   jest.mocked(Sharing.shareAsync).mockRejectedValueOnce(new Error('Share sheet failed'));
@@ -85,14 +86,35 @@ test('staff see the auto-copy badge on class items and export class files and a 
   await screen.findByText('Facilitation Guide');
   expect(screen.getAllByLabelText('Auto-copy: every student gets their own copy')).toHaveLength(1);
   fireEvent.press(screen.getByRole('button', { name: 'Export all class files as a ZIP' }));
-  await waitFor(() => expect(api.exportCohortFilesZip).toHaveBeenCalledWith(4, { scope: 'class', studentId: undefined }));
+  await waitFor(() => expect(api.exportCohortFilesZip).toHaveBeenCalledWith(4, expect.objectContaining({ scope: 'class', studentId: undefined })));
 
   fireEvent.press(screen.getByRole('tab', { name: 'Student folders · 2' }));
   fireEvent.press(screen.getByRole('button', { name: "Open Student One's folder, 1 file" }));
   expect(screen.queryByLabelText('Auto-copy: every student gets their own copy')).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: "Export Student One's folder as a ZIP" }));
-  await waitFor(() => expect(api.exportCohortFilesZip).toHaveBeenLastCalledWith(4, { scope: 'student', studentId: 3 }));
+  await waitFor(() => expect(api.exportCohortFilesZip).toHaveBeenLastCalledWith(4, expect.objectContaining({ scope: 'student', studentId: 3 })));
   fireEvent.press(screen.getByRole('button', { name: 'All student folders' }));
   fireEvent.press(screen.getByRole('button', { name: "Open Empty Student's folder, 0 files" }));
   expect(screen.getByRole('button', { name: "Export Empty Student's folder as a ZIP" }).props.accessibilityState.disabled).toBe(true);
+});
+
+test('on Android, successful shares stay cached for the recipient app while failed shares clean up immediately', async () => {
+  const originalOs = Platform.OS;
+  Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+  try {
+    asLearner();
+    api.cohortFiles.mockResolvedValue({ class_files: [], my_files: [file({ id: 5, student_id: 3, title: 'Resume Draft' })], folders: [], storage_configured: false, can_upload_personal: true });
+    const screen = mount(<ResourcesScreen />);
+    await screen.findByText('Resume Draft');
+    fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledTimes(1));
+    expect(api.discardCohortFilesZip).not.toHaveBeenCalled();
+
+    jest.mocked(Sharing.shareAsync).mockRejectedValueOnce(new Error('Chooser failed'));
+    fireEvent.press(screen.getByRole('button', { name: 'Export all my files as a ZIP' }));
+    expect(await screen.findByText('Chooser failed')).toBeTruthy();
+    expect(api.discardCohortFilesZip).toHaveBeenCalledWith('file:///cache/cohort-zip-exports/1-a/');
+  } finally {
+    Object.defineProperty(Platform, 'OS', { value: originalOs, configurable: true });
+  }
 });

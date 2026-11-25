@@ -176,6 +176,12 @@ it('never goes silent when the latest version cannot load after a conflict, and 
   expect(dialog().textContent).toContain("Their version couldn't be loaded: Request timed out.")
   expect(button('Save doc', dialog()).disabled).toBe(true)
   expect(dialog().querySelector('textarea')!.value).toBe('mine')
+  // Cancelling and reopening Edit keeps the doc marked stale until a fresh version actually loads.
+  await act(async () => button('Cancel', dialog()).click())
+  await act(async () => button('Edit doc', dialog()).click())
+  await act(async () => setValue(dialog().querySelector('textarea')!, 'still stale'))
+  expect(button('Save doc', dialog()).disabled).toBe(true)
+  expect(dialog().textContent).toContain("Their version couldn't be loaded: Request timed out.")
   await act(async () => button('Try loading again', dialog()).click())
   await flush()
   await act(async () => button('Load latest version', dialog()).click())

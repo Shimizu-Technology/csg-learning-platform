@@ -11,8 +11,8 @@ function plural(count: number, word: string) {
 }
 
 /**
- * "Imported 2 items, 1 already here, copied to 3 student folders." Uploads
- * storage couldn't copy are named separately, with a retry, never counted as
+ * "Imported 2 items, 1 already here, copied to 3 student folders." Items that
+ * couldn't be copied are reported separately with a retry, never counted as
  * already here.
  */
 export function importSummary(verb: 'Imported' | 'Copied', added: number, skipped: number, autoCopied: number, failed = 0) {
@@ -20,7 +20,7 @@ export function importSummary(verb: 'Imported' | 'Copied', added: number, skippe
   if (skipped) parts.push(`${skipped} already here`)
   if (autoCopied) parts.push(`copied to ${plural(autoCopied, 'student folder')}`)
   const summary = `${parts.join(', ')}.`
-  return failed ? `${summary} ${plural(failed, 'upload')} couldn't be copied because file storage isn't available. Try again later.` : summary
+  return failed ? `${summary} ${plural(failed, 'item')} couldn't be copied. Try again.` : summary
 }
 
 /** The toast for an import or copy: an error when anything failed. */

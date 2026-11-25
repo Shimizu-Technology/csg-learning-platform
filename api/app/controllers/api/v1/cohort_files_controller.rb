@@ -644,8 +644,8 @@ module Api
 
         entries = nil
         with_read_snapshot do
-          files = export_scope(@cohort.cohort_files.student_visible.where(student_id: current_user.id))
-          files = files.includes(:versions) if @enrollment.paused?
+          files = export_scope(@cohort.cohort_files.student_visible.where(student_id: current_user.id).where.not(shared_at: nil))
+          files = paused_readable_scope(files).includes(:versions) if @enrollment.paused?
           entries = bounded(files).filter_map do |file|
             shown = @enrollment.file_version_for_read(file)
             next unless shown
@@ -655,6 +655,26 @@ module Api
           end
         end
         entries
+      end
+
+      # Mirrors Enrollment#file_version_for_read and #doc_state_for_read in SQL
+      # so items added after a pause never count toward the 100-item export cap.
+      def paused_readable_scope(files)
+        cutoff = @enrollment.paused_at || @enrollment.read_cutoff_at
+        return files.none unless cutoff
+
+        files
+          .where("cohort_files.shared_at <= :cutoff AND cohort_files.created_at <= :cutoff", cutoff: cutoff)
+          .where(
+            "(COALESCE(cohort_files.ready_at, cohort_files.updated_at) <= :cutoff OR " \
+            "EXISTS (SELECT 1 FROM cohort_file_versions v WHERE v.cohort_file_id = cohort_files.id AND v.ready = TRUE AND COALESCE(v.ready_at, v.created_at) <= :cutoff))",
+            cutoff: cutoff
+          )
+          .where(
+            "(cohort_files.kind <> 'doc' OR COALESCE(cohort_files.doc_updated_at, cohort_files.created_at) <= :cutoff OR " \
+            "EXISTS (SELECT 1 FROM cohort_doc_revisions r WHERE r.cohort_file_id = cohort_files.id AND r.created_at <= :cutoff))",
+            cutoff: cutoff
+          )
       end
 
       # At most one row past the export limit is loaded; more refuses the export.

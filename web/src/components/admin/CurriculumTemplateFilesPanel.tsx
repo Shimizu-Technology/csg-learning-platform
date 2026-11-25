@@ -533,6 +533,7 @@ function TemplateDocModal({ curriculumId, file, canEdit, onClose, onSaved }: {
     setLoaded(conflict)
     setContent(conflict.doc_content)
     setConflict(null)
+    setConflictError('')
     setStale(false)
     onSaved(conflict.file)
   }
@@ -540,9 +541,6 @@ function TemplateDocModal({ curriculumId, file, canEdit, onClose, onSaved }: {
     if (!loaded) return
     setEditing(false)
     setContent(loaded.doc_content)
-    setConflict(null)
-    setConflictError('')
-    setStale(false)
   }
   const tooLong = content.length > MAX_DOC_LENGTH
   return (

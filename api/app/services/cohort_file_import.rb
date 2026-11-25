@@ -63,7 +63,7 @@ class CohortFileImport
         file = import_one(cohort, source, links, actor) unless links.any? { |column, id| have.fetch(column).include?(id) }
         file ? files << file : skipped += 1
       rescue StandardError => error
-        # One item storage can't copy (missing, failing, not set up) never stops the rest; it can be imported again.
+        # One item failing to copy (storage unavailable, source removed mid-import, etc.) never stops the rest; it can be imported again.
         level = error.is_a?(StorageUnavailable) ? :info : :error
         Rails.logger.public_send(level, "[CohortFileImport] item_failed cohort_id=#{cohort.id} #{link_column}=#{source.id} #{error.class}")
         failed += 1

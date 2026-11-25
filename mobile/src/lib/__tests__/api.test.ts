@@ -9,7 +9,8 @@ jest.mock('expo-file-system', () => ({
 }));
 const mockLegacy = {
   makeDirectoryAsync: jest.fn().mockResolvedValue(undefined),
-  downloadAsync: jest.fn(),
+  createDownloadResumable: jest.fn(),
+  readDirectoryAsync: jest.fn().mockResolvedValue([]),
   readAsStringAsync: jest.fn().mockResolvedValue(''),
   moveAsync: jest.fn().mockResolvedValue(undefined),
   deleteAsync: jest.fn().mockResolvedValue(undefined),
@@ -18,7 +19,8 @@ const mockLegacy = {
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   makeDirectoryAsync: (...args: unknown[]) => mockLegacy.makeDirectoryAsync(...args),
-  downloadAsync: (...args: unknown[]) => mockLegacy.downloadAsync(...args),
+  createDownloadResumable: (...args: unknown[]) => mockLegacy.createDownloadResumable(...args),
+  readDirectoryAsync: (...args: unknown[]) => mockLegacy.readDirectoryAsync(...args),
   readAsStringAsync: (...args: unknown[]) => mockLegacy.readAsStringAsync(...args),
   moveAsync: (...args: unknown[]) => mockLegacy.moveAsync(...args),
   deleteAsync: (...args: unknown[]) => mockLegacy.deleteAsync(...args),
@@ -470,14 +472,27 @@ test('stale cohort context cannot authorize writes and unlocks only after revali
 
 describe('folder ZIP export', () => {
   afterEach(() => {
+    jest.useRealTimers();
     Object.values(mockLegacy).forEach((mock) => mock.mockClear());
-    mockLegacy.downloadAsync.mockReset();
+    mockLegacy.createDownloadResumable.mockReset();
+    mockLegacy.readDirectoryAsync.mockResolvedValue([]);
   });
 
-  it('downloads straight to a fresh cache directory per export, keeps only safe names, and leaves the file for sharing', async () => {
-    mockLegacy.downloadAsync
-      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 200, headers: { 'content-disposition': 'attachment; filename="prework-demo-my-files.zip"' } }))
-      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 200, headers: { 'Content-Disposition': 'attachment; filename="../evil.zip"' } }));
+  const mockResumable = (handler: (url: string, uri: string, options: unknown) => Promise<unknown>) => {
+    const cancelAsync = jest.fn().mockResolvedValue(undefined);
+    mockLegacy.createDownloadResumable.mockImplementationOnce((url: string, uri: string, options: unknown) => ({
+      downloadAsync: () => handler(url, uri, options),
+      cancelAsync,
+    }));
+    return cancelAsync;
+  };
+
+  it('downloads straight to a fresh cache directory per export, prunes expired exports, keeps only safe names, and leaves the file for sharing', async () => {
+    const expired = `${Date.now() - 20 * 60_000}-old`;
+    const fresh = `${Date.now() - 60_000}-fresh`;
+    mockLegacy.readDirectoryAsync.mockResolvedValueOnce([expired, fresh]).mockResolvedValueOnce([]);
+    mockResumable(async (_url, uri) => ({ uri, status: 200, headers: { 'content-disposition': 'attachment; filename="prework-demo-my-files.zip"' } }));
+    mockResumable(async (_url, uri) => ({ uri, status: 200, headers: { 'Content-Disposition': 'attachment; filename="../evil.zip"' } }));
     const api = new CsgApi(async () => 'session-token');
     const first = await api.exportCohortFilesZip(4, { scope: 'student', studentId: 3 });
     const second = await api.exportCohortFilesZip(4, { scope: 'my_files' });
@@ -485,19 +500,19 @@ describe('folder ZIP export', () => {
     expect(second.directory).not.toBe(first.directory);
     expect(first).toMatchObject({ filename: 'prework-demo-my-files.zip', uri: `${first.directory}prework-demo-my-files.zip` });
     expect(second.filename).toBe('files.zip');
-    expect(mockLegacy.downloadAsync).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/cohorts\/4\/files\/export_zip\?scope=student&student_id=3$/), `${first.directory}download.zip`,
+    expect(mockLegacy.createDownloadResumable).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/cohorts\/4\/files\/export_zip\?scope=student&student_id=3$/), `${first.directory}download.zip`,
       { headers: { Authorization: 'Bearer session-token' } });
     expect(mockLegacy.moveAsync).toHaveBeenCalledWith({ from: `${first.directory}download.zip`, to: first.uri });
-    expect(mockLegacy.deleteAsync).not.toHaveBeenCalled();
+    expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(`file:///cache/cohort-zip-exports/${expired}`, { idempotent: true });
+    expect(mockLegacy.deleteAsync).not.toHaveBeenCalledWith(`file:///cache/cohort-zip-exports/${fresh}`, { idempotent: true });
     await api.discardCohortFilesZip(first.directory);
     expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(first.directory, { idempotent: true });
   });
 
   it('reports the API message for a refused export, retries once after a 401, and removes every temporary directory', async () => {
     const getToken = jest.fn().mockResolvedValue('session-token');
-    mockLegacy.downloadAsync
-      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 401, headers: {} }))
-      .mockImplementationOnce(async (_url: string, uri: string) => ({ uri, status: 403, headers: {} }));
+    mockResumable(async (_url, uri) => ({ uri, status: 401, headers: {} }));
+    mockResumable(async (_url, uri) => ({ uri, status: 403, headers: {} }));
     mockLegacy.readAsStringAsync.mockResolvedValueOnce(JSON.stringify({ error: 'Unauthorized' })).mockResolvedValueOnce(JSON.stringify({ error: 'You can only download your own folder' }));
     await expect(new CsgApi(getToken).exportCohortFilesZip(4, { scope: 'class' })).rejects.toMatchObject({ message: 'You can only download your own folder', status: 403 });
     expect(getToken).toHaveBeenLastCalledWith({ skipCache: true });
@@ -506,9 +521,26 @@ describe('folder ZIP export', () => {
     expect(mockLegacy.deleteAsync.mock.calls.map(([directory]: [string]) => directory).sort()).toEqual([...made].sort());
   });
 
-  it('removes the temporary directory when the download itself fails', async () => {
-    mockLegacy.downloadAsync.mockRejectedValueOnce(new Error('offline'));
+  it('cancels and cleans up when a mid-transfer download stalls past the timeout', async () => {
+    jest.useFakeTimers();
+    const cancelAsync = mockResumable(() => new Promise(() => undefined));
+    const request = new CsgApi(async () => 'session-token').exportCohortFilesZip(4, { scope: 'my_files', timeoutMs: 5_000 });
+    const handled = request.catch((err) => err);
+    await jest.advanceTimersByTimeAsync(5_000);
+    const error = await handled;
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toMatch(/timed out/i);
+    expect(cancelAsync).toHaveBeenCalledTimes(1);
+    expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(mockLegacy.makeDirectoryAsync.mock.calls[0][0], { idempotent: true });
+  });
+
+  it('removes the temporary directory when the download itself fails or returns undefined', async () => {
+    mockResumable(async () => { throw new Error('offline'); });
     await expect(new CsgApi(async () => 'session-token').exportCohortFilesZip(4, { scope: 'my_files' })).rejects.toBeInstanceOf(ApiError);
     expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(mockLegacy.makeDirectoryAsync.mock.calls[0][0], { idempotent: true });
+
+    mockResumable(async () => undefined);
+    await expect(new CsgApi(async () => 'session-token').exportCohortFilesZip(4, { scope: 'my_files' })).rejects.toMatchObject({ message: expect.stringMatching(/interrupted/i) });
+    expect(mockLegacy.deleteAsync).toHaveBeenCalledWith(mockLegacy.makeDirectoryAsync.mock.calls[1][0], { idempotent: true });
   });
 });

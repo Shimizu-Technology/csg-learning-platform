@@ -66,7 +66,7 @@ async function menuItem(title: string, label: string) {
 it('summarizes imports in plain words', () => {
   expect(importSummary('Imported', 1, 0, 0)).toBe('Imported 1 item.')
   expect(importSummary('Copied', 2, 1, 3)).toBe('Copied 2 items, 1 already here, copied to 3 student folders.')
-  expect(importSummary('Imported', 0, 3, 0, 1)).toBe("Imported 0 items, 3 already here. 1 upload couldn't be copied because file storage isn't available. Try again later.")
+  expect(importSummary('Imported', 0, 3, 0, 1)).toBe("Imported 0 items, 3 already here. 1 item couldn't be copied. Try again.")
 })
 
 it('shows the auto-copy badge and turns auto-copy on after confirming, reporting the copies', async () => {
@@ -126,13 +126,13 @@ it('imports from the curriculum with a summary and reloads the list', async () =
   expect(mocks.success).toHaveBeenLastCalledWith('Everything from the curriculum is already here.')
 })
 
-it('reports uploads storage could not copy as an error to retry, never as already here', async () => {
+it('reports items that could not be copied as an error to retry, never as already here', async () => {
   mocks.importCohortCurriculumFiles.mockResolvedValue({ data: { imported_count: 0, skipped_count: 3, failed_count: 2, auto_copied_count: 0, files: [] }, error: null })
   await mount()
   await act(async () => button('Import from curriculum').click())
   await flush()
   expect(mocks.success).not.toHaveBeenCalled()
-  expect(mocks.error).toHaveBeenCalledWith("Imported 0 items, 3 already here. 2 uploads couldn't be copied because file storage isn't available. Try again later.")
+  expect(mocks.error).toHaveBeenCalledWith("Imported 0 items, 3 already here. 2 items couldn't be copied. Try again.")
 
   mocks.getAccessibleCohorts.mockResolvedValue({ data: { cohorts: [{ id: 8, name: 'Fall 2026', curriculum_name: 'Prework', status: 'active', cohort_type: 'cohort' }] }, error: null })
   mocks.copyCohortFilesFromCohort.mockResolvedValue({ data: { copied_count: 1, skipped_count: 0, failed_count: 1, auto_copied_count: 0, files: [] }, error: null })
@@ -142,7 +142,7 @@ it('reports uploads storage could not copy as an error to retry, never as alread
   await act(async () => dialog.querySelector<HTMLInputElement>('input[type="radio"]')!.click())
   await act(async () => button('Copy class files', dialog).click())
   await flush()
-  expect(mocks.error).toHaveBeenLastCalledWith("Copied 1 item. 1 upload couldn't be copied because file storage isn't available. Try again later.")
+  expect(mocks.error).toHaveBeenLastCalledWith("Copied 1 item. 1 item couldn't be copied. Try again.")
 })
 
 it('copies from another accessible cohort chosen in a dialog', async () => {

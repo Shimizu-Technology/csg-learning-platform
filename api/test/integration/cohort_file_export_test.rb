@@ -59,6 +59,24 @@ class CohortFileExportTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a paused learner with 100 readable files can still export when extra items are added after the pause" do
+    @cohort.cohort_files.where(student: @student).delete_all
+    @enrollment.update!(status: :paused)
+    @enrollment.update_columns(paused_at: 1.day.ago)
+    100.times do |index|
+      doc = @cohort.cohort_files.create!(kind: "doc", title: "Before #{index}", folder: "Before", student: @student, doc_content: "ok", doc_updated_at: 2.days.ago, ready: true, uploaded_by: @student)
+      doc.update_columns(created_at: 3.days.ago, ready_at: 3.days.ago, shared_at: 3.days.ago)
+    end
+    5.times do |index|
+      @cohort.cohort_files.create!(kind: "doc", title: "After #{index}", folder: "After", student: @student, doc_content: "new", doc_updated_at: Time.current, ready: true, uploaded_by: @admin)
+    end
+    as_user(@student) { get export_path(scope: "my_files"), headers: headers }
+    assert_response :success
+    entries = zip_entries(response.body)
+    assert_equal 100, entries.size
+    assert entries.keys.all? { |name| name.start_with?("Before/") }
+  end
+
   test "staff download class files or an enrolled student's folder, narrowed by folder" do
     with_storage do
       @stored_bytes[@slides.s3_key] = "%PDF-1.7 slides"

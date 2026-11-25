@@ -52,6 +52,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if ((previous.signedIn && !auth.signedIn) || (previous.subject && previous.subject !== auth.subject)) {
         clearIncomingLink();
         void clearHeldNotifications();
+        void api.clearCohortFilesZips?.();
       }
       lastLoadedIdentity.current = { subject: auth.subject, signedIn: auth.signedIn };
     }
@@ -85,6 +86,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if (!isCurrentRefresh()) return;
       activateUserConversationStorage(result.user.id);
       configureSchoolTime(result.school);
+      void api.pruneExpiredCohortFilesZips?.();
       setUser(result.user); setEnrollments(result.enrollments || []); setSessionSubject(refreshSubject); setError(null); setAccessDenied(false);
       // The authenticated server session is authoritative. A device-storage
       // failure must not turn a valid sign-in into a session failure.
@@ -111,6 +113,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const cachedUser = cachedSession?.user || null;
       if (isSessionAccessDenied(requestError)) {
         await clearHeldNotifications();
+        await api.clearCohortFilesZips?.();
         if (!isCurrentRefresh()) return;
         const cleanupUserId = userIdRef.current || cachedUser?.id || null;
         const keys = [PUSH_TOKEN_KEY];
@@ -170,6 +173,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     refreshGenerationRef.current += 1;
     try {
       await clearHeldNotifications();
+      await api.clearCohortFilesZips?.();
       const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY).catch(() => null);
       if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
       await clearHeldNotifications();

@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import * as Sharing from 'expo-sharing';
 
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,9 @@ import { makeStyles } from '@/providers/theme-provider';
  * Exports a folder as one ZIP and opens the share sheet to save or send it:
  * a learner's My files, the class files, or one student's folder (staff).
  * The archive downloads with the session token into its own temporary
- * directory, which is removed once sharing ends, however it ends.
+ * directory. iOS removes it once the share sheet closes; Android retains a
+ * shared archive briefly so the recipient app can open the shared URI, then
+ * expires it on later exports, session refresh, or sign-out.
  */
 export function CohortFolderZipButton({ cohortId, scope, studentId, empty, label = 'Export ZIP', accessibilityLabel, style }: {
   cohortId: number
@@ -25,26 +27,42 @@ export function CohortFolderZipButton({ cohortId, scope, studentId, empty, label
   const styles = useStyles();
   const { api } = useSession();
   const busy = useRef(false);
+  const mounted = useRef(true);
+  const controllerRef = useRef<AbortController | null>(null);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      controllerRef.current?.abort();
+    };
+  }, []);
   async function exportZip() {
     if (busy.current) return;
     busy.current = true;
     setExporting(true);
     setError(null);
+    const controller = new AbortController();
+    controllerRef.current = controller;
     let directory: string | null = null;
+    let shared = false;
     try {
-      const archive = await api.exportCohortFilesZip(cohortId, { scope, studentId });
+      const archive = await api.exportCohortFilesZip(cohortId, { scope, studentId, signal: controller.signal });
       directory = archive.directory;
+      if (!mounted.current) return;
       if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available on this device.');
       await Sharing.shareAsync(archive.uri, { mimeType: 'application/zip', UTI: 'public.zip-archive', dialogTitle: archive.filename });
+      shared = true;
     } catch (failure) {
-      setError((failure as Error).message || 'Could not export these files.');
+      if (mounted.current) setError((failure as Error).message || 'Could not export these files.');
     } finally {
-      // Shared, cancelled or failed: the private archive never stays on the device.
-      if (directory) await api.discardCohortFilesZip(directory);
+      if (controllerRef.current === controller) controllerRef.current = null;
+      // On Android, shareAsync resolves when the chooser launches the recipient;
+      // keep successful shares until age-expiry or sign-out so the recipient can read the URI.
+      if (directory && (!shared || Platform.OS !== 'android')) await api.discardCohortFilesZip(directory);
       busy.current = false;
-      setExporting(false);
+      if (mounted.current) setExporting(false);
     }
   }
   return <View style={[styles.wrap, style]}>

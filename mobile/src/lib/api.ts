@@ -188,21 +188,54 @@ export class CsgApi {
 
   /**
    * A cohort folder as one ZIP (`my_files` for learners; `class` or one
-   * `student` for staff), streamed by the native downloader straight to a
-   * fresh, private directory in the app's cache (never held in JS memory,
-   * never shared between exports). The file keeps the API's name for the
-   * share sheet. Callers must pass `directory` to discardCohortFilesZip once
-   * sharing ends; a failed export removes it here. Never retried or cached.
+   * `student` for staff), streamed by the native resumable downloader straight
+   * to a fresh, private directory in the app's cache (never held in JS memory,
+   * never shared between exports) with a bounded timeout and cancellation. The
+   * file keeps the API's name for the share sheet. Never retried or cached.
    */
-  async exportCohortFilesZip(cohortId: number, options: { scope: 'my_files' | 'class' | 'student'; studentId?: number; folder?: string }, attempt = 0): Promise<{ uri: string; filename: string; directory: string }> {
+  async exportCohortFilesZip(
+    cohortId: number,
+    options: { scope: 'my_files' | 'class' | 'student'; studentId?: number; folder?: string; signal?: AbortSignal; timeoutMs?: number },
+    attempt = 0,
+  ): Promise<{ uri: string; filename: string; directory: string }> {
     if (!LegacyFileSystem.cacheDirectory) throw new ApiError('This device has no room for downloads right now.');
+    if (attempt === 0) await this.pruneExpiredCohortFilesZips();
     const directory = `${LegacyFileSystem.cacheDirectory}cohort-zip-exports/${Date.now()}-${Math.random().toString(36).slice(2, 12)}/`;
+    const timeoutMs = options.timeoutMs ?? 60_000;
     let retry = false;
     try {
+      if (options.signal?.aborted) throw new ApiError('The download was cancelled.');
       await LegacyFileSystem.makeDirectoryAsync(directory, { intermediates: true });
       const token = await this.getToken({ skipCache: attempt > 0 });
+      if (options.signal?.aborted) throw new ApiError('The download was cancelled.');
       const url = `${API_URL}/api/v1/cohorts/${cohortId}/files/export_zip${queryString({ scope: options.scope, student_id: options.studentId, folder: options.folder })}`;
-      const download = await LegacyFileSystem.downloadAsync(url, `${directory}download.zip`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const resumable = LegacyFileSystem.createDownloadResumable(url, `${directory}download.zip`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let onAbort: (() => void) | null = null;
+      const download = await new Promise<LegacyFileSystem.FileSystemDownloadResult | undefined>((resolve, reject) => {
+        let settled = false;
+        const finish = (fn: () => void) => {
+          if (settled) return;
+          settled = true;
+          if (timer) clearTimeout(timer);
+          if (onAbort) options.signal?.removeEventListener('abort', onAbort);
+          fn();
+        };
+        timer = setTimeout(() => {
+          void resumable.cancelAsync().catch(() => undefined);
+          finish(() => reject(new ApiError('The download timed out. Check your connection and try again.')));
+        }, timeoutMs);
+        onAbort = () => {
+          void resumable.cancelAsync().catch(() => undefined);
+          finish(() => reject(new ApiError('The download was cancelled.')));
+        };
+        options.signal?.addEventListener('abort', onAbort, { once: true });
+        resumable.downloadAsync().then(
+          (result) => finish(() => resolve(result)),
+          (err) => finish(() => reject(err)),
+        );
+      });
+      if (!download) throw new ApiError('The download was interrupted. Check your connection and try again.');
       if (download.status !== 200) {
         // The body of a refused export is the API's JSON error, saved in place of the archive.
         const text = await LegacyFileSystem.readAsStringAsync(download.uri).catch(() => '');
@@ -235,6 +268,27 @@ export class CsgApi {
   /** Removes an exported ZIP and its directory; never throws. */
   async discardCohortFilesZip(directory: string) {
     await LegacyFileSystem.deleteAsync(directory, { idempotent: true }).catch(() => undefined);
+  }
+
+  /** Removes expired exported ZIP directories (used to retire deferred Android shares). */
+  async pruneExpiredCohortFilesZips(maxAgeMs = 10 * 60_000) {
+    if (!LegacyFileSystem.cacheDirectory) return;
+    const root = `${LegacyFileSystem.cacheDirectory}cohort-zip-exports/`;
+    const entries = await LegacyFileSystem.readDirectoryAsync(root).catch(() => null);
+    if (!entries) return;
+    const cutoff = Date.now() - maxAgeMs;
+    await Promise.all(entries.map(async (entry) => {
+      const createdAt = Number(entry.split('-')[0]);
+      if (!Number.isFinite(createdAt) || createdAt <= cutoff) {
+        await LegacyFileSystem.deleteAsync(`${root}${entry}`, { idempotent: true }).catch(() => undefined);
+      }
+    }));
+  }
+
+  /** Removes all cached exported ZIP directories (e.g. on sign-out or account switch). */
+  async clearCohortFilesZips() {
+    if (!LegacyFileSystem.cacheDirectory) return;
+    await LegacyFileSystem.deleteAsync(`${LegacyFileSystem.cacheDirectory}cohort-zip-exports/`, { idempotent: true }).catch(() => undefined);
   }
 
   privateMeetings = (signal?: AbortSignal) => this.request<PrivateMeetingsResponse>('/api/v1/private_meetings', { signal });
