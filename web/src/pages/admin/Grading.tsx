@@ -76,7 +76,7 @@ const GRADING_URL = {
   module_id: urlParsers.id(),
   student_id: urlParsers.id(),
   lesson_id: urlParsers.id(),
-  suggestion_outcome: urlParsers.oneOf(['all', 'suggest_b', 'review_for_redo', 'stale_evidence', 'no_suggestion'] as const, 'all'),
+  suggestion_outcome: urlParsers.oneOf(['all', 'suggest_b', 'suggest_pass', 'review_for_redo', 'stale_evidence', 'no_suggestion'] as const, 'all'),
   sort: urlParsers.oneOf(['oldest', 'newest'] as const, 'oldest'),
   page: urlParsers.int(1, 99999, 1),
   submission: urlParsers.id(),
@@ -84,6 +84,7 @@ const GRADING_URL = {
 
 const SUGGESTION_FILTER_OPTIONS: ReadonlyArray<readonly [SuggestionOutcomeFilter, string]> = [
   ['all', 'All checks'],
+  ['suggest_pass', 'Pass suggested'],
   ['suggest_b', 'B suggested'],
   ['review_for_redo', 'Review for Redo'],
   ['stale_evidence', 'Out of date'],

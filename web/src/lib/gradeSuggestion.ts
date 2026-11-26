@@ -1,8 +1,9 @@
 import type { BadgeTone } from '../components/ui/Badge'
 import { humanize } from './glossary'
 import type { SubmissionGradeSuggestion } from '../types/api'
+import type { GradeChoice } from './gradingScale'
 
-export type GradeChoice = 'A' | 'B' | 'C' | 'R'
+export type { GradeChoice } from './gradingScale'
 export type SuggestionOutcomeFilter = 'all' | SubmissionGradeSuggestion['outcome']
 
 /** Older evidence and changed check rules are one state to graders: "Out of date". */
@@ -41,8 +42,19 @@ export function isGradeSuggestionStale(suggestion: SubmissionGradeSuggestion): b
   )
 }
 
-export function canSelectSuggestedB(suggestion: SubmissionGradeSuggestion | undefined): boolean {
-  return Boolean(suggestion && suggestion.outcome === 'suggest_b' && !isGradeSuggestionStale(suggestion))
+/** The passing grade checks suggest: B on A / B / C / Redo (suggest_b), Pass on Pass / Redo (suggest_pass). */
+export function suggestedPassingGrade(suggestion: SubmissionGradeSuggestion | undefined | null): 'B' | 'P' | null {
+  if (suggestion?.outcome === 'suggest_b') return 'B'
+  if (suggestion?.outcome === 'suggest_pass') return 'P'
+  return null
+}
+
+function suggestedGradeName(suggestion: SubmissionGradeSuggestion): string {
+  return suggestedPassingGrade(suggestion) === 'P' ? 'Pass' : 'B'
+}
+
+export function canSelectSuggestedGrade(suggestion: SubmissionGradeSuggestion | undefined): boolean {
+  return Boolean(suggestion && suggestedPassingGrade(suggestion) && !isGradeSuggestionStale(suggestion))
 }
 
 export function gradeDiffersFromSuggestion(
@@ -50,7 +62,8 @@ export function gradeDiffersFromSuggestion(
   grade: GradeChoice | null,
 ): boolean {
   if (!suggestion || !grade || isGradeSuggestionStale(suggestion)) return false
-  if (suggestion.outcome === 'suggest_b') return grade !== 'B'
+  const suggested = suggestedPassingGrade(suggestion)
+  if (suggested) return grade !== suggested
   if (suggestion.outcome === 'review_for_redo') return grade !== 'R'
   return false
 }
@@ -60,21 +73,21 @@ export function gradeSuggestionQueueBadge(suggestion: SubmissionGradeSuggestion)
   tone: BadgeTone
 } {
   if (isGradeSuggestionStale(suggestion)) return { label: STALE_SUGGESTION_LABEL, tone: 'warning' }
-  if (suggestion.outcome === 'suggest_b') return { label: 'B suggested', tone: 'info' }
+  if (suggestedPassingGrade(suggestion)) return { label: `${suggestedGradeName(suggestion)} suggested`, tone: 'info' }
   if (suggestion.outcome === 'review_for_redo') return { label: 'Review for Redo', tone: 'warning' }
   return { label: 'No suggestion', tone: 'neutral' }
 }
 
 export function gradeSuggestionHeadline(suggestion: SubmissionGradeSuggestion): string {
   if (isGradeSuggestionStale(suggestion)) return 'Check suggestion'
-  if (suggestion.outcome === 'suggest_b') return 'Checks passed · B suggested'
+  if (suggestedPassingGrade(suggestion)) return `Checks passed · ${suggestedGradeName(suggestion)} suggested`
   if (suggestion.outcome === 'review_for_redo') return 'Checks failed · Review for Redo'
   return 'No grade suggestion'
 }
 
 export function gradeSuggestionSignalLabel(suggestion: SubmissionGradeSuggestion): string {
   if (isGradeSuggestionStale(suggestion)) return 'Checks out of date'
-  if (suggestion.outcome === 'suggest_b') return 'Checks passed'
+  if (suggestedPassingGrade(suggestion)) return 'Checks passed'
   if (suggestion.outcome === 'review_for_redo') return 'Checks failed'
   return 'No suggestion'
 }

@@ -25,6 +25,7 @@ import { Button, LinkButton } from '../../components/ui/Button'
 import { TabButton, TextButton } from '../../components/ui/Choice'
 import { Collapse, TabList, TabPanel } from '../../components/ui/Motion'
 import { Badge } from '../../components/ui/Badge'
+import { gradingScaleLabel } from '../../lib/gradingScale'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import type { CurriculumSummary, AccessibleCohort } from '../../types/api'
@@ -70,6 +71,7 @@ interface Curriculum {
   id: number
   name: string
   status: string
+  grading_scale?: string
   modules: Module[]
   /** Whether this staff member may edit the curriculum's lessons (admins always; instructors with editing access). */
   editing?: LessonEditAccess
@@ -648,6 +650,7 @@ export function ContentManagement() {
                             ? 'Active'
                             : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
                         </Badge>
+                        <Badge tone="neutral">Grading: {gradingScaleLabel(curriculum.grading_scale)}</Badge>
                         {!canManageModules && curriculum.editing?.reason === 'granted' && <Badge tone="info">You can edit</Badge>}
                         {!canManageModules && curriculum.editing?.reason === 'shared' && (
                           <Badge tone="neutral">Read only: shared with other cohorts</Badge>

@@ -1,4 +1,5 @@
 import type { components } from '../types/api.generated';
+import type { GradingScale } from './gradingScale';
 import type {
   VideoProgressInput,
   WatchProgressInput,
@@ -112,7 +113,7 @@ export interface GradingQueueParams {
   module_id?: number | null
   student_id?: number | null
   lesson_id?: number | null
-  suggestion_outcome?: 'suggest_b' | 'review_for_redo' | 'no_suggestion' | 'stale_evidence' | null
+  suggestion_outcome?: 'suggest_b' | 'suggest_pass' | 'review_for_redo' | 'no_suggestion' | 'stale_evidence' | null
   sort?: 'oldest' | 'newest'
   page?: number | null
   per_page?: number | null
@@ -1187,7 +1188,7 @@ export const api = {
   cloneAuthoring: (kind: 'curricula' | 'modules' | 'cohorts', id: number, data: { name: string; client_request_id: string; curriculum_id?: number; position?: number; start_date?: string; clone_curriculum?: boolean }) =>
     fetchApi<components['schemas']['AuthoringCloneResult']>(`/api/v1/${kind}/${id}/clone`, { method: 'POST', body: JSON.stringify(data) }),
 
-  createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string }) =>
+  createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string; grading_scale?: GradingScale }) =>
     fetchApi<components['schemas']['CurriculumResponseMutation']>('/api/v1/curricula', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -1441,7 +1442,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateCurriculum: (id: number, data: { base_updated_at: string; name?: string; description?: string; status?: string }) =>
+  updateCurriculum: (id: number, data: { base_updated_at: string; name?: string; description?: string; status?: string; grading_scale?: GradingScale }) =>
     fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   reorderModules: (id: number, moduleIds: number[]) =>
     fetchApi<null>(`/api/v1/curricula/${id}/modules/reorder`, { method: 'POST', body: JSON.stringify({ module_ids: moduleIds }) }),

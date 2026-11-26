@@ -185,10 +185,8 @@ export function LessonExperience({
             )}
           </p>
         </div>
+        {/* One lesson-scoped help action: Ask for help. Messages stay in the navigation. */}
         <div id="help" className="flex flex-wrap items-center justify-between gap-3">
-          {lesson.instructor && lesson.cohort_id && lesson.capabilities?.support_mode === 'guided_help' && lesson.capabilities?.features?.help_requests === true && (
-            <PersonActions person={lesson.instructor} cohortId={lesson.cohort_id} />
-          )}
           {help}
         </div>
       </header>

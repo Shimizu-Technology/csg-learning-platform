@@ -4,6 +4,7 @@ import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } fro
 import {
   AlertTriangle,
   BookmarkPlus,
+  ClipboardCheck,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -47,7 +48,7 @@ import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
 import { REDO_NEEDS_FEEDBACK, isBlankFeedback, submissionWhereLabel } from '../../lib/submissionQueue'
 import {
-  canSelectSuggestedB,
+  canSelectSuggestedGrade,
   extractSuggestionChecks,
   gradeDiffersFromSuggestion,
   gradeSuggestionDecisionBadge,
@@ -56,8 +57,10 @@ import {
   isGradeSuggestionStale,
   OVERRIDE_REASON_PICKS,
   STALE_SUGGESTION_EXPLANATION,
+  suggestedPassingGrade,
   type GradeChoice,
 } from '../../lib/gradeSuggestion'
+import { chooseGradeFirstMessage, gradeChoicesFor } from '../../lib/gradingScale'
 import { leavesPath, leavesPathOrParam, useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { RecordLink } from '../shared/RecordLink'
 import { useFreshKeyGate } from '../../lib/heldKeys'
@@ -127,8 +130,10 @@ const RATINGS: [RubricRating, string][] = [
   ['redo', 'Needs redo'],
 ]
 
-/** Cmd/Ctrl+Enter with nothing chosen: grades are never saved by a guess. */
-export const CHOOSE_GRADE_FIRST = 'Choose A, B, C or Redo, then save.'
+/** Cmd/Ctrl+Enter with nothing chosen: grades are never saved by a guess (A / B / C / Redo curricula). */
+export const CHOOSE_GRADE_FIRST = chooseGradeFirstMessage('letter_abc_redo')
+/** The same on a Pass / Redo curriculum. */
+export const CHOOSE_PASS_FIRST = chooseGradeFirstMessage('pass_redo')
 /** Shown above Save while Redo is chosen on a cohort that delivers Redo feedback to GitHub. */
 export const REDO_POSTS_TO_GITHUB = "Saving Redo will post this feedback to the student's GitHub repository as an issue."
 
@@ -201,7 +206,7 @@ export function SubmissionReviewPanel({
   function selectGradeChoice(value: GradeChoice, revealGradeBar = false) {
     review.setSelectedGrade(value)
     review.setError((current) =>
-      current === CHOOSE_GRADE_FIRST || (current === REDO_NEEDS_FEEDBACK && value !== 'R') ? null : current,
+      current === CHOOSE_GRADE_FIRST || current === CHOOSE_PASS_FIRST || (current === REDO_NEEDS_FEEDBACK && value !== 'R') ? null : current,
     )
     if (value === 'R' && isBlankFeedback(feedbackEditor.current?.getMarkdown() ?? feedback)) feedbackEditor.current?.focus()
     if (revealGradeBar) {
@@ -393,6 +398,8 @@ export function SubmissionReviewPanel({
     codeRunnerLanguageFromEditor(language) || 'ruby',
   )
   const suggestion = submission.grade_suggestion
+  const gradeChoices = gradeChoicesFor(submission.grading_scale)
+  const passScale = review.gradingScale === 'pass_redo'
   const checkPolicyPath = lessonEditorPath(submission.lesson_id, { blockId: submission.content_block_id })
   const gradingReturn = listLinkState(location, 'Grading')
   const hasSuggestion = Boolean(suggestion)
@@ -409,7 +416,7 @@ export function SubmissionReviewPanel({
   function saveSelected() {
     if (locked) return
     if (!selectedGrade) {
-      review.setError(CHOOSE_GRADE_FIRST)
+      review.setError(chooseGradeFirstMessage(submission?.grading_scale))
       return
     }
     void gradeWith(selectedGrade)
@@ -456,7 +463,8 @@ export function SubmissionReviewPanel({
           return
         // Only the focused review panel receives shortcuts; background queues never grade.
         const key = event.key.toUpperCase()
-        if (!['A', 'B', 'C', 'R', 'J', 'K'].includes(key)) return
+        const gradeKey = gradeChoices.find((choice) => choice === key)
+        if (!gradeKey && key !== 'J' && key !== 'K') return
         // Auto-repeats, and a key still held from the review before, wait for a fresh press.
         if (!freshKey(event)) {
           event.preventDefault()
@@ -466,9 +474,9 @@ export function SubmissionReviewPanel({
         if (id && onNavigate) {
           event.preventDefault()
           void go(id)
-        } else if (key === 'A' || key === 'B' || key === 'C' || key === 'R') {
+        } else if (gradeKey) {
           event.preventDefault()
-          if (!locked) selectGradeChoice(key)
+          if (!locked) selectGradeChoice(gradeKey)
         }
       }}
     >
@@ -584,7 +592,7 @@ export function SubmissionReviewPanel({
               Open exercise check rules
             </Link>
           )}
-          onSelectB={() => selectGradeChoice('B', true)}
+          onSelectSuggested={(grade) => selectGradeChoice(grade, true)}
           onCheckGithub={() => void checkGithubAgain()}
         />
       )}
@@ -772,15 +780,7 @@ export function SubmissionReviewPanel({
                       <SegmentButton
                         key={rating}
                         selected={criteria[criterion.id]?.rating === rating}
-                        onClick={() =>
-                          review.setCriteria((current) => ({
-                            ...current,
-                            [criterion.id]: {
-                              rating,
-                              feedback: current[criterion.id]?.feedback || '',
-                            },
-                          }))
-                        }
+                        onClick={() => review.rateCriterion(criterion.id, rating)}
                       >
                         {label}
                       </SegmentButton>
@@ -950,27 +950,34 @@ export function SubmissionReviewPanel({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <div role="group" aria-label="Grade" className={`grid min-w-0 flex-1 grid-cols-4 gap-1.5 sm:flex-none sm:gap-2 ${unratedCount ? 'basis-full sm:basis-auto' : ''}`}>
-              {(['A', 'B', 'C', 'R'] as const).map((value) => {
+            <div role="group" aria-label="Grade" className={`grid min-w-0 flex-1 gap-1.5 sm:flex-none sm:gap-2 ${passScale ? 'grid-cols-2' : 'grid-cols-4'} ${unratedCount ? 'basis-full sm:basis-auto' : ''}`}>
+              {gradeChoices.map((value) => {
                 const isSelected = selectedGrade === value
+                const label = gradeLabel(value)
                 return (
                   <Button
                     key={value}
                     variant={isSelected ? 'primary' : 'secondary'}
                     // The key hint is drawn by CSS (data-key); aria-label keeps that hint out of the name ("A", not "A A").
-                    aria-label={value === 'R' ? 'Redo' : value}
+                    aria-label={label}
                     className={`min-h-11 min-w-0 px-2 sm:min-w-14 sm:px-4 lg:after:ml-1 lg:after:rounded-md lg:after:border lg:after:border-current/30 lg:after:px-1 lg:after:text-xs lg:after:font-semibold lg:after:opacity-70 lg:after:content-[attr(data-key)] ${value === 'R' && !isSelected ? REDO_BUTTON_CLASSES : ''}`}
                     data-key={value}
                     aria-keyshortcuts={value}
                     aria-pressed={isSelected}
-                    title={`Choose ${value === 'R' ? 'Redo' : value} (${value}), then save`}
+                    title={`Choose ${label} (${value}), then save`}
                     onClick={() => selectGradeChoice(value)}
                   >
-                    {value === 'R' ? 'Redo' : value}
+                    {label}
                   </Button>
                 )
               })}
             </div>
+            {review.gradeFromRubric && (
+              <span data-grade-from-rubric="" className="inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-ink-secondary">
+                <ClipboardCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Suggested from rubric
+              </span>
+            )}
             {unratedCount > 0 && (
               <Button variant="quiet" size="sm" className="bg-surface-sunken" onClick={focusUnratedCriterion}>
                 {unratedCount} rubric {unratedCount === 1 ? 'item' : 'items'} left
@@ -1000,8 +1007,10 @@ export function SubmissionReviewPanel({
           </div>
         </fieldset>
         <p className="sr-only">
-          With focus in this panel: A, B, C or R (Redo) chooses a grade without saving; Save, or Command or
-          Control plus Enter, saves it. K and J move through the list. Letter shortcuts stay off while typing.
+          {passScale
+            ? 'With focus in this panel: P (Pass) or R (Redo) chooses a grade without saving; '
+            : 'With focus in this panel: A, B, C or R (Redo) chooses a grade without saving; '}
+          Save, or Command or Control plus Enter, saves it. K and J move through the list. Letter shortcuts stay off while typing.
         </p>
       </div>
     </section>
@@ -1016,7 +1025,7 @@ function GradeSuggestionCard({
   checking,
   checkError,
   missingPolicyLink,
-  onSelectB,
+  onSelectSuggested,
   onCheckGithub,
 }: {
   suggestion: NonNullable<Submission['grade_suggestion']>
@@ -1026,11 +1035,12 @@ function GradeSuggestionCard({
   checking: boolean
   checkError: string | null
   missingPolicyLink: React.ReactNode
-  onSelectB: () => void
+  onSelectSuggested: (grade: 'B' | 'P') => void
   onCheckGithub: () => void
 }) {
   const stale = isGradeSuggestionStale(suggestion)
-  const allowSelectB = canSelectSuggestedB(suggestion) && !disabled
+  const suggestedGrade = suggestedPassingGrade(suggestion)
+  const allowSelectSuggested = canSelectSuggestedGrade(suggestion) && !disabled
   const headline = gradeSuggestionHeadline(suggestion)
   const checks = extractSuggestionChecks(suggestion)
   const decisionBadge = suggestion.decision ? gradeSuggestionDecisionBadge(suggestion.decision) : null
@@ -1039,13 +1049,13 @@ function GradeSuggestionCard({
 
   const borderTone = stale || suggestion.outcome === 'review_for_redo'
     ? 'border-warning-line'
-    : suggestion.outcome === 'suggest_b'
+    : suggestedGrade
       ? 'border-info-line'
       : 'border-line'
 
   const icon = stale ? (
     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
-  ) : suggestion.outcome === 'suggest_b' ? (
+  ) : suggestedGrade ? (
     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-info-ink" aria-hidden="true" />
   ) : suggestion.outcome === 'review_for_redo' ? (
     <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
@@ -1074,16 +1084,16 @@ function GradeSuggestionCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {allowSelectB && (
+          {allowSelectSuggested && suggestedGrade && (
             <Button
-              variant={selectedGrade === 'B' ? 'primary' : 'secondary'}
+              variant={selectedGrade === suggestedGrade ? 'primary' : 'secondary'}
               size="md"
               className="w-full sm:w-auto"
-              aria-pressed={selectedGrade === 'B'}
-              onClick={onSelectB}
+              aria-pressed={selectedGrade === suggestedGrade}
+              onClick={() => onSelectSuggested(suggestedGrade)}
             >
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              Select B
+              Select {gradeLabel(suggestedGrade)}
             </Button>
           )}
           <CheckGithubButton checking={checking} onClick={onCheckGithub} />
@@ -1096,7 +1106,7 @@ function GradeSuggestionCard({
           className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink"
         >
           <span className="font-semibold">
-            {gradeSuggestionSignalLabel(suggestion)} · Grade {savedGrade}
+            {gradeSuggestionSignalLabel(suggestion)} · Grade {gradeLabel(savedGrade)}
           </span>
           {decisionBadge && <Badge tone={decisionBadge.tone}>{decisionBadge.label}</Badge>}
           {suggestion.override_reason && (

@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  BadgeCheck,
+  ClipboardList,
   RefreshCw,
   Filter,
   RotateCcw,
@@ -30,7 +32,7 @@ import { StatusBadge } from '../../components/shared/StatusBadge'
 import { SubmissionStatus } from '../../components/shared/SubmissionStatus'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { FilterChip, SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { forwardReturnState, useListScrollMemory } from '../../lib/navigationContext'
@@ -59,15 +61,20 @@ const CELL_TONES = {
   empty: 'bg-surface-sunken text-ink-muted',
 } as const
 
-/** Grid cells use Lucide icons, never glyphs (T-13); grades stay letters. */
-const LEGEND: Array<{ tone: keyof typeof CELL_TONES; icon?: LucideIcon; text?: string; label: string }> = [
-  { tone: 'pending', icon: Clock, label: 'Waiting for review' },
-  { tone: 'success', text: 'A', label: 'Graded' },
-  { tone: 'warning', icon: RotateCcw, label: 'Redo requested' },
-  { tone: 'success', icon: Check, label: 'Completed (no submission needed)' },
-  { tone: 'progress', icon: CircleDashed, label: 'In progress' },
-  { tone: 'empty', icon: Minus, label: 'Not submitted' },
-]
+/** Grid cells use Lucide icons, never glyphs (T-13); letter grades stay letters, Pass is a badge check. */
+type LegendItem = { tone: keyof typeof CELL_TONES; icon?: LucideIcon; text?: string; label: string }
+function legendFor(gradingScale: string | null | undefined): LegendItem[] {
+  return [
+    { tone: 'pending', icon: Clock, label: 'Waiting for review' },
+    gradingScale === 'pass_redo'
+      ? { tone: 'success', icon: BadgeCheck, label: 'Passed' }
+      : { tone: 'success', text: 'A', label: 'Graded' },
+    { tone: 'warning', icon: RotateCcw, label: 'Redo requested' },
+    { tone: 'success', icon: Check, label: 'Completed (no submission needed)' },
+    { tone: 'progress', icon: CircleDashed, label: 'In progress' },
+    { tone: 'empty', icon: Minus, label: 'Not submitted' },
+  ]
+}
 
 /** The outcome of a GitHub sync, naming each student it could not finish and why. */
 interface SyncNotice {
@@ -146,6 +153,8 @@ interface GradingData {
   cohort_name: string
   module_id: number
   module_name: string
+  /** The curriculum's grading scale (older servers omit it: A / B / C / Redo). */
+  grading_scale?: 'letter_abc_redo' | 'pass_redo'
   requires_github: boolean
   github_sync_enabled?: boolean
   /** Verified GitHub App repositories are synced by the hourly scheduled run. */
@@ -428,6 +437,7 @@ export function CohortModuleGrading() {
       </div>
     )
 
+  const workbenchPath = `/admin/grading?cohort_id=${data.cohort_id}&module_id=${data.module_id}`
   const githubSyncClosed = data.github_sync_enabled !== false && data.supports_github_sync && (data.open_github_sync_count ?? 0) === 0
 
   return (
@@ -443,8 +453,19 @@ export function CohortModuleGrading() {
         type="Focused grading"
         title={`${data.module_name} — Grading`}
         context={<><RecordLink record={{ type: 'cohort', id: data.cohort_id }} variant="plain" touchTarget onClick={guardLeave} className="font-normal text-ink-muted">{data.cohort_name}</RecordLink><span aria-hidden="true">·</span><span className="tabular-nums">{data.students.length} student{data.students.length !== 1 ? 's' : ''}</span></>}
-        actions={data.github_sync_enabled !== false && data.supports_github_sync ? (
+        actions={
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {/* This page is the cohort's progress matrix; the Grading workbench is the one grading queue. */}
+          <LinkButton
+            to={workbenchPath}
+            variant="secondary"
+            size="sm"
+            onClick={(event) => guardLeave(event, workbenchPath)}
+          >
+            <ClipboardList className="h-4 w-4" aria-hidden="true" />
+            Open Grading workbench
+          </LinkButton>
+          {data.github_sync_enabled !== false && data.supports_github_sync && <>
           <Button
             variant="secondary"
             size="sm"
@@ -460,8 +481,9 @@ export function CohortModuleGrading() {
                 : 'Sync all from GitHub'}
           </Button>
           {data.github_auto_sync && <span className="text-xs text-ink-muted">Verified GitHub repositories also sync automatically every hour.</span>}
+          </>}
           </div>
-        ) : null}
+        }
         menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadData() }]}
       />
       {loadError && <LoadError error={loadError} stale retry={() => void loadData()} />}
@@ -571,7 +593,7 @@ export function CohortModuleGrading() {
           {/* Legend */}
           <div className="app-surface px-5 py-4" data-grid-legend="">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-secondary">
-              {LEGEND.map(({ tone, icon: Icon, text, label }) => (
+              {legendFor(data.grading_scale).map(({ tone, icon: Icon, text, label }) => (
                 <span key={label} className="flex items-center gap-1.5">
                   <span
                     aria-hidden="true"
@@ -763,6 +785,11 @@ export function CohortModuleGrading() {
                                 label = ''
                                 CellIcon = RotateCcw
                                 title = 'Redo requested — click to review'
+                              } else if (sub.grade === 'P') {
+                                cellClass = CELL_TONES.success
+                                label = ''
+                                CellIcon = BadgeCheck
+                                title = 'Passed — click to review'
                               } else {
                                 cellClass = CELL_TONES.success
                                 label = sub.grade

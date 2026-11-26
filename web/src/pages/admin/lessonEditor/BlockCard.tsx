@@ -16,7 +16,8 @@ import { Button, IconButton } from '../../../components/ui/Button'
 import type { BlockLearnerActivity } from '../../../types/api'
 import { BLOCK_ICONS } from './AddBlockMenu'
 import { BLOCK_LABELS, emptyCheck, type BlockDraft, type CheckDraft } from './blockDraft'
-import { REVIEWED_SUBMISSION_TYPES, SUBMISSION_TYPE_OPTIONS, submissionTypeHint } from './submissionTypes'
+import { REVIEWED_SUBMISSION_TYPES, submissionTypeHint } from './submissionTypes'
+import { LiveUrlToggle, SubmissionTypeSelect } from './SubmissionTypeField'
 
 export function hasLearnerWork(activity?: BlockLearnerActivity) {
   return Boolean(activity && (activity.submissions || activity.progress || activity.watched || activity.check_attempts))
@@ -298,11 +299,10 @@ export function BlockCard({
                 <label htmlFor={`${id}-students-submit`} className="text-sm font-semibold text-ink-secondary">
                   Students submit
                 </label>
-                <select
+                <SubmissionTypeSelect
                   id={`${id}-students-submit`}
-                  value={block.submission_type || ''}
-                  onChange={(event) => {
-                    const value = event.target.value || null
+                  value={block.submission_type}
+                  onChange={(value) => {
                     onChange({
                       submission_type: value,
                       submission_config: buildSubmissionConfigWithRunner(
@@ -312,15 +312,9 @@ export function BlockCard({
                     })
                   }}
                   className="app-control w-full sm:w-64"
-                >
-                  {block.submission_type === null && <option value="">Lesson default</option>}
-                  {SUBMISSION_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
+              <LiveUrlToggle value={block.submission_type} onChange={(value) => onChange({ submission_type: value })} />
               <p className="mt-1 text-xs text-ink-muted">{submissionTypeHint(block.submission_type)}</p>
             </div>
           )

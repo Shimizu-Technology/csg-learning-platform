@@ -3,15 +3,17 @@ import { useState } from 'react'
 
 import { Modal } from '../../components/shared/Modal'
 import { Button } from '../../components/ui/Button'
+import { GradingScalePicker } from '../../components/admin/GradingScalePicker'
+import { DEFAULT_NEW_CURRICULUM_SCALE, type GradingScale } from '../../lib/gradingScale'
 
 interface Props {
   saving: boolean
   error?: string
   onClose: () => void
-  onCreate: (data: { name: string; description?: string; status: string }) => Promise<void>
+  onCreate: (data: { name: string; description?: string; status: string; grading_scale: GradingScale }) => Promise<void>
 }
 
-export function buildCurriculumPayload(name: string, description: string) {
+export function buildCurriculumPayload(name: string, description: string, gradingScale: GradingScale = DEFAULT_NEW_CURRICULUM_SCALE) {
   const normalizedName = name.trim()
   if (!normalizedName) return null
 
@@ -19,17 +21,19 @@ export function buildCurriculumPayload(name: string, description: string) {
     name: normalizedName,
     description: description.trim() || undefined,
     status: 'draft',
+    grading_scale: gradingScale,
   }
 }
 
 export function NewCurriculumModal({ saving, error, onClose, onCreate }: Props) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [gradingScale, setGradingScale] = useState<GradingScale>(DEFAULT_NEW_CURRICULUM_SCALE)
   const [validationError, setValidationError] = useState('')
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const payload = buildCurriculumPayload(name, description)
+    const payload = buildCurriculumPayload(name, description, gradingScale)
     if (!payload) {
       setValidationError('Name is required')
       return
@@ -51,6 +55,7 @@ export function NewCurriculumModal({ saving, error, onClose, onCreate }: Props) 
           <label htmlFor="curriculum-description" className="mb-1 block text-sm font-medium text-ink-secondary">Description</label>
           <textarea id="curriculum-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Who this curriculum is for and how it should be used" rows={4} className="app-control" />
         </div>
+        <GradingScalePicker value={gradingScale} onChange={setGradingScale} disabled={saving} />
         <div className="flex gap-3 pt-2">
           <Button type="button" onClick={onClose} disabled={saving} variant="secondary" className="flex-1">Cancel</Button>
           <Button type="submit" disabled={saving} className="flex-1">{saving ? 'Creating...' : 'Create curriculum'}</Button>

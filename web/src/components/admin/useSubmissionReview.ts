@@ -8,7 +8,7 @@ import { isPreviousAttempt } from '../shared/AttemptReview'
 import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
 import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 import type { RubricRating, Submission } from '../../types/api'
-import type { GradeChoice } from '../../lib/gradeSuggestion'
+import { gradeFromRubric, normalizeGradingScale, type GradeChoice } from '../../lib/gradingScale'
 import { gradeLabel } from '../../lib/glossary'
 
 type CriteriaDraft = Record<number, { rating: RubricRating | null; feedback: string }>
@@ -37,7 +37,14 @@ export function useSubmissionReview(
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [feedback, setFeedback] = useState('')
   const [criteria, setCriteria] = useState<CriteriaDraft>({})
-  const [selectedGrade, setSelectedGrade] = useState<GradeChoice | null>(null)
+  const [selectedGrade, setSelectedGradeState] = useState<GradeChoice | null>(null)
+  // Whether the chosen grade came from the rubric ratings. Choosing a grade by hand stops the
+  // rubric from changing it again; loading or saving a review starts over.
+  const [gradeSource, setGradeSource] = useState<'rubric' | 'manual' | null>(null)
+  const setSelectedGrade = useCallback((value: GradeChoice | null) => {
+    setSelectedGradeState(value)
+    setGradeSource(value ? 'manual' : null)
+  }, [])
   const [overrideReason, setOverrideReason] = useState('')
   const [loading, setLoading] = useState(true)
   const [grading, setGrading] = useState(false)
@@ -64,7 +71,8 @@ export function useSubmissionReview(
         if (!preserveDraft) {
           setFeedback(next.feedback || '')
           setCriteria(criteriaFor(next))
-          setSelectedGrade(null)
+          setSelectedGradeState(null)
+          setGradeSource(null)
           setOverrideReason(next.grade_suggestion?.override_reason || '')
         } else {
           setCriteria((current) =>
@@ -89,7 +97,8 @@ export function useSubmissionReview(
 
   useEffect(() => {
     setSubmission(null)
-    setSelectedGrade(null)
+    setSelectedGradeState(null)
+    setGradeSource(null)
     setOverrideReason('')
     saving.current = false
     void load()
@@ -117,6 +126,16 @@ export function useSubmissionReview(
   }, [feedback])
 
   const unratedCriteria = (submission?.rubric?.criteria || []).filter((criterion) => !criteria[criterion.id]?.rating)
+  const gradingScale = normalizeGradingScale(submission?.grading_scale)
+  /** Rate one rubric criterion; until a grade is chosen by hand, the rubric picks the matching grade. */
+  function rateCriterion(criterionId: number, rating: RubricRating) {
+    const next = { ...criteria, [criterionId]: { rating, feedback: criteria[criterionId]?.feedback || '' } }
+    setCriteria(next)
+    if (gradeSource === 'manual' || !submission?.rubric) return
+    const suggested = gradeFromRubric(gradingScale, submission.rubric.criteria.map((criterion) => next[criterion.id]?.rating))
+    setSelectedGradeState(suggested)
+    setGradeSource(suggested ? 'rubric' : null)
+  }
   async function grade(
     value: string,
     options?: {
@@ -134,7 +153,11 @@ export function useSubmissionReview(
       return 'needs_feedback'
     }
     if (!redo && unratedCriteria.length) {
-      setError('Rate every rubric criterion before grading A, B, or C. A redo only needs written feedback.')
+      setError(
+        gradingScale === 'pass_redo'
+          ? 'Rate every rubric criterion before choosing Pass. A redo only needs written feedback.'
+          : 'Rate every rubric criterion before grading A, B, or C. A redo only needs written feedback.',
+      )
       return 'needs_rubric'
     }
     // A redo may leave criteria unrated, but a comment needs a rating to be stored.
@@ -177,7 +200,8 @@ export function useSubmissionReview(
       setSubmission(result.data.submission)
       setFeedback(result.data.submission.feedback || '')
       setCriteria(criteriaFor(result.data.submission))
-      setSelectedGrade(null)
+      setSelectedGradeState(null)
+      setGradeSource(null)
       setOverrideReason(result.data.submission.grade_suggestion?.override_reason || '')
       const saved = result.data.submission
       const delivery = saved.github_issue_delivery
@@ -217,6 +241,10 @@ export function useSubmissionReview(
     unratedCriteria,
     selectedGrade,
     setSelectedGrade,
+    /** True while the chosen grade is the one the rubric ratings point to. */
+    gradeFromRubric: gradeSource === 'rubric' && selectedGrade !== null,
+    rateCriterion,
+    gradingScale,
     overrideReason,
     setOverrideReason,
     loading,

@@ -4,12 +4,16 @@ import { api } from '../../lib/api'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Modal } from '../../components/shared/Modal'
 import { useToast } from '../../contexts/ToastContext'
+import { GradingScalePicker } from '../../components/admin/GradingScalePicker'
+import { normalizeGradingScale, type GradingScale } from '../../lib/gradingScale'
 
 export interface EditableStructure {
   id: number
   name: string
   description?: string | null
   updated_at: string
+  /** Curricula only. */
+  grading_scale?: string | null
 }
 
 export function StructureEditor({ record, kind, onSaved, inline = false }: { record: EditableStructure; kind: 'curriculum' | 'module'; onSaved: () => Promise<void>; inline?: boolean }) {
@@ -17,16 +21,20 @@ export function StructureEditor({ record, kind, onSaved, inline = false }: { rec
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [gradingScale, setGradingScale] = useState<GradingScale>('letter_abc_redo')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const savedScale = normalizeGradingScale(record.grading_scale)
   return <>
-    <Button ref={triggerRef} variant="secondary" size="sm" onClick={() => { setName(record.name); setDescription(record.description || ''); setError(''); setOpen(true) }}><Pencil className="h-4 w-4" />Edit {kind}</Button>
+    <Button ref={triggerRef} variant="secondary" size="sm" onClick={() => { setName(record.name); setDescription(record.description || ''); setGradingScale(savedScale); setError(''); setOpen(true) }}><Pencil className="h-4 w-4" />Edit {kind}</Button>
     {open && <EditorSurface inline={inline} title={`Edit ${kind}`} onClose={() => { if (!busy) setOpen(false) }}>
       <form className="space-y-4" onSubmit={async event => {
         event.preventDefault()
         setBusy(true)
         const data = { name: name.trim(), description: description.trim(), base_updated_at: record.updated_at }
-        const result = kind === 'curriculum' ? await api.updateCurriculum(record.id, data) : await api.updateModule(record.id, data)
+        const result = kind === 'curriculum'
+          ? await api.updateCurriculum(record.id, { ...data, ...(gradingScale !== savedScale ? { grading_scale: gradingScale } : {}) })
+          : await api.updateModule(record.id, data)
         setBusy(false)
         if (result.error) { setError(result.error); return }
         await onSaved()
@@ -36,6 +44,7 @@ export function StructureEditor({ record, kind, onSaved, inline = false }: { rec
         {error && <p role="alert" className="text-danger-ink">{error}</p>}
         <label className="block">Name<input className="app-control" required value={name} onChange={event => setName(event.target.value)} /></label>
         <label className="block">Description<textarea className="app-control" rows={3} value={description} onChange={event => setDescription(event.target.value)} /></label>
+        {kind === 'curriculum' && <GradingScalePicker value={gradingScale} onChange={setGradingScale} disabled={busy} hint="Changing the scale keeps grades already saved. New grades use the new scale." />}
         <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save changes'}</Button>
       </form>
     </EditorSurface>}

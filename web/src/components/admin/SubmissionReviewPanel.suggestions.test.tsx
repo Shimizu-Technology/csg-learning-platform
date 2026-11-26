@@ -77,6 +77,7 @@ function makeSubmission(overrides: Partial<Submission> = {}): Submission {
     submission_type: 'prework_github_sync',
     text: 'def add(a, b)\n  a + b\nend',
     grade: null,
+    grading_scale: 'letter_abc_redo',
     feedback: null,
     graded_by: null,
     graded_at: null,
@@ -779,5 +780,83 @@ describe('SubmissionReviewPanel grading safety (UX-1)', () => {
     const alert = [...container.querySelectorAll('[role="alert"]')].find((node) => node.textContent === 'Verify a repository binding before refreshing checks')!
     expect(alert).toBeTruthy()
     expect(alert.closest('[data-grade-bar]')).toBeNull()
+  })
+})
+
+describe('SubmissionReviewPanel grading scales and rubric suggestions', () => {
+  const criterion = (id: number, title: string) => ({ id, title, description: `${title} works`, objective_code: null, position: id, rating: null, feedback: null })
+  const rubric = { id: 1, title: 'Quality', description: null, criteria: [criterion(10, 'Correctness'), criterion(11, 'Readability')] } as unknown as Submission['rubric']
+  const plain = (overrides: Partial<Submission> = {}) => makeSubmission({ grade_suggestion: undefined, ...overrides })
+  const panel = () => container.querySelector('[aria-label="Submission review"]')!
+  const keydown = (key: string) => act(async () => { panel().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })) })
+  const rate = async (title: string, label: string) => {
+    const group = container.querySelector(`[aria-label="Rating for ${title}"]`)!
+    await act(async () => [...group.querySelectorAll('button')].find((button) => button.textContent === label)!.click())
+  }
+  const gradeButtons = () => [...container.querySelectorAll('[role="group"][aria-label="Grade"] button')].map((button) => button.textContent)
+
+  it('shows Pass and Redo only on a Pass / Redo curriculum, with P and R shortcuts, and saves P', async () => {
+    const sub = plain({ grading_scale: 'pass_redo' })
+    const gradeSpy = vi.spyOn(api, 'gradeSubmission').mockResolvedValue({ data: { submission: { ...sub, grade: 'P' } }, error: null })
+    await renderPanel(sub)
+    expect(gradeButtons()).toEqual(['Pass', 'Redo'])
+    await keydown('a')
+    expect(findButton('Pass')?.getAttribute('aria-pressed')).toBe('false')
+    await act(async () => findButton('Save grade')!.click())
+    await keydown('p')
+    expect(findButton('Pass')?.getAttribute('aria-pressed')).toBe('true')
+    await keydown('r')
+    expect(findButton('Redo')?.getAttribute('aria-pressed')).toBe('true')
+    await act(async () => findButton('Pass')!.click())
+    await act(async () => findButton('Save grade')!.click())
+    await settle()
+    expect(gradeSpy).toHaveBeenCalledExactlyOnceWith(50, expect.objectContaining({ grade: 'P' }))
+  })
+
+  it('asks for Pass or Redo when saving with nothing chosen on a Pass / Redo curriculum', async () => {
+    await renderPanel(plain({ grading_scale: 'pass_redo' }))
+    const feedback = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
+    await act(async () => { feedback.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })) })
+    expect(container.textContent).toContain('Choose Pass or Redo, then save.')
+  })
+
+  it('offers Select Pass for a suggest_pass suggestion and labels it Pass suggested', async () => {
+    const suggestion = makeSuggestion({ outcome: 'suggest_pass', suggested_grade: 'P' })
+    await renderPanel(makeSubmission({ grading_scale: 'pass_redo', grade_suggestion: suggestion }))
+    const card = container.querySelector('[data-grade-suggestion="suggest_pass"]')!
+    expect(card.textContent).toContain('Checks passed · Pass suggested')
+    await act(async () => findButton('Select Pass')!.click())
+    expect(findButton('Pass')?.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('input[placeholder*="differs"]')).toBeNull()
+    await act(async () => findButton('Redo')!.click())
+    expect(container.querySelector('input[placeholder*="differs"]')).not.toBeNull()
+  })
+
+  it('picks Pass from a fully rated rubric, Redo as soon as one criterion needs a redo, and says so', async () => {
+    await renderPanel(plain({ grading_scale: 'pass_redo', rubric }))
+    await rate('Correctness', 'Meets')
+    expect(findButton('Pass')?.getAttribute('aria-pressed')).toBe('false')
+    expect(container.querySelector('[data-grade-from-rubric]')).toBeNull()
+    await rate('Readability', 'Developing')
+    expect(findButton('Pass')?.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('[data-grade-from-rubric]')?.textContent).toBe('Suggested from rubric')
+    await rate('Correctness', 'Needs redo')
+    expect(findButton('Redo')?.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('maps rubric ratings to A, B or C, and stops once the instructor chooses a grade', async () => {
+    await renderPanel(plain({ rubric }))
+    await rate('Correctness', 'Exceeds')
+    await rate('Readability', 'Exceeds')
+    expect(findButton('A')?.getAttribute('aria-pressed')).toBe('true')
+    await rate('Readability', 'Meets')
+    expect(findButton('B')?.getAttribute('aria-pressed')).toBe('true')
+    await rate('Readability', 'Developing')
+    expect(findButton('C')?.getAttribute('aria-pressed')).toBe('true')
+    // A grade chosen by hand wins; later ratings leave it alone.
+    await act(async () => findButton('B')!.click())
+    expect(container.querySelector('[data-grade-from-rubric]')).toBeNull()
+    await rate('Readability', 'Needs redo')
+    expect(findButton('B')?.getAttribute('aria-pressed')).toBe('true')
   })
 })

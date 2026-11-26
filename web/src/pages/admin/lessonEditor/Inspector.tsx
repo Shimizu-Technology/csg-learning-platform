@@ -15,7 +15,8 @@ import { UsedInCohorts } from '../../../components/admin/UsedInCohorts'
 import type { BlockLearnerActivity, LearningObjective, LessonEditorContext, Rubric } from '../../../types/api'
 import { hasLearnerWork, learnerWorkSummary } from './BlockCard'
 import { BLOCK_LABELS, blockTitle, type BlockDraft, type LessonDraft } from './blockDraft'
-import { SUBMISSION_TYPE_OPTIONS, submissionTypeHint } from './submissionTypes'
+import { submissionTypeHint } from './submissionTypes'
+import { LiveUrlToggle, SubmissionTypeSelect } from './SubmissionTypeField'
 import { ExerciseCheckPolicyEditor, hasCheckPolicyEdits, type CheckPolicyEditors } from './ExerciseCheckPolicyEditor'
 
 export type RubricDraft = { title: string; criteria: string[] }
@@ -306,13 +307,10 @@ function BlockSettings({ block, onBlock, activity, context, objectives, rubrics,
         {(isExercise || block.block_type === 'checkpoint') && (
           <>
             <label className="text-sm font-semibold text-ink-secondary" htmlFor={`${id}-submission`}>Submission type</label>
-            <select id={`${id}-submission`} value={block.submission_type || ''} disabled={readOnly} className="app-control -mt-1.5 block w-full min-w-0 truncate" onChange={(event) => {
-              const value = event.target.value || null
+            <SubmissionTypeSelect id={`${id}-submission`} value={block.submission_type} disabled={readOnly} className="app-control -mt-1.5 block w-full min-w-0 truncate" onChange={(value) => {
               onBlock({ submission_type: value, submission_config: buildSubmissionConfigWithRunner(block.submission_config, value === 'text_submission' ? runner : { ...runner, enabled: false }) })
-            }}>
-              {block.submission_type === null && <option value="">Lesson default</option>}
-              {SUBMISSION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            }} />
+            <LiveUrlToggle value={block.submission_type} disabled={readOnly} onChange={(value) => onBlock({ submission_type: value })} />
             <p className="-mt-1 text-xs leading-5 text-ink-muted">{submissionTypeHint(block.submission_type)} Reviewed work goes to the cohort's grading queue, self-paced work included.</p>
             {isExercise && <div>
               <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-ink-secondary">

@@ -25,7 +25,7 @@ vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDr
 vi.mock('../../components/shared/CodeRunner', () => ({ CodeRunner: () => null }))
 
 const base: Submission = {
-  submission_type: 'text_submission', pr_url: null, live_url: null, branch: null, notes: null, submission_config: {}, repo_url: null, commit_sha: null,
+  grading_scale: 'letter_abc_redo', submission_type: 'text_submission', pr_url: null, live_url: null, branch: null, notes: null, submission_config: {}, repo_url: null, commit_sha: null,
   id: 1, latest_submission_id: 1, enrollment_id: 1, cohort_id: 4, cohort_name: 'Cohort 3', user_id: 20, user_name: 'Alex Rivera', content_block_id: 8,
   text: 'I used `if` / `else if` so only **one** price is returned.\n\n- Test exactly 12\n- Test exactly 65',
   grade: null, feedback: null, graded_by: null, graded_at: null, num_submissions: 1,
