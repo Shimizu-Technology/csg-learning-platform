@@ -1,12 +1,10 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import { BookOpen, Check, Download, Eye, ExternalLink, FileText, FileUp, History, Link2, Loader2, NotebookPen, Repeat, RotateCcw, Trash2, Upload, X } from 'lucide-react'
+import { BookOpen, Check, Download, Eye, ExternalLink, FileUp, History, Info, Link2, Loader2, NotebookPen, Repeat, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   COHORT_FILE_ACCEPT,
   cohortFileProblem,
   downloadCohortFile,
-  fileExtension,
-  FILE_TYPE_ICONS,
   formatFileSize,
   isStudentFolderItem,
   LINK_PROVIDERS,
@@ -22,6 +20,7 @@ import {
   type CohortUploadState,
   type LinkProvider,
 } from '../../lib/cohortFiles'
+import { DRIVE_DRAG_MIME, driveToneSurface, fileVisualMeta } from '../../lib/driveHelpers'
 import { Badge } from '../ui/Badge'
 import { AnchorButton, Button, IconButton } from '../ui/Button'
 import { formatShortDateTime } from '../../lib/format'
@@ -44,7 +43,7 @@ type OpenView = { pane: 'main' | 'review' }
  * folder show their review status and comment count, and open with review
  * and comments beside them. `autoOpen` opens the item once (a notification link).
  */
-export function CohortFileRow({ cohortId, file, badges, actions, note, downloadDisabled = false, canUploadVersion = false, onVersionUploaded, review, onFileChange, autoOpen = false, onAutoOpened }: {
+export function CohortFileRow({ cohortId, file, badges, actions, note, downloadDisabled = false, canUploadVersion = false, onVersionUploaded, review, onFileChange, autoOpen = false, onAutoOpened, selected = false, canSelect = false, onToggleSelect, canDrag = false, inspected = false, onInspect, onPrevPreview, onNextPreview, previewPosition }: {
   cohortId: number
   file: CohortFile
   badges?: ReactNode
@@ -60,9 +59,19 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
   autoOpen?: boolean
   /** Called once `autoOpen` has opened the item, so the caller can stop asking. */
   onAutoOpened?: () => void
+  selected?: boolean
+  canSelect?: boolean
+  onToggleSelect?: (fileId: number) => void
+  canDrag?: boolean
+  inspected?: boolean
+  onInspect?: (file: CohortFile) => void
+  onPrevPreview?: () => void
+  onNextPreview?: () => void
+  previewPosition?: string
 }) {
   const doc = file.kind === 'doc'
-  const Icon = doc ? NotebookPen : file.kind === 'link' ? LINK_PROVIDERS[file.link_provider || 'web'].icon : FILE_TYPE_ICONS[fileExtension(file.filename || '')] || FileText
+  const visual = fileVisualMeta(file)
+  const Icon = visual.icon
   const rowRef = useRef<HTMLLIElement>(null)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
@@ -104,10 +113,35 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
       : <>{file.filename} · <span className="tabular-nums">{formatFileSize(file.file_size || 0)}</span></>
 
   return (
-    <li ref={rowRef} className="px-4 py-3.5">
+    <li
+      ref={rowRef}
+      draggable={canDrag}
+      onDragStart={(event) => {
+        if (!canDrag) return
+        event.dataTransfer.setData(DRIVE_DRAG_MIME, String(file.id))
+        event.dataTransfer.effectAllowed = 'move'
+      }}
+      className={`px-4 py-3.5 transition-colors duration-150 ${
+        selected || inspected ? 'bg-primary-soft/35' : 'hover:bg-surface-sunken/50'
+      }`}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary">
+          {canSelect && onToggleSelect && (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={selected}
+              aria-label={`Select ${file.title}`}
+              onClick={() => onToggleSelect(file.id)}
+              className={`mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                selected ? 'border-primary bg-primary text-on-primary' : 'border-line-strong bg-surface-raised text-transparent hover:border-ink-muted'
+              }`}
+            >
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )}
+          <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${driveToneSurface(visual.tone)}`}>
             <Icon className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
@@ -175,6 +209,11 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
             </>
           )}
           {reviewing && <CommentCountChip count={file.comment_count} title={file.title} onClick={() => open('review')} />}
+          {onInspect && (
+            <IconButton label={`Details for ${file.title}`} onClick={() => onInspect(file)}>
+              <Info className="h-4 w-4" aria-hidden="true" />
+            </IconButton>
+          )}
           {actions}
         </div>
       </div>
@@ -189,7 +228,8 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
       {/* Versions opens the preview for any uploaded file; a download-only type shows its download card there. */}
       {opened && !doc && !link && (canPreview || opened.pane === 'main') && (
         <CohortFilePreviewModal cohortId={cohortId} file={file} open onClose={() => setOpened(null)} downloadDisabled={downloadDisabled}
-          review={reviewing} onFileChange={changed} initialPane={opened.pane === 'review' ? 'review' : 'preview'} />
+          review={reviewing} onFileChange={changed} initialPane={opened.pane === 'review' ? 'review' : 'preview'}
+          onPrev={onPrevPreview} onNext={onNextPreview} positionLabel={previewPosition} />
       )}
       {opened && opened.pane === 'review' && !doc && !canPreview && reviewing && (
         <CohortFileReviewModal cohortId={cohortId} file={file} access={reviewing} open onClose={() => setOpened(null)} onFileChange={changed} />
@@ -277,11 +317,12 @@ interface QueuedFile {
  * Files upload one after another with their own progress; a failed file stays
  * in the list with its error and a Retry button.
  */
-export function CohortFileUploader({ cohortId, studentId, folderPresets, defaultFolder, allowVisibility = false, heading, description, disabled, disabledReason, onUploaded, onFinished, onCancel }: {
+export function CohortFileUploader({ cohortId, studentId, folderPresets, defaultFolder, initialFiles, allowVisibility = false, heading, description, disabled, disabledReason, onUploaded, onFinished, onCancel }: {
   cohortId: number
   studentId?: number | null
   folderPresets: string[]
   defaultFolder?: string
+  initialFiles?: File[]
   allowVisibility?: boolean
   heading: string
   description?: string
@@ -350,7 +391,7 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     commitQueue((current) => current.filter((entry) => entry.key !== key))
     return true
   }
-  const choose = (files: FileList | null | undefined) => {
+  const choose = (files: FileList | File[] | null | undefined) => {
     if (!files?.length) return
     const added: QueuedFile[] = []
     const refused: string[] = []
@@ -366,6 +407,12 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     commitQueue((current) => [...current.filter((item) => item.status !== 'done'), ...added])
     if (inputRef.current) inputRef.current.value = ''
   }
+  const appliedInitialFiles = useRef<File[] | undefined>(undefined)
+  useEffect(() => {
+    if (!initialFiles?.length || appliedInitialFiles.current === initialFiles || disabled) return
+    appliedInitialFiles.current = initialFiles
+    choose(initialFiles)
+  }, [disabled, initialFiles])
   const reset = async () => {
     const results = await Promise.all(queueRef.current.map((item) => remove(item.key)))
     if (results.every(Boolean)) {

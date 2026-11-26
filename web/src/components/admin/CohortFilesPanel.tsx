@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Check, ChevronRight, CircleDot, CopyPlus, Eye, EyeOff, FolderLock, FolderOpen, FolderPen, Link2, NotebookPen, Pencil, Plus, RefreshCw, Repeat, Search, Trash2, Upload, X } from 'lucide-react'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -7,6 +7,7 @@ import { api } from '../../lib/api'
 import {
   CLASS_FOLDER_PRESETS,
   STUDENT_FOLDER_PRESETS,
+  downloadCohortFile,
   isStudentFolderItem,
   linkUrlProblem,
   matchesFileQuery,
@@ -14,7 +15,24 @@ import {
   type CohortFilesResponse,
   type CohortStudentFolder,
 } from '../../lib/cohortFiles'
+import {
+  DRIVE_DRAG_MIME,
+  matchesDriveTypeFilter,
+  readStoredDriveView,
+  saveStoredDriveView,
+  sortDriveFiles,
+  summarizeFolders,
+  type DriveSort,
+  type DriveTypeFilter,
+  type DriveViewMode,
+} from '../../lib/driveHelpers'
 import { AutoCopyBadge, CohortDocForm, CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge, StaffOnlyBadge } from '../shared/CohortFileParts'
+import { CohortDocEditorModal } from '../shared/CohortDocEditorModal'
+import { CohortFilePreviewModal } from '../shared/CohortFilePreviewModal'
+import { DriveFileGridCard } from '../shared/DriveFileGrid'
+import { DriveBreadcrumbs, DriveFolderGrid } from '../shared/DriveFolderGrid'
+import { DriveInspectorDrawer } from '../shared/DriveInspectorDrawer'
+import { DriveBulkBar, DriveControlsBar } from '../shared/DriveToolbar'
 import { FolderZipButton } from '../shared/FolderZipButton'
 import { CohortFileImportControls } from './CohortFileImportControls'
 import type { ReviewAccess } from '../shared/CohortFileReview'
@@ -167,28 +185,194 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
   onChange: (update: (files: CohortFile[]) => CohortFile[]) => void
   onCopied: () => void
 }) {
+  const toast = useToast()
+  const confirm = useConfirm()
   const [folder, setFolder] = useState('All')
   const [query, setQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState<DriveTypeFilter>('all')
+  const [sort, setSort] = useState<DriveSort>('updated_desc')
+  const [viewMode, setViewMode] = useState<DriveViewMode>(() => readStoredDriveView())
   const [adding, setAdding] = useState<'file' | 'link' | 'doc' | null>(null)
+  const [droppedFiles, setDroppedFiles] = useState<File[] | undefined>(undefined)
+  const [dropActive, setDropActive] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [inspectedId, setInspectedId] = useState<number | null>(null)
+  const [gridOpened, setGridOpened] = useState<{ fileId: number; pane: 'main' | 'review' } | null>(null)
   // A new doc opens in the editor; a linked file opens once.
   const [openFileId, setOpenFileId] = useState<number | null>(linkedFileId)
   const clearOpenFile = useCallback(() => setOpenFileId(null), [])
   const [renaming, setRenaming] = useState(false)
+
+  const handleViewMode = (mode: DriveViewMode) => {
+    setViewMode(mode)
+    saveStoredDriveView(mode)
+  }
+
   const folders = useMemo(() => [...new Set(files.map((file) => file.folder))].sort(), [files])
+  const folderSummaries = useMemo(() => summarizeFolders(files), [files])
   const activeFolder = folder !== 'All' && folders.includes(folder) ? folder : 'All'
-  const shown = files.filter((file) => (activeFolder === 'All' || file.folder === activeFolder) && matchesFileQuery(file, query))
+  const shown = useMemo(
+    () => sortDriveFiles(
+      files.filter((file) => (activeFolder === 'All' || file.folder === activeFolder) && matchesFileQuery(file, query) && matchesDriveTypeFilter(file, typeFilter)),
+      sort,
+    ),
+    [activeFolder, files, query, sort, typeFilter],
+  )
   const presets = folderOptions(CLASS_FOLDER_PRESETS, files)
   const defaultFolder = activeFolder === 'All' ? undefined : activeFolder
+  const inspectedFile = useMemo(() => files.find((item) => item.id === inspectedId) || null, [files, inspectedId])
+  const gridOpenedFile = useMemo(() => (gridOpened ? files.find((item) => item.id === gridOpened.fileId) || null : null), [files, gridOpened])
+  const previewableShown = useMemo(() => shown.filter((item) => item.kind === 'file' && item.previewable && storage), [shown, storage])
+
+  const activeSelectedIds = useMemo(() => {
+    const valid = new Set(shown.map((item) => item.id))
+    return [...selectedIds].filter((id) => valid.has(id))
+  }, [selectedIds, shown])
+
+  const toggleSelect = (fileId: number) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(fileId)) next.delete(fileId)
+      else next.add(fileId)
+      return next
+    })
+  }
+
+  const moveFileToFolder = async (fileId: number, targetFolder: string) => {
+    const target = files.find((item) => item.id === fileId)
+    if (!target || target.folder === targetFolder) return
+    const result = await api.updateCohortFile(cohortId, fileId, { folder: targetFolder })
+    if (!result.data) {
+      toast.error(result.error || `Could not move ${target.title}.`)
+      return
+    }
+    onChange((current) => current.map((item) => (item.id === fileId ? result.data!.file : item)))
+    toast.success(`Moved ${target.title} to ${targetFolder}`)
+  }
+
+  const handleBulkMove = async (targetFolder: string) => {
+    if (!activeSelectedIds.length || bulkBusy) return
+    setBulkBusy(true)
+    const updated = new Map<number, CohortFile>()
+    let failures = 0
+    for (const id of activeSelectedIds) {
+      const item = files.find((entry) => entry.id === id)
+      if (!item || item.folder === targetFolder) continue
+      const result = await api.updateCohortFile(cohortId, id, { folder: targetFolder })
+      if (result.data) updated.set(id, result.data.file)
+      else failures += 1
+    }
+    if (updated.size > 0) {
+      onChange((current) => current.map((item) => updated.get(item.id) || item))
+      toast.success(`Moved ${updated.size} ${updated.size === 1 ? 'item' : 'items'} to ${targetFolder}`)
+    }
+    if (failures > 0) toast.error(`Could not move ${failures} ${failures === 1 ? 'item' : 'items'}.`)
+    setSelectedIds(new Set())
+    setBulkBusy(false)
+  }
+
+  const handleBulkVisibility = async (visibility: 'students' | 'staff_only') => {
+    if (!activeSelectedIds.length || bulkBusy) return
+    setBulkBusy(true)
+    const updated = new Map<number, CohortFile>()
+    let failures = 0
+    for (const id of activeSelectedIds) {
+      const item = files.find((entry) => entry.id === id)
+      if (!item || item.visibility === visibility) continue
+      const result = await api.updateCohortFile(
+        cohortId,
+        id,
+        visibility === 'staff_only' && item.auto_copy_to_students ? { visibility, auto_copy_to_students: false } : { visibility },
+      )
+      if (result.data) updated.set(id, result.data.file)
+      else failures += 1
+    }
+    if (updated.size > 0) {
+      onChange((current) => current.map((item) => updated.get(item.id) || item))
+      toast.success(visibility === 'students' ? `Shared ${updated.size} ${updated.size === 1 ? 'item' : 'items'} with students` : `Moved ${updated.size} ${updated.size === 1 ? 'item' : 'items'} to staff only`)
+    }
+    if (failures > 0) toast.error(`Could not update ${failures} ${failures === 1 ? 'item' : 'items'}.`)
+    setSelectedIds(new Set())
+    setBulkBusy(false)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!activeSelectedIds.length || bulkBusy) return
+    const ok = await confirm({
+      title: `Delete ${activeSelectedIds.length} ${activeSelectedIds.length === 1 ? 'item' : 'items'}?`,
+      description: 'Students lose access to them right away. Copies already in student folders stay.',
+      confirmLabel: `Delete ${activeSelectedIds.length}`,
+      tone: 'danger',
+    })
+    if (!ok) return
+    setBulkBusy(true)
+    const deleted = new Set<number>()
+    let failures = 0
+    for (const id of activeSelectedIds) {
+      const result = await api.deleteCohortFile(cohortId, id)
+      if (!result.error) deleted.add(id)
+      else failures += 1
+    }
+    if (deleted.size > 0) {
+      onChange((current) => current.filter((item) => !deleted.has(item.id)))
+      if (inspectedId && deleted.has(inspectedId)) setInspectedId(null)
+      toast.success(`Deleted ${deleted.size} ${deleted.size === 1 ? 'item' : 'items'}`)
+    }
+    if (failures > 0) toast.error(`Could not delete ${failures} ${failures === 1 ? 'item' : 'items'}.`)
+    setSelectedIds(new Set())
+    setBulkBusy(false)
+  }
+
+  const onCanvasDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!storage || adding === 'file') return
+    if (event.dataTransfer.types.includes('Files') && !event.dataTransfer.types.includes(DRIVE_DRAG_MIME)) {
+      event.preventDefault()
+      if (!dropActive) setDropActive(true)
+    }
+  }
+
+  const onCanvasDrop = (event: DragEvent<HTMLDivElement>) => {
+    setDropActive(false)
+    if (!storage || adding === 'file') return
+    if (event.dataTransfer.types.includes(DRIVE_DRAG_MIME)) return
+    const dropped = Array.from(event.dataTransfer.files || [])
+    if (!dropped.length) return
+    event.preventDefault()
+    setDroppedFiles(dropped)
+    setAdding('file')
+  }
+
+  const previewIndex = gridOpenedFile ? previewableShown.findIndex((item) => item.id === gridOpenedFile.id) : -1
 
   return (
-    <div className="space-y-4">
+    <div
+      className="relative space-y-4"
+      onDragOver={onCanvasDragOver}
+      onDragLeave={(event) => {
+        if (event.currentTarget === event.target) setDropActive(false)
+      }}
+      onDrop={onCanvasDrop}
+    >
+      {dropActive && (
+        <div className="pointer-events-none fixed inset-4 z-40 flex items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-primary-soft/85 backdrop-blur-xs">
+          <div className="flex flex-col items-center gap-2 rounded-2xl bg-surface-raised px-6 py-5 shadow-raised">
+            <Upload className="h-7 w-7 text-primary-ink" aria-hidden="true" />
+            <p className="text-base font-bold text-ink">
+              Drop files to upload{defaultFolder ? ` into ${defaultFolder}` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+
       {adding === 'file' ? (
-        <CohortFileUploader key={`${cohortId}-class`} cohortId={cohortId} heading="Upload class files" allowVisibility defaultFolder={defaultFolder}
+        <CohortFileUploader key={`${cohortId}-class-${defaultFolder || 'all'}`} cohortId={cohortId} heading="Upload class files" allowVisibility defaultFolder={defaultFolder}
+          initialFiles={droppedFiles}
           description="Add several files at once. Choose Staff only to review them before students can see them."
           folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
-          onCancel={() => setAdding(null)}
+          onCancel={() => { setAdding(null); setDroppedFiles(undefined) }}
           onUploaded={(file) => onChange((current) => [...current, file])}
-          onFinished={() => setAdding(null)} />
+          onFinished={() => { setAdding(null); setDroppedFiles(undefined) }} />
       ) : adding === 'link' ? (
         <CohortLinkForm key={`${cohortId}-class`} cohortId={cohortId} heading="Add a class link" allowVisibility folderPresets={presets} defaultFolder={defaultFolder}
           onCancel={() => setAdding(null)}
@@ -202,7 +386,7 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <SearchBox value={query} onChange={setQuery} label="Search class files" />
           <div className="grid grid-cols-2 gap-2 sm:flex">
-            <Button onClick={() => setAdding('file')} disabled={!storage}>
+            <Button onClick={() => { setDroppedFiles(undefined); setAdding('file') }} disabled={!storage}>
               <Upload className="h-4 w-4" aria-hidden="true" />
               Upload files
             </Button>
@@ -242,6 +426,20 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
           )}
         </div>
       )}
+      {activeFolder === 'All' && folderSummaries.length > 1 && !query.trim() && (
+        <DriveFolderGrid
+          folders={folderSummaries}
+          activeFolder={activeFolder}
+          onSelectFolder={(next) => { setFolder(next); setRenaming(false) }}
+          onDropFileToFolder={(fileId, targetFolder) => void moveFileToFolder(fileId, targetFolder)}
+          label="Class folders"
+        />
+      )}
+      <DriveBreadcrumbs
+        rootLabel="Class files"
+        activeFolder={activeFolder}
+        onReset={() => { setFolder('All'); setRenaming(false) }}
+      />
       {renaming && activeFolder !== 'All' && (
         <RenameFolder cohortId={cohortId} folder={activeFolder} onCancel={() => setRenaming(false)}
           onRenamed={(name) => {
@@ -250,21 +448,104 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
             setRenaming(false)
           }} />
       )}
-      {files.length === 0 ? (
-        <div className="app-surface">
-          <EmptyState icon={FolderOpen} title="No class files yet" description="Upload slides, guides, templates and starter kits. Students see them on Resources." />
+      {files.length > 0 && (
+        <DriveControlsBar
+          typeFilter={typeFilter}
+          onTypeFilterChange={setTypeFilter}
+          sort={sort}
+          onSortChange={setSort}
+          viewMode={viewMode}
+          onViewModeChange={handleViewMode}
+          totalCount={shown.length}
+        />
+      )}
+      <DriveBulkBar
+        selectedCount={activeSelectedIds.length}
+        folderOptions={presets}
+        busy={bulkBusy}
+        canToggleVisibility
+        onMove={(targetFolder) => void handleBulkMove(targetFolder)}
+        onSetVisibility={(visibility) => void handleBulkVisibility(visibility)}
+        onDelete={() => void handleBulkDelete()}
+        onClear={() => setSelectedIds(new Set())}
+      />
+      <div className={inspectedFile ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start' : ''}>
+        <div className="min-w-0">
+          {files.length === 0 ? (
+            <div className="app-surface">
+              <EmptyState icon={FolderOpen} title="No class files yet" description="Upload slides, guides, templates and starter kits. Students see them on Resources." />
+            </div>
+          ) : shown.length === 0 ? (
+            <p className="app-surface px-4 py-6 text-center text-sm text-ink-secondary">No class files match this view.</p>
+          ) : viewMode === 'grid' ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Class files">
+              {shown.map((file) => (
+                <DriveFileGridCard
+                  key={file.id}
+                  file={file}
+                  selected={selectedIds.has(file.id)}
+                  inspected={inspectedId === file.id}
+                  canSelect
+                  canDrag
+                  downloadDisabled={!storage}
+                  onToggleSelect={toggleSelect}
+                  onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
+                  onOpen={(item, pane = 'main') => setGridOpened({ fileId: item.id, pane })}
+                  onDownload={(item) => void downloadCohortFile(cohortId, item).catch((cause) => toast.error(cause instanceof Error ? cause.message : 'Download failed.'))}
+                />
+              ))}
+            </div>
+          ) : (
+            <ul className="app-surface divide-y divide-line overflow-hidden" aria-label="Class files">
+              {shown.map((file) => (
+                <ClassFileItem key={file.id} cohortId={cohortId} file={file} studentCount={studentCount} storage={storage} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
+                  selected={selectedIds.has(file.id)}
+                  onToggleSelect={toggleSelect}
+                  inspected={inspectedId === file.id}
+                  onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
+                  onSaved={(saved) => onChange((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
+                  onDeleted={() => {
+                    onChange((current) => current.filter((item) => item.id !== file.id))
+                    setInspectedId((current) => (current === file.id ? null : current))
+                  }}
+                  onCopied={onCopied} />
+              ))}
+            </ul>
+          )}
         </div>
-      ) : shown.length === 0 ? (
-        <p className="app-surface px-4 py-6 text-center text-sm text-ink-secondary">No class files match this view.</p>
-      ) : (
-        <ul className="app-surface divide-y divide-line overflow-hidden" aria-label="Class files">
-          {shown.map((file) => (
-            <ClassFileItem key={file.id} cohortId={cohortId} file={file} studentCount={studentCount} storage={storage} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
-              onSaved={(saved) => onChange((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
-              onDeleted={() => onChange((current) => current.filter((item) => item.id !== file.id))}
-              onCopied={onCopied} />
-          ))}
-        </ul>
+        {inspectedFile && (
+          <DriveInspectorDrawer
+            cohortId={cohortId}
+            file={inspectedFile}
+            folderOptions={presets}
+            downloadDisabled={!storage}
+            onClose={() => setInspectedId(null)}
+            onOpenPreview={(item, pane = 'main') => setGridOpened({ fileId: item.id, pane })}
+            onFileChange={(saved) => onChange((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
+          />
+        )}
+      </div>
+      {gridOpenedFile && gridOpenedFile.kind === 'doc' && (
+        <CohortDocEditorModal
+          cohortId={cohortId}
+          file={gridOpenedFile}
+          open
+          onClose={() => setGridOpened(null)}
+          onFileChange={(saved) => onChange((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
+        />
+      )}
+      {gridOpenedFile && gridOpenedFile.kind === 'file' && (
+        <CohortFilePreviewModal
+          cohortId={cohortId}
+          file={gridOpenedFile}
+          open
+          onClose={() => setGridOpened(null)}
+          downloadDisabled={!storage}
+          onFileChange={(saved) => onChange((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
+          onPrev={previewIndex > 0 ? () => setGridOpened({ fileId: previewableShown[previewIndex - 1].id, pane: 'main' }) : undefined}
+          onNext={previewIndex >= 0 && previewIndex < previewableShown.length - 1 ? () => setGridOpened({ fileId: previewableShown[previewIndex + 1].id, pane: 'main' }) : undefined}
+          positionLabel={previewIndex >= 0 && previewableShown.length > 1 ? `${previewIndex + 1} of ${previewableShown.length}` : undefined}
+        />
       )}
     </div>
   )
@@ -313,13 +594,17 @@ function RenameFolder({ cohortId, folder, onRenamed, onCancel }: {
   )
 }
 
-function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAutoOpened, onSaved, onDeleted, onCopied }: {
+function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAutoOpened, selected, onToggleSelect, inspected, onInspect, onSaved, onDeleted, onCopied }: {
   cohortId: number
   file: CohortFile
   studentCount: number
   storage: boolean
   autoOpen: boolean
   onAutoOpened: () => void
+  selected?: boolean
+  onToggleSelect?: (fileId: number) => void
+  inspected?: boolean
+  onInspect?: (file: CohortFile) => void
   onSaved: (file: CohortFile) => void
   onDeleted: () => void
   onCopied: () => void
@@ -391,6 +676,8 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
   return (
     <CohortFileRow cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'} onVersionUploaded={(saved) => { onSaved(saved); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
       onFileChange={onSaved} autoOpen={autoOpen} onAutoOpened={onAutoOpened}
+      canSelect={Boolean(onToggleSelect)} selected={selected} onToggleSelect={onToggleSelect}
+      canDrag inspected={inspected} onInspect={onInspect}
       badges={<><FolderBadge folder={file.folder} />{staged && <StaffOnlyBadge />}{autoCopy && <AutoCopyBadge />}</>}
       actions={<>
         <Button size="sm" variant={staged ? 'primary' : 'quiet'} disabled={busy} onClick={() => void toggle()}>
@@ -585,6 +872,14 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
   const toast = useToast()
   const confirm = useConfirm()
   const [adding, setAdding] = useState<'file' | 'link' | 'doc' | null>(null)
+  const [droppedFiles, setDroppedFiles] = useState<File[] | undefined>(undefined)
+  const [dropActive, setDropActive] = useState(false)
+  const [activeSubfolder, setActiveSubfolder] = useState('All')
+  const [typeFilter, setTypeFilter] = useState<DriveTypeFilter>('all')
+  const [sort, setSort] = useState<DriveSort>('updated_desc')
+  const [viewMode, setViewMode] = useState<DriveViewMode>(() => readStoredDriveView())
+  const [inspectedId, setInspectedId] = useState<number | null>(null)
+  const [gridOpened, setGridOpened] = useState<{ fileId: number; pane: 'main' | 'review' } | null>(null)
   const [openFileId, setOpenFileId] = useState<number | null>(linkedFileId)
   const clearOpenFile = useCallback(() => setOpenFileId(null), [])
   // A newer notification link for this folder opens its item too.
@@ -595,16 +890,83 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
   }
   const firstName = folder.student_name.split(' ')[0] || folder.student_name
   const presets = folderOptions(STUDENT_FOLDER_PRESETS, folder.files)
+  const subfolderSummaries = useMemo(() => summarizeFolders(folder.files), [folder.files])
+  const validSubfolder = activeSubfolder !== 'All' && subfolderSummaries.some((item) => item.name === activeSubfolder) ? activeSubfolder : 'All'
+  const shown = useMemo(
+    () => sortDriveFiles(
+      folder.files.filter((file) => (validSubfolder === 'All' || file.folder === validSubfolder) && matchesDriveTypeFilter(file, typeFilter)),
+      sort,
+    ),
+    [folder.files, sort, typeFilter, validSubfolder],
+  )
+  const needsReviewCount = useMemo(
+    () => folder.files.filter((file) => isStudentFolderItem(file) && file.review_status === 'needs_review').length,
+    [folder.files],
+  )
+  const inspectedFile = useMemo(() => folder.files.find((item) => item.id === inspectedId) || null, [folder.files, inspectedId])
+  const gridOpenedFile = useMemo(() => (gridOpened ? folder.files.find((item) => item.id === gridOpened.fileId) || null : null), [folder.files, gridOpened])
+  const previewableShown = useMemo(() => shown.filter((item) => item.kind === 'file' && item.previewable && storage), [shown, storage])
+  const previewIndex = gridOpenedFile ? previewableShown.findIndex((item) => item.id === gridOpenedFile.id) : -1
+
+  const handleViewMode = (mode: DriveViewMode) => {
+    setViewMode(mode)
+    saveStoredDriveView(mode)
+  }
+
+  const moveFile = async (fileId: number, targetFolder: string) => {
+    const item = folder.files.find((entry) => entry.id === fileId)
+    if (!item || item.folder === targetFolder) return
+    const result = await api.updateCohortFile(cohortId, fileId, { folder: targetFolder })
+    if (!result.data) return toast.error(result.error || `Could not move ${item.title}.`)
+    onChange((files) => files.map((entry) => (entry.id === fileId ? result.data!.file : entry)))
+    toast.success(`Moved ${item.title} to ${targetFolder}`)
+  }
+
   const remove = async (file: CohortFile) => {
     const ok = await confirm({ title: `Delete ${file.title}?`, description: `${folder.student_name} loses access to it right away.`, confirmLabel: file.kind === 'link' ? 'Delete link' : file.kind === 'doc' ? 'Delete doc' : 'Delete file', tone: 'danger' })
     if (!ok) return
     const result = await api.deleteCohortFile(cohortId, file.id)
     if (result.error) return toast.error(result.error)
     onChange((files) => files.filter((item) => item.id !== file.id))
+    setInspectedId((current) => (current === file.id ? null : current))
     toast.success(`Deleted ${file.title}`)
   }
+
+  const onCanvasDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!storage || adding === 'file') return
+    if (event.dataTransfer.types.includes('Files') && !event.dataTransfer.types.includes(DRIVE_DRAG_MIME)) {
+      event.preventDefault()
+      if (!dropActive) setDropActive(true)
+    }
+  }
+
+  const onCanvasDrop = (event: DragEvent<HTMLElement>) => {
+    setDropActive(false)
+    if (!storage || adding === 'file') return
+    if (event.dataTransfer.types.includes(DRIVE_DRAG_MIME)) return
+    const dropped = Array.from(event.dataTransfer.files || [])
+    if (!dropped.length) return
+    event.preventDefault()
+    setDroppedFiles(dropped)
+    setAdding('file')
+  }
+
   return (
-    <section className="space-y-3" aria-label={`${folder.student_name}'s folder`}>
+    <section
+      className="relative space-y-3"
+      aria-label={`${folder.student_name}'s folder`}
+      onDragOver={onCanvasDragOver}
+      onDragLeave={(event) => { if (event.currentTarget === event.target) setDropActive(false) }}
+      onDrop={onCanvasDrop}
+    >
+      {dropActive && (
+        <div className="pointer-events-none fixed inset-4 z-40 flex items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-primary-soft/85 backdrop-blur-xs">
+          <div className="flex flex-col items-center gap-2 rounded-2xl bg-surface-raised px-6 py-5 shadow-raised">
+            <Upload className="h-7 w-7 text-primary-ink" aria-hidden="true" />
+            <p className="text-base font-bold text-ink">Drop files to upload into {firstName}&apos;s folder</p>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-base font-semibold text-ink [overflow-wrap:anywhere]">
@@ -614,7 +976,7 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
         </div>
         {!adding && (
           <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0 sm:flex-wrap sm:justify-end">
-            <Button onClick={() => setAdding('file')} disabled={!storage} aria-label={`Upload to ${firstName}'s folder`}>
+            <Button onClick={() => { setDroppedFiles(undefined); setAdding('file') }} disabled={!storage} aria-label={`Upload to ${firstName}'s folder`}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               Upload files
             </Button>
@@ -632,44 +994,142 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
         )}
       </div>
       {adding === 'file' && (
-        <CohortFileUploader key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`Upload to ${firstName}'s folder`}
+        <CohortFileUploader key={`${cohortId}-${folder.student_id}-${validSubfolder}`} cohortId={cohortId} studentId={folder.student_id} heading={`Upload to ${firstName}'s folder`}
+          defaultFolder={validSubfolder === 'All' ? undefined : validSubfolder}
+          initialFiles={droppedFiles}
           folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
-          onCancel={() => setAdding(null)}
+          onCancel={() => { setAdding(null); setDroppedFiles(undefined) }}
           onUploaded={(file) => { onChange((files) => [...files, file]); toast.success(`Uploaded ${file.title}`) }}
-          onFinished={() => setAdding(null)} />
+          onFinished={() => { setAdding(null); setDroppedFiles(undefined) }} />
       )}
       {adding === 'link' && (
-        <CohortLinkForm key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`Add a link to ${firstName}'s folder`} folderPresets={presets}
+        <CohortLinkForm key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`Add a link to ${firstName}'s folder`}
+          defaultFolder={validSubfolder === 'All' ? undefined : validSubfolder} folderPresets={presets}
           onCancel={() => setAdding(null)}
           onSaved={(file) => { onChange((files) => [...files, file]); setAdding(null); toast.success(`Added ${file.title}`) }} />
       )}
       {adding === 'doc' && (
-        <CohortDocForm key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`New doc in ${firstName}'s folder`} folderPresets={presets}
+        <CohortDocForm key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`New doc in ${firstName}'s folder`}
+          defaultFolder={validSubfolder === 'All' ? undefined : validSubfolder} folderPresets={presets}
           description={`Feedback, a plan or notes ${firstName} can read and edit.`}
           onCancel={() => setAdding(null)}
           onCreated={(file) => { onChange((files) => [...files, file]); setAdding(null); setOpenFileId(file.id) }} />
       )}
-      {folder.files.length === 0 ? (
-        <div className="app-surface">
-          <EmptyState icon={FolderOpen} title="This folder is empty" description={`Files, links and docs you or ${firstName} add appear here. Use Copy to all students on a class file or doc to add a template.`} />
+      {validSubfolder === 'All' && subfolderSummaries.length > 1 && (
+        <DriveFolderGrid
+          folders={subfolderSummaries}
+          activeFolder={validSubfolder}
+          onSelectFolder={setActiveSubfolder}
+          onDropFileToFolder={(fileId, targetFolder) => void moveFile(fileId, targetFolder)}
+          label="Folders"
+        />
+      )}
+      <DriveBreadcrumbs
+        rootLabel={`${firstName}'s folder`}
+        activeFolder={validSubfolder}
+        onReset={() => setActiveSubfolder('All')}
+      />
+      {folder.files.length > 0 && (
+        <DriveControlsBar
+          typeFilter={typeFilter}
+          onTypeFilterChange={setTypeFilter}
+          sort={sort}
+          onSortChange={setSort}
+          viewMode={viewMode}
+          onViewModeChange={handleViewMode}
+          showNeedsReview
+          needsReviewCount={needsReviewCount}
+          totalCount={shown.length}
+        />
+      )}
+      <div className={inspectedFile ? 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start' : ''}>
+        <div className="min-w-0">
+          {folder.files.length === 0 ? (
+            <div className="app-surface">
+              <EmptyState icon={FolderOpen} title="This folder is empty" description={`Files, links and docs you or ${firstName} add appear here. Use Copy to all students on a class file or doc to add a template.`} />
+            </div>
+          ) : shown.length === 0 ? (
+            <p className="app-surface px-4 py-6 text-center text-sm text-ink-secondary">No files match this filter.</p>
+          ) : viewMode === 'grid' ? (
+            <div className="grid gap-3 sm:grid-cols-2" aria-label={`Files in ${folder.student_name}'s folder`}>
+              {shown.map((file) => (
+                <DriveFileGridCard
+                  key={file.id}
+                  file={file}
+                  inspected={inspectedId === file.id}
+                  canDrag
+                  downloadDisabled={!storage}
+                  review={STAFF_REVIEW}
+                  note={file.uploaded_by_role === 'student' ? 'Added by student' : 'Shared by staff'}
+                  onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
+                  onOpen={(item, pane = 'main') => setGridOpened({ fileId: item.id, pane })}
+                  onDownload={(item) => void downloadCohortFile(cohortId, item).catch((cause) => toast.error(cause instanceof Error ? cause.message : 'Download failed.'))}
+                  actions={
+                    <Button size="sm" variant="quiet" onClick={() => void remove(file)} aria-label={`Delete ${file.title}`}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`Files in ${folder.student_name}'s folder`}>
+              {shown.map((file) => (
+                <CohortFileRow key={file.id} cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'}
+                  review={STAFF_REVIEW} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
+                  canDrag inspected={inspectedId === file.id} onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
+                  onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
+                  onVersionUploaded={(saved) => { onChange((files) => files.map((item) => (item.id === saved.id ? saved : item))); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
+                  note={file.uploaded_by_role === 'student' ? 'Added by student' : 'Shared by staff'}
+                  badges={<><FolderBadge folder={file.folder} />{file.visibility === 'staff_only' && <StaffOnlyBadge />}</>}
+                  actions={
+                    <Button size="sm" variant="quiet" onClick={() => void remove(file)} aria-label={`Delete ${file.title}`}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Delete
+                    </Button>
+                  } />
+              ))}
+            </ul>
+          )}
         </div>
-      ) : (
-        <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`Files in ${folder.student_name}'s folder`}>
-          {folder.files.map((file) => (
-            <CohortFileRow key={file.id} cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'}
-              review={STAFF_REVIEW} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
-              onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
-              onVersionUploaded={(saved) => { onChange((files) => files.map((item) => (item.id === saved.id ? saved : item))); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
-              note={file.uploaded_by_role === 'student' ? 'Added by student' : 'Shared by staff'}
-              badges={<><FolderBadge folder={file.folder} />{file.visibility === 'staff_only' && <StaffOnlyBadge />}</>}
-              actions={
-                <Button size="sm" variant="quiet" onClick={() => void remove(file)} aria-label={`Delete ${file.title}`}>
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Delete
-                </Button>
-              } />
-          ))}
-        </ul>
+        {inspectedFile && (
+          <DriveInspectorDrawer
+            cohortId={cohortId}
+            file={inspectedFile}
+            folderOptions={presets}
+            downloadDisabled={!storage}
+            review={STAFF_REVIEW}
+            onClose={() => setInspectedId(null)}
+            onOpenPreview={(item, pane = 'main') => setGridOpened({ fileId: item.id, pane })}
+            onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
+          />
+        )}
+      </div>
+      {gridOpenedFile && gridOpenedFile.kind === 'doc' && (
+        <CohortDocEditorModal
+          cohortId={cohortId}
+          file={gridOpenedFile}
+          open
+          onClose={() => setGridOpened(null)}
+          reviewAccess={STAFF_REVIEW}
+          initialPane={gridOpened?.pane === 'review' ? 'review' : 'doc'}
+          onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
+        />
+      )}
+      {gridOpenedFile && gridOpenedFile.kind === 'file' && (
+        <CohortFilePreviewModal
+          cohortId={cohortId}
+          file={gridOpenedFile}
+          open
+          onClose={() => setGridOpened(null)}
+          downloadDisabled={!storage}
+          review={STAFF_REVIEW}
+          initialPane={gridOpened?.pane === 'review' ? 'review' : 'preview'}
+          onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
+          onPrev={previewIndex > 0 ? () => setGridOpened({ fileId: previewableShown[previewIndex - 1].id, pane: 'main' }) : undefined}
+          onNext={previewIndex >= 0 && previewIndex < previewableShown.length - 1 ? () => setGridOpened({ fileId: previewableShown[previewIndex + 1].id, pane: 'main' }) : undefined}
+          positionLabel={previewIndex >= 0 && previewableShown.length > 1 ? `${previewIndex + 1} of ${previewableShown.length}` : undefined}
+        />
       )}
     </section>
   )

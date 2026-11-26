@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Download, ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   CSV_PREVIEW_LIMITS,
@@ -31,7 +31,7 @@ function storageUrl(url: string | null) {
  * version switcher. With `review`, the item's review status and comments sit
  * beside the preview (a tab on phones).
  */
-export function CohortFilePreviewModal({ cohortId, file, open, onClose, downloadDisabled = false, review, onFileChange, initialPane = 'preview' }: {
+export function CohortFilePreviewModal({ cohortId, file, open, onClose, downloadDisabled = false, review, onFileChange, initialPane = 'preview', onPrev, onNext, positionLabel }: {
   cohortId: number
   file: CohortFile
   open: boolean
@@ -40,6 +40,9 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
   review?: ReviewAccess
   onFileChange?: (file: CohortFile) => void
   initialPane?: 'preview' | 'review'
+  onPrev?: () => void
+  onNext?: () => void
+  positionLabel?: string
 }) {
   const id = useId()
   const [pane, setPane] = useState<'preview' | 'review'>(review ? initialPane : 'preview')
@@ -88,6 +91,23 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
     })
     return () => { live = false }
   }, [attempt, cohortId, file.id, file.version_number, open, versionId])
+
+  useEffect(() => {
+    if (!open || (!onPrev && !onNext)) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return
+      if (event.key === 'ArrowLeft' && onPrev) {
+        event.preventDefault()
+        onPrev()
+      } else if (event.key === 'ArrowRight' && onNext) {
+        event.preventDefault()
+        onNext()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onNext, onPrev, open])
 
   const close = () => {
     setVersionId(null)
@@ -141,7 +161,18 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
               )}
             </div>
           ) : <span className="hidden sm:block" />}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {(onPrev || onNext) && (
+              <div className="flex items-center gap-1 pr-1" role="group" aria-label="Switch previewed file">
+                <Button size="sm" variant="quiet" disabled={!onPrev} onClick={onPrev} aria-label="Previous file">
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                {positionLabel && <span className="px-1 text-xs font-medium tabular-nums text-ink-muted">{positionLabel}</span>}
+                <Button size="sm" variant="quiet" disabled={!onNext} onClick={onNext} aria-label="Next file">
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+            )}
             {preview?.preview_mode === 'pdf' && storageUrl(preview.url) && (
               <AnchorButton href={storageUrl(preview.url)!} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
