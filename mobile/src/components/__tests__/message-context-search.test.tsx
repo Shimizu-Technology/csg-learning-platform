@@ -56,7 +56,7 @@ it('searches authorized learners and messages in sections and PUSHes a match wit
   fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya');
   fireEvent.press(screen.getByLabelText('Search'));
   await screen.findByText('Maya asked a question');
-  expect(screen.getByText('People')).toBeTruthy(); expect(screen.getByText('Messages')).toBeTruthy();
+  expect(screen.getByRole('header', { name: 'People' })).toBeTruthy(); expect(screen.getByRole('header', { name: 'Messages' })).toBeTruthy();
   expect(mockApi.users).toHaveBeenCalledWith({ role: 'student', include_enrollments: true, people_search: true });
   expect(mockApi.availableUsers).not.toHaveBeenCalled();
   expect(screen.queryByText('Maya without enrollment')).toBeNull();
