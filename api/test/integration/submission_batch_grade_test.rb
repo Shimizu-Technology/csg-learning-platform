@@ -181,7 +181,9 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
     assert_equal "content_moved", response.parsed_body.dig("skipped", 0, "code")
     block_lock = queries.find { |sql, _| sql.match?(/FROM "content_blocks".*FOR SHARE/m) }
     assert block_lock, queries.map(&:first).grep(/FOR /).inspect
-    assert_equal [ @block.id ], block_lock.last
+    sql, binds = block_lock
+    locked_ids = binds.any? ? binds : sql.scan(/\d+/).map(&:to_i)
+    assert_equal [ @block.id ], locked_ids
   end
 
   test "graded reports what this batch wrote, and one failed notification doesn't stop the others" do
