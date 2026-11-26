@@ -144,6 +144,19 @@ class SearchTest < ActionDispatch::IntegrationTest
     ranked_ids = groups.fetch("cohort_file").map { |r| r["id"] }
     assert_includes ranked_ids, paused_match.id.to_s
     assert_operator ranked_ids.index(high_rank.id.to_s), :<, ranked_ids.index(low_rank.id.to_s)
+
+    # Exact-match priority strips a leading @ identically for active and paused cohorts.
+    paused_exact = @cohort.cohort_files.create!(
+      kind: "doc", title: "Atmatch", folder: "Slides", doc_content: "x",
+      doc_updated_at: 4.days.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 4.days.ago, ready: true, uploaded_by: @instructor
+    )
+    active_partial = active_cohort.cohort_files.create!(
+      kind: "doc", title: "Atmatch atmatch atmatch", folder: "Atmatch", doc_content: "x",
+      doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    search(@student, "@Atmatch")
+    at_ids = groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_equal [ paused_exact.id.to_s, active_partial.id.to_s ], at_ids
   end
 
   test "staff cohort file search excludes archived owners and applies eligibility before the limit" do

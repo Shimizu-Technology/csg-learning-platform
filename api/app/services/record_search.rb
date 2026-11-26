@@ -421,7 +421,7 @@ class RecordSearch
     end
 
     query_tokens = @words.map(&:downcase)
-    query_down = @query.downcase
+    query_down = @query.downcase.delete_prefix("@")
     matched_rows = []
     pre_pause.each do |file|
       check_deadline!

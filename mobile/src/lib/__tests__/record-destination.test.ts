@@ -25,3 +25,11 @@ it.each(cases.filter(row => 'native_inputs' in row))('preserves legacy native co
   for (const input of row.native_inputs!) expect(mobileNotificationPath(input)).toBe(row.native_expected ?? row.native)
 })
 it('keeps updates cohort context without an announcement', () => { expect(mobileNotificationPath('/updates?cohort_id=2')).toBe('/updates?cohort_id=2') })
+it('handles cohort_file and duplicate or invalid query parameters identically to the API', () => {
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&student=18&file=42'))).toBe('/admin/cohorts/4?tab=files&student=18&file=42')
+  expect(toNativeHref(fromWebPath('/admin/cohorts/4?tab=files&student=18&file=42'))).toBe('/staff/files?cohort_id=4&student=18&file=42')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&tab=other&file=42'))).toBe('/admin/cohorts/4')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&file=42&file=43'))).toBe('/admin/cohorts/4')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&student=18&student=19&file=42'))).toBe('/admin/cohorts/4')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&student=bad&file=42'))).toBe('/admin/cohorts/4')
+})
