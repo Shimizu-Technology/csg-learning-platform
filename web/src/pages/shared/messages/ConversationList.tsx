@@ -194,7 +194,7 @@ export function ConversationList({ directory, conversation, search, alerts, onli
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setFilter(option.key)}
-                  className={`pressable inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                  className={`pressable inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-8 sm:px-2.5 ${
                     selected
                       ? 'bg-primary-soft text-primary-ink ring-1 ring-inset ring-primary-soft-line'
                       : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'

@@ -253,7 +253,7 @@ export function MessageRow({
                       event.preventDefault()
                       onInspectReaction(reaction.emoji)
                     }}
-                    className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold tabular-nums transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:active:scale-100 ${
+                    className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold tabular-nums transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:active:scale-100 sm:min-h-8 sm:min-w-0 sm:px-2.5 ${
                       reaction.reacted
                         ? 'border-info-line bg-info-soft text-info-ink'
                         : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:bg-surface-sunken hover:text-ink'
@@ -277,7 +277,7 @@ export function MessageRow({
               onClick={() => onInspectReaction(message.reactions[0].emoji)}
               aria-label="Who reacted"
               title="Who reacted"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:h-8 sm:w-8"
             >
               <Users className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
@@ -288,7 +288,7 @@ export function MessageRow({
             <button
               type="button"
               onClick={onReply}
-              className="group/thread inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-transparent px-2 py-1 text-xs transition-[background-color,border-color] duration-150 hover:border-line hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="group/thread inline-flex min-h-11 max-w-full items-center gap-2 rounded-xl border border-transparent px-2 py-1 text-xs transition-[background-color,border-color] duration-150 hover:border-line hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-9"
             >
               {uniqueReplyAuthors.length > 0 ? (
                 <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">

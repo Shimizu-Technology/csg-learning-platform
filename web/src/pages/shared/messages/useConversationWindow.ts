@@ -843,7 +843,7 @@ export function useConversationWindow({ user, toast, route, conversation, direct
         return sortChronologicalMessages([...prev, message])
       })
       setPinnedMessages((prev) => {
-        if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
+        if (event.event === 'deleted') return removeMessageAndUpdateReplyCount(prev, message, skipDeletedReplyDecrement)
         return upsertPinnedMessage(prev, message)
       })
 

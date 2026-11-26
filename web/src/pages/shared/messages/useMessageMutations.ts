@@ -313,7 +313,7 @@ export function useMessageMutations({ user, toast, sourceRecord, conversation, f
       releaseOptimisticAttachmentUrls(message.id)
       const skipParentDecrement = Boolean(message.parent_message_id) && !claimDeletedReplyDecrement(message.id)
       setMessages((prev) => removeMessageAndUpdateReplyCount(prev, message, skipParentDecrement))
-      setPinnedMessages((prev) => prev.filter((item) => item.id !== message.id))
+      setPinnedMessages((prev) => removeMessageAndUpdateReplyCount(prev, message, skipParentDecrement))
       toast.success('Message deleted')
     }
     else if (res.error) {
