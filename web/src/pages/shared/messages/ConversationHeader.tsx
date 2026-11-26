@@ -1,8 +1,9 @@
-import { Bell, BellOff, BookOpen, ChevronLeft, Hash, Info, Link2, Lock, MessageCircle, MonitorSmartphone, PanelLeftOpen, Pin, UserRound } from 'lucide-react';
+import { Bell, BellOff, BookOpen, ChevronLeft, Hash, Info, Link2, Lock, MonitorSmartphone, PanelLeftOpen, Pin, UserRound, Users } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCohortContext } from '../../../contexts/CohortContext';
 import { useStudentExperience } from '../../../lib/studentExperience';
+import { Avatar } from '../../../components/ui/Avatar';
 import { IconButton } from '../../../components/ui/Button';
 import { OverflowMenu } from '../../../components/ui/OverflowMenu';
 import { isPlainLeftClick } from '../../../lib/links';
@@ -10,6 +11,7 @@ import { backLinkText, originLabel, useBackLink, backLinkOrigin } from '../../..
 import { readReturnContext } from '../../../lib/navigationContext';
 import { channelRecordPath, cohortPath, cohortStudentPath, safeInternalReturnPath } from '../../../lib/routes';
 import type { ChannelSummary, DirectConversationSummary } from '../../../types/api';
+import { directConversationPeer } from './helpers';
 import type { Target } from './types';
 import type { BrowserAlerts } from './useBrowserAlerts';
 import type { ConversationState } from './useConversationState';
@@ -24,16 +26,17 @@ type ConversationHeaderProps = {
   selected: ChannelSummary | DirectConversationSummary
   route: Pick<MessagesRoute, 'navigate' | 'sourceRecord' | 'sourceRecordPath'>
   conversation: Pick<ConversationState, 'isDesktop' | 'sidebarCollapsed' | 'setSidebarCollapsed' | 'conversationView' | 'setConversationView' | 'activeThreadRoot' | 'setActiveThreadRootId' | 'setMobilePane' | 'selectedPinnedMessages'>
-  directory: Pick<WorkspaceDirectory, 'isStaff' | 'selectedChannel' | 'selectedDmStudent' | 'selectedLabel' | 'selectedMuted' | 'isNavigationPending' | 'toggleMute'>
+  directory: Pick<WorkspaceDirectory, 'currentUserId' | 'isStaff' | 'selectedChannel' | 'selectedDm' | 'selectedDmStudent' | 'selectedLabel' | 'selectedMuted' | 'isNavigationPending' | 'toggleMute'>
   alerts: Pick<BrowserAlerts, 'pushEnabled' | 'pushMessage' | 'handleTogglePush'>
+  onlineUserIds: ReadonlySet<number>
   conversationReturnContext: ConversationWindow['conversationReturnContext']
   copyConversationLink: MessageMutations['copyConversationLink']
   setAuthorContext: MessageOverlays['setAuthorContext']
   showPushMessage: boolean
 }
 
-/** The open conversation's title row, record links, mute and options, source context and alert status. */
-export function ConversationHeader({ selectedTarget, selected, route, conversation, directory, alerts, conversationReturnContext, copyConversationLink, setAuthorContext, showPushMessage }: ConversationHeaderProps) {
+/** The open conversation's title row, avatar/presence, pin shortcut, record links, mute and options, source context and alert status. */
+export function ConversationHeader({ selectedTarget, selected, route, conversation, directory, alerts, onlineUserIds, conversationReturnContext, copyConversationLink, setAuthorContext, showPushMessage }: ConversationHeaderProps) {
   const experience = useStudentExperience()
   const { selectedCohortId } = useCohortContext()
   const v2 = experience.v2 && (!selected.cohort_id || selected.cohort_id === selectedCohortId)
@@ -45,8 +48,17 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
   const listPath = v2 && workspaceId ? `/messages?workspace_id=${workspaceId}` : '/messages'
   const { navigate, sourceRecord, sourceRecordPath } = route
   const { isDesktop, sidebarCollapsed, setSidebarCollapsed, conversationView, setConversationView, activeThreadRoot, setActiveThreadRootId, setMobilePane, selectedPinnedMessages } = conversation
-  const { isStaff, selectedChannel, selectedDmStudent, selectedLabel, selectedMuted, isNavigationPending, toggleMute } = directory
+  const { currentUserId, isStaff, selectedChannel, selectedDm, selectedDmStudent, selectedLabel, selectedMuted, isNavigationPending, toggleMute } = directory
   const { pushEnabled, pushMessage, handleTogglePush } = alerts
+  const dmPeer = selectedTarget.type === 'dm' ? directConversationPeer(selectedDm, currentUserId) : null
+  const dmPeerOnline = Boolean(dmPeer && onlineUserIds.has(dmPeer.id))
+  const showingPins = conversationView === 'pins' && !activeThreadRoot
+  const togglePinsView = () => {
+    const showPins = !showingPins
+    setActiveThreadRootId(null)
+    if (!isDesktop) setMobilePane('conversation')
+    setConversationView(showPins ? 'pins' : 'messages')
+  }
 
   // Names in the conversation header are real links (L-2.8). A plain click keeps
   // the message you were reading, so "Back to conversation" returns to it.
@@ -75,12 +87,26 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
             <ChevronLeft className="h-5 w-5" />
           </IconButton>
         )}
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary" aria-hidden="true">
-          {selectedTarget.type === 'channel'
-            ? selectedChannel?.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />
-            : <MessageCircle className="h-4 w-4" />}
-        </span>
-        <div className="min-w-0 flex-1 pl-1">
+        {selectedTarget.type === 'channel' ? (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-sunken text-ink-secondary ring-1 ring-inset ring-line" aria-hidden="true">
+            {selectedChannel?.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />}
+          </span>
+        ) : dmPeer ? (
+          <span className="relative inline-flex shrink-0">
+            <Avatar name={dmPeer.full_name} src={dmPeer.avatar_url} size="md" />
+            {dmPeerOnline && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-success-solid ring-2 ring-surface-raised"
+              />
+            )}
+          </span>
+        ) : (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-sunken text-ink-secondary ring-1 ring-inset ring-line" aria-hidden="true">
+            <Users className="h-4 w-4" />
+          </span>
+        )}
+        <div className="min-w-0 flex-1 pl-1.5">
           <h2 className="truncate text-[15px] font-semibold leading-5 text-ink">
             {headerStudentPath
               ? <Link to={headerStudentPath} onClick={(event) => openRecordWithReturn(event, headerStudentPath)} className="rounded-sm hover:underline">{selectedLabel}</Link>
@@ -90,10 +116,27 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
             {headerCohortPath
               ? <Link to={headerCohortPath} onClick={(event) => openRecordWithReturn(event, headerCohortPath)} className={`rounded-sm hover:text-ink hover:underline${v2 && !isStaff ? ' inline-flex min-h-11 min-w-11 items-center' : ''}`}>{selected.workspace_name}</Link>
               : selected.workspace_name}
+            {dmPeerOnline && <span className="text-success-ink"> · Active now</span>}
             {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && ' · Staff only'}
             {isNavigationPending && ' · updating'}
           </p>
         </div>
+        {selectedPinnedMessages.length > 0 && (
+          <button
+            type="button"
+            aria-label={`Pinned messages (${selectedPinnedMessages.length})`}
+            aria-pressed={showingPins}
+            onClick={togglePinsView}
+            className={`pressable hidden min-h-11 shrink-0 items-center gap-1 rounded-xl px-2.5 text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:inline-flex lg:min-h-9 ${
+              showingPins
+                ? 'bg-primary-soft text-primary-ink ring-1 ring-inset ring-primary-soft-line'
+                : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'
+            }`}
+          >
+            <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{selectedPinnedMessages.length}</span>
+          </button>
+        )}
         {selectedDmStudent && (
           <IconButton size="sm" label={`Open ${selectedDmStudent.full_name}'s student context`} onClick={() => setAuthorContext(selectedDmStudent)}>
             <UserRound className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -109,9 +152,9 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
             { key: 'copy', label: 'Copy link to conversation', icon: <Link2 aria-hidden="true" />, onSelect: () => void copyConversationLink() },
             {
               key: 'pins',
-              label: conversationView === 'pins' && !activeThreadRoot ? 'Back to conversation' : `Pinned messages (${selectedPinnedMessages.length})`,
+              label: showingPins ? 'Back to conversation' : `Pinned messages (${selectedPinnedMessages.length})`,
               icon: <Pin aria-hidden="true" />,
-              onSelect: () => { const showPins = !(conversationView === 'pins' && !activeThreadRoot); setActiveThreadRootId(null); if (!isDesktop) setMobilePane('conversation'); setConversationView(showPins ? 'pins' : 'messages') },
+              onSelect: togglePinsView,
             },
             { key: 'alerts', label: pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts', icon: <MonitorSmartphone aria-hidden="true" />, onSelect: () => void handleTogglePush() },
             // Staff: the channel's page (members, recent activity), L-5.2.

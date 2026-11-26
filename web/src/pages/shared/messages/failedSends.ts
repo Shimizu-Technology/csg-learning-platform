@@ -1,4 +1,4 @@
-import { failedSendsKey, readFailedSends, writeFailedSends, type StoredFailedSend, type StoredMessageSource } from '../../../lib/messageComposerState';
+import { failedSendsKey, readFailedSends, safeLocalStorage, writeFailedSends, type StoredFailedSend, type StoredMessageSource } from '../../../lib/messageComposerState';
 import type { MessageSourceSummary, User } from '../../../types/api';
 import { targetMatches } from './helpers';
 import type { LocalMessage, Target } from './types';
@@ -13,9 +13,10 @@ export function optimisticSource(source: StoredMessageSource): MessageSourceSumm
  * be retried. Each row takes the next temporary (negative) id.
  */
 export function storedFailureMessages(user: User | null, target: Target, tempMessageIdRef: { current: number }): LocalMessage[] {
-  if (!user || typeof window === 'undefined') return []
+  const storage = safeLocalStorage()
+  if (!user || !storage) return []
 
-  return readFailedSends(failedSendsKey(user.id, target), window.localStorage)
+  return readFailedSends(failedSendsKey(user.id, target), storage)
     .filter((failure) => targetMatches(failure.target, target))
     .map((failure) => {
       tempMessageIdRef.current -= 1
@@ -68,18 +69,20 @@ export function storedFailureMessages(user: User | null, target: Target, tempMes
 }
 
 export function saveStoredFailure(user: User | null, target: Target, failure: StoredFailedSend) {
-  if (!user || typeof window === 'undefined') return
+  const storage = safeLocalStorage()
+  if (!user || !storage) return
   const key = failedSendsKey(user.id, target)
-  const failures = readFailedSends(key, window.localStorage).filter((item) => item.clientMessageId !== failure.clientMessageId)
-  writeFailedSends(key, [...failures, failure], window.localStorage)
+  const failures = readFailedSends(key, storage).filter((item) => item.clientMessageId !== failure.clientMessageId)
+  writeFailedSends(key, [...failures, failure], storage)
 }
 
 export function removeStoredFailure(user: User | null, target: Target, clientMessageId: string) {
-  if (!user || typeof window === 'undefined') return
+  const storage = safeLocalStorage()
+  if (!user || !storage) return
   const key = failedSendsKey(user.id, target)
   writeFailedSends(
     key,
-    readFailedSends(key, window.localStorage).filter((item) => item.clientMessageId !== clientMessageId),
-    window.localStorage,
+    readFailedSends(key, storage).filter((item) => item.clientMessageId !== clientMessageId),
+    storage,
   )
 }

@@ -541,6 +541,7 @@ export function useWorkspaceDirectory(
   }
 
   return {
+    currentUserId: user?.id,
     isStaff,
     isAdmin,
     loading,
@@ -579,6 +580,7 @@ export function useWorkspaceDirectory(
     channelForm,
     setChannelForm,
     selectedChannel,
+    selectedDm,
     selectedDmStudent,
     selected,
     selectedLabel,

@@ -42,6 +42,7 @@ export function useMessagesController() {
   })
   const realtime = useMessagesRealtime({
     userId: user?.id,
+    isStaff: Boolean(user?.is_staff),
     selectedTarget: conversation.selectedTarget,
     selectedTargetRef: conversation.selectedTargetRef,
     selectedConversationKey: conversation.selectedConversationKey,

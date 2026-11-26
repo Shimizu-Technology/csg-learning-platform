@@ -108,8 +108,10 @@ export type MarkdownEditorProps = {
   minHeight?: number
   maxHeight?: number
   /**
-   * Field only: on phones (< sm) the top formatting row stays folded behind an Aa button beside the
+   * Field: on phones (< sm) the top formatting row stays folded behind an Aa button beside the
    * text box, and the box grows to at most 88px, so a sticky editor (the grade bar) stays short.
+   * Composer: starts with formatting folded behind Aa (for narrow panels like the thread drawer)
+   * without overwriting the main composer's saved preference.
    */
   compactToolbar?: boolean
   describedBy?: string
@@ -319,15 +321,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [menuOpen, setMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [compactRowShown, setCompactRowShown] = useState(false)
-  // Composer only: show formatting tools by default on desktop (like Slack) and keep them behind Aa on phones; explicit toggles persist in this browser.
-  const [formattingChoice, setFormattingChoice] = useState<'shown' | 'hidden' | null>(() => (composer ? readComposerFormattingChoice() : null))
-  const formattingShown = composer && (formattingChoice === null ? !narrow : formattingChoice === 'shown')
+  // Composer only: show formatting tools by default on desktop (like Slack) and keep them behind Aa on phones or narrow thread panels; main-composer toggles persist in this browser.
+  const [formattingChoice, setFormattingChoice] = useState<'shown' | 'hidden' | null>(() => (composer && !compactToolbar ? readComposerFormattingChoice() : null))
+  const formattingShown = composer && (compactToolbar ? formattingChoice === 'shown' : formattingChoice === null ? !narrow : formattingChoice === 'shown')
   const toggleFormatting = () => {
     const next = !formattingShown
     setFormattingChoice(next ? 'shown' : 'hidden')
     setMenuOpen(false)
     if (!next) setHelpOpen(false)
-    writeComposerFormattingShown(next)
+    if (!compactToolbar) writeComposerFormattingShown(next)
   }
   const [sourceInBlock, setSourceInBlock] = useState(false)
   const [sourceSelection, setSourceSelection] = useState({ start: 0, end: 0 })

@@ -1,40 +1,91 @@
-import { BellRing, ChevronDown, Hash, Lock, MessageCircle, MonitorSmartphone, PanelLeftClose, Plus, RefreshCw, Search, SquarePen, Users, X } from 'lucide-react';
+import { BellRing, ChevronDown, Hash, Lock, MonitorSmartphone, PanelLeftClose, Plus, RefreshCw, Search, SquarePen, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBackLink } from '../../../lib/recordOrigin';
 import { useCohortContext } from '../../../contexts/CohortContext';
+import { COMPOSER_DRAFT_EVENT, composerDestinationKey, readComposerDraft, safeLocalStorage } from '../../../lib/messageComposerState';
 import { useStudentExperience } from '../../../lib/studentExperience';
+import { Avatar } from '../../../components/ui/Avatar';
 import { IconButton } from '../../../components/ui/Button';
 import { OverflowMenu, type OverflowMenuItem } from '../../../components/ui/OverflowMenu';
 import { CountBadge, RowButton } from '../../../components/ui/RowButton';
 import { ConversationLink } from './ConversationControls';
-import { formatTime, preview } from './helpers';
+import { directConversationPeer, formatTime, preview } from './helpers';
 import type { BrowserAlerts } from './useBrowserAlerts';
 import type { ConversationState } from './useConversationState';
 import type { MessageSearch } from './useMessageSearch';
 import type { WorkspaceDirectory } from './useWorkspaceDirectory';
 
+export type InboxFilter = 'all' | 'unread' | 'dm' | 'channel'
+
 type ConversationListProps = {
-  directory: Pick<WorkspaceDirectory, 'isAdmin' | 'workspaces' | 'workspaceDetail' | 'selectedWorkspaceId' | 'setShowChannelForm' | 'setShowDmForm' | 'setShowWorkspaceForm' | 'setShowWorkspaceSwitcher' | 'setShowWorkspaceMembers' | 'setWorkspaceError' | 'setChannelError' | 'setChannelForm' | 'recent' | 'selectedWorkspace' | 'canManageChannels' | 'totalWorkspaceUnreadCount' | 'loadLists'>
-  conversation: Pick<ConversationState, 'selectedTarget' | 'sidebarCollapsed' | 'setSidebarCollapsed' | 'isDesktop' | 'selectTarget'>
+  directory: Pick<WorkspaceDirectory, 'currentUserId' | 'isAdmin' | 'workspaces' | 'workspaceDetail' | 'selectedWorkspaceId' | 'setShowChannelForm' | 'setShowDmForm' | 'setShowWorkspaceForm' | 'setShowWorkspaceSwitcher' | 'setShowWorkspaceMembers' | 'setWorkspaceError' | 'setChannelError' | 'setChannelForm' | 'recent' | 'selectedWorkspace' | 'canManageChannels' | 'totalWorkspaceUnreadCount' | 'loadLists'>
+  conversation: Pick<ConversationState, 'selectedTarget' | 'sidebarCollapsed' | 'setSidebarCollapsed' | 'isDesktop' | 'selectTarget' | 'conversationView' | 'activeThreadRoot'>
   search: MessageSearch
   alerts: BrowserAlerts
+  onlineUserIds: ReadonlySet<number>
+  filter: InboxFilter
+  setFilter: (value: InboxFilter) => void
+  filteredRecent: WorkspaceDirectory['recent']
   showListPane: boolean
 }
 
 /**
  * The inbox (U-4.11): a one-line header (title, workspace, search, new
- * message, ⋯), then one list of conversations. Each channel appears once.
+ * message, ⋯), compact filter pills when multiple conversations exist, then one
+ * list of conversations with avatars, presence dots, and live draft previews.
  */
-export function ConversationList({ directory, conversation, search, alerts, showListPane }: ConversationListProps) {
+export function ConversationList({ directory, conversation, search, alerts, onlineUserIds, filter, setFilter, filteredRecent, showListPane }: ConversationListProps) {
   const experience = useStudentExperience()
   const { selectedCohortId } = useCohortContext()
   const v2 = experience.v2 && (!directory.selectedWorkspace?.cohort_id || directory.selectedWorkspace.cohort_id === selectedCohortId)
   const back = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
   const hasOrigin = !back.fallback
-  const { isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
-  const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation
+  const { currentUserId, isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
+  const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget, conversationView, activeThreadRoot } = conversation
   const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, clearSearchResults, searchStatus } = search
   const { pushEnabled, pushMessage, handleTogglePush } = alerts
+  const [draftRevision, setDraftRevision] = useState(0)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const refresh = () => setDraftRevision((value) => value + 1)
+    window.addEventListener(COMPOSER_DRAFT_EVENT, refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener(COMPOSER_DRAFT_EVENT, refresh)
+      window.removeEventListener('storage', refresh)
+    }
+  }, [])
+
+  const draftsByKey = useMemo(() => {
+    const map = new Map<string, string>()
+    if (!showListPane || sidebarCollapsed || !currentUserId) return map
+    const storage = safeLocalStorage()
+    if (!storage) return map
+    // Reading draftRevision ties this snapshot to live draft change events.
+    void draftRevision
+    for (const item of recent) {
+      const key = composerDestinationKey(currentUserId, { type: item.type, id: item.summary.id }, null)
+      const draft = readComposerDraft(key, storage)
+      if (draft?.body.trim()) map.set(`${item.type}:${item.summary.id}`, preview(draft.body))
+    }
+    return map
+  }, [currentUserId, draftRevision, recent, showListPane, sidebarCollapsed])
+
+  const unreadConversationCount = useMemo(
+    () => recent.filter((item) => item.summary.unread_count > 0).length,
+    [recent],
+  )
+  const hasGroupChats = useMemo(
+    () => recent.some((item) => item.type === 'channel' || directConversationPeer(item.summary, currentUserId) === null),
+    [currentUserId, recent],
+  )
+  const hasDirectChats = useMemo(
+    () => recent.some((item) => item.type === 'dm' && directConversationPeer(item.summary, currentUserId) !== null),
+    [currentUserId, recent],
+  )
+
   if (!showListPane || sidebarCollapsed) return null
 
   const closeSearch = () => {
@@ -51,6 +102,12 @@ export function ConversationList({ directory, conversation, search, alerts, show
     ...(isDesktop ? [{ key: 'collapse', label: 'Collapse conversation list', icon: <PanelLeftClose aria-hidden="true" />, onSelect: () => setSidebarCollapsed(true) }] : []),
   ]
   const workspaceName = selectedWorkspace?.name || 'Cohorts and communities'
+  const showFilters = recent.length > 1 && (unreadConversationCount > 0 || filter !== 'all' || (hasGroupChats && hasDirectChats))
+  const filterOptions: { key: InboxFilter; label: string; count?: number }[] = [
+    { key: 'all', label: 'All' },
+    ...(unreadConversationCount > 0 || filter === 'unread' ? [{ key: 'unread' as const, label: 'Unread', count: unreadConversationCount || undefined }] : []),
+    ...(hasDirectChats && hasGroupChats ? [{ key: 'dm' as const, label: 'Direct' }, { key: 'channel' as const, label: 'Group chats' }] : []),
+  ]
 
   return (
     <aside aria-label="Conversations" className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised ${isDesktop ? 'border-r border-line' : ''}`}>
@@ -127,28 +184,104 @@ export function ConversationList({ directory, conversation, search, alerts, show
             )}
           </div>
         )}
+        {showFilters && (
+          <div role="group" aria-label="Filter conversations" className="messages-toolbar-scroll flex items-center gap-1 overflow-x-auto px-1 pb-1 pt-1">
+            {filterOptions.map((option) => {
+              const selected = filter === option.key
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setFilter(option.key)}
+                  className={`pressable inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-8 sm:px-2.5 ${
+                    selected
+                      ? 'bg-primary-soft text-primary-ink ring-1 ring-inset ring-primary-soft-line'
+                      : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  {option.count !== undefined && (
+                    <span className="tabular-nums opacity-85">{option.count}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
         {pushMessage && !selectedTarget && <p className="px-1.5 pb-1 text-xs text-ink-secondary" role="status">{pushMessage}</p>}
       </div>
 
       <nav aria-label={`${workspaceName} conversations`} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-1.5">
-        {recent.length === 0 ? (
-          <div className="px-3 py-4 text-sm text-ink-muted">No conversations yet.</div>
-        ) : recent.map(({ type, summary }) => (
-          <ConversationLink
-            key={`${type}:${summary.id}`}
-            target={{ type, id: summary.id }}
-            active={selectedTarget?.type === type && selectedTarget.id === summary.id}
-            icon={type === 'channel'
-              ? summary.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" aria-hidden="true" /> : <Hash className="h-4 w-4 shrink-0" aria-hidden="true" />
-              : <MessageCircle className="h-4 w-4 shrink-0" aria-hidden="true" />}
-            title={type === 'channel' ? summary.name : summary.title}
-            subtitle={summary.latest_message ? `${summary.latest_message.author_name}: ${preview(summary.latest_message.body)}` : type === 'channel' ? summary.description || 'No messages yet' : 'No messages yet'}
-            latestAt={summary.latest_message?.created_at}
-            unread={summary.unread_count}
-            muted={summary.muted}
-            onSelect={() => selectTarget({ type, id: summary.id })}
-          />
-        ))}
+        {filteredRecent.length === 0 ? (
+          <div className="px-3 py-6 text-center text-sm text-ink-muted">
+            <p>{filter === 'unread' ? 'You’re all caught up.' : 'No conversations yet.'}</p>
+            {filter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setFilter('all')}
+                className="mt-2 inline-flex min-h-9 items-center rounded-xl px-3 text-xs font-semibold text-primary-ink hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                Show all conversations
+              </button>
+            )}
+          </div>
+        ) : filteredRecent.map(({ type, summary }) => {
+          const isSelected = selectedTarget?.type === type && selectedTarget.id === summary.id
+          const peer = type === 'dm' ? directConversationPeer(summary, currentUserId) : null
+          const peerOnline = Boolean(peer && onlineUserIds.has(peer.id))
+          const leading = type === 'channel' ? (
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-sunken text-ink-secondary ring-1 ring-inset ring-line" aria-hidden="true">
+              {summary.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />}
+            </span>
+          ) : peer ? (
+            <span className="relative inline-flex">
+              <Avatar name={peer.full_name} src={peer.avatar_url} size="md" />
+              {peerOnline && (
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-success-solid ring-2 ring-surface-raised"
+                />
+              )}
+            </span>
+          ) : (
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-sunken text-ink-secondary ring-1 ring-inset ring-line" aria-hidden="true">
+              <Users className="h-4 w-4" />
+            </span>
+          )
+
+          const latest = summary.latest_message
+          const isOwnLatest = Boolean(latest && currentUserId != null && latest.author_id === currentUserId)
+          const latestAuthorPrefix = latest
+            ? isOwnLatest
+              ? 'You: '
+              : type === 'channel' || !peer
+                ? `${latest.author_name}: `
+                : ''
+            : ''
+          const subtitle = latest
+            ? `${latestAuthorPrefix}${preview(latest.body)}`
+            : type === 'channel'
+              ? summary.description || 'No messages yet'
+              : 'No messages yet'
+          const rootComposerVisible = isSelected && isDesktop && conversationView === 'messages' && !activeThreadRoot
+
+          return (
+            <ConversationLink
+              key={`${type}:${summary.id}`}
+              target={{ type, id: summary.id }}
+              active={isSelected}
+              icon={leading}
+              title={type === 'channel' ? summary.name : summary.title}
+              subtitle={subtitle}
+              draftPreview={!rootComposerVisible ? draftsByKey.get(`${type}:${summary.id}`) : null}
+              latestAt={latest?.created_at}
+              unread={summary.unread_count}
+              muted={summary.muted}
+              onSelect={() => selectTarget({ type, id: summary.id })}
+            />
+          )
+        })}
       </nav>
     </aside>
   )

@@ -1,4 +1,4 @@
-import { CircleCheck, Heart, SmilePlus, ThumbsUp, type LucideIcon } from 'lucide-react';
+import { CircleCheck, Eye, Heart, Laugh, Lightbulb, PartyPopper, ThumbsUp, type LucideIcon } from 'lucide-react';
 import { markdownToPlainText } from '../../../lib/messageFormat';
 import { recentConversations } from '../../../lib/messagingPresentation';
 import { conversationPath as conversationRoute } from '../../../lib/routes';
@@ -120,10 +120,59 @@ export const REACTIONS: QuickReaction[] = [
   { value: '\u{1F44D}', label: 'Thumbs up', Icon: ThumbsUp },
   { value: '\u2764\uFE0F', label: 'Love', Icon: Heart },
   { value: '\u2705', label: 'Complete', Icon: CircleCheck },
-  { value: '\u{1F64C}', label: 'Celebrate', Icon: SmilePlus },
+  { value: '\u{1F440}', label: 'Looking into it', Icon: Eye },
+  { value: '\u{1F4A1}', label: 'Insightful', Icon: Lightbulb },
+  { value: '\u{1F64C}', label: 'Celebrate', Icon: PartyPopper },
 ]
 
-export const REACTIONS_BY_VALUE = new Map(REACTIONS.map((reaction) => [reaction.value, reaction]))
+export const QUICK_HOVER_REACTIONS: QuickReaction[] = REACTIONS.slice(0, 4)
+
+const EXTRA_REACTION_DISPLAYS: QuickReaction[] = [
+  { value: '\u{1F602}', label: 'Funny', Icon: Laugh },
+]
+
+export const REACTIONS_BY_VALUE = new Map([...REACTIONS, ...EXTRA_REACTION_DISPLAYS].map((reaction) => [reaction.value, reaction]))
+
+/** The other participant in a 1:1 direct message, or null for group direct messages. */
+export function directConversationPeer(
+  conversation: Pick<DirectConversationSummary, 'users'> | null | undefined,
+  currentUserId?: number,
+) {
+  if (!conversation?.users?.length) return null
+  const others = currentUserId
+    ? conversation.users.filter((member) => member.id !== currentUserId)
+    : conversation.users
+  return others.length === 1 ? others[0] : null
+}
+
+/** Tracks reply IDs whose parent reply_count was already decremented so HTTP and realtime delete events are idempotent in either order. */
+const decrementedDeletedReplyIds = new Set<number>()
+
+export function claimDeletedReplyDecrement(messageId: number): boolean {
+  if (decrementedDeletedReplyIds.has(messageId)) return false
+  decrementedDeletedReplyIds.add(messageId)
+  if (decrementedDeletedReplyIds.size > 200) {
+    const oldest = decrementedDeletedReplyIds.values().next().value
+    if (oldest !== undefined) decrementedDeletedReplyIds.delete(oldest)
+  }
+  return true
+}
+
+export function removeMessageAndUpdateReplyCount(
+  prev: LocalMessage[],
+  deleted: Pick<ChannelMessage, 'id' | 'parent_message_id'>,
+  skipParentDecrement = false,
+): LocalMessage[] {
+  const existing = prev.find((item) => item.id === deleted.id)
+  const parentId = deleted.parent_message_id ?? existing?.parent_message_id ?? null
+  const filtered = prev.filter((item) => item.id !== deleted.id)
+  if (!parentId || skipParentDecrement) return filtered
+  return filtered.map((item) => (
+    item.id === parentId
+      ? { ...item, reply_count: Math.max(0, (item.reply_count ?? 1) - 1) }
+      : item
+  ))
+}
 
 export const CHANNEL_MENTION_ALIASES = [
   { label: '@everyone', subtitle: 'Notify everyone in this chat' },
@@ -184,6 +233,7 @@ export function latestMessageFrom(message: ChannelMessage) {
     id: message.id,
     body: message.body || (message.attachments.length === 1 ? 'Attachment' : `${message.attachments.length} attachments`),
     created_at: message.created_at,
+    author_id: message.author.id,
     author_name: message.author.full_name,
   }
 }

@@ -6,7 +6,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeEditorPreferences } from '../../components/shared/MarkdownEditor'
-import type { MessageView as ChannelMessage, MessageSourceSummary } from '../../types/api'
+import type { ChannelSummary, MessageView as ChannelMessage, MessageSourceSummary } from '../../types/api'
+import { claimDeletedReplyDecrement, removeMessageAndUpdateReplyCount } from './messages/helpers'
 import { Messages } from './Messages'
 
 /**
@@ -485,5 +486,210 @@ describe('composer power interactions', () => {
     await click(container.querySelector('[aria-label="Remove terminal-error.png"]'))
     expect(container.querySelector('[data-pending-attachments]')).toBeNull()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-screenshot')
+  })
+})
+
+describe('premium chat inbox, header, reactions, media, and threads', () => {
+  it('renders user avatars in inbox rows and conversation header, plus Draft badges and filter pills', async () => {
+    window.localStorage.setItem(
+      'csg-message-draft:1:channel:2:root',
+      JSON.stringify({ version: 1, body: 'Remember to push before class', content: { type: 'doc', content: [] } }),
+    )
+    await open()
+    const header = container.querySelector('section header')!
+    expect(header.querySelector('[data-avatar]')).not.toBeNull()
+    const dmRow = container.querySelector('nav a[href="/messages/dm/5"]')!
+    expect(dmRow.querySelector('[data-avatar]')).not.toBeNull()
+    const channelRow = container.querySelector('nav a[href="/messages/2"]')!
+    expect(channelRow.querySelector('[data-draft-preview]')?.textContent).toContain('Draft: Remember to push before class')
+
+    // Filter pills switch between Direct and Group chats.
+    const filterGroup = container.querySelector('[aria-label="Filter conversations"]')!
+    const directBtn = Array.from(filterGroup.querySelectorAll('button')).find((b) => b.textContent === 'Direct')!
+    await click(directBtn)
+    expect(container.querySelectorAll('nav a')).toHaveLength(1)
+    expect(container.querySelector('nav a')?.getAttribute('href')).toBe('/messages/dm/5')
+
+    const groupBtn = Array.from(filterGroup.querySelectorAll('button')).find((b) => b.textContent === 'Group chats')!
+    await click(groupBtn)
+    expect(container.querySelectorAll('nav a')).toHaveLength(1)
+    expect(container.querySelector('nav a')?.getAttribute('href')).toBe('/messages/2')
+  })
+
+  it('toggles a reaction pill in one click and opens Who reacted from the details button', async () => {
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    const reactedMsg = message(11, {
+      reactions: [{ emoji: '\u{1F44D}', count: 1, reacted: false, users: [{ id: 3, full_name: 'Alex Rivera', avatar_url: null }] }],
+    })
+    getDirectConversation.messages = [message(10), reactedMsg]
+    fixture.responses.reactMessage = {
+      message: {
+        ...reactedMsg,
+        reactions: [{ emoji: '\u{1F44D}', count: 2, reacted: true, users: [{ id: 3, full_name: 'Alex Rivera', avatar_url: null }, { id: 1, full_name: 'Audreana', avatar_url: null }] }],
+      },
+    }
+    await open()
+    const pill = container.querySelector('#message-11 [aria-label^="Thumbs up: 1"]') as HTMLButtonElement
+    expect(pill).not.toBeNull()
+    await click(pill)
+    expect(fixture.calls).toHaveBeenCalledWith('reactMessage', 11, '\u{1F44D}')
+    const whoBtn = container.querySelector('#message-11 [aria-label="Who reacted"]') as HTMLButtonElement
+    await click(whoBtn)
+    expect(document.body.textContent).toContain('Who reacted')
+  })
+
+  it('shows inline pin button in header when pins exist, natural aspect ratio for single images, and Slack-style thread summary', async () => {
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[]; pinned_messages: ChannelMessage[] }
+    const pinned = message(10, { pinned_at: new Date().toISOString() })
+    const rootWithImageAndReply = message(11, {
+      reply_count: 1,
+      attachments: [{ id: 501, filename: 'error.png', content_type: 'image/png', byte_size: 4096, image: true, url: 'https://example.com/error.png' }],
+    })
+    const reply = message(12, { parent_message_id: 11, body: 'Try git restore first' })
+    getDirectConversation.messages = [pinned, rootWithImageAndReply, reply]
+    getDirectConversation.pinned_messages = [pinned]
+    await open()
+
+    // Inline pin shortcut in header has a stable accessible name paired with aria-pressed.
+    const pinButton = container.querySelector('section header [aria-label="Pinned messages (1)"]')
+    expect(pinButton).not.toBeNull()
+    expect(pinButton?.getAttribute('aria-pressed')).toBe('false')
+
+    // Natural-aspect-ratio single image (no aspect-video crop).
+    const img = container.querySelector('#message-11 img') as HTMLImageElement
+    expect(img).not.toBeNull()
+    expect(img.className).toContain('object-contain')
+    expect(img.className).not.toContain('aspect-video')
+
+    // Thread summary bar shows reply count and participant avatar.
+    const threadBtn = Array.from(container.querySelectorAll('#message-11 button')).find((b) => b.textContent?.includes('1 reply'))!
+    expect(threadBtn).toBeTruthy()
+    expect(threadBtn.querySelector('[data-avatar]')).not.toBeNull()
+  })
+
+  it('guards Alt+Arrow shortcuts in editable inputs and cycles only visible filtered conversations', async () => {
+    await open()
+    // Focus composer surface: Alt+ArrowDown must NOT switch away from DM 5.
+    const editor = container.querySelector('[data-md-editor] .md-editor-surface') as HTMLElement
+    editor.focus()
+    act(() => {
+      editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true }))
+    })
+    expect(container.querySelector('nav a[data-selected="true"]')?.getAttribute('href')).toBe('/messages/dm/5')
+
+    // Filter to Direct only (1 conversation visible): Alt+ArrowDown from body must NOT open the hidden group chat.
+    const filterGroup = container.querySelector('[aria-label="Filter conversations"]')!
+    const directBtn = Array.from(filterGroup.querySelectorAll('button')).find((b) => b.textContent === 'Direct')!
+    await click(directBtn)
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true }))
+    })
+    expect(container.querySelector('nav a[data-selected="true"]')?.getAttribute('href')).toBe('/messages/dm/5')
+  })
+
+  it('attributes You: strictly by author_id and clears phantom thread summaries when the last reply is deleted', async () => {
+    const getChannels = fixture.responses.getChannels as { channels: ChannelSummary[] }
+    getChannels.channels = [
+      {
+        ...getChannels.channels[0],
+        // Same display name as viewer (Audreana) but different author_id: must NOT show "You:".
+        latest_message: { id: 901, body: 'Hello from another Audreana', created_at: new Date().toISOString(), author_id: 99, author_name: 'Audreana' },
+      },
+    ]
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    const rootMsg = message(11, { reply_count: 1 })
+    const onlyReply = message(12, { parent_message_id: 11, body: 'Only reply', mine: true })
+    getDirectConversation.messages = [rootMsg, onlyReply]
+    fixture.responses.getMessageThread = {
+      root_message: rootMsg,
+      replies: [onlyReply],
+      meta: { oldest_message_id: 12, newest_message_id: 12, has_older: false, has_newer: false },
+    }
+    fixture.responses.deleteMessage = { deleted: true }
+
+    await open()
+    const channelRow = container.querySelector('nav a[href="/messages/2"]')!
+    expect(channelRow.textContent).toContain('Audreana: Hello from another Audreana')
+    expect(channelRow.textContent).not.toContain('You: Hello from another Audreana')
+
+    // Open thread and delete the only reply -> phantom "1 reply" summary disappears from the feed.
+    const threadBtn = Array.from(container.querySelectorAll('#message-11 button')).find((b) => b.textContent?.includes('1 reply'))!
+    await click(threadBtn)
+    const threadDeleteBtn = container.querySelector('aside #message-12 [aria-label="Delete message"]') as HTMLButtonElement
+    await click(threadDeleteBtn)
+    const confirmDelete = Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => b.textContent === 'Delete message') as HTMLButtonElement
+    await click(confirmDelete)
+    expect(container.querySelector('#message-11')?.textContent).not.toContain('1 reply')
+  })
+
+  it('closes the image lightbox on Escape without closing the open desktop thread panel', async () => {
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    const rootMsg = message(11, {
+      reply_count: 1,
+      attachments: [{ id: 501, filename: 'error.png', content_type: 'image/png', byte_size: 4096, image: true, url: 'https://example.com/error.png' }],
+    })
+    const reply = message(12, { parent_message_id: 11, body: 'Looks good' })
+    getDirectConversation.messages = [rootMsg, reply]
+    fixture.responses.getMessageThread = {
+      root_message: rootMsg,
+      replies: [reply],
+      meta: { oldest_message_id: 12, newest_message_id: 12, has_older: false, has_newer: false },
+    }
+    await open()
+
+    // Open desktop thread panel, then open image lightbox.
+    const threadBtn = Array.from(container.querySelectorAll('#message-11 button')).find((b) => b.textContent?.includes('1 reply'))!
+    await click(threadBtn)
+    expect(container.querySelector('[aria-label="Close thread"]')).not.toBeNull()
+
+    const imgBtn = container.querySelector('#message-11 [aria-label="Open image error.png"]') as HTMLButtonElement
+    await click(imgBtn)
+    expect(document.querySelector('[aria-label="Close image preview"]')).not.toBeNull()
+
+    // First Escape closes lightbox ONLY; thread panel stays open.
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(document.querySelector('[aria-label="Close image preview"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Close thread"]')).not.toBeNull()
+
+    // Second Escape closes the desktop thread panel.
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(container.querySelector('[aria-label="Close thread"]')).toBeNull()
+  })
+
+  it('does not crash when window.localStorage getter throws', async () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('Blocked', 'SecurityError')
+      },
+    })
+    try {
+      await open()
+      expect(container.querySelector('nav a[href="/messages/dm/5"]')).not.toBeNull()
+    } finally {
+      if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor)
+    }
+  })
+
+  it('decrements parent reply_count once regardless of realtime vs HTTP delete delivery order', () => {
+    const root = message(500, { reply_count: 2 })
+    const deletedReply = message(501, { parent_message_id: 500, body: 'Deleted reply' })
+    const survivingReply = message(502, { parent_message_id: 500, body: 'Surviving reply' })
+
+    // Realtime arrives first, then HTTP response arrives second for the same reply ID.
+    const skipFirst = !claimDeletedReplyDecrement(deletedReply.id)
+    const afterRealtime = removeMessageAndUpdateReplyCount([root, deletedReply, survivingReply], deletedReply, skipFirst)
+    expect(afterRealtime.find((m) => m.id === 500)?.reply_count).toBe(1)
+
+    const skipSecond = !claimDeletedReplyDecrement(deletedReply.id)
+    const afterHttp = removeMessageAndUpdateReplyCount(afterRealtime, deletedReply, skipSecond)
+    expect(afterHttp.find((m) => m.id === 500)?.reply_count).toBe(1)
   })
 })

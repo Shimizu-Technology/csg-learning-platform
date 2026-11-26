@@ -9660,6 +9660,7 @@ export interface components {
                 id: number;
                 body: string;
                 created_at: string;
+                author_id?: number;
                 author_name: string;
             } | null;
             created_at: string;
@@ -9821,6 +9822,7 @@ export interface components {
                 id: number;
                 body: string;
                 created_at: string;
+                author_id?: number;
                 author_name: string;
             } | null;
             users: components["schemas"]["UserSummary"][];

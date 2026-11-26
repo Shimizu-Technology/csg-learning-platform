@@ -26,7 +26,7 @@ return (<>{mobileActionsMessage && (() => {
             <div className="space-y-2">
               <Button variant="secondary" fullWidth onClick={() => { close(); setAuthorContext(actionMessage.author) }}><UserRound className="h-4 w-4" />{isStaff && actionMessage.author.role === 'student' ? 'View student' : 'View profile'}</Button>
               {!actionMessage.blocked && (
-                <div role="group" aria-label="React" className="mb-3 grid grid-cols-4 gap-2">
+                <div role="group" aria-label="React" className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
                   {REACTIONS.map(({ value, label, Icon }) => {
                     const reacted = Boolean(actionMessage.reactions.find((reaction) => reaction.emoji === value)?.reacted)
                     return (
