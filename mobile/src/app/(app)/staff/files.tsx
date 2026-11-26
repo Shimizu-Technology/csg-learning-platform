@@ -188,7 +188,7 @@ export default function StaffCohortFilesScreen() {
       if (failedFiles.length > 0) {
         const summary = uploadedCount > 0
           ? `Uploaded ${uploadedCount} file${uploadedCount === 1 ? '' : 's'}, but failed to upload: ${failedFiles.join(', ')}. ${lastError}`
-          : `${failedFiles.length > 1 ? `Failed to upload ${failedFiles.join(', ')}: ` : ''}${lastError}`;
+          : `Failed to upload ${failedFiles.join(', ')}: ${lastError}`;
         Alert.alert(uploadedCount > 0 ? 'Some files could not upload' : 'Could not upload file', summary);
       }
     } catch (error) {

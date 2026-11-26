@@ -41,9 +41,9 @@ type OpenView = { pane: 'main' | 'review' }
  * version, and Upload new version for people who manage them. Links get Open
  * link; docs open in the doc editor. With `review`, items in a student's
  * folder show their review status and comment count, and open with review
- * and comments beside them. `autoOpen` opens the item once (a notification link).
+ * and comments beside them.
  */
-export function CohortFileRow({ cohortId, file, badges, actions, note, downloadDisabled = false, canUploadVersion = false, onVersionUploaded, review, onFileChange, autoOpen = false, onAutoOpened, selected = false, canSelect = false, onToggleSelect, canDrag = false, inspected = false, onInspect, onPrevPreview, onNextPreview, previewPosition }: {
+export function CohortFileRow({ cohortId, file, badges, actions, note, downloadDisabled = false, canUploadVersion = false, onVersionUploaded, review, onFileChange, selected = false, canSelect = false, onToggleSelect, canDrag = false, inspected = false, onInspect, onPrevPreview, onNextPreview, previewPosition }: {
   cohortId: number
   file: CohortFile
   badges?: ReactNode
@@ -56,9 +56,6 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
   review?: ReviewAccess
   /** A doc save, review change or comment changed the file. */
   onFileChange?: (file: CohortFile) => void
-  autoOpen?: boolean
-  /** Called once `autoOpen` has opened the item, so the caller can stop asking. */
-  onAutoOpened?: () => void
   selected?: boolean
   canSelect?: boolean
   onToggleSelect?: (fileId: number) => void
@@ -72,7 +69,6 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
   const doc = file.kind === 'doc'
   const visual = fileVisualMeta(file)
   const Icon = visual.icon
-  const rowRef = useRef<HTMLLIElement>(null)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
   const [opened, setOpened] = useState<OpenView | null>(null)
@@ -83,17 +79,6 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
   const reviewing = review && isStudentFolderItem(file) ? review : undefined
   const changed = (next: CohortFile) => onFileChange?.(next)
   const open = (pane: OpenView['pane'] = 'main') => setOpened({ pane })
-  const autoOpened = useRef(false)
-  useEffect(() => {
-    // Once the caller stops asking, a later request (another notification) opens it again.
-    if (!autoOpen) autoOpened.current = false
-    if (!autoOpen || autoOpened.current) return
-    autoOpened.current = true
-    rowRef.current?.scrollIntoView?.({ block: 'center' })
-    if (doc || canPreview) setOpened({ pane: 'main' })
-    else if (reviewing) setOpened({ pane: 'review' })
-    onAutoOpened?.()
-  }, [autoOpen, canPreview, doc, onAutoOpened, reviewing])
   const download = async () => {
     if (downloading) return
     setDownloading(true)
@@ -114,7 +99,6 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
 
   return (
     <li
-      ref={rowRef}
       draggable={canDrag}
       onDragStart={(event) => {
         if (!canDrag) return
@@ -222,12 +206,12 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
           onUploaded={(saved) => { setAddingVersion(false); onVersionUploaded?.(saved) }} />
       )}
       {opened && doc && (
-        <CohortDocEditorModal cohortId={cohortId} file={file} open onClose={() => setOpened(null)} onFileChange={changed}
+        <CohortDocEditorModal key={`${cohortId}-${file.id}`} cohortId={cohortId} file={file} open onClose={() => setOpened(null)} onFileChange={changed}
           reviewAccess={reviewing} initialPane={opened.pane === 'review' ? 'review' : 'doc'} />
       )}
       {/* Versions opens the preview for any uploaded file; a download-only type shows its download card there. */}
       {opened && !doc && !link && (canPreview || opened.pane === 'main') && (
-        <CohortFilePreviewModal cohortId={cohortId} file={file} open onClose={() => setOpened(null)} downloadDisabled={downloadDisabled}
+        <CohortFilePreviewModal key={`${cohortId}-${file.id}`} cohortId={cohortId} file={file} open onClose={() => setOpened(null)} downloadDisabled={downloadDisabled}
           review={reviewing} onFileChange={changed} initialPane={opened.pane === 'review' ? 'review' : 'preview'}
           onPrev={onPrevPreview} onNext={onNextPreview} positionLabel={previewPosition} />
       )}

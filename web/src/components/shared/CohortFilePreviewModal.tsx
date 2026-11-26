@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react'
@@ -62,16 +62,24 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState('')
   const hasVersions = file.version_number > 1
+  const initialPaneRef = useRef(initialPane)
+  initialPaneRef.current = initialPane
+  const hasReviewRef = useRef(Boolean(review))
+  hasReviewRef.current = Boolean(review)
+  const identityRef = useRef(`${cohortId}:${file.id}`)
 
   useEffect(() => {
+    const nextIdentity = `${cohortId}:${file.id}`
+    if (identityRef.current === nextIdentity) return
+    identityRef.current = nextIdentity
     setVersionSelection({ fileId: file.id, versionId: null })
     setVersions([])
     setVersionsError('')
     setPreview(null)
     setError('')
     setDownloadError('')
-    setPane(review ? initialPane : 'preview')
-  }, [cohortId, file.id, initialPane, review])
+    setPane(hasReviewRef.current ? initialPaneRef.current : 'preview')
+  }, [cohortId, file.id])
 
   useEffect(() => {
     if (!open || !hasVersions) return
