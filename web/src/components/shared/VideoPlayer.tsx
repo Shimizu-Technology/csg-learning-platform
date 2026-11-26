@@ -25,6 +25,7 @@ interface VideoPlayerProps {
 export interface VideoPlayerHandle {
   prepareSourceChange: () => void
   seekTo: (seconds: number, play?: boolean, stopAt?: number) => void
+  getCurrentTime: () => number
 }
 
 const controlClass = 'inline-flex size-11 items-center justify-center rounded-xl text-on-media hover:bg-on-media/10 active:bg-on-media/20 focus-visible:outline-2 focus-visible:outline-on-media disabled:opacity-50'
@@ -418,6 +419,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       showBufferingSoon()
       if (play) void video.play()
     },
+    getCurrentTime() {
+      return videoRef.current?.currentTime ?? lastTimeRef.current
+    },
   }), [showBufferingSoon, sendProgress])
 
   const seek = (seconds: number) => {
@@ -454,6 +458,44 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     seek(0)
     void video.play()
   }
+
+  const shortcutsRef = useRef({ togglePlay, skip, toggleMute, toggleFullscreen })
+  shortcutsRef.current = { togglePlay, skip, toggleMute, toggleFullscreen }
+
+  useEffect(() => {
+    if (!streamUrl) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (document.querySelector('[data-app-modal]')) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+      const key = event.key.toLowerCase()
+      if (key === ' ') {
+        // Don't hijack Space when focus is on another interactive control outside the player.
+        if (target?.closest('button, a, summary, [role="button"]') && !containerRef.current?.contains(target)) return
+        if (target?.closest('button, a, summary, [role="button"]')) return
+        event.preventDefault()
+        shortcutsRef.current.togglePlay()
+      } else if (key === 'k') {
+        event.preventDefault()
+        shortcutsRef.current.togglePlay()
+      } else if (key === 'j') {
+        event.preventDefault()
+        shortcutsRef.current.skip(-10)
+      } else if (key === 'l') {
+        event.preventDefault()
+        shortcutsRef.current.skip(10)
+      } else if (key === 'm') {
+        event.preventDefault()
+        shortcutsRef.current.toggleMute()
+      } else if (key === 'f') {
+        event.preventDefault()
+        shortcutsRef.current.toggleFullscreen()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [streamUrl])
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600)
@@ -560,19 +602,19 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
         <div className="pointer-events-auto flex flex-wrap items-center justify-between">
           <div className="flex items-center">
-            <button type="button" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} className={controlClass}>
+            <button type="button" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause (K)' : 'Play (K)'} className={controlClass}>
               {playing ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" fill="currentColor" aria-hidden="true" />}
             </button>
-            <button type="button" onClick={() => skip(-10)} aria-label="Back 10 seconds" title="Back 10 seconds" disabled={duration <= 0} className={controlClass}>
+            <button type="button" onClick={() => skip(-10)} aria-label="Back 10 seconds" title="Back 10 seconds (J)" disabled={duration <= 0} className={controlClass}>
               <Undo2 className="size-4" aria-hidden="true" /><span className="text-[10px]" aria-hidden="true">10</span>
             </button>
-            <button type="button" onClick={() => skip(10)} aria-label="Forward 10 seconds" title="Forward 10 seconds" disabled={duration <= 0} className={controlClass}>
+            <button type="button" onClick={() => skip(10)} aria-label="Forward 10 seconds" title="Forward 10 seconds (L)" disabled={duration <= 0} className={controlClass}>
               <Redo2 className="size-4" aria-hidden="true" /><span className="text-[10px]" aria-hidden="true">10</span>
             </button>
-            <button type="button" onClick={restart} aria-label="Restart" className={controlClass}>
+            <button type="button" onClick={restart} aria-label="Restart" title="Restart" className={controlClass}>
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
             </button>
-            <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className={controlClass}>
+            <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} title={muted ? 'Unmute (M)' : 'Mute (M)'} className={controlClass}>
               {muted ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
@@ -580,7 +622,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             <select aria-label="Playback speed" value={playbackRate} onChange={(event) => changeRate(Number(event.currentTarget.value))} className="h-11 min-w-[4.25rem] rounded-xl bg-media px-2 text-xs tabular-nums text-on-media focus-visible:outline-2 focus-visible:outline-on-media">
               {[0.75, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}
             </select>
-            <button type="button" onClick={toggleFullscreen} aria-label="Full screen" className={controlClass}>
+            <button type="button" onClick={toggleFullscreen} aria-label="Full screen" title="Full screen (F)" className={controlClass}>
               <Maximize className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>

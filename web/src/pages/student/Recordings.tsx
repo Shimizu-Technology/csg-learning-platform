@@ -5,13 +5,13 @@ import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
+import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff, Link2, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { isAlumniOnlyEnrollment } from '../../lib/enrollments'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { VideoPlayer } from '../../components/shared/VideoPlayer'
+import { VideoPlayer, type VideoPlayerHandle } from '../../components/shared/VideoPlayer'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -86,6 +86,17 @@ function formatDate(dateStr: string | null) {
   if (!dateStr) return null
   return formatShortDate(dateStr)
 }
+
+function formatTimestamp(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(safe / 3600)
+  const m = Math.floor((safe % 3600) / 60)
+  const s = safe % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+type WatchStatusFilter = 'all' | 'unwatched' | 'in_progress' | 'watched'
 
 function extractYouTubeId(url: string): string | null {
   try {
@@ -176,7 +187,12 @@ export function Recordings() {
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
   const [query, setQuery] = useUrlSearch('q')
+  const [statusFilter, setStatusFilter] = useState<WatchStatusFilter>('all')
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false)
+  const playerRef = useRef<VideoPlayerHandle>(null)
+  const [copiedTimestamp, setCopiedTimestamp] = useState<string | null>(null)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }, [])
   // The playlist only collapses on phones and tablets; on desktop it is always shown.
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   // A tab with nothing in it (or one this cohort doesn't use) shows All.
@@ -258,14 +274,31 @@ export function Recordings() {
     return [...s3Recordings, ...legacyRecordings]
   }, [s3Recordings, legacyRecordings, activeTab])
 
+  const hasWatchProgress = useMemo(
+    () => [...s3Recordings, ...legacyRecordings].some((item) => item.watch_progress != null),
+    [s3Recordings, legacyRecordings],
+  )
+
+  const continueWatching = useMemo<RecordingItem | null>(() => {
+    const inProgress = [...s3Recordings, ...legacyRecordings].filter(
+      (item) => item.watch_progress && !item.watch_progress.completed && item.watch_progress.progress_percentage > 0,
+    )
+    if (inProgress.length === 0) return null
+    return [...inProgress].sort((a, b) =>
+      (b.watch_progress?.last_watched_at || '').localeCompare(a.watch_progress?.last_watched_at || ''),
+    )[0]
+  }, [s3Recordings, legacyRecordings])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return allRecordings
-    return allRecordings.filter((r) =>
-      r.title.toLowerCase().includes(q) ||
-      (r.description || '').toLowerCase().includes(q)
-    )
-  }, [allRecordings, query])
+    return allRecordings.filter((r) => {
+      if (statusFilter === 'watched' && !r.watch_progress?.completed) return false
+      if (statusFilter === 'in_progress' && !(r.watch_progress && !r.watch_progress.completed && r.watch_progress.progress_percentage > 0)) return false
+      if (statusFilter === 'unwatched' && Boolean(r.watch_progress && (r.watch_progress.completed || r.watch_progress.progress_percentage > 0))) return false
+      if (!q) return true
+      return r.title.toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q)
+    })
+  }, [allRecordings, query, statusFilter])
 
   const handleProgressUpdate = useCallback((data: Partial<NonNullable<S3Recording['watch_progress']>>) => {
     if (!selectedItem || typeof selectedItem.id !== 'number') return
@@ -379,12 +412,42 @@ export function Recordings() {
         </>}
       </Header>
 
+      {continueWatching && recordingKey(continueWatching) !== (liveSelectedItem ? recordingKey(liveSelectedItem) : null) && (
+        <section
+          aria-label="Continue watching"
+          className="app-surface flex flex-wrap items-center justify-between gap-4 p-4"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink">
+              <PlayCircle className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Continue watching</p>
+              <p className="truncate text-sm font-semibold text-ink">{continueWatching.title}</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="h-1.5 w-28 overflow-hidden rounded-full bg-line">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${Math.round(continueWatching.watch_progress?.progress_percentage ?? 0)}%` }} />
+                </div>
+                <span className="text-xs tabular-nums text-ink-secondary">
+                  {Math.round(continueWatching.watch_progress?.progress_percentage ?? 0)}%
+                  {continueWatching.watch_progress?.last_position_seconds ? ` · ${formatTimestamp(continueWatching.watch_progress.last_position_seconds)}` : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => selectRecording(continueWatching)}>
+            Resume
+          </Button>
+        </section>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Player area */}
         <div className="flex-1 min-w-0">
           {liveSelectedItem && liveSelectedItem.source === 'uploaded' && recordingCohortId ? (
             <div className="space-y-4">
               <VideoPlayer
+                ref={playerRef}
                 key={liveSelectedItem.id}
                 title={liveSelectedItem.title}
                 initialPosition={(selectedItem as S3Recording | null)?.watch_progress?.last_position_seconds || 0}
@@ -433,7 +496,23 @@ export function Recordings() {
           ) : null}
           {v2 && liveSelectedItem?.learning_path && <Link to={liveSelectedItem.learning_path} className="app-link mt-3 inline-flex min-h-11 items-center">{liveSelectedItem.learning_label || 'Open Learn'}</Link>}
           {liveSelectedItem && recordingCohortId && selectedHelpContext && (
-            <div className="mt-3 flex justify-end">
+            <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+              {liveSelectedItem.source === 'uploaded' && (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => {
+                    const ts = formatTimestamp(playerRef.current?.getCurrentTime() ?? liveSelectedItem.watch_progress?.last_position_seconds ?? 0)
+                    void navigator.clipboard?.writeText(`${ts} — ${liveSelectedItem.title}`).catch(() => {})
+                    setCopiedTimestamp(ts)
+                    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                    copyTimerRef.current = setTimeout(() => setCopiedTimestamp(null), 2000)
+                  }}
+                >
+                  {copiedTimestamp ? <Check className="h-4 w-4 text-success-ink" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
+                  {copiedTimestamp ? `Copied ${copiedTimestamp}` : 'Copy timestamp'}
+                </Button>
+              )}
               <ContextualHelp
                 capabilities={capabilities}
                 key={`${liveSelectedItem.source}-${liveSelectedItem.id}`}
@@ -494,6 +573,31 @@ export function Recordings() {
                 </div>
               )}
 
+              {hasWatchProgress && (
+                <div className="flex flex-wrap gap-1.5 border-b border-line px-3 py-2.5" role="group" aria-label="Watch status">
+                  {([
+                    ['all', 'All'],
+                    ['unwatched', 'Unwatched'],
+                    ['in_progress', 'In progress'],
+                    ['watched', 'Watched'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={statusFilter === value}
+                      onClick={() => setStatusFilter(value)}
+                      className={`min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors duration-150 ${
+                        statusFilter === value
+                          ? 'border-accent bg-accent-soft text-accent-ink'
+                          : 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {allRecordings.length > 6 && (
                 <div className="px-3 pt-3">
                   <div className="relative">
@@ -512,7 +616,14 @@ export function Recordings() {
 
               <div className="max-h-112 lg:max-h-[calc(100vh-14rem)] overflow-y-auto p-2">
                 {filtered.length === 0 ? (
-                  <div className="py-6 text-center"><p className="text-sm text-ink-secondary">No recordings match your search.</p>{query && <Button variant="quiet" size="sm" className="mt-2" onClick={() => setQuery('')}>Clear search</Button>}</div>
+                  <div className="py-6 text-center">
+                    <p className="text-sm text-ink-secondary">No recordings match these filters.</p>
+                    {(query || statusFilter !== 'all') && (
+                      <Button variant="quiet" size="sm" className="mt-2" onClick={() => { setQuery(''); setStatusFilter('all') }}>
+                        Clear filters
+                      </Button>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-1">
                     {filtered.map((recording, idx) => {
