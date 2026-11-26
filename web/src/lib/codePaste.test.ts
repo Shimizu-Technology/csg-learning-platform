@@ -22,11 +22,16 @@ describe('code paste detection', () => {
     expect(looksLikeCode('error: Your local changes to the following files would be overwritten by checkout:\n        README.md\nPlease commit your changes or stash them before you switch branches.\nAborting')).toBe(true)
     expect(looksLikeCode('Traceback (most recent call last):\n  File "app.py", line 12, in <module>\nTypeError: unsupported operand type(s)')).toBe(true)
     expect(looksLikeCode('TypeError: Cannot read properties of undefined (reading \'map\')\n    at App (src/App.tsx:14:21)\n    at renderWithHooks (react-dom.js:14985:18)')).toBe(true)
+    expect(looksLikeCode('npm ERR! code ENOENT\nnpm ERR! syscall open')).toBe(true)
+    expect(looksLikeCode('$ git status\nOn branch main\nnothing to commit, working tree clean')).toBe(true)
   })
 
   it('leaves prose, single lines, bullets, and fenced markdown alone', () => {
     expect(looksLikeCode('Hi Ana,\n\nI finished the checkpoint early. Could we meet Tuesday instead?\nThanks!')).toBe(false)
     expect(looksLikeCode('Hi Leon,\nI got an error when I tried to push.\nCan you help me check it?')).toBe(false)
+    expect(looksLikeCode('Hint: Read the prompt again.\nTry a smaller example.')).toBe(false)
+    expect(looksLikeCode('docker works well on macOS\nwe can try it tomorrow')).toBe(false)
+    expect(looksLikeCode(` at ${'a'.repeat(5000)} without a location\nsecond plain line`)).toBe(false)
     expect(looksLikeCode('1. First pull main\n2. Then run the tests')).toBe(false)
     expect(looksLikeCode('print("hello")')).toBe(false)
     expect(looksLikeCode('git status')).toBe(false)

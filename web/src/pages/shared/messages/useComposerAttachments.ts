@@ -46,12 +46,15 @@ export function useComposerAttachments(userId: number | undefined, selectedTarge
 
   /** The submitted files went out with a message: empty the composer and forget that draft's files. */
   const clearSubmittedAttachments = (draftKey: string | null) => {
-    revokePendingPreviews(pendingAttachmentsRef.current)
-    setPendingAttachments([])
+    if (draftKey === attachmentBucketKeyRef.current) {
+      const activeItems = pendingAttachmentsRef.current
+      setPendingAttachments([])
+      revokePendingPreviews(activeItems)
+    }
     if (draftKey) {
       const bucket = pendingAttachmentBucketsRef.current.get(draftKey)
-      if (bucket) revokePendingPreviews(bucket)
       pendingAttachmentBucketsRef.current.delete(draftKey)
+      if (bucket) revokePendingPreviews(bucket)
     }
   }
 
@@ -142,11 +145,9 @@ export function useComposerAttachments(userId: number | undefined, selectedTarge
   }
 
   const removePendingAttachment = (file: File) => {
-    setPendingAttachments((prev) => {
-      const removed = prev.filter((item) => item.file === file)
-      revokePendingPreviews(removed)
-      return prev.filter((item) => item.file !== file)
-    })
+    const removed = pendingAttachmentsRef.current.filter((item) => item.file === file)
+    setPendingAttachments((prev) => prev.filter((item) => item.file !== file))
+    revokePendingPreviews(removed)
   }
 
   return {

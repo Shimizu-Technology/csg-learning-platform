@@ -1,5 +1,5 @@
 import { File, Lock, Upload, X } from 'lucide-react';
-import { useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { Button, IconButton } from '../../../components/ui/Button';
 import { formatFileSize } from '../../../lib/uploadToS3';
 import { forgetMessageArrival, messageShouldAnimateEntry, preview } from './helpers';
@@ -16,8 +16,20 @@ function ComposerDropZone({
   label: string
   children: ReactNode
 }) {
-  const dragDepthRef = useRef(0)
   const [draggingFiles, setDraggingFiles] = useState(false)
+
+  useEffect(() => {
+    if (!draggingFiles) return
+    const reset = () => setDraggingFiles(false)
+    window.addEventListener('dragend', reset)
+    window.addEventListener('drop', reset)
+    window.addEventListener('blur', reset)
+    return () => {
+      window.removeEventListener('dragend', reset)
+      window.removeEventListener('drop', reset)
+      window.removeEventListener('blur', reset)
+    }
+  }, [draggingFiles])
 
   const hasDraggedFiles = (event: DragEvent<HTMLDivElement>) => Array.from(event.dataTransfer?.types || []).includes('Files')
 
@@ -27,20 +39,19 @@ function ComposerDropZone({
       onDragEnter={(event) => {
         if (!hasDraggedFiles(event)) return
         event.preventDefault()
-        dragDepthRef.current += 1
         setDraggingFiles(true)
       }}
       onDragOver={(event) => {
+        if (!hasDraggedFiles(event)) return
         event.preventDefault()
-        if (hasDraggedFiles(event) && !draggingFiles) setDraggingFiles(true)
+        if (!draggingFiles) setDraggingFiles(true)
       }}
       onDragLeave={(event) => {
-        if (!hasDraggedFiles(event)) return
-        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
-        if (dragDepthRef.current === 0) setDraggingFiles(false)
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setDraggingFiles(false)
+        }
       }}
       onDrop={(event) => {
-        dragDepthRef.current = 0
         setDraggingFiles(false)
         onDrop(event)
       }}
@@ -152,6 +163,13 @@ export function messagesPresentation({ conversation, directory, feed, realtime, 
       )
     }
 
+    const editableScope = inThreadPanel || activeThreadRoot
+      ? activeThreadMessages.filter((item) => item.parent_message_id !== null)
+      : rootMessages
+    const lastEditableMessage = [...editableScope].reverse().find((item) => (
+      item.mine && !item.pending && !item.failed && !item.blocked && item.id > 0 && item.body.trim().length > 0
+    ))
+
     return (
       <div
         className={`${inThreadPanel ? 'shrink-0 border-t border-line bg-surface-raised p-3' : 'shrink-0 border-t border-line bg-surface-raised px-2.5 pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem)] sm:pt-3'}`}
@@ -249,14 +267,11 @@ export function messagesPresentation({ conversation, directory, feed, realtime, 
             onTyping={realtime.reportComposerTyping}
             onFiles={attachments.addFiles}
             onAttach={() => attachments.fileInputRef.current?.click()}
-            onEditLastMessage={() => {
-              const scope = inThreadPanel || activeThreadRoot ? activeThreadMessages : rootMessages
-              const lastEditable = [...scope].reverse().find((item) => item.mine && !item.pending && !item.failed && !item.blocked && item.id > 0)
-              if (!lastEditable) return
-              setEditing(lastEditable)
+            onEditLastMessage={lastEditableMessage ? () => {
+              setEditing(lastEditableMessage)
               setEditingInThreadPanel(inThreadPanel)
-              setEditBody(lastEditable.body)
-            }}
+              setEditBody(lastEditableMessage.body)
+            } : undefined}
           />
           <input ref={attachments.fileInputRef} type="file" multiple className="hidden" onChange={(event) => attachments.handleFiles(event.target.files)} />
         </ComposerDropZone>

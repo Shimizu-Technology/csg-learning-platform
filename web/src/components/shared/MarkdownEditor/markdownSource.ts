@@ -180,9 +180,35 @@ export function markdownSourceEdit(value: string, start: number, end: number, ac
 }
 
 const MARKDOWN_LIST_LINE = /^([ \t]*)(?:([-*+])|(\d+)([.)]))([ \t]+)(.*)$/
+const FENCE_OPENER = /^ {0,3}(`{3,}|~{3,})(.*)$/
+
+function isFenceOpenerLine(text: string) {
+  const match = text.match(FENCE_OPENER)
+  if (!match) return false
+  return !(match[1][0] === '`' && match[2].includes('`'))
+}
+
+/** True when the caret sits inside a fenced block, including fences nested inside list items. */
+function isInsideFenceIncludingLists(value: string, caret: number) {
+  if (isInsideMarkdownFence(value, caret)) return true
+  const lines = value.slice(0, Math.max(0, caret)).split('\n').slice(0, -1)
+  let open: string | null = null
+  for (const rawLine of lines) {
+    const stripped = rawLine.replace(/^(?:[ \t]*(?:[-*+]|\d+[.)])[ \t]+)+/, '')
+    const match = stripped.match(/^\s*(`{3,}|~{3,})(.*)$/)
+    if (!match) continue
+    if (open === null) {
+      if (match[1][0] === '`' && match[2].includes('`')) continue
+      open = match[1]
+    } else if (match[1][0] === open[0] && match[1].length >= open.length && match[2].trim() === '') {
+      open = null
+    }
+  }
+  return open !== null
+}
 
 function parseMarkdownListLine(value: string, caret: number) {
-  if (isInsideMarkdownFence(value, caret)) return null
+  if (isInsideFenceIncludingLists(value, caret)) return null
   const { from, to } = lineBounds(value, caret, caret)
   const line = value.slice(from, to)
   const match = line.match(MARKDOWN_LIST_LINE)
@@ -203,7 +229,7 @@ function parseMarkdownListLine(value: string, caret: number) {
  * numbered list item, matching Rich mode and Slack.
  */
 export function markdownEnterAddsLine(value: string, caret: number) {
-  if (isInsideMarkdownFence(`${value.slice(0, caret)}\n`, caret + 1)) return true
+  if (isInsideFenceIncludingLists(`${value.slice(0, caret)}\n`, caret + 1)) return true
   return parseMarkdownListLine(value, caret) !== null
 }
 
@@ -213,9 +239,11 @@ export function markdownEnterAddsLine(value: string, caret: number) {
  * clearing an empty marker — matching Rich mode and Slack.
  */
 export function markdownListEnterEdit(value: string, start: number, end: number): SourceEdit | null {
-  if (isInsideMarkdownFence(`${value.slice(0, start)}\n`, start + 1)) return null
+  if (isInsideFenceIncludingLists(`${value.slice(0, start)}\n`, start + 1)) return null
   const info = parseMarkdownListLine(value, start)
   if (!info || end > info.to) return null
+  // A list item whose body opens a fenced code block (e.g. "- ```js") starts a fence, not another marker.
+  if (isFenceOpenerLine(info.body)) return null
   const contentStart = info.from + info.prefixLength
   if (start < contentStart) return null
   // Empty list item (e.g. "2. " or "- "): Enter exits the list cleanly.
@@ -228,33 +256,106 @@ export function markdownListEnterEdit(value: string, start: number, end: number)
   return { start, end, text: insertion, selectionStart: nextCaret, selectionEnd: nextCaret }
 }
 
+function indentWidth(indent: string) {
+  return indent.replace(/\t/g, '  ').length
+}
+
 /**
- * Markdown mode: Tab / Shift+Tab on a list line indents or outdents the list
- * item by two spaces so nested lists work naturally without leaving the box.
+ * Markdown mode: Tab / Shift+Tab on a list line indents to its parent list
+ * item's CommonMark content column (never turning an isolated item into an
+ * indented code block) or outdents cleanly, returning null when no valid
+ * nesting edit applies so Tab keeps working for focus navigation.
  */
 export function markdownListIndentEdit(value: string, start: number, end: number, outdent: boolean): SourceEdit | null {
-  if (isInsideMarkdownFence(value, start)) return null
+  if (isInsideFenceIncludingLists(value, start)) return null
   const { from, to } = lineBounds(value, start, end)
-  const lines = value.slice(from, to).split('\n')
-  if (!lines.some((line) => MARKDOWN_LIST_LINE.test(line))) return null
-  if (!lines.every((line) => !line.trim() || MARKDOWN_LIST_LINE.test(line))) return null
+  const blockLines = value.slice(from, to).split('\n')
+  const firstMatch = blockLines[0].match(MARKDOWN_LIST_LINE)
+  if (!firstMatch) return null
+  const firstIndent = indentWidth(firstMatch[1])
 
-  let firstDelta = 0
-  const nextLines = lines.map((line, index) => {
-    if (!line.trim()) return line
-    if (outdent) {
-      const removed = line.startsWith('  ') ? 2 : line.startsWith('\t') || line.startsWith(' ') ? 1 : 0
-      if (index === 0) firstDelta = -removed
-      return line.slice(removed)
+  // Find the nearest preceding list line whose indent is <= firstIndent so CommonMark nesting is exact.
+  let targetIndent: number | null = null
+  const precedingLines = from > 0 ? value.slice(0, from - 1).split('\n') : []
+  if (outdent) {
+    if (firstIndent === 0) return null
+    let shallower = 0
+    for (let i = precedingLines.length - 1; i >= 0; i -= 1) {
+      const prev = precedingLines[i].match(MARKDOWN_LIST_LINE)
+      if (!prev) {
+        if (!precedingLines[i].trim()) continue
+        if (indentWidth(precedingLines[i].match(/^([ \t]*)/)![1]) < firstIndent) break
+        continue
+      }
+      const prevWidth = indentWidth(prev[1])
+      if (prevWidth < firstIndent) {
+        shallower = prevWidth
+        break
+      }
     }
-    if (index === 0) firstDelta = 2
-    return `  ${line}`
+    targetIndent = shallower
+  } else {
+    for (let i = precedingLines.length - 1; i >= 0; i -= 1) {
+      const prev = precedingLines[i].match(MARKDOWN_LIST_LINE)
+      if (!prev) {
+        if (!precedingLines[i].trim()) break
+        continue
+      }
+      const prevWidth = indentWidth(prev[1])
+      const prevContentColumn = prevWidth + (prev[2] ? prev[2].length : prev[3].length + prev[4].length) + prev[5].length
+      if (prevWidth <= firstIndent) {
+        if (prevContentColumn > firstIndent) targetIndent = prevContentColumn
+        break
+      }
+    }
+    if (targetIndent === null) return null
+  }
+
+  const delta = targetIndent - firstIndent
+  if (delta === 0) return null
+
+  const mapOffset = (offset: number, lineOffsets: number[], deltas: number[]) => {
+    let shift = 0
+    for (let i = 0; i < lineOffsets.length; i += 1) {
+      const lineStart = lineOffsets[i]
+      if (offset < lineStart) break
+      if (deltas[i] < 0 && offset < lineStart - deltas[i]) {
+        shift += -(offset - lineStart)
+        break
+      }
+      shift += deltas[i]
+    }
+    return Math.max(from, offset + shift)
+  }
+
+  const lineOffsets: number[] = []
+  const deltas: number[] = []
+  let cursor = from
+  const nextLines = blockLines.map((line) => {
+    lineOffsets.push(cursor)
+    cursor += line.length + 1
+    if (!line.trim()) {
+      deltas.push(0)
+      return line
+    }
+    if (delta > 0) {
+      deltas.push(delta)
+      return `${' '.repeat(delta)}${line}`
+    }
+    const remove = Math.min(-delta, line.match(/^ */)![0].length)
+    deltas.push(-remove)
+    return line.slice(remove)
   })
   const text = nextLines.join('\n')
   if (text === value.slice(from, to)) return null
-  const nextStart = start === end ? Math.max(from, start + firstDelta) : from
-  const nextEnd = start === end ? nextStart : from + text.length
-  return { start: from, end: to, text, selectionStart: nextStart, selectionEnd: nextEnd }
+
+  return {
+    start: from,
+    end: to,
+    text,
+    selectionStart: mapOffset(start, lineOffsets, deltas),
+    selectionEnd: mapOffset(end, lineOffsets, deltas),
+  }
 }
 
 /**
@@ -262,17 +363,20 @@ export function markdownListIndentEdit(value: string, start: number, end: number
  * change is one native undo step; falls back to setting the value directly.
  */
 export function replaceTextareaRange(textarea: HTMLTextAreaElement, edit: SourceEdit, onChange: (value: string) => void) {
+  const direction = textarea.selectionDirection
   textarea.focus()
   textarea.setSelectionRange(edit.start, edit.end)
   const expected = textarea.value.slice(0, edit.start) + edit.text + textarea.value.slice(edit.end)
   let applied: boolean
   try {
-    applied = typeof document.execCommand === 'function' && document.execCommand('insertText', false, edit.text) && textarea.value === expected
+    applied = typeof document.execCommand === 'function'
+      && (edit.text === '' ? document.execCommand('delete', false) : document.execCommand('insertText', false, edit.text))
+      && textarea.value === expected
   } catch {
     applied = false
   }
   if (!applied) onChange(expected)
-  const select = () => textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd)
+  const select = () => textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd, direction)
   if (applied) select()
   else requestAnimationFrame(select)
   return expected

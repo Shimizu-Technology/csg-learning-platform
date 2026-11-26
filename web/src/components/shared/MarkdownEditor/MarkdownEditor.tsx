@@ -308,6 +308,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const sourceRef = useRef(source)
   sourceRef.current = source
   const [preview, setPreview] = useState(false)
+  const previewOpenRef = useRef(preview)
+  previewOpenRef.current = preview
   const [announcement, setAnnouncement] = useState('')
   const [pasteNotice, setPasteNotice] = useState<PasteNotice | null>(null)
   const [linkOpen, setLinkOpen] = useState(false)
@@ -317,11 +319,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [menuOpen, setMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [compactRowShown, setCompactRowShown] = useState(false)
-  // Composer only: show formatting tools by default on desktop (like Slack) and keep them behind Aa on phones; this browser remembers any explicit choice.
-  const [formattingShown, setFormattingShown] = useState(() => composer && readComposerFormattingShown(narrow))
+  // Composer only: show formatting tools by default on desktop (like Slack) and keep them behind Aa on phones; explicit toggles persist in this browser.
+  const [formattingChoice, setFormattingChoice] = useState<'shown' | 'hidden' | null>(() => (composer ? readComposerFormattingChoice() : null))
+  const formattingShown = composer && (formattingChoice === null ? !narrow : formattingChoice === 'shown')
   const toggleFormatting = () => {
     const next = !formattingShown
-    setFormattingShown(next)
+    setFormattingChoice(next ? 'shown' : 'hidden')
     setMenuOpen(false)
     if (!next) setHelpOpen(false)
     writeComposerFormattingShown(next)
@@ -657,12 +660,23 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     setSource(normalizeLineEndings(markdown))
     sourceRef.current = normalizeLineEndings(markdown)
     setSourceInBlock(false)
-    setPreview((wasPreview) => {
-      if (wasPreview && modeRef.current === 'markdown' && containerRef.current?.contains(document.activeElement)) {
-        window.requestAnimationFrame(() => textareaRef.current?.focus())
+    if (previewOpenRef.current) {
+      const active = document.activeElement
+      const shouldRestoreFocus = Boolean(
+        modeRef.current === 'markdown'
+        && active
+        && (previewRef.current?.contains(active) || containerRef.current?.contains(active)),
+      )
+      setPreview(false)
+      if (shouldRestoreFocus) {
+        window.requestAnimationFrame(() => {
+          const currentActive = document.activeElement
+          if (!currentActive || currentActive === document.body || containerRef.current?.contains(currentActive)) {
+            textareaRef.current?.focus()
+          }
+        })
       }
-      return false
-    })
+    }
     richDirtyRef.current = false
     setPasteNotice(null)
     if (emitChange) emit(markdown)
@@ -1211,8 +1225,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       className={`@container relative min-w-0 rounded-xl border border-line-strong bg-surface-raised transition-[border-color,box-shadow] duration-200 focus-within:border-focus focus-within:ring-1 focus-within:ring-focus ${disabled ? 'opacity-70' : ''} ${className}`}
       onKeyDownCapture={(event) => {
         const mod = event.metaKey || event.ctrlKey
-        // ⌘⇧M works from the toolbar and Preview too, and ⌘Enter submits straight from Preview.
-        if (event.target === previewRef.current) {
+        // ⌘⇧M works from the toolbar and Preview (including focused links inside Preview), and ⌘Enter submits straight from Preview.
+        if (previewRef.current?.contains(event.target as Node)) {
           if (mod && event.shiftKey && event.code === 'KeyM') {
             event.preventDefault()
             toggleMode()
@@ -1393,14 +1407,13 @@ const COMPACT_MAX_HEIGHT = 88
 
 const COMPOSER_FORMATTING_KEY = 'csg-composer-formatting'
 
-function readComposerFormattingShown(narrow: boolean) {
+function readComposerFormattingChoice(): 'shown' | 'hidden' | null {
   try {
     const stored = window.localStorage.getItem(COMPOSER_FORMATTING_KEY)
-    if (stored === 'shown') return true
-    if (stored === 'hidden') return false
-    return !narrow
+    if (stored === 'shown' || stored === 'hidden') return stored
+    return null
   } catch {
-    return !narrow
+    return null
   }
 }
 

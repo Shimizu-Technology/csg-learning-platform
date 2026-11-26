@@ -234,19 +234,22 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   suggestionsRef.current = { mentionSuggestions, activeMentionIndex }
   const onEditLastMessageRef = useRef(onEditLastMessage)
   onEditLastMessageRef.current = onEditLastMessage
+  const hasAttachmentsRef = useRef(hasAttachments)
+  hasAttachmentsRef.current = hasAttachments
 
   const handleKeyDown = useCallback((event: globalThis.KeyboardEvent) => {
     const { mentionSuggestions: suggestions, activeMentionIndex: index } = suggestionsRef.current
     // Enter or Tab that confirms an IME composition (Japanese, Chinese, Korean…) isn't a mention pick.
     if (isComposingKey(event)) return false
     if (suggestions.length === 0) {
-      // Slack/Discord shortcut: Up arrow in an empty composer opens inline edit on your last sent message.
+      // Slack/Discord shortcut: Up arrow in an empty composer (no text or pending files) opens inline edit on your last editable message.
       if (
         event.key === 'ArrowUp'
         && !event.shiftKey
         && !event.altKey
         && !event.metaKey
         && !event.ctrlKey
+        && !hasAttachmentsRef.current
         && !bodyRef.current.trim()
         && onEditLastMessageRef.current
       ) {
