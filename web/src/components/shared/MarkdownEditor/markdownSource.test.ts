@@ -108,6 +108,10 @@ describe('Markdown list Enter and Tab helpers', () => {
     expect('- ```js'.slice(0, bulletFence.start) + bulletFence.text + '- ```js'.slice(bulletFence.end)).toBe('- ```js\n  ')
     const orderedFence = markdownListEnterEdit('1. ```js', 8, 8)!
     expect('1. ```js'.slice(0, orderedFence.start) + orderedFence.text + '1. ```js'.slice(orderedFence.end)).toBe('1. ```js\n   ')
+    const zeroPaddedFence = markdownListEnterEdit('01. ```js', 9, 9)!
+    expect('01. ```js'.slice(0, zeroPaddedFence.start) + zeroPaddedFence.text + '01. ```js'.slice(zeroPaddedFence.end)).toBe('01. ```js\n    ')
+    const tabPaddedFence = markdownListEnterEdit('-\t```js', 7, 7)!
+    expect('-\t```js'.slice(0, tabPaddedFence.start) + tabPaddedFence.text + '-\t```js'.slice(tabPaddedFence.end)).toBe('-\t```js\n    ')
     expect(markdownEnterAddsLine('- ```js\n  const x = 1', 21)).toBe(true)
   })
 

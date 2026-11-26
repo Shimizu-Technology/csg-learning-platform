@@ -230,7 +230,7 @@ function parseMarkdownListLine(value: string, caret: number) {
   const space = match[5]
   const body = match[6]
   const prefixLength = indent.length + (bullet ? bullet.length : numberText.length + delimiter.length) + space.length
-  return { from, to, indent, bullet, number: numberText ? Number(numberText) : null, delimiter, space, body, prefixLength }
+  return { from, to, indent, bullet, number: numberText ? Number(numberText) : null, numberText, delimiter, space, body, prefixLength }
 }
 
 /**
@@ -246,7 +246,7 @@ export function markdownListEnterEdit(value: string, start: number, end: number)
   if (start < contentStart) return null
   // A list item whose body opens a fenced code block (e.g. "- ```js") starts a fence indented to the item's content column.
   if (isFenceOpenerLine(info.body)) {
-    const markerWidth = info.bullet ? info.bullet.length : String(info.number).length + info.delimiter.length
+    const markerWidth = info.bullet ? info.bullet.length : info.numberText.length + info.delimiter.length
     const baseWidth = indentWidth(info.indent) + markerWidth
     const contentColumn = baseWidth + indentWidth(info.space, baseWidth)
     const insertion = `\n${' '.repeat(contentColumn)}`
