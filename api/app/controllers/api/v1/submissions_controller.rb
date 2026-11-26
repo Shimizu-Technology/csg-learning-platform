@@ -6,6 +6,7 @@ module Api
       class InvalidSuggestionDecision < StandardError; end
       REDO_FEEDBACK_REQUIRED = "Write feedback before choosing Redo, so the student knows what to change.".freeze
       GRADE_INVALID = "Grade must be A, B, C or R.".freeze
+      PASS_REDO_GRADE_INVALID = "Grade must be Pass or Redo.".freeze
 
       before_action :authenticate_user!
       include AuthenticatedRateLimits
@@ -16,7 +17,7 @@ module Api
 
       # GET /api/v1/submissions
       def index
-        block_includes = { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } }
+        block_includes = { lesson: { curriculum_module: :curriculum }, rubric: { rubric_criteria: :learning_objective } }
         includes = [ { user: { enrollments: :cohort } }, { enrollment: :cohort }, :grader,
           :submission_criterion_results ]
         if current_user.staff?
@@ -193,9 +194,12 @@ module Api
         # criteria (or none, which leaves existing evidence alone). A/B/C need every criterion.
         # The grade is one of the letters, as a string. Enum integers ("3", 3) and anything
         # else are refused, so no form of Redo can skip the rule below. Nothing is written yet.
+        # Only the curriculum's own scale (Curriculum#grading_scale): P or R on Pass / Redo,
+        # A, B, C or R on A / B / C / Redo. Grades saved before a scale change stay as they are.
         grade = params[:grade]
-        unless grade.is_a?(String) && Submission.grades.key?(grade)
-          render json: { errors: [ GRADE_INVALID ] }, status: :unprocessable_entity
+        grading_scale = @submission.grading_scale
+        unless grade.is_a?(String) && Curriculum.grades_for_scale(grading_scale).include?(grade)
+          render json: { errors: [ grading_scale == "pass_redo" ? PASS_REDO_GRADE_INVALID : GRADE_INVALID ] }, status: :unprocessable_entity
           return
         end
         redo_grade = grade == "R"
@@ -497,8 +501,8 @@ module Api
 
         computed_decision = if stale
           nil
-        elsif suggestion.outcome == "suggest_b"
-          grade == "B" ? "accepted" : "overridden"
+        elsif (suggested = SubmissionGradeSuggestion::GRADE_FOR_OUTCOME[suggestion.outcome])
+          grade == suggested ? "accepted" : "overridden"
         elsif suggestion.outcome == "review_for_redo"
           grade == "R" ? "accepted" : "overridden"
         end
@@ -589,12 +593,12 @@ module Api
           includes << :github_issue_deliveries
           if school_grade_suggestions_enabled?
             includes << :submission_grade_suggestion
-            includes << { content_block: [ :active_exercise_check_policy, { lesson: :curriculum_module } ] }
+            includes << { content_block: [ :active_exercise_check_policy, { lesson: { curriculum_module: :curriculum } } ] }
           else
-            includes << { content_block: { lesson: :curriculum_module } }
+            includes << { content_block: { lesson: { curriculum_module: :curriculum } } }
           end
         else
-          includes << { content_block: { lesson: :curriculum_module } }
+          includes << { content_block: { lesson: { curriculum_module: :curriculum } } }
         end
         @submission = Submission.includes(*includes).find(params[:id])
       end
@@ -643,6 +647,7 @@ module Api
           submission_type: submission_type,
           text: submission.text,
           grade: submission.grade,
+          grading_scale: submission.grading_scale,
           feedback: submission.feedback,
           graded_by: submission.grader&.full_name,
           graded_at: submission.graded_at,

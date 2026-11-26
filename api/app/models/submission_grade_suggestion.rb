@@ -1,6 +1,9 @@
 class SubmissionGradeSuggestion < ApplicationRecord
-  OUTCOMES = %w[suggest_b review_for_redo no_suggestion stale_evidence].freeze
-  SUGGESTED_GRADES = %w[B].freeze
+  OUTCOMES = %w[suggest_b suggest_pass review_for_redo no_suggestion stale_evidence].freeze
+  # Passing checks suggest B on an A / B / C curriculum and Pass on a Pass / Redo
+  # one (Curriculum#grading_scale). Each suggesting outcome names its one grade.
+  GRADE_FOR_OUTCOME = { "suggest_b" => "B", "suggest_pass" => "P" }.freeze
+  SUGGESTED_GRADES = GRADE_FOR_OUTCOME.values.freeze
   DECISIONS = %w[accepted overridden dismissed].freeze
   MAX_OVERRIDE_REASON_LENGTH = 500
   CONTROL_CHAR_PATTERN = /[\x00-\x1F\x7F]/
@@ -91,10 +94,10 @@ class SubmissionGradeSuggestion < ApplicationRecord
   private
 
   def suggested_grade_matches_outcome
-    if outcome == "suggest_b"
-      errors.add(:suggested_grade, "must be B when outcome is suggest_b") unless suggested_grade == "B"
+    if (expected = GRADE_FOR_OUTCOME[outcome])
+      errors.add(:suggested_grade, "must be #{expected} when outcome is #{outcome}") unless suggested_grade == expected
     elsif suggested_grade.present?
-      errors.add(:suggested_grade, "must be nil unless outcome is suggest_b")
+      errors.add(:suggested_grade, "must be nil unless outcome is suggest_b or suggest_pass")
     end
   end
 

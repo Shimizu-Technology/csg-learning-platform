@@ -448,11 +448,13 @@ class GithubGradeSuggestionEvaluator
       )
     end
 
+    # A Pass / Redo curriculum suggests Pass; an A / B / C one suggests B.
+    pass_scale = @submission.grading_scale == "pass_redo"
     build_result(
-      outcome: "suggest_b",
-      suggested_grade: "B",
+      outcome: pass_scale ? "suggest_pass" : "suggest_b",
+      suggested_grade: pass_scale ? "P" : "B",
       reason_code: "all_required_checks_passed",
-      reason_summary: "All #{authoritative_runs.size} required exercise check(s) passed for commit #{target_sha[0, 12]}; B suggested for instructor review.",
+      reason_summary: "All #{authoritative_runs.size} required exercise check(s) passed for commit #{target_sha[0, 12]}; #{pass_scale ? 'Pass' : 'B'} suggested for instructor review.",
       policy_for_record: @policy,
       evidence: evidence
     )

@@ -186,7 +186,7 @@ class NotificationDeliveryService
     title = if submission.grade == "R"
       "#{reviewer} requested a redo on #{submission.content_block.display_title}"
     else
-      "#{reviewer} graded #{submission.content_block.display_title}: #{submission.grade}"
+      "#{reviewer} graded #{submission.content_block.display_title}: #{Submission.grade_label(submission.grade)}"
     end
     body = submission.feedback.presence || submission.content_block.lesson.title
     notification, claimed = submission_notification_for(

@@ -68,6 +68,20 @@ class CourseCompletionTest < ActionDispatch::IntegrationTest
     assert_equal certificate.code, response.parsed_body.dig("course_certificate", "certificate", "code")
   end
 
+  test "Pass on a Pass / Redo curriculum completes the course and earns a certificate like a letter grade" do
+    @curriculum.update!(grading_scale: "pass_redo")
+    submission = submit(@project)
+    grade(submission, "R")
+    refute LearnerProgress.new(@enrollment).course_completed?
+
+    assert_difference "Certificate.count", 1 do
+      grade(submit(@project), "P")
+      CourseCompletion.evaluate!(@enrollment)
+    end
+    assert LearnerProgress.new(@enrollment).course_completed?
+    assert @enrollment.reload.completed_at
+  end
+
   test "optional redo stays visible while required passing work earns a certificate" do
     optional = @mod.lessons.create!(title: "Stretch project", position: 1, release_day: 0, required: false, lesson_type: :project)
     stretch = optional.content_blocks.create!(title: "Add a feature", block_type: :exercise, position: 0, submission_type: :text_submission)

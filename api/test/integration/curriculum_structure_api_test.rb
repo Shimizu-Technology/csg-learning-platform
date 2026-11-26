@@ -274,6 +274,37 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "grading scale defaults to A / B / C / Redo, can be chosen on create, changed by admins, and is validated" do
+    as_user(@admin) do
+      post "/api/v1/curricula", params: { name: "Letter default" }, headers: auth_headers, as: :json
+      assert_response :created
+      assert_equal "letter_abc_redo", response.parsed_body.dig("curriculum", "grading_scale")
+
+      post "/api/v1/curricula", params: { name: "Pass course", grading_scale: "pass_redo" }, headers: auth_headers, as: :json
+      assert_response :created
+      assert_equal "pass_redo", response.parsed_body.dig("curriculum", "grading_scale")
+
+      post "/api/v1/curricula", params: { name: "Percent course", grading_scale: "percent" }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      assert_match "Grading scale", response.parsed_body.fetch("errors").join
+
+      patch "/api/v1/curricula/#{@curriculum.id}", params: { grading_scale: "pass_redo", base_updated_at: @curriculum.reload.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal "pass_redo", @curriculum.reload.grading_scale
+
+      get "/api/v1/curricula/#{@curriculum.id}", headers: auth_headers
+      assert_equal "pass_redo", response.parsed_body.dig("curriculum", "grading_scale")
+      get "/api/v1/curricula", headers: auth_headers
+      assert_equal "pass_redo", response.parsed_body.fetch("curricula").find { |item| item["id"] == @curriculum.id }.fetch("grading_scale")
+    end
+
+    as_user(@instructor) do
+      patch "/api/v1/curricula/#{@curriculum.id}", params: { grading_scale: "letter_abc_redo", base_updated_at: @curriculum.reload.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+    end
+    assert_response :forbidden
+    assert_equal "pass_redo", @curriculum.reload.grading_scale
+  end
+
   test "curriculum transitions validate status and archive guards" do
     as_user(@admin) do
       %w[draft active].each do |status|

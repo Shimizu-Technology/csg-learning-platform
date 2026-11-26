@@ -3,9 +3,9 @@ module Api
     # Replies on a help request (U-4.7): staff "Reply" keeps the request open,
     # "Reply & resolve" (`resolve: true`) closes it, and the learner is
     # notified once per reply, after the reply commits. The learner who asked
-    # can follow up on their own active request once staff replied; that
-    # notifies the staff member who owns it (every cohort staff member when
-    # nobody does) and never resolves or reassigns it.
+    # can follow up on their own active request, before or after staff
+    # replied; that notifies the staff member who owns it (every cohort staff
+    # member when nobody does) and never resolves or reassigns it.
     #
     # A client may send `client_request_id` (8-64 letters, digits, "-" or
     # "_"), one per reply attempt, reused on retry. A retry whose first attempt
@@ -66,10 +66,6 @@ module Api
 
       def create_follow_up(help_request, body)
         reply = help_request.follow_up!(current_user, body: body, client_request_id: client_request_id)
-        if reply.nil?
-          render json: { error: "You can reply here once your instructor answers. Your question is already with them." }, status: :unprocessable_entity
-          return
-        end
         unless reply
           render json: { error: "Resolved or canceled help requests cannot be changed" }, status: :unprocessable_entity
           return

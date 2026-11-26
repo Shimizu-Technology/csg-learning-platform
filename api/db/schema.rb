@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -474,8 +474,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
     t.integer "status", default: 0, null: false
     t.integer "total_weeks"
     t.datetime "updated_at", null: false
+    t.string "grading_scale", default: "letter_abc_redo", null: false
     t.index "to_tsvector('simple'::regconfig, (((COALESCE(name, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", name: "index_curricula_search_document", using: :gin
     t.index ["course_package_key"], name: "index_curricula_on_course_package_key", unique: true
+    t.check_constraint "grading_scale::text = ANY (ARRAY['letter_abc_redo'::character varying, 'pass_redo'::character varying]::text[])", name: "curricula_grading_scale_valid"
   end
 
   create_table "curriculum_copies", force: :cascade do |t|
@@ -764,7 +766,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
     t.index ["submission_id"], name: "index_github_issue_deliveries_on_submission_id"
     t.check_constraint "action::text = ANY (ARRAY['open_or_comment'::character varying::text, 'close'::character varying::text])", name: "github_issue_deliveries_action_valid"
     t.check_constraint "attempts >= 0", name: "github_issue_deliveries_attempts_nonnegative"
-    t.check_constraint "grade::text = ANY (ARRAY['A'::character varying::text, 'B'::character varying::text, 'C'::character varying::text, 'R'::character varying::text])", name: "github_issue_deliveries_grade_valid"
+    t.check_constraint "grade::text = ANY (ARRAY['A'::character varying, 'B'::character varying, 'C'::character varying, 'R'::character varying, 'P'::character varying]::text[])", name: "github_issue_deliveries_grade_valid"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'obsolete'::character varying::text])", name: "github_issue_deliveries_status_valid"
   end
 
@@ -1678,8 +1680,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
     t.index ["submission_id"], name: "index_submission_grade_suggestions_on_submission_id", unique: true
     t.check_constraint "decision IS NULL OR (decision::text = ANY (ARRAY['accepted'::character varying::text, 'overridden'::character varying::text, 'dismissed'::character varying::text]))", name: "submission_grade_suggestions_decision_valid"
     t.check_constraint "jsonb_typeof(evidence) = 'object'::text", name: "submission_grade_suggestions_evidence_object"
-    t.check_constraint "outcome::text = 'suggest_b'::text AND suggested_grade IS NOT NULL AND suggested_grade::text = 'B'::text OR outcome::text <> 'suggest_b'::text AND suggested_grade IS NULL", name: "submission_grade_suggestions_suggested_grade_valid"
-    t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying::text, 'review_for_redo'::character varying::text, 'no_suggestion'::character varying::text, 'stale_evidence'::character varying::text])", name: "submission_grade_suggestions_outcome_valid"
+    t.check_constraint "outcome::text = 'suggest_b'::text AND suggested_grade IS NOT NULL AND suggested_grade::text = 'B'::text OR outcome::text = 'suggest_pass'::text AND suggested_grade IS NOT NULL AND suggested_grade::text = 'P'::text OR (outcome::text <> ALL (ARRAY['suggest_b'::character varying, 'suggest_pass'::character varying]::text[])) AND suggested_grade IS NULL", name: "submission_grade_suggestions_suggested_grade_valid"
+    t.check_constraint "outcome::text = ANY (ARRAY['suggest_b'::character varying, 'suggest_pass'::character varying, 'review_for_redo'::character varying, 'no_suggestion'::character varying, 'stale_evidence'::character varying]::text[])", name: "submission_grade_suggestions_outcome_valid"
     t.check_constraint "policy_version IS NULL OR policy_version > 0", name: "submission_grade_suggestions_policy_version_positive"
     t.check_constraint "reason_code::text = ANY (ARRAY['all_required_checks_passed'::character varying::text, 'required_check_failed'::character varying::text, 'missing_policy'::character varying::text, 'unverified_revision'::character varying::text, 'missing_required_check'::character varying::text, 'check_pending'::character varying::text, 'check_inconclusive'::character varying::text, 'untrusted_producer'::character varying::text, 'workflow_tampered'::character varying::text, 'branch_mismatch'::character varying::text, 'stale_sha'::character varying::text, 'stale_policy'::character varying::text, 'superseded_submission'::character varying::text])", name: "submission_grade_suggestions_reason_code_valid"
   end

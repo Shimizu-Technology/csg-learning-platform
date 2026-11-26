@@ -112,6 +112,22 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     assert_equal original_updated_at, submission.updated_at
   end
 
+  test "suggests Pass on a Pass / Redo curriculum, and the grade save records accepting it" do
+    @curriculum.update!(grading_scale: "pass_redo")
+    submission = create_verified_submission
+    create_check_run(submission, name: "prework/111.rb", status: "completed", conclusion: "success", app_slug: "github-actions")
+
+    suggestion = GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: @now)
+
+    assert_equal "suggest_pass", suggestion.outcome
+    assert_equal "P", suggestion.suggested_grade
+    assert_equal "all_required_checks_passed", suggestion.reason_code
+    assert_includes suggestion.reason_summary, "Pass suggested"
+    assert suggestion.valid?
+    suggestion.suggested_grade = "B"
+    refute suggestion.valid?, "suggest_pass names only P"
+  end
+
   test "returns review_for_redo without suggested_grade when a required check fails" do
     submission = create_verified_submission
     create_check_run(submission, name: "prework/111.rb", status: "completed", conclusion: "failure")

@@ -1,8 +1,9 @@
 # One reply on a help request (U-4.7). A staff "Reply" keeps the request open;
 # "Reply & resolve" also resolves it (`resolved_request`). The learner sees
 # every reply; the request's `staff_response` mirrors the latest staff one.
-# The learner who asked can follow up in the same thread once staff replied,
-# so a question back from the instructor never strands them.
+# The learner who asked can follow up in the same thread while it is active,
+# before staff reply (more detail while they wait) or after (so a question
+# back from the instructor never strands them).
 class HelpRequestReply < ApplicationRecord
   CLIENT_REQUEST_ID = /\A[A-Za-z0-9_-]{8,64}\z/
 

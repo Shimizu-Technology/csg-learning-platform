@@ -70,6 +70,7 @@ module Api
           cohort_name: @cohort.name,
           module_id: @curriculum_module.id,
           module_name: @curriculum_module.name,
+          grading_scale: @cohort.curriculum.grading_scale,
           requires_github: requires_github,
           github_sync_enabled: FeatureSwitches.for(cohort: @cohort)["github_sync"],
           # Only when the hourly reconciliation really covers this cohort's module.
@@ -187,6 +188,7 @@ module Api
           submission_type: submission_type,
           text: submission.text,
           grade: submission.grade,
+          grading_scale: @cohort.curriculum.grading_scale,
           feedback: submission.feedback,
           graded_by: submission.grader&.full_name,
           graded_at: submission.graded_at,

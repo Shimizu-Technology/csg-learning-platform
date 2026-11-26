@@ -68,7 +68,7 @@ module Api
       end
 
       def curriculum_params
-        params.permit(:name, :description, :total_weeks, :status)
+        params.permit(:name, :description, :total_weeks, :status, :grading_scale)
       end
 
       def curriculum_json(curriculum, include_modules: false, include_usage: false)
@@ -79,6 +79,7 @@ module Api
           description: curriculum.description,
           total_weeks: curriculum.total_weeks,
           status: curriculum.status,
+          grading_scale: curriculum.grading_scale,
           updated_at: curriculum.updated_at.iso8601(6),
           archive_blocked: curriculum.archive_blockers,
           # Names the cohorts on sale, for the admin-only status change; instructors get none (they may not teach them).

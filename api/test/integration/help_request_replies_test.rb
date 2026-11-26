@@ -115,11 +115,31 @@ class HelpRequestRepliesTest < ActionDispatch::IntegrationTest
     assert @help.reload.status_open?
   end
 
-  test "only staff who can open the request may reply first" do
-    reply(@student, "Answering myself")
-    assert_response :unprocessable_entity
-    assert_match "once your instructor answers", response.parsed_body["error"]
+  test "the learner can add detail before any staff reply; it stays open and unowned and notifies the cohort staff" do
+    Notification.where(notifiable: @help).update_all(read_at: Time.current)
+    clear_enqueued_jobs
 
+    assert_enqueued_jobs 1, only: PushNotificationJob do
+      reply(@student, "Here is the error: undefined method each.", client_request_id: "early-detail-1")
+    end
+    assert_response :created
+    assert_equal true, response.parsed_body.dig("reply", "from_student")
+    @help.reload
+    assert @help.status_open?, "a learner's note never acknowledges the request"
+    assert_nil @help.owner
+    assert_nil @help.staff_response
+    title = "#{@student.full_name} followed up on their help request"
+    assert_equal [ @admin.id, @instructor.id ].sort, Notification.where(notifiable: @help, title: title, read_at: nil).pluck(:user_id).sort
+
+    clear_enqueued_jobs
+    reply(@student, "Here is the error: undefined method each.", client_request_id: "early-detail-1")
+    assert_response :created
+    assert_equal true, response.parsed_body["replayed"]
+    assert_equal 1, @help.replies.count
+    assert_no_enqueued_jobs only: PushNotificationJob
+  end
+
+  test "staff outside the cohort cannot reply" do
     reply(@other_instructor, "Not my cohort")
     assert_response :not_found
 

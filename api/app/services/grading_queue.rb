@@ -121,9 +121,9 @@ class GradingQueue
     ]
     if school_suggestions_enabled?
       includes << :submission_grade_suggestion
-      includes << { content_block: [ :active_exercise_check_policy, { lesson: :curriculum_module } ] }
+      includes << { content_block: [ :active_exercise_check_policy, { lesson: { curriculum_module: :curriculum } } ] }
     else
-      includes << { content_block: { lesson: :curriculum_module } }
+      includes << { content_block: { lesson: { curriculum_module: :curriculum } } }
     end
     scope.includes(*includes)
       .order(Arel.sql("submissions.created_at #{direction}, submissions.id #{direction}"))
@@ -266,6 +266,7 @@ class GradingQueue
       user_id: submission.user_id,
       user_name: submission.user.full_name,
       grade: submission.grade,
+      grading_scale: lesson.curriculum_module.curriculum.grading_scale,
       graded_at: submission.graded_at,
       num_submissions: submission.num_submissions,
       created_at: submission.created_at,

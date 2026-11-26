@@ -1,5 +1,6 @@
 require "test_helper"
 require Rails.root.join("db/migrate/20261122090000_create_exercise_check_policies_and_grade_suggestions").to_s
+require Rails.root.join("db/migrate/20261126140000_add_grading_scale_to_curricula").to_s
 
 class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
@@ -201,6 +202,8 @@ class CreateExerciseCheckPoliciesAndGradeSuggestionsTest < ActiveSupport::TestCa
       student&.destroy if student&.persisted? && ActiveRecord::Base.connection.table_exists?(:users)
       curriculum&.destroy if curriculum&.persisted? && ActiveRecord::Base.connection.table_exists?(:curricula)
       migration&.migrate(:up) unless ActiveRecord::Base.connection.table_exists?(:submission_grade_suggestions) && ActiveRecord::Base.connection.table_exists?(:exercise_check_policies)
+      # The recreated table has this migration's constraints; restore the later Pass ones.
+      AddGradingScaleToCurricula.new.migrate(:up)
     ensure
       ActiveRecord::Base.connection_handler.connection_pool_list.each { |pool| pool.connections.each(&:clear_cache!) }
       ExerciseCheckPolicy.reset_column_information
