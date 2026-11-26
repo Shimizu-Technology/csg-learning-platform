@@ -201,26 +201,23 @@ export function CohortFileCard({
         </Pressable>
       )}
       <View style={styles.heading}>
-        {layout === 'list' && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${file.title}`}
-            onPress={openPrimary}
-            style={[styles.iconTile, { backgroundColor: iconToneBg }]}
-          >
-            <Icon color={iconToneFg} size={20} />
-          </Pressable>
-        )}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={file.title}
+          accessibilityLabel={`Open ${file.title}`}
           onPress={openPrimary}
-          style={styles.titleWrap}
+          style={styles.primaryRow}
         >
-          <Text numberOfLines={2} style={styles.title}>{file.title}</Text>
-          <Text numberOfLines={2} style={styles.meta}>
-            {cohortFileMeta(file)}{note ? ` · ${note}` : ''}{commentNote}
-          </Text>
+          {layout === 'list' && (
+            <View style={[styles.iconTile, { backgroundColor: iconToneBg }]}>
+              <Icon color={iconToneFg} size={20} />
+            </View>
+          )}
+          <View style={styles.titleWrap}>
+            <Text numberOfLines={2} style={styles.title}>{file.title}</Text>
+            <Text numberOfLines={2} style={styles.meta}>
+              {cohortFileMeta(file)}{note ? ` · ${note}` : ''}{commentNote}
+            </Text>
+          </View>
         </Pressable>
         {hasSheetActions && (
           <Pressable
@@ -388,9 +385,10 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   },
   gridBadge: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6 },
   heading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  primaryRow: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconTile: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

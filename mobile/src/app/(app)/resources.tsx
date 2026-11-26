@@ -83,7 +83,13 @@ export default function ResourcesScreen() {
   const [linkedParam, setLinkedParam] = useState(fileParam);
   if (fileParam !== linkedParam) {
     setLinkedParam(fileParam);
-    if (Number(fileParam)) setOpenFileId(Number(fileParam));
+    if (Number(fileParam)) {
+      setFilter('');
+      setMyActiveFolder('All');
+      setClassActiveFolder('All');
+      setTypeFilter('all');
+      setOpenFileId(Number(fileParam));
+    }
   }
   const replaceMyFile = (next: CohortFile) => queryClient.setQueryData<CohortFilesResponse | null>(filesKey, (current) => current && { ...current, my_files: (current.my_files || []).map((item) => (item.id === next.id ? next : item)) });
   const needle = filter.trim().toLowerCase();
@@ -113,18 +119,35 @@ export default function ResourcesScreen() {
 
   const upload = async () => {
     if (!selectedCohortId || uploadProgress !== null) return;
+    let uploadedCount = 0;
+    const failedFiles: string[] = [];
+    let lastError = '';
     try {
       const picked = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
       if (picked.canceled || !picked.assets?.length) return;
       setUploadProgress(0);
       const total = picked.assets.length;
       for (let index = 0; index < total; index += 1) {
-        await uploadToMyFolder(api, selectedCohortId, picked.assets[index], targetUploadFolder, (progress) => {
-          setUploadProgress((index + progress) / total);
-        });
+        const asset = picked.assets[index];
+        try {
+          await uploadToMyFolder(api, selectedCohortId, asset, targetUploadFolder, (progress) => {
+            setUploadProgress((index + progress) / total);
+          });
+          uploadedCount += 1;
+        } catch (error) {
+          failedFiles.push(asset.name || `File ${index + 1}`);
+          lastError = (error as Error).message;
+        }
       }
-      await queryClient.invalidateQueries({ queryKey: filesKey });
+      if (uploadedCount > 0) await queryClient.invalidateQueries({ queryKey: filesKey });
+      if (failedFiles.length > 0) {
+        const summary = uploadedCount > 0
+          ? `Uploaded ${uploadedCount} file${uploadedCount === 1 ? '' : 's'}, but failed to upload: ${failedFiles.join(', ')}. ${lastError}`
+          : `${failedFiles.length > 1 ? `Failed to upload ${failedFiles.join(', ')}: ` : ''}${lastError}`;
+        Alert.alert(uploadedCount > 0 ? 'Some files could not upload' : 'Could not upload file', summary);
+      }
     } catch (error) {
+      if (uploadedCount > 0) await queryClient.invalidateQueries({ queryKey: filesKey });
       Alert.alert('Could not upload file', (error as Error).message);
     } finally {
       setUploadProgress(null);

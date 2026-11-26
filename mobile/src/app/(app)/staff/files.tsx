@@ -80,6 +80,12 @@ export default function StaffCohortFilesScreen() {
       if (Number(cohort_id)) setCohortId(Number(cohort_id));
       setView(Number(student) ? 'students' : 'class');
       setStudentId(Number(student) || null);
+      setSearch('');
+      setClassSearch('');
+      setClassFolder('All');
+      setStudentSubfolder('All');
+      setTypeFilter('all');
+      setNeedsReviewOnly(false);
       setOpenFileId(Number(fileParam));
     }
   }
@@ -151,6 +157,9 @@ export default function StaffCohortFilesScreen() {
 
   const uploadFiles = async (targetStudentId?: number | null) => {
     if (!selectedCohortId || uploadProgress !== null || !data?.storage_configured) return;
+    let uploadedCount = 0;
+    const failedFiles: string[] = [];
+    let lastError = '';
     try {
       const picked = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
       if (picked.canceled || !picked.assets?.length) return;
@@ -160,16 +169,30 @@ export default function StaffCohortFilesScreen() {
         : (validClassFolder === 'All' ? CLASS_FOLDER_PRESETS[0] : validClassFolder);
       const total = picked.assets.length;
       for (let index = 0; index < total; index += 1) {
-        await uploadCohortFile(
-          api,
-          selectedCohortId,
-          picked.assets[index],
-          { folder: targetFolder, studentId: targetStudentId ?? undefined },
-          (progress) => setUploadProgress((index + progress) / total),
-        );
+        const asset = picked.assets[index];
+        try {
+          await uploadCohortFile(
+            api,
+            selectedCohortId,
+            asset,
+            { folder: targetFolder, studentId: targetStudentId ?? undefined },
+            (progress) => setUploadProgress((index + progress) / total),
+          );
+          uploadedCount += 1;
+        } catch (error) {
+          failedFiles.push(asset.name || `File ${index + 1}`);
+          lastError = (error as Error).message;
+        }
       }
-      await filesQuery.refetch();
+      if (uploadedCount > 0) await filesQuery.refetch();
+      if (failedFiles.length > 0) {
+        const summary = uploadedCount > 0
+          ? `Uploaded ${uploadedCount} file${uploadedCount === 1 ? '' : 's'}, but failed to upload: ${failedFiles.join(', ')}. ${lastError}`
+          : `${failedFiles.length > 1 ? `Failed to upload ${failedFiles.join(', ')}: ` : ''}${lastError}`;
+        Alert.alert(uploadedCount > 0 ? 'Some files could not upload' : 'Could not upload file', summary);
+      }
     } catch (error) {
+      if (uploadedCount > 0) await filesQuery.refetch();
       Alert.alert('Could not upload file', (error as Error).message);
     } finally {
       setUploadProgress(null);

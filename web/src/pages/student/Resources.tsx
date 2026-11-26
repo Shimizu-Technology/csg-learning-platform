@@ -13,7 +13,7 @@ import { Button, IconButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { ResourceEntry } from '../../types/api'
 import { downloadCourseResource } from '../../lib/downloadCourseResource'
-import { STUDENT_FOLDER_PRESETS, downloadCohortFile, isStudentFolderItem, matchesFileQuery, type CohortFile, type CohortFilesResponse } from '../../lib/cohortFiles'
+import { STUDENT_FOLDER_PRESETS, downloadCohortFile, isStudentFolderItem, matchesFileQuery, safeExternalFileUrl, type CohortFile, type CohortFilesResponse } from '../../lib/cohortFiles'
 import {
   driveToneSurface,
   fileVisualMeta,
@@ -30,6 +30,7 @@ import {
 import { CohortDocForm, CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge } from '../../components/shared/CohortFileParts'
 import { CohortDocEditorModal } from '../../components/shared/CohortDocEditorModal'
 import { CohortFilePreviewModal } from '../../components/shared/CohortFilePreviewModal'
+import { CohortFileReviewModal } from '../../components/shared/CohortFileReview'
 import { DriveFileGridCard } from '../../components/shared/DriveFileGrid'
 import { DriveBreadcrumbs, DriveFolderGrid } from '../../components/shared/DriveFolderGrid'
 import { DriveInspectorDrawer } from '../../components/shared/DriveInspectorDrawer'
@@ -88,7 +89,6 @@ export function Resources() {
   const linkedFileId = Number(searchParams.get('file')) || null
   const [openFileId, setOpenFileId] = useState<number | null>(linkedFileId)
   useEffect(() => { if (linkedFileId) setOpenFileId(linkedFileId) }, [linkedFileId])
-  const clearOpenFile = useCallback(() => setOpenFileId(null), [])
   const handleViewMode = (mode: DriveViewMode) => {
     setViewMode(mode)
     saveStoredDriveView(mode)
@@ -228,6 +228,29 @@ export function Resources() {
     const manageable = new Set(myFiles.filter((file) => file.can_manage && cohortFiles?.can_upload_personal).map((file) => file.id))
     return [...selectedMyIds].filter((id) => manageable.has(id))
   }, [cohortFiles?.can_upload_personal, myFiles, selectedMyIds])
+  useEffect(() => {
+    setSelectedMyIds(new Set())
+  }, [selectedCohortId, activeMyFolder, query, myTypeFilter])
+  useEffect(() => {
+    setInspectedId(null)
+    setOpenedModal(null)
+  }, [selectedCohortId])
+  useEffect(() => {
+    if (!openFileId || !cohortFiles) return
+    const target = allDriveFiles.find((item) => item.id === openFileId)
+    if (!target) return
+    setOpenFileId(null)
+    const storageReady = Boolean(cohortFiles.storage_configured)
+    if (target.kind === 'doc') {
+      setOpenedModal({ fileId: target.id, pane: 'main' })
+    } else if (target.kind === 'file' && target.previewable && storageReady) {
+      setOpenedModal({ fileId: target.id, pane: 'main' })
+    } else if (isStudentFolderItem(target)) {
+      setOpenedModal({ fileId: target.id, pane: 'review' })
+    } else if (target.kind === 'file') {
+      setOpenedModal({ fileId: target.id, pane: 'main' })
+    }
+  }, [allDriveFiles, cohortFiles, openFileId])
   const toggleSelectMy = (fileId: number) => {
     setSelectedMyIds((current) => {
       const next = new Set(current)
@@ -247,20 +270,24 @@ export function Resources() {
   }
   const handleBulkMoveMy = async (targetFolder: string) => {
     if (!selectedCohortId || !activeSelectedMyIds.length || bulkBusy) return
+    const initiatingCohortId = selectedCohortId
     setBulkBusy(true)
-    const updated = new Map<number, CohortFile>()
+    let movedCount = 0
     let failures = 0
     for (const id of activeSelectedMyIds) {
-      const result = await api.updateCohortFile(selectedCohortId, id, { folder: targetFolder })
-      if (result.data) updated.set(id, result.data.file)
-      else failures += 1
+      const result = await api.updateCohortFile(initiatingCohortId, id, { folder: targetFolder })
+      if (result.data) {
+        movedCount += 1
+        updateMyFile(result.data.file)
+      } else {
+        failures += 1
+      }
     }
-    if (updated.size > 0) {
-      updateMyFiles((files) => files.map((item) => updated.get(item.id) || item))
-      toast.success(`Moved ${updated.size} ${updated.size === 1 ? 'item' : 'items'} to ${targetFolder}`)
+    if (movedCount > 0) {
+      toast.success(`Moved ${movedCount} ${movedCount === 1 ? 'item' : 'items'} to ${targetFolder}`)
     }
     if (failures > 0) toast.error(`Could not move ${failures} ${failures === 1 ? 'item' : 'items'}.`)
-    setSelectedMyIds(new Set())
+    if (shownCohortId.current === initiatingCohortId) setSelectedMyIds(new Set())
     setBulkBusy(false)
   }
   const handleBulkDeleteMy = async () => {
@@ -386,15 +413,21 @@ export function Resources() {
             {quickAccessFiles.map((file) => {
               const visual = fileVisualMeta(file)
               const Icon = visual.icon
+              const safeHref = file.kind === 'link' ? safeExternalFileUrl(file.external_url) : null
+              const linkBlocked = file.kind === 'link' && !safeHref
               return (
                 <button
                   key={file.id}
                   type="button"
+                  disabled={linkBlocked}
                   onClick={() => {
-                    if (file.kind === 'link' && file.external_url) window.open(sanitizeUrl(file.external_url), '_blank', 'noopener,noreferrer')
-                    else setOpenedModal({ fileId: file.id, pane: 'main' })
+                    if (file.kind === 'link') {
+                      if (safeHref) window.open(safeHref, '_blank', 'noopener,noreferrer')
+                      return
+                    }
+                    setOpenedModal({ fileId: file.id, pane: 'main' })
                   }}
-                  className="app-surface flex min-h-14 items-center gap-3 p-3 text-left transition-colors hover:border-line-strong hover:bg-surface-sunken"
+                  className="app-surface flex min-h-14 items-center gap-3 p-3 text-left transition-colors hover:border-line-strong hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${driveToneSurface(visual.tone)}`}>
                     <Icon className="h-4 w-4" aria-hidden="true" />
@@ -518,7 +551,7 @@ export function Resources() {
               {myFiles.map((file) => (
                 <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} badges={<FolderBadge folder={file.folder} />} downloadDisabled={!cohortFiles?.storage_configured}
                   canUploadVersion={Boolean(file.can_manage && file.kind === 'file' && cohortFiles?.can_upload_personal && cohortFiles?.storage_configured)} onVersionUploaded={replaceMyFile}
-                  review={{ staff: false, canChange: Boolean(cohortFiles?.can_upload_personal) }} onFileChange={updateMyFile} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
+                  review={{ staff: false, canChange: Boolean(cohortFiles?.can_upload_personal) }} onFileChange={updateMyFile}
                   canSelect={Boolean(file.can_manage && cohortFiles?.can_upload_personal)} selected={selectedMyIds.has(file.id)} onToggleSelect={toggleSelectMy}
                   canDrag={Boolean(file.can_manage && cohortFiles?.can_upload_personal)}
                   inspected={inspectedId === file.id} onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
@@ -593,8 +626,6 @@ export function Resources() {
                         cohortId={selectedCohortId}
                         file={file}
                         downloadDisabled={!cohortFiles?.storage_configured}
-                        autoOpen={file.id === openFileId}
-                        onAutoOpened={clearOpenFile}
                         inspected={inspectedId === file.id}
                         onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
                       />
@@ -623,6 +654,7 @@ export function Resources() {
       </div>
       {openedModalFile && selectedCohortId && openedModalFile.kind === 'doc' && (
         <CohortDocEditorModal
+          key={`${selectedCohortId}-${openedModalFile.id}`}
           cohortId={selectedCohortId}
           file={openedModalFile}
           open
@@ -632,8 +664,9 @@ export function Resources() {
           onFileChange={openedModalFile.student_id !== null ? updateMyFile : () => undefined}
         />
       )}
-      {openedModalFile && selectedCohortId && openedModalFile.kind === 'file' && (
+      {openedModalFile && selectedCohortId && openedModalFile.kind === 'file' && (openedModal?.pane !== 'review' || (openedModalFile.previewable && cohortFiles?.storage_configured)) && (
         <CohortFilePreviewModal
+          key={`${selectedCohortId}-${openedModalFile.id}`}
           cohortId={selectedCohortId}
           file={openedModalFile}
           open
@@ -642,6 +675,17 @@ export function Resources() {
           review={openedModalFile.student_id !== null ? { staff: false, canChange: Boolean(cohortFiles?.can_upload_personal) } : undefined}
           initialPane={openedModal?.pane === 'review' ? 'review' : 'preview'}
           onFileChange={openedModalFile.student_id !== null ? updateMyFile : undefined}
+        />
+      )}
+      {openedModalFile && selectedCohortId && openedModal?.pane === 'review' && openedModalFile.kind !== 'doc' && !(openedModalFile.kind === 'file' && openedModalFile.previewable && cohortFiles?.storage_configured) && isStudentFolderItem(openedModalFile) && (
+        <CohortFileReviewModal
+          key={`${selectedCohortId}-${openedModalFile.id}-review`}
+          cohortId={selectedCohortId}
+          file={openedModalFile}
+          access={{ staff: false, canChange: Boolean(cohortFiles?.can_upload_personal) }}
+          open
+          onClose={() => setOpenedModal(null)}
+          onFileChange={updateMyFile}
         />
       )}
 

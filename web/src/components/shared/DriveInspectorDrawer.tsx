@@ -50,15 +50,6 @@ export function DriveInspectorDrawer({
     setDownloadError('')
   }, [file])
 
-  useEffect(() => {
-    if (!file) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [file, onClose])
-
   if (!file) return null
 
   const visual = fileVisualMeta(file)
@@ -99,7 +90,14 @@ export function DriveInspectorDrawer({
   return (
     <aside
       aria-label={`Details for ${file.title}`}
-      className="app-surface flex flex-col gap-4 p-4 lg:sticky lg:top-6"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return
+        if (document.querySelector('[role="dialog"][aria-modal="true"], [data-app-modal]')) return
+        event.stopPropagation()
+        onClose()
+      }}
+      className="app-surface flex flex-col gap-4 p-4 focus:outline-none lg:sticky lg:top-6"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">

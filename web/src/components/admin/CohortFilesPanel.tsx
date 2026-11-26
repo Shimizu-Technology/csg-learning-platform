@@ -29,6 +29,7 @@ import {
 import { AutoCopyBadge, CohortDocForm, CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge, StaffOnlyBadge } from '../shared/CohortFileParts'
 import { CohortDocEditorModal } from '../shared/CohortDocEditorModal'
 import { CohortFilePreviewModal } from '../shared/CohortFilePreviewModal'
+import { CohortFileReviewModal } from '../shared/CohortFileReview'
 import { DriveFileGridCard } from '../shared/DriveFileGrid'
 import { DriveBreadcrumbs, DriveFolderGrid } from '../shared/DriveFolderGrid'
 import { DriveInspectorDrawer } from '../shared/DriveInspectorDrawer'
@@ -201,7 +202,6 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
   const [gridOpened, setGridOpened] = useState<{ fileId: number; pane: 'main' | 'review' } | null>(null)
   // A new doc opens in the editor; a linked file opens once.
   const [openFileId, setOpenFileId] = useState<number | null>(linkedFileId)
-  const clearOpenFile = useCallback(() => setOpenFileId(null), [])
   const [renaming, setRenaming] = useState(false)
 
   const handleViewMode = (mode: DriveViewMode) => {
@@ -230,6 +230,20 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
     return [...selectedIds].filter((id) => valid.has(id))
   }, [selectedIds, shown])
 
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [cohortId, activeFolder, query, typeFilter])
+
+  useEffect(() => {
+    if (!openFileId) return
+    const target = files.find((item) => item.id === openFileId)
+    if (!target) return
+    setOpenFileId(null)
+    if (target.kind === 'doc' || target.kind === 'file') {
+      setGridOpened({ fileId: target.id, pane: 'main' })
+    }
+  }, [files, openFileId])
+
   const toggleSelect = (fileId: number) => {
     setSelectedIds((current) => {
       const next = new Set(current)
@@ -254,18 +268,22 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
   const handleBulkMove = async (targetFolder: string) => {
     if (!activeSelectedIds.length || bulkBusy) return
     setBulkBusy(true)
-    const updated = new Map<number, CohortFile>()
+    let movedCount = 0
     let failures = 0
     for (const id of activeSelectedIds) {
       const item = files.find((entry) => entry.id === id)
       if (!item || item.folder === targetFolder) continue
       const result = await api.updateCohortFile(cohortId, id, { folder: targetFolder })
-      if (result.data) updated.set(id, result.data.file)
-      else failures += 1
+      if (result.data) {
+        const saved = result.data.file
+        movedCount += 1
+        onChange((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)))
+      } else {
+        failures += 1
+      }
     }
-    if (updated.size > 0) {
-      onChange((current) => current.map((item) => updated.get(item.id) || item))
-      toast.success(`Moved ${updated.size} ${updated.size === 1 ? 'item' : 'items'} to ${targetFolder}`)
+    if (movedCount > 0) {
+      toast.success(`Moved ${movedCount} ${movedCount === 1 ? 'item' : 'items'} to ${targetFolder}`)
     }
     if (failures > 0) toast.error(`Could not move ${failures} ${failures === 1 ? 'item' : 'items'}.`)
     setSelectedIds(new Set())
@@ -275,7 +293,7 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
   const handleBulkVisibility = async (visibility: 'students' | 'staff_only') => {
     if (!activeSelectedIds.length || bulkBusy) return
     setBulkBusy(true)
-    const updated = new Map<number, CohortFile>()
+    let updatedCount = 0
     let failures = 0
     for (const id of activeSelectedIds) {
       const item = files.find((entry) => entry.id === id)
@@ -285,12 +303,16 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
         id,
         visibility === 'staff_only' && item.auto_copy_to_students ? { visibility, auto_copy_to_students: false } : { visibility },
       )
-      if (result.data) updated.set(id, result.data.file)
-      else failures += 1
+      if (result.data) {
+        const saved = result.data.file
+        updatedCount += 1
+        onChange((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)))
+      } else {
+        failures += 1
+      }
     }
-    if (updated.size > 0) {
-      onChange((current) => current.map((item) => updated.get(item.id) || item))
-      toast.success(visibility === 'students' ? `Shared ${updated.size} ${updated.size === 1 ? 'item' : 'items'} with students` : `Moved ${updated.size} ${updated.size === 1 ? 'item' : 'items'} to staff only`)
+    if (updatedCount > 0) {
+      toast.success(visibility === 'students' ? `Shared ${updatedCount} ${updatedCount === 1 ? 'item' : 'items'} with students` : `Moved ${updatedCount} ${updatedCount === 1 ? 'item' : 'items'} to staff only`)
     }
     if (failures > 0) toast.error(`Could not update ${failures} ${failures === 1 ? 'item' : 'items'}.`)
     setSelectedIds(new Set())
@@ -498,7 +520,7 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
           ) : (
             <ul className="app-surface divide-y divide-line overflow-hidden" aria-label="Class files">
               {shown.map((file) => (
-                <ClassFileItem key={file.id} cohortId={cohortId} file={file} studentCount={studentCount} storage={storage} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
+                <ClassFileItem key={file.id} cohortId={cohortId} file={file} studentCount={studentCount} storage={storage}
                   selected={selectedIds.has(file.id)}
                   onToggleSelect={toggleSelect}
                   inspected={inspectedId === file.id}
@@ -527,6 +549,7 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
       </div>
       {gridOpenedFile && gridOpenedFile.kind === 'doc' && (
         <CohortDocEditorModal
+          key={`${cohortId}-${gridOpenedFile.id}`}
           cohortId={cohortId}
           file={gridOpenedFile}
           open
@@ -536,6 +559,7 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
       )}
       {gridOpenedFile && gridOpenedFile.kind === 'file' && (
         <CohortFilePreviewModal
+          key={`${cohortId}-${gridOpenedFile.id}`}
           cohortId={cohortId}
           file={gridOpenedFile}
           open
@@ -594,13 +618,11 @@ function RenameFolder({ cohortId, folder, onRenamed, onCancel }: {
   )
 }
 
-function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAutoOpened, selected, onToggleSelect, inspected, onInspect, onSaved, onDeleted, onCopied }: {
+function ClassFileItem({ cohortId, file, studentCount, storage, selected, onToggleSelect, inspected, onInspect, onSaved, onDeleted, onCopied }: {
   cohortId: number
   file: CohortFile
   studentCount: number
   storage: boolean
-  autoOpen: boolean
-  onAutoOpened: () => void
   selected?: boolean
   onToggleSelect?: (fileId: number) => void
   inspected?: boolean
@@ -675,7 +697,7 @@ function ClassFileItem({ cohortId, file, studentCount, storage, autoOpen, onAuto
   }
   return (
     <CohortFileRow cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'} onVersionUploaded={(saved) => { onSaved(saved); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
-      onFileChange={onSaved} autoOpen={autoOpen} onAutoOpened={onAutoOpened}
+      onFileChange={onSaved}
       canSelect={Boolean(onToggleSelect)} selected={selected} onToggleSelect={onToggleSelect}
       canDrag inspected={inspected} onInspect={onInspect}
       badges={<><FolderBadge folder={file.folder} />{staged && <StaffOnlyBadge />}{autoCopy && <AutoCopyBadge />}</>}
@@ -881,7 +903,6 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
   const [inspectedId, setInspectedId] = useState<number | null>(null)
   const [gridOpened, setGridOpened] = useState<{ fileId: number; pane: 'main' | 'review' } | null>(null)
   const [openFileId, setOpenFileId] = useState<number | null>(linkedFileId)
-  const clearOpenFile = useCallback(() => setOpenFileId(null), [])
   // A newer notification link for this folder opens its item too.
   const [seenLink, setSeenLink] = useState(linkedFileId)
   if (linkedFileId !== seenLink) {
@@ -907,6 +928,22 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
   const gridOpenedFile = useMemo(() => (gridOpened ? folder.files.find((item) => item.id === gridOpened.fileId) || null : null), [folder.files, gridOpened])
   const previewableShown = useMemo(() => shown.filter((item) => item.kind === 'file' && item.previewable && storage), [shown, storage])
   const previewIndex = gridOpenedFile ? previewableShown.findIndex((item) => item.id === gridOpenedFile.id) : -1
+
+  useEffect(() => {
+    if (!openFileId) return
+    const target = folder.files.find((item) => item.id === openFileId)
+    if (!target) return
+    setOpenFileId(null)
+    if (target.kind === 'doc') {
+      setGridOpened({ fileId: target.id, pane: 'main' })
+    } else if (target.kind === 'file' && target.previewable && storage) {
+      setGridOpened({ fileId: target.id, pane: 'main' })
+    } else if (isStudentFolderItem(target)) {
+      setGridOpened({ fileId: target.id, pane: 'review' })
+    } else if (target.kind === 'file') {
+      setGridOpened({ fileId: target.id, pane: 'main' })
+    }
+  }, [folder.files, openFileId, storage])
 
   const handleViewMode = (mode: DriveViewMode) => {
     setViewMode(mode)
@@ -1076,7 +1113,7 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
             <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`Files in ${folder.student_name}'s folder`}>
               {shown.map((file) => (
                 <CohortFileRow key={file.id} cohortId={cohortId} file={file} downloadDisabled={!storage} canUploadVersion={file.kind === 'file'}
-                  review={STAFF_REVIEW} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
+                  review={STAFF_REVIEW}
                   canDrag inspected={inspectedId === file.id} onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
                   onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
                   onVersionUploaded={(saved) => { onChange((files) => files.map((item) => (item.id === saved.id ? saved : item))); toast.success(`Uploaded version ${saved.version_number} of ${saved.title}`) }}
@@ -1107,6 +1144,7 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
       </div>
       {gridOpenedFile && gridOpenedFile.kind === 'doc' && (
         <CohortDocEditorModal
+          key={`${cohortId}-${gridOpenedFile.id}`}
           cohortId={cohortId}
           file={gridOpenedFile}
           open
@@ -1116,8 +1154,9 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
           onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
         />
       )}
-      {gridOpenedFile && gridOpenedFile.kind === 'file' && (
+      {gridOpenedFile && gridOpenedFile.kind === 'file' && (gridOpened?.pane !== 'review' || (gridOpenedFile.previewable && storage)) && (
         <CohortFilePreviewModal
+          key={`${cohortId}-${gridOpenedFile.id}`}
           cohortId={cohortId}
           file={gridOpenedFile}
           open
@@ -1129,6 +1168,17 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
           onPrev={previewIndex > 0 ? () => setGridOpened({ fileId: previewableShown[previewIndex - 1].id, pane: 'main' }) : undefined}
           onNext={previewIndex >= 0 && previewIndex < previewableShown.length - 1 ? () => setGridOpened({ fileId: previewableShown[previewIndex + 1].id, pane: 'main' }) : undefined}
           positionLabel={previewIndex >= 0 && previewableShown.length > 1 ? `${previewIndex + 1} of ${previewableShown.length}` : undefined}
+        />
+      )}
+      {gridOpenedFile && gridOpened?.pane === 'review' && gridOpenedFile.kind !== 'doc' && !(gridOpenedFile.kind === 'file' && gridOpenedFile.previewable && storage) && isStudentFolderItem(gridOpenedFile) && (
+        <CohortFileReviewModal
+          key={`${cohortId}-${gridOpenedFile.id}-review`}
+          cohortId={cohortId}
+          file={gridOpenedFile}
+          access={STAFF_REVIEW}
+          open
+          onClose={() => setGridOpened(null)}
+          onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
         />
       )}
     </section>

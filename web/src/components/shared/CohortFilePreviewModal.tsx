@@ -49,7 +49,9 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
   // The file as review changes leave it (status and comment count), shown in the panel.
   const [current, setCurrent] = useState(file)
   useEffect(() => { setCurrent(file) }, [file])
-  const [versionId, setVersionId] = useState<number | null>(null)
+  const [versionSelection, setVersionSelection] = useState<{ fileId: number; versionId: number | null }>({ fileId: file.id, versionId: null })
+  const versionId = versionSelection.fileId === file.id ? versionSelection.versionId : null
+  const setVersionId = (nextVersionId: number | null) => setVersionSelection({ fileId: file.id, versionId: nextVersionId })
   const [versions, setVersions] = useState<CohortFileVersion[]>([])
   const [versionsError, setVersionsError] = useState('')
   const [versionsAttempt, setVersionsAttempt] = useState(0)
@@ -60,6 +62,16 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState('')
   const hasVersions = file.version_number > 1
+
+  useEffect(() => {
+    setVersionSelection({ fileId: file.id, versionId: null })
+    setVersions([])
+    setVersionsError('')
+    setPreview(null)
+    setError('')
+    setDownloadError('')
+    setPane(review ? initialPane : 'preview')
+  }, [cohortId, file.id, initialPane, review])
 
   useEffect(() => {
     if (!open || !hasVersions) return
