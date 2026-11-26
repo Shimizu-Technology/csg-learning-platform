@@ -237,9 +237,22 @@ export function validatePickedFile(asset: PickedFile) {
 }
 
 /** Presign, post the file straight to storage, then publish it. Abandons the still-pending file if any step fails. */
-export async function uploadToMyFolder(api: CsgApi, cohortId: number, asset: PickedFile, folder: string, onProgress: (progress: number) => void) {
+export async function uploadCohortFile(
+  api: CsgApi,
+  cohortId: number,
+  asset: PickedFile,
+  options: { folder: string; studentId?: number | null; visibility?: 'students' | 'staff_only' },
+  onProgress: (progress: number) => void,
+) {
   const { filename, size, contentType } = validatePickedFile(asset);
-  const started = await api.createCohortFile(cohortId, { filename, content_type: contentType, file_size: size, folder });
+  const started = await api.createCohortFile(cohortId, {
+    filename,
+    content_type: contentType,
+    file_size: size,
+    folder: options.folder,
+    ...(options.studentId ? { student_id: options.studentId } : {}),
+    ...(options.visibility ? { visibility: options.visibility } : {}),
+  });
   try {
     // The presigned policy pins the stored type; send the file as that type.
     await postPresignedFile(started.upload_url, started.fields, { uri: asset.uri, name: filename, type: started.fields['Content-Type'] || started.file.content_type || contentType }, onProgress);
@@ -249,6 +262,33 @@ export async function uploadToMyFolder(api: CsgApi, cohortId: number, asset: Pic
     void api.deleteCohortFile(cohortId, started.file.id, { pendingOnly: true }).catch(() => undefined);
     throw error;
   }
+}
+
+export async function uploadToMyFolder(api: CsgApi, cohortId: number, asset: PickedFile, folder: string, onProgress: (progress: number) => void) {
+  return uploadCohortFile(api, cohortId, asset, { folder }, onProgress);
+}
+
+/** Upload a new version of an existing stored file. */
+export async function uploadCohortFileVersion(
+  api: CsgApi,
+  cohortId: number,
+  fileId: number,
+  asset: PickedFile,
+  onProgress: (progress: number) => void,
+) {
+  const { filename, size, contentType } = validatePickedFile(asset);
+  const started = await api.createCohortFileVersion(cohortId, fileId, {
+    filename,
+    content_type: contentType,
+    file_size: size,
+  });
+  await postPresignedFile(
+    started.upload_url,
+    started.fields,
+    { uri: asset.uri, name: filename, type: started.fields['Content-Type'] || contentType || 'application/octet-stream' },
+    onProgress,
+  );
+  return (await api.completeCohortFileVersion(cohortId, fileId, started.version.id)).file;
 }
 
 function postPresignedFile(url: string, fields: Record<string, string>, file: { uri: string; name: string; type: string }, onProgress: (progress: number) => void) {
