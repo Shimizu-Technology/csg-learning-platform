@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { ArrowDown, ArrowUp, ListChecks, Loader2, Play, Plus, Trash2 } from 'lucide-react'
 import {
   CODE_RUNNER_LIMITS,
@@ -42,6 +42,12 @@ export function CodeRunnerSettings({ value, onChange, compact = false }: CodeRun
   const runnableChecks = checks.filter((check) => check.name.trim() && check.code.trim())
   const codeChecks = useCodeChecks(value.language, runnableChecks)
   const codeToTest = testCode.trim() ? testCode : starterCode
+  // Results belong to the checks and code they ran with (useCodeChecks drops them when the checks
+  // or language change); a different test code drops them too, finished or still running.
+  const { reset: resetChecks } = codeChecks
+  useEffect(() => {
+    resetChecks()
+  }, [codeToTest, resetChecks])
   const hint = CHECK_HINTS[value.language]
 
   return (
@@ -109,6 +115,7 @@ export function CodeRunnerSettings({ value, onChange, compact = false }: CodeRun
                 </span>
               ))}{' '}
               (what the code printed). Example: <code className="rounded bg-line/60 px-1 font-mono text-ink-secondary">{hint.example}</code>
+              {value.language === 'ruby' && ". Ruby's built-in classes are frozen while checks run, so code that reopens String or Integer fails them."}
             </p>
             {checks.map((check, index) => (
               <div key={check.id} data-runner-check={check.id} className="space-y-2 rounded-xl border border-line bg-surface-raised p-3">

@@ -1147,7 +1147,7 @@ class GithubIssueDeliveriesConcurrencyTest < ActionDispatch::IntegrationTest
     )
     as_app_user(@instructor) do
       post "/api/v1/submissions/batch_grade",
-        params: { grade: "B", items: [ { submission_id: attempt2.id, base_submission_updated_at: attempt2.updated_at.iso8601(6) } ] },
+        params: { grade: "B", items: [ { submission_id: attempt2.id, base_submission_updated_at: attempt2.updated_at.iso8601(6), expected_content_block_id: @block.id } ] },
         headers: app_headers, as: :json
     end
     assert_response :success

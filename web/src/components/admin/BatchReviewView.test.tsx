@@ -31,7 +31,7 @@ function card(id: number, name: string, text: string | null, overrides: Partial<
 function review(overrides: Partial<NonNullable<BatchReview['exercise']>> = {}, submissions = [card(1, 'Alice', 'puts 10'), card(2, 'Bob', 'puts 9'), card(3, 'Cara', null)]): BatchReview {
   const exercise = {
     content_block_id: 8, title: 'Count to ten', lesson_id: 3, lesson_title: 'Loops', module_id: 2, module_name: 'Week 1', module_position: 0,
-    waiting: submissions.length, has_rubric: false, grading_scale: 'pass_redo' as const, submission_type: 'text_submission', filename: 'count.rb',
+    waiting: submissions.length, has_rubric: false, grading_scale: 'pass_redo' as const, updated_at: '2026-11-26T00:00:00.000001Z', submission_type: 'text_submission', filename: 'count.rb',
     language_hint: null, submission_config: { runner: { enabled: true, language: 'ruby', checks: CHECKS } }, ...overrides,
   }
   return {
@@ -59,6 +59,7 @@ beforeEach(() => {
   ]))
   onOpenReview.mockReset()
   onChooseExercise.mockReset()
+  onBatchGraded.mockReset()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -70,16 +71,27 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+const onBatchGraded = vi.fn()
+function view(contentBlockId: number | null, cohortId = 4) {
+  return (
+    <MemoryRouter>
+      <BatchReviewView cohortId={cohortId} moduleId={null} lessonId={null} contentBlockId={contentBlockId}
+        onChooseExercise={onChooseExercise} onOpenReview={onOpenReview} onExit={vi.fn()} onBatchGraded={onBatchGraded} />
+    </MemoryRouter>
+  )
+}
+
 async function renderView(data: BatchReview, contentBlockId: number | null = 8) {
   vi.spyOn(api, 'getBatchReview').mockResolvedValue({ data, error: null })
-  await act(async () => root.render(
-    <MemoryRouter>
-      <BatchReviewView cohortId={4} moduleId={null} lessonId={null} contentBlockId={contentBlockId}
-        onChooseExercise={onChooseExercise} onOpenReview={onOpenReview} onExit={vi.fn()} />
-    </MemoryRouter>,
-  ))
+  await act(async () => root.render(view(contentBlockId)))
   await settle()
   await settle()
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => { resolve = done })
+  return { promise, resolve }
 }
 
 const selectedIds = () => [...container.querySelectorAll('[data-batch-selected="true"]')].map((element) => Number(element.getAttribute('data-batch-submission')))
@@ -120,7 +132,10 @@ describe('BatchReviewView', () => {
     expect(confirm.mock.calls[0][0].description).toContain("1 of them doesn't have passing automated checks")
     expect(batch).toHaveBeenCalledWith({
       grade: 'P', feedback: 'Nice work!',
-      items: [{ submission_id: 1, base_submission_updated_at: '2026-11-26T00:00:01.123456Z' }, { submission_id: 3, base_submission_updated_at: '2026-11-26T00:00:03.123456Z' }],
+      items: [1, 3].map((id) => ({
+        submission_id: id, base_submission_updated_at: `2026-11-26T00:00:0${id}.123456Z`,
+        expected_content_block_id: 8, expected_content_block_updated_at: '2026-11-26T00:00:00.000001Z',
+      })),
     })
     expect(toast.success).toHaveBeenCalledWith('Approved 1 submission as Pass · 1 skipped')
     expect(container.textContent).toContain('Cara: This submission changed after you opened it.')
@@ -158,5 +173,85 @@ describe('BatchReviewView', () => {
     await renderView(review())
     await act(async () => [...container.querySelectorAll('button')].filter((element) => element.textContent?.includes('Open full review'))[1].click())
     expect(onOpenReview).toHaveBeenCalledWith(2)
+  })
+
+  it('reports a successful approval so the page refreshes its queue', async () => {
+    vi.spyOn(api, 'batchGradeSubmissions').mockResolvedValue({
+      data: { graded: [{ submission_id: 1, user_id: 101, user_name: 'Alice', grade: 'P', graded_at: 'x', updated_at: 'y' }], skipped: [] }, error: null,
+    })
+    await renderView(review())
+    await act(async () => button('Approve selected as Pass (1)')!.click())
+    await settle()
+    expect(onBatchGraded).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows nothing selectable from the previous scope while the next one loads, or after it fails", async () => {
+    await renderView(review())
+    expect(selectedIds()).toEqual([1])
+    const next = deferred<Awaited<ReturnType<typeof api.getBatchReview>>>()
+    vi.spyOn(api, 'getBatchReview').mockReturnValue(next.promise)
+    await act(async () => root.render(view(8, 5)))
+    expect(container.querySelector('[data-batch-submission]')).toBeNull()
+    expect(button('Approve selected as Pass (1)')).toBeUndefined()
+    await act(async () => next.resolve({ data: null, error: 'Could not load batch review.' }))
+    await settle()
+    expect(container.querySelector('[data-batch-submission]')).toBeNull()
+    expect(container.textContent).toContain('Could not load batch review.')
+  })
+
+  it("ignores a slower load for a scope the instructor already left", async () => {
+    const first = deferred<Awaited<ReturnType<typeof api.getBatchReview>>>()
+    const load = vi.spyOn(api, 'getBatchReview').mockReturnValueOnce(first.promise)
+    load.mockResolvedValueOnce({ data: review({ content_block_id: 9, title: 'Second exercise' }, [card(5, 'Eve', 'puts 10')]), error: null })
+    await act(async () => root.render(view(8)))
+    await act(async () => root.render(view(9)))
+    await settle()
+    await act(async () => first.resolve({ data: review(), error: null }))
+    await settle()
+    expect([...container.querySelectorAll('[data-batch-submission]')].map((element) => element.getAttribute('data-batch-submission'))).toEqual(['5'])
+  })
+
+  it("doesn't let an approval started on one exercise reload over the next", async () => {
+    const approval = deferred<Awaited<ReturnType<typeof api.batchGradeSubmissions>>>()
+    vi.spyOn(api, 'batchGradeSubmissions').mockReturnValue(approval.promise)
+    await renderView(review())
+    await act(async () => button('Approve selected as Pass (1)')!.click())
+    const load = vi.spyOn(api, 'getBatchReview').mockResolvedValue({ data: review({ content_block_id: 9, title: 'Second exercise' }, [card(5, 'Eve', 'puts 10')]), error: null })
+    load.mockClear()
+    await act(async () => root.render(view(9)))
+    await settle()
+    expect(load).toHaveBeenCalledTimes(1)
+    await act(async () => approval.resolve({
+      data: { graded: [{ submission_id: 1, user_id: 101, user_name: 'Alice', grade: 'P', graded_at: 'x', updated_at: 'y' }], skipped: [{ submission_id: 2, code: 'stale', reason: 'Changed.' }] },
+      error: null,
+    }))
+    await settle()
+    // The page still learns that work was graded, but exercise 9 is neither reloaded nor annotated.
+    expect(onBatchGraded).toHaveBeenCalledTimes(1)
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(container.textContent).not.toContain('skipped')
+    expect([...container.querySelectorAll('[data-batch-submission]')].map((element) => element.getAttribute('data-batch-submission'))).toEqual(['5'])
+  })
+
+  it("doesn't approve when the scope changed while the confirmation was open", async () => {
+    const answer = deferred<boolean>()
+    confirm.mockReturnValue(answer.promise)
+    const batch = vi.spyOn(api, 'batchGradeSubmissions')
+    await renderView(review())
+    await act(async () => button('Approve selected as Pass (1)')!.click())
+    vi.spyOn(api, 'getBatchReview').mockResolvedValue({ data: review({ content_block_id: 9 }, [card(5, 'Eve', 'puts 10')]), error: null })
+    await act(async () => root.render(view(9)))
+    await settle()
+    await act(async () => answer.resolve(true))
+    await settle()
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('never leaves a card running when the check runner fails', async () => {
+    runCodeChecks.mockRejectedValue(new Error('Worker exploded'))
+    await renderView(review())
+    expect(container.textContent).not.toContain('Running checks')
+    expect(container.textContent).toContain('1 of 1 check failed')
+    expect(selectedIds()).toEqual([])
   })
 })

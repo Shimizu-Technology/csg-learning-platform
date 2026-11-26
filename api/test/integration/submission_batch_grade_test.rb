@@ -95,6 +95,130 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
     assert_empty statements[curriculum_lock...submission_lock].grep(/FROM "submissions".*FOR /m)
   end
 
+  test "with certificates on, no enrollment is locked or upgraded after the submissions are locked, and the certificate is issued" do
+    SchoolSetting.current.update!(features: { certificates: true })
+    curriculum = Curriculum.create!(name: "One drill", grading_scale: "pass_redo")
+    mod = CurriculumModule.create!(curriculum: curriculum, name: "Week 1", position: 0, day_offset: 0, schedule_days: "weekdays", module_type: :live_class)
+    lesson = Lesson.create!(curriculum_module: mod, title: "Only lesson", position: 0, release_day: 0, requires_submission: true, published: true, required: true)
+    block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Only drill", submission_type: :text_submission)
+    cohort = Cohort.create!(curriculum: curriculum, name: "Certificates", start_date: Date.current, status: :active, settings: { features: { certificates: true } })
+    cohort.cohort_instructor_assignments.create!(user: @instructor)
+    _, enrollment, submission = learner("ivy", cohort, block: block)
+    _, _, other = learner("jon", cohort, block: block)
+
+    statements = []
+    recorder = ->(*, payload) { statements << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record") do
+      as_user(@instructor) do
+        post "/api/v1/submissions/batch_grade", params: batch_params("P", [ submission, other ]), headers: auth_headers, as: :json
+      end
+    end
+    assert_response :success
+    assert_equal 2, response.parsed_body.fetch("graded").length
+
+    submission_lock = statements.index { |sql| sql.match?(/FROM "submissions".*FOR NO KEY UPDATE/m) }
+    assert submission_lock, statements.grep(/FOR /).inspect
+    # Everything after the submission locks, through the end of the transaction (and the request).
+    after_submissions = statements[(submission_lock + 1)..]
+    assert_empty after_submissions.grep(/FROM "enrollments".*FOR /m), "no enrollment lock after the submissions are locked"
+    assert_empty statements.grep(/FROM "enrollments".*FOR UPDATE/m), "the enrollment lock is never upgraded to FOR UPDATE"
+    assert enrollment.reload.completed_at, "certificate evaluation still ran under the batch's lock"
+    assert_equal 1, enrollment.certificates.count
+  end
+
+  test "an approval skips work a cohort copy remapped after the review loaded" do
+    as_user(@instructor) { get "/api/v1/submissions/batch_review", params: { cohort_id: @cohort.id, content_block_id: @block.id }, headers: auth_headers }
+    assert_response :success
+    loaded = response.parsed_body
+    stale_items = loaded.fetch("submissions").map do |row|
+      { submission_id: row["id"], base_submission_updated_at: row["updated_at"],
+        expected_content_block_id: loaded.dig("exercise", "content_block_id"), expected_content_block_updated_at: loaded.dig("exercise", "updated_at") }
+    end
+
+    CurriculumCopyForCohort.new(cohort: @cohort, user: @admin, source_curriculum_id: @curriculum.id).copy!
+    moved_block = @alice_submission.reload.content_block_id
+    assert_not_equal @block.id, moved_block, "the copy remapped the submission to the cohort's own block"
+
+    as_user(@instructor) do
+      post "/api/v1/submissions/batch_grade", params: { grade: "P", items: stale_items }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal [ "content_moved" ], response.parsed_body.fetch("skipped").map { |row| row["code"] }.uniq
+    assert_nil @alice_submission.reload.grade
+  end
+
+  test "an approval skips work whose exercise was edited after the review loaded" do
+    items = [ item(@alice_submission) ]
+    @block.update!(submission_config: { "runner" => { "enabled" => true, "language" => "ruby", "checks" => [ { "id" => "c2", "name" => "New", "code" => "assert false" } ] } })
+    as_user(@instructor) do
+      post "/api/v1/submissions/batch_grade", params: { grade: "P", items: items }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal "exercise_changed", response.parsed_body.dig("skipped", 0, "code")
+    assert_nil @alice_submission.reload.grade
+  end
+
+  test "graded reports what this batch wrote, and one failed notification doesn't stop the others" do
+    calls = 0
+    original = SubmissionNotificationJob.method(:perform_later)
+    SubmissionNotificationJob.define_singleton_method(:perform_later) do |*args|
+      calls += 1
+      raise "queue unavailable" if calls == 1
+
+      original.call(*args)
+    end
+    begin
+      assert_enqueued_jobs 1, only: SubmissionNotificationJob do
+        as_user(@instructor) do
+          post "/api/v1/submissions/batch_grade", params: batch_params("P", [ @alice_submission, @bob_submission ]), headers: auth_headers, as: :json
+        end
+      end
+    ensure
+      SubmissionNotificationJob.define_singleton_method(:perform_later, original)
+    end
+    assert_response :success
+    assert_equal 2, calls
+    graded = response.parsed_body.fetch("graded")
+    [ @alice_submission, @bob_submission ].each do |submission|
+      row = graded.find { |entry| entry["submission_id"] == submission.id }
+      submission.reload
+      assert_equal [ "P", submission.graded_at.iso8601(6), submission.updated_at.iso8601(6) ], row.values_at("grade", "graded_at", "updated_at")
+    end
+  end
+
+  test "batch review answers an inaccessible cohort exactly like a missing one" do
+    as_user(@instructor) { get "/api/v1/submissions/batch_review", params: { cohort_id: @other_cohort.id }, headers: auth_headers }
+    hidden = [ response.status, response.body ]
+    as_user(@instructor) { get "/api/v1/submissions/batch_review", params: { cohort_id: 9_999_999 }, headers: auth_headers }
+    assert_equal hidden, [ response.status, response.body ]
+    assert_equal 404, hidden.first
+  end
+
+  test "batch review counts every waiting attempt but loads one batch, even for an exercise past the options cap" do
+    48.times { |index| learner("extra#{index}", @cohort) }
+    learner("solo", @cohort, block: @other_block)
+    original = SubmissionBatchReview::MAX_EXERCISES
+    silence_warnings { SubmissionBatchReview.const_set(:MAX_EXERCISES, 1) }
+    begin
+      as_user(@instructor) { get "/api/v1/submissions/batch_review", params: { cohort_id: @cohort.id }, headers: auth_headers }
+      body = response.parsed_body
+      assert_equal [ 50, 50, 50 ], [ body.fetch("total_count"), body.dig("exercise", "waiting"), body.fetch("submissions").length ]
+
+      learner("fifty-first", @cohort)
+      as_user(@instructor) { get "/api/v1/submissions/batch_review", params: { cohort_id: @cohort.id }, headers: auth_headers }
+      body = response.parsed_body
+      assert_equal [ 51, 51, 50 ], [ body.fetch("total_count"), body.dig("exercise", "waiting"), body.fetch("submissions").length ]
+
+      # The options list stops at the cap, but a chosen exercise past it still reports its work.
+      as_user(@instructor) { get "/api/v1/submissions/batch_review", params: { cohort_id: @cohort.id, content_block_id: @other_block.id }, headers: auth_headers }
+      body = response.parsed_body
+      assert_equal [ @block.id ], body.fetch("exercises").map { |row| row["content_block_id"] }
+      assert_equal [ 1, 1 ], [ body.dig("exercise", "waiting"), body.fetch("total_count") ]
+    ensure
+      silence_warnings { SubmissionBatchReview.const_set(:MAX_EXERCISES, original) }
+    end
+  end
+
   test "refuses Redo, A, C, enum integers and anything else before any lock" do
     [ "R", "A", "C", 4, "4", "p", nil, [ "P" ] ].each do |grade|
       statements = []
@@ -117,7 +241,12 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
       [] => "Choose at least one submission to approve.",
       nil => "Choose at least one submission to approve.",
       Array.new(51) { |index| { submission_id: index + 1, base_submission_updated_at: base } } => "Approve at most 50 submissions at a time.",
-      [ { submission_id: @alice_submission.id, base_submission_updated_at: base } ] * 2 => "Each submission can appear only once.",
+      [ { submission_id: @alice_submission.id, base_submission_updated_at: base, expected_content_block_id: @block.id } ] * 2 => "Each submission can appear only once.",
+      [ { submission_id: @alice_submission.id, base_submission_updated_at: base } ] => "Each expected_content_block_id must be a positive integer.",
+      [ item(@alice_submission).merge(expected_content_block_id: "#{@block.id}") ] => "Each expected_content_block_id must be a positive integer.",
+      [ item(@alice_submission).merge(expected_content_block_updated_at: "soon") ] => "Each expected_content_block_updated_at must be an ISO 8601 timestamp.",
+      [ item(@alice_submission).merge(passed: true) ] =>
+        "Each item may only have submission_id, base_submission_updated_at, expected_content_block_id, and expected_content_block_updated_at.",
       [ { submission_id: "#{@alice_submission.id}", base_submission_updated_at: base } ] => "Each submission_id must be a positive integer.",
       [ { submission_id: 0, base_submission_updated_at: base } ] => "Each submission_id must be a positive integer.",
       [ { submission_id: @alice_submission.id, base_submission_updated_at: "yesterday" } ] => "Each base_submission_updated_at must be an ISO 8601 timestamp.",
@@ -137,7 +266,7 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
   test "skips work outside the instructor's cohorts exactly like a missing id, and never grades it" do
     as_user(@instructor) do
       post "/api/v1/submissions/batch_grade",
-        params: { grade: "P", items: [ item(@alice_submission), item(@carol_submission), { submission_id: 9_999_999, base_submission_updated_at: Time.current.iso8601 } ] },
+        params: { grade: "P", items: [ item(@alice_submission), item(@carol_submission), { submission_id: 9_999_999, base_submission_updated_at: Time.current.iso8601, expected_content_block_id: @block.id } ] },
         headers: auth_headers, as: :json
     end
     assert_response :success
@@ -183,7 +312,7 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
     as_user(@instructor) do
       post "/api/v1/submissions/batch_grade", params: {
         grade: "P",
-        items: [ { submission_id: @alice_submission.id, base_submission_updated_at: stale_base }, item(@bob_submission), item(graded), item(rubric_submission), item(fresh) ]
+        items: [ { submission_id: @alice_submission.id, base_submission_updated_at: stale_base, expected_content_block_id: @block.id }, item(@bob_submission), item(graded), item(rubric_submission), item(fresh) ]
       }, headers: auth_headers, as: :json
     end
     assert_response :success
@@ -301,7 +430,7 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
     as_user(@instructor) do
       get "/api/v1/submissions/batch_review", params: { cohort_id: @other_cohort.id }, headers: auth_headers
     end
-    assert_response :forbidden
+    assert_response :not_found
   end
 
   test "batch review of a block outside the viewer's curricula reveals nothing" do
@@ -328,7 +457,9 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
   end
 
   def item(submission)
-    { submission_id: submission.id, base_submission_updated_at: submission.reload.updated_at.iso8601(6) }
+    submission.reload
+    { submission_id: submission.id, base_submission_updated_at: submission.updated_at.iso8601(6),
+      expected_content_block_id: submission.content_block_id, expected_content_block_updated_at: submission.content_block.updated_at.iso8601(6) }
   end
 
   def batch_params(grade, submissions, feedback: nil)

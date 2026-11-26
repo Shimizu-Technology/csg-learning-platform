@@ -439,9 +439,10 @@ class ContentBlock < ApplicationRecord
     exercise_check_policies.active.update_all(active: false, updated_at: Time.current)
   end
 
-  # Trims the runner's text fields and drops empty optional ones, so a blank
-  # starter or an empty check list reads the same as none. Unknown shapes are
-  # left for submission_runner_is_valid to refuse.
+  # Trims the runner's text fields and drops empty optional ones, so a null or
+  # blank starter and a null or empty check list read the same as none. Values
+  # keep their JSON types: anything else is left for submission_runner_is_valid
+  # to refuse ("true" is not a boolean).
   def normalize_submission_runner
     return unless submission_config.is_a?(Hash)
 
@@ -450,7 +451,6 @@ class ContentBlock < ApplicationRecord
     return self.submission_config = config unless runner.is_a?(Hash)
 
     runner = runner.dup
-    runner["enabled"] = runner["enabled"] == "true" if %w[true false].include?(runner["enabled"])
     runner["language"] = runner["language"].strip.downcase if runner["language"].is_a?(String)
     runner.delete("starter_code") if runner.key?("starter_code") && (runner["starter_code"].nil? || runner["starter_code"] == "")
     if runner["checks"].is_a?(Array)

@@ -84,6 +84,7 @@ describe('runCodeChecks', () => {
     await vi.advanceTimersByTimeAsync(2_000)
     const run = await promise
     expect(FakeWorker.instances).toHaveLength(1)
+    expect(run.results).toHaveLength(CHECKS.length)
     expect(run.results.every((result) => !result.passed && result.timedOut && result.error?.includes('Stopped after 100ms'))).toBe(true)
   })
 
@@ -104,6 +105,31 @@ describe('runCodeChecks', () => {
     await vi.advanceTimersByTimeAsync(50)
     await Promise.all([first, second])
     expect(order).toEqual(['first', 'second'])
+  })
+
+  it('fails the checks cleanly when the worker cannot be created', async () => {
+    vi.stubGlobal('Worker', class { constructor() { throw new Error('Workers are blocked') } })
+    const { runCodeChecks } = await import('./codeChecks')
+    const run = await runCodeChecks({ language: 'ruby', code: 'x', checks: CHECKS })
+    expect(run).toMatchObject({ passed: 0, failed: 3, total: 3, timedOut: false })
+    expect(run.results.every((result) => result.error === 'Workers are blocked')).toBe(true)
+  })
+
+  it('fails the checks cleanly, and replaces the worker, when sending to it throws', async () => {
+    FakeWorker.respond = () => { throw new DOMException('could not be cloned', 'DataCloneError') }
+    const { runCodeChecks } = await import('./codeChecks')
+    const run = await runCodeChecks({ language: 'javascript', code: 'x', checks: CHECKS })
+    expect(run).toMatchObject({ failed: 3, timedOut: false })
+    expect(run.results[0].error).toBe('could not be cloned')
+    expect(FakeWorker.instances[0].terminated).toBe(true)
+    expect(FakeWorker.instances[0].listeners.message).toEqual([])
+    // The next run gets a fresh worker.
+    FakeWorker.respond = (worker, request) => {
+      request.checks.forEach((_, offset) => pass(worker, request, request.startIndex + offset))
+      worker.emit({ id: request.id, type: 'checks_done' })
+    }
+    expect(await runCodeChecks({ language: 'javascript', code: 'x', checks: CHECKS })).toMatchObject({ passed: 3 })
+    expect(FakeWorker.instances).toHaveLength(2)
   })
 
   it('summarizes counts in plain words', async () => {

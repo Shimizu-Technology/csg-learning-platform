@@ -29,12 +29,17 @@ class SubmissionBatchGrade
     "already_graded" => "This submission was already graded.",
     "stale" => "This submission changed after you opened it. Reload and review it again.",
     "content_moved" => "This exercise moved to its cohort's own copy. Reload and review it again.",
+    "exercise_changed" => "This exercise changed after you loaded it. Reload and review it again.",
     "learning_state_reset" => "This student's class progress was restarted. Reload and review it again.",
     "off_scale" => "This course's grading scale doesn't use that grade. Reload and review it again.",
     "rubric" => "Requires individual rubric grading."
   }.freeze
 
-  Item = Data.define(:submission_id, :base_updated_at)
+  ITEM_KEYS = %w[submission_id base_submission_updated_at expected_content_block_id expected_content_block_updated_at].freeze
+
+  # expected_content_block_id is the exercise the reviewer saw (a cohort copy remaps it), and
+  # expected_content_block_updated_at its version (an edit to its checks or rubric changes it).
+  Item = Data.define(:submission_id, :base_updated_at, :content_block_id, :content_block_updated_at)
 
   class Invalid < StandardError; end
 
@@ -46,23 +51,34 @@ class SubmissionBatchGrade
     items = raw.map do |entry|
       entry = entry.to_unsafe_h if entry.respond_to?(:to_unsafe_h)
       raise Invalid, "Each item needs a submission_id and base_submission_updated_at." unless entry.is_a?(Hash)
+      raise Invalid, "Each item may only have #{ITEM_KEYS.to_sentence}." unless (entry.keys.map(&:to_s) - ITEM_KEYS).empty?
 
       id = entry["submission_id"]
       raise Invalid, "Each submission_id must be a positive integer." unless id.is_a?(Integer) && id.positive?
 
-      stamp = entry["base_submission_updated_at"]
-      base = begin
-        Time.iso8601(stamp) if stamp.is_a?(String)
-      rescue ArgumentError
-        nil
-      end
+      base = iso8601(entry["base_submission_updated_at"])
       raise Invalid, "Each base_submission_updated_at must be an ISO 8601 timestamp." unless base
 
-      Item.new(submission_id: id, base_updated_at: base)
+      block_id = entry["expected_content_block_id"]
+      raise Invalid, "Each expected_content_block_id must be a positive integer." unless block_id.is_a?(Integer) && block_id.positive?
+
+      block_version = nil
+      unless entry["expected_content_block_updated_at"].nil?
+        block_version = iso8601(entry["expected_content_block_updated_at"])
+        raise Invalid, "Each expected_content_block_updated_at must be an ISO 8601 timestamp." unless block_version
+      end
+
+      Item.new(submission_id: id, base_updated_at: base, content_block_id: block_id, content_block_updated_at: block_version)
     end
     raise Invalid, "Each submission can appear only once." if items.map(&:submission_id).uniq.length != items.length
 
     items
+  end
+
+  def self.iso8601(value)
+    Time.iso8601(value) if value.is_a?(String)
+  rescue ArgumentError
+    nil
   end
 
   def initialize(viewer:, grade:, feedback:, items:, request_started_at:, school_features: FeatureSwitches.school(read_only: true))
@@ -78,6 +94,7 @@ class SubmissionBatchGrade
 
   def call
     writers = []
+    graded = []
     ApplicationRecord.uncached do
       candidates = read_candidates
       next if candidates.empty?
@@ -104,20 +121,24 @@ class SubmissionBatchGrade
           writer.record!(grade: @grade, feedback: @feedback, grading_scale: scales.fetch(candidates.fetch(id)[:curriculum_id]),
             evaluate_completion: false)
           writers << writer
+          # What this batch wrote, before any later delivery step reloads the row.
+          graded << { submission_id: submission.id, user_id: submission.user_id, user_name: submission.user.full_name, grade: submission.grade,
+            graded_at: submission.graded_at.iso8601(6), updated_at: submission.updated_at.iso8601(6) }
         end
 
-        # Once per learner, after all of their grades: the same check a single grade runs.
+        # Once per learner, after all of their grades: the same check a single grade runs. The
+        # enrollment is already locked above, so certificates never upgrade that lock now.
         writers.map { |writer| writer.submission.enrollment }.uniq(&:id).sort_by(&:id).each do |enrollment|
-          CourseCompletion.evaluate!(enrollment, actor: @viewer)
+          CourseCompletion.evaluate!(enrollment, actor: @viewer, locked: true)
         end
       end
     end
 
-    writers.each(&:deliver!)
-    graded = writers.map do |writer|
-      submission = writer.submission
-      { submission_id: submission.id, user_id: submission.user_id, user_name: submission.user.full_name, grade: submission.grade,
-        graded_at: submission.graded_at.iso8601(6), updated_at: submission.updated_at.iso8601(6) }
+    # After commit, one submission's notification failing never stops the others or the response.
+    writers.each do |writer|
+      writer.deliver!
+    rescue StandardError => error
+      Rails.logger.error("Batch grade delivery failed for submission #{writer.submission.id}: #{error.class}: #{error.message}")
     end
     { graded: graded, skipped: @items.filter_map { |item| @skipped[item.submission_id] } }
   end
@@ -133,7 +154,9 @@ class SubmissionBatchGrade
       .where(id: by_id.keys)
       .pluck("submissions.id", "submissions.enrollment_id", "enrollments.cohort_id", "modules.curriculum_id")
     candidates = rows.select { |_, _, cohort_id, _| @scope.visible?(cohort_id) }.to_h do |id, enrollment_id, _, curriculum_id|
-      [ id, { enrollment_id: enrollment_id, curriculum_id: curriculum_id, base_updated_at: by_id.fetch(id).base_updated_at } ]
+      item = by_id.fetch(id)
+      [ id, { enrollment_id: enrollment_id, curriculum_id: curriculum_id, base_updated_at: item.base_updated_at,
+              content_block_id: item.content_block_id, content_block_updated_at: item.content_block_updated_at } ]
     end
     @items.each { |item| skip!(item.submission_id, "not_found") unless candidates.key?(item.submission_id) }
     candidates
@@ -148,6 +171,9 @@ class SubmissionBatchGrade
     # A cohort copy moved this work to its own curriculum after it was read:
     # the scale locked above is the wrong one.
     return "content_moved" unless submission.content_block.lesson.curriculum_module.curriculum_id == candidate[:curriculum_id]
+    # A cohort copy finished between loading the review and approving it: the block was remapped.
+    return "content_moved" unless submission.content_block_id == candidate[:content_block_id]
+    return "exercise_changed" if candidate[:content_block_updated_at] && submission.content_block.updated_at != candidate[:content_block_updated_at]
     return "off_scale" unless Curriculum.grades_for_scale(scales.fetch(candidate[:curriculum_id])).include?(@grade)
     return "superseded" unless latest_ids[submission.attempt_key] == submission.id
     return "already_graded" unless submission.grade.nil?

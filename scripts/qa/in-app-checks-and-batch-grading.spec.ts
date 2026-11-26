@@ -13,7 +13,9 @@ import { checkedLifecycle } from './ownership.mjs'
  * 3. the instructor's Grading workbench runs the exercise's checks on the saved text and
  *    Select Pass only chooses Pass; Save grades it;
  * 4. Batch review runs the JavaScript checks on three students' work, selects the two that
- *    pass, the instructor unticks one outlier and approves the other as Pass.
+ *    pass, the instructor unticks one outlier and approves the other as Pass;
+ * 5. Ruby can't reach JavaScript (Run and Run checks) or forge a pass by redefining Ruby: the
+ *    tampering submission fails in Batch review and in the workbench.
  * Needs in-app-checks-and-batch-grading-fixtures.rb first (see that file). Run from web/:
  *   DEV_LIFECYCLE_SESSION=<id> QA_SPEC=in-app-checks-and-batch-grading.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts
  */
@@ -25,8 +27,10 @@ interface RunFixtures {
   lesson_id: number
   ruby_block_id: number
   js_block_id: number
+  tamper_block_id: number
   student_id: number
   batch: Record<'pass' | 'outlier' | 'fail', { submission_id: number; user_name: string }>
+  ruby_batch: Record<'honest' | 'tamper', { submission_id: number; user_name: string }>
 }
 const fixtures = JSON.parse(readFileSync(fileURLToPath(new URL('../../.qa-local/in-app-checks-and-batch-grading.json', import.meta.url)), 'utf8')) as Record<string, RunFixtures>
 const state = JSON.parse(readFileSync(new URL('../../.qa-local/state.json', import.meta.url), 'utf8'))
@@ -279,6 +283,49 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.locator('[data-runner-checks]')).toHaveAttribute('data-runner-checks', 'failed', { timeout: WASM_TIMEOUT })
       await expect(page.getByText('2 of 3 checks failed · Review for Redo')).toBeVisible()
       await evidence(page, 'batch-open-full-review', theme, info.project.name, '[aria-label="Submission review"]')
+      expect(errors).toEqual([])
+    })
+
+    test("Ruby can't reach JavaScript or forge a passing check, for the student or the instructor", async ({ page }, info) => {
+      const errors = watchErrors(page)
+      const ids = run(info.project.name)
+      const probes: string[] = []
+      page.on('request', (request) => { if (request.url().includes('qa-bridge-probe')) probes.push(request.url()) })
+      const forged: unknown[] = []
+      page.on('console', (message) => { if (message.text().includes('FORGED')) forged.push(message.text()) })
+
+      // The student's own runner: the JavaScript bridge is gone from Run and from Run checks.
+      await open(page, `/lessons/${ids.lesson_id}?cohort_id=${ids.cohort_id}`, ids.student_id, theme)
+      const block = page.locator(`#block-${ids.tamper_block_id}`)
+      await expect(block.getByRole('button', { name: 'Run checks' })).toBeVisible({ timeout: 30_000 })
+      const bridge = 'require "js"\nJS.global[:fetch].call("/qa-bridge-probe")\nJS.eval("console.log(\'FORGED\'); self.postMessage({ id: \'x\', type: \'checks_done\' })")\ndef add(a, b) = a + b'
+      await replaceCode(page, block, bridge)
+      await block.getByRole('button', { name: 'Run', exact: true }).click()
+      await expect(block.getByText('JavaScript access is turned off in the code runner.')).toBeVisible({ timeout: WASM_TIMEOUT })
+      await block.getByRole('button', { name: 'Run checks' }).click()
+      await expect(block.getByText('1 of 1 check failed')).toBeVisible({ timeout: WASM_TIMEOUT })
+      await evidence(page, 'student-bridge-blocked', theme, info.project.name, `#block-${ids.tamper_block_id}`)
+      expect(probes, 'no request from student Ruby').toEqual([])
+      expect(forged, 'no JavaScript ran from student Ruby').toEqual([])
+
+      // The instructor's browser: the tampering submission fails, the honest one passes.
+      await open(page, `/admin/grading?cohort_id=${ids.cohort_id}&mode=batch&exercise_id=${ids.tamper_block_id}`, 2, theme)
+      const view = page.getByRole('region', { name: 'Batch review' })
+      const honest = view.locator(`[data-batch-submission="${ids.ruby_batch.honest.submission_id}"]`)
+      const tamper = view.locator(`[data-batch-submission="${ids.ruby_batch.tamper.submission_id}"]`)
+      await expect(honest.getByText('1 of 1 check passed')).toBeVisible({ timeout: WASM_TIMEOUT })
+      await expect(tamper.getByText('1 of 1 check failed')).toBeVisible({ timeout: WASM_TIMEOUT })
+      await expect(honest).toHaveAttribute('data-batch-selected', 'true')
+      await expect(tamper).toHaveAttribute('data-batch-selected', 'false')
+      await evidence(page, 'batch-tamper', theme, info.project.name, '[aria-label="Batch review"]')
+      await tamper.getByRole('button', { name: 'Open full review' }).click()
+      const card = page.locator('[data-runner-checks]')
+      await expect(card).toHaveAttribute('data-runner-checks', 'failed', { timeout: WASM_TIMEOUT })
+      await expect(card.getByRole('button', { name: /^Select / })).toHaveCount(0)
+      // A failing card opens its details.
+      await expect(card.getByText(/^Expected 5, got/)).toBeVisible()
+      expect(probes).toEqual([])
+      expect(forged).toEqual([])
       expect(errors).toEqual([])
     })
   })

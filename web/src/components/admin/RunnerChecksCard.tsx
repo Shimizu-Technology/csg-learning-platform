@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { CheckCircle2, ListChecks, Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import type { CodeRunnerCheck, CodeRunnerLanguage } from '../../lib/codeRunner'
 import { useCodeChecks } from '../../lib/useCodeChecks'
@@ -36,14 +36,12 @@ export function RunnerChecksCard({
   disabled: boolean
   onSelectSuggested: (grade: 'P' | 'B') => void
 }) {
-  const checksKey = JSON.stringify(checks)
-  // A stable list for the hook, rebuilt only when the checks themselves change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const stableChecks = useMemo(() => checks, [checksKey])
-  const { running, run, start } = useCodeChecks(language, stableChecks)
+  const { running, run: lastRun, ranCode, start } = useCodeChecks(language, checks)
   useEffect(() => {
     void start(code)
   }, [submissionId, code, start])
+  // Only a finished run on exactly this code (and these checks) may suggest a grade.
+  const run = !running && ranCode === code ? lastRun : null
 
   const suggested = checksSuggestedGrade(gradingScale)
   const allPassed = Boolean(run && run.failed === 0)

@@ -9698,7 +9698,7 @@
           "submission_config": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "metadata": {
             "type": "object",
@@ -10550,11 +10550,24 @@
                 "base_submission_updated_at": {
                   "type": "string",
                   "description": "The submission's updated_at (ISO 8601) as the reviewer saw it. A submission changed since is skipped as stale."
+                },
+                "expected_content_block_id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The exercise the reviewer loaded (batch_review's exercise.content_block_id). If a cohort copy has since remapped it, the item is skipped as content_moved."
+                },
+                "expected_content_block_updated_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Optional: the exercise's updated_at as loaded. If the exercise was edited since (its checks or rubric, say), the item is skipped as exercise_changed."
                 }
               },
               "required": [
                 "submission_id",
-                "base_submission_updated_at"
+                "base_submission_updated_at",
+                "expected_content_block_id"
               ],
               "additionalProperties": false
             },
@@ -10617,11 +10630,12 @@
               "already_graded",
               "stale",
               "content_moved",
+              "exercise_changed",
               "learning_state_reset",
               "off_scale",
               "rubric"
             ],
-            "description": "not_found also covers submissions outside the viewer's cohorts. superseded: a newer attempt exists. already_graded. stale: changed since base_submission_updated_at. content_moved: moved to a cohort copy. learning_state_reset: the learner's progress was restarted. off_scale: the grade isn't on the curriculum's scale. rubric: the exercise uses a rubric and is graded individually."
+            "description": "not_found also covers submissions outside the viewer's cohorts. superseded: a newer attempt exists. already_graded. stale: changed since base_submission_updated_at. content_moved: moved to a cohort copy (including after the review loaded). exercise_changed: the exercise was edited after the review loaded. learning_state_reset: the learner's progress was restarted. off_scale: the grade isn't on the curriculum's scale. rubric: the exercise uses a rubric and is graded individually."
           },
           "reason": {
             "type": "string"
@@ -10784,6 +10798,10 @@
               "pass_redo"
             ]
           },
+          "updated_at": {
+            "type": "string",
+            "description": "The exercise's version: send it back as expected_content_block_updated_at."
+          },
           "submission_type": {
             "type": "string"
           },
@@ -10802,7 +10820,7 @@
           "submission_config": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           }
         },
         "required": [
@@ -10816,6 +10834,7 @@
           "waiting",
           "has_rubric",
           "grading_scale",
+          "updated_at",
           "submission_type",
           "filename",
           "language_hint",
@@ -11317,7 +11336,7 @@
           "submission_config": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "language_hint": {
             "type": [
@@ -16085,7 +16104,7 @@
           "submission_config": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "metadata": {
             "type": "object",
@@ -18955,7 +18974,7 @@
           "submission_config": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "metadata": {
             "type": "object",

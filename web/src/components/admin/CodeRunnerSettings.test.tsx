@@ -86,4 +86,18 @@ describe('CodeRunnerSettings', () => {
     expect(runCodeChecks).toHaveBeenCalledWith(expect.objectContaining({ code: 'function add(a, b) { return a + b }' }))
     expect(container.textContent).toContain('1 of 1 check passed')
   })
+
+  it('drops test results when the test code or the checks change', async () => {
+    await act(async () => root.render(<Harness initial={{ enabled: true, language: 'ruby', starterCode: 'x = 1', checks: [{ id: 'a', name: 'One', code: 'assert true' }] }} />))
+    runCodeChecks.mockResolvedValue(summarizeCodeChecks([{ id: 'a', name: 'One', passed: true, timedOut: false, error: null, stdout: '', durationMs: 1 }]))
+    await act(async () => button('Test checks').click())
+    expect(container.textContent).toContain('1 of 1 check passed')
+    await act(async () => type([...container.querySelectorAll('textarea')].at(-1)!, 'x = 2'))
+    expect(container.textContent).not.toContain('1 of 1 check passed')
+
+    await act(async () => button('Test checks').click())
+    expect(container.textContent).toContain('1 of 1 check passed')
+    await act(async () => type(field('Check 1 code'), 'assert false'))
+    expect(container.textContent).not.toContain('1 of 1 check passed')
+  })
 })

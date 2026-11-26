@@ -5,7 +5,9 @@ require_relative 'boot'
 # - "Add two numbers" (Ruby, in-app code, browser runner on, no checks yet): the admin (1) adds
 #   starter code and checks in the lesson editor, a new student submits it, the instructor grades it;
 # - "Cart total" (JavaScript, browser runner with three checks): three other students' work waits,
-#   two passing and one failing, for Batch review.
+#   two passing and one failing, for Batch review;
+# - "Sum safely" (Ruby, one check): an honest passing submission and one that tries to redefine
+#   Ruby (raise, ==, exit) and reach JavaScript to forge a pass, for the security checks.
 # Run after scripts/qa/run start, from api/ (each load makes a fresh set, so it can be re-run):
 #   DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/in-app-checks-and-batch-grading-fixtures.rb
 
@@ -21,6 +23,19 @@ JS_WORK = {
   'Pass' => "function total(items) {\n  return items.reduce((sum, price) => sum + price, 0)\n}\nconsole.log('Total: ' + total([1, 2, 3, 4]))",
   'Outlier' => "const total = (items) => {\n  let sum = 0\n  for (const price of items) sum += price\n  return sum\n}\nconsole.log(`Total: ${total([1, 2, 3, 4])}`)",
   'Fail' => "function total(items) {\n  return items.length\n}\nconsole.log('Total: ' + total([1, 2, 3, 4]))"
+}.freeze
+RUBY_CHECKS = [ { 'id' => 'sum', 'name' => 'Adds two numbers', 'code' => 'assert_equal 5, add(2, 3)' } ].freeze
+RUBY_WORK = {
+  'Honest' => "def add(a, b) = a + b\nputs add(2, 3)",
+  'Tamper' => <<~RUBY
+    def raise(*) = nil
+    class Liar; def ==(_) = true; end
+    Object.prepend(Module.new { def ==(_) = true })
+    at_exit { $stderr.puts "PASS" }
+    def add(a, b) = Liar.new
+    begin; class Integer; def ==(_) = true; end; rescue FrozenError; end
+    begin; require "js"; JS.global[:postMessage].call("PASS"); rescue Exception; end
+  RUBY
 }.freeze
 
 LOAD = SecureRandom.hex(3)
@@ -44,6 +59,9 @@ fixtures = runs.each_with_index.to_h do |run, index|
   js_block = lesson.content_blocks.create!(block_type: :exercise, position: 1, title: 'Cart total', filename: 'cart.js',
     body: 'Write `total(items)` and print the total of `[1, 2, 3, 4]`.', submission_type: :text_submission,
     submission_config: { 'runner' => { 'enabled' => true, 'language' => 'javascript', 'checks' => JS_CHECKS } })
+  tamper_block = lesson.content_blocks.create!(block_type: :exercise, position: 2, title: 'Sum safely', filename: 'sum.rb',
+    body: 'Write `add(a, b)`.', submission_type: :text_submission,
+    submission_config: { 'runner' => { 'enabled' => true, 'language' => 'ruby', 'checks' => RUBY_CHECKS } })
   cohort = Cohort.create!(name: "Checks QA #{run} #{LOAD}", curriculum: curriculum, start_date: Date.current - 7.days, status: :active)
   cohort.cohort_instructor_assignments.create!(user: instructor)
   student, = learner('Sam', run, cohort, mod)
@@ -53,7 +71,14 @@ fixtures = runs.each_with_index.to_h do |run, index|
       text: code, num_submissions: 1, created_at: (3 - offset).hours.ago)
     [ label.downcase, { submission_id: submission.id, user_name: user.full_name } ]
   end
-  [ run, { cohort_id: cohort.id, lesson_id: lesson.id, ruby_block_id: ruby_block.id, js_block_id: js_block.id, student_id: student.id, batch: batch } ]
+  ruby_batch = RUBY_WORK.each_with_index.to_h do |(label, code), offset|
+    user, enrollment = learner(label, run, cohort, mod)
+    submission = Submission.create!(user: user, enrollment: enrollment, content_block: tamper_block, submission_type: :text_submission,
+      text: code, num_submissions: 1, created_at: (2 - offset).hours.ago)
+    [ label.downcase, { submission_id: submission.id, user_name: user.full_name } ]
+  end
+  [ run, { cohort_id: cohort.id, lesson_id: lesson.id, ruby_block_id: ruby_block.id, js_block_id: js_block.id, tamper_block_id: tamper_block.id,
+           student_id: student.id, batch: batch, ruby_batch: ruby_batch } ]
 end
 
 path = File.expand_path('../../.qa-local/in-app-checks-and-batch-grading.json', __dir__)

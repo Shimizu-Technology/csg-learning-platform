@@ -69,6 +69,7 @@ import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPa
 import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
 import { useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { useToast } from '../../contexts/ToastContext'
+import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 
 // The workbench's view lives in the URL (L-0.6, #251): scope, status, filters and order push
 // history; the open review replaces it. A copied link or a reload restores the same queue.
@@ -392,6 +393,10 @@ export function Grading() {
           onChooseExercise={chooseBatchExercise}
           onOpenReview={openFromBatch}
           onExit={() => setUrlState({ mode: 'queue', exercise_id: null })}
+          onBatchGraded={() => {
+            invalidateRecordQueues()
+            void reloadQueue(selectedId)
+          }}
         />
       ) : (
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">

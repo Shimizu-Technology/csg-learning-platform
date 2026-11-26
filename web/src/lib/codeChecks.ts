@@ -79,10 +79,26 @@ export function summarizeCodeChecks(results: CodeCheckResult[]): CodeChecksRun {
   }
 }
 
+// A DOMException (say, a message that can't be cloned) carries a message without being an Error.
+const errorText = (error: unknown, fallback: string) => {
+  const message = error && typeof error === 'object' ? (error as { message?: unknown }).message : null
+  return typeof message === 'string' && message ? message : fallback
+}
+
+/** Every check failed with `reason`, without running. */
+export function failedCodeChecks(checks: CodeRunnerCheck[], reason: string, timedOut = false): CodeChecksRun {
+  return summarizeCodeChecks(checks.map((check) => ({ id: check.id, name: check.name, passed: false, timedOut, error: reason, stdout: '', durationMs: 0 })))
+}
+
 /** Runs `checks` against `code`. Never rejects: a broken runner fails the checks with its error. */
 export function runCodeChecks({ language, code, checks, timeoutMs = CODE_RUNNER_TIMEOUT_MS }: RunCodeChecksOptions): Promise<CodeChecksRun> {
-  const run = queue.then(() => runQueued(language, code, checks, timeoutMs))
-  queue = run.catch(() => undefined)
+  const run = queue
+    .then(() => runQueued(language, code, checks, timeoutMs))
+    .catch((error: unknown) => {
+      replaceWorker()
+      return failedCodeChecks(checks, errorText(error, 'The code runner failed.'))
+    })
+  queue = run
   return run
 }
 
@@ -116,7 +132,14 @@ function runOnWorker(
   timeoutMs: number,
 ): Promise<WorkerOutcome> {
   return new Promise((resolve) => {
-    const runner = sharedWorker()
+    let runner: Worker
+    try {
+      runner = sharedWorker()
+    } catch (error: unknown) {
+      replaceWorker()
+      resolve({ results: [], stop: { reason: errorText(error, 'The code runner failed to start.'), timedOut: false } })
+      return
+    }
     const id = crypto.randomUUID()
     const results: CodeCheckResult[] = []
     let timer: number | undefined
@@ -177,7 +200,12 @@ function runOnWorker(
     const request: RunChecksRequest = {
       type: 'run_checks', id, language, code, checks: checks.slice(startIndex), startIndex, timeoutMs,
     }
-    runner.postMessage(request)
+    try {
+      runner.postMessage(request)
+    } catch (error: unknown) {
+      replaceWorker()
+      finish({ results, stop: { reason: errorText(error, 'The code runner failed to start.'), timedOut: false } })
+    }
   })
 }
 

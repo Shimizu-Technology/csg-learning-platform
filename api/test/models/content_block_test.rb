@@ -41,9 +41,11 @@ class ContentBlockTest < ActiveSupport::TestCase
       block.submission_config["runner"])
     assert block.runner_checks?
 
-    block.update!(submission_config: { "runner" => { "enabled" => "false", "checks" => [] } })
+    block.update!(submission_config: { "runner" => { "enabled" => false, "starter_code" => nil, "checks" => [] } })
     assert_equal({ "enabled" => false }, block.reload.submission_config["runner"])
     assert_not block.runner_checks?
+    block.update!(submission_config: { "runner" => { "enabled" => true, "checks" => nil } })
+    assert_equal({ "enabled" => true }, block.reload.submission_config["runner"])
   end
 
   test "runner config refuses malformed shapes, oversized code, duplicate ids, too many checks and other languages" do
@@ -51,6 +53,11 @@ class ContentBlockTest < ActiveSupport::TestCase
     invalid = {
       "not an object" => "runner must be an object",
       { "enabled" => "yes" } => "runner enabled must be true or false",
+      { "enabled" => "true" } => "runner enabled must be true or false",
+      { "enabled" => nil } => "runner enabled must be true or false",
+      { "enabled" => 1 } => "runner enabled must be true or false",
+      { "language" => nil } => "runner language must be ruby or javascript",
+      { "checks" => { "id" => "c1" } } => "runner checks must be a list",
       { "language" => "python" } => "runner language must be ruby or javascript",
       { "timeout" => 5 } => "runner has unsupported settings: timeout",
       { "starter_code" => 12 } => "runner starter code must be text",

@@ -10,10 +10,11 @@ module Api
 
       # GET /api/v1/submissions/batch_review
       def show
-        cohort = nil
-        if params[:cohort_id].present?
-          cohort = Cohort.find(params[:cohort_id])
-          return unless require_cohort_access!(cohort, teacher: true)
+        # Only cohorts this viewer may see: one they can't and one that doesn't exist answer alike.
+        cohort = StaffCohortScope.new(current_user).visible_cohorts.find_by(id: params[:cohort_id]) if params[:cohort_id].present?
+        if params[:cohort_id].present? && cohort.nil?
+          render json: { error: "Cohort not found" }, status: :not_found
+          return
         end
 
         render json: SubmissionBatchReview.new(

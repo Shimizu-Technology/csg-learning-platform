@@ -13,7 +13,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { runCodeChecks, codeChecksSummary, type CodeChecksRun } from '../../lib/codeChecks'
+import { codeChecksSummary, failedCodeChecks, runCodeChecks, type CodeChecksRun } from '../../lib/codeChecks'
 import { activeRunnerChecks, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 import { canSelectSuggestedGrade, gradeSuggestionQueueBadge, suggestedPassingGrade } from '../../lib/gradeSuggestion'
 import { gradeLabel } from '../../lib/glossary'
@@ -23,6 +23,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { BatchReview, BatchReviewSubmission, BatchGradeSkippedItem } from '../../types/api'
 import { detectLanguage } from '../shared/CodeEditor'
+import { CodeBlock } from '../shared/CodeBlock'
 import { CodeChecksList } from '../shared/CodeChecksResults'
 import { EmptyState } from '../shared/EmptyState'
 import { LoadError } from '../shared/LoadError'
@@ -43,6 +44,14 @@ interface Props {
   onChooseExercise: (contentBlockId: number) => void
   onOpenReview: (submissionId: number) => void
   onExit: () => void
+  /** After an approval graded work: the page's queue and counts are out of date. */
+  onBatchGraded?: () => void
+}
+
+interface Loaded {
+  baseScope: string
+  requestedId: number | null
+  data: BatchReview
 }
 
 /**
@@ -52,11 +61,13 @@ interface Props {
  * is left for the instructor to choose or open in full review. One confirmation approves the
  * selection as Pass or B (POST /submissions/batch_grade); the API re-checks every item.
  */
-export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, onChooseExercise, onOpenReview, onExit }: Props) {
+export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, onChooseExercise, onOpenReview, onExit, onBatchGraded }: Props) {
   const confirm = useConfirm()
   const toast = useToast()
-  const [data, setData] = useState<BatchReview | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // What was loaded, and for which scope. Cards show only while it matches the scope on screen,
+  // so a change of cohort, filter or exercise never leaves another scope's work selectable.
+  const [loaded, setLoaded] = useState<Loaded | null>(null)
+  const [error, setError] = useState<{ scope: string; message: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [checks, setChecks] = useState<Record<number, CheckState>>({})
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -64,51 +75,62 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   const touched = useRef<Set<number>>(new Set())
   const [feedback, setFeedback] = useState('')
   const [approving, setApproving] = useState(false)
-  const [skipped, setSkipped] = useState<BatchGradeSkippedItem[]>([])
+  const [skipped, setSkipped] = useState<{ scope: string; items: BatchGradeSkippedItem[] } | null>(null)
   const loadGeneration = useRef(0)
 
-  const load = useCallback(async () => {
+  const baseScope = JSON.stringify([cohortId, moduleId, lessonId])
+  const scopeKey = JSON.stringify([cohortId, moduleId, lessonId, contentBlockId])
+  // Pinning the default exercise in the URL names the exercise already loaded: the same scope.
+  const current = loaded && loaded.baseScope === baseScope &&
+    (loaded.requestedId === contentBlockId || (loaded.requestedId === null && loaded.data.exercise?.content_block_id === contentBlockId))
+  const data = current ? loaded.data : null
+  const activeScope = useRef(scopeKey)
+  const dataRef = useRef(data)
+  useEffect(() => {
+    activeScope.current = scopeKey
+    dataRef.current = data
+  })
+
+  const load = useCallback(async (params: { cohortId: number | null; moduleId: number | null; lessonId: number | null; contentBlockId: number | null }) => {
     const generation = ++loadGeneration.current
+    const scope = JSON.stringify([params.cohortId, params.moduleId, params.lessonId, params.contentBlockId])
     setLoading(true)
-    const result = await api.getBatchReview({ cohort_id: cohortId, module_id: moduleId, lesson_id: lessonId, content_block_id: contentBlockId })
+    const result = await api.getBatchReview({ cohort_id: params.cohortId, module_id: params.moduleId, lesson_id: params.lessonId, content_block_id: params.contentBlockId })
     if (generation !== loadGeneration.current) return
     setLoading(false)
     if (!result.data) {
-      setError(result.error || 'Could not load batch review.')
+      // A failed reload clears the cards: nothing stale stays selectable.
+      setLoaded(null)
+      setError({ scope, message: result.error || 'Could not load batch review.' })
       return
     }
     setError(null)
     touched.current = new Set()
     setChecks({})
-    setData(result.data)
-  }, [cohortId, moduleId, lessonId, contentBlockId])
+    setLoaded({ baseScope: JSON.stringify([params.cohortId, params.moduleId, params.lessonId]), requestedId: params.contentBlockId, data: result.data })
+  }, [])
+  const reload = useCallback(() => load({ cohortId, moduleId, lessonId, contentBlockId }), [load, cohortId, moduleId, lessonId, contentBlockId])
 
-  const loadedFor = useRef<{ key: string; exerciseId: number | null } | null>(null)
   useEffect(() => {
-    const key = JSON.stringify([cohortId, moduleId, lessonId])
-    // Pinning the default exercise in the URL names the one already loaded: nothing to fetch.
-    if (loadedFor.current?.key === key && contentBlockId !== null && loadedFor.current.exerciseId === contentBlockId) return
-    loadedFor.current = { key, exerciseId: null }
-    void load()
-  }, [load, cohortId, moduleId, lessonId, contentBlockId])
+    if (dataRef.current) return
+    void reload()
+  }, [reload, scopeKey])
   useEffect(() => () => {
     loadGeneration.current += 1
   }, [])
 
   const exercise = data?.exercise ?? null
   useEffect(() => {
-    if (loadedFor.current) loadedFor.current.exerciseId = exercise?.content_block_id ?? null
-  }, [exercise])
-  useEffect(() => {
     if (!contentBlockId && exercise) onChooseExercise(exercise.content_block_id)
   }, [contentBlockId, exercise, onChooseExercise])
 
   const scale = exercise?.grading_scale ?? 'pass_redo'
   const grade = checksSuggestedGrade(scale)
-  const runner = useMemo(() => {
-    const language = detectLanguage(exercise?.filename, exercise?.language_hint)
-    return normalizeCodeRunnerConfig(exercise?.submission_config, codeRunnerLanguageFromEditor(language) || 'ruby')
-  }, [exercise])
+  const codeLanguage = detectLanguage(exercise?.filename, exercise?.language_hint)
+  const runner = useMemo(
+    () => normalizeCodeRunnerConfig(exercise?.submission_config, codeRunnerLanguageFromEditor(codeLanguage) || 'ruby'),
+    [exercise, codeLanguage],
+  )
   const runnerChecks = useMemo(() => (exercise?.submission_type === 'text_submission' ? activeRunnerChecks(runner) : []), [exercise, runner])
   const submissions = useMemo(() => data?.submissions ?? [], [data])
   const checkable = useCallback((submission: BatchReviewSubmission) => runnerChecks.length > 0 && Boolean(submission.text?.trim()), [runnerChecks])
@@ -125,7 +147,8 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
     setSelected(new Set(submissions.filter((submission) => autoSelected(submission, undefined)).map((submission) => submission.id)))
   }, [submissions, autoSelected])
 
-  // Run every card's checks in this browser, one submission at a time.
+  // Run every card's checks in this browser, one submission at a time. A change of scope
+  // cancels the loop, and results that arrive afterwards are dropped.
   useEffect(() => {
     let cancelled = false
     const queue = submissions.filter(checkable)
@@ -135,7 +158,12 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
       for (const submission of queue) {
         if (cancelled) return
         setChecks((current) => ({ ...current, [submission.id]: { status: 'running' } }))
-        const run = await runCodeChecks({ language: runner.language, code: submission.text ?? '', checks: runnerChecks })
+        let run: CodeChecksRun
+        try {
+          run = await runCodeChecks({ language: runner.language, code: submission.text ?? '', checks: runnerChecks })
+        } catch (error: unknown) {
+          run = failedCodeChecks(runnerChecks, error instanceof Error ? error.message : 'The code runner failed.')
+        }
         if (cancelled) return
         const state: CheckState = { status: 'done', run }
         setChecks((current) => ({ ...current, [submission.id]: state }))
@@ -151,6 +179,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
     })()
     return () => {
       cancelled = true
+      setChecks({})
     }
   }, [submissions, checkable, runner.language, runnerChecks, autoSelected])
 
@@ -171,36 +200,47 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   const chosen = submissions.filter((submission) => selected.has(submission.id))
   const gradeName = gradeLabel(grade)
   async function approve() {
-    if (!chosen.length || approving) return
+    if (!chosen.length || approving || !exercise) return
+    // Everything below belongs to the scope the instructor confirmed for.
+    const scope = scopeKey
+    const items = chosen.map((submission) => ({
+      submission_id: submission.id,
+      base_submission_updated_at: submission.updated_at,
+      expected_content_block_id: exercise.content_block_id,
+      expected_content_block_updated_at: exercise.updated_at,
+    }))
     const notPassing = chosen.filter((submission) => !autoSelected(submission, checks[submission.id])).length
     const ok = await confirm({
       title: `Approve ${chosen.length} ${chosen.length === 1 ? 'submission' : 'submissions'} as ${gradeName}?`,
-      description: `Each student gets ${gradeName}${feedback.trim() ? ' and your feedback' : ''} on ${exercise?.title || 'this exercise'}.${notPassing ? ` ${notPassing} of them ${notPassing === 1 ? "doesn't" : "don't"} have passing automated checks.` : ''} Work that changed since it loaded is skipped.`,
+      description: `Each student gets ${gradeName}${feedback.trim() ? ' and your feedback' : ''} on ${exercise.title}.${notPassing ? ` ${notPassing} of them ${notPassing === 1 ? "doesn't" : "don't"} have passing automated checks.` : ''} Work that changed since it loaded is skipped.`,
       confirmLabel: `Approve as ${gradeName}`,
     })
-    if (!ok) return
+    if (!ok || activeScope.current !== scope) return
     setApproving(true)
-    const result = await api.batchGradeSubmissions({
-      grade,
-      feedback: feedback.trim() ? feedback : null,
-      items: chosen.map((submission) => ({ submission_id: submission.id, base_submission_updated_at: submission.updated_at })),
-    })
-    setApproving(false)
+    let result: Awaited<ReturnType<typeof api.batchGradeSubmissions>>
+    try {
+      result = await api.batchGradeSubmissions({ grade, feedback: feedback.trim() ? feedback : null, items })
+    } finally {
+      setApproving(false)
+    }
     const skippedItems = result.data?.skipped ?? result.errorSkipped ?? []
-    setSkipped(skippedItems)
     if (result.data) {
       const count = result.data.graded.length
       toast.success(`Approved ${count} ${count === 1 ? 'submission' : 'submissions'} as ${gradeName}${skippedItems.length ? ` · ${skippedItems.length} skipped` : ''}`)
-      setFeedback('')
-      await load()
+      if (count) onBatchGraded?.()
     } else {
       toast.error(result.error || 'Could not approve these submissions.')
-      if (skippedItems.length) await load()
     }
+    // The instructor moved on meanwhile: don't overwrite the scope now on screen.
+    if (activeScope.current !== scope) return
+    setSkipped({ scope, items: skippedItems })
+    if (result.data) setFeedback('')
+    if (result.data || skippedItems.length) await reload()
   }
 
-  if (!data && loading) return <LoadingSpinner message="Loading batch review..." fullScreen={false} />
-  if (!data) return <LoadError error={error || 'Batch review unavailable.'} retry={() => void load()} />
+  if (!data && (loading || !error)) return <LoadingSpinner message="Loading batch review..." fullScreen={false} />
+  if (!data) return <LoadError error={error?.message || 'Batch review unavailable.'} retry={() => void reload()} />
+  const skippedHere = skipped?.scope === scopeKey ? skipped.items : []
 
   const nameFor = (id: number) => submissions.find((submission) => submission.id === id)?.user_name
   const checkedCount = Object.values(checks).filter((state) => state.status === 'done').length
@@ -229,7 +269,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
             </select>
           </label>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => void load()} disabled={loading || approving}>
+            <Button variant="secondary" onClick={() => void reload()} disabled={loading || approving}>
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
               Refresh
             </Button>
@@ -245,11 +285,11 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
         )}
       </div>
 
-      {skipped.length > 0 && (
+      {skippedHere.length > 0 && (
         <div role="status" className="space-y-1 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
-          <p className="font-semibold">{skipped.length} {skipped.length === 1 ? 'submission was' : 'submissions were'} skipped</p>
+          <p className="font-semibold">{skippedHere.length} {skippedHere.length === 1 ? 'submission was' : 'submissions were'} skipped</p>
           <ul className="list-disc space-y-0.5 pl-5">
-            {skipped.map((item) => (
+            {skippedHere.map((item) => (
               <li key={item.submission_id} className="[overflow-wrap:anywhere]">{nameFor(item.submission_id) || `Submission #${item.submission_id}`}: {item.reason}</li>
             ))}
           </ul>
@@ -294,6 +334,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
                 selected={selected.has(submission.id)}
                 disabled={approving}
                 showCohort={!cohortId}
+                language={codeLanguage}
                 onToggle={(value) => toggle(submission.id, value)}
                 onOpen={() => onOpenReview(submission.id)}
               />
@@ -331,6 +372,7 @@ function BatchCard({
   selected,
   disabled,
   showCohort,
+  language,
   onToggle,
   onOpen,
 }: {
@@ -341,6 +383,7 @@ function BatchCard({
   selected: boolean
   disabled: boolean
   showCohort: boolean
+  language: string
   onToggle: (value: boolean) => void
   onOpen: () => void
 }) {
@@ -401,11 +444,13 @@ function BatchCard({
             {!checkState && !suggestionBadge && <Badge tone="neutral">{hasRunnerChecks ? 'Nothing to check' : 'No automated checks'}</Badge>}
           </div>
           {submission.text ? (
-            <pre
-              tabIndex={0}
-              aria-label={`${submission.user_name}'s submission`}
-              className="max-h-56 overflow-auto rounded-xl border border-code-line bg-code-bg p-3 font-mono text-xs leading-5 text-code-ink"
-            >{submission.text}</pre>
+            <CodeBlock
+              code={submission.text}
+              language={language}
+              surface="submission"
+              label={`${submission.user_name}'s submission`}
+              className="my-0 [&>pre]:max-h-56"
+            />
           ) : (
             <p className="text-sm text-ink-muted">No inline code. Open the links or the full review.</p>
           )}

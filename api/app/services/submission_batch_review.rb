@@ -27,14 +27,16 @@ class SubmissionBatchReview
     block = chosen_id && ContentBlock.includes(:rubric, lesson: { curriculum_module: :curriculum })
       .joins(lesson: :curriculum_module).where(modules: { curriculum_id: visible_curriculum_ids }).find_by(id: chosen_id)
     @block = block
-    submissions = block ? ordered_submissions : []
+    # Counted on the whole scope, so an exercise past the options cap still reports its work.
+    waiting = block ? waiting_scope.where(content_block_id: block.id).count : 0
+    submissions = block ? ordered_submissions.limit(SubmissionBatchGrade::MAX_ITEMS).to_a : []
     latest_ids = Submission.latest_attempt_ids_for(submissions)
 
     {
       exercises: options,
-      exercise: block && exercise_json(block, options.find { |option| option[:content_block_id] == block.id }&.dig(:waiting) || 0),
-      submissions: submissions.first(SubmissionBatchGrade::MAX_ITEMS).map { |submission| item_json(submission, latest_ids) },
-      total_count: submissions.length,
+      exercise: block && exercise_json(block, waiting),
+      submissions: submissions.map { |submission| item_json(submission, latest_ids) },
+      total_count: waiting,
       max_batch_size: SubmissionBatchGrade::MAX_ITEMS
     }
   end
@@ -88,6 +90,8 @@ class SubmissionBatchReview
     return json if summary
 
     json.merge(
+      # Sent back with each approval: an edit to the exercise (its checks or rubric) expires the review.
+      updated_at: block.updated_at.iso8601(6),
       submission_type: block.effective_submission_type,
       filename: block.filename,
       language_hint: block.metadata.is_a?(Hash) ? block.metadata["language"] : nil,
@@ -100,7 +104,7 @@ class SubmissionBatchReview
     includes = [ :user, { enrollment: :cohort } ]
     includes << :submission_grade_suggestion if suggestions_possible?
     waiting_scope.where(content_block_id: @block.id).includes(*includes)
-      .order(Arel.sql("submissions.created_at ASC, submissions.id ASC")).to_a
+      .order(Arel.sql("submissions.created_at ASC, submissions.id ASC"))
   end
 
   def suggestions_possible?
