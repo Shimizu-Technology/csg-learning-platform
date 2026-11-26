@@ -161,7 +161,7 @@ export function LessonExperience({
     const onKeyDown = (event: KeyboardEvent) => {
       if (saving || event.defaultPrevented || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
       if (document.querySelector('[data-app-modal]')) return
-      const target = event.target as HTMLElement | null
+      const target = event.target instanceof Element ? event.target : null
       if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
       const current = navShortcutRef.current
       if (event.key === 'ArrowLeft' && current.previousId) {

@@ -470,7 +470,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
     const topDialog = Array.from(document.querySelectorAll('[data-app-modal]')).at(-1)
     if (topDialog && (!containerRef.current || !topDialog.contains(containerRef.current))) return
-    const target = event.target as HTMLElement | null
+    const target = event.target instanceof Element ? event.target : null
     if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
     const key = event.key.toLowerCase()
     if (key === ' ') {
@@ -499,7 +499,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   useEffect(() => {
     if (!enablePageShortcuts || !streamUrl) return
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
+      const target = event.target instanceof Element ? event.target : null
       if (target && containerRef.current?.contains(target)) return
       handlePlaybackKey(event, false)
     }

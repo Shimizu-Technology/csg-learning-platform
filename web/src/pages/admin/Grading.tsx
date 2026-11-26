@@ -299,7 +299,7 @@ export function Grading() {
     if (batchMode) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
-      const target = event.target as HTMLElement | null
+      const target = event.target instanceof Element ? event.target : null
       if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
       if (event.key === '?') {
         const modal = document.querySelector('[data-app-modal]')
