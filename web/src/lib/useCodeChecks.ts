@@ -19,24 +19,32 @@ export function useCodeChecks(language: CodeRunnerLanguage, checks: CodeRunnerCh
   const checksKey = JSON.stringify([language, checks.map(({ id, name, code }) => [id, name, code])])
   const [state, setState] = useState<CodeChecksState & { checksKey: string }>({ ...IDLE, checksKey })
   const generation = useRef(0)
+  const abortController = useRef<AbortController | null>(null)
   const latest = useRef({ language, checks })
   useEffect(() => {
     latest.current = { language, checks }
   })
   useEffect(() => () => {
     generation.current += 1
+    abortController.current?.abort()
+    abortController.current = null
   }, [])
   useEffect(() => {
     generation.current += 1
+    abortController.current?.abort()
+    abortController.current = null
   }, [checksKey])
 
   const start = useCallback(async (code: string) => {
     const current = ++generation.current
+    abortController.current?.abort()
+    const controller = new AbortController()
+    abortController.current = controller
     const { language: runLanguage, checks: runChecks } = latest.current
     setState({ ...IDLE, running: true, checksKey })
     let run: CodeChecksRun
     try {
-      run = await runCodeChecks({ language: runLanguage, code, checks: runChecks })
+      run = await runCodeChecks({ language: runLanguage, code, checks: runChecks, signal: controller.signal })
     } catch (error: unknown) {
       run = failedCodeChecks(runChecks, error instanceof Error ? error.message : 'The code runner failed.')
     }
@@ -47,6 +55,8 @@ export function useCodeChecks(language: CodeRunnerLanguage, checks: CodeRunnerCh
 
   const reset = useCallback(() => {
     generation.current += 1
+    abortController.current?.abort()
+    abortController.current = null
     setState({ ...IDLE, checksKey })
   }, [checksKey])
 

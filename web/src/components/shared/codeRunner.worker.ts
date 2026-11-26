@@ -22,20 +22,35 @@ interface RunResponse {
   durationMs: number
 }
 
-const quickJsModulePromise = newQuickJSWASMModule(
-  newVariant(RELEASE_SYNC, { wasmLocation: quickJsWasmUrl })
-)
+let quickJsModulePromise: ReturnType<typeof newQuickJSWASMModule> | null = null
 let rubyModulePromise: Promise<WebAssembly.Module> | null = null
+
+function getQuickJsModule() {
+  quickJsModulePromise ??= newQuickJSWASMModule(
+    newVariant(RELEASE_SYNC, { wasmLocation: quickJsWasmUrl })
+  ).catch((error: unknown) => {
+    quickJsModulePromise = null
+    throw error
+  })
+  return quickJsModulePromise
+}
 
 function getRubyModule() {
   rubyModulePromise ??= fetch(rubyWasmUrl)
-    .then((response) => response.arrayBuffer())
+    .then((response) => {
+      if (!response.ok) throw new Error(`Could not load Ruby runtime (HTTP ${response.status}).`)
+      return response.arrayBuffer()
+    })
     .then((buffer) => WebAssembly.compile(buffer))
+    .catch((error: unknown) => {
+      rubyModulePromise = null
+      throw error
+    })
   return rubyModulePromise
 }
 
 async function runJavaScript(id: string, code: string, timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
-  const quickjs = await quickJsModulePromise
+  const quickjs = await getQuickJsModule()
   const runtime = quickjs.newRuntime({
     interruptHandler: shouldInterruptAfterDeadline(Date.now() + timeoutMs),
     memoryLimitBytes: 8 * 1024 * 1024,
@@ -126,7 +141,7 @@ async function runChecks(request: RunChecksRequest) {
     try {
       outcome = request.language === 'ruby'
         ? await runRubyCheck(await getRubyModule(), request.code, check, { onPhase })
-        : runJavaScriptCheck(await quickJsModulePromise, request.code, check, request.timeoutMs, { onPhase })
+        : runJavaScriptCheck(await getQuickJsModule(), request.code, check, request.timeoutMs, { onPhase })
     } catch (error: unknown) {
       outcome = { passed: false, timedOut: false, error: error instanceof Error ? error.message : String(error), stdout: '' }
     }

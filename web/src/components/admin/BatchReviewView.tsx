@@ -46,6 +46,8 @@ interface Props {
   onExit: () => void
   /** After an approval graded work: the page's queue and counts are out of date. */
   onBatchGraded?: () => void
+  /** Incremented by the page header's Refresh action to reload batch cards. */
+  refreshToken?: number
 }
 
 interface Loaded {
@@ -62,7 +64,7 @@ interface Loaded {
  * is left for the instructor to choose or open in full review. One confirmation approves the
  * selection as Pass or B (POST /submissions/batch_grade); the API re-checks every item.
  */
-export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, onChooseExercise, onOpenReview, onExit, onBatchGraded }: Props) {
+export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, onChooseExercise, onOpenReview, onExit, onBatchGraded, refreshToken = 0 }: Props) {
   const confirm = useConfirm()
   const toast = useToast()
   // What was loaded, and for which scope. Cards show only while it matches the scope on screen,
@@ -134,6 +136,12 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   useEffect(() => () => {
     loadGeneration.current += 1
   }, [])
+  const lastRefreshToken = useRef(refreshToken)
+  useEffect(() => {
+    if (refreshToken === lastRefreshToken.current) return
+    lastRefreshToken.current = refreshToken
+    void reload()
+  }, [refreshToken, reload])
 
   const exercise = data?.exercise ?? null
   useEffect(() => {
@@ -172,6 +180,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   // cancels the loop, and results that arrive afterwards are dropped.
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
     const queue = submissions.filter(checkable)
     if (!queue.length) return
     setChecks(Object.fromEntries(queue.map((submission) => [submission.id, { status: 'queued' } as CheckState])))
@@ -181,7 +190,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
         setChecks((current) => ({ ...current, [submission.id]: { status: 'running' } }))
         let run: CodeChecksRun
         try {
-          run = await runCodeChecks({ language: runner.language, code: submission.text ?? '', checks: runnerChecks })
+          run = await runCodeChecks({ language: runner.language, code: submission.text ?? '', checks: runnerChecks, signal: controller.signal })
         } catch (error: unknown) {
           run = failedCodeChecks(runnerChecks, error instanceof Error ? error.message : 'The code runner failed.')
         }
@@ -200,6 +209,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
     })()
     return () => {
       cancelled = true
+      controller.abort()
       setChecks({})
     }
   }, [submissions, checkable, runner.language, runnerChecks, autoSelected])

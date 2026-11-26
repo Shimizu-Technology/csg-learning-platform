@@ -1,6 +1,6 @@
 import { ConsoleStdout, Fd, File, OpenFile, PreopenDirectory, WASI, wasi as wasiDefs } from '@bjorn3/browser_wasi_shim'
 import { RubyVM } from '@ruby/wasm-wasi'
-import { shouldInterruptAfterDeadline, type QuickJSHandle, type QuickJSWASMModule } from 'quickjs-emscripten'
+import type { QuickJSHandle, QuickJSWASMModule } from 'quickjs-emscripten'
 import type { CodeRunnerCheck } from './codeRunner'
 
 /**
@@ -73,11 +73,13 @@ interface RubySandbox {
 /** A fresh Ruby VM with no JavaScript bridge, its output captured at the WASI file layer. */
 async function rubySandbox(module: WebAssembly.Module, files: Record<string, string>, stdin: string, onStderr?: (text: string) => void): Promise<RubySandbox> {
   const encoder = new TextEncoder()
-  const decoder = new TextDecoder()
+  const stdoutDecoder = new TextDecoder()
+  const stderrDecoder = new TextDecoder()
   const stdoutFile = new File([])
   const stderrChunks: string[] = []
   const stderr = new ConsoleStdout((bytes: Uint8Array) => {
-    const text = decoder.decode(bytes)
+    const text = stderrDecoder.decode(bytes, { stream: true })
+    if (!text) return
     stderrChunks.push(text)
     onStderr?.(text)
   })
@@ -100,7 +102,15 @@ async function rubySandbox(module: WebAssembly.Module, files: Record<string, str
       }
     },
   } as Parameters<typeof RubyVM.instantiateModule>[0])
-  return { vm, stdout: () => decoder.decode(stdoutFile.data), stderr: () => stderrChunks.join('') }
+  return {
+    vm,
+    stdout: () => stdoutDecoder.decode(stdoutFile.data),
+    stderr: () => {
+      const tail = stderrDecoder.decode()
+      if (tail) stderrChunks.push(tail)
+      return stderrChunks.join('')
+    },
+  }
 }
 
 /** Runs a program for the Run button: what it printed, and its error if it raised. */
@@ -207,6 +217,8 @@ const RUBY_HARNESS = String.raw`
   hash_class = Hash
   exception_class = Exception
   system_exit = SystemExit
+  system_exit_success = SystemExit.instance_method(:success?)
+  system_exit_status = SystemExit.instance_method(:status)
   toplevel = TOPLEVEL_BINDING
   failure = Class.new(StandardError)
 
@@ -407,8 +419,10 @@ const RUBY_HARNESS = String.raw`
   student_error = nil
   begin
     binding_eval.bind_call(toplevel, student_source, "student.rb", 1)
-  rescue system_exit
-    nil
+  rescue system_exit => error
+    unless system_exit_success.bind_call(error)
+      student_error = "Program exited with status #{system_exit_status.bind_call(error)}"
+    end
   rescue exception_class => error
     student_error = describe_error.(error)
   end
@@ -619,8 +633,12 @@ function isQuickJsInterrupt(value: unknown) {
 }
 
 export function runJavaScriptCheck(quickjs: QuickJSWASMModule, studentCode: string, check: CodeRunnerCheck, timeoutMs: number, hooks: SandboxHooks = {}): SandboxCheckOutcome {
+  let deadline = Date.now() + timeoutMs
+  const resetDeadline = () => {
+    deadline = Date.now() + timeoutMs
+  }
   const runtime = quickjs.newRuntime({
-    interruptHandler: shouldInterruptAfterDeadline(Date.now() + timeoutMs),
+    interruptHandler: () => Date.now() > deadline,
     memoryLimitBytes: 8 * 1024 * 1024,
     maxStackSizeBytes: 512 * 1024,
   })
@@ -663,22 +681,44 @@ export function runJavaScriptCheck(quickjs: QuickJSWASMModule, studentCode: stri
     if ('error' in helpers) return fail(helpers.error, false)
     const helperArgs = ['assert', 'assertEqual', 'assertIncludes'].map((name) => keep(vm.getProp(helpers.value, name)))
 
+    resetDeadline()
     hooks.onPhase?.('student')
     const student = evaluate(studentCode, 'student.js')
     if ('error' in student) return fail(student.error, true)
 
+    resetDeadline()
     hooks.onPhase?.('check')
     const output = keep(vm.newString(stdout.join('')))
     const checkFunction = evaluate(`(function (assert, assertEqual, assertIncludes, output) {\n${check.code}\n})`, 'check.js')
     if ('error' in checkFunction) return fail(checkFunction.error, false)
-    // The verdict is the host's: whether calling the check threw.
+    // The verdict is the host's: whether calling the check (and any returned promise microtasks) threw or rejected.
     const call = vm.callFunction(checkFunction.value, vm.undefined, [...helperArgs, output])
     if (call.error) {
       const error = vm.dump(call.error)
       call.error.dispose()
       return fail(error, false)
     }
-    call.value.dispose()
+    const returnValue = keep(call.value)
+    while (runtime.hasPendingJob()) {
+      const jobs = runtime.executePendingJobs()
+      if (jobs.error) {
+        const error = vm.dump(jobs.error)
+        jobs.error.dispose()
+        return fail(error, false)
+      }
+    }
+    const promiseState = vm.getPromiseState(returnValue)
+    if (promiseState.type === 'rejected') {
+      const error = vm.dump(promiseState.error)
+      promiseState.error.dispose()
+      return fail(error, false)
+    }
+    if (promiseState.type === 'pending') {
+      return fail('Asynchronous checks that do not settle immediately are not supported.', false)
+    }
+    if (!promiseState.notAPromise && promiseState.value !== returnValue) {
+      promiseState.value.dispose()
+    }
     return { passed: true, timedOut: false, error: null, stdout: stdout.join('') }
   } finally {
     handles.reverse().forEach((handle) => handle.alive && handle.dispose())

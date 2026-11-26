@@ -132,6 +132,28 @@ describe('runCodeChecks', () => {
     expect(FakeWorker.instances).toHaveLength(2)
   })
 
+  it('cancels an active run on abort, replaces its worker, and immediately starts the next queued run', async () => {
+    FakeWorker.respond = (worker, request) => {
+      if (request.code === 'hang') {
+        worker.emit({ id: request.id, type: 'check_phase', index: 0, phase: 'check' })
+        return
+      }
+      request.checks.forEach((_, offset) => pass(worker, request, request.startIndex + offset))
+      worker.emit({ id: request.id, type: 'checks_done' })
+    }
+    const { runCodeChecks } = await import('./codeChecks')
+    const controller = new AbortController()
+    const first = runCodeChecks({ language: 'ruby', code: 'hang', checks: CHECKS, signal: controller.signal })
+    const second = runCodeChecks({ language: 'ruby', code: 'fast', checks: CHECKS.slice(0, 1) })
+    await Promise.resolve()
+    controller.abort()
+    const [firstRun, secondRun] = await Promise.all([first, second])
+    expect(firstRun).toMatchObject({ passed: 0, failed: 3, timedOut: false })
+    expect(firstRun.results.every((result) => result.error === 'Cancelled.')).toBe(true)
+    expect(FakeWorker.instances[0].terminated).toBe(true)
+    expect(secondRun).toMatchObject({ passed: 1, failed: 0 })
+  })
+
   it('summarizes counts in plain words', async () => {
     const { codeChecksSummary } = await import('./codeChecks')
     expect(codeChecksSummary({ passed: 3, failed: 0, total: 3 })).toBe('3 of 3 checks passed')

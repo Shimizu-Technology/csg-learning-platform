@@ -48,6 +48,7 @@ export interface RunCodeChecksOptions {
   code: string
   checks: CodeRunnerCheck[]
   timeoutMs?: number
+  signal?: AbortSignal
 }
 
 /** Loading the Ruby or JavaScript runtime the first time can take a while on a slow connection. */
@@ -91,9 +92,10 @@ export function failedCodeChecks(checks: CodeRunnerCheck[], reason: string, time
 }
 
 /** Runs `checks` against `code`. Never rejects: a broken runner fails the checks with its error. */
-export function runCodeChecks({ language, code, checks, timeoutMs = CODE_RUNNER_TIMEOUT_MS }: RunCodeChecksOptions): Promise<CodeChecksRun> {
+export function runCodeChecks({ language, code, checks, timeoutMs = CODE_RUNNER_TIMEOUT_MS, signal }: RunCodeChecksOptions): Promise<CodeChecksRun> {
+  if (signal?.aborted) return Promise.resolve(failedCodeChecks(checks, 'Cancelled.'))
   const run = queue
-    .then(() => runQueued(language, code, checks, timeoutMs))
+    .then(() => runQueued(language, code, checks, timeoutMs, signal))
     .catch((error: unknown) => {
       replaceWorker()
       return failedCodeChecks(checks, errorText(error, 'The code runner failed.'))
@@ -102,10 +104,16 @@ export function runCodeChecks({ language, code, checks, timeoutMs = CODE_RUNNER_
   return run
 }
 
-async function runQueued(language: CodeRunnerLanguage, code: string, checks: CodeRunnerCheck[], timeoutMs: number): Promise<CodeChecksRun> {
+async function runQueued(language: CodeRunnerLanguage, code: string, checks: CodeRunnerCheck[], timeoutMs: number, signal?: AbortSignal): Promise<CodeChecksRun> {
   const results: CodeCheckResult[] = []
   while (results.length < checks.length) {
-    const outcome = await runOnWorker(language, code, checks, results.length, timeoutMs)
+    if (signal?.aborted) {
+      for (const check of checks.slice(results.length)) {
+        results.push({ id: check.id, name: check.name, passed: false, timedOut: false, error: 'Cancelled.', stdout: '', durationMs: 0 })
+      }
+      break
+    }
+    const outcome = await runOnWorker(language, code, checks, results.length, timeoutMs, signal)
     results.push(...outcome.results)
     const stop = outcome.stop ?? (outcome.results.length ? null : { reason: 'The code runner stopped before running the checks.', timedOut: false })
     if (stop) {
@@ -130,8 +138,13 @@ function runOnWorker(
   checks: CodeRunnerCheck[],
   startIndex: number,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<WorkerOutcome> {
   return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve({ results: [], stop: { reason: 'Cancelled.', timedOut: false } })
+      return
+    }
     let runner: Worker
     try {
       runner = sharedWorker()
@@ -143,13 +156,21 @@ function runOnWorker(
     const id = crypto.randomUUID()
     const results: CodeCheckResult[] = []
     let timer: number | undefined
+    let settled = false
     let phase: { index: number; phase: 'student' | 'check'; startedAt: number } | null = null
 
     const finish = (outcome: WorkerOutcome) => {
+      if (settled) return
+      settled = true
       window.clearTimeout(timer)
       runner.removeEventListener('message', onMessage)
       runner.removeEventListener('error', onError)
+      signal?.removeEventListener('abort', onAbort)
       resolve(outcome)
+    }
+    const onAbort = () => {
+      replaceWorker()
+      finish({ results, stop: { reason: 'Cancelled.', timedOut: false } })
     }
     const arm = (ms: number, onTimeout: () => void) => {
       window.clearTimeout(timer)
@@ -196,6 +217,7 @@ function runOnWorker(
 
     runner.addEventListener('message', onMessage)
     runner.addEventListener('error', onError)
+    signal?.addEventListener('abort', onAbort, { once: true })
     arm(STARTUP_TIMEOUT_MS, startupFailed)
     const request: RunChecksRequest = {
       type: 'run_checks', id, language, code, checks: checks.slice(startIndex), startIndex, timeoutMs,

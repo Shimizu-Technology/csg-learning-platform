@@ -27,6 +27,8 @@ describe('Ruby checks', () => {
     expect(await rubyCheck(student, 'assert_equal({ "a" => [1, 2.0] }, { "a" => [1, 2] })')).toMatchObject({ passed: true })
     expect(await rubyCheck(student, 'assert_includes [[1], [2]], [2]')).toMatchObject({ passed: true })
     expect(await rubyCheck('def add(a, b) = a +', 'assert true')).toMatchObject({ passed: false, error: expect.stringMatching(/^Your code raised an error: SyntaxError/) })
+    expect(await rubyCheck('puts "ok"; exit(0)', 'assert_includes output, "ok"')).toMatchObject({ passed: true })
+    expect(await rubyCheck('puts "ok"; exit(1)', 'assert_includes output, "ok"')).toMatchObject({ passed: false, error: expect.stringMatching(/exited with status 1/) })
   }, 60_000)
 
   it('runs ordinary student code with the core classes frozen', async () => {
@@ -151,6 +153,9 @@ describe('JavaScript checks', () => {
     expect(jsCheck(student, 'assertEqual(4, total([1, 2]))')).toMatchObject({ passed: false, error: 'Expected 4, got 3' })
     expect(jsCheck(student, 'assertEqual({ a: [1] }, { a: [1] })')).toMatchObject({ passed: true })
     expect(jsCheck('while (true) {}', 'assert(true)')).toMatchObject({ passed: false, timedOut: true })
+    expect(jsCheck(student, 'return Promise.resolve().then(() => { assert(false, "async fail") })')).toMatchObject({ passed: false, error: 'async fail' })
+    expect(jsCheck(student, 'return new Promise(() => {})')).toMatchObject({ passed: false, error: expect.stringMatching(/Asynchronous checks/) })
+    expect(jsCheck(student, 'return Promise.resolve().then(() => { assertEqual(3, total([1, 2])) })')).toMatchObject({ passed: true })
   })
 
   it("can't turn a failing check into a pass by tampering with built-ins", () => {

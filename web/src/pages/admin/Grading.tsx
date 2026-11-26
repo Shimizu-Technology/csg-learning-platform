@@ -161,6 +161,7 @@ export function Grading() {
     [queueFilter, urlState.module_id, urlState.student_id, urlState.lesson_id, urlState.sort],
   )
   const [syncing, setSyncing] = useState(false)
+  const [batchRefreshToken, setBatchRefreshToken] = useState(0)
   const syncModuleIds = dataIsCurrent ? inbox?.github_sync_module_ids ?? [] : []
   const batchMode = urlState.mode === 'batch'
   const selectedId = batchMode ? null : urlState.submission
@@ -378,7 +379,7 @@ export function Grading() {
               </Button>
             )}
           </>}
-          menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
+          menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => { void loadSubmissions(); if (batchMode) setBatchRefreshToken((n) => n + 1) } }]}
         />
       </div>
 
@@ -390,6 +391,7 @@ export function Grading() {
           moduleId={urlState.module_id}
           lessonId={urlState.lesson_id}
           contentBlockId={urlState.exercise_id}
+          refreshToken={batchRefreshToken}
           onChooseExercise={chooseBatchExercise}
           onOpenReview={openFromBatch}
           onExit={() => setUrlState({ mode: 'queue', exercise_id: null })}
