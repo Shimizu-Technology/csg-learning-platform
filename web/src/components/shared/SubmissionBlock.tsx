@@ -1,5 +1,5 @@
-import { CheckCircle2, ChevronDown, ChevronUp, Code, History, Lock, Send } from 'lucide-react'
-import { CODE_RUNNER_TIMEOUT_MS } from '../../lib/codeRunner'
+import { CheckCircle2, ChevronDown, ChevronUp, Code, History, Lock, RotateCcw, Send } from 'lucide-react'
+import { activeRunnerChecks, CODE_RUNNER_TIMEOUT_MS } from '../../lib/codeRunner'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { reviewTiming } from '../../lib/reviewCopy'
 import { Button } from '../ui/Button'
@@ -15,6 +15,9 @@ import type { ContentBlockController } from './useContentBlockController'
 export function SubmissionBlock({ controller, ...props }: ContentBlockRendererProps & { controller: ContentBlockController }) {
   const { v2, setRevisionOpen, reviewResponseTime, submissions, latestSubmission, hasRedoRequest, canEditSubmission, submissionText, setSubmissionText, repoUrl, setRepoUrl, prUrl, setPrUrl, liveUrl, setLiveUrl, branchName, setBranchName, commitSha, setCommitSha, submissionNotes, setSubmissionNotes, showAdvancedRepoFields, setShowAdvancedRepoFields, isSubmitting, isSubmissionCheckpoint, isWorkBlock, detectedLang, runnerConfig, writtenSubmission, submissionType, usesGithubSyncSubmission, usesTextSubmission, usesRepoArtifactSubmission, requiresLiveUrl, workLocked, latestStatus, editAnswer, lockCopy, handleDraftChange, handleSubmit, submissionArtifacts, submissionStatusMessage } = controller
   const { block, isStaff, repositoryName, githubSetupShown, readOnly, submissionsCloseAt, reviewerName } = props
+  const starterCode = runnerConfig.enabled ? runnerConfig.starterCode ?? '' : ''
+  // Only before the first submission: later attempts start from the student's own work.
+  const canResetStarter = Boolean(starterCode) && !latestSubmission && submissionText !== starterCode && !workLocked && !isSubmitting
   return (
     <>
       {!isStaff && ((isWorkBlock && submissionType !== 'manual_complete') || submissions.some((submission) => submission.grade)) && (
@@ -154,11 +157,20 @@ export function SubmissionBlock({ controller, ...props }: ContentBlockRendererPr
                   showKeyboardHelp
                 />
               )}
+              {canResetStarter && (
+                <div className="flex justify-end">
+                  <Button variant="quiet" size="sm" onClick={() => handleDraftChange(() => setSubmissionText(starterCode))}>
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                    Reset starter code
+                  </Button>
+                </div>
+              )}
               {runnerConfig.enabled && (
                 <CodeRunner
                   code={submissionText}
                   language={runnerConfig.language}
                   timeoutMs={CODE_RUNNER_TIMEOUT_MS}
+                  checks={activeRunnerChecks(runnerConfig)}
                 />
               )}
               {submissionStatusMessage}
