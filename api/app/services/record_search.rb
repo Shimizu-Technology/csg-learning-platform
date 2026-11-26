@@ -12,7 +12,8 @@ class RecordSearch
     "help_requests" => %w[context_label message], "interventions" => %w[action_summary],
     "channels" => %w[name description], "messages" => %w[body],
     "announcements" => %w[title body], "recordings" => %w[title description],
-    "curriculum_resources" => %w[title filename]
+    "curriculum_resources" => %w[title filename],
+    "cohort_files" => %w[title filename folder]
   }.freeze
 
   def initialize(viewer:, query:)
@@ -323,6 +324,46 @@ class RecordSearch
       results = ((group && group[:results]) || []) + links
       results = results.sort_by { |result| result[:title].casecmp?(plain(@query)) ? 0 : 1 }.first(LIMIT)
       group ? group[:results] = results : @groups << { type: "resource", results: results }
+    end
+    drive_files
+  end
+
+  def drive_files
+    return if @cohort_ids.empty?
+
+    if @viewer.staff?
+      active_students = Enrollment.where(cohort_id: @cohort_ids, status: %i[active paused]).pluck(:cohort_id, :user_id).to_set
+      scope = CohortFile.ready.where(cohort_id: @cohort_ids)
+      add("cohort_file", matched(scope, "title")) do |file|
+        next if file.student_id.present? && !active_students.include?([ file.cohort_id, file.student_id ])
+
+        snippet = [ file.folder, file.filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+        row(file, file.title, "cohort_file", context: { cohort_id: file.cohort_id, student_id: file.student_id, staff: true }, snippet: snippet)
+      end
+    else
+      scope = CohortFile.ready.student_visible.where(cohort_id: @cohort_ids, student_id: [ nil, @viewer.id ])
+      paused = @enrollments.any?(&:paused?)
+      scope = scope.includes(:versions, :doc_revisions) if paused
+      add("cohort_file", matched(scope, "title")) do |file|
+        enrollment = @enrollments.find { |e| e.cohort_id == file.cohort_id }
+        next unless enrollment
+
+        shown = enrollment.file_version_for_read(file)
+        next unless shown
+
+        doc_state = file.doc? ? enrollment.doc_state_for_read(file) : nil
+        next if file.doc? && doc_state.nil?
+
+        title = doc_state&.title || file.title
+        # A paused learner must not match a post-pause rename if the pre-pause title doesn't match.
+        if paused && doc_state && doc_state.title != file.title
+          haystack = [ title, file.folder ].join(" ").downcase
+          next unless @words.all? { |word| haystack.include?(word.downcase) }
+        end
+        filename = shown.respond_to?(:filename) ? shown.filename : file.filename
+        snippet = [ file.folder, filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+        row(file, title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
+      end
     end
   end
 end

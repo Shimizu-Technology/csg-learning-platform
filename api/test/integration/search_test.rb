@@ -27,10 +27,11 @@ class SearchTest < ActionDispatch::IntegrationTest
     @update = Announcement.create!(author: @instructor, cohort: @cohort, audience: :cohort, title: "Synthetic update", body: "Synthetic update body", status: :published)
     @recording = Recording.create!(cohort: @cohort, title: "Synthetic recording", source_kind: "external", source_url: "https://example.invalid/recording", status: :published, published_at: 1.hour.ago)
     @file = CurriculumResource.create!(curriculum: @curriculum, title: "Synthetic file", filename: "synthetic.zip", s3_key: "synthetic/key", file_size: 10, upload_key: "synthetic-upload", upload_expires_at: 1.day.from_now, ready: true, ready_at: 1.hour.ago)
+    @cohort_file = @cohort.cohort_files.create!(kind: "doc", title: "Synthetic drive doc", folder: "Slides", doc_content: "# Notes", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor)
   end
 
   test "authorization matrix for every searchable type and populated contract" do
-    expected = %w[student staff cohort curriculum module lesson submission help_request follow_up channel dm message announcement recording resource]
+    expected = %w[student staff cohort curriculum module lesson submission help_request follow_up channel dm message announcement recording resource cohort_file]
     { @admin => expected - %w[dm message], @instructor => expected - %w[staff], @student => expected - %w[student staff follow_up] }.each do |viewer, types|
       search(viewer, "Synthetic")
       assert_response :success
@@ -64,6 +65,30 @@ class SearchTest < ActionDispatch::IntegrationTest
     search(@student, "Secretclassmate")
     assert_empty groups
     refute_includes response.body, "Secretclassmate"
+  end
+
+  test "cohort file search respects privacy, staff-only staging, and pause cutoffs" do
+    classmate = person("filemate", :student)
+    Enrollment.create!(user: classmate, cohort: @cohort, status: :active)
+    @cohort.cohort_files.create!(kind: "doc", title: "Privatefile classmate doc", folder: "Career", student: classmate, doc_content: "secret", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: classmate)
+    @cohort.cohort_files.create!(kind: "doc", title: "Stagedfile staff doc", folder: "Slides", visibility: "staff_only", doc_content: "draft", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor)
+    own = @cohort.cohort_files.create!(kind: "doc", title: "Ownfile portfolio plan", folder: "Career", student: @student, doc_content: "mine", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @student)
+
+    search(@student, "Privatefile")
+    assert_empty groups
+    search(@student, "Stagedfile")
+    assert_empty groups
+    search(@instructor, "Stagedfile")
+    assert_equal 1, groups.fetch("cohort_file").size
+    search(@student, "Ownfile")
+    assert_equal [ own.id.to_s ], groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_equal "/resources?cohort_id=#{@cohort.id}&file=#{own.id}", RecordDestination.to_web_path(groups.fetch("cohort_file").first["destination"])
+
+    @enrollment.update!(status: :paused)
+    @enrollment.update_columns(paused_at: 2.days.ago, read_cutoff_at: 2.days.ago)
+    own.update_columns(created_at: 1.day.ago, shared_at: 1.day.ago, doc_updated_at: 1.day.ago)
+    search(@student, "Ownfile")
+    refute groups.key?("cohort_file")
   end
 
   test "instructors cannot find any content from an unassigned curriculum" do

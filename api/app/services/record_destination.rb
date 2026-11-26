@@ -3,6 +3,7 @@ class RecordDestination
   PATH_ALIASES = JSON.parse(File.read(Rails.root.join("config/record_destination_aliases.json"))).freeze
   CONTEXT_KEYS = {
     "student" => %w[cohort_id], "staff" => [], "curriculum" => %w[cohort_id], "resource" => %w[cohort_id],
+    "cohort_file" => %w[cohort_id student_id],
     "lesson" => %w[cohort_id help_request], "module" => %w[cohort_id], "submission" => %w[cohort_id student_id],
     "help_request" => %w[cohort_id student_id], "follow_up" => [], "channel" => [], "dm" => [],
     "announcement" => %w[cohort_id], "recording" => %w[cohort_id],
@@ -22,7 +23,7 @@ class RecordDestination
 
     clean = context.stringify_keys.slice(*CONTEXT_KEYS.fetch(kind)).select { |_, value| value.to_s.match?(/\A[1-9]\d*\z/) }
     clean["query"] = context[:query].to_s.first(180) if kind == "resource" && context[:query].present?
-    clean["staff"] = true if %w[meeting cohort curriculum].include?(kind) && context[:staff] == true
+    clean["staff"] = true if %w[meeting cohort curriculum cohort_file].include?(kind) && context[:staff] == true
     anchors = anchor.stringify_keys
     anchors["message_id"] ||= anchors.delete("messageId")
     allowed = kind == "lesson" ? %w[block_id] : %w[channel dm].include?(kind) ? %w[message_id] : []
@@ -31,6 +32,12 @@ class RecordDestination
 
   def self.from_path(path)
     return unless path.is_a?(String) && path.start_with?("/") && !path.match?(/[\s\\]/) && !path.start_with?("//")
+
+    raw_uri = URI.parse(path)
+    raw_params = URI.decode_www_form(raw_uri.query.to_s).group_by(&:first).filter_map { |key, entries| [ key, entries.first.last ] if entries.size == 1 }.to_h
+    if (cohort_files = raw_uri.path.match(%r{\A/admin/cohorts/([1-9]\d*)\z})) && raw_params["tab"] == "files" && raw_params["file"].to_s.match?(/\A[1-9]\d*\z/)
+      return build(kind: "cohort_file", id: raw_params["file"], context: { cohort_id: cohort_files[1], student_id: raw_params["student"], staff: true })
+    end
 
     PATH_ALIASES.each do |entry|
       pattern = Regexp.new(entry.fetch("pattern"))
@@ -71,6 +78,8 @@ class RecordDestination
       build(kind: SAFETY_ANCHORS.fetch(safety[1]), id: safety[2])
     elsif uri.path == "/recordings" && params["recording"].to_s.match?(/\A(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)\z/)
       build(kind: "recording", id: params["recording"], context: params)
+    elsif uri.path == "/resources" && params["file"].to_s.match?(/\A[1-9]\d*\z/)
+      build(kind: "cohort_file", id: params["file"], context: params.slice("cohort_id"))
     elsif %w[/meetings /admin/meetings].include?(uri.path)
       build(kind: "meeting", id: params["booking_id"], context: params.merge(staff: uri.path.start_with?("/admin")))
     end
@@ -85,6 +94,20 @@ class RecordDestination
     kind, id = d.values_at(:kind, :id)
     clean = build(kind: kind, id: id, context: d[:context] || {}, anchor: d[:anchor] || {})
     return unless clean
+
+    if kind == "cohort_file"
+      if clean[:context]["staff"] == true
+        return unless clean[:context]["cohort_id"]
+
+        params = { "tab" => "files" }
+        params["student"] = clean[:context]["student_id"] if clean[:context]["student_id"]
+        params["file"] = id
+        return "/admin/cohorts/#{clean[:context]['cohort_id']}?#{URI.encode_www_form(params)}"
+      end
+      params = clean[:context].slice("cohort_id")
+      params["file"] = id
+      return "/resources?#{URI.encode_www_form(params)}"
+    end
 
     paths = { "student" => "/admin/students/#{id}", "staff" => "/admin/team/#{id}", "curriculum" => clean[:context]["staff"] ? "/admin/content" : "/materials", "resource" => "/resources", "lesson" => "/lessons/#{id}", "module" => "/modules/#{id}", "submission" => "/admin/submissions/#{id}", "help_request" => "/admin/help-requests/#{id}", "follow_up" => "/admin/interventions/#{id}", "channel" => "/messages/#{id}", "dm" => "/messages/dm/#{id}", "announcement" => "/announcements/#{id}", "recording" => "/recordings", "meeting" => clean[:context]["staff"] ? "/admin/meetings" : "/meetings", "cohort" => clean[:context]["staff"] ? "/admin/cohorts/#{id}" : "/cohorts/#{id}", "content_report" => "/admin/moderation", "deletion_request" => "/admin/moderation" }
     params = clean[:context].except("staff", "query")
@@ -111,6 +134,16 @@ class RecordDestination
     id = d[:id]
     uri = URI.parse(path)
     params = URI.decode_www_form(uri.query.to_s).to_h
+    if d[:kind] == "cohort_file"
+      if d.dig(:context, :staff) == true
+        native_params = {}
+        native_params["cohort_id"] = d.dig(:context, :cohort_id).to_s if d.dig(:context, :cohort_id)
+        native_params["student"] = params["student"] if params["student"]
+        native_params["file"] = id.to_s
+        return "/staff/files?#{URI.encode_www_form(native_params)}"
+      end
+      return path
+    end
     paths = { "student" => "/staff/student/#{id}", "staff" => "/staff/team", "curriculum" => d.dig(:context, :staff) == true ? "/staff/curriculum/#{id}" : "/learn", "resource" => "/resources", "lesson" => "/lesson/#{id}", "module" => "/module/#{id}", "submission" => "/staff/submission/#{id}", "help_request" => "/staff/support/#{id}", "follow_up" => "/staff/intervention/#{id}", "channel" => "/conversation/channel/#{id}", "dm" => "/conversation/dm/#{id}", "announcement" => "/updates", "recording" => "/recording/#{id}", "meeting" => "/meetings", "cohort" => "/cohort/#{id}" }
     params.delete("recording")
     params["announcement_id"] = id if d[:kind] == "announcement"
