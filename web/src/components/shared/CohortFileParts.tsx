@@ -301,12 +301,13 @@ interface QueuedFile {
  * Files upload one after another with their own progress; a failed file stays
  * in the list with its error and a Retry button.
  */
-export function CohortFileUploader({ cohortId, studentId, folderPresets, defaultFolder, initialFiles, allowVisibility = false, heading, description, disabled, disabledReason, onUploaded, onFinished, onCancel }: {
+export function CohortFileUploader({ cohortId, studentId, folderPresets, defaultFolder, initialFiles, onInitialFilesConsumed, allowVisibility = false, heading, description, disabled, disabledReason, onUploaded, onFinished, onCancel }: {
   cohortId: number
   studentId?: number | null
   folderPresets: string[]
   defaultFolder?: string
   initialFiles?: File[]
+  onInitialFilesConsumed?: () => void
   allowVisibility?: boolean
   heading: string
   description?: string
@@ -344,6 +345,11 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
   const chosenFolder = folder === '__custom' ? customFolder.trim() : folder
   const pending = queue.filter((item) => item.status !== 'done')
   const single = queue.length === 1
+  // Keep default destination synced when switching folders only while the queue is empty.
+  useEffect(() => {
+    if (queueRef.current.length > 0 || running) return
+    setFolder(defaultFolder || folderPresets[0] || 'General')
+  }, [defaultFolder, folderPresets, running])
 
   const commitQueue = (change: (current: QueuedFile[]) => QueuedFile[]) => {
     queueRef.current = change(queueRef.current)
@@ -396,7 +402,8 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
     if (!initialFiles?.length || appliedInitialFiles.current === initialFiles || disabled) return
     appliedInitialFiles.current = initialFiles
     choose(initialFiles)
-  }, [disabled, initialFiles])
+    onInitialFilesConsumed?.()
+  }, [disabled, initialFiles, onInitialFilesConsumed])
   const reset = async () => {
     const results = await Promise.all(queueRef.current.map((item) => remove(item.key)))
     if (results.every(Boolean)) {

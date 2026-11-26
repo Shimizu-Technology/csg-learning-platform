@@ -457,7 +457,7 @@ export function Resources() {
                 ariaLabel="Download all my files as a ZIP" />
             )}
           </div>
-          <CohortFileUploader key={`${selectedCohortId}-${activeMyFolder}`} cohortId={selectedCohortId} heading="Upload files" folderPresets={myFolderPresets}
+          <CohortFileUploader key={selectedCohortId} cohortId={selectedCohortId} heading="Upload files" folderPresets={myFolderPresets}
             defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
             description="Resumes, cover letters, workbooks and notes. Choose several at once, up to 100 MB each."
             disabled={!cohortFiles?.can_upload_personal || !cohortFiles?.storage_configured}

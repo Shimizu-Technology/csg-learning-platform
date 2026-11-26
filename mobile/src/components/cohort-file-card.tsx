@@ -69,6 +69,7 @@ export function CohortFileCard({
   onUploadVersion,
   onToggleVisibility,
   onCopyToStudents,
+  onDocOpenChange,
 }: {
   cohortId: number;
   file: CohortFile;
@@ -85,6 +86,7 @@ export function CohortFileCard({
   onUploadVersion?: (file: CohortFile) => Promise<void> | void;
   onToggleVisibility?: (file: CohortFile) => Promise<void> | void;
   onCopyToStudents?: (file: CohortFile) => Promise<void> | void;
+  onDocOpenChange?: (open: boolean) => void;
 }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -110,6 +112,10 @@ export function CohortFileCard({
     if (doc) setDocOpen(true);
     else if (reviewing) setReviewOpen(true);
   }
+  const setDocModalOpen = (next: boolean) => {
+    setDocOpen(next);
+    onDocOpenChange?.(next);
+  };
 
   async function run(kind: 'download' | 'preview', task: () => Promise<void>) {
     if (busy.current) return;
@@ -150,7 +156,7 @@ export function CohortFileCard({
     }
   };
   const openPrimary = () => {
-    if (doc) { setDocOpen(true); return; }
+    if (doc) { setDocModalOpen(true); return; }
     if (link) { if (href) void openLink(); return; }
     if (file.previewable && !downloadDisabled) { void openPreview(); return; }
     if (!downloadDisabled) void download();
@@ -247,7 +253,7 @@ export function CohortFileCard({
 
       <View style={styles.actions}>
         {doc ? (
-          <Button style={styles.action} variant="secondary" accessibilityLabel={`Open ${file.title}`} label={file.can_edit_doc ? 'Open and edit' : 'Open'} onPress={() => setDocOpen(true)} />
+          <Button style={styles.action} variant="secondary" accessibilityLabel={`Open ${file.title}`} label={file.can_edit_doc ? 'Open and edit' : 'Open'} onPress={() => setDocModalOpen(true)} />
         ) : link ? (
           <Button style={styles.action} variant="secondary" accessibilityRole="link" accessibilityLabel={`Open ${file.title}`} label="Open" disabled={!href} onPress={() => void openLink()} />
         ) : (
@@ -366,7 +372,7 @@ export function CohortFileCard({
         />
       )}
       {doc && (
-        <CohortDocModal cohortId={cohortId} file={file} visible={docOpen} onClose={() => setDocOpen(false)} onChanged={onChanged} onStale={onStale} reviewAccess={reviewing} />
+        <CohortDocModal cohortId={cohortId} file={file} visible={docOpen} onClose={() => setDocModalOpen(false)} onChanged={onChanged} onStale={onStale} reviewAccess={reviewing} />
       )}
       {reviewing && !doc && (
         <CohortFileReviewModal cohortId={cohortId} file={file} access={reviewing} visible={reviewOpen} onClose={() => setReviewOpen(false)} onChanged={onChanged} />

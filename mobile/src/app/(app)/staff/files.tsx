@@ -71,6 +71,7 @@ export default function StaffCohortFilesScreen() {
   const [adding, setAdding] = useState<'link' | 'doc' | null>(null);
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [openFileId, setOpenFileId] = useState<number | null>(Number(fileParam) || null);
+  const [activeDocFileId, setActiveDocFileId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   // A new notification link while this screen is open opens its item too.
   const [linked, setLinked] = useState(`${cohort_id}:${student}:${fileParam}`);
@@ -149,7 +150,7 @@ export default function StaffCohortFilesScreen() {
   const filteredStudentFiles = openFolder
     ? sortDriveFiles(
       openFolder.files.filter(
-        (file) => (validStudentSubfolder === 'All' || file.folder === validStudentSubfolder) && matchesDriveTypeFilter(file, typeFilter),
+        (file) => file.id === activeDocFileId || file.id === openFileId || ((validStudentSubfolder === 'All' || file.folder === validStudentSubfolder) && matchesDriveTypeFilter(file, typeFilter)),
       ),
       sort,
     )
@@ -442,6 +443,10 @@ export default function StaffCohortFilesScreen() {
                 onChanged={replaceFile}
                 onStale={() => void filesQuery.refetch()}
                 autoOpen={file.id === openFileId}
+                onDocOpenChange={(open) => {
+                  setActiveDocFileId((current) => (open ? file.id : current === file.id ? null : current));
+                  if (!open && openFileId === file.id) setOpenFileId(null);
+                }}
               />
             </View>
           ))}

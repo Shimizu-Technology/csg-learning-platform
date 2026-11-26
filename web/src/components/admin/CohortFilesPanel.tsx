@@ -388,8 +388,9 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
       )}
 
       {adding === 'file' ? (
-        <CohortFileUploader key={`${cohortId}-class-${defaultFolder || 'all'}`} cohortId={cohortId} heading="Upload class files" allowVisibility defaultFolder={defaultFolder}
+        <CohortFileUploader key={`${cohortId}-class`} cohortId={cohortId} heading="Upload class files" allowVisibility defaultFolder={defaultFolder}
           initialFiles={droppedFiles}
+          onInitialFilesConsumed={() => setDroppedFiles(undefined)}
           description="Add several files at once. Choose Staff only to review them before students can see them."
           folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
           onCancel={() => { setAdding(null); setDroppedFiles(undefined) }}
@@ -1031,9 +1032,10 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
         )}
       </div>
       {adding === 'file' && (
-        <CohortFileUploader key={`${cohortId}-${folder.student_id}-${validSubfolder}`} cohortId={cohortId} studentId={folder.student_id} heading={`Upload to ${firstName}'s folder`}
+        <CohortFileUploader key={`${cohortId}-${folder.student_id}`} cohortId={cohortId} studentId={folder.student_id} heading={`Upload to ${firstName}'s folder`}
           defaultFolder={validSubfolder === 'All' ? undefined : validSubfolder}
           initialFiles={droppedFiles}
+          onInitialFilesConsumed={() => setDroppedFiles(undefined)}
           folderPresets={presets} disabled={!storage} disabledReason="File storage isn't set up yet."
           onCancel={() => { setAdding(null); setDroppedFiles(undefined) }}
           onUploaded={(file) => { onChange((files) => [...files, file]); toast.success(`Uploaded ${file.title}`) }}
