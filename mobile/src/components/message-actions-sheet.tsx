@@ -35,6 +35,6 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   error: { color: c.status.danger.fg, fontFamily: fonts.medium, fontSize: 14 },
   title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 18, marginBottom: 8 },
   reactions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  reaction: { minWidth: 60, minHeight: 60, flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 4, padding: 8, borderRadius: 12, backgroundColor: c.surface.sunken },
-  label: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12 },
+  reaction: { width: '31%', minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 4, padding: 8, borderRadius: 12, backgroundColor: c.surface.sunken },
+  label: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, textAlign: 'center' },
 }));

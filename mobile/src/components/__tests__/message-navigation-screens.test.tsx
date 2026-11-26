@@ -539,7 +539,8 @@ it('sends a thread attachment with an autocompleted mention', async () => {
     fireEvent.press(screen.getByLabelText('Attach'));
     const actions = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => void }[];
     await act(async () => { actions.find(item => item.text === 'Choose a file')?.onPress?.(); });
-    expect(screen.getByText('Remove notes.txt')).toBeTruthy();
+    expect(screen.getByText('notes.txt')).toBeTruthy();
+    expect(screen.getByLabelText('Remove notes.txt')).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Send reply'));
     await waitFor(() => expect(mockApi.sendMessage).toHaveBeenCalledWith('channel', 4, expect.objectContaining({ parent_message_id: 1, mention_user_ids: [42], attachments: [payload] })));
   } finally {

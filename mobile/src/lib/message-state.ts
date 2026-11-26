@@ -26,7 +26,34 @@ export function pinnedMessagesFrom(messages: Message[]) {
     .sort((left, right) => Date.parse(right.pinned_at || '') - Date.parse(left.pinned_at || ''));
 }
 
-export function mergeMessageEvent(messages: Message[], payload: MessageEvent) {
+/** Per-screen idempotency guard so HTTP and realtime reply deletes decrement parent reply_count once in either order without starving other mounted screens. */
+export function claimDeletedReplyDecrement(claimedIds: Set<number>, messageId: number): boolean {
+  if (claimedIds.has(messageId)) return false;
+  claimedIds.add(messageId);
+  if (claimedIds.size > 200) {
+    const oldest = claimedIds.values().next().value;
+    if (oldest !== undefined) claimedIds.delete(oldest);
+  }
+  return true;
+}
+
+export function removeMessageAndUpdateReplyCount(
+  messages: Message[],
+  deleted: Pick<Message, 'id' | 'parent_message_id'>,
+  skipParentDecrement = false,
+): Message[] {
+  const existing = messages.find((item) => item.id === deleted.id);
+  const parentId = deleted.parent_message_id ?? existing?.parent_message_id ?? null;
+  const filtered = messages.filter((item) => item.id !== deleted.id);
+  if (!parentId || skipParentDecrement) return filtered;
+  return filtered.map((item) => (
+    item.id === parentId
+      ? { ...item, reply_count: Math.max(0, (item.reply_count ?? 1) - 1) }
+      : item
+  ));
+}
+
+export function mergeMessageEvent(messages: Message[], payload: MessageEvent, skipParentDecrement = false) {
   if (payload.event === 'created') {
     const matchingClientId = payload.message.client_message_id
       ? messages.find((message) => sameClientMessage(message, payload.message))?.id
@@ -40,15 +67,18 @@ export function mergeMessageEvent(messages: Message[], payload: MessageEvent) {
   }
 
   if (payload.event === 'deleted') {
-    return messages.filter((message) => message.id !== payload.message.id);
+    return removeMessageAndUpdateReplyCount(messages, payload.message, skipParentDecrement);
   }
 
   return messages.map((message) => message.id === payload.message.id ? { ...message, ...payload.message } : message);
 }
 
-export function mergePinnedMessageEvent(messages: Message[], payload: MessageEvent) {
+export function mergePinnedMessageEvent(messages: Message[], payload: MessageEvent, skipParentDecrement = false) {
+  if (payload.event === 'deleted') {
+    return removeMessageAndUpdateReplyCount(messages, payload.message, skipParentDecrement);
+  }
   const withoutMessage = messages.filter((message) => message.id !== payload.message.id);
-  return payload.event !== 'deleted' && payload.message.pinned_at
+  return payload.message.pinned_at
     ? [payload.message, ...withoutMessage]
     : withoutMessage;
 }
