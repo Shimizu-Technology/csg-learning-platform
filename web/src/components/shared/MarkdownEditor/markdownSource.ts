@@ -239,13 +239,20 @@ function parseMarkdownListLine(value: string, caret: number) {
  * clearing an empty marker — matching Rich mode and Slack.
  */
 export function markdownListEnterEdit(value: string, start: number, end: number): SourceEdit | null {
-  if (isInsideFenceIncludingLists(`${value.slice(0, start)}\n`, start + 1)) return null
+  if (isInsideFenceIncludingLists(value, start)) return null
   const info = parseMarkdownListLine(value, start)
   if (!info || end > info.to) return null
-  // A list item whose body opens a fenced code block (e.g. "- ```js") starts a fence, not another marker.
-  if (isFenceOpenerLine(info.body)) return null
   const contentStart = info.from + info.prefixLength
   if (start < contentStart) return null
+  // A list item whose body opens a fenced code block (e.g. "- ```js") starts a fence indented to the item's content column.
+  if (isFenceOpenerLine(info.body)) {
+    const markerWidth = info.bullet ? info.bullet.length : String(info.number).length + info.delimiter.length
+    const baseWidth = indentWidth(info.indent) + markerWidth
+    const contentColumn = baseWidth + indentWidth(info.space, baseWidth)
+    const insertion = `\n${' '.repeat(contentColumn)}`
+    const nextCaret = start + insertion.length
+    return { start, end, text: insertion, selectionStart: nextCaret, selectionEnd: nextCaret }
+  }
   // Empty list item (e.g. "2. " or "- "): Enter exits the list cleanly.
   if (info.body.trim().length === 0 && start === end) {
     return { start: info.from, end: info.to, text: '', selectionStart: info.from, selectionEnd: info.from }
@@ -256,8 +263,13 @@ export function markdownListEnterEdit(value: string, start: number, end: number)
   return { start, end, text: insertion, selectionStart: nextCaret, selectionEnd: nextCaret }
 }
 
-function indentWidth(indent: string) {
-  return indent.replace(/\t/g, '  ').length
+/** CommonMark expands tabs to 4-column tab stops. */
+function indentWidth(indent: string, startColumn = 0) {
+  let col = startColumn
+  for (const ch of indent) {
+    col = ch === '\t' ? col + (4 - (col % 4)) : col + 1
+  }
+  return col - startColumn
 }
 
 /**
@@ -302,7 +314,8 @@ export function markdownListIndentEdit(value: string, start: number, end: number
         continue
       }
       const prevWidth = indentWidth(prev[1])
-      const prevContentColumn = prevWidth + (prev[2] ? prev[2].length : prev[3].length + prev[4].length) + prev[5].length
+      const markerWidth = prev[2] ? prev[2].length : prev[3].length + prev[4].length
+      const prevContentColumn = prevWidth + markerWidth + indentWidth(prev[5], prevWidth + markerWidth)
       if (prevWidth <= firstIndent) {
         if (prevContentColumn > firstIndent) targetIndent = prevContentColumn
         break
@@ -342,9 +355,12 @@ export function markdownListIndentEdit(value: string, start: number, end: number
       deltas.push(delta)
       return `${' '.repeat(delta)}${line}`
     }
-    const remove = Math.min(-delta, line.match(/^ */)![0].length)
-    deltas.push(-remove)
-    return line.slice(remove)
+    const leadingWs = line.match(/^[ \t]*/)![0]
+    const currentColumns = indentWidth(leadingWs)
+    const nextColumns = Math.max(0, currentColumns + delta)
+    const replacement = ' '.repeat(nextColumns)
+    deltas.push(replacement.length - leadingWs.length)
+    return `${replacement}${line.slice(leadingWs.length)}`
   })
   const text = nextLines.join('\n')
   if (text === value.slice(from, to)) return null

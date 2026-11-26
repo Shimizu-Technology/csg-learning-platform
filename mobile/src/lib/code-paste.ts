@@ -44,9 +44,9 @@ export function normalizePastedCode(text: string): string {
 
 /** Decides whether multi-line plain text should become a code block. */
 export function looksLikeCode(raw: string): boolean {
-  const text = normalizePastedCode(raw);
-  const sample = text.length > MAX_SCAN_CHARS ? text.slice(0, MAX_SCAN_CHARS) : text;
-  const lines = sample.split('\n').slice(0, MAX_SCAN_LINES);
+  const bounded = raw.length > MAX_SCAN_CHARS ? raw.slice(0, MAX_SCAN_CHARS) : raw;
+  const text = normalizePastedCode(bounded);
+  const lines = text.split('\n').slice(0, MAX_SCAN_LINES);
   const nonEmpty = lines.filter((line) => line.trim().length > 0);
   if (nonEmpty.length < 2) return false;
   if (lines.some((line) => /^ {0,3}(`{3,}|~{3,})/.test(line))) return false; // already has a Markdown fence

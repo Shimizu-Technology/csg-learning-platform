@@ -103,9 +103,12 @@ describe('Markdown list Enter and Tab helpers', () => {
     expect('1. Pull main\n2. '.slice(0, exit.start) + exit.text + '1. Pull main\n2. '.slice(exit.end)).toBe('1. Pull main\n')
   })
 
-  it('does not insert a list marker when a list item opens a code fence', () => {
-    expect(markdownListEnterEdit('- ```js', 7, 7)).toBeNull()
-    expect(markdownEnterAddsLine('- ```js\nconst x = 1', 19)).toBe(true)
+  it('indents the code line to the list item content column when a list item opens a code fence', () => {
+    const bulletFence = markdownListEnterEdit('- ```js', 7, 7)!
+    expect('- ```js'.slice(0, bulletFence.start) + bulletFence.text + '- ```js'.slice(bulletFence.end)).toBe('- ```js\n  ')
+    const orderedFence = markdownListEnterEdit('1. ```js', 8, 8)!
+    expect('1. ```js'.slice(0, orderedFence.start) + orderedFence.text + '1. ```js'.slice(orderedFence.end)).toBe('1. ```js\n   ')
+    expect(markdownEnterAddsLine('- ```js\n  const x = 1', 21)).toBe(true)
   })
 
   it('indents to the parent list item content column and refuses invalid isolated indent', () => {
@@ -125,8 +128,11 @@ describe('Markdown list Enter and Tab helpers', () => {
     const nested = '1. parent\n   2. child'
     expect(markdownListIndentEdit(nested, nested.length, nested.length, false)).toBeNull()
 
-    // Shift+Tab outdents cleanly back to parent level.
+    // Shift+Tab outdents cleanly back to parent level (both spaces and tab-indented children).
     const outdented = markdownListIndentEdit(nested, nested.length, nested.length, true)!
     expect(nested.slice(0, outdented.start) + outdented.text + nested.slice(outdented.end)).toBe('1. parent\n2. child')
+    const tabNested = '- parent\n\t- child'
+    const tabOut = markdownListIndentEdit(tabNested, tabNested.length, tabNested.length, true)!
+    expect(tabNested.slice(0, tabOut.start) + tabOut.text + tabNested.slice(tabOut.end)).toBe('- parent\n- child')
   })
 })

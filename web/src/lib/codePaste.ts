@@ -45,9 +45,9 @@ export function normalizePastedCode(text: string): string {
  * offers "Paste as code instead").
  */
 export function looksLikeCode(raw: string): boolean {
-  const text = normalizePastedCode(raw)
-  const sample = text.length > MAX_SCAN_CHARS ? text.slice(0, MAX_SCAN_CHARS) : text
-  const lines = sample.split('\n').slice(0, MAX_SCAN_LINES)
+  const bounded = raw.length > MAX_SCAN_CHARS ? raw.slice(0, MAX_SCAN_CHARS) : raw
+  const text = normalizePastedCode(bounded)
+  const lines = text.split('\n').slice(0, MAX_SCAN_LINES)
   const nonEmpty = lines.filter((line) => line.trim().length > 0)
   if (nonEmpty.length < 2) return false
   // Already fenced Markdown (``` or ~~~ on its own line): Markdown paste keeps the fence as a code block.
