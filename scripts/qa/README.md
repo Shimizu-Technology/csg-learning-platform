@@ -561,3 +561,10 @@ auto-copied Job Search Plan with two revisions, a Resume Draft doc waiting for
 review with an instructor comment, and a Figma link. The spec puts the demo back
 after each test (no live import or cohort copies, persona 5 paused).
 
+### In-app code checks and batch grading
+
+With the harness started, load the fixture from `api/` (each load makes a fresh set, so it can be re-run):
+`DATABASE_URL=postgresql://localhost/<qa db> RAILS_ENV=test bundle exec ruby ../scripts/qa/in-app-checks-and-batch-grading-fixtures.rb`,
+then from `web/`: `DEV_LIFECYCLE_SESSION=<id> QA_SPEC=in-app-checks-and-batch-grading.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts`.
+It runs the real Ruby 3.3 WASM and QuickJS WASM runtimes in the browser: lesson editor checks, a student's
+fail-fix-pass and submit, the Grading workbench's check card, and Batch review approval, at 1280 and 390 in light and dark.
