@@ -26,6 +26,8 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-typing: 1200ms;
+  --delay-typing-step: 160ms;
 
   /* Video frames, image lightboxes and their overlay controls stay dark in
      both themes, like any media player. */
@@ -1128,15 +1130,15 @@ details[open] > :not(summary) {
 }
 
 .typing-dot {
-  animation: typing-dot-bounce 1.2s var(--ease-in-out) infinite;
+  animation: typing-dot-bounce var(--duration-typing) var(--ease-in-out) infinite;
 }
 
 .typing-dot--2 {
-  animation-delay: 160ms;
+  animation-delay: var(--delay-typing-step);
 }
 
 .typing-dot--3 {
-  animation-delay: 320ms;
+  animation-delay: calc(var(--delay-typing-step) * 2);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -39,6 +39,20 @@ describe('MessageFormattingToolbar Preview (Markdown mode)', () => {
     );
     expect(screen.getByLabelText('Preview').props.accessibilityState).toMatchObject({ disabled: true });
   });
+
+  it('exits Preview when the draft is cleared after sending so the next message starts in Write mode', () => {
+    const props = { selection: { start: 0, end: 0 }, visible: true, onChange: jest.fn(), onSelectionChange: jest.fn(), onComposerFocus: jest.fn(), onLimitExceeded: jest.fn() };
+    const screen = render(<MessageFormattingToolbar {...props} value="**Hello**" />);
+    fireEvent.press(screen.getByLabelText('Preview'));
+    expect(screen.getByTestId('composer-preview')).toBeTruthy();
+
+    screen.rerender(<MessageFormattingToolbar {...props} value="" />);
+    expect(screen.queryByTestId('composer-preview')).toBeNull();
+
+    screen.rerender(<MessageFormattingToolbar {...props} value="Next message" />);
+    expect(screen.queryByTestId('composer-preview')).toBeNull();
+    expect(screen.getByLabelText('Preview').props.accessibilityState).toMatchObject({ selected: false });
+  });
 });
 
 it('opens and dismisses phone formatting help', () => {

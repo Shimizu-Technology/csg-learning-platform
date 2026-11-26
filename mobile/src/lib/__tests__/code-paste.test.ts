@@ -11,6 +11,8 @@ describe('code in messages', () => {
     expect(looksLikeCode('Hi! I finished E2.\nCan you check it?')).toBe(false);
     expect(looksLikeCode('Hi Leon,\nI got an error when I tried to push.\nCan you help?')).toBe(false);
     expect(looksLikeCode('Hint: Read the prompt again.\nTry a smaller example.')).toBe(false);
+    expect(looksLikeCode('I get Permission denied when I push.\nCan you help me fix this?')).toBe(false);
+    expect(looksLikeCode('git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.')).toBe(true);
     expect(looksLikeCode('docker works well on macOS\nwe can try it tomorrow')).toBe(false);
     expect(looksLikeCode(` at ${'a'.repeat(5000)} without a location\nsecond plain line`)).toBe(false);
     expect(looksLikeCode('print("one line")')).toBe(false);
