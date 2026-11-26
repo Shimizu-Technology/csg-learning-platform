@@ -104,19 +104,25 @@ class SubmissionBatchGrade
           .lock("FOR SHARE").pluck(:id, :grading_scale).to_h
         enrollments = Enrollment.includes(:cohort).where(id: candidates.values.map { |row| row[:enrollment_id] }.uniq.sort)
           .order(:id).lock("FOR NO KEY UPDATE").index_by(&:id)
+        # Lock content blocks FOR SHARE in canonical order (Curriculum -> Enrollment -> ContentBlock -> Submission)
+        # so an authoring edit (FOR NO KEY UPDATE / FOR UPDATE) cannot commit between the version check and grading.
+        block_ids = candidates.values.flat_map { |row| [ row[:content_block_id], row[:current_content_block_id] ] }.compact.uniq.sort
+        blocks = ContentBlock.includes(lesson: { curriculum_module: :curriculum })
+          .where(id: block_ids).order(:id).lock("FOR SHARE").index_by(&:id)
         submissions = Submission
-          .includes(:user, :submission_grade_suggestion, enrollment: :cohort, content_block: { lesson: { curriculum_module: :curriculum } })
+          .includes(:user, :submission_grade_suggestion, enrollment: :cohort)
           .where(id: candidates.keys.sort).order(:id).lock("FOR NO KEY UPDATE").to_a
         latest_ids = Submission.latest_attempt_ids_for(submissions)
         found = submissions.index_by(&:id)
 
         candidates.keys.sort.each do |id|
           submission = found[id]
-          reason = submission ? skip_reason(submission, candidates.fetch(id), scales, enrollments, latest_ids) : "not_found"
+          reason = submission ? skip_reason(submission, candidates.fetch(id), scales, enrollments, blocks, latest_ids) : "not_found"
           next skip!(id, reason) if reason
 
-          # The locked enrollment carries the guard state just checked.
+          # The locked enrollment and content block carry the guard state just checked.
           submission.enrollment = enrollments.fetch(submission.enrollment_id)
+          submission.association(:content_block).target = blocks.fetch(submission.content_block_id)
           writer = SubmissionGradeWriter.new(submission: submission, grader: @viewer, school_features: @school_features).prepare(@grade)
           writer.record!(grade: @grade, feedback: @feedback, grading_scale: scales.fetch(candidates.fetch(id)[:curriculum_id]),
             evaluate_completion: false)
@@ -152,34 +158,37 @@ class SubmissionBatchGrade
     by_id = @items.index_by(&:submission_id)
     rows = Submission.joins(:enrollment, content_block: { lesson: :curriculum_module })
       .where(id: by_id.keys)
-      .pluck("submissions.id", "submissions.enrollment_id", "enrollments.cohort_id", "modules.curriculum_id")
-    candidates = rows.select { |_, _, cohort_id, _| @scope.visible?(cohort_id) }.to_h do |id, enrollment_id, _, curriculum_id|
+      .pluck("submissions.id", "submissions.enrollment_id", "enrollments.cohort_id", "modules.curriculum_id", "submissions.content_block_id")
+    candidates = rows.select { |_, _, cohort_id, _, _| @scope.visible?(cohort_id) }.to_h do |id, enrollment_id, _, curriculum_id, current_block_id|
       item = by_id.fetch(id)
-      [ id, { enrollment_id: enrollment_id, curriculum_id: curriculum_id, base_updated_at: item.base_updated_at,
-              content_block_id: item.content_block_id, content_block_updated_at: item.content_block_updated_at } ]
+      [ id, { enrollment_id: enrollment_id, curriculum_id: curriculum_id, current_content_block_id: current_block_id,
+              base_updated_at: item.base_updated_at, content_block_id: item.content_block_id,
+              content_block_updated_at: item.content_block_updated_at } ]
     end
     @items.each { |item| skip!(item.submission_id, "not_found") unless candidates.key?(item.submission_id) }
     candidates
   end
 
-  def skip_reason(submission, candidate, scales, enrollments, latest_ids)
+  def skip_reason(submission, candidate, scales, enrollments, blocks, latest_ids)
     enrollment = enrollments[submission.enrollment_id]
     return "not_found" unless enrollment && submission.enrollment_id == candidate[:enrollment_id] && @scope.visible?(enrollment.cohort_id)
 
     stale = enrollment.stale_learning_write(request_started_at: @request_started_at)
     return stale.code == "content_moved" ? "content_moved" : "learning_state_reset" if stale
+    block = blocks[submission.content_block_id]
+    return "content_moved" unless block
     # A cohort copy moved this work to its own curriculum after it was read:
     # the scale locked above is the wrong one.
-    return "content_moved" unless submission.content_block.lesson.curriculum_module.curriculum_id == candidate[:curriculum_id]
+    return "content_moved" unless block.lesson.curriculum_module.curriculum_id == candidate[:curriculum_id]
     # A cohort copy finished between loading the review and approving it: the block was remapped.
     return "content_moved" unless submission.content_block_id == candidate[:content_block_id]
-    return "exercise_changed" if candidate[:content_block_updated_at] && submission.content_block.updated_at != candidate[:content_block_updated_at]
+    return "exercise_changed" if candidate[:content_block_updated_at] && block.updated_at != candidate[:content_block_updated_at]
     return "off_scale" unless Curriculum.grades_for_scale(scales.fetch(candidate[:curriculum_id])).include?(@grade)
     return "superseded" unless latest_ids[submission.attempt_key] == submission.id
     return "already_graded" unless submission.grade.nil?
     return "stale" unless submission.updated_at == candidate[:base_updated_at]
 
-    "rubric" unless submission.content_block.rubric_id.nil?
+    "rubric" unless block.rubric_id.nil?
   end
 
   def skip!(id, code)

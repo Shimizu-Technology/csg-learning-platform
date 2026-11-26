@@ -4,7 +4,7 @@ require "test_helper"
 # GET /api/v1/submissions/batch_review).
 class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
   # Locks on the grading rows (authentication may lock the viewer's own user row).
-  LEARNING_LOCK = /FROM "(curricula|enrollments|submissions)".*FOR (UPDATE|NO KEY UPDATE|SHARE)/m
+  LEARNING_LOCK = /FROM "(curricula|enrollments|content_blocks|submissions)".*FOR (UPDATE|NO KEY UPDATE|SHARE|KEY SHARE)/m
 
   setup do
     @curriculum = Curriculum.create!(name: "Drills", grading_scale: "pass_redo")
@@ -82,14 +82,18 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
 
     curriculum_lock = statements.index { |sql| sql.match?(/FROM "curricula".*FOR SHARE/m) }
     enrollment_lock = statements.index { |sql| sql.match?(/FROM "enrollments".*FOR NO KEY UPDATE/m) }
+    block_lock = statements.index { |sql| sql.match?(/FROM "content_blocks".*FOR SHARE/m) }
     submission_lock = statements.index { |sql| sql.match?(/FROM "submissions".*FOR NO KEY UPDATE/m) }
-    assert curriculum_lock && enrollment_lock && submission_lock, statements.grep(/FOR /).inspect
+    assert curriculum_lock && enrollment_lock && block_lock && submission_lock, statements.grep(/FOR /).inspect
     assert_operator curriculum_lock, :<, enrollment_lock
-    assert_operator enrollment_lock, :<, submission_lock
-    # One statement per level, ordered by id, and no other submission or enrollment lock before them.
+    assert_operator enrollment_lock, :<, block_lock
+    assert_operator block_lock, :<, submission_lock
+    # One statement per level, ordered by id, and no out-of-order grading locks.
     assert_equal 1, statements.count { |sql| sql.match?(/FROM "curricula".*FOR SHARE/m) }
+    assert_equal 1, statements.count { |sql| sql.match?(/FROM "content_blocks".*FOR SHARE/m) }
     assert_match(/ORDER BY "curricula"."id" ASC/, statements[curriculum_lock])
     assert_match(/ORDER BY "enrollments"."id" ASC/, statements[enrollment_lock])
+    assert_match(/ORDER BY "content_blocks"."id" ASC/, statements[block_lock])
     assert_match(/ORDER BY "submissions"."id" ASC/, statements[submission_lock])
     assert_empty statements[0...curriculum_lock].grep(LEARNING_LOCK)
     assert_empty statements[curriculum_lock...submission_lock].grep(/FROM "submissions".*FOR /m)

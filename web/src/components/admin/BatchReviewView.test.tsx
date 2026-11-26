@@ -254,4 +254,54 @@ describe('BatchReviewView', () => {
     expect(container.textContent).toContain('1 of 1 check failed')
     expect(selectedIds()).toEqual([])
   })
+
+  it('cancels an open confirmation if the instructor leaves and returns or refreshes, and clears feedback across exercises', async () => {
+    const answer = deferred<boolean>()
+    confirm.mockReturnValue(answer.promise)
+    const batch = vi.spyOn(api, 'batchGradeSubmissions')
+    await renderView(review())
+    const input = container.querySelector<HTMLInputElement>('input[placeholder*="Feedback"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Great loop!')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(input.value).toBe('Great loop!')
+
+    // Open confirmation, then leave to exercise 9 and return to exercise 8 before confirming.
+    await act(async () => button('Approve selected as Pass (1)')!.click())
+    vi.spyOn(api, 'getBatchReview')
+      .mockResolvedValueOnce({ data: review({ content_block_id: 9, title: 'Second' }, [card(5, 'Eve', 'puts 10')]), error: null })
+      .mockResolvedValueOnce({ data: review(), error: null })
+    await act(async () => root.render(view(9)))
+    await settle()
+    expect(container.querySelector<HTMLInputElement>('input[placeholder*="Feedback"]')?.value).toBe('')
+    await act(async () => root.render(view(8)))
+    await settle()
+    await act(async () => answer.resolve(true))
+    await settle()
+    expect(batch).not.toHaveBeenCalled()
+
+    // Also cancels if Refresh replaces the snapshot while the confirmation is open.
+    const answer2 = deferred<boolean>()
+    confirm.mockReturnValue(answer2.promise)
+    await act(async () => button('Approve selected as Pass (1)')!.click())
+    vi.spyOn(api, 'getBatchReview').mockResolvedValueOnce({ data: review(), error: null })
+    await act(async () => button('Refresh')!.click())
+    await settle()
+    await act(async () => answer2.resolve(true))
+    await settle()
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('clears stale cards and shows an error when a reload rejects, and displays waiting count for exercises outside the cap', async () => {
+    await renderView({ ...review({ waiting: 7 }, [card(1, 'Alice', 'puts 10')]), exercises: [] })
+    expect(container.querySelector('select option')?.textContent).toContain('(7)')
+
+    vi.spyOn(api, 'getBatchReview').mockRejectedValueOnce(new Error('Token refresh failed'))
+    await act(async () => button('Refresh')!.click())
+    await settle()
+    expect(container.querySelector('[data-batch-submission]')).toBeNull()
+    expect(button('Approve selected as Pass (1)')).toBeUndefined()
+    expect(container.textContent).toContain('Token refresh failed')
+  })
 })

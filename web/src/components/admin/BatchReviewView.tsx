@@ -49,6 +49,7 @@ interface Props {
 }
 
 interface Loaded {
+  generation: number
   baseScope: string
   requestedId: number | null
   data: BatchReview
@@ -84,10 +85,13 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   const current = loaded && loaded.baseScope === baseScope &&
     (loaded.requestedId === contentBlockId || (loaded.requestedId === null && loaded.data.exercise?.content_block_id === contentBlockId))
   const data = current ? loaded.data : null
+  const activeGeneration = current ? loaded.generation : 0
   const activeScope = useRef(scopeKey)
+  const loadedGeneration = useRef(activeGeneration)
   const dataRef = useRef(data)
   useEffect(() => {
     activeScope.current = scopeKey
+    loadedGeneration.current = activeGeneration
     dataRef.current = data
   })
 
@@ -95,19 +99,26 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
     const generation = ++loadGeneration.current
     const scope = JSON.stringify([params.cohortId, params.moduleId, params.lessonId, params.contentBlockId])
     setLoading(true)
-    const result = await api.getBatchReview({ cohort_id: params.cohortId, module_id: params.moduleId, lesson_id: params.lessonId, content_block_id: params.contentBlockId })
-    if (generation !== loadGeneration.current) return
-    setLoading(false)
-    if (!result.data) {
-      // A failed reload clears the cards: nothing stale stays selectable.
+    try {
+      const result = await api.getBatchReview({ cohort_id: params.cohortId, module_id: params.moduleId, lesson_id: params.lessonId, content_block_id: params.contentBlockId })
+      if (generation !== loadGeneration.current) return
+      if (!result.data) {
+        // A failed reload clears the cards: nothing stale stays selectable.
+        setLoaded(null)
+        setError({ scope, message: result.error || 'Could not load batch review.' })
+        return
+      }
+      setError(null)
+      touched.current = new Set()
+      setChecks({})
+      setLoaded({ generation, baseScope: JSON.stringify([params.cohortId, params.moduleId, params.lessonId]), requestedId: params.contentBlockId, data: result.data })
+    } catch (cause: unknown) {
+      if (generation !== loadGeneration.current) return
       setLoaded(null)
-      setError({ scope, message: result.error || 'Could not load batch review.' })
-      return
+      setError({ scope, message: cause instanceof Error && cause.message ? cause.message : 'Could not load batch review.' })
+    } finally {
+      if (generation === loadGeneration.current) setLoading(false)
     }
-    setError(null)
-    touched.current = new Set()
-    setChecks({})
-    setLoaded({ baseScope: JSON.stringify([params.cohortId, params.moduleId, params.lessonId]), requestedId: params.contentBlockId, data: result.data })
   }, [])
   const reload = useCallback(() => load({ cohortId, moduleId, lessonId, contentBlockId }), [load, cohortId, moduleId, lessonId, contentBlockId])
 
@@ -123,6 +134,11 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   useEffect(() => {
     if (!contentBlockId && exercise) onChooseExercise(exercise.content_block_id)
   }, [contentBlockId, exercise, onChooseExercise])
+  // Clear shared feedback whenever switching cohort/filters/exercise so a draft never spills onto another exercise.
+  const exerciseScope = `${baseScope}:${exercise?.content_block_id ?? contentBlockId ?? ''}`
+  useEffect(() => {
+    setFeedback('')
+  }, [exerciseScope])
 
   const scale = exercise?.grading_scale ?? 'pass_redo'
   const grade = checksSuggestedGrade(scale)
@@ -200,8 +216,9 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   const chosen = submissions.filter((submission) => selected.has(submission.id))
   const gradeName = gradeLabel(grade)
   async function approve() {
-    if (!chosen.length || approving || !exercise) return
-    // Everything below belongs to the scope the instructor confirmed for.
+    if (!chosen.length || approving || loading || !exercise || !activeGeneration) return
+    // Bind confirmation and completion to this exact loaded snapshot, not just the filter key.
+    const snapshot = activeGeneration
     const scope = scopeKey
     const items = chosen.map((submission) => ({
       submission_id: submission.id,
@@ -215,11 +232,14 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
       description: `Each student gets ${gradeName}${feedback.trim() ? ' and your feedback' : ''} on ${exercise.title}.${notPassing ? ` ${notPassing} of them ${notPassing === 1 ? "doesn't" : "don't"} have passing automated checks.` : ''} Work that changed since it loaded is skipped.`,
       confirmLabel: `Approve as ${gradeName}`,
     })
-    if (!ok || activeScope.current !== scope) return
+    if (!ok || loadGeneration.current !== snapshot || loadedGeneration.current !== snapshot || activeScope.current !== scope) return
     setApproving(true)
     let result: Awaited<ReturnType<typeof api.batchGradeSubmissions>>
     try {
       result = await api.batchGradeSubmissions({ grade, feedback: feedback.trim() ? feedback : null, items })
+    } catch (cause: unknown) {
+      toast.error(cause instanceof Error && cause.message ? cause.message : 'Could not approve these submissions.')
+      return
     } finally {
       setApproving(false)
     }
@@ -231,8 +251,8 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
     } else {
       toast.error(result.error || 'Could not approve these submissions.')
     }
-    // The instructor moved on meanwhile: don't overwrite the scope now on screen.
-    if (activeScope.current !== scope) return
+    // The instructor moved on or reloaded meanwhile: don't overwrite the snapshot now on screen.
+    if (loadGeneration.current !== snapshot || loadedGeneration.current !== snapshot || activeScope.current !== scope) return
     setSkipped({ scope, items: skippedItems })
     if (result.data) setFeedback('')
     if (result.data || skippedItems.length) await reload()
@@ -259,7 +279,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
             >
               {!exercise && <option value="">No exercises waiting</option>}
               {exercise && !data.exercises.some((option) => option.content_block_id === exercise.content_block_id) && (
-                <option value={exercise.content_block_id}>{exercise.lesson_title} · {exercise.title} (0)</option>
+                <option value={exercise.content_block_id}>{exercise.lesson_title} · {exercise.title} ({exercise.waiting})</option>
               )}
               {data.exercises.map((option) => (
                 <option key={option.content_block_id} value={option.content_block_id}>
@@ -352,7 +372,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
                   className="app-control min-h-11 w-full"
                 />
               </label>
-              <Button onClick={() => void approve()} disabled={!chosen.length || approving} className="w-full sm:w-auto">
+              <Button onClick={() => void approve()} disabled={!chosen.length || approving || loading} className="w-full sm:w-auto">
                 {approving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
                 {approving ? 'Approving…' : `Approve selected as ${gradeName} (${chosen.length})`}
               </Button>

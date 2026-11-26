@@ -174,6 +174,29 @@ const RUBY_HARNESS = String.raw`
   array_size = Array.instance_method(:size)
   array_at = Array.instance_method(:[])
   hash_pairs = Hash.instance_method(:to_a)
+  set_class = defined?(Set) ? Set : nil
+  set_to_a = set_class ? set_class.instance_method(:to_a) : nil
+  range_class = Range
+  range_begin = Range.instance_method(:begin)
+  range_end = Range.instance_method(:end)
+  range_excl = Range.instance_method(:exclude_end?)
+  range_include = Range.instance_method(:include?)
+  regexp_class = Regexp
+  regexp_eq = Regexp.instance_method(:==)
+  symbol_class = Symbol
+  symbol_eq = Symbol.instance_method(:==)
+  rational_class = Rational
+  rational_eq = Rational.instance_method(:==)
+  complex_class = Complex
+  complex_eq = Complex.instance_method(:==)
+  time_class = Time
+  time_eq = Time.instance_method(:==)
+  date_class = defined?(Date) ? Date : nil
+  date_eq = date_class ? date_class.instance_method(:==) : nil
+  datetime_class = defined?(DateTime) ? DateTime : nil
+  datetime_eq = datetime_class ? datetime_class.instance_method(:==) : nil
+  bigdecimal_class = defined?(BigDecimal) ? BigDecimal : nil
+  bigdecimal_eq = bigdecimal_class ? bigdecimal_class.instance_method(:==) : nil
   string_class = String
   integer_class = Integer
   float_class = Float
@@ -253,8 +276,46 @@ const RUBY_HARNESS = String.raw`
         index = integer_plus.bind_call(index, 1)
       end
       true
+    elsif set_class && same.bind_call(expected_class, set_class)
+      expected_items = set_to_a.bind_call(expected)
+      actual_items = set_to_a.bind_call(actual)
+      size = array_size.bind_call(expected_items)
+      return false unless integer_eq.bind_call(size, array_size.bind_call(actual_items))
+      index = 0
+      while integer_lt.bind_call(index, size)
+        item = array_at.bind_call(expected_items, index)
+        found = false
+        other = 0
+        while (found ? false : integer_lt.bind_call(other, size))
+          found = values_equal.(item, array_at.bind_call(actual_items, other))
+          other = integer_plus.bind_call(other, 1)
+        end
+        return false unless found
+        index = integer_plus.bind_call(index, 1)
+      end
+      true
+    elsif same.bind_call(expected_class, range_class)
+      same.bind_call(range_excl.bind_call(expected), range_excl.bind_call(actual)) &&
+        values_equal.(range_begin.bind_call(expected), range_begin.bind_call(actual)) &&
+        values_equal.(range_end.bind_call(expected), range_end.bind_call(actual))
+    elsif same.bind_call(expected_class, regexp_class)
+      regexp_eq.bind_call(expected, actual)
+    elsif same.bind_call(expected_class, symbol_class)
+      symbol_eq.bind_call(expected, actual)
+    elsif same.bind_call(expected_class, rational_class)
+      rational_eq.bind_call(expected, actual)
+    elsif same.bind_call(expected_class, complex_class)
+      complex_eq.bind_call(expected, actual)
+    elsif same.bind_call(expected_class, time_class)
+      time_eq.bind_call(expected, actual)
+    elsif datetime_class && same.bind_call(expected_class, datetime_class)
+      datetime_eq.bind_call(expected, actual)
+    elsif date_class && same.bind_call(expected_class, date_class)
+      date_eq.bind_call(expected, actual)
+    elsif bigdecimal_class && same.bind_call(expected_class, bigdecimal_class)
+      bigdecimal_eq.bind_call(expected, actual)
     else
-      # Other classes compare the way they define equality.
+      # Student-defined classes compare the way they define equality.
       expected == actual
     end
   }
@@ -266,8 +327,14 @@ const RUBY_HARNESS = String.raw`
     collection_class = class_of.bind_call(collection)
     if same.bind_call(collection_class, string_class) && same.bind_call(class_of.bind_call(item), string_class)
       string_include.bind_call(collection, item)
-    elsif same.bind_call(collection_class, array_class) || same.bind_call(collection_class, hash_class)
-      entries = same.bind_call(collection_class, hash_class) ? hash_pairs.bind_call(collection) : collection
+    elsif same.bind_call(collection_class, array_class) || same.bind_call(collection_class, hash_class) || (set_class && same.bind_call(collection_class, set_class))
+      entries = if same.bind_call(collection_class, hash_class)
+        hash_pairs.bind_call(collection)
+      elsif set_class && same.bind_call(collection_class, set_class)
+        set_to_a.bind_call(collection)
+      else
+        collection
+      end
       size = array_size.bind_call(entries)
       index = 0
       found = false
@@ -277,6 +344,8 @@ const RUBY_HARNESS = String.raw`
         index = integer_plus.bind_call(index, 1)
       end
       found
+    elsif same.bind_call(collection_class, range_class)
+      range_include.bind_call(collection, item)
     else
       collection.include?(item)
     end
@@ -307,8 +376,8 @@ const RUBY_HARNESS = String.raw`
   end
   %i[set_trace_func add_trace_func].each { |name| Thread.send(:undef_method, name) if Thread.method_defined?(name) }
   [
-    BasicObject, Kernel, Comparable, Enumerable, ObjectSpace, TracePoint, Thread, Fiber, GC,
-    String, Symbol, Integer, Float, Numeric, Rational, Complex, Array, Hash, Range, Regexp, MatchData,
+    BasicObject, Kernel, Comparable, Enumerable, ObjectSpace, TracePoint, Thread, Fiber, GC, Math, Marshal, Struct,
+    String, Symbol, Integer, Float, Numeric, Rational, Complex, Array, Hash, Range, Regexp, MatchData, Time,
     TrueClass, FalseClass, NilClass, Proc, Method, UnboundMethod, Binding, Module, Class, IO, File, Dir, Encoding,
     Exception, StandardError, RuntimeError, ScriptError, SyntaxError, LoadError, NotImplementedError, NameError,
     NoMethodError, TypeError, ArgumentError, ZeroDivisionError, FloatDomainError, RangeError, IndexError, KeyError,
@@ -316,6 +385,9 @@ const RUBY_HARNESS = String.raw`
     FiberError, ThreadError, IOError, EOFError, SecurityError, NoMatchingPatternError, NoMatchingPatternKeyError,
     failure, context_class
   ].each(&:freeze)
+  %i[Set Date DateTime BigDecimal StringIO OpenStruct JSON PP PrettyPrint Digest SecureRandom Forwardable Singleton].each do |name|
+    Object.const_get(name).freeze if Object.const_defined?(name)
+  end
 
   report.("STUDENT_START")
   student_error = nil
@@ -441,6 +513,39 @@ const JS_HELPERS = `(() => {
     return false;
   };
   const fail = (message, fallback) => { throw new ErrorType(message === undefined || message === null ? fallback : toText(message)) };
+  // Freeze JavaScript intrinsics and lock their global bindings before student code runs so
+  // expressions inside author checks (e.g. assert(result.includes(x))) can't be spoofed.
+  const freeze = Object.freeze, define = Object.defineProperty, seen = new Set();
+  const lockObj = (target) => {
+    if (!target || (typeof target !== 'object' && typeof target !== 'function') || seen.has(target)) return;
+    seen.add(target);
+    freeze(target);
+  };
+  const builtinNames = [
+    'Object', 'Function', 'Array', 'String', 'Number', 'Boolean', 'Symbol', 'BigInt',
+    'RegExp', 'Date', 'Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError',
+    'TypeError', 'URIError', 'AggregateError', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise',
+    'ArrayBuffer', 'SharedArrayBuffer', 'DataView', 'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
+    'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array',
+    'BigInt64Array', 'BigUint64Array', 'JSON', 'Math', 'Reflect', 'Proxy', 'Intl',
+    'console', 'print', 'isNaN', 'isFinite', 'parseInt', 'parseFloat',
+  ];
+  for (let i = 0; i < builtinNames.length; i += 1) {
+    const name = builtinNames[i];
+    if (!(name in globalThis)) continue;
+    const val = globalThis[name];
+    lockObj(val);
+    if (val && typeof val === 'function' && val.prototype) lockObj(val.prototype);
+    try { define(globalThis, name, { value: val, writable: false, enumerable: false, configurable: false }); } catch {}
+  }
+  const typedArrayCtor = getProto(Int8Array);
+  lockObj(typedArrayCtor);
+  lockObj(typedArrayCtor && typedArrayCtor.prototype);
+  lockObj(getProto(getProto([][Symbol.iterator]())));
+  const genProto = getProto((function* () {})());
+  lockObj(genProto);
+  lockObj(getProto(genProto));
+  lockObj(getProto(async function () {}));
   return {
     assert(condition, message) { if (!condition) fail(message, 'Assertion failed') },
     assertEqual(expected, actual, message) {
