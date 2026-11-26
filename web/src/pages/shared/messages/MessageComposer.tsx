@@ -5,7 +5,7 @@ import { MarkdownEditor, ToolbarButton, isComposingKey, markdownToEditorDoc, typ
 import { Avatar } from '../../../components/ui/Avatar';
 import { Button } from '../../../components/ui/Button';
 import { RowButton } from '../../../components/ui/RowButton';
-import { MESSAGE_BODY_LIMIT, messageCharacterCount, readComposerDraft, writeComposerDraft } from '../../../lib/messageComposerState';
+import { MESSAGE_BODY_LIMIT, messageCharacterCount, readComposerDraft, safeLocalStorage, writeComposerDraft } from '../../../lib/messageComposerState';
 import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
 import { matchingPeople, personContext } from '../../../lib/person-context';
 import { FormattedMessage } from './FormattedMessage';
@@ -66,8 +66,8 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
 }, ref) {
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
   const draftKeyRef = useRef(draftKey)
-  const [initialDraft] = useState(() => (draftKey && typeof window !== 'undefined'
-    ? unsavedComposerDrafts.get(draftKey) ?? readComposerDraft(draftKey, window.localStorage)
+  const [initialDraft] = useState(() => (draftKey
+    ? unsavedComposerDrafts.get(draftKey) ?? readComposerDraft(draftKey, safeLocalStorage())
     : null))
   const bodyRef = useRef(initialDraft?.body || '')
   /**
@@ -106,9 +106,9 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     editorRef.current?.getMarkdown()
     if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
     draftTimerRef.current = null
-    if (!key || typeof window === 'undefined') return
+    if (!key) return
     const draft = draftRef.current
-    writeComposerDraft(key, { version: 1, body: draft.body, content: draft.content ?? markdownToEditorDoc(draft.body).doc }, window.localStorage)
+    writeComposerDraft(key, { version: 1, body: draft.body, content: draft.content ?? markdownToEditorDoc(draft.body).doc }, safeLocalStorage())
     if (unsavedComposerDrafts.get(key) === draft) unsavedComposerDrafts.delete(key)
   }, [])
 
@@ -128,8 +128,8 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     saveDraftNow(previous)
     draftKeyRef.current = draftKey
     onTypingRef.current(false)
-    const draft = draftKey && typeof window !== 'undefined'
-      ? unsavedComposerDrafts.get(draftKey) ?? readComposerDraft(draftKey, window.localStorage)
+    const draft = draftKey
+      ? unsavedComposerDrafts.get(draftKey) ?? readComposerDraft(draftKey, safeLocalStorage())
       : null
     loadingDraftRef.current = true
     editorRef.current?.setMarkdown(draft?.body || '', draft?.content || null)
@@ -311,7 +311,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     updateCounts('')
     onTypingRef.current(false)
     if (draftKeyRef.current) unsavedComposerDrafts.delete(draftKeyRef.current)
-    if (draftKeyRef.current && typeof window !== 'undefined') writeComposerDraft(draftKeyRef.current, null, window.localStorage)
+    if (draftKeyRef.current) writeComposerDraft(draftKeyRef.current, null, safeLocalStorage())
   }, [hasAttachments, mentionableUsers, onSend, updateCounts])
 
   useImperativeHandle(ref, () => ({
@@ -338,6 +338,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
         renderPreview={renderPreview}
         extensions={extensions}
         underlineShortcut
+        compactToolbar={inThreadPanel}
         maxHeight={inThreadPanel ? 220 : 280}
         className="shadow-raised sm:rounded-2xl"
         toolbarStart={(

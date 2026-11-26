@@ -36,6 +36,7 @@ export function MessageRow({
   inThreadView,
   replyCount,
   threadRepliesList = [],
+  latestReplyAt,
   onReply,
   onReact,
   onInspectReaction,
@@ -68,6 +69,7 @@ export function MessageRow({
   inThreadView: boolean
   replyCount: number
   threadRepliesList?: LocalMessage[]
+  latestReplyAt?: string
   onReply: () => void
   onReact: (emoji: string) => void
   onInspectReaction: (emoji: string) => void
@@ -80,7 +82,6 @@ export function MessageRow({
   const uniqueReplyAuthors = Array.from(
     new Map(threadRepliesList.map((reply) => [reply.author.id, reply.author])).values(),
   ).slice(0, 3)
-  const latestReplyAt = threadRepliesList.at(-1)?.created_at
 
   return (
     <div
@@ -324,7 +325,7 @@ export function MessageRow({
         <div
           role="toolbar"
           aria-label="Message actions"
-          className={`absolute -top-3.5 right-3 z-10 hidden translate-y-0.5 items-center gap-0.5 rounded-xl border border-line bg-surface-raised p-1 shadow-overlay opacity-0 transition-[opacity,transform] duration-150 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 motion-reduce:transform-none lg:flex ${inThreadView ? '[&>:not(:last-child)]:hidden' : ''}`}
+          className={`pointer-events-none absolute top-1 right-2 z-10 hidden translate-y-0.5 items-center gap-0.5 rounded-xl border border-line bg-surface-raised p-1 shadow-overlay opacity-0 transition-[opacity,transform] duration-150 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100 motion-reduce:transform-none lg:flex [&_button]:h-7! [&_button]:min-h-7! [&_button]:w-7! [&_button]:min-w-7! [&_button]:rounded-lg! ${inThreadView ? '[&>:not(:last-child)]:hidden' : ''}`}
         >
           {!message.blocked && QUICK_HOVER_REACTIONS.map(({ value, label, Icon }) => (
             <IconButton key={value} size="sm" label={`React with ${label.toLowerCase()}`} onClick={() => onReact(value)}>

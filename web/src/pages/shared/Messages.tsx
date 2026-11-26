@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStudentExperience } from '../../lib/studentExperience'
 import { InstructorMessageAction } from '../../components/student/InstructorMessageAction'
 import { Hash, Lock, PanelLeftOpen, Users } from 'lucide-react';
@@ -9,44 +9,83 @@ import { Button } from '../../components/ui/Button';
 import { isPlainLeftClick } from '../../lib/links';
 import { ConversationFeed } from './messages/ConversationFeed';
 import { ConversationHeader } from './messages/ConversationHeader';
-import { ConversationList } from './messages/ConversationList';
+import { ConversationList, type InboxFilter } from './messages/ConversationList';
 import { channelInitials, conversationPath, directConversationPeer, initials } from './messages/helpers';
 import { MessagesDialogs } from './messages/MessagesDialogs';
 import { messagesPresentation } from './messages/messagesPresentation';
 import { useMessagesController } from './messages/useMessagesController';
+
+function isEditableOrOverlayTarget(node: EventTarget | null): boolean {
+  const element = node instanceof HTMLElement ? node : null
+  if (!element) return false
+  if (element.isContentEditable) return true
+  if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') return true
+  return Boolean(element.closest('[contenteditable="true"], [role="textbox"], [role="combobox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'))
+}
 
 export function Messages() {
   const { v2 } = useStudentExperience()
   const controller = useMessagesController()
   const { toast, route, conversation, overlays, search, lightbox, directory, alerts, feed, realtime, mutations } = controller
   const { selectedTarget, isDesktop, sidebarCollapsed, setSidebarCollapsed, selectTarget, activeThreadRootId, setActiveThreadRootId } = conversation
-  const { recent, selected } = directory
+  const { recent, selected, selectedWorkspaceId, currentUserId } = directory
+
+  const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all')
+  const [filterWorkspaceId, setFilterWorkspaceId] = useState<number | null>(selectedWorkspaceId)
+  if (filterWorkspaceId !== selectedWorkspaceId) {
+    setFilterWorkspaceId(selectedWorkspaceId)
+    if (inboxFilter !== 'all') setInboxFilter('all')
+  }
+
+  const visibleRecent = useMemo(() => {
+    if (inboxFilter === 'unread') return recent.filter((item) => item.summary.unread_count > 0)
+    if (inboxFilter === 'dm') return recent.filter((item) => item.type === 'dm' && directConversationPeer(item.summary, currentUserId) !== null)
+    if (inboxFilter === 'channel') return recent.filter((item) => item.type === 'channel' || directConversationPeer(item.summary, currentUserId) === null)
+    return recent
+  }, [currentUserId, inboxFilter, recent])
+
+  const hasOpenOverlay = Boolean(
+    lightbox.lightboxAttachment
+    || overlays.mobileActionsMessage
+    || overlays.reactionDetails
+    || overlays.authorContext
+    || overlays.messagePendingDelete
+    || directory.showChannelForm
+    || directory.showDmForm
+    || directory.showWorkspaceForm
+    || directory.showWorkspaceSwitcher
+    || directory.showWorkspaceMembers
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      const overlayInDom = Boolean(document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]'))
       if (event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-        if (recent.length < 2) return
+        if (hasOpenOverlay || overlayInDom) return
+        if (isEditableOrOverlayTarget(event.target) || isEditableOrOverlayTarget(document.activeElement)) return
+        if (visibleRecent.length < 2) return
         const currentIndex = selectedTarget
-          ? recent.findIndex((item) => item.type === selectedTarget.type && item.summary.id === selectedTarget.id)
+          ? visibleRecent.findIndex((item) => item.type === selectedTarget.type && item.summary.id === selectedTarget.id)
           : -1
         const step = event.key === 'ArrowDown' ? 1 : -1
-        const nextIndex = currentIndex < 0 ? 0 : (currentIndex + step + recent.length) % recent.length
-        const next = recent[nextIndex]
+        const nextIndex = currentIndex < 0 ? 0 : (currentIndex + step + visibleRecent.length) % visibleRecent.length
+        const next = visibleRecent[nextIndex]
         if (!next) return
         event.preventDefault()
         selectTarget({ type: next.type, id: next.summary.id })
         return
       }
       if (event.key === 'Escape' && isDesktop && activeThreadRootId) {
-        const active = document.activeElement as HTMLElement | null
-        if (active && (active.closest('[role="dialog"]') || active.closest('[role="menu"]') || active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return
+        if (hasOpenOverlay || overlayInDom) return
+        if (isEditableOrOverlayTarget(event.target) || isEditableOrOverlayTarget(document.activeElement)) return
         setActiveThreadRootId(null)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activeThreadRootId, isDesktop, recent, selectTarget, selectedTarget, setActiveThreadRootId])
+  }, [activeThreadRootId, hasOpenOverlay, isDesktop, selectTarget, selectedTarget, setActiveThreadRootId, visibleRecent])
 
   if (directory.loading) return <MessagesLoadingShell />
   const view = messagesPresentation(controller)
@@ -54,8 +93,8 @@ export function Messages() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] min-w-0 flex-col gap-0 overflow-hidden">
-      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-line bg-surface-raised'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
-        <ConversationList directory={directory} conversation={conversation} search={search} alerts={alerts} onlineUserIds={realtime.onlineUserIds} showListPane={view.showListPane} />
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-line bg-surface-raised'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[340px_minmax(0,1fr)]') : ''}`}>
+        <ConversationList directory={directory} conversation={conversation} search={search} alerts={alerts} onlineUserIds={realtime.onlineUserIds} filter={inboxFilter} setFilter={setInboxFilter} filteredRecent={visibleRecent} showListPane={view.showListPane} />
         {showCollapsedRail && (
           <aside className="hidden border-r border-line bg-surface-sunken p-2 lg:block">
             <Button variant="quiet" fullWidth onClick={() => setSidebarCollapsed(false)} aria-label="Show conversation list" title="Show conversation list" className="mb-3">

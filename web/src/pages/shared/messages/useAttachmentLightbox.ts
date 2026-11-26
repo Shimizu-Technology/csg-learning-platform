@@ -13,6 +13,7 @@ export function useAttachmentLightbox() {
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
         setLightboxAttachments([])
         setLightboxIndex(0)
         return

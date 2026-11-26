@@ -542,7 +542,6 @@ export function useWorkspaceDirectory(
 
   return {
     currentUserId: user?.id,
-    currentUserName: user?.full_name,
     isStaff,
     isAdmin,
     loading,

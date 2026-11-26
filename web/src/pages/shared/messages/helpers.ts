@@ -145,11 +145,35 @@ export function directConversationPeer(
   return others.length === 1 ? others[0] : null
 }
 
-/** True when a presence timestamp is within the active 5-minute window. */
-export function isRecentlyActive(lastSeenAt?: string | null, now = Date.now()) {
-  if (!lastSeenAt) return false
-  const timestamp = Date.parse(lastSeenAt)
-  return Number.isFinite(timestamp) && now - timestamp <= 5 * 60 * 1000
+/** Tracks reply deletions applied locally so the matching realtime echo does not decrement reply_count twice. */
+const locallyDeletedMessageIds = new Set<number>()
+
+export function markLocallyDeletedMessage(messageId: number) {
+  locallyDeletedMessageIds.add(messageId)
+  if (locallyDeletedMessageIds.size > 100) {
+    const oldest = locallyDeletedMessageIds.values().next().value
+    if (oldest !== undefined) locallyDeletedMessageIds.delete(oldest)
+  }
+}
+
+export function consumeLocallyDeletedMessage(messageId: number) {
+  return locallyDeletedMessageIds.delete(messageId)
+}
+
+export function removeMessageAndUpdateReplyCount(
+  prev: LocalMessage[],
+  deleted: Pick<ChannelMessage, 'id' | 'parent_message_id'>,
+  skipParentDecrement = false,
+): LocalMessage[] {
+  const existing = prev.find((item) => item.id === deleted.id)
+  const parentId = deleted.parent_message_id ?? existing?.parent_message_id ?? null
+  const filtered = prev.filter((item) => item.id !== deleted.id)
+  if (!parentId || skipParentDecrement) return filtered
+  return filtered.map((item) => (
+    item.id === parentId
+      ? { ...item, reply_count: Math.max(0, (item.reply_count ?? 1) - 1) }
+      : item
+  ))
 }
 
 export const CHANNEL_MENTION_ALIASES = [
@@ -211,6 +235,7 @@ export function latestMessageFrom(message: ChannelMessage) {
     id: message.id,
     body: message.body || (message.attachments.length === 1 ? 'Attachment' : `${message.attachments.length} attachments`),
     created_at: message.created_at,
+    author_id: message.author.id,
     author_name: message.author.full_name,
   }
 }

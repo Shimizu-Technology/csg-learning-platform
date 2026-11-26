@@ -124,10 +124,10 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
         {selectedPinnedMessages.length > 0 && (
           <button
             type="button"
-            aria-label={showingPins ? 'Back to conversation' : `View ${selectedPinnedMessages.length} pinned ${selectedPinnedMessages.length === 1 ? 'message' : 'messages'}`}
+            aria-label={`Pinned messages (${selectedPinnedMessages.length})`}
             aria-pressed={showingPins}
             onClick={togglePinsView}
-            className={`pressable inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl px-2.5 text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus lg:min-h-9 ${
+            className={`pressable hidden min-h-11 shrink-0 items-center gap-1 rounded-xl px-2.5 text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:inline-flex lg:min-h-9 ${
               showingPins
                 ? 'bg-primary-soft text-primary-ink ring-1 ring-inset ring-primary-soft-line'
                 : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'

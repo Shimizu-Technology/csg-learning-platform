@@ -6,7 +6,7 @@ import { createClientMessageId, MESSAGE_BODY_LIMIT, messageCharacterCount, type 
 import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
 import type { MessageView as ChannelMessage, User } from '../../../types/api';
 import { optimisticSource, removeStoredFailure, saveStoredFailure } from './failedSends';
-import { conversationPath, sortChronologicalMessages, targetKey, targetMatches, upsertPinnedMessage } from './helpers';
+import { conversationPath, markLocallyDeletedMessage, removeMessageAndUpdateReplyCount, sortChronologicalMessages, targetKey, targetMatches, upsertPinnedMessage } from './helpers';
 import { resolveMentionedUserIds } from './mentions';
 import type { MessageComposerHandle, MessageComposerSend } from './MessageComposer';
 import type { LocalMessage, MentionableUser, PendingAttachment, RetrySend, Target } from './types';
@@ -311,7 +311,8 @@ export function useMessageMutations({ user, toast, sourceRecord, conversation, f
     const res = await api.deleteMessage(message.id)
     if (res.data) {
       releaseOptimisticAttachmentUrls(message.id)
-      setMessages((prev) => prev.filter((item) => item.id !== message.id))
+      if (message.parent_message_id) markLocallyDeletedMessage(message.id)
+      setMessages((prev) => removeMessageAndUpdateReplyCount(prev, message))
       setPinnedMessages((prev) => prev.filter((item) => item.id !== message.id))
       toast.success('Message deleted')
     }

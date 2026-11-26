@@ -24,6 +24,7 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
   const { conversationView, setConversationView, activeThreadRoot, activeThreadMessages, setActiveThreadRootId, isDesktop, setMobilePane, messagesById, threadReplies, unreadBoundaryId } = conversation
   const { messageScrollRef, messageWindowMeta, loadingOlder, loadingNewer, loadingTarget, hasUnreadBelow, showScrollToLatest, queuedConversationCount, rootReadReceipts, threadReadReceipts, loadOlderMessages, loadNewerMessages, replyToMessage, scrollToLatestMessage, beginReadingScroll, handleConversationScroll } = feed
   const { showThreadPanel, displayedMessages, editingFeedRow, messageRowProps, renderThreadPaging, renderThreadLatest } = view
+  const feedIsThreadView = Boolean(activeThreadRoot && !showThreadPanel)
 
   return (
     <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : 'flex'}`}>
@@ -62,13 +63,13 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
           </div>
         )}
         {activeThreadRoot && !isDesktop && renderThreadPaging('older')}
-        {!activeThreadRoot && conversationView === 'pins' && (
+        {!feedIsThreadView && conversationView === 'pins' && (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-sunken px-4 py-2 text-sm text-ink-secondary"><Pin className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
             <span className="min-w-0 flex-1">Pinned messages stay easy to find here.</span>
             <Button variant="quiet" size="sm" onClick={() => setConversationView('messages')} className="-my-1 -mr-2"><ChevronLeft className="h-4 w-4" aria-hidden="true" />Back to conversation</Button>
           </div>
         )}
-        {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_older && (
+        {!feedIsThreadView && conversationView === 'messages' && messageWindowMeta?.has_older && (
           <div className="flex justify-center pb-3">
             <Button
               variant="secondary"
@@ -82,7 +83,7 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
         )}
         {displayedMessages.length === 0 ? (
           <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-ink-muted">
-            {activeThreadRoot
+            {feedIsThreadView
               ? 'No replies yet. Start the thread.'
               : conversationView === 'pins'
                 ? 'No pinned messages yet.'
@@ -98,7 +99,7 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
 
           return (
             <div key={message.id}>
-              {!activeThreadRoot && conversationView === 'messages' && unreadBoundaryId === message.id && (
+              {!feedIsThreadView && conversationView === 'messages' && unreadBoundaryId === message.id && (
                 <div data-unread-divider className="my-4 flex items-center gap-3 px-2" role="separator" aria-label="Unread messages">
                   <div className="h-px flex-1 bg-primary-soft-line" />
                   <span className="text-xs font-semibold text-primary-ink">New messages</span>
@@ -116,18 +117,19 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
               {message.source && !message.parent_message_id && <MessageSourceLine source={message.source} staff={isStaff} />}
               <MessageRow
                 {...messageRowProps(message, false)}
-                readReceipts={conversationView === 'pins' && !activeThreadRoot ? undefined : activeThreadRoot ? threadReadReceipts.get(message.id) : rootReadReceipts.get(message.id)}
+                readReceipts={conversationView === 'pins' && !feedIsThreadView ? undefined : feedIsThreadView ? threadReadReceipts.get(message.id) : rootReadReceipts.get(message.id)}
                 compact={compact}
                 editing={editingFeedRow(message.id)}
-                inThreadView={Boolean(activeThreadRoot)}
-                replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
-                threadRepliesList={!activeThreadRoot && !message.parent_message_id ? loadedReplies : undefined}
+                inThreadView={feedIsThreadView}
+                replyCount={!feedIsThreadView && !message.parent_message_id ? replyCount : 0}
+                threadRepliesList={!feedIsThreadView && !message.parent_message_id ? loadedReplies : undefined}
+                latestReplyAt={!feedIsThreadView && !message.parent_message_id && !(activeThreadRoot?.id === rootId && feed.threadWindowMeta?.has_newer) ? loadedReplies.at(-1)?.created_at : undefined}
                 onReply={() => replyToMessage(message)}
               />
             </div>
           )
         })}
-        {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_newer && (
+        {!feedIsThreadView && conversationView === 'messages' && messageWindowMeta?.has_newer && (
           <div className="flex justify-center py-3">
             <Button variant="secondary" onClick={() => void loadNewerMessages()} disabled={loadingNewer}>
               <RefreshCw className={`h-4 w-4 ${loadingNewer ? 'animate-spin' : ''}`} />

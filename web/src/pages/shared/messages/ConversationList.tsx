@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBackLink } from '../../../lib/recordOrigin';
 import { useCohortContext } from '../../../contexts/CohortContext';
-import { COMPOSER_DRAFT_EVENT, composerDestinationKey, readComposerDraft } from '../../../lib/messageComposerState';
+import { COMPOSER_DRAFT_EVENT, composerDestinationKey, readComposerDraft, safeLocalStorage } from '../../../lib/messageComposerState';
 import { useStudentExperience } from '../../../lib/studentExperience';
 import { Avatar } from '../../../components/ui/Avatar';
 import { IconButton } from '../../../components/ui/Button';
@@ -16,14 +16,17 @@ import type { ConversationState } from './useConversationState';
 import type { MessageSearch } from './useMessageSearch';
 import type { WorkspaceDirectory } from './useWorkspaceDirectory';
 
-type InboxFilter = 'all' | 'unread' | 'dm' | 'channel'
+export type InboxFilter = 'all' | 'unread' | 'dm' | 'channel'
 
 type ConversationListProps = {
-  directory: Pick<WorkspaceDirectory, 'currentUserId' | 'currentUserName' | 'isAdmin' | 'workspaces' | 'workspaceDetail' | 'selectedWorkspaceId' | 'setShowChannelForm' | 'setShowDmForm' | 'setShowWorkspaceForm' | 'setShowWorkspaceSwitcher' | 'setShowWorkspaceMembers' | 'setWorkspaceError' | 'setChannelError' | 'setChannelForm' | 'recent' | 'selectedWorkspace' | 'canManageChannels' | 'totalWorkspaceUnreadCount' | 'loadLists'>
-  conversation: Pick<ConversationState, 'selectedTarget' | 'sidebarCollapsed' | 'setSidebarCollapsed' | 'isDesktop' | 'selectTarget'>
+  directory: Pick<WorkspaceDirectory, 'currentUserId' | 'isAdmin' | 'workspaces' | 'workspaceDetail' | 'selectedWorkspaceId' | 'setShowChannelForm' | 'setShowDmForm' | 'setShowWorkspaceForm' | 'setShowWorkspaceSwitcher' | 'setShowWorkspaceMembers' | 'setWorkspaceError' | 'setChannelError' | 'setChannelForm' | 'recent' | 'selectedWorkspace' | 'canManageChannels' | 'totalWorkspaceUnreadCount' | 'loadLists'>
+  conversation: Pick<ConversationState, 'selectedTarget' | 'sidebarCollapsed' | 'setSidebarCollapsed' | 'isDesktop' | 'selectTarget' | 'conversationView' | 'activeThreadRoot'>
   search: MessageSearch
   alerts: BrowserAlerts
   onlineUserIds: ReadonlySet<number>
+  filter: InboxFilter
+  setFilter: (value: InboxFilter) => void
+  filteredRecent: WorkspaceDirectory['recent']
   showListPane: boolean
 }
 
@@ -32,19 +35,16 @@ type ConversationListProps = {
  * message, ⋯), compact filter pills when multiple conversations exist, then one
  * list of conversations with avatars, presence dots, and live draft previews.
  */
-export function ConversationList({ directory, conversation, search, alerts, onlineUserIds, showListPane }: ConversationListProps) {
+export function ConversationList({ directory, conversation, search, alerts, onlineUserIds, filter, setFilter, filteredRecent, showListPane }: ConversationListProps) {
   const experience = useStudentExperience()
   const { selectedCohortId } = useCohortContext()
   const v2 = experience.v2 && (!directory.selectedWorkspace?.cohort_id || directory.selectedWorkspace.cohort_id === selectedCohortId)
   const back = useBackLink({ returnTo: '/dashboard', returnLabel: 'Today' }, { legacyInbox: v2 })
   const hasOrigin = !back.fallback
-  const { currentUserId, currentUserName, isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
-  const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation
+  const { currentUserId, isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
+  const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget, conversationView, activeThreadRoot } = conversation
   const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, clearSearchResults, searchStatus } = search
   const { pushEnabled, pushMessage, handleTogglePush } = alerts
-  const [filterState, setFilterState] = useState<{ workspaceId: number | null; value: InboxFilter }>({ workspaceId: selectedWorkspaceId, value: 'all' })
-  const filter: InboxFilter = filterState.workspaceId === selectedWorkspaceId ? filterState.value : 'all'
-  const setFilter = (value: InboxFilter) => setFilterState({ workspaceId: selectedWorkspaceId, value })
   const [draftRevision, setDraftRevision] = useState(0)
 
   useEffect(() => {
@@ -60,30 +60,31 @@ export function ConversationList({ directory, conversation, search, alerts, onli
 
   const draftsByKey = useMemo(() => {
     const map = new Map<string, string>()
-    if (!currentUserId || typeof window === 'undefined') return map
+    if (!showListPane || sidebarCollapsed || !currentUserId) return map
+    const storage = safeLocalStorage()
+    if (!storage) return map
     // Reading draftRevision ties this snapshot to live draft change events.
     void draftRevision
     for (const item of recent) {
       const key = composerDestinationKey(currentUserId, { type: item.type, id: item.summary.id }, null)
-      const draft = readComposerDraft(key, window.localStorage)
+      const draft = readComposerDraft(key, storage)
       if (draft?.body.trim()) map.set(`${item.type}:${item.summary.id}`, preview(draft.body))
     }
     return map
-  }, [currentUserId, draftRevision, recent])
+  }, [currentUserId, draftRevision, recent, showListPane, sidebarCollapsed])
 
   const unreadConversationCount = useMemo(
     () => recent.filter((item) => item.summary.unread_count > 0).length,
     [recent],
   )
-  const hasChannels = useMemo(() => recent.some((item) => item.type === 'channel'), [recent])
-  const hasDms = useMemo(() => recent.some((item) => item.type === 'dm'), [recent])
-
-  const filteredRecent = useMemo(() => {
-    if (filter === 'unread') return recent.filter((item) => item.summary.unread_count > 0)
-    if (filter === 'dm') return recent.filter((item) => item.type === 'dm')
-    if (filter === 'channel') return recent.filter((item) => item.type === 'channel')
-    return recent
-  }, [filter, recent])
+  const hasGroupChats = useMemo(
+    () => recent.some((item) => item.type === 'channel' || directConversationPeer(item.summary, currentUserId) === null),
+    [currentUserId, recent],
+  )
+  const hasDirectChats = useMemo(
+    () => recent.some((item) => item.type === 'dm' && directConversationPeer(item.summary, currentUserId) !== null),
+    [currentUserId, recent],
+  )
 
   if (!showListPane || sidebarCollapsed) return null
 
@@ -101,11 +102,11 @@ export function ConversationList({ directory, conversation, search, alerts, onli
     ...(isDesktop ? [{ key: 'collapse', label: 'Collapse conversation list', icon: <PanelLeftClose aria-hidden="true" />, onSelect: () => setSidebarCollapsed(true) }] : []),
   ]
   const workspaceName = selectedWorkspace?.name || 'Cohorts and communities'
-  const showFilters = recent.length > 1 && (unreadConversationCount > 0 || filter !== 'all' || (hasChannels && hasDms))
+  const showFilters = recent.length > 1 && (unreadConversationCount > 0 || filter !== 'all' || (hasGroupChats && hasDirectChats))
   const filterOptions: { key: InboxFilter; label: string; count?: number }[] = [
     { key: 'all', label: 'All' },
     ...(unreadConversationCount > 0 || filter === 'unread' ? [{ key: 'unread' as const, label: 'Unread', count: unreadConversationCount || undefined }] : []),
-    ...(hasDms && hasChannels ? [{ key: 'dm' as const, label: 'Direct' }, { key: 'channel' as const, label: 'Group chats' }] : []),
+    ...(hasDirectChats && hasGroupChats ? [{ key: 'dm' as const, label: 'Direct' }, { key: 'channel' as const, label: 'Group chats' }] : []),
   ]
 
   return (
@@ -250,8 +251,9 @@ export function ConversationList({ directory, conversation, search, alerts, onli
           )
 
           const latest = summary.latest_message
+          const isOwnLatest = Boolean(latest && currentUserId != null && latest.author_id === currentUserId)
           const latestAuthorPrefix = latest
-            ? currentUserName && latest.author_name === currentUserName
+            ? isOwnLatest
               ? 'You: '
               : type === 'channel' || !peer
                 ? `${latest.author_name}: `
@@ -262,6 +264,7 @@ export function ConversationList({ directory, conversation, search, alerts, onli
             : type === 'channel'
               ? summary.description || 'No messages yet'
               : 'No messages yet'
+          const rootComposerVisible = isSelected && isDesktop && conversationView === 'messages' && !activeThreadRoot
 
           return (
             <ConversationLink
@@ -271,7 +274,7 @@ export function ConversationList({ directory, conversation, search, alerts, onli
               icon={leading}
               title={type === 'channel' ? summary.name : summary.title}
               subtitle={subtitle}
-              draftPreview={!isSelected ? draftsByKey.get(`${type}:${summary.id}`) : null}
+              draftPreview={!rootComposerVisible ? draftsByKey.get(`${type}:${summary.id}`) : null}
               latestAt={latest?.created_at}
               unread={summary.unread_count}
               muted={summary.muted}

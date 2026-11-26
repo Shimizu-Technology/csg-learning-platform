@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from 'react';
 import { isVisiblePage, shouldPollMessages } from '../../../lib/backgroundActivity';
+import { isRecentlyOnline } from '../../../lib/presence';
 import * as realtimeClient from '../../../lib/realtime';
 import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../../lib/realtime';
 import type { MessageView as ChannelMessage, ChannelMessageEvent } from '../../../types/api';
-import { isRecentlyActive, typingIndicatorLabel } from './helpers';
+import { typingIndicatorLabel } from './helpers';
 import type { Target, TypingUser } from './types';
 
 type RealtimeInputs = {
@@ -27,7 +28,8 @@ type RealtimeInputs = {
 export function useMessagesRealtime({ userId, isStaff = false, selectedTarget, selectedTargetRef, selectedConversationKey, activeThreadRootId, activeThreadRootIdRef, onMessageEvent, refreshInBackground }: RealtimeInputs) {
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
-  const [presenceByUserId, setPresenceByUserId] = useState<Record<number, string>>({})
+  const presenceScopeKey = isStaff && userId ? `${userId}:staff` : ''
+  const [presenceState, setPresenceState] = useState<{ scopeKey: string; entries: Record<number, string> }>({ scopeKey: presenceScopeKey, entries: {} })
   const [presenceNow, setPresenceNow] = useState(() => Date.now())
   const [, setRealtimeSubscriptionVersion] = useState(0)
   const realtimeSubscriptionRef = useRef<RealtimeSubscription | null>(null)
@@ -214,35 +216,41 @@ export function useMessagesRealtime({ userId, isStaff = false, selectedTarget, s
     const subscribePresence = Object.prototype.hasOwnProperty.call(realtimeClient, 'subscribeToStaffPresence')
       ? realtimeClient.subscribeToStaffPresence
       : undefined
-    if (!userId || !isStaff || typeof subscribePresence !== 'function') return
+    if (!presenceScopeKey || typeof subscribePresence !== 'function') return
     let active = true
     let unsubscribe: RealtimeSubscription | null = null
 
     subscribePresence((event) => {
       if (!active) return
-      setPresenceByUserId((current) => ({ ...current, [event.user_id]: event.last_seen_at }))
+      setPresenceState((current) => ({
+        scopeKey: presenceScopeKey,
+        entries: current.scopeKey === presenceScopeKey
+          ? { ...current.entries, [event.user_id]: event.last_seen_at }
+          : { [event.user_id]: event.last_seen_at },
+      }))
       setPresenceNow(Date.now())
     }).then((cleanup) => {
       if (active) unsubscribe = cleanup
       else cleanup()
     }).catch(() => undefined)
 
-    const expiryTimer = window.setInterval(() => setPresenceNow(Date.now()), 60_000)
+    const expiryTimer = window.setInterval(() => setPresenceNow(Date.now()), 30_000)
 
     return () => {
       active = false
       window.clearInterval(expiryTimer)
       unsubscribe?.()
     }
-  }, [isStaff, userId])
+  }, [presenceScopeKey])
 
   const onlineUserIds = useMemo<ReadonlySet<number>>(() => {
     const online = new Set<number>()
-    for (const [id, lastSeenAt] of Object.entries(presenceByUserId)) {
-      if (isRecentlyActive(lastSeenAt, presenceNow)) online.add(Number(id))
+    if (!presenceScopeKey || presenceState.scopeKey !== presenceScopeKey) return online
+    for (const [id, lastSeenAt] of Object.entries(presenceState.entries)) {
+      if (isRecentlyOnline(lastSeenAt, presenceNow)) online.add(Number(id))
     }
     return online
-  }, [presenceByUserId, presenceNow])
+  }, [presenceScopeKey, presenceState, presenceNow])
 
   useEffect(() => {
     typingExpiryTimersRef.current.forEach((timer) => window.clearTimeout(timer))

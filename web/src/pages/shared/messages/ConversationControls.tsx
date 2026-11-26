@@ -45,7 +45,7 @@ export function ConversationLink({
         onSelect()
       }}
       aria-current={active ? 'page' : undefined}
-      aria-label={unread > 0 ? `${title}, ${unread} unread` : undefined}
+      aria-label={unread > 0 ? `${title}, ${unread} unread${draftPreview ? `, Draft: ${draftPreview}` : ''}` : undefined}
       data-selected={active ? 'true' : undefined}
       className={`pressable mb-0.5 flex min-h-14 w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 transition-colors duration-150 ${active ? 'nav-selected' : 'hover:bg-surface-sunken'}`}
     >

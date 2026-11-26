@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeEditorPreferences } from '../../components/shared/MarkdownEditor'
-import type { MessageView as ChannelMessage, MessageSourceSummary } from '../../types/api'
+import type { ChannelSummary, MessageView as ChannelMessage, MessageSourceSummary } from '../../types/api'
 import { Messages } from './Messages'
 
 /**
@@ -549,9 +549,10 @@ describe('premium chat inbox, header, reactions, media, and threads', () => {
     getDirectConversation.pinned_messages = [pinned]
     await open()
 
-    // Inline pin shortcut in header.
-    const pinButton = container.querySelector('section header [aria-label="View 1 pinned message"]')
+    // Inline pin shortcut in header has a stable accessible name paired with aria-pressed.
+    const pinButton = container.querySelector('section header [aria-label="Pinned messages (1)"]')
     expect(pinButton).not.toBeNull()
+    expect(pinButton?.getAttribute('aria-pressed')).toBe('false')
 
     // Natural-aspect-ratio single image (no aspect-video crop).
     const img = container.querySelector('#message-11 img') as HTMLImageElement
@@ -563,5 +564,116 @@ describe('premium chat inbox, header, reactions, media, and threads', () => {
     const threadBtn = Array.from(container.querySelectorAll('#message-11 button')).find((b) => b.textContent?.includes('1 reply'))!
     expect(threadBtn).toBeTruthy()
     expect(threadBtn.querySelector('[data-avatar]')).not.toBeNull()
+  })
+
+  it('guards Alt+Arrow shortcuts in editable inputs and cycles only visible filtered conversations', async () => {
+    await open()
+    // Focus composer surface: Alt+ArrowDown must NOT switch away from DM 5.
+    const editor = container.querySelector('[data-md-editor] .md-editor-surface') as HTMLElement
+    editor.focus()
+    act(() => {
+      editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true }))
+    })
+    expect(container.querySelector('nav a[data-selected="true"]')?.getAttribute('href')).toBe('/messages/dm/5')
+
+    // Filter to Direct only (1 conversation visible): Alt+ArrowDown from body must NOT open the hidden group chat.
+    const filterGroup = container.querySelector('[aria-label="Filter conversations"]')!
+    const directBtn = Array.from(filterGroup.querySelectorAll('button')).find((b) => b.textContent === 'Direct')!
+    await click(directBtn)
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true }))
+    })
+    expect(container.querySelector('nav a[data-selected="true"]')?.getAttribute('href')).toBe('/messages/dm/5')
+  })
+
+  it('attributes You: strictly by author_id and clears phantom thread summaries when the last reply is deleted', async () => {
+    const getChannels = fixture.responses.getChannels as { channels: ChannelSummary[] }
+    getChannels.channels = [
+      {
+        ...getChannels.channels[0],
+        // Same display name as viewer (Audreana) but different author_id: must NOT show "You:".
+        latest_message: { id: 901, body: 'Hello from another Audreana', created_at: new Date().toISOString(), author_id: 99, author_name: 'Audreana' },
+      },
+    ]
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    const rootMsg = message(11, { reply_count: 1 })
+    const onlyReply = message(12, { parent_message_id: 11, body: 'Only reply', mine: true })
+    getDirectConversation.messages = [rootMsg, onlyReply]
+    fixture.responses.getMessageThread = {
+      root_message: rootMsg,
+      replies: [onlyReply],
+      meta: { oldest_message_id: 12, newest_message_id: 12, has_older: false, has_newer: false },
+    }
+    fixture.responses.deleteMessage = { deleted: true }
+
+    await open()
+    const channelRow = container.querySelector('nav a[href="/messages/2"]')!
+    expect(channelRow.textContent).toContain('Audreana: Hello from another Audreana')
+    expect(channelRow.textContent).not.toContain('You: Hello from another Audreana')
+
+    // Open thread and delete the only reply -> phantom "1 reply" summary disappears from the feed.
+    const threadBtn = Array.from(container.querySelectorAll('#message-11 button')).find((b) => b.textContent?.includes('1 reply'))!
+    await click(threadBtn)
+    const threadDeleteBtn = container.querySelector('aside #message-12 [aria-label="Delete message"]') as HTMLButtonElement
+    await click(threadDeleteBtn)
+    const confirmDelete = Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => b.textContent === 'Delete message') as HTMLButtonElement
+    await click(confirmDelete)
+    expect(container.querySelector('#message-11')?.textContent).not.toContain('1 reply')
+  })
+
+  it('closes the image lightbox on Escape without closing the open desktop thread panel', async () => {
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    const rootMsg = message(11, {
+      reply_count: 1,
+      attachments: [{ id: 501, filename: 'error.png', content_type: 'image/png', byte_size: 4096, image: true, url: 'https://example.com/error.png' }],
+    })
+    const reply = message(12, { parent_message_id: 11, body: 'Looks good' })
+    getDirectConversation.messages = [rootMsg, reply]
+    fixture.responses.getMessageThread = {
+      root_message: rootMsg,
+      replies: [reply],
+      meta: { oldest_message_id: 12, newest_message_id: 12, has_older: false, has_newer: false },
+    }
+    await open()
+
+    // Open desktop thread panel, then open image lightbox.
+    const threadBtn = Array.from(container.querySelectorAll('#message-11 button')).find((b) => b.textContent?.includes('1 reply'))!
+    await click(threadBtn)
+    expect(container.querySelector('[aria-label="Close thread"]')).not.toBeNull()
+
+    const imgBtn = container.querySelector('#message-11 [aria-label="Open image error.png"]') as HTMLButtonElement
+    await click(imgBtn)
+    expect(document.querySelector('[aria-label="Close image preview"]')).not.toBeNull()
+
+    // First Escape closes lightbox ONLY; thread panel stays open.
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(document.querySelector('[aria-label="Close image preview"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Close thread"]')).not.toBeNull()
+
+    // Second Escape closes the desktop thread panel.
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(container.querySelector('[aria-label="Close thread"]')).toBeNull()
+  })
+
+  it('does not crash when window.localStorage getter throws', async () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('Blocked', 'SecurityError')
+      },
+    })
+    try {
+      await open()
+      expect(container.querySelector('nav a[href="/messages/dm/5"]')).not.toBeNull()
+    } finally {
+      if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor)
+    }
   })
 })

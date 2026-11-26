@@ -5,7 +5,7 @@ import { firstUnreadMessageId, latestVisibleReadReceipts } from '../../../lib/me
 import { type ReturnContext } from '../../../lib/navigationContext';
 import type { MessageView as ChannelMessage, ChannelMessageEvent, ChannelSummary, DirectConversationSummary, MessageDestination, MessageWindowMeta, User } from '../../../types/api';
 import { removeStoredFailure, storedFailureMessages } from './failedSends';
-import { cacheConversationView, cachedWindowIsContiguous, conversationPath, createMessageArrivals, mergeIncomingMessage, mergeMessageWindow, messageBelongsToTarget, positionMessageAnchor, recordMessageArrival, restoreFailedSends, rootMessageIdFor, saveConversationScroll, sortChronologicalMessages, sortPinnedMessages, targetKey, targetMatches, upsertPinnedMessage, type MessageArrivals } from './helpers';
+import { cacheConversationView, cachedWindowIsContiguous, consumeLocallyDeletedMessage, conversationPath, createMessageArrivals, mergeIncomingMessage, mergeMessageWindow, messageBelongsToTarget, positionMessageAnchor, recordMessageArrival, removeMessageAndUpdateReplyCount, restoreFailedSends, rootMessageIdFor, saveConversationScroll, sortChronologicalMessages, sortPinnedMessages, targetKey, targetMatches, upsertPinnedMessage, type MessageArrivals } from './helpers';
 import type { ConversationViewSnapshot, LocalMessage, Target, TargetLoadOptions } from './types';
 import type { ConversationState } from './useConversationState';
 import type { MessagesRoute } from './useMessagesRoute';
@@ -825,8 +825,9 @@ export function useConversationWindow({ user, toast, route, conversation, direct
         setUnreadBoundaryId((current) => current ?? message.id)
       }
 
+      const skipDeletedReplyDecrement = event.event === 'deleted' && consumeLocallyDeletedMessage(message.id)
       setMessages((prev) => {
-        if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
+        if (event.event === 'deleted') return removeMessageAndUpdateReplyCount(prev, message, skipDeletedReplyDecrement)
         const matchingLocal = prev.find((item) => item.id === message.id || (
           message.client_message_id && item.client_message_id === message.client_message_id
         ))

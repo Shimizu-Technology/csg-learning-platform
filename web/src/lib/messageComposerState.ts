@@ -56,6 +56,15 @@ function storageAvailable(storage?: Storage | null): storage is Storage {
   return Boolean(storage)
 }
 
+export function safeLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
 export function messageCharacterCount(value: string) {
   return Array.from(value).length
 }

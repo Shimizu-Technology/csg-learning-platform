@@ -39,6 +39,7 @@ class MessageJson
         id: message.id,
         body: preview(message, blocked: blocked),
         created_at: message.created_at,
+        author_id: message.author_id,
         author_name: message.author.full_name
       }
     end
