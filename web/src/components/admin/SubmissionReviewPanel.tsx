@@ -294,9 +294,9 @@ export function SubmissionReviewPanel({
                 }
               : current,
           )
-          // Refresh the submission record quietly (preserving draft) so a concurrent curriculum scale change stays in sync.
+          // Refresh the submission record quietly (preserving draft) so a concurrent curriculum scale or policy change stays in sync.
           if (data.grade_suggestion !== undefined && fresh()) {
-            await review.load(true, true, { github_checks: data.github_checks, grade_suggestion: data.grade_suggestion })
+            await review.load(true, true)
           }
           if (data.grade_suggestion !== undefined || !submission.grade_suggestion) return
         }
@@ -307,7 +307,7 @@ export function SubmissionReviewPanel({
         const suggestion = result.data.grade_suggestion
         if (fresh()) {
           review.setSubmission((current) => (current ? { ...current, grade_suggestion: suggestion } : current))
-          await review.load(true, true, { grade_suggestion: suggestion })
+          await review.load(true, true)
         }
         if (unreachable) setCheckError(`${unreachable} The suggestion was checked again against the last saved results.`)
       } else setCheckError(unreachable || result.error || 'Could not check GitHub.')

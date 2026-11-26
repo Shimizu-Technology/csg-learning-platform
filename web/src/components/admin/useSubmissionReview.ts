@@ -60,11 +60,7 @@ export function useSubmissionReview(
   })
 
   const load = useCallback(
-    async (
-      preserveDraft = false,
-      quiet = false,
-      overrides?: Partial<Pick<Submission, 'github_checks' | 'grade_suggestion'>>,
-    ) => {
+    async (preserveDraft = false, quiet = false) => {
       if (quiet && saving.current) return
       const request = quiet ? generation.current : ++generation.current
       const quietRequest = ++quietGeneration.current
@@ -90,7 +86,7 @@ export function useSubmissionReview(
         if (unavailableResponse(result)) { setSubmission(null); return }
         if (!result.data || result.error || result.fromCache)
           throw new Error(result.error || 'Could not load submission details.')
-        const next: Submission = overrides ? { ...result.data.submission, ...overrides } : result.data.submission
+        const next = result.data.submission
         setSubmission(next)
         if (!preserveDraft) {
           setFeedback(next.feedback || '')

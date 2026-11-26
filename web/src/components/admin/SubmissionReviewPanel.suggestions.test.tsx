@@ -157,7 +157,9 @@ async function renderPanel(
   followingAfterSave?: (grade: string) => number | null,
   onNavigate?: (id: number) => void,
 ) {
-  vi.spyOn(api, 'getSubmission').mockResolvedValue({ data: { submission }, error: null })
+  vi.spyOn(api, 'getSubmission')
+    .mockResolvedValue({ data: null, error: null } as never)
+    .mockResolvedValueOnce({ data: { submission }, error: null })
   const router = createMemoryRouter(
     withLeaveGuard([
       {
