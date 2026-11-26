@@ -487,3 +487,81 @@ describe('composer power interactions', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-screenshot')
   })
 })
+
+describe('premium chat inbox, header, reactions, media, and threads', () => {
+  it('renders user avatars in inbox rows and conversation header, plus Draft badges and filter pills', async () => {
+    window.localStorage.setItem(
+      'csg-message-draft:1:channel:2:root',
+      JSON.stringify({ version: 1, body: 'Remember to push before class', content: { type: 'doc', content: [] } }),
+    )
+    await open()
+    const header = container.querySelector('section header')!
+    expect(header.querySelector('[data-avatar]')).not.toBeNull()
+    const dmRow = container.querySelector('nav a[href="/messages/dm/5"]')!
+    expect(dmRow.querySelector('[data-avatar]')).not.toBeNull()
+    const channelRow = container.querySelector('nav a[href="/messages/2"]')!
+    expect(channelRow.querySelector('[data-draft-preview]')?.textContent).toContain('Draft: Remember to push before class')
+
+    // Filter pills switch between Direct and Group chats.
+    const filterGroup = container.querySelector('[aria-label="Filter conversations"]')!
+    const directBtn = Array.from(filterGroup.querySelectorAll('button')).find((b) => b.textContent === 'Direct')!
+    await click(directBtn)
+    expect(container.querySelectorAll('nav a')).toHaveLength(1)
+    expect(container.querySelector('nav a')?.getAttribute('href')).toBe('/messages/dm/5')
+
+    const groupBtn = Array.from(filterGroup.querySelectorAll('button')).find((b) => b.textContent === 'Group chats')!
+    await click(groupBtn)
+    expect(container.querySelectorAll('nav a')).toHaveLength(1)
+    expect(container.querySelector('nav a')?.getAttribute('href')).toBe('/messages/2')
+  })
+
+  it('toggles a reaction pill in one click and opens Who reacted from the details button', async () => {
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    const reactedMsg = message(11, {
+      reactions: [{ emoji: '\u{1F44D}', count: 1, reacted: false, users: [{ id: 3, full_name: 'Alex Rivera', avatar_url: null }] }],
+    })
+    getDirectConversation.messages = [message(10), reactedMsg]
+    fixture.responses.reactMessage = {
+      message: {
+        ...reactedMsg,
+        reactions: [{ emoji: '\u{1F44D}', count: 2, reacted: true, users: [{ id: 3, full_name: 'Alex Rivera', avatar_url: null }, { id: 1, full_name: 'Audreana', avatar_url: null }] }],
+      },
+    }
+    await open()
+    const pill = container.querySelector('#message-11 [aria-label^="Thumbs up: 1"]') as HTMLButtonElement
+    expect(pill).not.toBeNull()
+    await click(pill)
+    expect(fixture.calls).toHaveBeenCalledWith('reactMessage', 11, '\u{1F44D}')
+    const whoBtn = container.querySelector('#message-11 [aria-label="Who reacted"]') as HTMLButtonElement
+    await click(whoBtn)
+    expect(document.body.textContent).toContain('Who reacted')
+  })
+
+  it('shows inline pin button in header when pins exist, natural aspect ratio for single images, and Slack-style thread summary', async () => {
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[]; pinned_messages: ChannelMessage[] }
+    const pinned = message(10, { pinned_at: new Date().toISOString() })
+    const rootWithImageAndReply = message(11, {
+      reply_count: 1,
+      attachments: [{ id: 501, filename: 'error.png', content_type: 'image/png', byte_size: 4096, image: true, url: 'https://example.com/error.png' }],
+    })
+    const reply = message(12, { parent_message_id: 11, body: 'Try git restore first' })
+    getDirectConversation.messages = [pinned, rootWithImageAndReply, reply]
+    getDirectConversation.pinned_messages = [pinned]
+    await open()
+
+    // Inline pin shortcut in header.
+    const pinButton = container.querySelector('section header [aria-label="View 1 pinned message"]')
+    expect(pinButton).not.toBeNull()
+
+    // Natural-aspect-ratio single image (no aspect-video crop).
+    const img = container.querySelector('#message-11 img') as HTMLImageElement
+    expect(img).not.toBeNull()
+    expect(img.className).toContain('object-contain')
+    expect(img.className).not.toContain('aspect-video')
+
+    // Thread summary bar shows reply count and participant avatar.
+    const threadBtn = Array.from(container.querySelectorAll('#message-11 button')).find((b) => b.textContent?.includes('1 reply'))!
+    expect(threadBtn).toBeTruthy()
+    expect(threadBtn.querySelector('[data-avatar]')).not.toBeNull()
+  })
+})

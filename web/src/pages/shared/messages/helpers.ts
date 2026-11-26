@@ -1,4 +1,4 @@
-import { CircleCheck, Heart, SmilePlus, ThumbsUp, type LucideIcon } from 'lucide-react';
+import { CircleCheck, Eye, Heart, Laugh, Lightbulb, PartyPopper, ThumbsUp, type LucideIcon } from 'lucide-react';
 import { markdownToPlainText } from '../../../lib/messageFormat';
 import { recentConversations } from '../../../lib/messagingPresentation';
 import { conversationPath as conversationRoute } from '../../../lib/routes';
@@ -120,10 +120,37 @@ export const REACTIONS: QuickReaction[] = [
   { value: '\u{1F44D}', label: 'Thumbs up', Icon: ThumbsUp },
   { value: '\u2764\uFE0F', label: 'Love', Icon: Heart },
   { value: '\u2705', label: 'Complete', Icon: CircleCheck },
-  { value: '\u{1F64C}', label: 'Celebrate', Icon: SmilePlus },
+  { value: '\u{1F440}', label: 'Looking into it', Icon: Eye },
+  { value: '\u{1F4A1}', label: 'Insightful', Icon: Lightbulb },
+  { value: '\u{1F64C}', label: 'Celebrate', Icon: PartyPopper },
 ]
 
-export const REACTIONS_BY_VALUE = new Map(REACTIONS.map((reaction) => [reaction.value, reaction]))
+export const QUICK_HOVER_REACTIONS: QuickReaction[] = REACTIONS.slice(0, 4)
+
+const EXTRA_REACTION_DISPLAYS: QuickReaction[] = [
+  { value: '\u{1F602}', label: 'Funny', Icon: Laugh },
+]
+
+export const REACTIONS_BY_VALUE = new Map([...REACTIONS, ...EXTRA_REACTION_DISPLAYS].map((reaction) => [reaction.value, reaction]))
+
+/** The other participant in a 1:1 direct message, or null for group direct messages. */
+export function directConversationPeer(
+  conversation: Pick<DirectConversationSummary, 'users'> | null | undefined,
+  currentUserId?: number,
+) {
+  if (!conversation?.users?.length) return null
+  const others = currentUserId
+    ? conversation.users.filter((member) => member.id !== currentUserId)
+    : conversation.users
+  return others.length === 1 ? others[0] : null
+}
+
+/** True when a presence timestamp is within the active 5-minute window. */
+export function isRecentlyActive(lastSeenAt?: string | null, now = Date.now()) {
+  if (!lastSeenAt) return false
+  const timestamp = Date.parse(lastSeenAt)
+  return Number.isFinite(timestamp) && now - timestamp <= 5 * 60 * 1000
+}
 
 export const CHANNEL_MENTION_ALIASES = [
   { label: '@everyone', subtitle: 'Notify everyone in this chat' },

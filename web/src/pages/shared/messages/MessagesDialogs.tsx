@@ -466,6 +466,9 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
         role="dialog"
         aria-modal="true"
         aria-label={`Image preview: ${lightboxAttachment.filename}`}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) closeLightbox()
+        }}
         onTouchStart={(event) => {
           lightboxTouchStartX.current = event.touches[0]?.clientX ?? null
         }}

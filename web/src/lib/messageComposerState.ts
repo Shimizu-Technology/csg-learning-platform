@@ -132,12 +132,17 @@ export function readComposerDraft(key: string, storage?: Storage | null): Stored
   }
 }
 
+export const COMPOSER_DRAFT_EVENT = 'csg:composer-draft-change'
+
 export function writeComposerDraft(key: string, draft: StoredComposerDraft | null, storage?: Storage | null) {
   if (!storageAvailable(storage)) return
 
   try {
     if (!draft || !draft.body.trim()) storage.removeItem(key)
     else storage.setItem(key, JSON.stringify(draft))
+    if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+      window.dispatchEvent(new CustomEvent(COMPOSER_DRAFT_EVENT, { detail: { key } }))
+    }
   } catch {
     // Local storage may be unavailable or full. Draft persistence is best effort.
   }

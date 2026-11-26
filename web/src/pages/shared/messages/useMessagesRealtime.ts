@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from 'react';
 import { isVisiblePage, shouldPollMessages } from '../../../lib/backgroundActivity';
+import * as realtimeClient from '../../../lib/realtime';
 import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../../lib/realtime';
 import type { MessageView as ChannelMessage, ChannelMessageEvent } from '../../../types/api';
-import { typingIndicatorLabel } from './helpers';
+import { isRecentlyActive, typingIndicatorLabel } from './helpers';
 import type { Target, TypingUser } from './types';
 
 type RealtimeInputs = {
   userId: number | undefined
+  isStaff?: boolean
   selectedTarget: Target | null
   selectedTargetRef: RefObject<Target | null>
   selectedConversationKey: string | null
@@ -20,11 +22,13 @@ type RealtimeInputs = {
 
 /**
  * The person's Cable subscription: message events, who is typing here, this
- * person's own typing presence, and polling while realtime is down.
+ * person's own typing presence, staff live presence, and polling while realtime is down.
  */
-export function useMessagesRealtime({ userId, selectedTarget, selectedTargetRef, selectedConversationKey, activeThreadRootId, activeThreadRootIdRef, onMessageEvent, refreshInBackground }: RealtimeInputs) {
+export function useMessagesRealtime({ userId, isStaff = false, selectedTarget, selectedTargetRef, selectedConversationKey, activeThreadRootId, activeThreadRootIdRef, onMessageEvent, refreshInBackground }: RealtimeInputs) {
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
+  const [presenceByUserId, setPresenceByUserId] = useState<Record<number, string>>({})
+  const [presenceNow, setPresenceNow] = useState(() => Date.now())
   const [, setRealtimeSubscriptionVersion] = useState(0)
   const realtimeSubscriptionRef = useRef<RealtimeSubscription | null>(null)
   const typingExpiryTimersRef = useRef(new Map<number, number>())
@@ -207,10 +211,44 @@ export function useMessagesRealtime({ userId, selectedTarget, selectedTargetRef,
   }, [selectedTargetRef, activeThreadRootIdRef])
 
   useEffect(() => {
+    const subscribePresence = Object.prototype.hasOwnProperty.call(realtimeClient, 'subscribeToStaffPresence')
+      ? realtimeClient.subscribeToStaffPresence
+      : undefined
+    if (!userId || !isStaff || typeof subscribePresence !== 'function') return
+    let active = true
+    let unsubscribe: RealtimeSubscription | null = null
+
+    subscribePresence((event) => {
+      if (!active) return
+      setPresenceByUserId((current) => ({ ...current, [event.user_id]: event.last_seen_at }))
+      setPresenceNow(Date.now())
+    }).then((cleanup) => {
+      if (active) unsubscribe = cleanup
+      else cleanup()
+    }).catch(() => undefined)
+
+    const expiryTimer = window.setInterval(() => setPresenceNow(Date.now()), 60_000)
+
+    return () => {
+      active = false
+      window.clearInterval(expiryTimer)
+      unsubscribe?.()
+    }
+  }, [isStaff, userId])
+
+  const onlineUserIds = useMemo<ReadonlySet<number>>(() => {
+    const online = new Set<number>()
+    for (const [id, lastSeenAt] of Object.entries(presenceByUserId)) {
+      if (isRecentlyActive(lastSeenAt, presenceNow)) online.add(Number(id))
+    }
+    return online
+  }, [presenceByUserId, presenceNow])
+
+  useEffect(() => {
     typingExpiryTimersRef.current.forEach((timer) => window.clearTimeout(timer))
     typingExpiryTimersRef.current.clear()
     setTypingUsers([])
   }, [activeThreadRootId, selectedConversationKey])
 
-  return { typingLabel, reportComposerTyping }
+  return { typingLabel, onlineUserIds, reportComposerTyping }
 }

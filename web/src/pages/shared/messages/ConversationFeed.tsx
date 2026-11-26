@@ -91,7 +91,8 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
         ) : displayedMessages.map((message, index) => {
           const previousMessage = displayedMessages[index - 1]
           const rootId = rootMessageIdFor(message, messagesById)
-          const replyCount = threadReplies.get(rootId)?.length || 0
+          const loadedReplies = threadReplies.get(rootId) || []
+          const replyCount = Math.max(message.reply_count ?? 0, loadedReplies.length)
           const compact = shouldCompactMessage(message, previousMessage)
           const showDayDivider = !previousMessage || !sameDay(previousMessage.created_at, message.created_at)
 
@@ -120,6 +121,7 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
                 editing={editingFeedRow(message.id)}
                 inThreadView={Boolean(activeThreadRoot)}
                 replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
+                threadRepliesList={!activeThreadRoot && !message.parent_message_id ? loadedReplies : undefined}
                 onReply={() => replyToMessage(message)}
               />
             </div>
