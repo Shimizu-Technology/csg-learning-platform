@@ -179,6 +179,16 @@ export function markdownSourceEdit(value: string, start: number, end: number, ac
   }
 }
 
+/**
+ * Markdown mode: Enter adds a line instead of sending while the caret is in
+ * an open ``` fence (counting the caret's own line, §9.7) or on a bulleted /
+ * numbered list item, matching Rich mode and Slack.
+ */
+export function markdownEnterAddsLine(value: string, caret: number) {
+  if (isInsideFenceIncludingLists(`${value.slice(0, caret)}\n`, caret + 1)) return true
+  return parseMarkdownListLine(value, caret) !== null
+}
+
 const MARKDOWN_LIST_LINE = /^([ \t]*)(?:([-*+])|(\d+)([.)]))([ \t]+)(.*)$/
 const FENCE_OPENER = /^ {0,3}(`{3,}|~{3,})(.*)$/
 
@@ -221,16 +231,6 @@ function parseMarkdownListLine(value: string, caret: number) {
   const body = match[6]
   const prefixLength = indent.length + (bullet ? bullet.length : numberText.length + delimiter.length) + space.length
   return { from, to, indent, bullet, number: numberText ? Number(numberText) : null, delimiter, space, body, prefixLength }
-}
-
-/**
- * Markdown mode: Enter adds a line instead of sending while the caret is in
- * an open ``` fence (counting the caret's own line, §9.7) or on a bulleted /
- * numbered list item, matching Rich mode and Slack.
- */
-export function markdownEnterAddsLine(value: string, caret: number) {
-  if (isInsideFenceIncludingLists(`${value.slice(0, caret)}\n`, caret + 1)) return true
-  return parseMarkdownListLine(value, caret) !== null
 }
 
 /**
