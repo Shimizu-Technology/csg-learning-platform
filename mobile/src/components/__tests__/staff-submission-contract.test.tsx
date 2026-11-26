@@ -215,3 +215,91 @@ it('expires the GitHub save notice after 30 seconds while staying mounted on the
     jest.useRealTimers();
   }
 });
+
+it('grades a Pass / Redo submission with Pass, picked from the rubric until the reviewer chooses', async () => {
+  const criteria = [{ id: 12, title: 'Correctness', description: 'Cases pass', position: 0, rating: null, feedback: null }, { id: 13, title: 'Style', description: 'Reads well', position: 1, rating: null, feedback: null }];
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, grading_scale: 'pass_redo' as const, updated_at: '2026-10-22T00:00:00.123456Z', rubric: { id: 1, title: 'Quality', description: null, criteria } };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  mockApi.gradeSubmission.mockResolvedValue({ submission: { ...submission, grade: 'P' } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  expect(screen.queryByLabelText('Select grade A')).toBeNull();
+  const ratings = () => screen.getAllByRole('button', { name: 'Meets' });
+  await act(async () => { fireEvent.press(ratings()[0]); });
+  expect(screen.queryByText('Suggested from rubric')).toBeNull();
+  await act(async () => { fireEvent.press(ratings()[1]); });
+  expect(screen.getByText('Suggested from rubric')).toBeTruthy();
+  await act(async () => { fireEvent.press(screen.getAllByRole('button', { name: 'Revision' })[0]); });
+  expect(screen.getByLabelText('Save redo request')).toBeTruthy();
+  // A grade chosen by hand wins over later ratings.
+  await act(async () => { fireEvent.press(screen.getByLabelText('Select Pass')); });
+  await act(async () => { fireEvent.press(screen.getAllByRole('button', { name: 'Revision' })[1]); });
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save Pass')); });
+  expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'P', '', submission.updated_at, [{ rubric_criterion_id: 12, rating: 'redo', feedback: '' }, { rubric_criterion_id: 13, rating: 'redo', feedback: '' }]);
+});
+
+describe('restored drafts and grades off the current scale', () => {
+  const storage = jest.requireMock('@/lib/submission-storage') as { loadGradingDraft: jest.Mock; gradingDraftMatches: jest.Mock; saveGradingDraft: jest.Mock };
+  const criteria = [{ id: 12, title: 'Correctness', description: 'Cases pass', position: 0, rating: null, feedback: null }, { id: 13, title: 'Style', description: 'Reads well', position: 1, rating: null, feedback: null }];
+  const passSubmission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, grading_scale: 'pass_redo' as const, updated_at: '2026-10-22T00:00:00.123456Z', rubric: { id: 1, title: 'Quality', description: null, criteria } };
+  const rated = { 12: { rating: 'meets', feedback: '' }, 13: { rating: 'meets', feedback: '' } };
+  const draft = (extra: object) => ({ grade: 'P', feedback: 'Draft feedback', criterion_results: rated, base_submission_updated_at: passSubmission.updated_at, saved_at: '2026-10-22T01:00:00Z', ...extra });
+  afterEach(() => { storage.loadGradingDraft.mockResolvedValue(null); storage.gradingDraftMatches.mockReset(); });
+
+  async function open(submission: object) {
+    mockApi.submission.mockResolvedValue({ submission });
+    mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+    const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+    await act(async () => {});
+    await act(async () => {});
+    return screen;
+  }
+
+  it('keeps a restored rubric-picked grade following the ratings', async () => {
+    storage.loadGradingDraft.mockResolvedValue(draft({ grade_source: 'rubric' }));
+    storage.gradingDraftMatches.mockReturnValue(true);
+    const screen = await open(passSubmission);
+    expect(screen.getByText('Suggested from rubric')).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getAllByRole('button', { name: 'Revision' })[0]); });
+    expect(screen.getByLabelText('Save redo request')).toBeTruthy();
+    expect(storage.saveGradingDraft).toHaveBeenCalledWith(7, 41, expect.objectContaining({ grade: 'P', grade_source: 'rubric' }));
+  });
+
+  it.each([[{ grade_source: 'manual' }], [{}]])('keeps a restored hand-picked grade (or one from an older draft, %j) pinned', async (extra) => {
+    storage.loadGradingDraft.mockResolvedValue(draft(extra));
+    storage.gradingDraftMatches.mockReturnValue(true);
+    const screen = await open(passSubmission);
+    expect(screen.queryByText('Suggested from rubric')).toBeNull();
+    await act(async () => { fireEvent.press(screen.getAllByRole('button', { name: 'Revision' })[0]); });
+    expect(screen.getByLabelText('Save Pass')).toBeTruthy();
+  });
+
+  it('shows a historical A on a Pass / Redo curriculum but asks for a current-scale grade', async () => {
+    mockApi.gradeSubmission.mockResolvedValue({ submission: { ...passSubmission, rubric: null, grade: 'P' } });
+    const screen = await open({ ...passSubmission, rubric: null, grade: 'A', feedback: 'Old' });
+    expect(screen.getByText('GRADE A')).toBeTruthy();
+    expect(screen.queryByLabelText('Save grade A')).toBeNull();
+    expect(screen.getByLabelText('Save review')).toBeDisabled();
+    await act(async () => { fireEvent.press(screen.getByLabelText('Select Pass')); });
+    await act(async () => { fireEvent.press(screen.getByLabelText('Save Pass')); });
+    expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'P', 'Old', passSubmission.updated_at, []);
+  });
+
+  it('drops a restored grade from the other scale', async () => {
+    storage.loadGradingDraft.mockResolvedValue(draft({ grade: 'B', grade_source: 'manual' }));
+    storage.gradingDraftMatches.mockReturnValue(true);
+    const screen = await open(passSubmission);
+    expect(screen.queryByLabelText('Save grade B')).toBeNull();
+    expect(screen.getByLabelText('Save review')).toBeDisabled();
+  });
+
+  it('never offers Select B on a Pass / Redo curriculum: the B suggestion is out of date', async () => {
+    const suggestion = { outcome: 'suggest_b', suggested_grade: 'B', stale: false, stale_for_current_policy: false };
+    const screen = await open({ ...passSubmission, rubric: null, grade_suggestion: suggestion });
+    expect(screen.getByText('Out of date')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Select B' })).toBeNull();
+  });
+});

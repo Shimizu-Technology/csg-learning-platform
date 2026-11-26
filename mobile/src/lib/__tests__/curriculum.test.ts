@@ -29,6 +29,7 @@ const module: StaffCurriculumModule = {
 const curriculum: StaffCurriculum = {
   id: 3,
   name: 'CSG Bootcamp',
+  grading_scale: 'letter_abc_redo',
   description: null,
   total_weeks: 14,
   status: 'active',

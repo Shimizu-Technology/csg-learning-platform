@@ -59,6 +59,9 @@ interface ContextualHelpProps {
   capabilities?: EnrollmentCapabilities;
 }
 
+/** Follow-up guidance before staff reply (more detail while they wait) and after (an answer to their question). Same copy as the web app. */
+export const FOLLOW_UP_WAITING_HINT = 'Add more details or paste an error message while you wait';
+export const FOLLOW_UP_REPLIED_HINT = 'Answer their question or share what happened when you tried it';
 export function ContextualHelp({ cohortId, contextType, contextSource = 'primary', contextId, contextLabel, contextPath, capabilities, openRequestId }: ContextualHelpProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
@@ -100,7 +103,8 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
   const canAsk = capabilities?.support_mode === 'guided_help';
 
   const staffReplied = Boolean(active?.staff_response || active?.replies?.some(reply => !isStudentReply(reply, user?.id)));
-  const canReply = canAsk && staffReplied && (active?.status === 'open' || active?.status === 'acknowledged');
+  // Learners can add to an open request before staff reply too (more detail, an error message).
+  const canReply = canAsk && (active?.status === 'open' || active?.status === 'acknowledged');
   const replyDraft = active ? replyDrafts[active.id] ?? '' : '';
 
   async function sendReply() {
@@ -216,20 +220,22 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
             <View style={styles.requestCard}><Text style={styles.fieldLabel}>YOUR QUESTION</Text><Text style={styles.requestText}>{active.message}</Text><View style={styles.pills}><Text style={styles.pill}>{active.category.toUpperCase()}</Text>{active.urgency === 'urgent' && <Text style={styles.urgentPill}>URGENT</Text>}</View></View>
             {helpReplies(active, user?.id).map((item) => <View key={item.key} style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{item.label}</Text><View style={styles.resolvedText}><AuthoredContent body={item.body} compact written /></View></View></View>)}
             {canReply && <View style={styles.replyComposer}>
-              <Text style={styles.fieldLabel}>Reply to your instructor</Text>
+              <Text style={styles.fieldLabel}>{staffReplied ? 'Reply to your instructor' : 'Add to your question'}</Text>
+              <Text style={styles.statusCopy}>{staffReplied ? FOLLOW_UP_REPLIED_HINT : FOLLOW_UP_WAITING_HINT}</Text>
               <TextInput
-                accessibilityLabel="Reply to your instructor"
+                accessibilityLabel={staffReplied ? 'Reply to your instructor' : 'Add to your question'}
+                accessibilityHint={staffReplied ? FOLLOW_UP_REPLIED_HINT : FOLLOW_UP_WAITING_HINT}
                 editable={!saving}
                 keyboardAppearance={scheme}
                 maxLength={HELP_REPLY_LIMIT}
                 multiline
                 value={replyDraft}
                 onChangeText={(value) => setReplyDrafts((drafts) => ({ ...drafts, [active.id]: value }))}
-                placeholder="Answer their question or share what happened when you tried it."
+                placeholder={staffReplied ? 'What did you try, and what happened?' : 'For example, the exact error message'}
                 placeholderTextColor={c.text.body}
                 style={[styles.messageInput, styles.replyInput]}
               />
-              <Button label="Send reply" loading={saving} disabled={saving || !replyDraft.trim()} onPress={() => void sendReply()} />
+              <Button label={staffReplied ? 'Send reply' : 'Add details'} loading={saving} disabled={saving || !replyDraft.trim()} onPress={() => void sendReply()} />
             </View>}
             {canAsk && <Button accessibilityRole="button" disabled={saving} onPress={() => void cancel()} style={styles.cancelButton} variant="secondary" label={saving ? 'Canceling…' : 'Cancel request'} textStyle={styles.cancelText} />}
           </View> : <View style={styles.stack}>

@@ -73,6 +73,13 @@ describe('offline authored storage', () => {
     expect(await loadGradingDraft(7, 91)).toBeNull();
   });
 
+  it('keeps whether a draft grade came from the rubric, and refuses an unknown source', async () => {
+    await saveGradingDraft(7, 92, { grade: 'P', grade_source: 'rubric', feedback: '', criterion_results: {}, base_submission_updated_at: null });
+    expect((await loadGradingDraft(7, 92))?.grade_source).toBe('rubric');
+    await AsyncStorage.setItem(gradingDraftKey(7, 93), JSON.stringify({ grade: 'P', grade_source: 'guess', feedback: '', criterion_results: {}, base_submission_updated_at: null, saved_at: '2026-10-22T00:00:00Z' }));
+    expect(await loadGradingDraft(7, 93)).toBeNull();
+  });
+
   it('removes malformed grading drafts instead of restoring partial reviews', async () => {
     await AsyncStorage.setItem(gradingDraftKey(7, 91), JSON.stringify({ grade: 'A', feedback: 12 }));
 

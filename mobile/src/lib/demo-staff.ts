@@ -28,6 +28,7 @@ export const demoStaffCurriculum: StaffCurriculum = {
   name: 'CSG Full-Stack Bootcamp 2026',
   description: 'The complete learning path for prework and live class.',
   total_weeks: 14,
+  grading_scale: 'letter_abc_redo',
   status: 'active',
   updated_at: '2026-09-01T00:00:00.000000Z',
   modules_count: 2,
@@ -85,6 +86,7 @@ export const demoStaffCurriculum: StaffCurriculum = {
 export const demoStaffCurricula: StaffCurriculumSummary[] = [{
   id: demoStaffCurriculum.id,
   name: demoStaffCurriculum.name,
+  grading_scale: demoStaffCurriculum.grading_scale,
   description: demoStaffCurriculum.description,
   total_weeks: demoStaffCurriculum.total_weeks,
   status: demoStaffCurriculum.status,

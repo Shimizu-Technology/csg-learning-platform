@@ -1,6 +1,6 @@
 class GithubIssueDelivery < ApplicationRecord
   ACTIONS = %w[open_or_comment close].freeze
-  GRADES = %w[A B C R].freeze
+  GRADES = %w[A B C R P].freeze
   STATUSES = %w[pending delivered failed obsolete].freeze
   MAX_ATTEMPTS = 5
 

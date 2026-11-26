@@ -1,12 +1,14 @@
 import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { Check, CheckCircle2, RotateCcw } from 'lucide-react-native';
+import { Check, CheckCircle2, ClipboardCheck, RotateCcw } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { fonts } from '@/constants/csg-theme';
+import { gradeLabel } from '@/lib/display-labels';
+import { normalizeGradingScale, passingChoicesFor, type GradeChoice } from '@/lib/grading-scale';
 
-export type GradingOutcome = 'A' | 'B' | 'C' | 'R';
+export type GradingOutcome = GradeChoice;
 
 interface GradingReviewActionsProps {
   previousAttempt?: boolean;
@@ -17,36 +19,41 @@ interface GradingReviewActionsProps {
   disabled?: boolean;
   saveBlocked?: boolean;
   unratedCount?: number;
+  /** The submission's curriculum scale: Pass / Redo or A / B / C / Redo (the default). */
+  gradingScale?: string | null;
+  /** The chosen grade is the one the rubric ratings point to. */
+  fromRubric?: boolean;
   onSelect: (grade: GradingOutcome) => void;
   onSave: () => void;
 }
 
-export function GradingReviewActions({ previousAttempt = false, onLatest, selected, changed, saving, disabled = false, saveBlocked = false, unratedCount = 0, onSelect, onSave }: GradingReviewActionsProps) {
+export function GradingReviewActions({ previousAttempt = false, onLatest, selected, changed, saving, disabled = false, saveBlocked = false, unratedCount = 0, gradingScale, fromRubric = false, onSelect, onSave }: GradingReviewActionsProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   if (previousAttempt) return <View style={styles.container}>
     <Text style={styles.hint}>Previous attempt · read-only. Grade the latest attempt to update progress.</Text>
     <Button variant="secondary" label="Grade the latest attempt" onPress={onLatest} />
   </View>;
-  const saveLabel = selected === 'R' ? 'Save redo request' : selected ? `Save grade ${selected}` : 'Save review';
+  const passScale = normalizeGradingScale(gradingScale) === 'pass_redo';
+  const saveLabel = selected === 'R' ? 'Save redo request' : selected === 'P' ? 'Save Pass' : selected ? `Save grade ${selected}` : 'Save review';
   const controlsDisabled = saving || disabled;
   const saveDisabled = controlsDisabled || saveBlocked || !changed || !selected;
 
   return <View style={styles.container}>
     <Text style={styles.label}>GRADE</Text>
-    <Text style={styles.hint}>Choose the outcome, review the feedback, then save once.</Text>
+    <Text style={styles.hint}>{passScale ? 'Choose Pass or Request redo, review the feedback, then save once.' : 'Choose the outcome, review the feedback, then save once.'}</Text>
     <View style={styles.gradeRow}>
-      {(['A', 'B', 'C'] as GradingOutcome[]).map((grade) => <Pressable
+      {passingChoicesFor(gradingScale).map((grade) => <Pressable
         key={grade}
         accessibilityRole="button"
-        accessibilityLabel={`Select grade ${grade}`}
+        accessibilityLabel={grade === 'P' ? 'Select Pass' : `Select grade ${grade}`}
         accessibilityState={{ selected: selected === grade, disabled: controlsDisabled }}
         disabled={controlsDisabled}
         onPress={() => onSelect(grade)}
         style={[styles.gradeButton, selected === grade && styles.gradeButtonActive, controlsDisabled && styles.disabled]}
       >
         {selected === grade && <Check color={c.selection.indicator} size={16} />}
-        <Text style={styles.gradeButtonText}>{grade}</Text>
+        <Text style={styles.gradeButtonText}>{gradeLabel(grade)}</Text>
       </Pressable>)}
     </View>
     <Pressable
@@ -60,6 +67,7 @@ export function GradingReviewActions({ previousAttempt = false, onLatest, select
       <RotateCcw color={c.status.warning.fg} size={18} />
       <Text style={styles.redoButtonText}>Request redo</Text>
     </Pressable>
+    {fromRubric && selected && <View accessibilityLiveRegion="polite" style={styles.rubricSuggestion}><ClipboardCheck color={c.text.body} size={15} /><Text style={styles.rubricHint}>Suggested from rubric</Text></View>}
     {selected && selected !== 'R' && unratedCount > 0 && <Text accessibilityLiveRegion="polite" style={styles.rubricHint}>{unratedCount} rubric {unratedCount === 1 ? 'item' : 'items'} left</Text>}
     <Button variant="primary"
       accessibilityRole="button"
@@ -81,6 +89,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3, marginBottom: 8 },
   hint: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: -3, marginBottom: 10 },
   rubricHint: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12, marginTop: 10 },
+  rubricSuggestion: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   gradeRow: { flexDirection: 'row', gap: 8 },
   gradeButton: { flex: 1, minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   gradeButtonActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 },

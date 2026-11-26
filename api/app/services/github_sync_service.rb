@@ -146,7 +146,7 @@ class GithubSyncService
               num_submissions: existing.num_submissions + 1
             }
 
-            passing = %w[A B C].include?(existing.grade)
+            passing = Submission.passing_grade?(existing.grade)
             unless passing
               attrs[:grade] = nil
               attrs[:feedback] = nil

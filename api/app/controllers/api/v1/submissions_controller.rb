@@ -4,8 +4,10 @@ module Api
       class StaleGradingWrite < StandardError; end
       class SupersededAttempt < StandardError; end
       class InvalidSuggestionDecision < StandardError; end
+      class GradeOffScale < StandardError; end
       REDO_FEEDBACK_REQUIRED = "Write feedback before choosing Redo, so the student knows what to change.".freeze
       GRADE_INVALID = "Grade must be A, B, C or R.".freeze
+      PASS_REDO_GRADE_INVALID = "Grade must be Pass or Redo.".freeze
 
       before_action :authenticate_user!
       include AuthenticatedRateLimits
@@ -16,7 +18,7 @@ module Api
 
       # GET /api/v1/submissions
       def index
-        block_includes = { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } }
+        block_includes = { lesson: { curriculum_module: :curriculum }, rubric: { rubric_criteria: :learning_objective } }
         includes = [ { user: { enrollments: :cohort } }, { enrollment: :cohort }, :grader,
           :submission_criterion_results ]
         if current_user.staff?
@@ -193,9 +195,15 @@ module Api
         # criteria (or none, which leaves existing evidence alone). A/B/C need every criterion.
         # The grade is one of the letters, as a string. Enum integers ("3", 3) and anything
         # else are refused, so no form of Redo can skip the rule below. Nothing is written yet.
+        # Only the curriculum's own scale (Curriculum#grading_scale): P or R on Pass / Redo,
+        # A, B, C or R on A / B / C / Redo. Grades saved before a scale change stay as they are.
+        # This early check refuses most mistakes before any lock; the scale is read again under
+        # the curriculum lock below, so a scale change committing meanwhile is never bypassed.
         grade = params[:grade]
-        unless grade.is_a?(String) && Submission.grades.key?(grade)
-          render json: { errors: [ GRADE_INVALID ] }, status: :unprocessable_entity
+        grading_scale = @submission.grading_scale
+        curriculum_id = @submission.content_block.lesson.curriculum_module.curriculum_id
+        unless grade.is_a?(String) && Curriculum.grades_for_scale(grading_scale).include?(grade)
+          render json: { errors: [ grade_off_scale_message(grading_scale) ] }, status: :unprocessable_entity
           return
         end
         redo_grade = grade == "R"
@@ -222,13 +230,24 @@ module Api
         # A Redo posts to GitHub only by the same rule that warned the grader (UX-1).
         redo_issue_route = redo_grade ? GithubIssueService.redo_issue_route(@submission) : nil
         suggestions_enabled = GithubGradeSuggestionEvaluator.enabled_for?(enrollment&.cohort, school: school_features)
-        with_learning_write_guard(enrollment) do
-          Submission.transaction do
+        # Lock order (Curriculum.lock_for_content!, CurriculumCopyForCohort): the curriculum FOR
+        # SHARE, then the enrollment guard, then the submission. A scale change (curricula#update,
+        # FOR UPDATE) waits for this grade, or this grade waits for it and then reads the new scale.
+        Submission.transaction do
+          Curriculum.lock_for_content!(curriculum_id, "FOR SHARE")
+          locked_scale = Curriculum.where(id: curriculum_id).pick(:grading_scale)
+          with_learning_write_guard(enrollment) do
             @submission.lock!
             raise SupersededAttempt unless @submission.latest_attempt&.id == @submission.id
             if @submission.updated_at != base_updated_at
               raise StaleGradingWrite
             end
+            # A cohort copy may have moved this work to its own curriculum while we waited:
+            # the lock above then covers the wrong scale, so ask for a reload.
+            current_curriculum_id = ContentBlock.joins(lesson: :curriculum_module)
+              .where(id: @submission.content_block_id).pick("modules.curriculum_id")
+            raise StaleGradingWrite unless current_curriculum_id == curriculum_id
+            raise GradeOffScale, grade_off_scale_message(locked_scale) unless Curriculum.grades_for_scale(locked_scale).include?(grade)
 
             @submission.update!(
               grade: grade,
@@ -257,6 +276,7 @@ module Api
             if suggestions_enabled
               record_grade_suggestion_decision!(
                 submission: @submission,
+                grading_scale: locked_scale,
                 grade: grade,
                 requested_decision: requested_suggestion_decision,
                 override_reason_provided: override_reason_provided,
@@ -318,7 +338,7 @@ module Api
           error: "This submission changed after you opened it. Your draft was kept; review the latest version before saving again.",
           code: "stale_submission"
         }, status: :conflict
-      rescue InvalidSuggestionDecision => error
+      rescue InvalidSuggestionDecision, GradeOffScale => error
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
@@ -425,7 +445,8 @@ module Api
           grade_suggestion: suggestion.to_staff_json(
             active_policy: active_policy,
             latest_submission_id: @submission.latest_attempt&.id,
-            submission_commit_sha: @submission.commit_sha
+            submission_commit_sha: @submission.commit_sha,
+            grading_scale: @submission.reload.grading_scale
           )
         }
       end
@@ -479,7 +500,7 @@ module Api
         trimmed.presence
       end
 
-      def record_grade_suggestion_decision!(submission:, grade:, requested_decision:, override_reason_provided:, override_reason:, decided_at:)
+      def record_grade_suggestion_decision!(submission:, grading_scale:, grade:, requested_decision:, override_reason_provided:, override_reason:, decided_at:)
         suggestion = SubmissionGradeSuggestion.lock.find_by(submission_id: submission.id)
         if suggestion.nil?
           if requested_decision.present? && requested_decision != "dismissed"
@@ -492,13 +513,14 @@ module Api
         stale = suggestion.stale_for?(
           active_policy: active_policy,
           latest_submission_id: submission.id,
-          submission_commit_sha: submission.commit_sha
+          submission_commit_sha: submission.commit_sha,
+          grading_scale: grading_scale
         )
 
         computed_decision = if stale
           nil
-        elsif suggestion.outcome == "suggest_b"
-          grade == "B" ? "accepted" : "overridden"
+        elsif (suggested = SubmissionGradeSuggestion::GRADE_FOR_OUTCOME[suggestion.outcome])
+          grade == suggested ? "accepted" : "overridden"
         elsif suggestion.outcome == "review_for_redo"
           grade == "R" ? "accepted" : "overridden"
         end
@@ -553,6 +575,10 @@ module Api
           decided_at: timestamp
         )
       end
+      def grade_off_scale_message(grading_scale)
+        grading_scale == "pass_redo" ? PASS_REDO_GRADE_INVALID : GRADE_INVALID
+      end
+
       def render_grade_suggestions_disabled
         render json: {
           error: "GitHub grade suggestions are disabled for this cohort",
@@ -589,12 +615,12 @@ module Api
           includes << :github_issue_deliveries
           if school_grade_suggestions_enabled?
             includes << :submission_grade_suggestion
-            includes << { content_block: [ :active_exercise_check_policy, { lesson: :curriculum_module } ] }
+            includes << { content_block: [ :active_exercise_check_policy, { lesson: { curriculum_module: :curriculum } } ] }
           else
-            includes << { content_block: { lesson: :curriculum_module } }
+            includes << { content_block: { lesson: { curriculum_module: :curriculum } } }
           end
         else
-          includes << { content_block: { lesson: :curriculum_module } }
+          includes << { content_block: { lesson: { curriculum_module: :curriculum } } }
         end
         @submission = Submission.includes(*includes).find(params[:id])
       end
@@ -643,6 +669,7 @@ module Api
           submission_type: submission_type,
           text: submission.text,
           grade: submission.grade,
+          grading_scale: submission.grading_scale,
           feedback: submission.feedback,
           graded_by: submission.grader&.full_name,
           graded_at: submission.graded_at,
@@ -693,7 +720,8 @@ module Api
               json[:grade_suggestion] = suggestion.to_staff_json(
                 active_policy: submission.content_block.active_exercise_check_policy,
                 latest_submission_id: resolved_latest_id,
-                submission_commit_sha: submission.commit_sha
+                submission_commit_sha: submission.commit_sha,
+                grading_scale: submission.grading_scale
               )
             end
           end

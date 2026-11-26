@@ -225,7 +225,7 @@ export const PROPER_NOUNS = new Set([
   // Places in the app, used as names in "Back to …" and "Open …"
   'Today', 'Grading', 'Support', 'Messages', 'Updates', 'Content', 'Students', 'Cohorts', 'Recordings', 'Resources', 'Meetings', 'Team', 'Safety',
   // Grades
-  'Redo',
+  'Redo', 'Pass',
   // Lowercase-start brand/product words that appear capitalised
   'I', 'OK', 'Cmd', 'Ctrl', 'Shift', 'Enter', 'Esc', 'Tab', 'Alt', 'Option',
 ])

@@ -507,7 +507,8 @@ export interface CurriculumModuleInput {
 }
 
 // Local previews and cached legacy attempts can omit navigation metadata.
-export type Submission = Omit<components['schemas']['Submission'], 'lesson_id' | 'module_id' | 'module_name'> & Partial<Pick<components['schemas']['Submission'], 'lesson_id' | 'module_id' | 'module_name'>>;
+// grading_scale is optional here: a server deployed before grading scales omits it (A / B / C / Redo).
+export type Submission = Omit<components['schemas']['Submission'], 'lesson_id' | 'module_id' | 'module_name' | 'grading_scale'> & Partial<Pick<components['schemas']['Submission'], 'lesson_id' | 'module_id' | 'module_name' | 'grading_scale'>>;
 
 export type GithubCheckRun = components['schemas']['GithubCheckRun'];
 

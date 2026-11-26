@@ -211,7 +211,9 @@ export function ComposedTimeline({
           ? 'Waiting for review'
           : submission.grade === 'R'
             ? 'Redo requested'
-            : `Graded ${submission.grade}`,
+            : submission.grade === 'P'
+              ? 'Passed'
+              : `Graded ${submission.grade}`,
       path: submissionPath(submission.id, { cohortId, userId: studentId, returnTo: workspacePath }),
       icon: FileCheck2,
       tone:

@@ -37,7 +37,9 @@ class GithubGradeSuggestionEvaluator
   end
 
   # Pure evaluation: performs zero DB writes and zero HTTP calls.
-  def self.evaluate(submission:, policy:, check_runs:, binding: nil, latest_submission_id: nil, active_policy: :same_as_policy, now: Time.current)
+  # `grading_scale` is the curriculum's scale as read under its lock (evaluate_submission!);
+  # when omitted, the submission's curriculum is read.
+  def self.evaluate(submission:, policy:, check_runs:, binding: nil, latest_submission_id: nil, active_policy: :same_as_policy, now: Time.current, grading_scale: nil)
     resolved_active = active_policy == :same_as_policy ? policy : active_policy
     new(
       submission: submission,
@@ -46,44 +48,69 @@ class GithubGradeSuggestionEvaluator
       binding: binding,
       check_runs: Array(check_runs),
       latest_submission_id: latest_submission_id,
-      now: now
+      now: now,
+      grading_scale: grading_scale
     ).evaluate
   end
 
   # Persists the evaluation to submission_grade_suggestions only when the
   # submission's cohort has opted into both github_app and github_grade_suggestions.
-  # Serializes in canonical lock order (Enrollment -> Submission) so curriculum
-  # copy and concurrent check refreshes cannot race or persist stale block IDs.
-  # Makes zero policy/suggestion writes and returns nil when disabled.
+  # Serializes in canonical lock order (Curriculum FOR SHARE -> Enrollment ->
+  # Submission, see Curriculum.lock_for_content!) so a grading-scale change,
+  # curriculum copy and concurrent check refreshes cannot race or persist stale
+  # block IDs or a suggestion off the new scale. Callers must not already hold
+  # the enrollment. Makes zero policy/suggestion writes and returns nil when
+  # disabled.
   def self.evaluate_submission!(submission, now: Time.current, policy: :active)
     return nil unless submission.enrollment_id
 
-    ApplicationRecord.transaction do
-      enrollment = Enrollment.includes(:cohort).lock("FOR NO KEY UPDATE").find(submission.enrollment_id)
-      cohort = enrollment.cohort
-      return nil unless enabled_for?(cohort)
+    # A cohort copy can move the work to its own curriculum while we wait on the
+    # shared one; then start over once, locking the copy's curriculum.
+    2.times do
+      result = evaluate_submission_once!(submission, now: now, policy: policy)
+      return result unless result == :curriculum_moved
+    end
+    nil
+  end
 
-      locked_submission = Submission.includes(content_block: :lesson).lock("FOR NO KEY UPDATE").find(submission.id)
-      active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: locked_submission.content_block_id)
-      selected_policy = policy == :active ? active_policy : policy
-      binding = GithubRepositoryAccess.binding_for(
-        enrollment: enrollment,
-        curriculum_module_id: locked_submission.content_block.lesson.module_id
-      )
-      latest_id = locked_submission.latest_attempt&.id
-      runs = GithubCheckRun.where(submission_id: locked_submission.id).to_a
+  def self.evaluate_submission_once!(submission, now:, policy:)
+    # Bypass Rails' request query cache so a cohort-copy retry reads the remapped curriculum_id and fresh state.
+    ApplicationRecord.uncached do
+      curriculum_id = Submission.joins(content_block: { lesson: :curriculum_module })
+        .where(id: submission.id).pick("modules.curriculum_id")
+      return nil unless curriculum_id
 
-      result = evaluate(
-        submission: locked_submission,
-        policy: selected_policy,
-        active_policy: active_policy,
-        binding: binding,
-        check_runs: runs,
-        latest_submission_id: latest_id,
-        now: now
-      )
+      ApplicationRecord.transaction do
+        Curriculum.lock_for_content!(curriculum_id, "FOR SHARE")
+        grading_scale = Curriculum.where(id: curriculum_id).pick(:grading_scale)
+        enrollment = Enrollment.includes(:cohort).lock("FOR NO KEY UPDATE").find(submission.enrollment_id)
+        cohort = enrollment.cohort
+        return nil unless enabled_for?(cohort)
 
-      persist_result!(submission: locked_submission, enrollment: enrollment, result: result)
+        locked_submission = Submission.includes(content_block: { lesson: :curriculum_module }).lock("FOR NO KEY UPDATE").find(submission.id)
+        return :curriculum_moved unless locked_submission.content_block.lesson.curriculum_module.curriculum_id == curriculum_id
+        active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: locked_submission.content_block_id)
+        selected_policy = policy == :active ? active_policy : policy
+        binding = GithubRepositoryAccess.binding_for(
+          enrollment: enrollment,
+          curriculum_module_id: locked_submission.content_block.lesson.module_id
+        )
+        latest_id = locked_submission.latest_attempt&.id
+        runs = GithubCheckRun.where(submission_id: locked_submission.id).to_a
+
+        result = evaluate(
+          submission: locked_submission,
+          policy: selected_policy,
+          active_policy: active_policy,
+          binding: binding,
+          check_runs: runs,
+          latest_submission_id: latest_id,
+          now: now,
+          grading_scale: grading_scale
+        )
+
+        persist_result!(submission: locked_submission, enrollment: enrollment, result: result)
+      end
     end
   end
 
@@ -144,15 +171,16 @@ class GithubGradeSuggestionEvaluator
       retry
     end
   end
-  private_class_method :persist_result!
+  private_class_method :persist_result!, :evaluate_submission_once!
 
   def self.material_change?(record, attributes)
     MATERIAL_DECISION_FIELDS.any? { |field| record.public_send(field) != attributes[field] }
   end
   private_class_method :material_change?
 
-  def initialize(submission:, policy:, active_policy:, binding:, check_runs:, latest_submission_id:, now:)
+  def initialize(submission:, policy:, active_policy:, binding:, check_runs:, latest_submission_id:, now:, grading_scale: nil)
     @submission = submission
+    @grading_scale = grading_scale
     @policy = policy
     @active_policy = active_policy
     @binding = binding
@@ -448,11 +476,13 @@ class GithubGradeSuggestionEvaluator
       )
     end
 
+    # A Pass / Redo curriculum suggests Pass; an A / B / C one suggests B.
+    pass_scale = (@grading_scale || @submission.grading_scale) == "pass_redo"
     build_result(
-      outcome: "suggest_b",
-      suggested_grade: "B",
+      outcome: pass_scale ? "suggest_pass" : "suggest_b",
+      suggested_grade: pass_scale ? "P" : "B",
       reason_code: "all_required_checks_passed",
-      reason_summary: "All #{authoritative_runs.size} required exercise check(s) passed for commit #{target_sha[0, 12]}; B suggested for instructor review.",
+      reason_summary: "All #{authoritative_runs.size} required exercise check(s) passed for commit #{target_sha[0, 12]}; #{pass_scale ? 'Pass' : 'B'} suggested for instructor review.",
       policy_for_record: @policy,
       evidence: evidence
     )

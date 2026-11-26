@@ -121,9 +121,9 @@ class GradingQueue
     ]
     if school_suggestions_enabled?
       includes << :submission_grade_suggestion
-      includes << { content_block: [ :active_exercise_check_policy, { lesson: :curriculum_module } ] }
+      includes << { content_block: [ :active_exercise_check_policy, { lesson: { curriculum_module: :curriculum } } ] }
     else
-      includes << { content_block: { lesson: :curriculum_module } }
+      includes << { content_block: { lesson: { curriculum_module: :curriculum } } }
     end
     scope.includes(*includes)
       .order(Arel.sql("submissions.created_at #{direction}, submissions.id #{direction}"))
@@ -266,6 +266,7 @@ class GradingQueue
       user_id: submission.user_id,
       user_name: submission.user.full_name,
       grade: submission.grade,
+      grading_scale: lesson.curriculum_module.curriculum.grading_scale,
       graded_at: submission.graded_at,
       num_submissions: submission.num_submissions,
       created_at: submission.created_at,
@@ -304,6 +305,8 @@ class GradingQueue
     end
   end
 
+  # The last two lines: a suggested grade off the curriculum's current scale is out of date
+  # (SubmissionGradeSuggestion#off_scale?); suggestion_curricula is joined in apply_suggestion_outcome.
   FRESH_SUGGESTION_SQL = Arel.sql(
     "submission_grade_suggestions.outcome <> 'stale_evidence' AND " \
     "((submission_grade_suggestions.exercise_check_policy_id IS NULL AND active_policies.id IS NULL) " \
@@ -313,7 +316,9 @@ class GradingQueue
     "AND submission_grade_suggestions.policy_version IS NOT NULL " \
     "AND active_policies.version = submission_grade_suggestions.policy_version)) AND " \
     "(submission_grade_suggestions.commit_sha IS NULL OR submissions.commit_sha IS NULL " \
-    "OR LOWER(submission_grade_suggestions.commit_sha) = LOWER(submissions.commit_sha))"
+    "OR LOWER(submission_grade_suggestions.commit_sha) = LOWER(submissions.commit_sha)) AND " \
+    "NOT (submission_grade_suggestions.outcome = 'suggest_b' AND suggestion_curricula.grading_scale <> 'letter_abc_redo') AND " \
+    "NOT (submission_grade_suggestions.outcome = 'suggest_pass' AND suggestion_curricula.grading_scale <> 'pass_redo')"
   ).freeze
 
   def apply_suggestion_outcome(scope, status:)
@@ -327,6 +332,12 @@ class GradingQueue
         "LEFT JOIN exercise_check_policies active_policies " \
         "ON active_policies.content_block_id = submission_grade_suggestions.content_block_id " \
         "AND active_policies.active = TRUE"
+      )
+      .joins(
+        "JOIN content_blocks suggestion_blocks ON suggestion_blocks.id = submissions.content_block_id " \
+        "JOIN lessons suggestion_lessons ON suggestion_lessons.id = suggestion_blocks.lesson_id " \
+        "JOIN modules suggestion_modules ON suggestion_modules.id = suggestion_lessons.module_id " \
+        "JOIN curricula suggestion_curricula ON suggestion_curricula.id = suggestion_modules.curriculum_id"
       )
       .where(enrollment_id: enabled_enrollments)
 
@@ -355,7 +366,8 @@ class GradingQueue
       grade_suggestion: suggestion.to_staff_json(
         active_policy: block.active_exercise_check_policy,
         latest_submission_id: latest_ids[submission.attempt_key],
-        submission_commit_sha: submission.commit_sha
+        submission_commit_sha: submission.commit_sha,
+        grading_scale: block.lesson.curriculum_module.curriculum.grading_scale
       )
     }
   end

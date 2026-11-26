@@ -1,7 +1,20 @@
 class Submission < ApplicationRecord
   include LearnerWorkBlockLock
 
-  enum :grade, { A: 0, B: 1, C: 2, R: 3 }
+  # P is Pass, on Pass / Redo curricula (Curriculum#grading_scale). It passes
+  # exactly as A, B and C do; R (Redo) is the only grade that sends work back.
+  enum :grade, { A: 0, B: 1, C: 2, R: 3, P: 4 }
+  PASSING_GRADES = %w[A B C P].freeze
+
+  def self.passing_grade?(grade)
+    PASSING_GRADES.include?(grade.to_s)
+  end
+
+  # How a grade reads to people (notifications, GitHub comments): "Pass" for P,
+  # "Redo" for R, the letter otherwise.
+  def self.grade_label(grade)
+    { "P" => "Pass", "R" => "Redo" }.fetch(grade.to_s, grade.to_s)
+  end
 
   # Feedback that says nothing: empty, or only Unicode whitespace (NBSP, em space, ...) and
   # zero-width characters. A Redo needs feedback that isn't blank. The web and native
@@ -68,6 +81,10 @@ class Submission < ApplicationRecord
       .latest_attempts
       .pluck(:enrollment_id, :user_id, :content_block_id, :id)
       .to_h { |enrollment_id, user_id, content_block_id, id| [ [ enrollment_id, user_id, content_block_id ], id ] }
+  end
+
+  def grading_scale
+    content_block.lesson.curriculum_module.curriculum.grading_scale
   end
 
   def effective_submission_type

@@ -262,7 +262,7 @@ class LearnerProgress
       block.gradable_work_block? && (@latest_submissions.key?(block.id) ||
         ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(block.submission_type_for(enrollment)))
     end
-    reviewed.all? { |block| %w[A B C].include?(@latest_submissions[block.id]&.grade) }
+    reviewed.all? { |block| Submission.passing_grade?(@latest_submissions[block.id]&.grade) }
   end
 
   def required_lessons

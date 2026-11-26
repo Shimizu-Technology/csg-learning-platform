@@ -3,6 +3,16 @@ class Curriculum < ApplicationRecord
 
   enum :status, { draft: 0, active: 1, archived: 2 }, validate: true
 
+  # How this curriculum's work is graded: A / B / C / Redo (every curriculum
+  # made before scales existed) or Pass / Redo. A cohort's copy keeps its
+  # source's scale. Changing it later leaves saved grades as they are; only
+  # grades saved afterwards must be on the new scale.
+  GRADING_SCALES = %w[letter_abc_redo pass_redo].freeze
+  GRADES_BY_SCALE = {
+    "letter_abc_redo" => %w[A B C R].freeze,
+    "pass_redo" => %w[P R].freeze
+  }.freeze
+
   has_many :modules, -> { order(:position) }, class_name: "CurriculumModule", dependent: :destroy
   has_many :cohorts, dependent: :restrict_with_error
   has_many :learning_objectives, -> { ordered }, dependent: :destroy
@@ -21,6 +31,7 @@ class Curriculum < ApplicationRecord
   before_destroy -> { lock_tree_for_destroy! }, prepend: true
 
   validates :name, presence: true
+  validates :grading_scale, inclusion: { in: GRADING_SCALES, message: "must be letter_abc_redo or pass_redo" }
   validate :archive_preserves_live_offerings
 
   # Lock order for curriculum content. Every transaction that takes more than
@@ -63,6 +74,14 @@ class Curriculum < ApplicationRecord
       ordered.each_with_index { |mod, index| mod.update_columns(position: offset + index) }
       ids.each_with_index { |id, index| ordered.find { |mod| mod.id == id }.update!(position: index) }
     end
+  end
+
+  def self.grades_for_scale(scale)
+    GRADES_BY_SCALE.fetch(scale.to_s, GRADES_BY_SCALE.fetch("letter_abc_redo"))
+  end
+
+  def pass_redo?
+    grading_scale == "pass_redo"
   end
 
   def archive_blockers

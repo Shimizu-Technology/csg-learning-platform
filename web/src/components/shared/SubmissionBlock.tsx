@@ -60,7 +60,7 @@ export function SubmissionBlock({ controller, ...props }: ContentBlockRendererPr
                       <span className="font-semibold text-ink-secondary tabular-nums">Attempt {sub.num_submissions}</span>
                       {' · '}<span className="tabular-nums">{formatShortDate(sub.created_at)}</span>
                       {' · '}{isLatest ? 'Latest' : 'Earlier'}
-                      {isGraded && <>{' · '}{isRedo ? 'Redo requested' : `Grade ${sub.grade}`}</>}
+                      {isGraded && <>{' · '}{isRedo ? 'Redo requested' : sub.grade === 'P' ? 'Passed' : `Grade ${sub.grade}`}</>}
                     </p>
 
                     <div className="mt-2">

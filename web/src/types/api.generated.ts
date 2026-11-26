@@ -3315,6 +3315,11 @@ export interface paths {
                         description?: string;
                         /** @enum {string} */
                         status?: "draft" | "active" | "archived";
+                        /**
+                         * @description Defaults to `letter_abc_redo` when omitted on create. Changing it later keeps saved grades; grades saved afterwards must be on the new scale.
+                         * @enum {string}
+                         */
+                        grading_scale?: "letter_abc_redo" | "pass_redo";
                         total_weeks?: number;
                     };
                 };
@@ -3408,6 +3413,11 @@ export interface paths {
                         description?: string;
                         /** @enum {string} */
                         status?: "draft" | "active" | "archived";
+                        /**
+                         * @description Defaults to `letter_abc_redo` when omitted on create. Changing it later keeps saved grades; grades saved afterwards must be on the new scale.
+                         * @enum {string}
+                         */
+                        grading_scale?: "letter_abc_redo" | "pass_redo";
                         total_weeks?: number;
                         base_updated_at: string;
                     };
@@ -4625,7 +4635,7 @@ export interface paths {
                     student_id?: number;
                     lesson_id?: number;
                     /** @description Filter to latest submissions with a matching automated grade suggestion in opted-in cohorts. */
-                    suggestion_outcome?: "suggest_b" | "review_for_redo" | "no_suggestion" | "stale_evidence";
+                    suggestion_outcome?: "suggest_b" | "suggest_pass" | "review_for_redo" | "no_suggestion" | "stale_evidence";
                     /** @description oldest (default) or newest first; ids break ties. */
                     sort?: "oldest" | "newest";
                     /** @description 1-based; past the end serves the last page. */
@@ -4988,7 +4998,7 @@ export interface paths {
         put?: never;
         /**
          * Reply to a help request (staff), or follow up on one (the learner who asked)
-         * @description Body: `{ "reply": { "body": string, "resolve": boolean, "client_request_id"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. The learner who asked may follow up on their own open or acknowledged request once staff replied (`resolve` is ignored): the reply has `from_student: true`, the status, owner and `staff_response` stay as they were, and the owner (every cohort staff member when nobody owns it) is notified; the learner's response omits staff-only fields. 403 for other roles, or a learner whose course no longer offers instructor help; 404 outside the staff member's cohorts or for another learner's request, 422 for a blank or too-long reply, a malformed client request id, a new reply on a resolved or canceled request, or a learner follow-up before any staff reply.
+         * @description Body: `{ "reply": { "body": string, "resolve": boolean, "client_request_id"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. The learner who asked may follow up on their own open or acknowledged request, before or after staff reply (`resolve` is ignored): the reply has `from_student: true`, the status, owner and `staff_response` stay as they were, and the owner (every cohort staff member when nobody owns it) is notified; the learner's response omits staff-only fields. 403 for other roles, or a learner whose course no longer offers instructor help; 404 outside the staff member's cohorts or for another learner's request, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.
          */
         post: {
             parameters: {
@@ -8968,9 +8978,12 @@ export interface components {
             policy_version: number | null;
             commit_sha: string | null;
             /** @enum {string} */
-            outcome: "suggest_b" | "review_for_redo" | "no_suggestion" | "stale_evidence";
-            /** @enum {string|null} */
-            suggested_grade: "B" | null;
+            outcome: "suggest_b" | "suggest_pass" | "review_for_redo" | "no_suggestion" | "stale_evidence";
+            /**
+             * @description B with `suggest_b` (passing checks on an A / B / C / Redo curriculum), P with `suggest_pass` (on a Pass / Redo curriculum), otherwise null.
+             * @enum {string|null}
+             */
+            suggested_grade: "B" | "P" | null;
             /** @enum {string} */
             reason_code: "all_required_checks_passed" | "required_check_failed" | "missing_policy" | "unverified_revision" | "missing_required_check" | "check_pending" | "check_inconclusive" | "untrusted_producer" | "workflow_tampered" | "branch_mismatch" | "stale_sha" | "stale_policy" | "superseded_submission";
             reason_summary: string;
@@ -8979,7 +8992,7 @@ export interface components {
             };
             evaluated_at: string;
             stale_for_current_policy: boolean;
-            /** @description True when check evidence is stale because of outcome, policy change, superseded attempt, or commit SHA mismatch. */
+            /** @description True when check evidence is stale because of outcome, policy change, superseded attempt, commit SHA mismatch, or a suggested grade off the curriculum's current grading scale (B on Pass / Redo, Pass on A / B / C / Redo). */
             stale?: boolean;
             /** @enum {string|null} */
             decision: "accepted" | "overridden" | "dismissed" | null;
@@ -8992,8 +9005,11 @@ export interface components {
             grade_suggestion: components["schemas"]["SubmissionGradeSuggestion"];
         };
         SubmissionGradeInput: {
-            /** @enum {string} */
-            grade: "A" | "B" | "C" | "R";
+            /**
+             * @description P (Pass) or R on a Pass / Redo curriculum; A, B, C or R on an A / B / C / Redo curriculum (the submission's `grading_scale`). Another grade is refused with 422.
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C" | "R" | "P";
             /** @description ISO 8601 submission updated_at timestamp for optimistic concurrency. */
             base_submission_updated_at: string;
             feedback?: string | null;
@@ -9042,6 +9058,11 @@ export interface components {
             submission_type: null | string;
             text: null | string;
             grade: null | string;
+            /**
+             * @description The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo.
+             * @enum {string}
+             */
+            grading_scale: "letter_abc_redo" | "pass_redo";
             feedback: null | string;
             graded_by: null | string;
             graded_at: null | string;
@@ -10087,6 +10108,11 @@ export interface components {
             total_weeks: number | null;
             /** @enum {string} */
             status: "draft" | "active" | "archived";
+            /**
+             * @description How this curriculum's work is graded: A / B / C / Redo (`letter_abc_redo`, every curriculum made before scales existed) or Pass / Redo (`pass_redo`).
+             * @enum {string}
+             */
+            grading_scale: "letter_abc_redo" | "pass_redo";
             updated_at: string;
             modules_count: number;
             archive_blocked: boolean;
@@ -10107,6 +10133,11 @@ export interface components {
             total_weeks: number | null;
             /** @enum {string} */
             status: "draft" | "active" | "archived";
+            /**
+             * @description How this curriculum's work is graded: A / B / C / Redo (`letter_abc_redo`, every curriculum made before scales existed) or Pass / Redo (`pass_redo`).
+             * @enum {string}
+             */
+            grading_scale: "letter_abc_redo" | "pass_redo";
             updated_at: string;
             modules_count: number;
             /** @description Included on curriculum show, omitted on create/update. */
@@ -10676,6 +10707,11 @@ export interface components {
             total_weeks: number | null;
             /** @enum {string} */
             status: "draft" | "active" | "archived";
+            /**
+             * @description How this curriculum's work is graded: A / B / C / Redo (`letter_abc_redo`, every curriculum made before scales existed) or Pass / Redo (`pass_redo`).
+             * @enum {string}
+             */
+            grading_scale: "letter_abc_redo" | "pass_redo";
             updated_at: string;
             modules_count: number;
             archive_blocked: boolean;
@@ -11263,7 +11299,12 @@ export interface components {
             user_id: number;
             user_name: string;
             /** @enum {string|null} */
-            grade: "A" | "B" | "C" | "R" | null;
+            grade: "A" | "B" | "C" | "R" | "P" | null;
+            /**
+             * @description The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo.
+             * @enum {string}
+             */
+            grading_scale: "letter_abc_redo" | "pass_redo";
             graded_at: string | null;
             num_submissions: number;
             created_at: string;

@@ -80,6 +80,14 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     assert_equal [ true, copy_id ], response.parsed_body["curriculum_copy_preview"].values_at("already_copied", "copy_curriculum_id")
   end
 
+  test "a cohort's copy keeps its source's grading scale" do
+    @f.curriculum.update!(grading_scale: "pass_redo")
+    copy_request!(@f.instructor)
+    assert_response :created
+    copy = Curriculum.find(response.parsed_body.dig("curriculum_copy", "copy_curriculum", "id"))
+    assert_equal "pass_redo", copy.grading_scale
+  end
+
   test "admins can copy any shared cohort; other staff and learners can't; an unshared curriculum needs no copy" do
     as_user(@f.admin) { get "/api/v1/lessons/#{@f.lessons[:intro].id}/block_editor", headers: auth_headers }
     assert_equal [ @f.cohort.id, @f.other_cohort.id ].sort, response.parsed_body.dig("access", "copy_cohorts").map { |cohort| cohort["id"] }.sort

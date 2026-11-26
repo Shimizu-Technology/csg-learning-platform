@@ -23,6 +23,17 @@ const categories: Array<{ value: HelpCategory; label: string; description: strin
   { value: 'other', label: 'Something else', description: 'My question does not fit the options above.' },
 ]
 
+// One scrolling row on phones; wrapping rows from sm up. Padding keeps focus rings unclipped, and
+// `relative` keeps the visually hidden radios inside the row so the sheet never scrolls sideways.
+const PILL_ROW = 'relative mt-1.5 flex flex-nowrap gap-2 overflow-x-auto p-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible'
+const PILL = 'pressable relative inline-flex min-h-11 shrink-0 cursor-pointer items-center whitespace-nowrap sm:max-w-full sm:shrink sm:whitespace-normal rounded-full border px-3.5 py-2 text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus'
+const PILL_SELECTED = 'border-ink bg-surface-sunken text-ink'
+const PILL_IDLE = 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
+
+/** Follow-up guidance before staff reply (more detail while they wait) and after (an answer to their question). */
+export const FOLLOW_UP_WAITING_HINT = 'Add more details or paste an error message while you wait'
+export const FOLLOW_UP_REPLIED_HINT = 'Answer their question or share what happened when you tried it'
+
 interface ContextualHelpProps {
   capabilities?: LearnerCapabilities
   contextPath?: string
@@ -44,7 +55,11 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const toast = useToast()
   const [chosenContext, setChosenContext] = useState('')
   const choices = v2 ? contexts : undefined
-  const choice = choices?.find(item => `${item.type}:${item.id}` === chosenContext)
+  // The form opens on the current lesson (or the first choice), never behind an empty picker.
+  const defaultChoice = choices?.find(item => item.type === contextType && item.id === contextId) ?? choices?.[0]
+  const defaultContext = defaultChoice ? `${defaultChoice.type}:${defaultChoice.id}` : ''
+  const shownContext = chosenContext || defaultContext
+  const choice = choices?.find(item => `${item.type}:${item.id}` === shownContext)
   const requestType = choice?.type ?? contextType
   const requestId = choice?.id ?? contextId
   const needsChoice = Boolean(choices && choices.length > 1 && !choice)
@@ -58,7 +73,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   // Follow-up drafts and their retry ids belong to one request each, so switching the
   // lesson or exercise never carries a draft, or a retry of it, onto another request.
   const [followUpDrafts, setFollowUpDrafts] = useState<Record<number, string>>({})
-  const followUpAttempts = useRef(new Map<number, string>())
+  const followUpAttempts = useRef(new Map<number, { body: string; id: string }>())
 
   const requestGeneration = useRef(0)
   const loadRequests = useCallback(async () => {
@@ -169,11 +184,15 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     event.preventDefault()
     if (!canRequest || !activeRequest) return
     const requestId = activeRequest.id
+    const answeringStaff = staffReplied
     const body = (followUpDrafts[requestId] ?? '').trim()
     if (!body || body.length > HELP_REPLY_LIMIT) return
-    // One id per attempt on this request, kept until a send is confirmed (as the staff reply box does).
-    let attempt = followUpAttempts.current.get(requestId)
-    if (!attempt) followUpAttempts.current.set(requestId, attempt = newReplyRequestId())
+    // One id per attempt on this request, kept until a send is confirmed. A retry of the same text
+    // reuses it; edited text is a new attempt, so a send whose answer was lost never replays the
+    // old text in place of the new one (as the native app does).
+    const earlier = followUpAttempts.current.get(requestId)
+    const attempt = earlier?.body === body ? earlier.id : newReplyRequestId()
+    followUpAttempts.current.set(requestId, { body, id: attempt })
     const generation = requestGeneration.current
     setSaving(true)
     const response = await api.replyToHelpRequest(requestId, { body, resolve: false, client_request_id: attempt })
@@ -192,7 +211,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
       delete rest[requestId]
       return rest
     })
-    toast.success('Reply sent to your instructor.')
+    toast.success(answeringStaff ? 'Reply sent to your instructor.' : 'Added to your help request.')
   }
 
   // Staff replies only: the learner's own follow-ups never count as an answer.
@@ -200,7 +219,8 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   const awaitingInstructor = Boolean(staffReplied && activeRequest?.replies?.at(-1)?.from_student)
   const replied = staffReplied && !awaitingInstructor
   const statusLabel = awaitingInstructor ? 'You replied' : replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
-  const canFollowUp = canRequest && staffReplied
+  // Learners can add to an open request before staff reply too (more detail, an error message).
+  const canFollowUp = canRequest
   const followUp = activeRequest ? followUpDrafts[activeRequest.id] ?? '' : ''
 
   if (capabilities?.features?.help_requests === false) return null
@@ -217,7 +237,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
           if (choices && !message.trim()) {
             const active = history.filter((request) => request.status === 'open' || request.status === 'acknowledged')
             const shown = active.find((request) => request.replies?.some((reply) => !reply.from_student) || request.staff_response) ?? active[0]
-            setChosenContext(shown ? `${shown.context_type}:${shown.context_id}` : '')
+            setChosenContext(shown ? `${shown.context_type}:${shown.context_id}` : defaultContext)
           }
           setOpen(true)
           if (onRequestsRefresh) void onRequestsRefresh()
@@ -226,7 +246,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         className={activeRequest ? 'border-line! bg-surface-sunken! text-ink-secondary!' : 'text-ink-secondary!'}
       >
         {activeRequest ? <Clock3 className="h-4 w-4" aria-hidden="true" /> : <CircleHelp className="h-4 w-4" aria-hidden="true" />}
-        {!canRequest ? 'View previous help' : v2 && history.some(request => request.replies?.length || request.staff_response) ? 'View response' : activeRequest ? statusLabel : 'Ask for help'}
+        {!canRequest ? 'View previous help' : v2 && history.some(request => request.replies?.some((reply) => !reply.from_student) || request.staff_response) ? 'View response' : activeRequest ? statusLabel : 'Ask for help'}
       </Button>}
 
       <Modal
@@ -238,17 +258,18 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         size="md"
       >
         <div className="space-y-4">
-          {choices && canRequest && <label className="block space-y-2 text-sm font-semibold text-ink">What is your question about?
-            <select aria-label="What is your question about?" disabled={saving} className="min-h-11 w-full rounded-xl border border-line bg-surface-raised px-3" value={chosenContext} onChange={event => setChosenContext(event.target.value)}>
-              {choices.length > 1 && <option value="">Choose the lesson or an exercise</option>}
-              {choices.map(item => <option key={`${item.type}:${item.id}`} value={`${item.type}:${item.id}`}>{item.label}</option>)}
-            </select>
-          </label>}
-          {choices && history.filter(request => request.id !== activeRequest?.id && request.id !== shownResolved?.id).map(request => <details key={request.id} className="rounded-xl border border-line bg-surface-sunken p-3">
-            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">{choices.find(item => item.type === request.context_type && item.id === request.context_id)?.label} · {formatShortDateTime(request.created_at)}</summary>
-            <p className="my-3 whitespace-pre-wrap text-sm text-ink [overflow-wrap:anywhere]">{request.message}</p>
-            <dl className="space-y-3 text-sm"><HelpReplies request={request} /></dl>
-          </details>)}
+          {choices && canRequest && choices.length > 1 && <fieldset disabled={saving} className="min-w-0 border-0 p-0">
+            <legend className="text-sm font-semibold text-ink">What is your question about?</legend>
+            <div className={PILL_ROW}>
+              {choices.map(item => {
+                const key = `${item.type}:${item.id}`
+                return <label key={key} className={`${PILL} ${key === shownContext ? PILL_SELECTED : PILL_IDLE}`}>
+                  <input className="sr-only" type="radio" name={`help-context-${contextType}-${contextId}`} value={key} checked={key === shownContext} onChange={() => setChosenContext(key)} />
+                  {item.label}
+                </label>
+              })}
+            </div>
+          </fieldset>}
           {!loading && shownResolved && (
             <div className="rounded-2xl border border-success-line bg-success-soft p-4">
               <div className="flex items-start gap-3">
@@ -296,8 +317,10 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                 </div>
               </div>
               {canFollowUp && <form className="space-y-2" onSubmit={sendFollowUp}>
-                <label htmlFor={`help-follow-up-${activeRequest.id}`} className="text-sm font-semibold text-ink">Reply to your instructor</label>
+                <label htmlFor={`help-follow-up-${activeRequest.id}`} className="block text-sm font-semibold text-ink">{staffReplied ? 'Reply to your instructor' : 'Add to your question'}</label>
+                <p id={`help-follow-up-hint-${activeRequest.id}`} className="text-sm text-ink-secondary">{staffReplied ? FOLLOW_UP_REPLIED_HINT : FOLLOW_UP_WAITING_HINT}</p>
                 <textarea
+                  aria-describedby={`help-follow-up-hint-${activeRequest.id}`}
                   id={`help-follow-up-${activeRequest.id}`}
                   disabled={saving}
                   value={followUp}
@@ -308,33 +331,33 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                   }}
                   maxLength={HELP_REPLY_LIMIT}
                   rows={3}
-                  placeholder="Answer their question or share what happened when you tried it."
+                  placeholder={staffReplied ? 'What did you try, and what happened?' : 'For example, the exact error message'}
                   className="app-control w-full leading-6"
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="submit" disabled={saving || !followUp.trim()}>
-                    <MessageCircleReply className="h-4 w-4" aria-hidden="true" /> {saving ? 'Sending…' : 'Send reply'}
+                    <MessageCircleReply className="h-4 w-4" aria-hidden="true" /> {saving ? 'Sending…' : staffReplied ? 'Send reply' : 'Add details'}
                   </Button>
                   <p className="ml-auto text-xs tabular-nums text-ink-muted">{followUp.length.toLocaleString()}/{HELP_REPLY_LIMIT.toLocaleString()}</p>
                 </div>
               </form>}
-              {canRequest && <Button variant={canFollowUp ? 'quiet' : 'danger'} onClick={cancelRequest} disabled={saving}>
-                <XCircle className="h-4 w-4" /> {canFollowUp ? 'I no longer need help' : 'Cancel request'}
+              {canRequest && <Button variant={staffReplied ? 'quiet' : 'danger'} onClick={cancelRequest} disabled={saving}>
+                <XCircle className="h-4 w-4" /> {staffReplied ? 'I no longer need help' : 'Cancel request'}
               </Button>}
             </div>
           ) : canRequest && !needsChoice ? (
             <form className="space-y-5" onSubmit={submitRequest}>
-              <fieldset>
+              <fieldset aria-describedby={`help-category-hint-${contextType}-${contextId}`} className="min-w-0 border-0 p-0">
                 <legend className="text-sm font-semibold text-ink">What kind of help do you need?</legend>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <div className={PILL_ROW}>
                   {categories.map((option) => (
-                    <label key={option.value} className={`pressable cursor-pointer rounded-xl border p-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${category === option.value ? 'border-action-primary bg-surface-raised ring-1 ring-action-primary' : 'border-line hover:bg-surface-sunken'}`}>
+                    <label key={option.value} className={`${PILL} ${category === option.value ? PILL_SELECTED : PILL_IDLE}`}>
                       <input className="sr-only" type="radio" name="help-category" value={option.value} checked={category === option.value} onChange={() => setCategory(option.value)} />
-                      <span className="block text-sm font-semibold text-ink">{option.label}</span>
-                      <span className="mt-0.5 block text-sm leading-5 text-ink-muted">{option.description}</span>
+                      {option.label}
                     </label>
                   ))}
                 </div>
+                <p id={`help-category-hint-${contextType}-${contextId}`} className="mt-2 text-sm text-ink-muted">{categories.find((option) => option.value === category)?.description}</p>
               </fieldset>
 
               <div>
@@ -363,6 +386,12 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
               </Button>
             </form>
           ) : null}
+          {/* Earlier requests come after the form, so the question box opens in view. */}
+          {choices && history.filter(request => request.id !== activeRequest?.id && request.id !== shownResolved?.id).map(request => <details key={request.id} className="rounded-xl border border-line bg-surface-sunken p-3">
+            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">{choices.find(item => item.type === request.context_type && item.id === request.context_id)?.label} · {formatShortDateTime(request.created_at)}</summary>
+            <p className="my-3 whitespace-pre-wrap text-sm text-ink [overflow-wrap:anywhere]">{request.message}</p>
+            <dl className="space-y-3 text-sm"><HelpReplies request={request} /></dl>
+          </details>)}
         </div>
       </Modal>
     </>

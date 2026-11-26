@@ -96,7 +96,7 @@ export function ContentBlockRenderer(props: ContentBlockRendererProps) {
           >
             <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-ink' : 'text-success-ink'}`}>
               {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
-              {hasRedoRequest ? redoInstruction : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
+              {hasRedoRequest ? redoInstruction : `Reviewed by your instructor${latestSubmission.grade === 'P' ? ' · Passed' : GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
             </p>
             {hasRedoRequest && submissionType === 'prework_github_sync' && <GithubRedoIssue url={latestSubmission.github_issue_url} />}
             {latestSubmission.feedback ? (

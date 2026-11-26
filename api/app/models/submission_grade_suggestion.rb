@@ -1,6 +1,9 @@
 class SubmissionGradeSuggestion < ApplicationRecord
-  OUTCOMES = %w[suggest_b review_for_redo no_suggestion stale_evidence].freeze
-  SUGGESTED_GRADES = %w[B].freeze
+  OUTCOMES = %w[suggest_b suggest_pass review_for_redo no_suggestion stale_evidence].freeze
+  # Passing checks suggest B on an A / B / C curriculum and Pass on a Pass / Redo
+  # one (Curriculum#grading_scale). Each suggesting outcome names its one grade.
+  GRADE_FOR_OUTCOME = { "suggest_b" => "B", "suggest_pass" => "P" }.freeze
+  SUGGESTED_GRADES = GRADE_FOR_OUTCOME.values.freeze
   DECISIONS = %w[accepted overridden dismissed].freeze
   MAX_OVERRIDE_REASON_LENGTH = 500
   CONTROL_CHAR_PATTERN = /[\x00-\x1F\x7F]/
@@ -50,19 +53,32 @@ class SubmissionGradeSuggestion < ApplicationRecord
     end
   end
 
-  def stale_for?(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded)
+  # True when the suggested grade isn't on the curriculum's current scale: B after a switch to
+  # Pass / Redo, or Pass after a switch back to A / B / C / Redo. Such a suggestion is out of
+  # date everywhere (serialization, the queue's filters and the grade save's decision).
+  def off_scale?(current_grading_scale = :unloaded)
+    expected = GRADE_FOR_OUTCOME[outcome]
+    return false unless expected
+
+    scale = current_grading_scale == :unloaded ? submission&.grading_scale : current_grading_scale
+    !Curriculum.grades_for_scale(scale).include?(expected)
+  end
+
+  def stale_for?(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded, grading_scale: :unloaded)
     outcome == "stale_evidence" ||
+      off_scale?(grading_scale) ||
       stale_policy?(active_policy) ||
       (latest_submission_id != :unloaded && latest_submission_id.present? && latest_submission_id != submission_id) ||
       (submission_commit_sha != :unloaded && submission_commit_sha.present? && commit_sha.present? && !commit_sha.casecmp?(submission_commit_sha))
   end
 
-  def to_staff_json(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded)
+  def to_staff_json(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded, grading_scale: :unloaded)
     stale_policy = stale_policy?(active_policy)
     stale = stale_policy || stale_for?(
       active_policy: active_policy,
       latest_submission_id: latest_submission_id,
-      submission_commit_sha: submission_commit_sha
+      submission_commit_sha: submission_commit_sha,
+      grading_scale: grading_scale
     )
     {
       id: id,
@@ -91,10 +107,10 @@ class SubmissionGradeSuggestion < ApplicationRecord
   private
 
   def suggested_grade_matches_outcome
-    if outcome == "suggest_b"
-      errors.add(:suggested_grade, "must be B when outcome is suggest_b") unless suggested_grade == "B"
+    if (expected = GRADE_FOR_OUTCOME[outcome])
+      errors.add(:suggested_grade, "must be #{expected} when outcome is #{outcome}") unless suggested_grade == expected
     elsif suggested_grade.present?
-      errors.add(:suggested_grade, "must be nil unless outcome is suggest_b")
+      errors.add(:suggested_grade, "must be nil unless outcome is suggest_b or suggest_pass")
     end
   end
 

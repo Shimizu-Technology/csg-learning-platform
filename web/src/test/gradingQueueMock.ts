@@ -34,7 +34,7 @@ const at = (value: string) => {
 function toItem(item: Submission): GradingQueueItem {
   return {
     id: item.id, enrollment_id: item.enrollment_id, latest_submission_id: item.latest_submission_id, content_block_id: item.content_block_id,
-    user_id: item.user_id, user_name: item.user_name, grade: item.grade as GradingQueueItem['grade'], graded_at: item.graded_at,
+    user_id: item.user_id, user_name: item.user_name, grade: item.grade as GradingQueueItem['grade'], grading_scale: item.grading_scale ?? 'letter_abc_redo', graded_at: item.graded_at,
     num_submissions: item.num_submissions, created_at: item.created_at, updated_at: item.updated_at,
     content_block_title: item.content_block_title, content_block_type: item.content_block_type,
     lesson_id: item.lesson_id, lesson_title: item.lesson_title, module_id: item.module_id, module_name: item.module_name,

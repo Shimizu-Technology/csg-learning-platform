@@ -663,6 +663,64 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     NotificationEmailService.define_singleton_method(:send_redo_notification, original_email) if original_email
   end
 
+  test "a Pass / Redo curriculum accepts only P or R, and Pass completes work like a letter grade" do
+    @curriculum.update!(grading_scale: "pass_redo")
+    [ "A", "B", "C", "Pass", "p" ].each do |grade|
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: grade, feedback: "Nice"), headers: auth_headers, as: :json
+      end
+      assert_response :unprocessable_entity, grade
+      assert_equal [ "Grade must be Pass or Redo." ], response.parsed_body["errors"]
+      assert_nil @submission.reload.grade
+    end
+
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "P", feedback: "Nice"), headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal "P", response.parsed_body.dig("submission", "grade")
+    assert_equal "pass_redo", response.parsed_body.dig("submission", "grading_scale")
+    assert_equal "P", @submission.reload.grade
+    assert Progress.find_by!(user: @student, content_block: @block).completed?
+    assert Submission.passing_grade?(@submission.grade)
+    assert_equal "#{@instructor.full_name} graded Exercise 1: Pass", NotificationDeliveryService.submission_graded(@submission, push: false).first.title
+  end
+
+  test "grading locks the curriculum before the enrollment and the submission, and checks the scale under it" do
+    statements = []
+    recorder = ->(*, payload) { statements << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record") do
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "B", feedback: "Nice"), headers: auth_headers, as: :json
+      end
+    end
+    assert_response :success
+    curriculum_lock = statements.index { |sql| sql.match?(/FROM "curricula".*FOR SHARE/m) }
+    enrollment_lock = statements.index { |sql| sql.match?(/FROM "enrollments".*FOR UPDATE/m) }
+    submission_lock = statements.index { |sql| sql.match?(/FROM "submissions".*FOR UPDATE/m) }
+    assert curriculum_lock && enrollment_lock && submission_lock, statements.grep(/FOR /).inspect
+    assert_operator curriculum_lock, :<, enrollment_lock
+    assert_operator enrollment_lock, :<, submission_lock
+  end
+
+  test "an A / B / C / Redo curriculum refuses P, and a scale change keeps earlier grades readable" do
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "P", feedback: "Nice"), headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal [ "Grade must be A, B, C or R." ], response.parsed_body["errors"]
+
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "B", feedback: "Nice"), headers: auth_headers, as: :json
+    end
+    assert_response :success
+
+    @curriculum.update!(grading_scale: "pass_redo")
+    as_user(@instructor) { get "/api/v1/submissions/#{@submission.id}", headers: auth_headers }
+    assert_response :success
+    assert_equal [ "B", "pass_redo" ], response.parsed_body.fetch("submission").values_at("grade", "grading_scale")
+  end
+
   # Fix round 2: Unicode blank feedback and enum-integer grades must not slip past the Redo rule.
   test "redo feedback of only Unicode spaces or zero-width characters, and non-letter grades, are refused before any write" do
     original = @submission.reload.attributes

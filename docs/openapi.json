@@ -2399,6 +2399,14 @@
                       "archived"
                     ]
                   },
+                  "grading_scale": {
+                    "type": "string",
+                    "enum": [
+                      "letter_abc_redo",
+                      "pass_redo"
+                    ],
+                    "description": "Defaults to `letter_abc_redo` when omitted on create. Changing it later keeps saved grades; grades saved afterwards must be on the new scale."
+                  },
                   "total_weeks": {
                     "type": "integer"
                   }
@@ -2472,6 +2480,14 @@
                       "active",
                       "archived"
                     ]
+                  },
+                  "grading_scale": {
+                    "type": "string",
+                    "enum": [
+                      "letter_abc_redo",
+                      "pass_redo"
+                    ],
+                    "description": "Defaults to `letter_abc_redo` when omitted on create. Changing it later keeps saved grades; grades saved afterwards must be on the new scale."
                   },
                   "total_weeks": {
                     "type": "integer"
@@ -3576,6 +3592,7 @@
               "type": "string",
               "enum": [
                 "suggest_b",
+                "suggest_pass",
                 "review_for_redo",
                 "no_suggestion",
                 "stale_evidence"
@@ -3907,7 +3924,7 @@
     "/api/v1/help_requests/{help_request_id}/replies": {
       "post": {
         "summary": "Reply to a help request (staff), or follow up on one (the learner who asked)",
-        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. The learner who asked may follow up on their own open or acknowledged request once staff replied (`resolve` is ignored): the reply has `from_student: true`, the status, owner and `staff_response` stay as they were, and the owner (every cohort staff member when nobody owns it) is notified; the learner's response omits staff-only fields. 403 for other roles, or a learner whose course no longer offers instructor help; 404 outside the staff member's cohorts or for another learner's request, 422 for a blank or too-long reply, a malformed client request id, a new reply on a resolved or canceled request, or a learner follow-up before any staff reply.",
+        "description": "Body: `{ \"reply\": { \"body\": string, \"resolve\": boolean, \"client_request_id\"?: string } }`. Without `resolve` the request stays active (an open request becomes acknowledged by the replier); with it the request is resolved. The learner is notified once, after the reply commits. `client_request_id` (8–64 letters, digits, `-` or `_`; one per reply attempt, reused on retry) makes a retry safe: if this author already saved a reply with that id on this request, that reply is returned with `replayed: true` and nobody is notified again, even when the first attempt resolved the request. The learner who asked may follow up on their own open or acknowledged request, before or after staff reply (`resolve` is ignored): the reply has `from_student: true`, the status, owner and `staff_response` stay as they were, and the owner (every cohort staff member when nobody owns it) is notified; the learner's response omits staff-only fields. 403 for other roles, or a learner whose course no longer offers instructor help; 404 outside the staff member's cohorts or for another learner's request, 422 for a blank or too-long reply, a malformed client request id, or a new reply on a resolved or canceled request.",
         "responses": {
           "201": {
             "description": "Reply saved",
@@ -10284,6 +10301,7 @@
             "type": "string",
             "enum": [
               "suggest_b",
+              "suggest_pass",
               "review_for_redo",
               "no_suggestion",
               "stale_evidence"
@@ -10296,8 +10314,10 @@
             ],
             "enum": [
               "B",
+              "P",
               null
-            ]
+            ],
+            "description": "B with `suggest_b` (passing checks on an A / B / C / Redo curriculum), P with `suggest_pass` (on a Pass / Redo curriculum), otherwise null."
           },
           "reason_code": {
             "type": "string",
@@ -10332,7 +10352,7 @@
           },
           "stale": {
             "type": "boolean",
-            "description": "True when check evidence is stale because of outcome, policy change, superseded attempt, or commit SHA mismatch."
+            "description": "True when check evidence is stale because of outcome, policy change, superseded attempt, commit SHA mismatch, or a suggested grade off the curriculum's current grading scale (B on Pass / Redo, Pass on A / B / C / Redo)."
           },
           "decision": {
             "type": [
@@ -10412,8 +10432,10 @@
               "A",
               "B",
               "C",
-              "R"
-            ]
+              "R",
+              "P"
+            ],
+            "description": "P (Pass) or R on a Pass / Redo curriculum; A, B, C or R on an A / B / C / Redo curriculum (the submission's `grading_scale`). Another grade is refused with 422."
           },
           "base_submission_updated_at": {
             "type": "string",
@@ -10621,6 +10643,14 @@
               "null",
               "string"
             ]
+          },
+          "grading_scale": {
+            "type": "string",
+            "enum": [
+              "letter_abc_redo",
+              "pass_redo"
+            ],
+            "description": "The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo."
           },
           "feedback": {
             "type": [
@@ -10925,7 +10955,8 @@
           "cohort_name",
           "module_position",
           "course_delivery",
-          "week_number"
+          "week_number",
+          "grading_scale"
         ],
         "additionalProperties": false
       },
@@ -15737,6 +15768,14 @@
               "archived"
             ]
           },
+          "grading_scale": {
+            "type": "string",
+            "enum": [
+              "letter_abc_redo",
+              "pass_redo"
+            ],
+            "description": "How this curriculum's work is graded: A / B / C / Redo (`letter_abc_redo`, every curriculum made before scales existed) or Pass / Redo (`pass_redo`)."
+          },
           "updated_at": {
             "type": "string"
           },
@@ -15795,7 +15834,8 @@
           "modules_count",
           "archive_blocked",
           "live_checkout_offerings",
-          "active_self_paced_learners"
+          "active_self_paced_learners",
+          "grading_scale"
         ],
         "additionalProperties": false
       },
@@ -15835,6 +15875,14 @@
               "active",
               "archived"
             ]
+          },
+          "grading_scale": {
+            "type": "string",
+            "enum": [
+              "letter_abc_redo",
+              "pass_redo"
+            ],
+            "description": "How this curriculum's work is graded: A / B / C / Redo (`letter_abc_redo`, every curriculum made before scales existed) or Pass / Redo (`pass_redo`)."
           },
           "updated_at": {
             "type": "string"
@@ -15889,7 +15937,8 @@
           "modules",
           "archive_blocked",
           "live_checkout_offerings",
-          "active_self_paced_learners"
+          "active_self_paced_learners",
+          "grading_scale"
         ],
         "additionalProperties": false
       },
@@ -18412,6 +18461,14 @@
               "archived"
             ]
           },
+          "grading_scale": {
+            "type": "string",
+            "enum": [
+              "letter_abc_redo",
+              "pass_redo"
+            ],
+            "description": "How this curriculum's work is graded: A / B / C / Redo (`letter_abc_redo`, every curriculum made before scales existed) or Pass / Redo (`pass_redo`)."
+          },
           "updated_at": {
             "type": "string"
           },
@@ -18454,7 +18511,8 @@
           "modules_count",
           "archive_blocked",
           "live_checkout_offerings",
-          "active_self_paced_learners"
+          "active_self_paced_learners",
+          "grading_scale"
         ],
         "additionalProperties": false
       },
@@ -21012,8 +21070,17 @@
               "B",
               "C",
               "R",
+              "P",
               null
             ]
+          },
+          "grading_scale": {
+            "type": "string",
+            "enum": [
+              "letter_abc_redo",
+              "pass_redo"
+            ],
+            "description": "The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo."
           },
           "graded_at": {
             "type": [
@@ -21155,7 +21222,8 @@
           "cohort_id",
           "cohort_name",
           "course_delivery",
-          "week_number"
+          "week_number",
+          "grading_scale"
         ]
       },
       "GradingQueueCounts": {

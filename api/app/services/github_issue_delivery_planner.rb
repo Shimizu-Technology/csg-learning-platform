@@ -103,7 +103,7 @@ class GithubIssueDeliveryPlanner
         issue_url: prior&.dig(:issue_url),
         attempts: 0
       )
-    elsif %w[A B C].include?(grade)
+    elsif Submission.passing_grade?(grade)
       needs_close = (prior && prior[:issue_number].present? && prior[:last_action] != "close") || has_uncertain_open
       return nil unless needs_close
 

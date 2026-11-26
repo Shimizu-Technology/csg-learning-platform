@@ -27,7 +27,7 @@ import { Recordings } from './Recordings'
 import { Dashboard } from './Dashboard'
 import { Materials } from './Materials'
 import { StudentExperienceProvider } from '../../lib/studentExperience'
-import { ContextualHelp } from '../../components/student/ContextualHelp'
+import { ContextualHelp, FOLLOW_UP_REPLIED_HINT, FOLLOW_UP_WAITING_HINT } from '../../components/student/ContextualHelp'
 import { CourseSupport } from '../../components/student/CourseSupport'
 import type { HelpRequest, LearnerCapabilities } from '../../types/api'
 import { composerDestinationKey, readComposerDraft } from '../../lib/messageComposerState'
@@ -135,6 +135,9 @@ describe('lesson and profile recovery', () => {
   })
 })
 
+const checkedHelpContext = () => container.querySelector<HTMLInputElement>('input[name^="help-context-"]:checked')?.value ?? null
+const chooseHelpContext = async (value: string) => act(async () => { container.querySelector<HTMLInputElement>(`input[name^="help-context-"][value="${value}"]`)!.click() })
+
 describe('support identity and entitlements', () => {
   it('matches cohort, type, source and ID before showing or canceling help', async () => {
     const requests = [request({ id: 90, context_type: 'exercise' }), request({ id: 91, cohort: { id: 5, name: 'Other' } }), request({ id: 92, context_source: 'legacy' }), request({ id: 93 })]
@@ -168,8 +171,7 @@ describe('support identity and entitlements', () => {
     vi.mocked(api.replyToHelpRequest).mockResolvedValue({ data: null, error: 'Offline' })
     await render(<StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" contexts={[{ type: 'lesson', id: 42, label: 'Lists' }, { type: 'exercise', id: 51, label: 'First' }, { type: 'exercise', id: 52, label: 'Second' }]} requests={[first, second]} requestsLoading={false} /></StudentExperienceProvider>)
     await click('View response')
-    const select = () => container.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement
-    const choose = async (value: string) => act(async () => { select().value = value; select().dispatchEvent(new Event('change', { bubbles: true })) })
+    const choose = (value: string) => chooseHelpContext(value)
     const typeInto = async (id: number, text: string) => {
       const box = container.querySelector<HTMLTextAreaElement>(`#help-follow-up-${id}`)!
       await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, text); box.dispatchEvent(new Event('input', { bubbles: true })) })
@@ -189,11 +191,44 @@ describe('support identity and entitlements', () => {
     expect(calls[2][1].client_request_id).toBe(calls[0][1].client_request_id)
     expect(calls[1][1].client_request_id).not.toBe(calls[0][1].client_request_id)
   })
-  it('keeps the learner reply box closed until an instructor answers', async () => {
+  it('sends edited follow-up text with a new retry id, so a lost answer never replays the old text', async () => {
+    const staffReply = { id: 1, body: 'What error?', resolved_request: false, from_student: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' }
+    const active = request({ id: 93, status: 'acknowledged', staff_response: staffReply.body, replies: [staffReply] })
+    vi.mocked(api.replyToHelpRequest).mockResolvedValue({ data: null, error: 'Offline' })
+    await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[active]} requestsLoading={false} />)
+    await click('Your instructor replied')
+    const typeInto = async (text: string) => {
+      const box = container.querySelector<HTMLTextAreaElement>('#help-follow-up-93')!
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, text); box.dispatchEvent(new Event('input', { bubbles: true })) })
+    }
+    await typeInto('First try')
+    await click('Send reply')
+    await click('Send reply')
+    await typeInto('First try, with the stack trace')
+    await click('Send reply')
+    const ids = vi.mocked(api.replyToHelpRequest).mock.calls.map(([, data]) => data.client_request_id)
+    expect(vi.mocked(api.replyToHelpRequest).mock.calls.map(([, data]) => data.body)).toEqual(['First try', 'First try', 'First try, with the stack trace'])
+    expect(ids[1]).toBe(ids[0])
+    expect(ids[2]).not.toBe(ids[0])
+  })
+  it('lets the learner add details before an instructor answers, without acknowledging it', async () => {
+    const note = { id: 3, body: 'TypeError: undefined', resolved_request: false, from_student: true, author: { id: 7, full_name: 'Student Test' }, created_at: '2026-10-01T02:00:00Z' }
+    vi.mocked(api.replyToHelpRequest).mockResolvedValue({ data: { help_request: request({ id: 93, replies: [note] }), reply: note, replayed: false }, error: null })
     await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ id: 93 })]} requestsLoading={false} />)
     await click('Sent to your instructor')
     expect(container.textContent).toContain('Your instructor has your question.')
-    expect(container.querySelector('#help-follow-up-93')).toBeNull()
+    expect(container.textContent).toContain('Add to your question')
+    expect(container.textContent).toContain(FOLLOW_UP_WAITING_HINT)
+    expect(container.textContent).not.toContain(FOLLOW_UP_REPLIED_HINT)
+    const box = container.querySelector<HTMLTextAreaElement>('#help-follow-up-93')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, 'TypeError: undefined')
+      box.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('Add details')
+    expect(api.replyToHelpRequest).toHaveBeenCalledExactlyOnceWith(93, expect.objectContaining({ body: 'TypeError: undefined', resolve: false }))
+    // Cancel stays the plain action until someone answers.
+    expect(container.textContent).toContain('Cancel request')
   })
   it('shows every reply on a resolved request, not only the last one (PR #282 fix round 1)', async () => {
     const replies = [
@@ -297,7 +332,7 @@ it('On, a help link to one exercise opens on that exercise with its reply showin
   const dialog = container.querySelector('[role="dialog"]')!
   expect(dialog.querySelector('[data-modal-title]')?.textContent).toBe('Your help request')
   expect(dialog.textContent).toContain('Return inside the loop.')
-  expect((dialog.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement | null)?.value ?? 'exercise:52').toBe('exercise:52')
+  expect(checkedHelpContext()).toBe('exercise:52')
 })
 it('On asks which exercise new help concerns and keeps every older response reachable', async () => {
   const requests = [request({ id: 11, context_type: 'exercise', context_id: 51, staff_response: 'First response' }), request({ id: 12, context_type: 'exercise', context_id: 52, status: 'resolved', staff_response: 'Second response' }), request({ id: 13, status: 'resolved', staff_response: 'Lesson response' })]
@@ -307,25 +342,27 @@ it('On asks which exercise new help concerns and keeps every older response reac
   expect(container.textContent).toContain('First response')
   expect(container.textContent).toContain('Second response')
   expect(container.textContent).toContain('Lesson response')
-  const select = container.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement
   // UX-6: it opens on the open, answered request, so its thread and reply box are right there.
-  expect(select.value).toBe('exercise:51')
+  expect(checkedHelpContext()).toBe('exercise:51')
   expect(container.querySelector('#help-follow-up-11')).not.toBeNull()
-  await act(async () => { select.value = ''; select.dispatchEvent(new Event('change', { bubbles: true })) })
-  expect(container.querySelector('form')).toBeNull()
-  await act(async () => { select.value = 'exercise:52'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  // One click switches to another exercise's new-question form.
+  await chooseHelpContext('exercise:52')
   const textarea = container.querySelector('textarea')!
   await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'New question about the second exercise'); textarea.dispatchEvent(new Event('input', { bubbles: true })) })
   await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
   expect(api.createHelpRequest).toHaveBeenCalledWith(expect.objectContaining({ context_type: 'exercise', context_id: 52, message: 'New question about the second exercise' }))
   await click('View response')
-  expect(select.value).toBe('exercise:51')
+  expect(checkedHelpContext()).toBe('exercise:51')
 })
 
-it('On asks which context new help concerns when nothing is open', async () => {
+it('On opens new help on the current lesson when nothing is open, with compact category pills', async () => {
   const requests = [request({ id: 12, context_type: 'exercise', context_id: 52, status: 'resolved', staff_response: 'Second response' })]
   await render(<StudentExperienceProvider v2><ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" contexts={[{ type: 'lesson', id: 42, label: 'Lists' }, { type: 'exercise', id: 52, label: 'Second exercise' }]} requests={requests} requestsLoading={false} /></StudentExperienceProvider>)
   await click('View response')
-  expect((container.querySelector('select[aria-label="What is your question about?"]') as HTMLSelectElement).value).toBe('')
-  expect(container.querySelector('form')).toBeNull()
+  expect(checkedHelpContext()).toBe('lesson:42')
+  expect(container.querySelector('form textarea')).not.toBeNull()
+  expect(container.querySelector('select')).toBeNull()
+  const pills = Array.from(container.querySelectorAll<HTMLInputElement>('input[name="help-category"]'))
+  expect(pills.map((pill) => pill.closest('label')!.textContent)).toEqual(['Concept', 'Technical issue', 'Instructions', 'Feedback', 'Something else'])
+  expect(container.textContent).toContain('I need the idea explained another way.')
 })

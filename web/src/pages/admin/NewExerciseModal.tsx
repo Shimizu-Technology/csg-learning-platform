@@ -13,7 +13,8 @@ import {
   type CodeRunnerConfig,
 } from '../../lib/codeRunner'
 import { Button } from '../../components/ui/Button'
-import { SUBMISSION_TYPE_OPTIONS, submissionTypeHint } from './lessonEditor/submissionTypes'
+import { submissionTypeHint } from './lessonEditor/submissionTypes'
+import { LiveUrlToggle, SubmissionTypeSelect } from './lessonEditor/SubmissionTypeField'
 
 const renderLessonPreview = (markdown: string) => <MarkdownRenderer content={markdown} />
 
@@ -215,14 +216,13 @@ export function NewExerciseModal({
             </div>
             <div className="min-w-0">
               <label htmlFor={`${formId}-submission-type`} className="mb-1 block text-sm font-medium text-ink-secondary">Submission type</label>
-              <select
+              <SubmissionTypeSelect
                 id={`${formId}-submission-type`}
                 value={submissionType}
-                onChange={e => handleSubmissionTypeChange(e.target.value)}
+                allowDefault={false}
+                onChange={(value) => handleSubmissionTypeChange(value || 'manual_complete')}
                 className="app-control w-full min-w-0 truncate"
-              >
-                {SUBMISSION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              />
             </div>
             <div className="min-w-0">
               <label htmlFor={`${formId}-filename`} className="mb-1 block text-sm font-medium text-ink-secondary">Filename</label>
@@ -236,6 +236,7 @@ export function NewExerciseModal({
               />
             </div>
           </div>
+          <LiveUrlToggle value={submissionType} onChange={handleSubmissionTypeChange} />
           <p className="-mt-2 text-xs text-ink-muted">{submissionTypeHint(submissionType)}</p>
           {submissionType === 'text_submission' && (
             <CodeRunnerSettings value={runnerConfig} onChange={setRunnerConfig} compact />

@@ -113,7 +113,7 @@ class GithubIssueService
           close_issue(
             issue_url: issue_url,
             token: token,
-            comment: feedback.present? ? "Graded **#{grade}** - #{feedback}" : "Graded **#{grade}** - Passing!"
+            comment: feedback.present? ? "Graded **#{Submission.grade_label(grade)}** - #{feedback}" : "Graded **#{Submission.grade_label(grade)}** - Passing!"
           )
         end
       end

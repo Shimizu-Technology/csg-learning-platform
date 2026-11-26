@@ -665,9 +665,9 @@ class GithubIssueDeliveryDrain
 
   def build_close_comment(delivery)
     header = if delivery.feedback_body.present?
-      "Graded **#{delivery.grade}** - #{delivery.feedback_body}"
+      "Graded **#{Submission.grade_label(delivery.grade)}** - #{delivery.feedback_body}"
     else
-      "Graded **#{delivery.grade}** - Passing!"
+      "Graded **#{Submission.grade_label(delivery.grade)}** - Passing!"
     end
     "#{header}\n\n#{delivery.marker}"
   end

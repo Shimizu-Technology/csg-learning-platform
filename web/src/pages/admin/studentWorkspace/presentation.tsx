@@ -18,7 +18,7 @@ export function SubmissionStatus({ submission }: { submission: Submission }) {
     )
   return (
     <Badge tone="success" icon={<CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}>
-      Grade {submission.grade}
+      {submission.grade === 'P' ? 'Passed' : `Grade ${submission.grade}`}
     </Badge>
   )
 }

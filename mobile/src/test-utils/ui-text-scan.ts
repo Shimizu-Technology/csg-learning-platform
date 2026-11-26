@@ -214,7 +214,7 @@ export const PROPER_NOUNS = new Set([
   'Code', 'School', 'Guam', 'Learn', 'Doc', 'Alumni', 'Clerk', 'Google', 'GitHub', 'Zoom', 'Vimeo', 'YouTube', 'Apple', 'App', 'Store', 'Play', 'Android', 'iPhone',
   'Files', 'Photos', 'Markdown', 'Rich', 'JavaScript', 'TypeScript', 'Python', 'Ruby', 'React', 'Expo', 'Chamorro', 'English', 'Face', 'Settings', 'Safari', 'Chrome',
   'Today', 'Grading', 'Support', 'Messages', 'Updates', 'Content', 'Students', 'Cohorts', 'Recordings', 'Resources', 'Meetings', 'Team', 'Safety', 'Profile',
-  'Redo', 'I', 'OK',
+  'Redo', 'Pass', 'I', 'OK',
 ]);
 
 const BREAK_BEFORE = /[.!?:·—–|/(“"]$/;

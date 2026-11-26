@@ -16,6 +16,7 @@ describe('stored values as words', () => {
     expect(humanize('dropped', ENROLLMENT_STATUS_LABELS)).toBe('Withdrawn');
     expect(humanize('waiting_on_student')).toBe('Waiting on student');
     expect(gradeLabel('R')).toBe('Redo');
+    expect(gradeLabel('P')).toBe('Pass');
     expect(gradeLabel('A')).toBe('A');
   });
 });

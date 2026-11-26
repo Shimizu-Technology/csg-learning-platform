@@ -1,5 +1,6 @@
 require "test_helper"
 require Rails.root.join("db/migrate/20261122060000_create_github_issue_deliveries").to_s
+require Rails.root.join("db/migrate/20261126140000_add_grading_scale_to_curricula").to_s
 
 class CreateGithubIssueDeliveriesTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
@@ -46,6 +47,8 @@ class CreateGithubIssueDeliveriesTest < ActiveSupport::TestCase
   ensure
     begin
       migration&.migrate(:up) unless ActiveRecord::Base.connection.table_exists?(:github_issue_deliveries)
+      # The recreated table has this migration's constraints; restore the later Pass ones.
+      AddGradingScaleToCurricula.new.migrate(:up)
     ensure
       ActiveRecord::Base.connection_handler.connection_pool_list.each { |pool| pool.connections.each(&:clear_cache!) }
       GithubIssueDelivery.reset_column_information

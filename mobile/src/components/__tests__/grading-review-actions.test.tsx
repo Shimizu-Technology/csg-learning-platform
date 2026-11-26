@@ -4,7 +4,7 @@ import { GradingReviewActions } from '../grading-review-actions';
 
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
-  return { Check: Icon, CheckCircle2: Icon, RotateCcw: Icon };
+  return { Check: Icon, CheckCircle2: Icon, ClipboardCheck: Icon, RotateCcw: Icon };
 });
 
 describe('GradingReviewActions', () => {
@@ -83,6 +83,20 @@ describe('GradingReviewActions', () => {
 
     screen.rerender(<GradingReviewActions selected="A" changed saving={false} saveBlocked={false} onSelect={jest.fn()} onSave={onSave} />);
     fireEvent.press(screen.getByLabelText('Save grade A'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers Pass and Request redo on a Pass / Redo curriculum and saves Pass', () => {
+    const onSelect = jest.fn();
+    const onSave = jest.fn();
+    const screen = render(<GradingReviewActions gradingScale="pass_redo" selected={null} changed={false} saving={false} onSelect={onSelect} onSave={onSave} />);
+    expect(screen.queryByLabelText('Select grade A')).toBeNull();
+    expect(screen.getByText('Pass')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Select Pass'));
+    expect(onSelect).toHaveBeenCalledWith('P');
+    screen.rerender(<GradingReviewActions gradingScale="pass_redo" selected="P" changed saving={false} fromRubric onSelect={onSelect} onSave={onSave} />);
+    expect(screen.getByText('Suggested from rubric')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Save Pass'));
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 });

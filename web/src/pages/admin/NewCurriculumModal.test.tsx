@@ -9,7 +9,9 @@ describe('NewCurriculumModal', () => {
       name: 'CSG Alumni Learning Library',
       description: 'Optional continuing education for CSG graduates.',
       status: 'draft',
+      grading_scale: 'pass_redo',
     })
+    expect(buildCurriculumPayload('Projects', '', 'letter_abc_redo')?.grading_scale).toBe('letter_abc_redo')
   })
 
   it('rejects a blank name and renders the expected form controls', () => {
@@ -20,5 +22,9 @@ describe('NewCurriculumModal', () => {
     expect(html).toContain('id="curriculum-name"')
     expect(html).toContain('id="curriculum-description"')
     expect(html).toContain('Create curriculum')
+    expect(html).toContain('Grading scale')
+    // New curricula start on Pass / Redo; A / B / C / Redo is the second option.
+    expect(html.indexOf('Pass / Redo')).toBeLessThan(html.indexOf('A / B / C / Redo'))
+    expect(html).toMatch(/checked="" value="pass_redo"|value="pass_redo" checked=""/)
   })
 })
