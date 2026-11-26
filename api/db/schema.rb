@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_27_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -258,6 +258,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_140000) do
     t.boolean "auto_copy_to_students", default: false, null: false
     t.bigint "source_curriculum_file_id"
     t.bigint "source_cohort_file_id"
+    t.index "to_tsvector('simple'::regconfig, (((((COALESCE(title, ''::character varying))::text || ' '::text) || (COALESCE(filename, ''::character varying))::text) || ' '::text) || (COALESCE(folder, ''::character varying))::text))", name: "index_cohort_files_search_document", using: :gin
     t.index ["cohort_id", "folder"], name: "index_cohort_files_on_cohort_id_and_folder"
     t.index ["cohort_id", "kind"], name: "index_cohort_files_on_cohort_id_and_kind"
     t.index ["cohort_id", "review_status"], name: "index_cohort_files_on_cohort_id_and_review_status"

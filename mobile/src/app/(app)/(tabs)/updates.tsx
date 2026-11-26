@@ -5,11 +5,11 @@ import { haptic } from '@/lib/haptics';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
+import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, FolderOpen, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable as RNPressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormattedMessage } from '@/components/formatted-message';
@@ -37,6 +37,35 @@ import { markdownExcerpt } from '@/lib/plain-text';
 import { humanize } from '@/lib/display-labels';
 
 type Section = 'announcements' | 'inbox';
+type NotificationFilter = 'all' | 'unread' | 'messages' | 'files' | 'updates';
+
+const NOTIFICATION_FILTERS: { value: NotificationFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'unread', label: 'Unread' },
+  { value: 'messages', label: 'Messages' },
+  { value: 'files', label: 'Files & reviews' },
+  { value: 'updates', label: 'Updates' },
+];
+
+function notificationMatchesFilter(item: AppNotification, filter: NotificationFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'unread') return !item.read_at;
+  if (filter === 'messages') return item.notifiable.type === 'Message' || item.notification_type.includes('message') || item.notification_type.includes('mention');
+  if (filter === 'files') return item.notifiable.type === 'CohortFile' || item.notifiable.type === 'Submission' || item.notification_type.includes('file') || item.notification_type.includes('submission') || item.notification_type.includes('review');
+  if (filter === 'updates') return item.notification_type === 'announcement' || item.notifiable.type === 'Announcement';
+  return true;
+}
+
+function dateBucketLabel(iso: string): 'Today' | 'This week' | 'Earlier' {
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return 'Earlier';
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (time >= startOfToday) return 'Today';
+  if (time >= startOfToday - 6 * 86_400_000) return 'This week';
+  return 'Earlier';
+}
+
 const generateRequestId = () => `update-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 
 function demoMeta(totalCount: number): PaginationMeta {
@@ -58,7 +87,9 @@ export default function UpdatesScreen() {
   const { workspaces } = useWorkspace();
   const queryClient = useQueryClient();
   const userId = user?.id ?? 0;
-  const [section, setSection] = useState<Section>('announcements');
+  const landingContext = `${userId}:${focusedCohortId ?? 'all'}`;
+  const [sectionChoice, setSectionChoice] = useState<{ context: string; section: Section } | null>(null);
+  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -88,11 +119,67 @@ export default function UpdatesScreen() {
     meta: { persist: true },
   });
   const notificationQuery = useNotificationsQuery();
+  const useServerFilter = Boolean(!auth.demo && notificationFilter !== 'all');
+  const filteredNotificationKey = useMemo(
+    () => [...updatesKeys.notifications(userId), 'filter', notificationFilter] as const,
+    [notificationFilter, userId],
+  );
+  const filteredNotificationQuery = useInfiniteQuery({
+    queryKey: filteredNotificationKey,
+    initialPageParam: 1,
+    getNextPageParam: (last: NotificationListPayload) => last.meta.has_next_page ? last.meta.page + 1 : undefined,
+    queryFn: ({ pageParam }): Promise<NotificationListPayload> => api.notifications({
+      page: pageParam,
+      per_page: 50,
+      ...(notificationFilter === 'unread' ? { read: 'unread' as const } : { category: notificationFilter as 'messages' | 'files' | 'updates' }),
+    }),
+    enabled: Boolean(user && useServerFilter),
+    staleTime: UPDATES_STALE_TIME,
+  });
+  const activeNotificationQuery = useServerFilter ? filteredNotificationQuery : notificationQuery;
   const { data: announcementData, error: announcementError, isPending: announcementsPending, refetch: refetchAnnouncements } = announcementQuery;
-  const { data: notificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = notificationQuery;
+  const { data: notificationData } = notificationQuery;
+  const { data: activeNotificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = activeNotificationQuery;
   const announcements = useMemo(() => uniqueUpdates(announcementData?.pages.map((page) => page.announcements) ?? []), [announcementData]);
   const notifications = useMemo(() => uniqueUpdates(notificationData?.pages.map((page) => page.notifications) ?? []), [notificationData]);
+  const filteredNotifications = useMemo(() => {
+    if (!useServerFilter) {
+      return notifications.filter((item) => notificationMatchesFilter(item, notificationFilter));
+    }
+    const items = uniqueUpdates(activeNotificationData?.pages.map((page) => page.notifications) ?? []);
+    return notificationFilter === 'unread' ? items.filter((item) => !item.read_at) : items;
+  }, [activeNotificationData, notificationFilter, notifications, useServerFilter]);
   const unread = notificationData?.pages[0]?.unread_count ?? 0;
+  const announcementUnread = announcementData?.pages[0]?.unread_count ?? 0;
+  const hasLoadedUnreadNonAnnouncement = useMemo(
+    () => notifications.some((item) => !item.read_at && item.notification_type !== 'announcement' && item.notifiable.type !== 'Announcement'),
+    [notifications],
+  );
+  const needsServerLandingCheck = Boolean(
+    user && !auth.demo && !announcement_id && announcementData && notificationData
+    && announcementUnread === 0 && unread > 0 && sectionChoice?.context !== landingContext,
+  );
+  const announcementNoticeQuery = useQuery({
+    queryKey: [...updatesKeys.notifications(userId), 'announcement-unread'],
+    queryFn: () => api.notifications({ per_page: 1, notification_type: 'announcement' }),
+    enabled: needsServerLandingCheck,
+    staleTime: UPDATES_STALE_TIME,
+  });
+  // Scope the automatic landing decision to account + cohort, using the server-authoritative
+  // unread count across all pages while preserving explicit tab picks within that context.
+  if (sectionChoice?.context !== landingContext && !announcement_id && announcementData && notificationData) {
+    if (announcementUnread > 0 || unread === 0) {
+      setSectionChoice({ context: landingContext, section: 'announcements' });
+    } else if (auth.demo) {
+      setSectionChoice({ context: landingContext, section: hasLoadedUnreadNonAnnouncement ? 'inbox' : 'announcements' });
+    } else if (announcementNoticeQuery.isSuccess || announcementNoticeQuery.isError) {
+      const hasServerUnreadNonAnnouncement = announcementNoticeQuery.isSuccess
+        ? unread > (announcementNoticeQuery.data?.unread_count ?? 0)
+        : hasLoadedUnreadNonAnnouncement;
+      setSectionChoice({ context: landingContext, section: hasServerUnreadNonAnnouncement ? 'inbox' : 'announcements' });
+    }
+  }
+  const section: Section = sectionChoice?.context === landingContext ? sectionChoice.section : 'announcements';
 
   useUpdatesFocusRefresh(userId, auth.demo);
 
@@ -130,7 +217,7 @@ export default function UpdatesScreen() {
         if (!result.announcement) throw new Error('This update is unavailable.');
         setSelectedAnnouncement(result.announcement);
         setAnnouncementCaches(result.announcement, 'read');
-        setSection('announcements');
+        setSectionChoice({ context: landingContext, section: 'announcements' });
         router.setParams({ announcement_id: undefined });
       } catch (error) {
         if (!canceled) { Alert.alert('Could not open update', (error as Error).message); router.setParams({ announcement_id: undefined }); }
@@ -138,11 +225,17 @@ export default function UpdatesScreen() {
     };
     void open();
     return () => { canceled = true; };
-  }, [announcement_id, api, auth.demo, router, setAnnouncementCaches, userId]);
+  }, [announcement_id, api, auth.demo, landingContext, router, setAnnouncementCaches, userId]);
 
   const refresh = async () => {
     setRefreshing(true);
-    try { await Promise.all([refetchAnnouncements(), refetchNotifications()]); }
+    try {
+      await Promise.all([
+        refetchAnnouncements(),
+        notificationQuery.refetch(),
+        ...(useServerFilter ? [refetchNotifications()] : []),
+      ]);
+    }
     finally { setRefreshing(false); }
   };
 
@@ -173,13 +266,18 @@ export default function UpdatesScreen() {
     }
   };
 
+  const updateNotificationPages = (updater: (current: PagedUpdates<NotificationListPayload> | undefined) => PagedUpdates<NotificationListPayload> | undefined) => {
+    queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, updater);
+    queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: [...notificationKey, 'filter'] }, updater);
+  };
+
   const openNotification = async (item: AppNotification) => {
     if (!item.read_at) {
       if (auth.demo) {
         const read = { ...item, read_at: new Date().toISOString() };
-        queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readNotification(page, read, Math.max(0, (current?.pages[0]?.unread_count ?? 1) - 1))));
+        updateNotificationPages((current) => mapUpdatePages(current, (page) => readNotification(page, read, Math.max(0, (current?.pages[0]?.unread_count ?? 1) - 1))));
       } else {
-        try { const result = await api.markNotificationRead(item.id); queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readNotification(page, result.notification, result.unread_count))); invalidateUpdates(); } catch { /* navigation remains useful offline */ }
+        try { const result = await api.markNotificationRead(item.id); updateNotificationPages((current) => mapUpdatePages(current, (page) => readNotification(page, result.notification, result.unread_count))); invalidateUpdates(); } catch { /* navigation remains useful offline */ }
       }
     }
     if (item.target_available === false) { Alert.alert('Item unavailable', 'This item is no longer available.'); return; }
@@ -188,7 +286,7 @@ export default function UpdatesScreen() {
         const cached = announcements.find((announcement) => announcement.id === item.notifiable.id);
         const result = auth.demo ? cached && { announcement: { ...cached, read_at: cached.read_at || new Date().toISOString() } } : await api.announcement(item.notifiable.id);
         if (result) { setSelectedAnnouncement(result.announcement); setAnnouncementCaches(result.announcement, 'read'); }
-        setSection('announcements');
+        setSectionChoice({ context: landingContext, section: 'announcements' });
       } catch (requestError) { Alert.alert('Could not open update', (requestError as Error).message); }
       return;
     }
@@ -242,7 +340,7 @@ export default function UpdatesScreen() {
     const now = new Date().toISOString();
     try {
       if (!auth.demo) await api.markAllNotificationsRead();
-      queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
+      updateNotificationPages((current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
       queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => mapUpdatePages(current, (page) => readAllAnnouncements(page, now)));
       if (selectedAnnouncement) setSelectedAnnouncement({ ...selectedAnnouncement, read_at: selectedAnnouncement.read_at || now, unread: false });
       invalidateUpdates();
@@ -250,23 +348,48 @@ export default function UpdatesScreen() {
     } catch (requestError) { Alert.alert('Could not mark notifications read', (requestError as Error).message); }
   };
 
-  const paging = section === 'announcements' ? announcementQuery : notificationQuery;
+  const paging = section === 'announcements' ? announcementQuery : activeNotificationQuery;
   const footer = <View>
     {!!paging.error && <ErrorState message={paging.error.message} retry={() => void (paging.isFetchNextPageError ? paging.fetchNextPage() : paging.refetch())} />}
     {paging.hasNextPage && <Button accessibilityLabel="Load earlier updates" disabled={paging.isFetching} onPress={() => void paging.fetchNextPage()}><Text style={styles.markAllText}>{paging.isFetchingNextPage ? 'Loading…' : 'Load earlier'}</Text></Button>}
   </View>;
 
-  const blockingLoad = section === 'announcements' ? !announcementData && announcementsPending : !notificationData && notificationsPending;
-  const blockingError = section === 'announcements' ? !announcementData && announcementError : !notificationData && notificationError;
+  const blockingLoad = section === 'announcements' ? !announcementData && announcementsPending : !activeNotificationData && notificationsPending;
+  const blockingError = section === 'announcements' ? !announcementData && announcementError : !activeNotificationData && notificationError;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{section === 'announcements' ? focusedCohortId ? managing && isStaff ? 'Manage updates for this cohort' : 'This cohort and school-wide updates' : unreadUpdatesLabel(announcementData?.pages[0]?.unread_count ?? 0) : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Post update" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={c.text.strong} size={20} /></Pressable>}</View>
-    <View style={styles.tabs}><SectionButton active={section === 'announcements'} label="Updates" icon={Megaphone} onPress={() => { if (section !== 'announcements') haptic('selection'); setSection('announcements'); }} /><SectionButton active={section === 'inbox'} label="Notifications" icon={Inbox} badge={unread} onPress={() => { if (section !== 'inbox') haptic('selection'); setSection('inbox'); }} /></View>
+    <View style={styles.tabs}><SectionButton active={section === 'announcements'} label="Updates" icon={Megaphone} onPress={() => { if (section !== 'announcements') haptic('selection'); setSectionChoice({ context: landingContext, section: 'announcements' }); }} /><SectionButton active={section === 'inbox'} label="Notifications" icon={Inbox} badge={unread} onPress={() => { if (section !== 'inbox') haptic('selection'); setSectionChoice({ context: landingContext, section: 'inbox' }); }} /></View>
+    {section === 'inbox' && (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterStrip} contentContainerStyle={styles.filterRow} keyboardShouldPersistTaps="handled">
+        {NOTIFICATION_FILTERS.map((option) => {
+          const active = notificationFilter === option.value;
+          return (
+            <RNPressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => setNotificationFilter(option.value)}
+              style={[styles.filterPill, active && styles.filterPillActive]}
+            >
+              <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>{option.label}</Text>
+            </RNPressable>
+          );
+        })}
+      </ScrollView>
+    )}
     {user?.is_staff && section === 'announcements' && <View style={styles.manageRow}><Text style={styles.manageLabel}>Include drafts and archived</Text><View style={styles.switchSlot}><Switch accessibilityLabel="Include drafts and archived updates" value={managing} onValueChange={setManaging} {...switchColors(c, managing)} style={styles.switch} /></View></View>}
     {blockingLoad ? <LoadingState label="Loading updates" /> : blockingError ? <ErrorState message={blockingError.message} retry={() => void (section === 'announcements' ? refetchAnnouncements() : refetchNotifications())} /> : section === 'announcements' ? (
       <FlatList ListFooterComponent={footer} data={announcements} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListEmptyComponent={<Empty copy={managing ? 'No updates match this view.' : 'Updates from your instructors will appear here.'} />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open update: ${item.title}`} onPress={() => void openAnnouncement(item)} onLongPress={() => { if (user?.is_staff) { setSelectedAnnouncement(item); void loadReadCounts(item); } }} style={[styles.card, (item.unread ?? !item.read_at) && item.status === 'published' && styles.unreadCard]}><View style={styles.meta}><View style={styles.icon}>{item.pinned ? <Pin color={c.text.body} size={15} /> : <Bell color={c.text.body} size={15} />}</View><Text style={styles.scope}>{item.audience === 'global' ? 'School-wide' : item.cohort_name || 'Staff'}</Text>{item.status !== 'published' && <Text style={styles.statusPill}>{isScheduledUpdate(item) ? 'Scheduled' : humanize(item.status)}</Text>}{(item.unread ?? !item.read_at) && item.status === 'published' && <View style={styles.dot} />}</View><Text style={styles.title}>{item.title}</Text><Text numberOfLines={2} style={styles.body}>{markdownExcerpt(item.body)}</Text><View style={styles.cardFooter}><Text style={styles.byline}>{item.author?.full_name || `${brand.schoolName}`} · {updateWhen(item)}{item.edited_at ? ` · ${editedLabel(item.edited_at)}` : ''}</Text><ChevronRight color={c.text.muted} size={16} /></View></Pressable>} />
     ) : (
-      <FlatList ListFooterComponent={footer} data={notifications} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListHeaderComponent={unread ? <Pressable accessibilityRole="button" onPress={() => void markAllRead()} style={styles.markAll}><CheckCheck color={c.text.body} size={17} /><Text style={styles.markAllText}>Mark everything read</Text></Pressable> : null} ListEmptyComponent={<Empty copy="Messages, mentions, submissions, and updates will appear here." />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`${item.read_at ? '' : 'Unread. '}${notificationTitle(item)}. ${markdownExcerpt(item.body)}`} onPress={() => void openNotification(item)} style={[styles.notification, !item.read_at && styles.notificationUnread]}><View style={[styles.notificationIcon, !item.read_at && styles.notificationIconUnread]}>{item.notifiable.type === 'Submission' ? <FileCheck2 color={c.text.body} size={18} /> : item.notifiable.type === 'Message' ? <MessageCircle color={c.text.body} size={18} /> : item.notification_type === 'announcement' ? <Megaphone color={c.text.body} size={18} /> : <Bell color={c.text.body} size={18} />}</View><View style={styles.notificationCopy}><Text numberOfLines={2} style={styles.notificationTitle}>{notificationTitle(item)}</Text>{!!item.body && <Text numberOfLines={3} style={styles.notificationBody}>{markdownExcerpt(item.body)}</Text>}<Text style={styles.notificationTime}>{formatRelative(item.created_at)} · {formatCourseDateTime(item.created_at, { fallback: '' })}</Text></View>{!item.read_at && <View style={styles.dot} />}</Pressable>} />
+      <FlatList ListFooterComponent={footer} data={filteredNotifications} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListHeaderComponent={unread ? <Pressable accessibilityRole="button" onPress={() => void markAllRead()} style={styles.markAll}><CheckCheck color={c.text.body} size={17} /><Text style={styles.markAllText}>Mark everything read</Text></Pressable> : null} ListEmptyComponent={<Empty copy={notificationFilter === 'all' ? 'Messages, mentions, submissions, and updates will appear here.' : 'No notifications match this filter.'} />} renderItem={({ item, index }) => {
+        const bucket = dateBucketLabel(item.created_at);
+        const showBucket = index === 0 || dateBucketLabel(filteredNotifications[index - 1].created_at) !== bucket;
+        return <View style={styles.notificationGroup}>
+          {showBucket && <Text style={styles.bucketLabel}>{bucket}</Text>}
+          <Pressable accessibilityRole="button" accessibilityLabel={`${item.read_at ? '' : 'Unread. '}${notificationTitle(item)}. ${markdownExcerpt(item.body)}`} onPress={() => void openNotification(item)} style={[styles.notification, !item.read_at && styles.notificationUnread]}><View style={[styles.notificationIcon, !item.read_at && styles.notificationIconUnread]}>{item.notifiable.type === 'CohortFile' ? <FolderOpen color={c.text.body} size={18} /> : item.notifiable.type === 'Submission' ? <FileCheck2 color={c.text.body} size={18} /> : item.notifiable.type === 'Message' ? <MessageCircle color={c.text.body} size={18} /> : item.notification_type === 'announcement' ? <Megaphone color={c.text.body} size={18} /> : <Bell color={c.text.body} size={18} />}</View><View style={styles.notificationCopy}><Text numberOfLines={2} style={styles.notificationTitle}>{notificationTitle(item)}</Text>{!!item.body && <Text numberOfLines={3} style={styles.notificationBody}>{markdownExcerpt(item.body)}</Text>}<Text style={styles.notificationTime}>{formatRelative(item.created_at)} · {formatCourseDateTime(item.created_at, { fallback: '' })}</Text></View>{!item.read_at && <View style={styles.dot} />}</Pressable>
+        </View>;
+      }} />
     )}
 
     <AnnouncementDetail item={showEditor ? null : selectedAnnouncement} canEdit={Boolean(user?.is_staff && selectedAnnouncement?.can_edit)} canArchive={Boolean(user?.is_staff && (selectedAnnouncement?.status === 'draft' ? (selectedAnnouncement?.can_edit || (selectedAnnouncement?.schedule_failure && selectedAnnouncement.author?.id === user?.id)) : selectedAnnouncement?.can_archive))} onClose={() => setSelectedAnnouncement(null)} onEdit={() => setShowEditor(true)} onArchive={() => void removeAnnouncement()} />
@@ -331,7 +454,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page }, header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eyebrow: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.8 }, heading: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -1.2 }, subhead: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: 4 }, compose: { width: 48, height: 48, borderRadius: 16, backgroundColor: c.selection.bg, alignItems: 'center', justifyContent: 'center' },
   tabs: { marginHorizontal: 20, padding: 4, borderRadius: 16, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, flexDirection: 'row', gap: 4 }, tab: { flex: 1, minHeight: 44, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, tabActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 }, tabText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, tabTextActive: { color: c.text.strong }, badge: { minWidth: 19, height: 19, borderRadius: 10, overflow: 'hidden', backgroundColor: c.selection.bg, color: c.text.strong, fontFamily: fonts.bold, fontSize: 12, lineHeight: 19, textAlign: 'center', paddingHorizontal: 4 }, manageRow: { minHeight: 48, marginHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, manageLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 },
   content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 32, gap: 12, flexGrow: 1 }, card: { padding: 14, borderRadius: 16, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle }, unreadCard: { borderColor: c.border.strong, backgroundColor: c.surface.sunken }, meta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }, icon: { width: 28, height: 28, borderRadius: 10, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, scope: { flex: 1, color: c.text.body, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }, statusPill: { color: c.status.warning.fg, backgroundColor: c.surface.sunken, borderRadius: 9, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase' }, dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.text.body }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, lineHeight: 22 }, body: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 21, marginTop: 9 }, cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 10 }, byline: { flex: 1, color: c.text.body, fontFamily: fonts.medium, fontSize: 12 },
-  markAll: { minHeight: 44, alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 7 }, markAllText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, notification: { minHeight: 96, borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, notificationUnread: { borderColor: c.border.strong, backgroundColor: c.surface.sunken }, notificationIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, notificationIconUnread: { backgroundColor: c.surface.sunken }, notificationCopy: { flex: 1 }, notificationTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14, lineHeight: 20 }, notificationBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, marginTop: 4 }, notificationTime: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 8 },
+  markAll: { minHeight: 44, alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 7 }, markAllText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, filterStrip: { flexGrow: 0, flexShrink: 0, marginTop: 10 }, filterRow: { paddingHorizontal: 20, gap: 8, alignItems: 'center' }, filterPill: { minHeight: 44, borderRadius: 22, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, justifyContent: 'center' }, filterPillActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg }, filterPillText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 }, filterPillTextActive: { color: c.text.strong }, notificationGroup: { gap: 8 }, bucketLabel: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 }, notification: { minHeight: 96, borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, notificationUnread: { borderColor: c.border.strong, backgroundColor: c.surface.sunken }, notificationIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, notificationIconUnread: { backgroundColor: c.surface.sunken }, notificationCopy: { flex: 1 }, notificationTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14, lineHeight: 20 }, notificationBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, marginTop: 4 }, notificationTime: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 8 },
   empty: { flex: 1, minHeight: 300, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 38 }, emptyTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, emptyCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 19, textAlign: 'center', marginTop: 6 },
   modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.overlay }, sheet: { maxHeight: '86%', backgroundColor: c.surface.raised, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border.subtle }, sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: c.border.subtle, alignSelf: 'center', marginTop: 10 }, detail: { padding: 22, paddingTop: 16, paddingBottom: 36 }, detailTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, detailIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, detailScope: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 20 }, detailTitle: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.6, marginTop: 7 }, detailBody: { marginTop: 18 }, detailAuthor: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 24 }, detailActions: { flexDirection: 'row', gap: 9, marginTop: 26 }, secondaryButton: { flex: 1, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, secondaryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, archiveButton: { flex: 1, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, archiveText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
   editorSafe: { flex: 1, backgroundColor: c.surface.page }, editorHeader: { minHeight: 64, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, audienceBar: { paddingHorizontal: 20, paddingVertical: 10, color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, audienceBarMissing: { color: c.status.danger.fg }, editorTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, saveButton: { minWidth: 76, minHeight: 44, borderRadius: 13,  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }, saveText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 12 }, editorContent: { padding: 20, paddingBottom: 50 }, fieldLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3, marginTop: 18, marginBottom: 7 }, field: { minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14 }, bodyField: { fontSize: 16, minHeight: 170, textAlignVertical: 'top', paddingTop: 14 }, choiceRow: { flexDirection: 'row', gap: 7 }, choice: { flex: 1, minHeight: 44, borderRadius: 13, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, alignItems: 'center', justifyContent: 'center' }, choiceActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 }, choiceText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, textTransform: 'capitalize' }, choiceTextActive: { color: c.text.strong, fontFamily: fonts.extraBold }, cohortList: { gap: 7 }, cohortChoice: { minHeight: 46, borderRadius: 13, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, editorToggle: { minHeight: 64, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, editorToggleText: { flex: 1, color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 }, switchSlot: { width: 54, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, switch: { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }] },

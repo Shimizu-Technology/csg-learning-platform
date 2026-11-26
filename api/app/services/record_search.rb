@@ -12,7 +12,8 @@ class RecordSearch
     "help_requests" => %w[context_label message], "interventions" => %w[action_summary],
     "channels" => %w[name description], "messages" => %w[body],
     "announcements" => %w[title body], "recordings" => %w[title description],
-    "curriculum_resources" => %w[title filename]
+    "curriculum_resources" => %w[title filename],
+    "cohort_files" => %w[title filename folder]
   }.freeze
 
   def initialize(viewer:, query:)
@@ -324,5 +325,177 @@ class RecordSearch
       results = results.sort_by { |result| result[:title].casecmp?(plain(@query)) ? 0 : 1 }.first(LIMIT)
       group ? group[:results] = results : @groups << { type: "resource", results: results }
     end
+    drive_files
+  end
+
+  def drive_files
+    return if @cohort_ids.empty?
+
+    if @viewer.staff?
+      eligible_students = Enrollment.joins(:user)
+        .where(status: %i[active paused], users: { archived_at: nil })
+        .where("enrollments.cohort_id = cohort_files.cohort_id AND enrollments.user_id = cohort_files.student_id")
+      scope = CohortFile.ready.where(cohort_id: @cohort_ids)
+        .where("cohort_files.student_id IS NULL OR EXISTS (#{eligible_students.select("1").to_sql})")
+      add("cohort_file", matched(scope, "title")) do |file|
+        snippet = [ file.folder, file.filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+        row(file, file.title, "cohort_file", context: { cohort_id: file.cohort_id, student_id: file.student_id, staff: true }, snippet: snippet)
+      end
+      return
+    end
+
+    paused_enrollments, active_enrollments = @enrollments.partition(&:paused?)
+    active_ids = active_enrollments.map(&:cohort_id).uniq
+    active_scored = []
+    if active_ids.any?
+      still_active = Enrollment.where(user_id: @viewer.id, status: :active)
+        .where("enrollments.cohort_id = cohort_files.cohort_id")
+        .where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > CURRENT_TIMESTAMP")
+      active_scope = CohortFile.ready.student_visible
+        .where(cohort_id: active_ids, student_id: [ nil, @viewer.id ])
+        .where(still_active.arel.exists)
+      add("cohort_file", matched(active_scope, "title")) do |file|
+        enrollment = active_enrollments.find { |e| e.cohort_id == file.cohort_id }
+        next unless enrollment && enrollment.file_available_for_read?(file)
+
+        snippet = [ file.folder, file.filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+        entry = row(file, file.title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
+        active_scored << [ file.search_priority.to_i, -file.search_rank.to_f, file.id, entry ]
+        entry
+      end
+    end
+
+    return if paused_enrollments.empty?
+
+    paused_scored = paused_drive_file_results(paused_enrollments)
+    return if paused_scored.empty?
+
+    group = @groups.find { |g| g[:type] == "cohort_file" }
+    combined = (active_scored + paused_scored)
+      .sort_by { |priority, neg_rank, id, _| [ priority, neg_rank, id ] }
+      .first(LIMIT)
+      .map(&:last)
+    group ? group[:results] = combined : @groups << { type: "cohort_file", results: combined }
+  end
+
+  def paused_drive_file_results(paused_enrollments)
+    check_deadline!
+    by_cohort = paused_enrollments.index_by(&:cohort_id)
+    candidates = CohortFile.ready.student_visible
+      .where(cohort_id: by_cohort.keys, student_id: [ nil, @viewer.id ])
+      .where.not(shared_at: nil)
+      .order(:id)
+      .limit(SCAN_LIMIT)
+      .to_a
+    @partial = true if candidates.size >= SCAN_LIMIT
+    return [] if candidates.empty?
+
+    pre_pause = candidates.select do |file|
+      enrollment = by_cohort[file.cohort_id]
+      enrollment && enrollment.media_available_for_read?(file.created_at, file.shared_at)
+    end
+    return [] if pre_pause.empty?
+
+    need_versions = pre_pause.select do |file|
+      !file.doc? && !file.link? && !by_cohort[file.cohort_id].file_available_for_read?(file)
+    end
+    versions_by_file = if need_versions.any?
+      CohortFileVersion.ready
+        .where(cohort_file_id: need_versions.map(&:id))
+        .select(:id, :cohort_file_id, :version_number, :filename, :ready, :ready_at, :created_at)
+        .order(:cohort_file_id, version_number: :desc)
+        .to_a
+        .group_by(&:cohort_file_id)
+    else
+      {}
+    end
+
+    need_revisions = pre_pause.select do |file|
+      enrollment = by_cohort[file.cohort_id]
+      file.doc? && !enrollment.media_available_for_read?(file.doc_updated_at || file.updated_at)
+    end
+    revisions_by_file = if need_revisions.any?
+      CohortDocRevision
+        .where(cohort_file_id: need_revisions.map(&:id))
+        .select(:id, :cohort_file_id, :revision_number, :title, :created_at)
+        .order(:cohort_file_id, revision_number: :desc)
+        .to_a
+        .group_by(&:cohort_file_id)
+    else
+      {}
+    end
+
+    query_down = @query.downcase.delete_prefix("@")
+    candidate_rows = []
+    pre_pause.each do |file|
+      check_deadline!
+      enrollment = by_cohort[file.cohort_id]
+      cutoff = enrollment.file_read_cutoff
+      row_untouched = enrollment.media_available_for_read?(file.updated_at)
+      readable_folder = row_untouched ? file.folder : nil
+      if file.doc?
+        if enrollment.media_available_for_read?(file.doc_updated_at || file.updated_at)
+          readable_title = file.title
+        else
+          rev = revisions_by_file.fetch(file.id, []).find { |r| cutoff && r.created_at <= cutoff }
+          next unless rev
+
+          readable_title = rev.title
+        end
+        readable_filename = nil
+      elsif file.link?
+        # Saved links have no revision history; skip rows edited after the pause
+        # so renamed link titles or folders never leak.
+        next unless row_untouched
+
+        readable_title = file.title
+        readable_filename = nil
+      else
+        if enrollment.file_available_for_read?(file)
+          readable_filename = file.filename
+        else
+          ver = versions_by_file.fetch(file.id, []).find { |v| enrollment.file_version_available_for_read?(v) }
+          next unless ver
+
+          readable_filename = ver.filename
+        end
+        # Non-doc rows have no historical title column: fall back to the
+        # immutable pre-pause filename whenever the row changed after pause.
+        readable_title = row_untouched ? file.title : readable_filename
+      end
+
+      doc_text = [ readable_title, readable_filename, readable_folder ].compact.join(" ")
+      snippet = [ readable_folder, readable_filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+      candidate_rows << {
+        id: file.id,
+        priority: readable_title.to_s.downcase == query_down ? 0 : 1,
+        doc: doc_text,
+        entry: row(file, readable_title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
+      }
+    end
+    return [] if candidate_rows.empty?
+
+    ranks = paused_ts_ranks(candidate_rows)
+    candidate_rows
+      .select { |item| ranks.key?(item[:id]) }
+      .map { |item| [ item[:priority], -ranks.fetch(item[:id]), item[:id], item[:entry] ] }
+      .sort_by { |priority, neg_rank, id, _| [ priority, neg_rank, id ] }
+      .first(LIMIT)
+  end
+
+  def paused_ts_ranks(candidate_rows)
+    tokens = @words.map { |word| "#{word}:*" }.join(" & ")
+    return {} if tokens.empty? || candidate_rows.empty?
+
+    sql = ApplicationRecord.sanitize_sql_array([
+      "SELECT v.id, ts_rank(to_tsvector('simple', v.doc), to_tsquery('simple', ?)) AS rank " \
+      "FROM unnest(ARRAY[?]::bigint[], ARRAY[?]::text[]) AS v(id, doc) " \
+      "WHERE to_tsvector('simple', v.doc) @@ to_tsquery('simple', ?)",
+      tokens,
+      candidate_rows.map { |item| item[:id].to_i },
+      candidate_rows.map { |item| item[:doc].to_s },
+      tokens
+    ])
+    ApplicationRecord.connection.select_rows(sql).to_h { |id, rank| [ id.to_i, rank.to_f ] }
   end
 end

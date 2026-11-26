@@ -27,10 +27,11 @@ class SearchTest < ActionDispatch::IntegrationTest
     @update = Announcement.create!(author: @instructor, cohort: @cohort, audience: :cohort, title: "Synthetic update", body: "Synthetic update body", status: :published)
     @recording = Recording.create!(cohort: @cohort, title: "Synthetic recording", source_kind: "external", source_url: "https://example.invalid/recording", status: :published, published_at: 1.hour.ago)
     @file = CurriculumResource.create!(curriculum: @curriculum, title: "Synthetic file", filename: "synthetic.zip", s3_key: "synthetic/key", file_size: 10, upload_key: "synthetic-upload", upload_expires_at: 1.day.from_now, ready: true, ready_at: 1.hour.ago)
+    @cohort_file = @cohort.cohort_files.create!(kind: "doc", title: "Synthetic drive doc", folder: "Slides", doc_content: "# Notes", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor)
   end
 
   test "authorization matrix for every searchable type and populated contract" do
-    expected = %w[student staff cohort curriculum module lesson submission help_request follow_up channel dm message announcement recording resource]
+    expected = %w[student staff cohort curriculum module lesson submission help_request follow_up channel dm message announcement recording resource cohort_file]
     { @admin => expected - %w[dm message], @instructor => expected - %w[staff], @student => expected - %w[student staff follow_up] }.each do |viewer, types|
       search(viewer, "Synthetic")
       assert_response :success
@@ -64,6 +65,130 @@ class SearchTest < ActionDispatch::IntegrationTest
     search(@student, "Secretclassmate")
     assert_empty groups
     refute_includes response.body, "Secretclassmate"
+  end
+
+  test "cohort file search respects privacy, staff-only staging, and pause cutoffs" do
+    classmate = person("filemate", :student)
+    Enrollment.create!(user: classmate, cohort: @cohort, status: :active)
+    @cohort.cohort_files.create!(kind: "doc", title: "Privatefile classmate doc", folder: "Career", student: classmate, doc_content: "secret", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: classmate)
+    @cohort.cohort_files.create!(kind: "doc", title: "Stagedfile staff doc", folder: "Slides", visibility: "staff_only", doc_content: "draft", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor)
+    own = @cohort.cohort_files.create!(kind: "doc", title: "Ownfile portfolio plan", folder: "Career", student: @student, doc_content: "mine", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @student)
+
+    search(@student, "Privatefile")
+    assert_empty groups
+    search(@student, "Stagedfile")
+    assert_empty groups
+    search(@instructor, "Stagedfile")
+    assert_equal 1, groups.fetch("cohort_file").size
+    search(@student, "Ownfile")
+    assert_equal [ own.id.to_s ], groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_equal "/resources?cohort_id=#{@cohort.id}&file=#{own.id}", RecordDestination.to_web_path(groups.fetch("cohort_file").first["destination"])
+
+    @enrollment.update!(status: :paused)
+    @enrollment.update_columns(paused_at: 2.days.ago, read_cutoff_at: 2.days.ago)
+    own.update_columns(created_at: 1.day.ago, shared_at: 1.day.ago, doc_updated_at: 1.day.ago)
+    search(@student, "Ownfile")
+    refute groups.key?("cohort_file")
+
+    # Pre-pause file with a post-pause version rename, title edit, and folder rename:
+    # only the pre-pause filename matches; post-pause title/folder never match or render.
+    versioned = @cohort.cohort_files.create!(
+      kind: "file", title: "Postpausetitle", folder: "Postpausefolder", filename: "embargoed.pdf", content_type: "application/pdf", file_size: 123,
+      s3_key: "cohort_files/cohort_#{@cohort.id}/shared/v2/embargoed.pdf", upload_key: "cohort_file_uploads/v2", upload_expires_at: 1.day.from_now,
+      version_number: 2, ready: true, ready_at: 1.day.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 1.day.ago, uploaded_by: @instructor
+    )
+    versioned.versions.create!(
+      version_number: 1, filename: "original.pdf", content_type: "application/pdf", file_size: 100,
+      s3_key: "cohort_files/cohort_#{@cohort.id}/shared/v1/original.pdf", upload_key: "cohort_file_uploads/v1", upload_expires_at: 1.day.from_now,
+      ready: true, ready_at: 4.days.ago, created_at: 4.days.ago, uploaded_by: @instructor
+    )
+    %w[embargoed Postpausetitle Postpausefolder].each do |leaked|
+      search(@student, leaked)
+      refute groups.key?("cohort_file"), "expected #{leaked} not to match after pause"
+    end
+    search(@student, "original")
+    assert_equal [ versioned.id.to_s ], groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_equal "original.pdf", groups.fetch("cohort_file").first["title"]
+    assert_equal "original.pdf", groups.fetch("cohort_file").first["snippet"]
+
+    # Pre-pause Learn Doc renamed and moved to a new folder after pause: old title matches,
+    # post-pause title and folder never match or render.
+    renamed_doc = @cohort.cohort_files.create!(
+      kind: "doc", title: "Postpauseheading", folder: "Postpausedocfolder", doc_content: "v2", doc_version: 2,
+      doc_updated_at: 1.day.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 1.day.ago, ready: true, uploaded_by: @instructor
+    )
+    renamed_doc.doc_revisions.create!(revision_number: 1, title: "Prepauseheading", content: "v1", created_at: 4.days.ago, edited_by: @instructor)
+    %w[Postpauseheading Postpausedocfolder].each do |leaked|
+      search(@student, leaked)
+      refute groups.key?("cohort_file"), "expected #{leaked} not to match after pause"
+    end
+    search(@student, "Prepauseheading")
+    assert_equal [ renamed_doc.id.to_s ], groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_equal "Prepauseheading", groups.fetch("cohort_file").first["title"]
+    assert_equal "Learn Doc", groups.fetch("cohort_file").first["snippet"]
+
+    # Mixed active + paused cohorts preserve ts_rank order among active matches.
+    active_cohort = Cohort.create!(curriculum: @curriculum, name: "Active rank cohort", start_date: 14.days.ago.to_date, status: :active)
+    Enrollment.create!(user: @student, cohort: active_cohort, status: :active, joined_at: 1.day.ago)
+    low_rank = active_cohort.cohort_files.create!(
+      kind: "doc", title: "Rankmerge overview notes", folder: "General", doc_content: "x", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    high_rank = active_cohort.cohort_files.create!(
+      kind: "doc", title: "Rankmerge rankmerge rankmerge", folder: "Rankmerge", doc_content: "x", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    paused_match = @cohort.cohort_files.create!(
+      kind: "doc", title: "Rankmerge paused archive", folder: "Slides", doc_content: "x",
+      doc_updated_at: 4.days.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 4.days.ago, ready: true, uploaded_by: @instructor
+    )
+    search(@student, "Rankmerge")
+    ranked_ids = groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_includes ranked_ids, paused_match.id.to_s
+    assert_operator ranked_ids.index(high_rank.id.to_s), :<, ranked_ids.index(low_rank.id.to_s)
+
+    # Exact-match priority strips a leading @ identically for active and paused cohorts.
+    paused_exact = @cohort.cohort_files.create!(
+      kind: "doc", title: "Atmatch", folder: "Slides", doc_content: "x",
+      doc_updated_at: 4.days.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 4.days.ago, ready: true, uploaded_by: @instructor
+    )
+    active_partial = active_cohort.cohort_files.create!(
+      kind: "doc", title: "Atmatch atmatch atmatch", folder: "Atmatch", doc_content: "x",
+      doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    search(@student, "@Atmatch")
+    at_ids = groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_equal [ paused_exact.id.to_s, active_partial.id.to_s ], at_ids
+
+    # Underscore-separated titles match identically in active and paused cohorts via PostgreSQL @@.
+    paused_under = @cohort.cohort_files.create!(
+      kind: "doc", title: "budget_notes", folder: "Slides", doc_content: "x",
+      doc_updated_at: 4.days.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 4.days.ago, ready: true, uploaded_by: @instructor
+    )
+    active_under = active_cohort.cohort_files.create!(
+      kind: "doc", title: "budget_notes", folder: "Slides", doc_content: "x",
+      doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    search(@student, "notes")
+    under_ids = groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_includes under_ids, paused_under.id.to_s
+    assert_includes under_ids, active_under.id.to_s
+  end
+
+  test "staff cohort file search excludes archived owners and applies eligibility before the limit" do
+    archived_student = person("archivedfile", :student)
+    archived_student.update!(archived_at: 1.hour.ago)
+    Enrollment.create!(user: archived_student, cohort: @cohort, status: :active)
+    @cohort.cohort_files.create!(kind: "doc", title: "Archivedownerfile", folder: "Career", student: archived_student, doc_content: "x", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor)
+    search(@instructor, "Archivedownerfile")
+    refute groups.key?("cohort_file")
+
+    dropped_student = person("droppedfile", :student)
+    Enrollment.create!(user: dropped_student, cohort: @cohort, status: :dropped)
+    6.times do |n|
+      @cohort.cohort_files.create!(kind: "doc", title: "Ranktest", folder: "Career #{n}", student: dropped_student, doc_content: "x", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor)
+    end
+    class_doc = @cohort.cohort_files.create!(kind: "doc", title: "Ranktest class guide", folder: "Slides", doc_content: "x", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor)
+    search(@instructor, "Ranktest")
+    assert_equal [ class_doc.id.to_s ], groups.fetch("cohort_file").map { |r| r["id"] }
   end
 
   test "instructors cannot find any content from an unassigned curriculum" do

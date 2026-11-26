@@ -467,7 +467,7 @@ export class CsgApi {
   updateAnnouncement = (id: number, data: Partial<Pick<Announcement, 'title' | 'body' | 'audience' | 'cohort_id' | 'status' | 'pinned'>> & { send_push?: boolean }) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   archiveAnnouncement = (id: number) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`, { method: 'DELETE' });
   markAnnouncementsRead = () => this.request<{ unread_count: number }>('/api/v1/notifications/mark_all_read?notification_type=announcement', { method: 'PATCH' });
-  notifications = (params: { page?: number; per_page?: number; notification_type?: string; read?: 'read' | 'unread'; sort?: string } = {}) => this.request<{ notifications: AppNotification[]; unread_count: number; meta: PaginationMeta }>(`/api/v1/notifications${queryString(params)}`);
+  notifications = (params: { page?: number; per_page?: number; notification_type?: string; category?: 'messages' | 'files' | 'updates'; read?: 'read' | 'unread'; sort?: string } = {}) => this.request<{ notifications: AppNotification[]; unread_count: number; meta: PaginationMeta }>(`/api/v1/notifications${queryString(params)}`);
   markNotificationRead = (id: number) => this.request<{ notification: AppNotification; unread_count: number }>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' });
   markAllNotificationsRead = (notificationType?: string) => this.request<{ unread_count: number }>(`/api/v1/notifications/mark_all_read${queryString({ notification_type: notificationType })}`, { method: 'PATCH' });
   pushConfig = () => this.request<PushConfig>('/api/v1/push_subscriptions/config');

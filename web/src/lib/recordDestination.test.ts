@@ -25,6 +25,14 @@ it.each(cases.filter(row => 'rejected_web' in row))('rejects multiple fragment d
 it('keeps the platform adapters identical', () => {
   expect(readFileSync('../mobile/src/lib/record-destination.ts', 'utf8').replace("'./api.generated'", "'../types/api.generated'")).toBe(readFileSync('src/lib/recordDestination.ts', 'utf8'))
 })
+it('handles cohort_file and duplicate query parameters identically to the API', () => {
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&student=18&file=42'))).toBe('/admin/cohorts/4?tab=files&student=18&file=42')
+  expect(toNativeHref(fromWebPath('/admin/cohorts/4?tab=files&student=18&file=42'))).toBe('/staff/files?cohort_id=4&student=18&file=42')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&tab=other&file=42'))).toBe('/admin/cohorts/4')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&file=42&file=43'))).toBe('/admin/cohorts/4')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&student=18&student=19&file=42'))).toBe('/admin/cohorts/4')
+  expect(toWebPath(fromWebPath('/admin/cohorts/4?tab=files&student=bad&file=42'))).toBe('/admin/cohorts/4')
+})
 it.each(wireContract)('uses the literal wire descriptor for $path', row => {
   expect(fromWebPath(row.destination_path)).toMatchObject(row.descriptor)
   expect(toWebPath(row.descriptor)).toBe(row.destination_path)
