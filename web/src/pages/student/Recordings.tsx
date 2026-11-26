@@ -192,7 +192,20 @@ export function Recordings() {
   const playerRef = useRef<VideoPlayerHandle>(null)
   const [copyFeedback, setCopyFeedback] = useState<{ key: string; kind: 'copied' | 'fallback'; text: string } | null>(null)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }, [])
+  const copyAttemptRef = useRef(0)
+  const selectedKey = selectedItem ? recordingKey(selectedItem) : null
+  useEffect(() => {
+    copyAttemptRef.current += 1
+    if (copyTimerRef.current) {
+      clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = null
+    }
+    setCopyFeedback(null)
+  }, [selectedKey])
+  useEffect(() => () => {
+    copyAttemptRef.current += 1
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+  }, [])
   // The playlist only collapses on phones and tablets; on desktop it is always shown.
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   // A tab with nothing in it (or one this cohort doesn't use) shows All.
@@ -507,6 +520,7 @@ export function Recordings() {
                     variant="quiet"
                     size="sm"
                     onClick={async () => {
+                      const attempt = ++copyAttemptRef.current
                       const ts = formatTimestamp(playerRef.current?.getCurrentTime() ?? liveSelectedItem.watch_progress?.last_position_seconds ?? 0)
                       let copied = false
                       try {
@@ -517,9 +531,12 @@ export function Recordings() {
                       } catch {
                         copied = false
                       }
+                      if (copyAttemptRef.current !== attempt) return
                       setCopyFeedback({ key: currentKey, kind: copied ? 'copied' : 'fallback', text: ts })
                       if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-                      copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 3000)
+                      copyTimerRef.current = setTimeout(() => {
+                        if (copyAttemptRef.current === attempt) setCopyFeedback(null)
+                      }, 3000)
                     }}
                   >
                     {activeFeedback?.kind === 'copied' ? <Check className="h-4 w-4 text-success-ink" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
