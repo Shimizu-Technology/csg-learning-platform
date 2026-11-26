@@ -1,11 +1,13 @@
 import { newQuickJSWASMModule, newVariant, RELEASE_SYNC, shouldInterruptAfterDeadline } from 'quickjs-emscripten'
 import type { QuickJSHandle } from 'quickjs-emscripten'
-import { DefaultRubyVM } from '@ruby/wasm-wasi/dist/browser'
 import quickJsWasmUrl from '@jitl/quickjs-wasmfile-release-sync/wasm?url'
 import rubyWasmUrl from '@ruby/3.3-wasm-wasi/dist/ruby+stdlib.wasm?url'
 import type { CodeRunnerLanguage } from '../../lib/codeRunner'
+import type { CodeCheckResult, CodeChecksWorkerMessage, RunChecksRequest } from '../../lib/codeChecks'
+import { runJavaScriptCheck, runRubyCheck, runRubyProgram, stringifyQuickJsValue, type SandboxCheckOutcome } from '../../lib/codeSandbox'
 
 interface RunRequest {
+  type?: 'run'
   id: string
   code: string
   language: CodeRunnerLanguage
@@ -20,31 +22,35 @@ interface RunResponse {
   durationMs: number
 }
 
-const quickJsModulePromise = newQuickJSWASMModule(
-  newVariant(RELEASE_SYNC, { wasmLocation: quickJsWasmUrl })
-)
+let quickJsModulePromise: ReturnType<typeof newQuickJSWASMModule> | null = null
 let rubyModulePromise: Promise<WebAssembly.Module> | null = null
+
+function getQuickJsModule() {
+  quickJsModulePromise ??= newQuickJSWASMModule(
+    newVariant(RELEASE_SYNC, { wasmLocation: quickJsWasmUrl })
+  ).catch((error: unknown) => {
+    quickJsModulePromise = null
+    throw error
+  })
+  return quickJsModulePromise
+}
 
 function getRubyModule() {
   rubyModulePromise ??= fetch(rubyWasmUrl)
-    .then((response) => response.arrayBuffer())
+    .then((response) => {
+      if (!response.ok) throw new Error(`Could not load Ruby runtime (HTTP ${response.status}).`)
+      return response.arrayBuffer()
+    })
     .then((buffer) => WebAssembly.compile(buffer))
+    .catch((error: unknown) => {
+      rubyModulePromise = null
+      throw error
+    })
   return rubyModulePromise
 }
 
-function stringifyQuickJsValue(value: unknown) {
-  if (typeof value === 'string') return value
-  if (typeof value === 'undefined') return 'undefined'
-
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
 async function runJavaScript(id: string, code: string, timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
-  const quickjs = await quickJsModulePromise
+  const quickjs = await getQuickJsModule()
   const runtime = quickjs.newRuntime({
     interruptHandler: shouldInterruptAfterDeadline(Date.now() + timeoutMs),
     memoryLimitBytes: 8 * 1024 * 1024,
@@ -108,42 +114,60 @@ async function runJavaScript(id: string, code: string, timeoutMs: number): Promi
   return { stdout: stdout.join(''), stderr: stderr.join('') }
 }
 
-function captureRubyOutput(args: unknown[], stream: string[]) {
-  const text = args.map(String).join(' ')
-  stream.push(text.endsWith('\n') ? text : `${text}\n`)
-}
-
+// Ruby runs in a fresh sandbox with no JavaScript bridge (codeSandbox.ts).
 async function runRuby(id: string, code: string): Promise<{ stdout: string; stderr: string }> {
-  const stdout: string[] = []
-  const stderr: string[] = []
-  const originalLog = console.log
-  const originalWarn = console.warn
-
-  console.log = (...args: unknown[]) => {
-    captureRubyOutput(args, stdout)
-  }
-  console.warn = (...args: unknown[]) => {
-    captureRubyOutput(args, stderr)
-  }
-
-  try {
-    const module = await getRubyModule()
-    const { vm } = await DefaultRubyVM(module, { consolePrint: true })
-    self.postMessage({ id, type: 'started' })
-    try {
-      vm.eval(code)
-    } catch (error: unknown) {
-      captureRubyOutput([error instanceof Error ? error.message : String(error)], stderr)
-    }
-  } finally {
-    console.log = originalLog
-    console.warn = originalWarn
-  }
-
-  return { stdout: stdout.join(''), stderr: stderr.join('') }
+  const module = await getRubyModule()
+  self.postMessage({ id, type: 'started' })
+  return runRubyProgram(module, code)
 }
 
-self.onmessage = (event: MessageEvent<RunRequest>) => {
+// ─── Automated checks ────────────────────────────────────────────────────────
+//
+// Every check gets a fresh VM (codeSandbox.ts): the student's code runs in it, its printed output
+// becomes `output`, then the check runs with the assertion helpers.
+
+async function runChecks(request: RunChecksRequest) {
+  const post = (message: CodeChecksWorkerMessage) => self.postMessage({ ...message, id: request.id })
+  post({ id: request.id, type: 'checks_started' })
+  for (const [offset, check] of request.checks.entries()) {
+    const index = request.startIndex + offset
+    const startedAt = performance.now()
+    let phase: 'student' | 'check' | null = null
+    const onPhase = (next: 'student' | 'check') => {
+      phase = next
+      post({ id: request.id, type: 'check_phase', index, phase: next })
+    }
+    let outcome: SandboxCheckOutcome
+    try {
+      outcome = request.language === 'ruby'
+        ? await runRubyCheck(await getRubyModule(), request.code, check, { onPhase })
+        : runJavaScriptCheck(await getQuickJsModule(), request.code, check, request.timeoutMs, { onPhase })
+    } catch (error: unknown) {
+      outcome = { passed: false, timedOut: false, error: error instanceof Error ? error.message : String(error), stdout: '' }
+    }
+    post({
+      id: request.id,
+      type: 'check_result',
+      index,
+      result: { id: check.id, name: check.name, ...outcome, durationMs: Math.round(performance.now() - startedAt) },
+    })
+    // The student's own code ran out of time: it won't finish for the next check either.
+    if (outcome.timedOut && phase === 'student') {
+      for (const [rest, skipped] of request.checks.slice(offset + 1).entries()) {
+        const result: CodeCheckResult = { id: skipped.id, name: skipped.name, passed: false, timedOut: true, error: outcome.error, stdout: '', durationMs: 0 }
+        post({ id: request.id, type: 'check_result', index: index + 1 + rest, result })
+      }
+      break
+    }
+  }
+  post({ id: request.id, type: 'checks_done' })
+}
+
+self.onmessage = (event: MessageEvent<RunRequest | RunChecksRequest>) => {
+  if (event.data.type === 'run_checks') {
+    void runChecks(event.data)
+    return
+  }
   const startedAt = performance.now()
   const { id, code, language, timeoutMs } = event.data
 

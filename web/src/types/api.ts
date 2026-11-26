@@ -1083,6 +1083,10 @@ export interface RecoveryPlanResponse {
 
 export type SubmissionsListResponse = components['schemas']['SubmissionsListResponse'];
 export type GradingQueueItem = components['schemas']['GradingQueueItem'];
+export type BatchReview = components['schemas']['BatchReviewResponse'];
+export type BatchReviewExercise = components['schemas']['BatchReviewExercise'];
+export type BatchReviewSubmission = components['schemas']['BatchReviewSubmission'];
+export type BatchGradeSkippedItem = components['schemas']['BatchGradeSkippedItem'];
 export type GradingQueueResponse = components['schemas']['GradingQueueResponse'];
 export type GradingQueueOption = components['schemas']['GradingQueueOption'];
 export type GradingQueueModuleGrid = components['schemas']['GradingQueueModuleGrid'];

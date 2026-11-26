@@ -637,6 +637,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/submissions/batch_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Batch review: one exercise's ungraded work (staff)
+         * @description Ungraded latest attempts on one exercise in the viewer's scope (the cohort named, or every cohort they may see), with answer text, links, runner config and grade suggestions, so passing work can be approved together. Old module, lesson and block ids from before a cohort's copy resolve to the copy's when cohort_id is given.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    cohort_id?: number;
+                    /** @description Limit the exercise list to this module. */
+                    module_id?: number;
+                    /** @description Limit the exercise list to this lesson. */
+                    lesson_id?: number;
+                    /** @description The exercise to review; defaults to the one with the most waiting. */
+                    content_block_id?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BatchReviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/submissions/batch_grade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve several submissions with Pass or B (staff)
+         * @description Grades each listed ungraded latest attempt with the same passing grade and optional feedback, exactly as a single grade saves it. Locks curricula (FOR SHARE), then enrollments, then submissions, each in ascending id order, and checks every item under those locks. Items that fail a check are skipped with a reason; 422 when none could be graded.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BatchGradeInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BatchGradeResponse"];
+                    };
+                };
+                /** @description Invalid request, or nothing could be graded */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BatchGrade422Response"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/submissions/{id}": {
         parameters: {
             query?: never;
@@ -8835,6 +8934,7 @@ export interface components {
             submission_type: null | string;
             effective_submission_type: null | string;
             submission_type_explicit: null | string;
+            /** @description Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent. */
             submission_config: {
                 [key: string]: unknown;
             };
@@ -9004,6 +9104,127 @@ export interface components {
         EvaluateGradeSuggestionResponse: {
             grade_suggestion: components["schemas"]["SubmissionGradeSuggestion"];
         };
+        /** @description Approve several ungraded latest attempts with one passing grade. Staff only; every item must be in a cohort the viewer may see. */
+        BatchGradeInput: {
+            /**
+             * @description P on Pass / Redo curricula, B on A / B / C / Redo curricula. Redo, A and C are graded individually; any other value is refused with 422.
+             * @enum {string}
+             */
+            grade: "P" | "B";
+            /** @description Optional feedback saved on every graded submission. */
+            feedback?: string | null;
+            /** @description Unique submission ids, at most 50. */
+            items: {
+                submission_id: number;
+                /** @description The submission's updated_at (ISO 8601) as the reviewer saw it. A submission changed since is skipped as stale. */
+                base_submission_updated_at: string;
+                /** @description The exercise the reviewer loaded (batch_review's exercise.content_block_id). If a cohort copy has since remapped it, the item is skipped as content_moved. */
+                expected_content_block_id: number;
+                /** @description Optional: the exercise's updated_at as loaded. If the exercise was edited since (its checks or rubric, say), the item is skipped as exercise_changed. */
+                expected_content_block_updated_at?: string | null;
+            }[];
+        };
+        BatchGradeGradedItem: {
+            submission_id: number;
+            user_id: number;
+            user_name: string;
+            /** @enum {string} */
+            grade: "P" | "B";
+            graded_at: string;
+            updated_at: string;
+        };
+        BatchGradeSkippedItem: {
+            submission_id: number;
+            /**
+             * @description not_found also covers submissions outside the viewer's cohorts. superseded: a newer attempt exists. already_graded. stale: changed since base_submission_updated_at. content_moved: moved to a cohort copy (including after the review loaded). exercise_changed: the exercise was edited after the review loaded. learning_state_reset: the learner's progress was restarted. off_scale: the grade isn't on the curriculum's scale. rubric: the exercise uses a rubric and is graded individually.
+             * @enum {string}
+             */
+            code: "not_found" | "superseded" | "already_graded" | "stale" | "content_moved" | "exercise_changed" | "learning_state_reset" | "off_scale" | "rubric";
+            reason: string;
+        };
+        BatchGradeResponse: {
+            graded: components["schemas"]["BatchGradeGradedItem"][];
+            skipped: components["schemas"]["BatchGradeSkippedItem"][];
+        };
+        /** @description The request was malformed (only `errors`), or no item could be graded (`errors` with empty `graded` and every item in `skipped`). */
+        BatchGrade422Response: {
+            errors: string[];
+            graded?: components["schemas"]["BatchGradeGradedItem"][];
+            skipped?: components["schemas"]["BatchGradeSkippedItem"][];
+        };
+        /** @description An exercise with ungraded latest attempts in the batch review's scope. */
+        BatchReviewExercise: {
+            content_block_id: number;
+            title: string;
+            lesson_id: number;
+            lesson_title: string;
+            module_id: number;
+            module_name: string;
+            module_position: number | null;
+            /** @description Ungraded latest attempts waiting here. */
+            waiting: number;
+            /** @description Rubric exercises are graded individually, never in a batch. */
+            has_rubric: boolean;
+            /** @enum {string} */
+            grading_scale: "letter_abc_redo" | "pass_redo";
+        };
+        /** @description The chosen exercise: its summary plus what the cards need to show and check the answers. */
+        BatchReviewExerciseDetail: {
+            content_block_id: number;
+            title: string;
+            lesson_id: number;
+            lesson_title: string;
+            module_id: number;
+            module_name: string;
+            module_position: number | null;
+            waiting: number;
+            has_rubric: boolean;
+            /** @enum {string} */
+            grading_scale: "letter_abc_redo" | "pass_redo";
+            /** @description The exercise's version: send it back as expected_content_block_updated_at. */
+            updated_at: string;
+            submission_type: string;
+            filename: string | null;
+            language_hint: string | null;
+            /** @description Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent. */
+            submission_config: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description One ungraded latest attempt on the chosen exercise, oldest first. */
+        BatchReviewSubmission: {
+            id: number;
+            enrollment_id: number | null;
+            latest_submission_id: number | null;
+            user_id: number;
+            user_name: string;
+            cohort_id: number | null;
+            cohort_name: string | null;
+            num_submissions: number;
+            created_at: string;
+            /** @description Send back as base_submission_updated_at. */
+            updated_at: string;
+            submission_type: string;
+            text: string | null;
+            repo_url: string | null;
+            github_code_url: string | null;
+            pr_url: string | null;
+            live_url: string | null;
+            commit_sha: string | null;
+            /** @description Present when the cohort has GitHub grade suggestions enabled and a suggestion exists. */
+            grade_suggestion?: components["schemas"]["SubmissionGradeSuggestion"];
+        };
+        BatchReviewResponse: {
+            /** @description Exercises with work waiting, most waiting first (at most 100). */
+            exercises: components["schemas"]["BatchReviewExercise"][];
+            /** @description content_block_id when given and visible, otherwise the exercise with the most waiting; null when nothing waits. */
+            exercise: components["schemas"]["BatchReviewExerciseDetail"] | null;
+            /** @description At most max_batch_size, oldest first. */
+            submissions: components["schemas"]["BatchReviewSubmission"][];
+            /** @description Ungraded latest attempts on the chosen exercise, including any beyond this page. */
+            total_count: number;
+            max_batch_size: number;
+        };
         SubmissionGradeInput: {
             /**
              * @description P (Pass) or R on a Pass / Redo curriculum; A, B, C or R on an A / B / C / Redo curriculum (the submission's `grading_scale`). Another grade is refused with 422.
@@ -9085,6 +9306,7 @@ export interface components {
             module_name: string;
             module_position: number | null;
             filename: null | string;
+            /** @description Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent. */
             submission_config: {
                 [key: string]: unknown;
             };
@@ -10055,6 +10277,7 @@ export interface components {
             video_url?: string | null;
             /** @enum {string|null} */
             submission_type?: "manual_complete" | "text_submission" | "prework_github_sync" | "repo_url_submission" | "repo_and_live_url_submission" | null;
+            /** @description Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent. */
             submission_config?: {
                 [key: string]: unknown;
             };
@@ -10691,6 +10914,7 @@ export interface components {
             filename: null | string;
             submission_type: null | string;
             submission_type_explicit: null | string;
+            /** @description Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000); a null or empty `starter_code` or `checks` clears it. Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent. */
             submission_config: {
                 [key: string]: unknown;
             };

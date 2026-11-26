@@ -51,6 +51,16 @@ class AuthoringClonesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "curriculum clone keeps the exercise runner's starter code and checks" do
+    config = { "runner" => { "enabled" => true, "language" => "ruby", "starter_code" => "def count\nend",
+      "checks" => [ { "id" => "c1", "name" => "Counts to ten", "code" => "assert_equal 10, count" } ] } }
+    @f.blocks.fetch(:exercise).update_columns(submission_config: config)
+    clone_request("curricula", @f.curriculum.id)
+    assert_response :created
+    copy = Curriculum.find(response.parsed_body.dig("clone", "id"))
+    assert_equal config, ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: copy.id }).find_by!(title: "Build it").submission_config
+  end
+
   test "hosted video references use one bulk key lock and roll back if storage is missing" do
     3.times do |index|
       @f.lessons.fetch(:intro).content_blocks.create!(block_type: :video, position: index + 10, title: "Hosted #{index}",

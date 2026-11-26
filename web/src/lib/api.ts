@@ -169,6 +169,8 @@ export interface ApiResponse<T> {
   /** The move's impact now, with code impact_changed (POST /lessons/:id/move). */
   errorImpact?: components['schemas']['LessonMoveImpact'];
   latestSubmissionId?: number;
+  /** Items a batch grade skipped, when none could be graded (POST /submissions/batch_grade, 422). */
+  errorSkipped?: components['schemas']['BatchGradeSkippedItem'][];
   fromCache?: boolean;
   cacheAgeMs?: number;
 }
@@ -256,6 +258,7 @@ async function fetchApi<T>(
           error,
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
+          errorSkipped: Array.isArray(errorBody.skipped) ? errorBody.skipped : undefined,
           errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
           errorCompletionImpact: errorBody.completion_impact,
           errorImpact: errorBody.impact && typeof errorBody.impact === 'object' ? errorBody.impact : undefined,
@@ -1048,6 +1051,20 @@ export const api = {
   },
   getSubmission: (id: number) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),
+  /** One exercise's ungraded work with answer text, for Batch review (never cached). */
+  getBatchReview: (params: { cohort_id?: number | null; module_id?: number | null; lesson_id?: number | null; content_block_id?: number | null }) => {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) searchParams.set(key, String(value));
+    });
+    const query = searchParams.toString();
+    return fetchApi<components['schemas']['BatchReviewResponse']>(`/api/v1/submissions/batch_review${query ? `?${query}` : ''}`, { cache: 'no-store' });
+  },
+  batchGradeSubmissions: (data: components['schemas']['BatchGradeInput']) =>
+    fetchApi<components['schemas']['BatchGradeResponse']>('/api/v1/submissions/batch_grade', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   prepareGithubIdentity: (enrollmentId: number) =>
     fetchApi<components['schemas']['GithubIdentityPrepareResponse']>(`/api/v1/enrollments/${enrollmentId}/github_identity/prepare`, { method: 'POST' }),
   completeGithubIdentity: (data: { state: string; code: string }) =>

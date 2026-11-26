@@ -11,6 +11,7 @@ import {
   Clock,
   ExternalLink,
   Inbox,
+  Layers,
   MessageSquareText,
   RefreshCw,
   RotateCcw,
@@ -60,6 +61,7 @@ import {
 } from '../../components/admin/SubmissionReviewPanel'
 import { PastReviewTargetBadge } from '../../components/admin/PastReviewTargetBadge'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
+import { BatchReviewView } from '../../components/admin/BatchReviewView'
 import type { GradingQueueItem, Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { RecordHeader } from '../../components/shared/RecordHeader'
@@ -67,6 +69,7 @@ import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPa
 import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
 import { useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { useToast } from '../../contexts/ToastContext'
+import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 
 // The workbench's view lives in the URL (L-0.6, #251): scope, status, filters and order push
 // history; the open review replaces it. A copied link or a reload restores the same queue.
@@ -80,6 +83,9 @@ const GRADING_URL = {
   sort: urlParsers.oneOf(['oldest', 'newest'] as const, 'oldest'),
   page: urlParsers.int(1, 99999, 1),
   submission: urlParsers.id(),
+  /** Batch review: skim one exercise's waiting work and approve the passing ones together. */
+  mode: urlParsers.oneOf(['queue', 'batch'] as const, 'queue'),
+  exercise_id: urlParsers.id(),
 }
 
 const SUGGESTION_FILTER_OPTIONS: ReadonlyArray<readonly [SuggestionOutcomeFilter, string]> = [
@@ -155,8 +161,10 @@ export function Grading() {
     [queueFilter, urlState.module_id, urlState.student_id, urlState.lesson_id, urlState.sort],
   )
   const [syncing, setSyncing] = useState(false)
+  const [batchRefreshToken, setBatchRefreshToken] = useState(0)
   const syncModuleIds = dataIsCurrent ? inbox?.github_sync_module_ids ?? [] : []
-  const selectedId = urlState.submission
+  const batchMode = urlState.mode === 'batch'
+  const selectedId = batchMode ? null : urlState.submission
   const panel = useRef<SubmissionReviewHandle>(null)
   const reviewTop = useRef<HTMLElement>(null)
   const [loaded, setLoaded] = useState<Submission | null>(null)
@@ -222,6 +230,19 @@ export function Grading() {
   async function chooseView(patch: Partial<typeof urlState>) {
     if (!(await leaveReview())) return
     setUrlState({ page: 1, ...patch, submission: null })
+  }
+  async function openBatchReview() {
+    if (!(await leaveReview())) return
+    // Batch review covers one exercise's waiting work for everyone in scope.
+    setUrlState({ mode: 'batch', filter: 'ungraded', student_id: null, suggestion_outcome: 'all', submission: null, page: 1 })
+  }
+  const chooseBatchExercise = useCallback(
+    (id: number) => setUrlState({ exercise_id: id }, { history: 'replace' }),
+    [setUrlState],
+  )
+  function openFromBatch(id: number) {
+    setUrlState({ mode: 'queue', filter: 'ungraded', submission: id, page: 1 })
+    void reloadQueue(id)
   }
   // Where Save goes: the next item, or (a filtered list drops finished work) the one before it.
   // The panel's Save label reads this too, so it says "Save and next" only when that happens.
@@ -338,19 +359,48 @@ export function Grading() {
         <PageHeader
           title="Grading"
           description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortName ? <> in {cohortName}</> : ' across cohorts'} · {counts.redo} redo requested{counts.overdue ? <> · {counts.overdue} past review target</> : null}</>}
-          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: cohortList ? 'Not one of your cohorts' : 'Loading cohort…' }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all' })} />}
-          actions={(cohortId && syncModuleIds.length > 0) || syncing ? (
-            <Button variant="secondary" disabled={syncing || loading} onClick={() => void syncGithub()}>
-              <RefreshCw className={`h-4 w-4 ${syncing ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
-              {syncing ? 'Syncing…' : 'Sync GitHub'}
-            </Button>
-          ) : undefined}
-          menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
+          scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: cohortList ? 'Not one of your cohorts' : 'Loading cohort…' }])} onChange={(value) => void chooseView({ cohort_id: Number(value) || null, module_id: null, student_id: null, lesson_id: null, suggestion_outcome: 'all', exercise_id: null })} />}
+          actions={<>
+            {(cohortId && syncModuleIds.length > 0) || syncing ? (
+              <Button variant="secondary" disabled={syncing || loading} onClick={() => void syncGithub()}>
+                <RefreshCw className={`h-4 w-4 ${syncing ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
+                {syncing ? 'Syncing…' : 'Sync GitHub'}
+              </Button>
+            ) : null}
+            {batchMode ? (
+              <Button variant="secondary" onClick={() => setUrlState({ mode: 'queue', exercise_id: null })}>
+                <Inbox className="h-4 w-4" aria-hidden="true" />
+                Individual review
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={() => void openBatchReview()} disabled={!counts.ungraded}>
+                <Layers className="h-4 w-4" aria-hidden="true" />
+                Batch review
+              </Button>
+            )}
+          </>}
+          menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => { void loadSubmissions(); if (batchMode) setBatchRefreshToken((n) => n + 1) } }]}
         />
       </div>
 
       {loadError && <LoadError error={loadError} stale retry={() => void loadSubmissions()} />}
 
+      {batchMode ? (
+        <BatchReviewView
+          cohortId={cohortId ?? null}
+          moduleId={urlState.module_id}
+          lessonId={urlState.lesson_id}
+          contentBlockId={urlState.exercise_id}
+          refreshToken={batchRefreshToken}
+          onChooseExercise={chooseBatchExercise}
+          onOpenReview={openFromBatch}
+          onExit={() => setUrlState({ mode: 'queue', exercise_id: null })}
+          onBatchGraded={() => {
+            invalidateRecordQueues()
+            void reloadQueue(selectedId)
+          }}
+        />
+      ) : (
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
         {/* Queue: student, item, cohort and waiting time in one compact row (U-4.5). */}
         <section
@@ -705,6 +755,7 @@ export function Grading() {
           )}
         </section>
       </div>
+      )}
     </div>
   )
 }

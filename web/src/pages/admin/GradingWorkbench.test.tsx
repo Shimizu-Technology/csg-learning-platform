@@ -100,6 +100,49 @@ const chooseAndSave = async (name: string) => {
 }
 
 describe('Grading workbench', () => {
+  it('refreshes the queue after a batch approval, so Individual review shows what is left', async () => {
+    const queue = vi.mocked(api.getGradingQueue).mockImplementation(async (params) => ({ data: gradingQueuePage(store, params), error: null }))
+    const exercise = {
+      content_block_id: 9, title: 'Ticket prices', lesson_id: 30, lesson_title: 'Make Decisions with JavaScript', module_id: 2, module_name: 'JavaScript',
+      module_position: 1, waiting: 1, has_rubric: false, grading_scale: 'letter_abc_redo' as const, updated_at: '2026-11-01T00:00:00.000001Z',
+      submission_type: 'text_submission', filename: null, language_hint: null, submission_config: {},
+    }
+    vi.spyOn(api, 'getBatchReview').mockImplementation(async () => {
+      const waiting = store.filter((item) => item.content_block_id === 9 && !item.grade)
+      return {
+        data: {
+          exercises: waiting.length ? [{ ...exercise, submission_type: undefined, filename: undefined, language_hint: undefined, submission_config: undefined, updated_at: undefined, waiting: waiting.length }] as never : [],
+          exercise: { ...exercise, waiting: waiting.length },
+          submissions: waiting.map((item) => ({
+            id: item.id, enrollment_id: item.enrollment_id, latest_submission_id: item.id, user_id: item.user_id, user_name: item.user_name, cohort_id: 4,
+            cohort_name: 'Cohort 3', num_submissions: 1, created_at: item.created_at, updated_at: item.updated_at, submission_type: 'text_submission',
+            text: item.text, repo_url: null, github_code_url: null, pr_url: null, live_url: null, commit_sha: null,
+          })),
+          total_count: waiting.length,
+          max_batch_size: 50,
+        },
+        error: null,
+      }
+    })
+    vi.spyOn(api, 'batchGradeSubmissions').mockImplementation(async ({ items, grade }) => {
+      store = store.map((item) => (items.some((entry) => entry.submission_id === item.id) ? { ...item, grade } : item))
+      return { data: { graded: items.map((entry) => ({ submission_id: entry.submission_id, user_id: 21, user_name: 'Blair Cruz', grade, graded_at: 'x', updated_at: 'y' })), skipped: [] }, error: null }
+    })
+    await render('/admin/grading?cohort_id=4')
+    expect(rows()).toHaveLength(3)
+    await act(async () => buttonNamed('Batch review').click())
+    await settle()
+    await act(async () => buttonNamed('Select all').click())
+    queue.mockClear()
+    await act(async () => buttonNamed('Approve selected as B (1)').click())
+    await settle()
+    expect(queue).toHaveBeenCalled()
+    await act(async () => buttonNamed('Individual review').click())
+    await settle()
+    expect(rows()).toHaveLength(2)
+    expect(container.textContent).toContain('2 attempts waiting for review')
+  })
+
   it('syncs a cohort module with an empty queue and reloads the results in place', async () => {
     store = []
     const queue = vi.mocked(api.getGradingQueue).mockImplementation(async (params) => ({

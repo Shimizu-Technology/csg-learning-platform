@@ -242,22 +242,30 @@ class Enrollment < ApplicationRecord
   end
 
   def with_learning_write_guard(request_started_at:)
+    with_lock do
+      stale = stale_learning_write(request_started_at: request_started_at)
+      raise stale if stale
+
+      yield
+    end
+  end
+
+  # Why a write from a request that started at `request_started_at` must not
+  # land, or nil. Callers hold this row's lock (with_learning_write_guard, or
+  # a batch that locked its enrollments in id order).
+  def stale_learning_write(request_started_at:)
     # PostgreSQL stores timestamp(6) (microseconds) by truncating sub-microsecond
     # nanoseconds. Compare at microsecond precision so a request started in the
     # same microsecond as a reset or copy can't slip past <= on nanosecond clocks.
     started_at = request_started_at.to_time.floor(6)
-    with_lock do
-      if learning_state_reset_at.present? && started_at <= learning_state_reset_at.to_time.floor(6)
-        raise StaleLearningWrite, "Your class progress was restarted while this request was in flight. Reload before saving again."
-      end
-      # A cohort copy (CurriculumCopyForCohort) moved this learner's lessons
-      # to new ids while the request was in flight, so ids it read may be the
-      # shared curriculum's. Nothing is lost: reload and save again.
-      if content_moved_at.present? && started_at <= content_moved_at.to_time.floor(6)
-        raise StaleLearningWrite.new(CONTENT_MOVED_MESSAGE, code: "content_moved")
-      end
-
-      yield
+    if learning_state_reset_at.present? && started_at <= learning_state_reset_at.to_time.floor(6)
+      return StaleLearningWrite.new("Your class progress was restarted while this request was in flight. Reload before saving again.")
+    end
+    # A cohort copy (CurriculumCopyForCohort) moved this learner's lessons
+    # to new ids while the request was in flight, so ids it read may be the
+    # shared curriculum's. Nothing is lost: reload and save again.
+    if content_moved_at.present? && started_at <= content_moved_at.to_time.floor(6)
+      StaleLearningWrite.new(CONTENT_MOVED_MESSAGE, code: "content_moved")
     end
   end
 

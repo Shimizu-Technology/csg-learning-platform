@@ -144,7 +144,8 @@ export function useContentBlockController({ block, cohortId, isStaff, requiresGi
     }
     if (draft) clearSubmissionDraft(draftKey)
 
-    setSubmissionText(usesTextSubmission ? latestSubmission?.text ?? '' : '')
+    // Before a first submission, the editor starts from the exercise's starter code.
+    setSubmissionText(usesTextSubmission ? latestSubmission?.text ?? (runnerConfig.enabled ? runnerConfig.starterCode ?? '' : '') : '')
     setRepoUrl(usesRepoArtifactSubmission ? latestSubmission?.repo_url ?? '' : '')
     setPrUrl(usesRepoArtifactSubmission ? latestSubmission?.pr_url ?? '' : '')
     setLiveUrl(usesRepoArtifactSubmission ? latestSubmission?.live_url ?? '' : '')

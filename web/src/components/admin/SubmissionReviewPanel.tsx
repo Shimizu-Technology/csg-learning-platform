@@ -21,6 +21,7 @@ import { lessonEditorPath, submissionPath } from '../../lib/routes'
 import { listLinkState } from '../../lib/navigationContext'
 import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
 import {
+  activeRunnerChecks,
   CODE_RUNNER_TIMEOUT_MS,
   codeRunnerLanguageFromEditor,
   normalizeCodeRunnerConfig,
@@ -45,6 +46,7 @@ import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
 import { SubmissionText } from './SubmissionText'
+import { RunnerChecksCard } from './RunnerChecksCard'
 import { useSubmissionReview } from './useSubmissionReview'
 import { REDO_NEEDS_FEEDBACK, isBlankFeedback, submissionWhereLabel } from '../../lib/submissionQueue'
 import {
@@ -404,6 +406,8 @@ export function SubmissionReviewPanel({
     submission.submission_config,
     codeRunnerLanguageFromEditor(language) || 'ruby',
   )
+  // The author's checks from the exercise, run here against the saved text (text submissions only).
+  const runnerChecks = submission.submission_type === 'text_submission' && submission.text?.trim() ? activeRunnerChecks(runner) : []
   const suggestion = submission.grade_suggestion
   const gradeChoices = gradeChoicesFor(submission.grading_scale)
   const passScale = review.gradingScale === 'pass_redo'
@@ -602,6 +606,19 @@ export function SubmissionReviewPanel({
           )}
           onSelectSuggested={(grade) => selectGradeChoice(grade, true)}
           onCheckGithub={() => void checkGithubAgain()}
+        />
+      )}
+      {runnerChecks.length > 0 && submission.text && (
+        <RunnerChecksCard
+          key={submission.id}
+          submissionId={submission.id}
+          code={submission.text}
+          language={runner.language}
+          checks={runnerChecks}
+          gradingScale={submission.grading_scale}
+          selectedGrade={selectedGrade}
+          disabled={locked}
+          onSelectSuggested={(grade) => selectGradeChoice(grade, true)}
         />
       )}
       {!suggestion && hasGithub && (

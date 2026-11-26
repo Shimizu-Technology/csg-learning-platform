@@ -1132,6 +1132,32 @@ class GithubIssueDeliveriesConcurrencyTest < ActionDispatch::IntegrationTest
     release << true if defined?(release) && release
   end
 
+  test "batch approval of a later attempt queues the close of the earlier Redo issue, like a single grade" do
+    as_app_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grade_params(@submission, grade: "R", feedback: "First redo"),
+        headers: app_headers, as: :json
+    end
+    GithubIssueDeliveryDrain.new(client: @fake).call(now: Time.current)
+    assert_equal "open", @fake.issues[98765][1][:state]
+
+    attempt2 = Submission.create!(
+      user: @student, enrollment: @enrollment, content_block: @block,
+      submission_type: :prework_github_sync, text: "puts 'v2'", num_submissions: 2, created_at: 1.minute.from_now
+    )
+    as_app_user(@instructor) do
+      post "/api/v1/submissions/batch_grade",
+        params: { grade: "B", items: [ { submission_id: attempt2.id, base_submission_updated_at: attempt2.updated_at.iso8601(6), expected_content_block_id: @block.id } ] },
+        headers: app_headers, as: :json
+    end
+    assert_response :success
+    assert_equal "B", attempt2.reload.grade
+    close_delivery = GithubIssueDelivery.find_by!(submission_id: attempt2.id, action: "close")
+    assert_equal "pending", close_delivery.status
+    assert_equal :delivered, GithubIssueDeliveryDrain.new(client: @fake).deliver_one!(close_delivery.id)
+    assert_equal "closed", @fake.issues[98765][1][:state]
+  end
+
   test "newer R during in-flight close is serialized and reopens the issue without being clobbered by older close" do
     # Deliver initial R -> creates issue #1
     as_app_user(@instructor) do

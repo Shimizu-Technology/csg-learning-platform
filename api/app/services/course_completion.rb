@@ -5,17 +5,21 @@ class CourseCompletion
     (features || FeatureSwitches.for(cohort: enrollment.cohort))["certificates"] == true
   end
 
-  def self.evaluate!(enrollment, actor: nil)
+  # `locked: true` is for a caller that already holds this enrollment's row lock in the current
+  # transaction (batch grading takes FOR NO KEY UPDATE, which excludes every other writer here).
+  # Re-locking FOR UPDATE would upgrade that lock after the caller's later locks are held.
+  def self.evaluate!(enrollment, actor: nil, locked: false)
     return unless enrollment && enabled?(enrollment)
 
-    enrollment.with_lock do
-      next if enrollment.dropped? || enrollment.paused? || !enabled?(enrollment)
-      next unless LearnerProgress.new(enrollment).course_completed?
+    evaluate = lambda do
+      return if enrollment.dropped? || enrollment.paused? || !enabled?(enrollment)
+      return unless LearnerProgress.new(enrollment).course_completed?
 
       mark_completed!(enrollment)
       # Only an explicit staff action can replace a revoked certificate.
       issue!(enrollment, actor: actor) unless enrollment.certificates.exists?
     end
+    locked ? evaluate.call : enrollment.with_lock { evaluate.call }
   end
 
   def self.reissue!(enrollment, actor:, reason:)

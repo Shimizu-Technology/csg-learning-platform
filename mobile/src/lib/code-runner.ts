@@ -20,10 +20,13 @@ export function normalizeCodeRunnerConfig(config: unknown, fallback: CodeRunnerL
   };
 }
 
+// Starter code and automated checks are authored on the web; keep them when the phone edits the runner.
 export function submissionConfigWithRunner(existing: Record<string, unknown> | undefined, runner: CodeRunnerConfig, isTextSubmission: boolean) {
+  const current = existing?.runner && typeof existing.runner === 'object' ? existing.runner as Record<string, unknown> : {};
   return {
     ...(existing || {}),
     runner: {
+      ...current,
       enabled: isTextSubmission && runner.enabled,
       language: runner.language,
     },

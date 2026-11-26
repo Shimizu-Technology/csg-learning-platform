@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Play, Square, Terminal } from 'lucide-react'
+import { ListChecks, Loader2, Play, Square, Terminal } from 'lucide-react'
 import { Button } from '../ui/Button'
-import type { CodeRunnerLanguage } from '../../lib/codeRunner'
+import type { CodeRunnerCheck, CodeRunnerLanguage } from '../../lib/codeRunner'
+import { useCodeChecks } from '../../lib/useCodeChecks'
+import { CodeChecksResults } from './CodeChecksResults'
 
 interface CodeRunnerProps {
   code: string
   language: CodeRunnerLanguage
   timeoutMs: number
+  /** The exercise's automated checks: shows Run checks beside Run. */
+  checks?: CodeRunnerCheck[]
 }
+
+const NO_CHECKS: CodeRunnerCheck[] = []
 
 interface RunResponse {
   id: string
@@ -38,8 +44,10 @@ const EMPTY_STATE: RunState = {
   durationMs: null,
 }
 
-export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
+export function CodeRunner({ code, language, timeoutMs, checks = NO_CHECKS }: CodeRunnerProps) {
   const [runState, setRunState] = useState<RunState>(EMPTY_STATE)
+  const codeChecks = useCodeChecks(language, checks)
+  const checksAreCurrent = codeChecks.ranCode === code
   const workerRef = useRef<Worker | null>(null)
   const timeoutRef = useRef<number | null>(null)
   const runIdRef = useRef<string | null>(null)
@@ -147,7 +155,7 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
           Try it in your browser
           <span className="rounded-md bg-surface-sunken px-2 py-0.5 text-xs font-normal text-ink-muted">{languageLabel}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {runState.status === 'running' ? (
             <Button variant="secondary" size="sm" onClick={handleStop}>
               <Square className="h-3.5 w-3.5" aria-hidden="true" />
@@ -157,6 +165,14 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
             <Button variant="secondary" size="sm" onClick={handleRun} disabled={!code.trim()}>
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
               Run
+            </Button>
+          )}
+          {checks.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => void codeChecks.start(code)} disabled={!code.trim() || codeChecks.running}>
+              {codeChecks.running
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                : <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />}
+              {codeChecks.running ? 'Running checks…' : 'Run checks'}
             </Button>
           )}
         </div>
@@ -178,6 +194,14 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
         <span>{runState.status === 'timeout' ? 'Stopped' : runState.status === 'error' ? 'Finished with errors' : runState.status === 'success' ? 'Finished' : 'Ready'}</span>
         <span>{runState.durationMs === null ? `${timeoutMs}ms limit` : `${runState.durationMs}ms`}</span>
       </div>
+      {codeChecks.run && (
+        <div className="space-y-2 border-t border-line px-3 py-3">
+          <CodeChecksResults run={codeChecks.run} />
+          {!checksAreCurrent && !codeChecks.running && (
+            <p className="text-xs text-ink-muted">Your code changed since these checks ran. Run checks again to update them.</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
