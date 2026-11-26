@@ -20,6 +20,8 @@ interface VideoPlayerProps {
   onPlaybackSample?: PlaybackSample
   trackProgress?: boolean
   anchorProgress?: boolean
+  /** Bind page-level K/J/L/M/F playback shortcuts (use only when one primary player is on the page). */
+  enablePageShortcuts?: boolean
 }
 
 export interface VideoPlayerHandle {
@@ -37,7 +39,7 @@ type FullscreenDocument = Document & { webkitFullscreenElement?: Element | null;
 type FullscreenContainer = HTMLDivElement & { webkitRequestFullscreen?: () => void }
 type FullscreenVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void }
 
-export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, onPlaybackSample, trackProgress = true, anchorProgress = false }, ref) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, onPlaybackSample, trackProgress = true, anchorProgress = false, enablePageShortcuts = false }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -420,9 +422,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (play) void video.play()
     },
     getCurrentTime() {
-      return videoRef.current?.currentTime ?? lastTimeRef.current
+      const video = videoRef.current
+      if (video && video.readyState >= HTMLMediaElement.HAVE_METADATA) return video.currentTime
+      return hasRestoredInitialPosition.current ? lastTimeRef.current : initialPosition
     },
-  }), [showBufferingSoon, sendProgress])
+  }), [showBufferingSoon, sendProgress, initialPosition])
 
   const seek = (seconds: number) => {
     const video = videoRef.current
@@ -462,40 +466,46 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const shortcutsRef = useRef({ togglePlay, skip, toggleMute, toggleFullscreen })
   shortcutsRef.current = { togglePlay, skip, toggleMute, toggleFullscreen }
 
+  const handlePlaybackKey = useCallback((event: { defaultPrevented: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean; key: string; target: EventTarget | null; preventDefault: () => void }, allowSpace: boolean) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+    const topDialog = Array.from(document.querySelectorAll('[data-app-modal]')).at(-1)
+    if (topDialog && (!containerRef.current || !topDialog.contains(containerRef.current))) return
+    const target = event.target as HTMLElement | null
+    if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+    const key = event.key.toLowerCase()
+    if (key === ' ') {
+      if (!allowSpace) return
+      if (target?.closest('button, a, summary, [role="button"]')) return
+      event.preventDefault()
+      shortcutsRef.current.togglePlay()
+    } else if (key === 'k') {
+      event.preventDefault()
+      shortcutsRef.current.togglePlay()
+    } else if (key === 'j') {
+      event.preventDefault()
+      shortcutsRef.current.skip(-10)
+    } else if (key === 'l') {
+      event.preventDefault()
+      shortcutsRef.current.skip(10)
+    } else if (key === 'm') {
+      event.preventDefault()
+      shortcutsRef.current.toggleMute()
+    } else if (key === 'f') {
+      event.preventDefault()
+      shortcutsRef.current.toggleFullscreen()
+    }
+  }, [])
+
   useEffect(() => {
-    if (!streamUrl) return
+    if (!enablePageShortcuts || !streamUrl) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
-      if (document.querySelector('[data-app-modal]')) return
       const target = event.target as HTMLElement | null
-      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
-      const key = event.key.toLowerCase()
-      if (key === ' ') {
-        // Don't hijack Space when focus is on another interactive control outside the player.
-        if (target?.closest('button, a, summary, [role="button"]') && !containerRef.current?.contains(target)) return
-        if (target?.closest('button, a, summary, [role="button"]')) return
-        event.preventDefault()
-        shortcutsRef.current.togglePlay()
-      } else if (key === 'k') {
-        event.preventDefault()
-        shortcutsRef.current.togglePlay()
-      } else if (key === 'j') {
-        event.preventDefault()
-        shortcutsRef.current.skip(-10)
-      } else if (key === 'l') {
-        event.preventDefault()
-        shortcutsRef.current.skip(10)
-      } else if (key === 'm') {
-        event.preventDefault()
-        shortcutsRef.current.toggleMute()
-      } else if (key === 'f') {
-        event.preventDefault()
-        shortcutsRef.current.toggleFullscreen()
-      }
+      if (target && containerRef.current?.contains(target)) return
+      handlePlaybackKey(event, false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [streamUrl])
+  }, [enablePageShortcuts, handlePlaybackKey, streamUrl])
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600)
@@ -532,9 +542,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   return (
     <div
       ref={containerRef}
-      className="@container group relative w-full overflow-hidden rounded-2xl bg-media [&:fullscreen]:grid [&:fullscreen]:h-dvh [&:fullscreen]:w-dvw [&:fullscreen]:grid-rows-[minmax(0,1fr)_auto]"
+      tabIndex={0}
+      className="@container group relative w-full overflow-hidden rounded-2xl bg-media focus-visible:outline-2 focus-visible:outline-on-media [&:fullscreen]:grid [&:fullscreen]:h-dvh [&:fullscreen]:w-dvw [&:fullscreen]:grid-rows-[minmax(0,1fr)_auto]"
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { if (playing) setShowControls(false) }}
+      onKeyDown={(event) => handlePlaybackKey(event, true)}
     >
       <div className="relative aspect-video w-full group-[:fullscreen]:aspect-auto group-[:fullscreen]:min-h-0">
         <video

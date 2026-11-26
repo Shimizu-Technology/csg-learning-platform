@@ -314,9 +314,11 @@ export function Grading() {
       const key = event.key.toLowerCase()
       if (key === 'j' && keyboardRef.current.nextInQueue) {
         event.preventDefault()
+        if (event.repeat) return
         void keyboardRef.current.step(keyboardRef.current.nextInQueue)?.()
       } else if (key === 'k' && keyboardRef.current.previousInQueue) {
         event.preventDefault()
+        if (event.repeat) return
         void keyboardRef.current.step(keyboardRef.current.previousInQueue)?.()
       }
     }
@@ -423,7 +425,7 @@ export function Grading() {
               icon: <FolderOpen aria-hidden="true" />,
               onSelect: () => { void leaveReview().then((ok) => { if (ok) navigate(`${cohortPath(cohortId)}?tab=files`) }) },
             }] : []),
-            { key: 'shortcuts', label: 'Keyboard shortcuts', icon: <Keyboard aria-hidden="true" />, onSelect: () => setShortcutsOpen(true) },
+            ...(!batchMode ? [{ key: 'shortcuts', label: 'Keyboard shortcuts', icon: <Keyboard aria-hidden="true" />, onSelect: () => setShortcutsOpen(true) }] : []),
           ]}
         />
       </div>
@@ -801,7 +803,7 @@ export function Grading() {
         </section>
       </div>
       )}
-      <Modal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard shortcuts" size="md">
+      <Modal open={shortcutsOpen && !batchMode} onClose={() => setShortcutsOpen(false)} title="Keyboard shortcuts" size="md">
         <dl className="space-y-3 text-sm">
           <div className="flex items-center justify-between gap-4">
             <dt className="text-ink-secondary">Next submission</dt>

@@ -107,30 +107,11 @@ export function LessonExperience({
   const section = outline?.mode === 'program' ? group?.label : module ? `Section ${module.number}` : undefined
   const nextLabel = navigation?.next_redo ? `Redo: ${next?.title}` : navigation?.next_module ? `Start next module: ${next?.title}` : `Next: ${next?.title}`
 
-  useEffect(() => {
-    const previousId = navigation?.previous?.id
-    const nextId = next?.id
-    if (!previousId && !nextId) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (saving || event.defaultPrevented || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
-      if (document.querySelector('[data-app-modal]')) return
-      const target = event.target as HTMLElement | null
-      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
-      if (event.key === 'ArrowLeft' && previousId) {
-        event.preventDefault()
-        navigate(paths.lesson(previousId), { state: backState })
-      } else if (event.key === 'ArrowRight' && nextId) {
-        event.preventDefault()
-        navigate(paths.lesson(nextId), { state: backState })
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [backState, navigate, navigation?.previous?.id, next?.id, paths, saving])
   const completeAndContinue = !readOnly && !isLibrary && next && lesson.learner_status !== 'done'
     && navigation?.manual_block_ids.length
     && lesson.content_blocks.some((block) => block.block_type === 'text')
     && lesson.content_blocks.every((block) => ['text', 'video', 'recording'].includes(block.block_type))
+  const onCompletionScreen = search.get('complete') === '1' && finished && !readOnly
 
   async function markComplete(continueTo?: number) {
     if (saving || readOnly || !navigation) return
@@ -155,6 +136,46 @@ export function LessonExperience({
       if (ownsRequest()) setSaving(false)
     }
   }
+
+  const navShortcutRef = useRef({
+    previousId: navigation?.previous?.id,
+    nextId: next?.id,
+    completeAndContinue: Boolean(completeAndContinue),
+    markComplete,
+    navigate,
+    paths,
+    backState,
+  })
+  navShortcutRef.current = {
+    previousId: navigation?.previous?.id,
+    nextId: next?.id,
+    completeAndContinue: Boolean(completeAndContinue),
+    markComplete,
+    navigate,
+    paths,
+    backState,
+  }
+
+  useEffect(() => {
+    if (onCompletionScreen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (saving || event.defaultPrevented || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
+      if (document.querySelector('[data-app-modal]')) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+      const current = navShortcutRef.current
+      if (event.key === 'ArrowLeft' && current.previousId) {
+        event.preventDefault()
+        current.navigate(current.paths.lesson(current.previousId), { state: current.backState })
+      } else if (event.key === 'ArrowRight' && current.nextId) {
+        event.preventDefault()
+        if (current.completeAndContinue) void current.markComplete(current.nextId)
+        else current.navigate(current.paths.lesson(current.nextId), { state: current.backState })
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onCompletionScreen, saving])
   const help = lesson.cohort_id && !savedData && (
     <ContextualHelp
       capabilities={lesson.capabilities}
@@ -170,7 +191,7 @@ export function LessonExperience({
       onRequestsRefresh={refreshHelp}
     />
   )
-  if (search.get('complete') === '1' && finished && !readOnly)
+  if (onCompletionScreen)
     return (
       <article data-testid="course-complete" className="app-page mx-auto max-w-3xl">
         <div className="grid justify-items-center gap-5 py-6 text-center">
@@ -250,7 +271,7 @@ export function LessonExperience({
           aria-hidden="true"
           className="pointer-events-none fixed inset-x-0 top-0 z-30 h-0.5 bg-transparent"
         >
-          <div className="h-full bg-accent transition-[width] duration-150" style={{ width: `${readProgress}%` }} />
+          <div className="h-full bg-action-primary transition-[width] duration-150" style={{ width: `${readProgress}%` }} />
         </div>
       )}
       {error && (

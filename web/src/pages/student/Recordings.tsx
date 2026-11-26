@@ -190,7 +190,7 @@ export function Recordings() {
   const [statusFilter, setStatusFilter] = useState<WatchStatusFilter>('all')
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false)
   const playerRef = useRef<VideoPlayerHandle>(null)
-  const [copiedTimestamp, setCopiedTimestamp] = useState<string | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState<{ key: string; kind: 'copied' | 'fallback'; text: string } | null>(null)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }, [])
   // The playlist only collapses on phones and tablets; on desktop it is always shown.
@@ -280,14 +280,15 @@ export function Recordings() {
   )
 
   const continueWatching = useMemo<RecordingItem | null>(() => {
-    const inProgress = [...s3Recordings, ...legacyRecordings].filter(
+    // Only uploaded recordings resume at their saved timestamp in VideoPlayer.
+    const inProgress = s3Recordings.filter(
       (item) => item.watch_progress && !item.watch_progress.completed && item.watch_progress.progress_percentage > 0,
     )
     if (inProgress.length === 0) return null
     return [...inProgress].sort((a, b) =>
       (b.watch_progress?.last_watched_at || '').localeCompare(a.watch_progress?.last_watched_at || ''),
     )[0]
-  }, [s3Recordings, legacyRecordings])
+  }, [s3Recordings])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -426,7 +427,7 @@ export function Recordings() {
               <p className="truncate text-sm font-semibold text-ink">{continueWatching.title}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <div className="h-1.5 w-28 overflow-hidden rounded-full bg-line">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${Math.round(continueWatching.watch_progress?.progress_percentage ?? 0)}%` }} />
+                  <div className="h-full rounded-full bg-action-primary" style={{ width: `${Math.round(continueWatching.watch_progress?.progress_percentage ?? 0)}%` }} />
                 </div>
                 <span className="text-xs tabular-nums text-ink-secondary">
                   {Math.round(continueWatching.watch_progress?.progress_percentage ?? 0)}%
@@ -455,6 +456,7 @@ export function Recordings() {
                 fetchStreamUrl={fetchSelectedStreamUrl}
                 onSaveProgress={saveSelectedProgress}
                 trackProgress={!isStaff && capabilities?.can_submit === true && !capabilities.read_only}
+                enablePageShortcuts
               />
               <div className="app-surface p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -497,22 +499,38 @@ export function Recordings() {
           {v2 && liveSelectedItem?.learning_path && <Link to={liveSelectedItem.learning_path} className="app-link mt-3 inline-flex min-h-11 items-center">{liveSelectedItem.learning_label || 'Open Learn'}</Link>}
           {liveSelectedItem && recordingCohortId && selectedHelpContext && (
             <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-              {liveSelectedItem.source === 'uploaded' && (
-                <Button
-                  variant="quiet"
-                  size="sm"
-                  onClick={() => {
-                    const ts = formatTimestamp(playerRef.current?.getCurrentTime() ?? liveSelectedItem.watch_progress?.last_position_seconds ?? 0)
-                    void navigator.clipboard?.writeText(`${ts} — ${liveSelectedItem.title}`).catch(() => {})
-                    setCopiedTimestamp(ts)
-                    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-                    copyTimerRef.current = setTimeout(() => setCopiedTimestamp(null), 2000)
-                  }}
-                >
-                  {copiedTimestamp ? <Check className="h-4 w-4 text-success-ink" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
-                  {copiedTimestamp ? `Copied ${copiedTimestamp}` : 'Copy timestamp'}
-                </Button>
-              )}
+              {liveSelectedItem.source === 'uploaded' && (() => {
+                const currentKey = recordingKey(liveSelectedItem)
+                const activeFeedback = copyFeedback?.key === currentKey ? copyFeedback : null
+                return (
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    onClick={async () => {
+                      const ts = formatTimestamp(playerRef.current?.getCurrentTime() ?? liveSelectedItem.watch_progress?.last_position_seconds ?? 0)
+                      let copied = false
+                      try {
+                        if (navigator.clipboard?.writeText) {
+                          await navigator.clipboard.writeText(`${ts} — ${liveSelectedItem.title}`)
+                          copied = true
+                        }
+                      } catch {
+                        copied = false
+                      }
+                      setCopyFeedback({ key: currentKey, kind: copied ? 'copied' : 'fallback', text: ts })
+                      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                      copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 3000)
+                    }}
+                  >
+                    {activeFeedback?.kind === 'copied' ? <Check className="h-4 w-4 text-success-ink" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
+                    {activeFeedback?.kind === 'copied'
+                      ? `Copied ${activeFeedback.text}`
+                      : activeFeedback?.kind === 'fallback'
+                        ? `Timestamp: ${activeFeedback.text}`
+                        : 'Copy timestamp'}
+                  </Button>
+                )
+              })()}
               <ContextualHelp
                 capabilities={capabilities}
                 key={`${liveSelectedItem.source}-${liveSelectedItem.id}`}
@@ -586,9 +604,9 @@ export function Recordings() {
                       type="button"
                       aria-pressed={statusFilter === value}
                       onClick={() => setStatusFilter(value)}
-                      className={`min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors duration-150 ${
+                      className={`min-h-11 rounded-full border px-3 text-xs font-semibold transition-colors duration-150 lg:min-h-9 ${
                         statusFilter === value
-                          ? 'border-accent bg-accent-soft text-accent-ink'
+                          ? 'border-primary-soft-line bg-primary-soft text-primary-soft-ink'
                           : 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
                       }`}
                     >
