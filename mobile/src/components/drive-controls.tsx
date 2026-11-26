@@ -1,7 +1,6 @@
 import { ArrowDownUp, ChevronLeft, Folder, FolderOpen, LayoutGrid, List } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { fonts } from '@/constants/csg-theme';
 import {
   DRIVE_SORT_LABELS,

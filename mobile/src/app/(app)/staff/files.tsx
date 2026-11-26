@@ -388,7 +388,7 @@ export default function StaffCohortFilesScreen() {
           <Text style={styles.copy}>No class files match this filter.</Text>
         ) : null}
         <CohortFolderZipButton cohortId={selectedCohortId} scope="class" empty={!classFiles.length} accessibilityLabel="Export all class files as a ZIP" />
-        <Button variant="secondary" label="Open full Drive on web" onPress={openWebFiles} />
+        <Button variant="secondary" label="Open full files on web" onPress={openWebFiles} />
       </> : openFolder ? <>
         <Pressable accessibilityRole="button" accessibilityLabel="All student folders" onPress={() => { setStudentId(null); setStudentSubfolder('All'); setAdding(null); setOpenFileId(null); }} style={styles.backRow}>
           <ChevronLeft color={c.text.body} size={18} />

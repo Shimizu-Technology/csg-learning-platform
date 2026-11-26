@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Linking, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   CopyPlus,
   Eye,
@@ -25,7 +25,6 @@ import { CohortFilePreviewModal } from '@/components/cohort-file-preview';
 import { LearningCard } from '@/components/learning-ui';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { fonts } from '@/constants/csg-theme';
 import { LINK_PROVIDER_LABELS, cohortFileMeta, isStudentFolderItem, safeExternalFileUrl, safeHttpsUrl, type CohortFile, type CohortFilePreview } from '@/lib/cohort-files';
 import { fileVisualMeta, type DriveViewMode } from '@/lib/drive-helpers';
@@ -192,7 +191,7 @@ export function CohortFileCard({
       {layout === 'grid' && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Open ${file.title}`}
+          accessibilityLabel={file.title}
           onPress={openPrimary}
           style={[styles.gridBanner, { backgroundColor: iconToneBg }]}
         >
@@ -203,7 +202,7 @@ export function CohortFileCard({
       <View style={styles.heading}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Open ${file.title}`}
+          accessibilityLabel={file.title}
           onPress={openPrimary}
           style={styles.primaryRow}
         >
@@ -267,7 +266,8 @@ export function CohortFileCard({
         )}
       </View>
 
-      <Modal visible={sheetOpen} transparent animationType="fade" onRequestClose={() => setSheetOpen(false)}>
+      {sheetOpen && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setSheetOpen(false)}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
@@ -354,6 +354,7 @@ export function CohortFileCard({
           </View>
         </View>
       </Modal>
+      )}
 
       {!link && !doc && (
         <CohortFilePreviewModal

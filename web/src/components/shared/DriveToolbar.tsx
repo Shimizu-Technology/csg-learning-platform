@@ -15,7 +15,7 @@ import { Button } from '../ui/Button'
 
 const TYPE_OPTIONS: Array<{ value: DriveTypeFilter; label: string }> = [
   { value: 'all', label: 'All types' },
-  { value: 'doc', label: 'Learn Docs' },
+  { value: 'doc', label: 'Docs' },
   { value: 'file', label: 'Files' },
   { value: 'link', label: 'Links' },
 ]
