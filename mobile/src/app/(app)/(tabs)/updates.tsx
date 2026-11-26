@@ -22,7 +22,7 @@ import { UPDATES_STALE_TIME, useUpdatesFocusRefresh } from '@/hooks/use-updates-
 import { useNotificationsQuery } from '@/hooks/use-notifications';
 import { learningKeys } from '@/lib/learning';
 import { messagingKeys } from '@/lib/messaging-cache';
-import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
+import { demoAnnouncements } from '@/lib/demo-data';
 import { mobileNotificationPath, notificationTitle, routeForViewer } from '@/lib/notification-path';
 import type { components } from '@/lib/api.generated';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
@@ -119,6 +119,7 @@ export default function UpdatesScreen() {
     meta: { persist: true },
   });
   const notificationQuery = useNotificationsQuery();
+  const useServerFilter = Boolean(!auth.demo && notificationFilter !== 'all');
   const filteredNotificationKey = useMemo(
     () => [...updatesKeys.notifications(userId), 'filter', notificationFilter] as const,
     [notificationFilter, userId],
@@ -127,34 +128,27 @@ export default function UpdatesScreen() {
     queryKey: filteredNotificationKey,
     initialPageParam: 1,
     getNextPageParam: (last: NotificationListPayload) => last.meta.has_next_page ? last.meta.page + 1 : undefined,
-    queryFn: ({ pageParam }): Promise<NotificationListPayload> => {
-      if (auth.demo) {
-        const items = demoNotifications.filter((item) => notificationMatchesFilter(item, notificationFilter));
-        return Promise.resolve({
-          notifications: items,
-          unread_count: demoNotifications.filter((item) => !item.read_at).length,
-          meta: demoMeta(items.length),
-        });
-      }
-      return api.notifications({
-        page: pageParam,
-        per_page: 50,
-        ...(notificationFilter === 'unread' ? { read: 'unread' as const } : { category: notificationFilter as 'messages' | 'files' | 'updates' }),
-      });
-    },
-    enabled: Boolean(user && notificationFilter !== 'all'),
-    staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
+    queryFn: ({ pageParam }): Promise<NotificationListPayload> => api.notifications({
+      page: pageParam,
+      per_page: 50,
+      ...(notificationFilter === 'unread' ? { read: 'unread' as const } : { category: notificationFilter as 'messages' | 'files' | 'updates' }),
+    }),
+    enabled: Boolean(user && useServerFilter),
+    staleTime: UPDATES_STALE_TIME,
   });
-  const activeNotificationQuery = notificationFilter === 'all' ? notificationQuery : filteredNotificationQuery;
+  const activeNotificationQuery = useServerFilter ? filteredNotificationQuery : notificationQuery;
   const { data: announcementData, error: announcementError, isPending: announcementsPending, refetch: refetchAnnouncements } = announcementQuery;
   const { data: notificationData } = notificationQuery;
   const { data: activeNotificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = activeNotificationQuery;
   const announcements = useMemo(() => uniqueUpdates(announcementData?.pages.map((page) => page.announcements) ?? []), [announcementData]);
   const notifications = useMemo(() => uniqueUpdates(notificationData?.pages.map((page) => page.notifications) ?? []), [notificationData]);
-  const filteredNotifications = useMemo(
-    () => uniqueUpdates(activeNotificationData?.pages.map((page) => page.notifications) ?? []),
-    [activeNotificationData],
-  );
+  const filteredNotifications = useMemo(() => {
+    if (!useServerFilter) {
+      return notifications.filter((item) => notificationMatchesFilter(item, notificationFilter));
+    }
+    const items = uniqueUpdates(activeNotificationData?.pages.map((page) => page.notifications) ?? []);
+    return notificationFilter === 'unread' ? items.filter((item) => !item.read_at) : items;
+  }, [activeNotificationData, notificationFilter, notifications, useServerFilter]);
   const unread = notificationData?.pages[0]?.unread_count ?? 0;
   const announcementUnread = announcementData?.pages[0]?.unread_count ?? 0;
   const hasLoadedUnreadNonAnnouncement = useMemo(
@@ -239,7 +233,7 @@ export default function UpdatesScreen() {
       await Promise.all([
         refetchAnnouncements(),
         notificationQuery.refetch(),
-        ...(notificationFilter !== 'all' ? [refetchNotifications()] : []),
+        ...(useServerFilter ? [refetchNotifications()] : []),
       ]);
     }
     finally { setRefreshing(false); }
@@ -272,13 +266,18 @@ export default function UpdatesScreen() {
     }
   };
 
+  const updateNotificationPages = (updater: (current: PagedUpdates<NotificationListPayload> | undefined) => PagedUpdates<NotificationListPayload> | undefined) => {
+    queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, updater);
+    queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: [...notificationKey, 'filter'] }, updater);
+  };
+
   const openNotification = async (item: AppNotification) => {
     if (!item.read_at) {
       if (auth.demo) {
         const read = { ...item, read_at: new Date().toISOString() };
-        queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: notificationKey }, (current) => mapUpdatePages(current, (page) => readNotification(page, read, Math.max(0, (current?.pages[0]?.unread_count ?? 1) - 1))));
+        updateNotificationPages((current) => mapUpdatePages(current, (page) => readNotification(page, read, Math.max(0, (current?.pages[0]?.unread_count ?? 1) - 1))));
       } else {
-        try { const result = await api.markNotificationRead(item.id); queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: notificationKey }, (current) => mapUpdatePages(current, (page) => readNotification(page, result.notification, result.unread_count))); invalidateUpdates(); } catch { /* navigation remains useful offline */ }
+        try { const result = await api.markNotificationRead(item.id); updateNotificationPages((current) => mapUpdatePages(current, (page) => readNotification(page, result.notification, result.unread_count))); invalidateUpdates(); } catch { /* navigation remains useful offline */ }
       }
     }
     if (item.target_available === false) { Alert.alert('Item unavailable', 'This item is no longer available.'); return; }
@@ -341,7 +340,7 @@ export default function UpdatesScreen() {
     const now = new Date().toISOString();
     try {
       if (!auth.demo) await api.markAllNotificationsRead();
-      queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: notificationKey }, (current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
+      updateNotificationPages((current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
       queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => mapUpdatePages(current, (page) => readAllAnnouncements(page, now)));
       if (selectedAnnouncement) setSelectedAnnouncement({ ...selectedAnnouncement, read_at: selectedAnnouncement.read_at || now, unread: false });
       invalidateUpdates();
