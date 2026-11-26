@@ -123,7 +123,12 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   const reload = useCallback(() => load({ cohortId, moduleId, lessonId, contentBlockId }), [load, cohortId, moduleId, lessonId, contentBlockId])
 
   useEffect(() => {
-    if (dataRef.current) return
+    if (dataRef.current) {
+      // Returning to an already-loaded scope while another scope's request is in flight must cancel that request.
+      loadGeneration.current += 1
+      setLoading(false)
+      return
+    }
     void reload()
   }, [reload, scopeKey])
   useEffect(() => () => {
@@ -217,8 +222,9 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
   const gradeName = gradeLabel(grade)
   async function approve() {
     if (!chosen.length || approving || loading || !exercise || !activeGeneration) return
-    // Bind confirmation and completion to this exact loaded snapshot, not just the filter key.
+    // Bind confirmation and completion to this exact loaded snapshot and load generation.
     const snapshot = activeGeneration
+    const loadGen = loadGeneration.current
     const scope = scopeKey
     const items = chosen.map((submission) => ({
       submission_id: submission.id,
@@ -232,13 +238,18 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
       description: `Each student gets ${gradeName}${feedback.trim() ? ' and your feedback' : ''} on ${exercise.title}.${notPassing ? ` ${notPassing} of them ${notPassing === 1 ? "doesn't" : "don't"} have passing automated checks.` : ''} Work that changed since it loaded is skipped.`,
       confirmLabel: `Approve as ${gradeName}`,
     })
-    if (!ok || loadGeneration.current !== snapshot || loadedGeneration.current !== snapshot || activeScope.current !== scope) return
+    if (!ok || loadGeneration.current !== loadGen || loadedGeneration.current !== snapshot || activeScope.current !== scope) return
     setApproving(true)
     let result: Awaited<ReturnType<typeof api.batchGradeSubmissions>>
     try {
       result = await api.batchGradeSubmissions({ grade, feedback: feedback.trim() ? feedback : null, items })
     } catch (cause: unknown) {
       toast.error(cause instanceof Error && cause.message ? cause.message : 'Could not approve these submissions.')
+      // The server may have committed before the response failed: reload the active snapshot so stale cards aren't retried.
+      if (loadGeneration.current === loadGen && loadedGeneration.current === snapshot && activeScope.current === scope) {
+        setLoaded(null)
+        void reload()
+      }
       return
     } finally {
       setApproving(false)
@@ -252,7 +263,7 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
       toast.error(result.error || 'Could not approve these submissions.')
     }
     // The instructor moved on or reloaded meanwhile: don't overwrite the snapshot now on screen.
-    if (loadGeneration.current !== snapshot || loadedGeneration.current !== snapshot || activeScope.current !== scope) return
+    if (loadGeneration.current !== loadGen || loadedGeneration.current !== snapshot || activeScope.current !== scope) return
     setSkipped({ scope, items: skippedItems })
     if (result.data) setFeedback('')
     if (result.data || skippedItems.length) await reload()

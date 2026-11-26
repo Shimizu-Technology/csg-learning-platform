@@ -11,7 +11,8 @@
 # whole batch in ascending id order at each level:
 #   1. curricula FOR SHARE (a scale change waits, or this reads the new scale),
 #   2. enrollments FOR NO KEY UPDATE (the learning write guard),
-#   3. submissions FOR NO KEY UPDATE.
+#   3. content_blocks FOR SHARE (authoring edits wait, or this sees the new version/rubric),
+#   4. submissions FOR NO KEY UPDATE.
 # Every item is then checked under those locks. An item that fails a check is
 # skipped with a reason; the others are graded. Notifications and post-commit
 # work run after the transaction commits.
@@ -104,9 +105,10 @@ class SubmissionBatchGrade
           .lock("FOR SHARE").pluck(:id, :grading_scale).to_h
         enrollments = Enrollment.includes(:cohort).where(id: candidates.values.map { |row| row[:enrollment_id] }.uniq.sort)
           .order(:id).lock("FOR NO KEY UPDATE").index_by(&:id)
-        # Lock content blocks FOR SHARE in canonical order (Curriculum -> Enrollment -> ContentBlock -> Submission)
-        # so an authoring edit (FOR NO KEY UPDATE / FOR UPDATE) cannot commit between the version check and grading.
-        block_ids = candidates.values.flat_map { |row| [ row[:content_block_id], row[:current_content_block_id] ] }.compact.uniq.sort
+        # Lock only the current content blocks of scoped candidates (never client-supplied ids)
+        # in canonical order (Curriculum -> Enrollment -> ContentBlock -> Submission) so an authoring
+        # edit (FOR NO KEY UPDATE / FOR UPDATE) cannot commit between the version check and grading.
+        block_ids = candidates.values.map { |row| row[:current_content_block_id] }.compact.uniq.sort
         blocks = ContentBlock.includes(lesson: { curriculum_module: :curriculum })
           .where(id: block_ids).order(:id).lock("FOR SHARE").index_by(&:id)
         submissions = Submission

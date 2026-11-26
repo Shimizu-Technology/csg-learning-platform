@@ -162,6 +162,28 @@ class SubmissionBatchGradeTest < ActionDispatch::IntegrationTest
     assert_nil @alice_submission.reload.grade
   end
 
+  test "batch grade locks only current candidate content blocks, not client-supplied expected block ids" do
+    queries = []
+    recorder = ->(*, payload) { queries << [ payload[:sql], payload[:type_casted_binds] ] }
+    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record") do
+      as_user(@instructor) do
+        post "/api/v1/submissions/batch_grade", params: {
+          grade: "P",
+          items: [ {
+            submission_id: @alice_submission.id,
+            base_submission_updated_at: @alice_submission.updated_at.iso8601(6),
+            expected_content_block_id: @other_block.id
+          } ]
+        }, headers: auth_headers, as: :json
+      end
+    end
+    assert_response :unprocessable_entity
+    assert_equal "content_moved", response.parsed_body.dig("skipped", 0, "code")
+    block_lock = queries.find { |sql, _| sql.match?(/FROM "content_blocks".*FOR SHARE/m) }
+    assert block_lock, queries.map(&:first).grep(/FOR /).inspect
+    assert_equal [ @block.id ], block_lock.last
+  end
+
   test "graded reports what this batch wrote, and one failed notification doesn't stop the others" do
     calls = 0
     original = SubmissionNotificationJob.method(:perform_later)

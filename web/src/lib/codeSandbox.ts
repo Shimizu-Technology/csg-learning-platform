@@ -166,13 +166,16 @@ const RUBY_HARNESS = String.raw`
   binding_eval = Binding.instance_method(:eval)
   force_encoding = String.instance_method(:force_encoding)
   integer_eq = Integer.instance_method(:==)
+  integer_eql = Integer.instance_method(:eql?)
   integer_lt = Integer.instance_method(:<)
   integer_plus = Integer.instance_method(:+)
   float_eq = Float.instance_method(:==)
+  float_eql = Float.instance_method(:eql?)
   string_eq = String.instance_method(:==)
   string_include = String.instance_method(:include?)
   array_size = Array.instance_method(:size)
   array_at = Array.instance_method(:[])
+  array_set = Array.instance_method(:[]=)
   hash_pairs = Hash.instance_method(:to_a)
   set_class = defined?(Set) ? Set : nil
   set_to_a = set_class ? set_class.instance_method(:to_a) : nil
@@ -236,23 +239,27 @@ const RUBY_HARNESS = String.raw`
   }
 
   values_equal = nil
-  values_equal = ->(expected, actual) {
+  values_equal = ->(expected, actual, strict = false) {
     return true if same.bind_call(expected, actual)
     expected_class = class_of.bind_call(expected)
     actual_class = class_of.bind_call(actual)
     numeric = ->(klass) { same.bind_call(klass, integer_class) || same.bind_call(klass, float_class) }
-    if numeric.(expected_class) && numeric.(actual_class)
+    if !strict && numeric.(expected_class) && numeric.(actual_class)
       return same.bind_call(expected_class, integer_class) ? integer_eq.bind_call(expected, actual) : float_eq.bind_call(expected, actual)
     end
     return false unless same.bind_call(expected_class, actual_class)
-    if same.bind_call(expected_class, string_class)
+    if same.bind_call(expected_class, integer_class)
+      strict ? integer_eql.bind_call(expected, actual) : integer_eq.bind_call(expected, actual)
+    elsif same.bind_call(expected_class, float_class)
+      strict ? float_eql.bind_call(expected, actual) : float_eq.bind_call(expected, actual)
+    elsif same.bind_call(expected_class, string_class)
       string_eq.bind_call(expected, actual)
     elsif same.bind_call(expected_class, array_class)
       size = array_size.bind_call(expected)
       return false unless integer_eq.bind_call(size, array_size.bind_call(actual))
       index = 0
       while integer_lt.bind_call(index, size)
-        return false unless values_equal.(array_at.bind_call(expected, index), array_at.bind_call(actual, index))
+        return false unless values_equal.(array_at.bind_call(expected, index), array_at.bind_call(actual, index), strict)
         index = integer_plus.bind_call(index, 1)
       end
       true
@@ -261,15 +268,21 @@ const RUBY_HARNESS = String.raw`
       actual_pairs = hash_pairs.bind_call(actual)
       size = array_size.bind_call(expected_pairs)
       return false unless integer_eq.bind_call(size, array_size.bind_call(actual_pairs))
+      used = []
       index = 0
       while integer_lt.bind_call(index, size)
         pair = array_at.bind_call(expected_pairs, index)
         found = false
         other = 0
         while (found ? false : integer_lt.bind_call(other, size))
-          candidate = array_at.bind_call(actual_pairs, other)
-          found = values_equal.(array_at.bind_call(pair, 0), array_at.bind_call(candidate, 0)) &&
-            values_equal.(array_at.bind_call(pair, 1), array_at.bind_call(candidate, 1))
+          unless array_at.bind_call(used, other)
+            candidate = array_at.bind_call(actual_pairs, other)
+            if values_equal.(array_at.bind_call(pair, 0), array_at.bind_call(candidate, 0), true) &&
+                values_equal.(array_at.bind_call(pair, 1), array_at.bind_call(candidate, 1), strict)
+              array_set.bind_call(used, other, true)
+              found = true
+            end
+          end
           other = integer_plus.bind_call(other, 1)
         end
         return false unless found
@@ -281,13 +294,18 @@ const RUBY_HARNESS = String.raw`
       actual_items = set_to_a.bind_call(actual)
       size = array_size.bind_call(expected_items)
       return false unless integer_eq.bind_call(size, array_size.bind_call(actual_items))
+      # Set membership uses Ruby's eql? semantics (1 != 1.0) and a 1-to-1 match.
+      used = []
       index = 0
       while integer_lt.bind_call(index, size)
         item = array_at.bind_call(expected_items, index)
         found = false
         other = 0
         while (found ? false : integer_lt.bind_call(other, size))
-          found = values_equal.(item, array_at.bind_call(actual_items, other))
+          if !array_at.bind_call(used, other) && values_equal.(item, array_at.bind_call(actual_items, other), true)
+            array_set.bind_call(used, other, true)
+            found = true
+          end
           other = integer_plus.bind_call(other, 1)
         end
         return false unless found
@@ -296,8 +314,8 @@ const RUBY_HARNESS = String.raw`
       true
     elsif same.bind_call(expected_class, range_class)
       same.bind_call(range_excl.bind_call(expected), range_excl.bind_call(actual)) &&
-        values_equal.(range_begin.bind_call(expected), range_begin.bind_call(actual)) &&
-        values_equal.(range_end.bind_call(expected), range_end.bind_call(actual))
+        values_equal.(range_begin.bind_call(expected), range_begin.bind_call(actual), strict) &&
+        values_equal.(range_end.bind_call(expected), range_end.bind_call(actual), strict)
     elsif same.bind_call(expected_class, regexp_class)
       regexp_eq.bind_call(expected, actual)
     elsif same.bind_call(expected_class, symbol_class)
@@ -316,7 +334,7 @@ const RUBY_HARNESS = String.raw`
       bigdecimal_eq.bind_call(expected, actual)
     else
       # Student-defined classes compare the way they define equality.
-      expected == actual
+      strict ? expected.eql?(actual) : expected == actual
     end
   }
   fail_with = ->(message, fallback) {
@@ -328,19 +346,15 @@ const RUBY_HARNESS = String.raw`
     if same.bind_call(collection_class, string_class) && same.bind_call(class_of.bind_call(item), string_class)
       string_include.bind_call(collection, item)
     elsif same.bind_call(collection_class, array_class) || same.bind_call(collection_class, hash_class) || (set_class && same.bind_call(collection_class, set_class))
-      entries = if same.bind_call(collection_class, hash_class)
-        hash_pairs.bind_call(collection)
-      elsif set_class && same.bind_call(collection_class, set_class)
-        set_to_a.bind_call(collection)
-      else
-        collection
-      end
+      is_hash = same.bind_call(collection_class, hash_class)
+      is_set = set_class && same.bind_call(collection_class, set_class)
+      entries = is_hash ? hash_pairs.bind_call(collection) : is_set ? set_to_a.bind_call(collection) : collection
       size = array_size.bind_call(entries)
       index = 0
       found = false
       while (found ? false : integer_lt.bind_call(index, size))
         entry = array_at.bind_call(entries, index)
-        found = values_equal.(same.bind_call(collection_class, hash_class) ? array_at.bind_call(entry, 0) : entry, item)
+        found = values_equal.(is_hash ? array_at.bind_call(entry, 0) : entry, item, is_hash || is_set)
         index = integer_plus.bind_call(index, 1)
       end
       found
@@ -538,14 +552,35 @@ const JS_HELPERS = `(() => {
     if (val && typeof val === 'function' && val.prototype) lockObj(val.prototype);
     try { define(globalThis, name, { value: val, writable: false, enumerable: false, configurable: false }); } catch {}
   }
+  const lockChain = (sample) => {
+    for (let proto = getProto(sample); proto; proto = getProto(proto)) {
+      lockObj(proto);
+      if (proto.constructor) {
+        lockObj(proto.constructor);
+        if (proto.constructor.prototype) lockObj(proto.constructor.prototype);
+      }
+    }
+  };
   const typedArrayCtor = getProto(Int8Array);
   lockObj(typedArrayCtor);
   lockObj(typedArrayCtor && typedArrayCtor.prototype);
-  lockObj(getProto(getProto([][Symbol.iterator]())));
-  const genProto = getProto((function* () {})());
-  lockObj(genProto);
-  lockObj(getProto(genProto));
-  lockObj(getProto(async function () {}));
+  const genFn = function* () {};
+  const asyncGenFn = async function* () {};
+  const asyncFn = async function () {};
+  const iteratorSamples = [
+    [][Symbol.iterator](),
+    ''[Symbol.iterator](),
+    (new Map())[Symbol.iterator](),
+    (new Set())[Symbol.iterator](),
+    ''.matchAll(/a/g),
+    (new Uint8Array())[Symbol.iterator](),
+    genFn,
+    genFn(),
+    asyncGenFn,
+    asyncGenFn(),
+    asyncFn,
+  ];
+  for (let i = 0; i < iteratorSamples.length; i += 1) lockChain(iteratorSamples[i]);
   return {
     assert(condition, message) { if (!condition) fail(message, 'Assertion failed') },
     assertEqual(expected, actual, message) {

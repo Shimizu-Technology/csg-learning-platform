@@ -127,6 +127,11 @@ pp({ ok: true })
       expect((await rubyCheck(student, checkCode)).passed, student).toBe(false)
     }
     expect(await rubyCheck('def items = Set[2, 1]', 'assert_equal Set[1, 2], items\nassert_includes items, 2')).toMatchObject({ passed: true })
+    expect(await rubyCheck('def items = Set[1.0, 1]', 'assert_equal Set[1, 1.0], items')).toMatchObject({ passed: true })
+    // Set preserves Ruby eql? semantics (1 != 1.0) and 1-to-1 matching.
+    expect((await rubyCheck('def items = Set[1.0]', 'assert_equal Set[1], items')).passed).toBe(false)
+    expect((await rubyCheck('def items = Set[1, 2]', 'assert_equal Set[1, 1.0], items')).passed).toBe(false)
+    expect((await rubyCheck('def items = Set[1]', 'assert_includes items, 1.0')).passed).toBe(false)
     expect(await rubyCheck('def day = Date.new(2026, 11, 26)', 'assert_equal Date.new(2026, 11, 26), day')).toMatchObject({ passed: true })
   }, 180_000)
 
@@ -167,6 +172,12 @@ describe('JavaScript checks', () => {
       ['String.prototype.includes = () => true; console.log("nope")', 'assert(output.includes("expected"))'],
       ['Set.prototype.has = () => true; const result = new Set([1])', 'assert(result.has(99))'],
       ['Map.prototype.get = () => 10; const result = new Map([["a", 1]])', 'assertEqual(10, result.get("a"))'],
+      ['Object.getPrototypeOf([][Symbol.iterator]()).next = () => ({ value: 99, done: false }); const result = [1]', 'assertEqual(99, result[Symbol.iterator]().next().value)'],
+      ['Object.getPrototypeOf((new Set())[Symbol.iterator]()).next = () => ({ value: 99, done: false }); const result = new Set([1])', 'assertEqual(99, result[Symbol.iterator]().next().value)'],
+      ['Object.getPrototypeOf((new Map())[Symbol.iterator]()).next = () => ({ value: ["k", 99], done: false }); const result = new Map([["k", 1]])', 'assertEqual(99, result[Symbol.iterator]().next().value[1])'],
+      ['Object.getPrototypeOf(""[Symbol.iterator]()).next = () => ({ value: "z", done: false }); const result = "a"', 'assertEqual("z", result[Symbol.iterator]().next().value)'],
+      ['Object.getPrototypeOf((async function* () {})()).next = () => "tampered"; const ag = (async function* () {})()', 'assertEqual("tampered", ag.next())'],
+      ['Object.getPrototypeOf(Object.getPrototypeOf((async function* () {})()))[Symbol.asyncIterator] = () => "tampered"; const ag = (async function* () {})()', 'assertEqual("tampered", ag[Symbol.asyncIterator]())'],
     ]) {
       expect(jsCheck(student, checkCode).passed, student).toBe(false)
     }
