@@ -485,12 +485,13 @@ class RecordSearch
     tokens = @words.map { |word| "#{word}:*" }.join(" & ")
     return {} if tokens.empty? || matched_rows.empty?
 
-    conn = ApplicationRecord.connection
-    values_sql = matched_rows.map { |item| "(#{item[:id].to_i}, #{conn.quote(item[:doc])})" }.join(", ")
-    sql = <<~SQL
-      SELECT v.id, ts_rank(to_tsvector('simple', v.doc), to_tsquery('simple', #{conn.quote(tokens)})) AS rank
-      FROM (VALUES #{values_sql}) AS v(id, doc)
-    SQL
-    conn.select_rows(sql).to_h { |id, rank| [ id.to_i, rank.to_f ] }
+    sql = ApplicationRecord.sanitize_sql_array([
+      "SELECT v.id, ts_rank(to_tsvector('simple', v.doc), to_tsquery('simple', ?)) AS rank " \
+      "FROM unnest(ARRAY[?]::bigint[], ARRAY[?]::text[]) AS v(id, doc)",
+      tokens,
+      matched_rows.map { |item| item[:id].to_i },
+      matched_rows.map { |item| item[:doc].to_s }
+    ])
+    ApplicationRecord.connection.select_rows(sql).to_h { |id, rank| [ id.to_i, rank.to_f ] }
   end
 end
