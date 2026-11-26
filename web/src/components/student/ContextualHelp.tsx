@@ -23,7 +23,10 @@ const categories: Array<{ value: HelpCategory; label: string; description: strin
   { value: 'other', label: 'Something else', description: 'My question does not fit the options above.' },
 ]
 
-const PILL = 'pressable inline-flex min-h-11 max-w-full cursor-pointer items-center rounded-full border px-3.5 py-2 text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus'
+// One scrolling row on phones; wrapping rows from sm up. Padding keeps focus rings unclipped, and
+// `relative` keeps the visually hidden radios inside the row so the sheet never scrolls sideways.
+const PILL_ROW = 'relative mt-1.5 flex flex-nowrap gap-2 overflow-x-auto p-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible'
+const PILL = 'pressable relative inline-flex min-h-11 shrink-0 cursor-pointer items-center whitespace-nowrap sm:max-w-full sm:shrink sm:whitespace-normal rounded-full border px-3.5 py-2 text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus'
 const PILL_SELECTED = 'border-ink bg-surface-sunken text-ink'
 const PILL_IDLE = 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
 
@@ -240,7 +243,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         className={activeRequest ? 'border-line! bg-surface-sunken! text-ink-secondary!' : 'text-ink-secondary!'}
       >
         {activeRequest ? <Clock3 className="h-4 w-4" aria-hidden="true" /> : <CircleHelp className="h-4 w-4" aria-hidden="true" />}
-        {!canRequest ? 'View previous help' : v2 && history.some(request => request.replies?.length || request.staff_response) ? 'View response' : activeRequest ? statusLabel : 'Ask for help'}
+        {!canRequest ? 'View previous help' : v2 && history.some(request => request.replies?.some((reply) => !reply.from_student) || request.staff_response) ? 'View response' : activeRequest ? statusLabel : 'Ask for help'}
       </Button>}
 
       <Modal
@@ -254,21 +257,16 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
         <div className="space-y-4">
           {choices && canRequest && choices.length > 1 && <fieldset disabled={saving} className="min-w-0 border-0 p-0">
             <legend className="text-sm font-semibold text-ink">What is your question about?</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className={PILL_ROW}>
               {choices.map(item => {
                 const key = `${item.type}:${item.id}`
                 return <label key={key} className={`${PILL} ${key === shownContext ? PILL_SELECTED : PILL_IDLE}`}>
                   <input className="sr-only" type="radio" name={`help-context-${contextType}-${contextId}`} value={key} checked={key === shownContext} onChange={() => setChosenContext(key)} />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{item.label}</span>
+                  {item.label}
                 </label>
               })}
             </div>
           </fieldset>}
-          {choices && history.filter(request => request.id !== activeRequest?.id && request.id !== shownResolved?.id).map(request => <details key={request.id} className="rounded-xl border border-line bg-surface-sunken p-3">
-            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">{choices.find(item => item.type === request.context_type && item.id === request.context_id)?.label} · {formatShortDateTime(request.created_at)}</summary>
-            <p className="my-3 whitespace-pre-wrap text-sm text-ink [overflow-wrap:anywhere]">{request.message}</p>
-            <dl className="space-y-3 text-sm"><HelpReplies request={request} /></dl>
-          </details>)}
           {!loading && shownResolved && (
             <div className="rounded-2xl border border-success-line bg-success-soft p-4">
               <div className="flex items-start gap-3">
@@ -348,7 +346,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
             <form className="space-y-5" onSubmit={submitRequest}>
               <fieldset aria-describedby={`help-category-hint-${contextType}-${contextId}`} className="min-w-0 border-0 p-0">
                 <legend className="text-sm font-semibold text-ink">What kind of help do you need?</legend>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className={PILL_ROW}>
                   {categories.map((option) => (
                     <label key={option.value} className={`${PILL} ${category === option.value ? PILL_SELECTED : PILL_IDLE}`}>
                       <input className="sr-only" type="radio" name="help-category" value={option.value} checked={category === option.value} onChange={() => setCategory(option.value)} />
@@ -385,6 +383,12 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
               </Button>
             </form>
           ) : null}
+          {/* Earlier requests come after the form, so the question box opens in view. */}
+          {choices && history.filter(request => request.id !== activeRequest?.id && request.id !== shownResolved?.id).map(request => <details key={request.id} className="rounded-xl border border-line bg-surface-sunken p-3">
+            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">{choices.find(item => item.type === request.context_type && item.id === request.context_id)?.label} · {formatShortDateTime(request.created_at)}</summary>
+            <p className="my-3 whitespace-pre-wrap text-sm text-ink [overflow-wrap:anywhere]">{request.message}</p>
+            <dl className="space-y-3 text-sm"><HelpReplies request={request} /></dl>
+          </details>)}
         </div>
       </Modal>
     </>

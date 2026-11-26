@@ -9059,7 +9059,7 @@ export interface components {
             text: null | string;
             grade: null | string;
             /**
-             * @description The grading scale of the submission's curriculum. Pass / Redo accepts only P or R; A / B / C / Redo accepts A, B, C or R.
+             * @description The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo.
              * @enum {string}
              */
             grading_scale: "letter_abc_redo" | "pass_redo";
@@ -11301,7 +11301,7 @@ export interface components {
             /** @enum {string|null} */
             grade: "A" | "B" | "C" | "R" | "P" | null;
             /**
-             * @description The grading scale of the submission's curriculum. Pass / Redo accepts only P or R; A / B / C / Redo accepts A, B, C or R.
+             * @description The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo.
              * @enum {string}
              */
             grading_scale: "letter_abc_redo" | "pass_redo";

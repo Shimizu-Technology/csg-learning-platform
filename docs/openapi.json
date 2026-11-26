@@ -10650,7 +10650,7 @@
               "letter_abc_redo",
               "pass_redo"
             ],
-            "description": "The grading scale of the submission's curriculum. Pass / Redo accepts only P or R; A / B / C / Redo accepts A, B, C or R."
+            "description": "The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo."
           },
           "feedback": {
             "type": [
@@ -21080,7 +21080,7 @@
               "letter_abc_redo",
               "pass_redo"
             ],
-            "description": "The grading scale of the submission's curriculum. Pass / Redo accepts only P or R; A / B / C / Redo accepts A, B, C or R."
+            "description": "The grading scale of the submission's curriculum: grades are P or R on Pass / Redo, and A, B, C or R on A / B / C / Redo."
           },
           "graded_at": {
             "type": [
