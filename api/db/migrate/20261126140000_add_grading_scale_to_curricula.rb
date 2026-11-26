@@ -28,7 +28,7 @@ class AddGradingScaleToCurricula < ActiveRecord::Migration[8.1]
     "(outcome <> 'suggest_b' AND suggested_grade IS NULL)"
   # Submission.grades["P"]
   PASS_GRADE_VALUE = 4
-  FENCED_TABLES = %w[submissions submission_grade_suggestions github_issue_deliveries].freeze
+  DDL_TABLES = %w[curricula submission_grade_suggestions github_issue_deliveries].freeze
 
   def up
     execute "SET LOCAL lock_timeout = '5s'"
@@ -45,10 +45,13 @@ class AddGradingScaleToCurricula < ActiveRecord::Migration[8.1]
 
   def down
     # One transaction (the migration's own, or this one when run directly), so the fence holds
-    # until the narrower constraints commit.
+    # until the narrower constraints commit. Acquire all final DDL locks up front (starting with
+    # `curricula` to match the app's Curriculum -> Enrollment -> Submission lock order) and fence
+    # Pass writers on `submissions` before probing, avoiding lock upgrades and grading deadlocks.
     connection.transaction do
       execute "SET LOCAL lock_timeout = '5s'"
-      execute "LOCK TABLE #{FENCED_TABLES.join(', ')} IN SHARE ROW EXCLUSIVE MODE"
+      execute "LOCK TABLE #{DDL_TABLES.join(', ')} IN ACCESS EXCLUSIVE MODE"
+      execute "LOCK TABLE submissions IN SHARE ROW EXCLUSIVE MODE"
       if pass_records_exist?
         raise ActiveRecord::IrreversibleMigration, "Pass grades, deliveries or suggestions exist; regrade them before rolling back"
       end

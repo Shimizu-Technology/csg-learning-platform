@@ -58,20 +58,29 @@ export function useSubmissionReview(
   })
 
   const load = useCallback(
-    async (preserveDraft = false) => {
+    async (
+      preserveDraft = false,
+      quiet = false,
+      overrides?: Partial<Pick<Submission, 'github_checks' | 'grade_suggestion'>>,
+    ) => {
       const request = ++generation.current
-      setLoading(true)
-      setError(null)
+      const saveGen = saves.current
+      if (!quiet) {
+        setLoading(true)
+        setError(null)
+      }
       try {
         if (!Number.isInteger(submissionId) || submissionId <= 0)
           throw new Error('This submission link is invalid.')
         const result = await api.getSubmission(submissionId)
         if (request !== generation.current) return
+        if (quiet && saves.current !== saveGen) return
+        if (quiet && (!result || !result.data || result.error || result.fromCache)) return
         setNoAccess(unavailableResponse(result))
         if (unavailableResponse(result)) { setSubmission(null); return }
         if (!result.data || result.error || result.fromCache)
           throw new Error(result.error || 'Could not load submission details.')
-        const next = result.data.submission
+        const next: Submission = overrides ? { ...result.data.submission, ...overrides } : result.data.submission
         setSubmission(next)
         if (!preserveDraft) {
           setFeedback(next.feedback || '')
@@ -98,10 +107,10 @@ export function useSubmissionReview(
         }
         setConflict(false)
       } catch (cause) {
-        if (request === generation.current)
+        if (!quiet && request === generation.current)
           setError(cause instanceof Error ? cause.message : 'Could not load submission details.')
       } finally {
-        if (request === generation.current) setLoading(false)
+        if (!quiet && request === generation.current) setLoading(false)
       }
     },
     [submissionId],

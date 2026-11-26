@@ -52,12 +52,15 @@ class AddGradingScaleToCurriculaTest < ActiveSupport::TestCase
     end
     assert_match(/Pass grades/, error.message)
     assert ActiveRecord::Base.connection.column_exists?(:curricula, :grading_scale)
-    # Writers on all three tables are fenced before the Pass probe, so none can commit a Pass
-    # between the probe and the narrower constraints.
-    fence = statements.index { |sql| sql.include?("LOCK TABLE submissions, submission_grade_suggestions, github_issue_deliveries IN SHARE ROW EXCLUSIVE MODE") }
+    # Acquire final DDL locks starting with curricula (canonical lock order) and fence
+    # submissions writers before probing for Pass records, avoiding lock upgrades and deadlocks.
+    ddl_lock = statements.index { |sql| sql.include?("LOCK TABLE curricula, submission_grade_suggestions, github_issue_deliveries IN ACCESS EXCLUSIVE MODE") }
+    fence = statements.index { |sql| sql.include?("LOCK TABLE submissions IN SHARE ROW EXCLUSIVE MODE") }
     probe = statements.index { |sql| sql.include?("FROM submissions WHERE grade = #{AddGradingScaleToCurricula::PASS_GRADE_VALUE}") }
-    assert fence, "rollback fences writers: #{statements.inspect}"
+    assert ddl_lock, "rollback acquires DDL locks starting with curricula: #{statements.inspect}"
+    assert fence, "rollback fences submissions writers: #{statements.inspect}"
     assert probe, "rollback probes for Pass grades"
+    assert_operator ddl_lock, :<, fence
     assert_operator fence, :<, probe
   ensure
     submission&.destroy

@@ -74,40 +74,43 @@ class GithubGradeSuggestionEvaluator
   end
 
   def self.evaluate_submission_once!(submission, now:, policy:)
-    curriculum_id = Submission.joins(content_block: { lesson: :curriculum_module })
-      .where(id: submission.id).pick("modules.curriculum_id")
-    return nil unless curriculum_id
+    # Bypass Rails' request query cache so a cohort-copy retry reads the remapped curriculum_id and fresh state.
+    ApplicationRecord.uncached do
+      curriculum_id = Submission.joins(content_block: { lesson: :curriculum_module })
+        .where(id: submission.id).pick("modules.curriculum_id")
+      return nil unless curriculum_id
 
-    ApplicationRecord.transaction do
-      Curriculum.lock_for_content!(curriculum_id, "FOR SHARE")
-      grading_scale = Curriculum.where(id: curriculum_id).pick(:grading_scale)
-      enrollment = Enrollment.includes(:cohort).lock("FOR NO KEY UPDATE").find(submission.enrollment_id)
-      cohort = enrollment.cohort
-      return nil unless enabled_for?(cohort)
+      ApplicationRecord.transaction do
+        Curriculum.lock_for_content!(curriculum_id, "FOR SHARE")
+        grading_scale = Curriculum.where(id: curriculum_id).pick(:grading_scale)
+        enrollment = Enrollment.includes(:cohort).lock("FOR NO KEY UPDATE").find(submission.enrollment_id)
+        cohort = enrollment.cohort
+        return nil unless enabled_for?(cohort)
 
-      locked_submission = Submission.includes(content_block: { lesson: :curriculum_module }).lock("FOR NO KEY UPDATE").find(submission.id)
-      return :curriculum_moved unless locked_submission.content_block.lesson.curriculum_module.curriculum_id == curriculum_id
-      active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: locked_submission.content_block_id)
-      selected_policy = policy == :active ? active_policy : policy
-      binding = GithubRepositoryAccess.binding_for(
-        enrollment: enrollment,
-        curriculum_module_id: locked_submission.content_block.lesson.module_id
-      )
-      latest_id = locked_submission.latest_attempt&.id
-      runs = GithubCheckRun.where(submission_id: locked_submission.id).to_a
+        locked_submission = Submission.includes(content_block: { lesson: :curriculum_module }).lock("FOR NO KEY UPDATE").find(submission.id)
+        return :curriculum_moved unless locked_submission.content_block.lesson.curriculum_module.curriculum_id == curriculum_id
+        active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: locked_submission.content_block_id)
+        selected_policy = policy == :active ? active_policy : policy
+        binding = GithubRepositoryAccess.binding_for(
+          enrollment: enrollment,
+          curriculum_module_id: locked_submission.content_block.lesson.module_id
+        )
+        latest_id = locked_submission.latest_attempt&.id
+        runs = GithubCheckRun.where(submission_id: locked_submission.id).to_a
 
-      result = evaluate(
-        submission: locked_submission,
-        policy: selected_policy,
-        active_policy: active_policy,
-        binding: binding,
-        check_runs: runs,
-        latest_submission_id: latest_id,
-        now: now,
-        grading_scale: grading_scale
-      )
+        result = evaluate(
+          submission: locked_submission,
+          policy: selected_policy,
+          active_policy: active_policy,
+          binding: binding,
+          check_runs: runs,
+          latest_submission_id: latest_id,
+          now: now,
+          grading_scale: grading_scale
+        )
 
-      persist_result!(submission: locked_submission, enrollment: enrollment, result: result)
+        persist_result!(submission: locked_submission, enrollment: enrollment, result: result)
+      end
     end
   end
 

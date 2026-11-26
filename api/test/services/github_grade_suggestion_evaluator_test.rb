@@ -144,6 +144,56 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     assert_operator enrollment_lock, :<, submission_lock
   end
 
+  test "retries with an uncached curriculum lookup when a cohort copy remaps the submission under query cache" do
+    submission = create_verified_submission
+    create_check_run(submission, name: "prework/111.rb", status: "completed", conclusion: "success", app_slug: "github-actions")
+
+    copied_curriculum = Curriculum.create!(name: "Copied Pass Curriculum", grading_scale: "pass_redo")
+    copied_module = copied_curriculum.modules.create!(name: "Week 1 copy", position: 0)
+    copied_lesson = copied_module.lessons.create!(title: "Day 1 copy", position: 0, release_day: 0)
+    copied_block = copied_lesson.content_blocks.create!(
+      block_type: :exercise,
+      position: 0,
+      title: "Exercise 111 copy",
+      filename: "111.rb",
+      submission_type: :prework_github_sync
+    )
+    ExerciseCheckPolicy.create_version!(
+      content_block: copied_block,
+      required_checks: [ "prework/111.rb" ],
+      allowed_app_slugs: [ "github-actions" ],
+      allowed_branch: "main",
+      expected_workflow_path: WORKFLOW_PATH,
+      created_by: @admin
+    )
+
+    original_curriculum_id = @curriculum.id
+    cohort = @cohort
+    binding = @binding
+    moved = false
+    original_lock = Curriculum.method(:lock_for_content!)
+    Curriculum.define_singleton_method(:lock_for_content!) do |id, mode = "FOR SHARE"|
+      result = original_lock.call(id, mode)
+      if !moved && id == original_curriculum_id
+        moved = true
+        submission.update_column(:content_block_id, copied_block.id)
+        binding.update_column(:curriculum_module_id, copied_module.id)
+        cohort.update_column(:curriculum_id, copied_curriculum.id)
+      end
+      result
+    end
+
+    suggestion = ActiveRecord::Base.connection.cache do
+      GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: @now)
+    end
+
+    assert_not_nil suggestion
+    assert_equal "suggest_pass", suggestion.outcome
+    assert_equal "P", suggestion.suggested_grade
+  ensure
+    Curriculum.define_singleton_method(:lock_for_content!, original_lock) if original_lock
+  end
+
   test "returns review_for_redo without suggested_grade when a required check fails" do
     submission = create_verified_submission
     create_check_run(submission, name: "prework/111.rb", status: "completed", conclusion: "failure")

@@ -908,4 +908,29 @@ describe('SubmissionReviewPanel grading scales and rubric suggestions', () => {
     expect(gradeButtons()).toEqual(['A', 'B', 'C', 'Redo'])
     expect(container.querySelectorAll('[role="group"][aria-label="Grade"] [aria-pressed="true"]')).toHaveLength(0)
   })
+
+  it('Check GitHub again refreshes the submission scale while keeping the draft when the curriculum switched to Pass / Redo', async () => {
+    const sub = makeSubmission({ grading_scale: 'letter_abc_redo', grade_suggestion: makeSuggestion({ outcome: 'suggest_b', suggested_grade: 'B' }) })
+    await renderPanel(sub)
+    const feedbackTextarea = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
+    await act(async () => setInputValue(feedbackTextarea, 'Keep this draft across scale refresh'))
+
+    const freshPass = makeSuggestion({ outcome: 'suggest_pass', suggested_grade: 'P', reason_summary: 'Pass suggested' })
+    vi.spyOn(api, 'refreshSubmissionGithubChecks').mockResolvedValue({
+      data: { github_checks: sub.github_checks!, grade_suggestion: freshPass },
+      error: null,
+    })
+    vi.spyOn(api, 'getSubmission').mockResolvedValue({
+      data: { submission: { ...sub, grading_scale: 'pass_redo', grade_suggestion: freshPass } },
+      error: null,
+    })
+
+    await act(async () => findButton('Check GitHub again')!.click())
+    await settle()
+
+    expect(gradeButtons()).toEqual(['Pass', 'Redo'])
+    expect(findButton('Select Pass')).toBeTruthy()
+    expect(container.querySelector('[data-grade-suggestion]')?.getAttribute('data-grade-suggestion-stale')).toBe('false')
+    expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')!.value).toBe('Keep this draft across scale refresh')
+  })
 })
