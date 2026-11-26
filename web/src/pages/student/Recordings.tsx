@@ -3,7 +3,7 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { activityReturnPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff, Link2, Check } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -194,7 +194,7 @@ export function Recordings() {
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const copyAttemptRef = useRef(0)
   const selectedKey = selectedItem ? recordingKey(selectedItem) : null
-  useEffect(() => {
+  useLayoutEffect(() => {
     copyAttemptRef.current += 1
     if (copyTimerRef.current) {
       clearTimeout(copyTimerRef.current)
