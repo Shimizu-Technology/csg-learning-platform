@@ -15,6 +15,7 @@ import type { ResourceEntry } from '../../types/api'
 import { downloadCourseResource } from '../../lib/downloadCourseResource'
 import { STUDENT_FOLDER_PRESETS, matchesFileQuery, type CohortFile, type CohortFilesResponse } from '../../lib/cohortFiles'
 import { CohortDocForm, CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge } from '../../components/shared/CohortFileParts'
+import { FolderZipButton } from '../../components/shared/FolderZipButton'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -238,9 +239,15 @@ export function Resources() {
 
       {hasFolder && selectedCohortId && (
         <section className="space-y-3" aria-label="My files">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><FolderLock className="h-5 w-5 text-ink-muted" aria-hidden="true" />My files</h2>
-            <p className="text-sm text-ink-muted">Your private folder — only you and your instructors can see files here.</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><FolderLock className="h-5 w-5 text-ink-muted" aria-hidden="true" />My files</h2>
+              <p className="text-sm text-ink-muted">Your private folder — only you and your instructors can see files here.</p>
+            </div>
+            {(cohortFiles?.my_files?.length || 0) > 0 && (
+              <FolderZipButton cohortId={selectedCohortId} scope="my_files" empty={false} label="Download all as ZIP" className="sm:shrink-0"
+                ariaLabel="Download all my files as a ZIP" />
+            )}
           </div>
           <CohortFileUploader key={selectedCohortId} cohortId={selectedCohortId} heading="Upload files" folderPresets={STUDENT_FOLDER_PRESETS}
             description="Resumes, cover letters, workbooks and notes. Choose several at once, up to 100 MB each."

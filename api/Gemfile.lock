@@ -415,6 +415,7 @@ DEPENDENCIES
   reverse_markdown
   roo
   rubocop-rails-omakase
+  rubyzip (~> 3.0)
   solid_queue
   stripe (~> 19.6)
   thruster

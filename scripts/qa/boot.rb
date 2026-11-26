@@ -56,6 +56,15 @@ end
 if ENV["QA_STAFF_RELIABILITY"] == "1"
   S3Service.define_singleton_method(:configured?) { true }
   S3Service.define_singleton_method(:generate_presigned_url) { |*args, **kwargs| "http://127.0.0.1:#{ENV.fetch('QA_WEB_PORT')}/synthetic-video.mp4" }
+  # Class-file copies (imports, auto-copy) and folder ZIPs: copies succeed and
+  # every stored object reads as the same synthetic PDF bytes. Nothing leaves
+  # the machine; this certifies the app's flows, not a storage provider.
+  S3Service.define_singleton_method(:copy_object) { |*_args, **_kwargs| true }
+  S3Service.define_singleton_method(:delete_object) { |_key| true }
+  S3Service.define_singleton_method(:stream_object) do |key, &block|
+    block.call("%PDF-1.7\n% Synthetic QA object for #{File.basename(key.to_s)}\n")
+    true
+  end
 end
 
 # Explicit opt-in simulation at the App client boundary, with all HTTP guards

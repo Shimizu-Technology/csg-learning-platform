@@ -63,6 +63,16 @@ class Cohort < ApplicationRecord
   # staff audit rows, kept after the cohort goes: the delete detaches them
   # instead of being blocked by their cohort reference.
   before_destroy :detach_content_audit_events
+  # Locks the cohort before its enrollments and files go, FOR NO KEY UPDATE:
+  # - it conflicts with FOR SHARE, so a class-file import (CohortFileImport,
+  #   which holds the cohort FOR SHARE while it inserts) either finishes
+  #   first, and its row is destroyed with the rest, or sees the cohort gone;
+  # - it does not conflict with FOR KEY SHARE, the lock every cohort_files
+  #   insert takes on the cohort for its foreign key. A learner write or copy
+  #   holding an enrollment (Enrollment before CohortFile) can still insert
+  #   and commit, and the destroy, waiting on that enrollment, then removes
+  #   the new row too. FOR UPDATE here would deadlock with it.
+  before_destroy -> { self.class.where(id: id).lock("FOR NO KEY UPDATE").pluck(:id) }, prepend: true
 
   validates :name, presence: true
   validates :start_date, presence: true

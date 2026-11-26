@@ -15,6 +15,7 @@ import { NewModuleModal } from './NewModuleModal'
 import { NewCurriculumModal } from './NewCurriculumModal'
 import { ImportCoursePackageModal } from './ImportCoursePackageModal'
 import { CourseResourcesPanel } from './CourseResourcesPanel'
+import { CurriculumTemplateFilesPanel } from '../../components/admin/CurriculumTemplateFilesPanel'
 import { CopyForCohortAction } from './lessonEditor/CopyForCohortDialog'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
@@ -836,6 +837,7 @@ export function ContentManagement() {
                   Submission: learners send work for review. GitHub repo: a repository link is required.
                 </p>
               </div>
+              <CurriculumTemplateFilesPanel key={`templates-${selected.id}`} curriculumId={selected.id} />
               <CourseResourcesPanel
                 key={selected.id}
                 curriculumId={selected.id}

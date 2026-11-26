@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/back-button';
 import { CohortDocForm } from '@/components/cohort-doc-modal';
 import { CohortFileCard } from '@/components/cohort-file-card';
+import { CohortFolderZipButton } from '@/components/cohort-folder-zip-button';
 import { CohortLinkForm } from '@/components/cohort-link-form';
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { StaffOnlyScreen } from '@/components/staff-only-screen';
@@ -97,6 +98,7 @@ export default function StaffCohortFilesScreen() {
         : adding === 'doc'
           ? <CohortDocForm cohortId={selectedCohortId} folders={[...new Set([...CLASS_FOLDER_PRESETS, ...(data?.folders || [])])]} onCancel={() => setAdding(null)} onCreated={created} />
           : <View style={styles.buttonRow}><Button style={styles.grow} label="Add a class link" onPress={() => setAdding('link')} /><Button style={styles.grow} variant="secondary" label="New class doc" onPress={() => setAdding('doc')} /></View>}
+      <CohortFolderZipButton cohortId={selectedCohortId} scope="class" empty={!data?.class_files.length} accessibilityLabel="Export all class files as a ZIP" />
       <Button variant="secondary" label="Upload and share on the web" onPress={openWebFiles} />
     </> : openFolder ? <>
       <Pressable accessibilityRole="button" accessibilityLabel="All student folders" onPress={() => { setStudentId(null); setAdding(null); setOpenFileId(null); }} style={styles.backRow}><ChevronLeft color={c.text.body} size={18} /><Text style={styles.chipText}>All student folders</Text></Pressable>
@@ -104,6 +106,7 @@ export default function StaffCohortFilesScreen() {
       {adding === 'doc'
         ? <CohortDocForm cohortId={selectedCohortId} studentId={openFolder.student_id} folders={STUDENT_FOLDER_PRESETS} onCancel={() => setAdding(null)} onCreated={created} />
         : <Button variant="secondary" label="New doc in this folder" onPress={() => setAdding('doc')} />}
+      <CohortFolderZipButton cohortId={selectedCohortId} scope="student" studentId={openFolder.student_id} empty={!openFolder.files.length} accessibilityLabel={`Export ${openFolder.student_name}'s folder as a ZIP`} />
       {openFolder.files.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!data?.storage_configured} note={file.uploaded_by_role === 'student' ? 'Added by student' : 'Shared by staff'}
         review={STAFF_REVIEW} onChanged={replaceFile} onStale={() => void filesQuery.refetch()} autoOpen={file.id === openFileId} />)}
       {!openFolder.files.length && <EmptyState title="This folder is empty" copy="Files, links and docs you or the student add appear here." />}

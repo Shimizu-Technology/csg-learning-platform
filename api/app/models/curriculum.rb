@@ -8,6 +8,9 @@ class Curriculum < ApplicationRecord
   has_many :learning_objectives, -> { ordered }, dependent: :destroy
   has_many :rubrics, dependent: :destroy
   has_many :curriculum_resources, dependent: :restrict_with_error
+  # Template files each new cohort starts with. Each destroy queues its stored
+  # objects in this transaction, after the tree lock below.
+  has_many :curriculum_files, dependent: :destroy
   # Set when this curriculum is one cohort's own copy (CurriculumCopyForCohort).
   has_one :cohort_copy, class_name: "CurriculumCopy", foreign_key: :copy_curriculum_id, inverse_of: :copy_curriculum
 

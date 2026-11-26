@@ -122,6 +122,8 @@ module Api
           return render json: { errors: cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
         end
         if cohort.save
+          # Every new cohort starts with its curriculum's template files.
+          CohortFileImport.seed_new_cohort(cohort, actor: current_user)
           render json: { cohort: cohort_json(cohort) }, status: :created
         else
           render json: { errors: cohort.errors.full_messages }, status: :unprocessable_entity

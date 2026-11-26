@@ -37,6 +37,9 @@ module CohortFilesHelpers
       @prefix = "%PDF-1.7\n%synthetic".b
       @prefix_reads = []
       @prefix_error = nil
+      # Bytes `stream_object` serves per key (missing keys are not found).
+      @stored_bytes = {}
+      @streamed = []
     end
   end
 
@@ -112,7 +115,7 @@ module CohortFilesHelpers
   end
 
   def with_storage
-    originals = %i[configured? generate_presigned_post object_metadata read_prefix copy_object delete_object generate_presigned_url].to_h { |name| [ name, S3Service.method(name) ] }
+    originals = %i[configured? generate_presigned_post object_metadata read_prefix copy_object delete_object generate_presigned_url stream_object].to_h { |name| [ name, S3Service.method(name) ] }
     signed, copied, test_instance = @signed, @copied, self
     S3Service.define_singleton_method(:configured?) { true }
     S3Service.define_singleton_method(:generate_presigned_post) { |*_args, **_kwargs| Struct.new(:url, :fields).new("https://storage.test/upload", { "key" => "fixture" }) }
@@ -126,6 +129,14 @@ module CohortFilesHelpers
     end
     S3Service.define_singleton_method(:copy_object) { |source, destination, etag: nil| copied << [ source, destination, etag ] }
     S3Service.define_singleton_method(:delete_object) { |_key| true }
+    S3Service.define_singleton_method(:stream_object) do |key, &block|
+      test_instance.instance_variable_get(:@streamed) << [ key, ActiveRecord.all_open_transactions.size ]
+      bytes = test_instance.instance_variable_get(:@stored_bytes)[key]
+      next false unless bytes
+
+      bytes.b.scan(/.{1,4}/mn).each { |chunk| block.call(chunk) }
+      true
+    end
     S3Service.define_singleton_method(:generate_presigned_url) do |key, expires_in:, response_content_disposition: nil, response_content_type: nil|
       signed << [ key, expires_in, response_content_disposition, response_content_type ]
       "https://storage.test/download"

@@ -43,6 +43,8 @@ export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisable
   const doc = file.kind === 'doc';
   const href = link ? safeExternalFileUrl(file.external_url) : null;
   const reviewing = review && isStudentFolderItem(file) ? review : undefined;
+  // Staff see which class items every learner gets a copy of.
+  const autoCopy = file.auto_copy_to_students && file.student_id === null && file.can_manage;
   const [autoOpened, setAutoOpened] = useState(false);
   if (autoOpen && !autoOpened) {
     setAutoOpened(true);
@@ -93,9 +95,10 @@ export function CohortFileCard({ cohortId, file, note, onDelete, downloadDisable
   const commentNote = reviewing ? ` · ${file.comment_count} comment${file.comment_count === 1 ? '' : 's'}` : '';
   return <LearningCard>
     <View style={styles.heading}><Icon color={c.text.body} size={20} /><Text style={styles.title}>{file.title}</Text></View>
-    {(link || doc || file.version_number > 1 || (reviewing && file.review_status !== 'none')) && <View style={styles.badges}>
+    {(link || doc || autoCopy || file.version_number > 1 || (reviewing && file.review_status !== 'none')) && <View style={styles.badges}>
       {link && <Badge label={LINK_PROVIDER_LABELS[file.link_provider || 'web']} />}
       {doc && <Badge tone="brand" label="Learn Doc" />}
+      {autoCopy && <Badge tone="success" label="Auto-copy" accessibilityLabel="Auto-copy: every student gets their own copy" />}
       {!link && !doc && file.version_number > 1 && <Badge tone="pending" label={`v${file.version_number}`} />}
       {reviewing && <ReviewBadge status={file.review_status} />}
     </View>}

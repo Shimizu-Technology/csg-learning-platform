@@ -6,6 +6,8 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     resource "*",
       headers: :any,
       methods: [ :get, :post, :put, :patch, :delete, :options, :head ],
+      # Lets the web app read a download's filename (folder ZIPs) cross-origin.
+      expose: [ "Content-Disposition" ],
       credentials: true
   end
 end

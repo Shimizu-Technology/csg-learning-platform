@@ -313,6 +313,37 @@ async function fetchApi<T>(
   return { data: null, error: 'Request failed', errorKind: 'unknown' };
 }
 
+/** A folder ZIP needs time to build and stream; it is never retried or cached. */
+const ZIP_TIMEOUT_MS = 120_000;
+
+/**
+ * Downloads an authenticated binary response (a folder ZIP) as a Blob, with
+ * the filename the API named in Content-Disposition. Errors come back as the
+ * API's JSON message, like fetchApi.
+ */
+async function fetchBlob(endpoint: string): Promise<ApiResponse<{ blob: Blob; filename: string }>> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const headers: Record<string, string> = {};
+    const token = getAuthToken ? await getAuthToken(attempt > 1) : null;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { headers, cache: 'no-store' }, ZIP_TIMEOUT_MS);
+      if (response.status === 401 && attempt === 1) continue;
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        return { data: null, error: errorMessage(errorBody, response.status), status: response.status, errorKind: errorKindForStatus(response.status) };
+      }
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] || 'files.zip';
+      return { data: { blob: await response.blob(), filename }, error: null, status: response.status };
+    } catch (err) {
+      const kind = err instanceof DOMException && err.name === 'AbortError' ? 'timeout' : 'network';
+      return { data: null, error: kind === 'timeout' ? 'The download timed out. Try one folder at a time.' : networkErrorMessage(err), errorKind: kind };
+    }
+  }
+  return { data: null, error: 'Request failed', errorKind: 'auth', status: 401 };
+}
+
 function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
@@ -620,6 +651,37 @@ export const api = {
     fetchApi<null>(`/api/v1/cohorts/${cohortId}/files/${fileId}/comments/${commentId}`, { method: 'DELETE' }),
   renameCohortFolder: (cohortId: number, data: components['schemas']['CohortFolderRenameInput']) =>
     fetchApi<components['schemas']['CohortFolderRenameResponse']>(`/api/v1/cohorts/${cohortId}/files/rename_folder`, { method: 'PATCH', body: JSON.stringify(data) }),
+  importCohortCurriculumFiles: (cohortId: number) =>
+    fetchApi<components['schemas']['CohortFileImportResponse']>(`/api/v1/cohorts/${cohortId}/files/import_curriculum`, { method: 'POST' }, true, CURRICULUM_COPY_TIMEOUT_MS),
+  copyCohortFilesFromCohort: (cohortId: number, sourceCohortId: number) =>
+    fetchApi<components['schemas']['CohortFileCohortCopyResponse']>(`/api/v1/cohorts/${cohortId}/files/copy_from_cohort`, {
+      method: 'POST', body: JSON.stringify({ source_cohort_id: sourceCohortId } satisfies components['schemas']['CohortFileCohortCopyInput']),
+    }, true, CURRICULUM_COPY_TIMEOUT_MS),
+  /** `scope` my_files (learners), class or student (staff, with `studentId`); `folder` narrows to one folder. */
+  exportCohortFilesZip: (cohortId: number, options: { scope: 'my_files' | 'class' | 'student'; studentId?: number; folder?: string }) => {
+    const query = new URLSearchParams({ scope: options.scope });
+    if (options.studentId) query.set('student_id', String(options.studentId));
+    if (options.folder) query.set('folder', options.folder);
+    return fetchBlob(`/api/v1/cohorts/${cohortId}/files/export_zip?${query.toString()}`);
+  },
+  getCurriculumFiles: (curriculumId: number) =>
+    fetchApi<components['schemas']['CurriculumFilesResponse']>(`/api/v1/curricula/${curriculumId}/files`, { cache: 'no-store' }),
+  createCurriculumFileUpload: (curriculumId: number, data: components['schemas']['CurriculumFileUploadInput']) =>
+    fetchApi<components['schemas']['CurriculumFileUploadResponse']>(`/api/v1/curricula/${curriculumId}/files`, { method: 'POST', body: JSON.stringify(data) }),
+  completeCurriculumFile: (curriculumId: number, fileId: number) =>
+    fetchApi<components['schemas']['CurriculumFileResponse']>(`/api/v1/curricula/${curriculumId}/files/${fileId}/complete`, { method: 'POST' }),
+  createCurriculumLink: (curriculumId: number, data: components['schemas']['CurriculumLinkCreateInput']) =>
+    fetchApi<components['schemas']['CurriculumFileResponse']>(`/api/v1/curricula/${curriculumId}/files/links`, { method: 'POST', body: JSON.stringify(data) }),
+  createCurriculumDoc: (curriculumId: number, data: components['schemas']['CurriculumDocCreateInput']) =>
+    fetchApi<components['schemas']['CurriculumFileResponse']>(`/api/v1/curricula/${curriculumId}/files/docs`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCurriculumFile: (curriculumId: number, fileId: number, data: components['schemas']['CurriculumFileUpdateInput']) =>
+    fetchApi<components['schemas']['CurriculumFileResponse']>(`/api/v1/curricula/${curriculumId}/files/${fileId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCurriculumFile: (curriculumId: number, fileId: number, options: { pendingOnly?: boolean } = {}) =>
+    fetchApi<null>(`/api/v1/curricula/${curriculumId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' }),
+  getCurriculumDoc: (curriculumId: number, fileId: number) =>
+    fetchApi<components['schemas']['CurriculumDocResponse']>(`/api/v1/curricula/${curriculumId}/files/${fileId}/doc`, { cache: 'no-store' }),
+  downloadCurriculumFile: (curriculumId: number, fileId: number) =>
+    fetchApi<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/curricula/${curriculumId}/files/${fileId}/download`, { cache: 'no-store' }),
   copyCohortFileToStudents: (cohortId: number, fileId: number, folder?: string) =>
     fetchApi<components['schemas']['CohortFileCopyResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/copy_to_students`, {
       method: 'POST', body: JSON.stringify(folder ? { folder } : {}),

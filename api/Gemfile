@@ -63,6 +63,8 @@ gem "httparty"
 
 # Excel/CSV processing
 gem "roo"
+# Folder exports (CohortFilesController#export_zip); roo already depends on it.
+gem "rubyzip", "~> 3.0"
 
 # HTML → Markdown conversion (used by curriculum import)
 gem "reverse_markdown"

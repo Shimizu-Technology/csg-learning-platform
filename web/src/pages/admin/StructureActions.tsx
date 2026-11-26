@@ -85,7 +85,7 @@ export function ModuleActions({ mod, index, count, busy, onMove, onSaved }: {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   return <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2">
-    <span draggable={!busy} onDragStart={event => { event.dataTransfer.setData('application/x-csg-module-id', String(mod.id)); event.dataTransfer.effectAllowed = 'move' }} className="cursor-grab p-2 text-ink-muted" aria-label={`Drag ${mod.name}`}><GripVertical className="h-5 w-5" /></span>
+    <span draggable={!busy} onDragStart={event => { event.dataTransfer.setData('application/x-csg-module-id', String(mod.id)); event.dataTransfer.effectAllowed = 'move' }} className="cursor-grab p-2 text-ink-muted" role="img" aria-label={`Drag ${mod.name}`}><GripVertical className="h-5 w-5" aria-hidden="true" /></span>
     <IconButton label={`Move ${mod.name} up`} data-module-move={mod.id} data-direction="up" aria-disabled={busy || index === 0} onClick={() => { if (busy || index === 0) return; onMove(index, index - 1) }}><ArrowUp className="h-4 w-4" /></IconButton>
     <IconButton label={`Move ${mod.name} down`} data-module-move={mod.id} data-direction="down" aria-disabled={busy || index === count - 1} onClick={() => { if (busy || index === count - 1) return; onMove(index, index + 1) }}><ArrowDown className="h-4 w-4" /></IconButton>
     <StructureEditor inline record={mod} kind="module" onSaved={onSaved} />
