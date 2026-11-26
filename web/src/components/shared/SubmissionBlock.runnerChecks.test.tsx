@@ -58,7 +58,7 @@ it('starts from the starter code, can reset it, and runs the checks against the 
 
   runCodeChecks.mockResolvedValue(summarizeCodeChecks([{ id: 'c1', name: 'Adds', passed: true, timedOut: false, error: null, stdout: '', durationMs: 2 }]))
   await act(async () => button('Run checks')!.click())
-  expect(runCodeChecks).toHaveBeenCalledWith({ language: 'javascript', code: solution, checks: CHECKS })
+  expect(runCodeChecks).toHaveBeenCalledWith(expect.objectContaining({ language: 'javascript', code: solution, checks: CHECKS }))
   expect(container.textContent).toContain('1 of 1 check passed')
 
   await act(async () => button('Reset starter code')!.click())

@@ -208,7 +208,7 @@ describe('SubmissionReviewPanel in-browser code checks', () => {
     await renderPanel(textSubmission())
     await settle()
 
-    expect(runCodeChecks).toHaveBeenCalledWith({ language: 'ruby', code: 'def add(a, b)\n  a + b\nend', checks: CHECKS })
+    expect(runCodeChecks).toHaveBeenCalledWith(expect.objectContaining({ language: 'ruby', code: 'def add(a, b)\n  a + b\nend', checks: CHECKS }))
     const card = container.querySelector('[data-runner-checks]')
     expect(card?.getAttribute('data-runner-checks')).toBe('passed')
     expect(card?.textContent).toContain('All 2 checks passed · Pass suggested')
