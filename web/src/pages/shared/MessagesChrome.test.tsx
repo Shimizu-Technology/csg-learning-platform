@@ -447,3 +447,43 @@ describe('jump to latest (U-4.11)', () => {
     }
   })
 })
+
+describe('composer power interactions', () => {
+  it('opens inline edit on the latest own message when pressing ArrowUp in an empty composer', async () => {
+    writeEditorPreferences(1, { mode: 'markdown' })
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    getDirectConversation.messages = [
+      message(10),
+      message(11, { body: 'My last reply', mine: true, author: { id: 1, full_name: 'Audreana', email: 'staff@example.com', role: 'instructor', avatar_url: null } }),
+    ]
+    await open()
+    const composer = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(composer).not.toBeNull()
+    act(() => {
+      composer.focus()
+      composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    })
+    await vi.waitFor(() => expect(container.querySelector('#message-11 textarea')?.textContent).toBe('My last reply'))
+  })
+
+  it('shows a thumbnail preview for pending image attachments before send', async () => {
+    const createObjectURL = vi.fn(() => 'blob:mock-screenshot')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+    await open()
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(['png-bytes'], 'terminal-error.png', { type: 'image/png' })
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] })
+    act(() => {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    const previewImg = container.querySelector<HTMLImageElement>('[data-pending-attachments] img')
+    expect(previewImg).not.toBeNull()
+    expect(previewImg?.getAttribute('src')).toBe('blob:mock-screenshot')
+    expect(previewImg?.getAttribute('alt')).toBe('terminal-error.png')
+    await click(container.querySelector('[aria-label="Remove terminal-error.png"]'))
+    expect(container.querySelector('[data-pending-attachments]')).toBeNull()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-screenshot')
+  })
+})

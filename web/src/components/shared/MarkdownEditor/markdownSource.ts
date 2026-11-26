@@ -181,11 +181,197 @@ export function markdownSourceEdit(value: string, start: number, end: number, ac
 
 /**
  * Markdown mode: Enter adds a line instead of sending while the caret is in
- * an open ``` fence, counting the caret's own line (§9.7), so pressing Enter
- * after typing "```js" starts the block.
+ * an open ``` fence (counting the caret's own line, §9.7) or on a bulleted /
+ * numbered list item, matching Rich mode and Slack.
  */
 export function markdownEnterAddsLine(value: string, caret: number) {
-  return isInsideMarkdownFence(`${value.slice(0, caret)}\n`, caret + 1)
+  if (isInsideFenceIncludingLists(`${value.slice(0, caret)}\n`, caret + 1)) return true
+  return parseMarkdownListLine(value, caret) !== null
+}
+
+const MARKDOWN_LIST_LINE = /^([ \t]*)(?:([-*+])|(\d+)([.)]))([ \t]+)(.*)$/
+const FENCE_OPENER = /^ {0,3}(`{3,}|~{3,})(.*)$/
+
+function isFenceOpenerLine(text: string) {
+  const match = text.match(FENCE_OPENER)
+  if (!match) return false
+  return !(match[1][0] === '`' && match[2].includes('`'))
+}
+
+/** True when the caret sits inside a fenced block, including fences nested inside list items. */
+function isInsideFenceIncludingLists(value: string, caret: number) {
+  if (isInsideMarkdownFence(value, caret)) return true
+  const lines = value.slice(0, Math.max(0, caret)).split('\n').slice(0, -1)
+  let open: string | null = null
+  for (const rawLine of lines) {
+    const stripped = rawLine.replace(/^(?:[ \t]*(?:[-*+]|\d+[.)])[ \t]+)+/, '')
+    const match = stripped.match(/^\s*(`{3,}|~{3,})(.*)$/)
+    if (!match) continue
+    if (open === null) {
+      if (match[1][0] === '`' && match[2].includes('`')) continue
+      open = match[1]
+    } else if (match[1][0] === open[0] && match[1].length >= open.length && match[2].trim() === '') {
+      open = null
+    }
+  }
+  return open !== null
+}
+
+function parseMarkdownListLine(value: string, caret: number) {
+  if (isInsideFenceIncludingLists(value, caret)) return null
+  const { from, to } = lineBounds(value, caret, caret)
+  const line = value.slice(from, to)
+  const match = line.match(MARKDOWN_LIST_LINE)
+  if (!match) return null
+  const indent = match[1]
+  const bullet = match[2]
+  const numberText = match[3]
+  const delimiter = match[4]
+  const space = match[5]
+  const body = match[6]
+  const prefixLength = indent.length + (bullet ? bullet.length : numberText.length + delimiter.length) + space.length
+  return { from, to, indent, bullet, number: numberText ? Number(numberText) : null, numberText, delimiter, space, body, prefixLength }
+}
+
+/**
+ * Markdown mode: pressing Enter inside a bulleted or numbered list continues
+ * the list on the next line (incrementing ordered items), or exits the list by
+ * clearing an empty marker — matching Rich mode and Slack.
+ */
+export function markdownListEnterEdit(value: string, start: number, end: number): SourceEdit | null {
+  if (isInsideFenceIncludingLists(value, start)) return null
+  const info = parseMarkdownListLine(value, start)
+  if (!info || end > info.to) return null
+  const contentStart = info.from + info.prefixLength
+  if (start < contentStart) return null
+  // A list item whose body opens a fenced code block (e.g. "- ```js") starts a fence indented to the item's content column.
+  if (isFenceOpenerLine(info.body)) {
+    const markerWidth = info.bullet ? info.bullet.length : info.numberText.length + info.delimiter.length
+    const baseWidth = indentWidth(info.indent) + markerWidth
+    const contentColumn = baseWidth + indentWidth(info.space, baseWidth)
+    const insertion = `\n${' '.repeat(contentColumn)}`
+    const nextCaret = start + insertion.length
+    return { start, end, text: insertion, selectionStart: nextCaret, selectionEnd: nextCaret }
+  }
+  // Empty list item (e.g. "2. " or "- "): Enter exits the list cleanly.
+  if (info.body.trim().length === 0 && start === end) {
+    return { start: info.from, end: info.to, text: '', selectionStart: info.from, selectionEnd: info.from }
+  }
+  const nextMarker = info.bullet ? info.bullet : `${(info.number ?? 1) + 1}${info.delimiter}`
+  const insertion = `\n${info.indent}${nextMarker}${info.space}`
+  const nextCaret = start + insertion.length
+  return { start, end, text: insertion, selectionStart: nextCaret, selectionEnd: nextCaret }
+}
+
+/** CommonMark expands tabs to 4-column tab stops. */
+function indentWidth(indent: string, startColumn = 0) {
+  let col = startColumn
+  for (const ch of indent) {
+    col = ch === '\t' ? col + (4 - (col % 4)) : col + 1
+  }
+  return col - startColumn
+}
+
+/**
+ * Markdown mode: Tab / Shift+Tab on a list line indents to its parent list
+ * item's CommonMark content column (never turning an isolated item into an
+ * indented code block) or outdents cleanly, returning null when no valid
+ * nesting edit applies so Tab keeps working for focus navigation.
+ */
+export function markdownListIndentEdit(value: string, start: number, end: number, outdent: boolean): SourceEdit | null {
+  if (isInsideFenceIncludingLists(value, start)) return null
+  const { from, to } = lineBounds(value, start, end)
+  const blockLines = value.slice(from, to).split('\n')
+  const firstMatch = blockLines[0].match(MARKDOWN_LIST_LINE)
+  if (!firstMatch) return null
+  const firstIndent = indentWidth(firstMatch[1])
+
+  // Find the nearest preceding list line whose indent is <= firstIndent so CommonMark nesting is exact.
+  let targetIndent: number | null = null
+  const precedingLines = from > 0 ? value.slice(0, from - 1).split('\n') : []
+  if (outdent) {
+    if (firstIndent === 0) return null
+    let shallower = 0
+    for (let i = precedingLines.length - 1; i >= 0; i -= 1) {
+      const prev = precedingLines[i].match(MARKDOWN_LIST_LINE)
+      if (!prev) {
+        if (!precedingLines[i].trim()) continue
+        if (indentWidth(precedingLines[i].match(/^([ \t]*)/)![1]) < firstIndent) break
+        continue
+      }
+      const prevWidth = indentWidth(prev[1])
+      if (prevWidth < firstIndent) {
+        shallower = prevWidth
+        break
+      }
+    }
+    targetIndent = shallower
+  } else {
+    for (let i = precedingLines.length - 1; i >= 0; i -= 1) {
+      const prev = precedingLines[i].match(MARKDOWN_LIST_LINE)
+      if (!prev) {
+        if (!precedingLines[i].trim()) break
+        continue
+      }
+      const prevWidth = indentWidth(prev[1])
+      const markerWidth = prev[2] ? prev[2].length : prev[3].length + prev[4].length
+      const prevContentColumn = prevWidth + markerWidth + indentWidth(prev[5], prevWidth + markerWidth)
+      if (prevWidth <= firstIndent) {
+        if (prevContentColumn > firstIndent) targetIndent = prevContentColumn
+        break
+      }
+    }
+    if (targetIndent === null) return null
+  }
+
+  const delta = targetIndent - firstIndent
+  if (delta === 0) return null
+
+  const mapOffset = (offset: number, lineOffsets: number[], deltas: number[]) => {
+    let shift = 0
+    for (let i = 0; i < lineOffsets.length; i += 1) {
+      const lineStart = lineOffsets[i]
+      if (offset < lineStart) break
+      if (deltas[i] < 0 && offset < lineStart - deltas[i]) {
+        shift += -(offset - lineStart)
+        break
+      }
+      shift += deltas[i]
+    }
+    return Math.max(from, offset + shift)
+  }
+
+  const lineOffsets: number[] = []
+  const deltas: number[] = []
+  let cursor = from
+  const nextLines = blockLines.map((line) => {
+    lineOffsets.push(cursor)
+    cursor += line.length + 1
+    if (!line.trim()) {
+      deltas.push(0)
+      return line
+    }
+    if (delta > 0) {
+      deltas.push(delta)
+      return `${' '.repeat(delta)}${line}`
+    }
+    const leadingWs = line.match(/^[ \t]*/)![0]
+    const currentColumns = indentWidth(leadingWs)
+    const nextColumns = Math.max(0, currentColumns + delta)
+    const replacement = ' '.repeat(nextColumns)
+    deltas.push(replacement.length - leadingWs.length)
+    return `${replacement}${line.slice(leadingWs.length)}`
+  })
+  const text = nextLines.join('\n')
+  if (text === value.slice(from, to)) return null
+
+  return {
+    start: from,
+    end: to,
+    text,
+    selectionStart: mapOffset(start, lineOffsets, deltas),
+    selectionEnd: mapOffset(end, lineOffsets, deltas),
+  }
 }
 
 /**
@@ -193,17 +379,20 @@ export function markdownEnterAddsLine(value: string, caret: number) {
  * change is one native undo step; falls back to setting the value directly.
  */
 export function replaceTextareaRange(textarea: HTMLTextAreaElement, edit: SourceEdit, onChange: (value: string) => void) {
+  const direction = textarea.selectionDirection
   textarea.focus()
   textarea.setSelectionRange(edit.start, edit.end)
   const expected = textarea.value.slice(0, edit.start) + edit.text + textarea.value.slice(edit.end)
   let applied: boolean
   try {
-    applied = typeof document.execCommand === 'function' && document.execCommand('insertText', false, edit.text) && textarea.value === expected
+    applied = typeof document.execCommand === 'function'
+      && (edit.text === '' ? document.execCommand('delete', false) : document.execCommand('insertText', false, edit.text))
+      && textarea.value === expected
   } catch {
     applied = false
   }
   if (!applied) onChange(expected)
-  const select = () => textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd)
+  const select = () => textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd, direction)
   if (applied) select()
   else requestAnimationFrame(select)
   return expected

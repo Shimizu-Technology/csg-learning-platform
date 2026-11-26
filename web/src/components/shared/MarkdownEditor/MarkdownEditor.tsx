@@ -45,7 +45,7 @@ import {
   type MarkdownTarget,
   type MarkdownToEditorResult,
 } from './markdownToEditorJson'
-import { markdownEnterAddsLine, markdownSourceEdit, markdownSourceIsActive, normalizeEditorLink, replaceTextareaRange, type FormatAction } from './markdownSource'
+import { markdownEnterAddsLine, markdownListEnterEdit, markdownListIndentEdit, markdownSourceEdit, markdownSourceIsActive, normalizeEditorLink, replaceTextareaRange, type FormatAction } from './markdownSource'
 import { useEnterToSend, useInitialEditorMode, type EditorMode } from './preferences'
 import { FormatButtons, MOD_LABEL, ModeToggle, ToolbarButton } from './Toolbar'
 
@@ -308,6 +308,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const sourceRef = useRef(source)
   sourceRef.current = source
   const [preview, setPreview] = useState(false)
+  const previewOpenRef = useRef(preview)
+  previewOpenRef.current = preview
   const [announcement, setAnnouncement] = useState('')
   const [pasteNotice, setPasteNotice] = useState<PasteNotice | null>(null)
   const [linkOpen, setLinkOpen] = useState(false)
@@ -317,11 +319,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [menuOpen, setMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [compactRowShown, setCompactRowShown] = useState(false)
-  // Composer only: formatting tools stay behind Aa until the person opens them; this browser remembers the choice.
-  const [formattingShown, setFormattingShown] = useState(() => composer && readComposerFormattingShown())
+  // Composer only: show formatting tools by default on desktop (like Slack) and keep them behind Aa on phones; explicit toggles persist in this browser.
+  const [formattingChoice, setFormattingChoice] = useState<'shown' | 'hidden' | null>(() => (composer ? readComposerFormattingChoice() : null))
+  const formattingShown = composer && (formattingChoice === null ? !narrow : formattingChoice === 'shown')
   const toggleFormatting = () => {
     const next = !formattingShown
-    setFormattingShown(next)
+    setFormattingChoice(next ? 'shown' : 'hidden')
     setMenuOpen(false)
     if (!next) setHelpOpen(false)
     writeComposerFormattingShown(next)
@@ -656,6 +659,24 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     lineEndingRef.current = lineEndingOf(markdown)
     setSource(normalizeLineEndings(markdown))
     sourceRef.current = normalizeLineEndings(markdown)
+    setSourceInBlock(false)
+    if (previewOpenRef.current) {
+      const active = document.activeElement
+      const shouldRestoreFocus = Boolean(
+        modeRef.current === 'markdown'
+        && active
+        && (previewRef.current?.contains(active) || containerRef.current?.contains(active)),
+      )
+      setPreview(false)
+      if (shouldRestoreFocus) {
+        window.requestAnimationFrame(() => {
+          const currentActive = document.activeElement
+          if (!currentActive || currentActive === document.body || containerRef.current?.contains(currentActive)) {
+            textareaRef.current?.focus()
+          }
+        })
+      }
+    }
     richDirtyRef.current = false
     setPasteNotice(null)
     if (emitChange) emit(markdown)
@@ -966,10 +987,45 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       propsRef.current.onEscape()
       return
     }
-    if (event.key === 'Enter' && composer && propsRef.current.onSubmit) {
-      if (mod || (enterSendsRef.current && !event.shiftKey && !event.altKey && !markdownEnterAddsLine(textarea.value, textarea.selectionStart))) {
+    if (event.key === 'Tab' && !mod && !event.altKey) {
+      const indentEdit = markdownListIndentEdit(textarea.value, textarea.selectionStart, textarea.selectionEnd, event.shiftKey)
+      if (indentEdit) {
+        event.preventDefault()
+        const next = replaceTextareaRange(textarea, indentEdit, (changed) => {
+          setSource(changed)
+          sourceRef.current = changed
+        })
+        sourceRef.current = next
+        setSourceSelection({ start: indentEdit.selectionStart, end: indentEdit.selectionEnd })
+        setSourceInBlock(markdownEnterAddsLine(next, indentEdit.selectionStart))
+        emitSource(next)
+        return
+      }
+    }
+    if (event.key === 'Enter') {
+      if (composer && propsRef.current.onSubmit && mod) {
         event.preventDefault()
         submit()
+        return
+      }
+      if (!mod && !event.shiftKey && !event.altKey) {
+        const listEdit = markdownListEnterEdit(textarea.value, textarea.selectionStart, textarea.selectionEnd)
+        if (listEdit) {
+          event.preventDefault()
+          const next = replaceTextareaRange(textarea, listEdit, (changed) => {
+            setSource(changed)
+            sourceRef.current = changed
+          })
+          sourceRef.current = next
+          setSourceSelection({ start: listEdit.selectionStart, end: listEdit.selectionEnd })
+          setSourceInBlock(markdownEnterAddsLine(next, listEdit.selectionStart))
+          emitSource(next)
+          return
+        }
+        if (composer && propsRef.current.onSubmit && enterSendsRef.current && !markdownEnterAddsLine(textarea.value, textarea.selectionStart)) {
+          event.preventDefault()
+          submit()
+        }
       }
     }
   }
@@ -1061,7 +1117,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     ? null
     : enterSends
       ? inBlock
-        ? `In a ${mode === 'rich' ? 'list or code block' : 'code block'}, Enter adds a line · ${MOD_LABEL}Enter ${submitVerb}s`
+        ? `In a list or code block, Enter adds a line · ${MOD_LABEL}Enter ${submitVerb}s`
         : `Enter to ${submitVerb} · Shift+Enter for a new line`
       : `${MOD_LABEL}Enter to ${submitVerb} · Enter for a new line`
 
@@ -1168,10 +1224,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       data-mode={mode}
       className={`@container relative min-w-0 rounded-xl border border-line-strong bg-surface-raised transition-[border-color,box-shadow] duration-200 focus-within:border-focus focus-within:ring-1 focus-within:ring-focus ${disabled ? 'opacity-70' : ''} ${className}`}
       onKeyDownCapture={(event) => {
-        // ⌘⇧M works from the toolbar and Preview too.
-        if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === 'KeyM' && event.target === previewRef.current) {
-          event.preventDefault()
-          toggleMode()
+        const mod = event.metaKey || event.ctrlKey
+        // ⌘⇧M works from the toolbar and Preview (including focused links inside Preview), and ⌘Enter submits straight from Preview.
+        if (previewRef.current?.contains(event.target as Node)) {
+          if (mod && event.shiftKey && event.code === 'KeyM') {
+            event.preventDefault()
+            toggleMode()
+          } else if (composer && propsRef.current.onSubmit && mod && event.key === 'Enter') {
+            event.preventDefault()
+            submit()
+          }
         }
       }}
     >
@@ -1345,18 +1407,19 @@ const COMPACT_MAX_HEIGHT = 88
 
 const COMPOSER_FORMATTING_KEY = 'csg-composer-formatting'
 
-function readComposerFormattingShown() {
+function readComposerFormattingChoice(): 'shown' | 'hidden' | null {
   try {
-    return window.localStorage.getItem(COMPOSER_FORMATTING_KEY) === 'shown'
+    const stored = window.localStorage.getItem(COMPOSER_FORMATTING_KEY)
+    if (stored === 'shown' || stored === 'hidden') return stored
+    return null
   } catch {
-    return false
+    return null
   }
 }
 
 function writeComposerFormattingShown(shown: boolean) {
   try {
-    if (shown) window.localStorage.setItem(COMPOSER_FORMATTING_KEY, 'shown')
-    else window.localStorage.removeItem(COMPOSER_FORMATTING_KEY)
+    window.localStorage.setItem(COMPOSER_FORMATTING_KEY, shown ? 'shown' : 'hidden')
   } catch {
     // Storage can be unavailable (private windows); the choice lasts until reload.
   }

@@ -15,6 +15,7 @@ export type PendingAttachment = {
   byte_size: number
   progress: number
   uploaded: boolean
+  previewUrl?: string
 }
 
 export type RetrySend = {

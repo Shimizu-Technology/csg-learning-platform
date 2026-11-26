@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseInline } from '../../../lib/messageFormat'
-import { markdownSourceEdit } from './markdownSource'
+import { markdownEnterAddsLine, markdownListEnterEdit, markdownListIndentEdit, markdownSourceEdit } from './markdownSource'
 
 function apply(value: string, start: number, end: number) {
   const edit = markdownSourceEdit(value, start, end, 'code')
@@ -82,4 +82,61 @@ it('still toggles real emphasis next to identifiers and code', () => {
   const caret = value.indexOf('snake') + 2
   const edit = markdownSourceEdit(value, caret, caret, 'italic')
   expect(value.slice(0, edit.start) + edit.text + value.slice(edit.end)).toBe('call `x_y` with snake_case now')
+})
+
+describe('Markdown list Enter and Tab helpers', () => {
+  it('treats list items and code fences as multi-line Enter blocks', () => {
+    expect(markdownEnterAddsLine('1. first step', 13)).toBe(true)
+    expect(markdownEnterAddsLine('- item', 6)).toBe(true)
+    expect(markdownEnterAddsLine('plain text', 10)).toBe(false)
+    expect(markdownEnterAddsLine('```js\nconst x = 1', 17)).toBe(true)
+  })
+
+  it('continues numbered and bulleted lists and exits on an empty item', () => {
+    const ordered = markdownListEnterEdit('1. Pull main', 12, 12)!
+    expect('1. Pull main'.slice(0, ordered.start) + ordered.text + '1. Pull main'.slice(ordered.end)).toBe('1. Pull main\n2. ')
+
+    const bullet = markdownListEnterEdit('  - Nested item', 15, 15)!
+    expect('  - Nested item'.slice(0, bullet.start) + bullet.text + '  - Nested item'.slice(bullet.end)).toBe('  - Nested item\n  - ')
+
+    const exit = markdownListEnterEdit('1. Pull main\n2. ', 16, 16)!
+    expect('1. Pull main\n2. '.slice(0, exit.start) + exit.text + '1. Pull main\n2. '.slice(exit.end)).toBe('1. Pull main\n')
+  })
+
+  it('indents the code line to the list item content column when a list item opens a code fence', () => {
+    const bulletFence = markdownListEnterEdit('- ```js', 7, 7)!
+    expect('- ```js'.slice(0, bulletFence.start) + bulletFence.text + '- ```js'.slice(bulletFence.end)).toBe('- ```js\n  ')
+    const orderedFence = markdownListEnterEdit('1. ```js', 8, 8)!
+    expect('1. ```js'.slice(0, orderedFence.start) + orderedFence.text + '1. ```js'.slice(orderedFence.end)).toBe('1. ```js\n   ')
+    const zeroPaddedFence = markdownListEnterEdit('01. ```js', 9, 9)!
+    expect('01. ```js'.slice(0, zeroPaddedFence.start) + zeroPaddedFence.text + '01. ```js'.slice(zeroPaddedFence.end)).toBe('01. ```js\n    ')
+    const tabPaddedFence = markdownListEnterEdit('-\t```js', 7, 7)!
+    expect('-\t```js'.slice(0, tabPaddedFence.start) + tabPaddedFence.text + '-\t```js'.slice(tabPaddedFence.end)).toBe('-\t```js\n    ')
+    expect(markdownEnterAddsLine('- ```js\n  const x = 1', 21)).toBe(true)
+  })
+
+  it('indents to the parent list item content column and refuses invalid isolated indent', () => {
+    // Isolated first item has no parent to nest under: Tab returns null for normal focus navigation.
+    expect(markdownListIndentEdit('- item', 6, 6, false)).toBeNull()
+
+    // Bullet under bullet indents by 2 columns; ordered under ordered indents by 3 columns (CommonMark content column).
+    const bulletChild = ' - parent\n - child'.replace(/ -/g, '-')
+    const bEdit = markdownListIndentEdit(bulletChild, bulletChild.length, bulletChild.length, false)!
+    expect(bulletChild.slice(0, bEdit.start) + bEdit.text + bulletChild.slice(bEdit.end)).toBe('- parent\n  - child')
+
+    const orderedChild = '1. parent\n2. child'
+    const oEdit = markdownListIndentEdit(orderedChild, orderedChild.length, orderedChild.length, false)!
+    expect(orderedChild.slice(0, oEdit.start) + oEdit.text + orderedChild.slice(oEdit.end)).toBe('1. parent\n   2. child')
+
+    // Second Tab on an already-nested item has no deeper parent, so it returns null instead of creating an indented code block.
+    const nested = '1. parent\n   2. child'
+    expect(markdownListIndentEdit(nested, nested.length, nested.length, false)).toBeNull()
+
+    // Shift+Tab outdents cleanly back to parent level (both spaces and tab-indented children).
+    const outdented = markdownListIndentEdit(nested, nested.length, nested.length, true)!
+    expect(nested.slice(0, outdented.start) + outdented.text + nested.slice(outdented.end)).toBe('1. parent\n2. child')
+    const tabNested = '- parent\n\t- child'
+    const tabOut = markdownListIndentEdit(tabNested, tabNested.length, tabNested.length, true)!
+    expect(tabNested.slice(0, tabOut.start) + tabOut.text + tabNested.slice(tabOut.end)).toBe('- parent\n- child')
+  })
 })

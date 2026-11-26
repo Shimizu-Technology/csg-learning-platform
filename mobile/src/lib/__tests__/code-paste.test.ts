@@ -4,7 +4,17 @@ describe('code in messages', () => {
   it('recognises indented Python and code-like lines, but not prose', () => {
     expect(looksLikeCode('for price in prices:\n    total = total + price\nprint(total)')).toBe(true);
     expect(looksLikeCode('amount = 75\nbudget = 100')).toBe(true);
+    expect(looksLikeCode('git status\ngit add .\ngit commit -m "fix"')).toBe(true);
+    expect(looksLikeCode('npm ERR! code ENOENT\nnpm ERR! syscall open')).toBe(true);
+    expect(looksLikeCode('$ git status\nOn branch main\nnothing to commit')).toBe(true);
+    expect(looksLikeCode('error: Your local changes to the following files would be overwritten by checkout:\nPlease commit your changes or stash them\nAborting')).toBe(true);
     expect(looksLikeCode('Hi! I finished E2.\nCan you check it?')).toBe(false);
+    expect(looksLikeCode('Hi Leon,\nI got an error when I tried to push.\nCan you help?')).toBe(false);
+    expect(looksLikeCode('Hint: Read the prompt again.\nTry a smaller example.')).toBe(false);
+    expect(looksLikeCode('I get Permission denied when I push.\nCan you help me fix this?')).toBe(false);
+    expect(looksLikeCode('git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.')).toBe(true);
+    expect(looksLikeCode('docker works well on macOS\nwe can try it tomorrow')).toBe(false);
+    expect(looksLikeCode(` at ${'a'.repeat(5000)} without a location\nsecond plain line`)).toBe(false);
     expect(looksLikeCode('print("one line")')).toBe(false);
     expect(looksLikeCode('```python\nx = 1\n```')).toBe(false);
   });
