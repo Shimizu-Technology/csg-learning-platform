@@ -5,7 +5,7 @@ import { haptic } from '@/lib/haptics';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, FolderOpen, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -87,7 +87,8 @@ export default function UpdatesScreen() {
   const { workspaces } = useWorkspace();
   const queryClient = useQueryClient();
   const userId = user?.id ?? 0;
-  const [selectedSection, setSelectedSection] = useState<Section | null>(null);
+  const landingContext = `${userId}:${focusedCohortId ?? 'all'}`;
+  const [sectionChoice, setSectionChoice] = useState<{ context: string; section: Section } | null>(null);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
@@ -128,16 +129,35 @@ export default function UpdatesScreen() {
   );
   const unread = notificationData?.pages[0]?.unread_count ?? 0;
   const announcementUnread = announcementData?.pages[0]?.unread_count ?? 0;
-  const hasUnreadNonAnnouncement = useMemo(
+  const hasLoadedUnreadNonAnnouncement = useMemo(
     () => notifications.some((item) => !item.read_at && item.notification_type !== 'announcement' && item.notifiable.type !== 'Announcement'),
     [notifications],
   );
-  // When a user opens a badged Updates tab with unread non-announcement notifications
-  // (mentions, file reviews, submissions) and zero unread announcements, land on Notifications.
-  if (selectedSection === null && !announcement_id && announcementData && notificationData) {
-    setSelectedSection(announcementUnread === 0 && hasUnreadNonAnnouncement ? 'inbox' : 'announcements');
+  const needsServerLandingCheck = Boolean(
+    user && !auth.demo && !announcement_id && announcementData && notificationData
+    && announcementUnread === 0 && unread > 0 && sectionChoice?.context !== landingContext,
+  );
+  const announcementNoticeQuery = useQuery({
+    queryKey: [...updatesKeys.notifications(userId), 'announcement-unread'],
+    queryFn: () => api.notifications({ per_page: 1, notification_type: 'announcement' }),
+    enabled: needsServerLandingCheck,
+    staleTime: UPDATES_STALE_TIME,
+  });
+  // Scope the automatic landing decision to account + cohort, using the server-authoritative
+  // unread count across all pages while preserving explicit tab picks within that context.
+  if (sectionChoice?.context !== landingContext && !announcement_id && announcementData && notificationData) {
+    if (announcementUnread > 0 || unread === 0) {
+      setSectionChoice({ context: landingContext, section: 'announcements' });
+    } else if (auth.demo) {
+      setSectionChoice({ context: landingContext, section: hasLoadedUnreadNonAnnouncement ? 'inbox' : 'announcements' });
+    } else if (announcementNoticeQuery.isSuccess || announcementNoticeQuery.isError) {
+      const hasServerUnreadNonAnnouncement = announcementNoticeQuery.isSuccess
+        ? unread > (announcementNoticeQuery.data?.unread_count ?? 0)
+        : hasLoadedUnreadNonAnnouncement;
+      setSectionChoice({ context: landingContext, section: hasServerUnreadNonAnnouncement ? 'inbox' : 'announcements' });
+    }
   }
-  const section: Section = selectedSection ?? 'announcements';
+  const section: Section = sectionChoice?.context === landingContext ? sectionChoice.section : 'announcements';
 
   useUpdatesFocusRefresh(userId, auth.demo);
 
@@ -175,7 +195,7 @@ export default function UpdatesScreen() {
         if (!result.announcement) throw new Error('This update is unavailable.');
         setSelectedAnnouncement(result.announcement);
         setAnnouncementCaches(result.announcement, 'read');
-        setSelectedSection('announcements');
+        setSectionChoice({ context: landingContext, section: 'announcements' });
         router.setParams({ announcement_id: undefined });
       } catch (error) {
         if (!canceled) { Alert.alert('Could not open update', (error as Error).message); router.setParams({ announcement_id: undefined }); }
@@ -183,7 +203,7 @@ export default function UpdatesScreen() {
     };
     void open();
     return () => { canceled = true; };
-  }, [announcement_id, api, auth.demo, router, setAnnouncementCaches, userId]);
+  }, [announcement_id, api, auth.demo, landingContext, router, setAnnouncementCaches, userId]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -233,7 +253,7 @@ export default function UpdatesScreen() {
         const cached = announcements.find((announcement) => announcement.id === item.notifiable.id);
         const result = auth.demo ? cached && { announcement: { ...cached, read_at: cached.read_at || new Date().toISOString() } } : await api.announcement(item.notifiable.id);
         if (result) { setSelectedAnnouncement(result.announcement); setAnnouncementCaches(result.announcement, 'read'); }
-        setSelectedSection('announcements');
+        setSectionChoice({ context: landingContext, section: 'announcements' });
       } catch (requestError) { Alert.alert('Could not open update', (requestError as Error).message); }
       return;
     }
@@ -306,7 +326,7 @@ export default function UpdatesScreen() {
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{section === 'announcements' ? focusedCohortId ? managing && isStaff ? 'Manage updates for this cohort' : 'This cohort and school-wide updates' : unreadUpdatesLabel(announcementData?.pages[0]?.unread_count ?? 0) : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Post update" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={c.text.strong} size={20} /></Pressable>}</View>
-    <View style={styles.tabs}><SectionButton active={section === 'announcements'} label="Updates" icon={Megaphone} onPress={() => { if (section !== 'announcements') haptic('selection'); setSelectedSection('announcements'); }} /><SectionButton active={section === 'inbox'} label="Notifications" icon={Inbox} badge={unread} onPress={() => { if (section !== 'inbox') haptic('selection'); setSelectedSection('inbox'); }} /></View>
+    <View style={styles.tabs}><SectionButton active={section === 'announcements'} label="Updates" icon={Megaphone} onPress={() => { if (section !== 'announcements') haptic('selection'); setSectionChoice({ context: landingContext, section: 'announcements' }); }} /><SectionButton active={section === 'inbox'} label="Notifications" icon={Inbox} badge={unread} onPress={() => { if (section !== 'inbox') haptic('selection'); setSectionChoice({ context: landingContext, section: 'inbox' }); }} /></View>
     {section === 'inbox' && (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterStrip} contentContainerStyle={styles.filterRow} keyboardShouldPersistTaps="handled">
         {NOTIFICATION_FILTERS.map((option) => {

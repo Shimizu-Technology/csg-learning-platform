@@ -332,38 +332,124 @@ class RecordSearch
     return if @cohort_ids.empty?
 
     if @viewer.staff?
-      active_students = Enrollment.where(cohort_id: @cohort_ids, status: %i[active paused]).pluck(:cohort_id, :user_id).to_set
+      eligible_students = Enrollment.joins(:user)
+        .where(status: %i[active paused], users: { archived_at: nil })
+        .where("enrollments.cohort_id = cohort_files.cohort_id AND enrollments.user_id = cohort_files.student_id")
       scope = CohortFile.ready.where(cohort_id: @cohort_ids)
+        .where("cohort_files.student_id IS NULL OR EXISTS (#{eligible_students.select("1").to_sql})")
       add("cohort_file", matched(scope, "title")) do |file|
-        next if file.student_id.present? && !active_students.include?([ file.cohort_id, file.student_id ])
-
         snippet = [ file.folder, file.filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
         row(file, file.title, "cohort_file", context: { cohort_id: file.cohort_id, student_id: file.student_id, staff: true }, snippet: snippet)
       end
-    else
-      scope = CohortFile.ready.student_visible.where(cohort_id: @cohort_ids, student_id: [ nil, @viewer.id ])
-      paused = @enrollments.any?(&:paused?)
-      scope = scope.includes(:versions, :doc_revisions) if paused
-      add("cohort_file", matched(scope, "title")) do |file|
-        enrollment = @enrollments.find { |e| e.cohort_id == file.cohort_id }
-        next unless enrollment
+      return
+    end
 
-        shown = enrollment.file_version_for_read(file)
-        next unless shown
+    paused_enrollments, active_enrollments = @enrollments.partition(&:paused?)
+    active_ids = active_enrollments.map(&:cohort_id).uniq
+    if active_ids.any?
+      active_scope = CohortFile.ready.student_visible.where(cohort_id: active_ids, student_id: [ nil, @viewer.id ])
+      add("cohort_file", matched(active_scope, "title")) do |file|
+        enrollment = active_enrollments.find { |e| e.cohort_id == file.cohort_id }
+        next unless enrollment && enrollment.file_available_for_read?(file)
 
-        doc_state = file.doc? ? enrollment.doc_state_for_read(file) : nil
-        next if file.doc? && doc_state.nil?
-
-        title = doc_state&.title || file.title
-        # A paused learner must not match a post-pause rename if the pre-pause title doesn't match.
-        if paused && doc_state && doc_state.title != file.title
-          haystack = [ title, file.folder ].join(" ").downcase
-          next unless @words.all? { |word| haystack.include?(word.downcase) }
-        end
-        filename = shown.respond_to?(:filename) ? shown.filename : file.filename
-        snippet = [ file.folder, filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
-        row(file, title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
+        snippet = [ file.folder, file.filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+        row(file, file.title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
       end
     end
+
+    return if paused_enrollments.empty?
+
+    paused_results = paused_drive_file_results(paused_enrollments)
+    return if paused_results.empty?
+
+    group = @groups.find { |g| g[:type] == "cohort_file" }
+    combined = ((group && group[:results]) || []) + paused_results
+    combined = combined.sort_by { |result| [ result[:title].casecmp?(plain(@query)) ? 0 : 1, result[:id].to_i ] }.first(LIMIT)
+    group ? group[:results] = combined : @groups << { type: "cohort_file", results: combined }
+  end
+
+  def paused_drive_file_results(paused_enrollments)
+    check_deadline!
+    by_cohort = paused_enrollments.index_by(&:cohort_id)
+    candidates = CohortFile.ready.student_visible
+      .where(cohort_id: by_cohort.keys, student_id: [ nil, @viewer.id ])
+      .where.not(shared_at: nil)
+      .order(:id)
+      .limit(SCAN_LIMIT)
+      .to_a
+    @partial = true if candidates.size >= SCAN_LIMIT
+    return [] if candidates.empty?
+
+    pre_pause = candidates.select do |file|
+      enrollment = by_cohort[file.cohort_id]
+      enrollment && enrollment.media_available_for_read?(file.created_at, file.shared_at)
+    end
+    return [] if pre_pause.empty?
+
+    need_versions = pre_pause.select do |file|
+      !file.doc? && !by_cohort[file.cohort_id].file_available_for_read?(file)
+    end
+    versions_by_file = if need_versions.any?
+      CohortFileVersion.ready
+        .where(cohort_file_id: need_versions.map(&:id))
+        .select(:id, :cohort_file_id, :version_number, :filename, :ready, :ready_at, :created_at)
+        .order(:cohort_file_id, version_number: :desc)
+        .to_a
+        .group_by(&:cohort_file_id)
+    else
+      {}
+    end
+
+    need_revisions = pre_pause.select do |file|
+      file.doc? && !by_cohort[file.cohort_id].media_available_for_read?(file.doc_updated_at || file.updated_at)
+    end
+    revisions_by_file = if need_revisions.any?
+      CohortDocRevision
+        .where(cohort_file_id: need_revisions.map(&:id))
+        .select(:id, :cohort_file_id, :revision_number, :title, :created_at)
+        .order(:cohort_file_id, revision_number: :desc)
+        .to_a
+        .group_by(&:cohort_file_id)
+    else
+      {}
+    end
+
+    query_tokens = @words.map(&:downcase)
+    query_down = @query.downcase
+    matched_rows = []
+    pre_pause.each do |file|
+      check_deadline!
+      enrollment = by_cohort[file.cohort_id]
+      cutoff = enrollment.file_read_cutoff
+      if file.doc?
+        if enrollment.media_available_for_read?(file.doc_updated_at || file.updated_at)
+          readable_title = file.title
+        else
+          rev = revisions_by_file.fetch(file.id, []).find { |r| cutoff && r.created_at <= cutoff }
+          next unless rev
+
+          readable_title = rev.title
+        end
+        readable_filename = nil
+      else
+        if enrollment.file_available_for_read?(file)
+          readable_filename = file.filename
+        else
+          ver = versions_by_file.fetch(file.id, []).find { |v| enrollment.file_version_available_for_read?(v) }
+          next unless ver
+
+          readable_filename = ver.filename
+        end
+        readable_title = file.title
+      end
+
+      lexemes = [ readable_title, readable_filename, file.folder ].compact.join(" ").downcase.scan(/[[:alnum:]_]+/)
+      next unless query_tokens.all? { |token| lexemes.any? { |lexeme| lexeme.start_with?(token) } }
+
+      snippet = [ file.folder, readable_filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+      matched_rows << [ readable_title.to_s.downcase == query_down ? 0 : 1, file.id, row(file, readable_title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet) ]
+    end
+
+    matched_rows.sort_by { |priority, id, _| [ priority, id ] }.first(LIMIT).map(&:last)
   end
 end

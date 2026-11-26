@@ -4,6 +4,11 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :set_notification, only: [ :mark_read ]
+      CATEGORY_TYPES = {
+        "messages" => %i[message direct_message],
+        "files" => %i[cohort_file submission redo],
+        "updates" => %i[announcement]
+      }.freeze
 
       # GET /api/v1/notifications
       def index
@@ -58,6 +63,7 @@ module Api
         scoped = scope
         scoped = scoped.where(read_at: nil) if params[:read] == "unread"
         scoped = scoped.where.not(read_at: nil) if params[:read] == "read"
+        scoped = scoped.where(notification_type: CATEGORY_TYPES.fetch(params[:category])) if CATEGORY_TYPES.key?(params[:category])
 
         case params[:sort]
         when "created_asc"

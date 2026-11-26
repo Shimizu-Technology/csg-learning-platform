@@ -1,5 +1,5 @@
 import { toNativeHref } from '@/lib/record-destination';
-import { clearRecentSearches, loadRecentSearches, saveRecentSearches } from '@/lib/search-history';
+import { addRecentSearch, clearRecentSearches, loadRecentSearches } from '@/lib/search-history';
 import type { components } from '@/lib/api.generated';
 import { brand } from '../../lib/brand';
 import { personContext } from '@/lib/person-context';
@@ -65,6 +65,11 @@ function groupMatchesCategory(type: string, category: SearchCategory): boolean {
 type Person = { user: UserSummary; workspaces: WorkspaceSummary[] };
 
 export default function SearchScreen() {
+  const { user } = useSession();
+  return <SearchScreenContent key={user?.id ?? 0} />;
+}
+
+function SearchScreenContent() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const router = useRouter();
@@ -89,23 +94,29 @@ export default function SearchScreen() {
   const [workspaceChoice, setWorkspaceChoice] = useState<Person | null>(null);
   const generation = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
   const userId = user?.id ?? 0;
 
   useEffect(() => {
-    let active = true;
+    mountedRef.current = true;
     void loadRecentSearches(userId).then((items) => {
-      if (active) setRecentQueries(items);
+      if (mountedRef.current) setRecentQueries(items);
     });
-    return () => { active = false; };
+    return () => {
+      mountedRef.current = false;
+      generation.current += 1;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
   }, [userId]);
 
   const rememberQuery = useCallback((term: string) => {
     const clean = term.trim();
     if (clean.length < 2) return;
-    setRecentQueries((current) => {
-      const next = [clean, ...current.filter((entry) => entry.toLowerCase() !== clean.toLowerCase())].slice(0, 5);
-      void saveRecentSearches(userId, next);
-      return next;
+    void addRecentSearch(userId, clean).then((next) => {
+      if (mountedRef.current) setRecentQueries(next);
     });
   }, [userId]);
 
@@ -148,7 +159,7 @@ export default function SearchScreen() {
       findPeople(),
       auth.demo ? Promise.resolve({ groups: [], partial: false }) : api.searchEverything(value),
     ]);
-    if (generation.current !== request) return;
+    if (!mountedRef.current || generation.current !== request) return;
     setPartial(found.status === 'fulfilled' && Boolean(found.value.partial));
     setRecords(found.status === 'fulfilled' ? found.value.groups : []);
     if (found.status === 'rejected') setRecordError('Learning search is unavailable. Try again.');

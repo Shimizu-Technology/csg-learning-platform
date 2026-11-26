@@ -178,7 +178,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
   }, [open, storageKey, isStaff, user?.is_admin])
 
   useEffect(() => {
-    if (!open || query.trim().length < 2) { setPartial(false); setRecords([]); setLoading(false); return }
+    if (!open || query.trim().length < 2) { setPartial(false); setRecords([]); setError(''); setLoading(false); return }
     let active = true
     setPartial(false); setRecords([]); setLoading(true); setError('')
     const timer = window.setTimeout(() => {

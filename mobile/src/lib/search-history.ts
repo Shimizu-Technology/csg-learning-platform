@@ -49,6 +49,15 @@ export async function saveRecentSearches(userId: number, terms: string[]): Promi
   }
 }
 
+export async function addRecentSearch(userId: number, term: string): Promise<string[]> {
+  const clean = term.trim();
+  const current = await loadRecentSearches(userId);
+  if (clean.length < 2) return current;
+  const next = [clean, ...current.filter((entry) => entry.toLowerCase() !== clean.toLowerCase())].slice(0, 5);
+  await saveRecentSearches(userId, next);
+  return next;
+}
+
 export async function clearRecentSearches(userId: number): Promise<void> {
   const key = `csg-mobile-search-recent:${userId}`;
   memoryStore.delete(key);

@@ -71,7 +71,7 @@ export function fromWebPath(value: unknown): RecordDestination | null {
   const rawUrl = new URL(value, 'https://csg.invalid')
   if (rawUrl.pathname === value.split(/[?#]/)[0]) {
     const staffFiles = rawUrl.pathname.match(/^\/admin\/cohorts\/([1-9]\d*)$/)
-    if (staffFiles && rawUrl.searchParams.get('tab') === 'files' && rawUrl.searchParams.getAll('file').length === 1 && numeric(rawUrl.searchParams.get('file'))) {
+    if (staffFiles && rawUrl.searchParams.getAll('tab').length === 1 && rawUrl.searchParams.get('tab') === 'files' && rawUrl.searchParams.getAll('file').length === 1 && numeric(rawUrl.searchParams.get('file'))) {
       const student = rawUrl.searchParams.getAll('student').length === 1 ? numeric(rawUrl.searchParams.get('student')) : null
       return { kind: 'cohort_file', id: String(rawUrl.searchParams.get('file')), context: { cohort_id: staffFiles[1], ...(student ? { student_id: student } : {}), staff: true }, anchor: {} }
     }

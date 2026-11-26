@@ -54,7 +54,8 @@ export function NotificationInbox() {
   const [params, setParams] = useSearchParams()
   const page = Math.max(1, Number(params.get('inbox_page')) || 1)
   const read = params.get('inbox_read') === 'unread' ? 'unread' : undefined
-  const [category, setCategory] = useState<InboxCategory>('all')
+  const rawCategory = params.get('inbox_category')
+  const category: InboxCategory = rawCategory === 'messages' || rawCategory === 'files' || rawCategory === 'updates' ? rawCategory : 'all'
   const [data, setData] = useState<NotificationsResponse | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -63,7 +64,7 @@ export function NotificationInbox() {
   const load = useCallback(async () => {
     const request = ++generation.current
     setLoading(true)
-    const result = await api.getNotifications({ page, per_page: 25, read })
+    const result = await api.getNotifications({ page, per_page: 25, read, category: category === 'all' ? undefined : category })
     if (request !== generation.current) return
     setError(result.error || '')
     if (result.data && !result.error && page > Math.max(1, result.data.meta.total_pages)) {
@@ -76,7 +77,7 @@ export function NotificationInbox() {
     }
     if (result.data) setData(result.data)
     setLoading(false)
-  }, [page, read, setParams])
+  }, [category, page, read, setParams])
   useEffect(() => {
     void load()
     window.addEventListener(UNREAD_CHANGED, load)
@@ -98,11 +99,7 @@ export function NotificationInbox() {
     if (open && path) navigate(path, { state: v2 ? { returnTo: `/announcements?${params}`, returnLabel: 'Notifications' } : { from: `/announcements?${params}` } })
     else await load()
   }
-  const visibleNotifications = useMemo(() => {
-    const list = data?.notifications || []
-    if (category === 'all') return list
-    return list.filter((item) => notificationCategory(item) === category)
-  }, [category, data?.notifications])
+  const visibleNotifications = useMemo(() => data?.notifications || [], [data?.notifications])
 
   // A notification that arrives while the inbox is open slides in; loads and page changes don't.
   const insertedIds = useInsertedKeys(visibleNotifications.map((item) => item.id), { ready: !loading })
@@ -124,7 +121,7 @@ export function NotificationInbox() {
             key={option.value}
             type="button"
             aria-pressed={active}
-            onClick={() => setCategory(option.value)}
+            onClick={() => change({ inbox_category: option.value, inbox_page: '1' })}
             className={`inline-flex min-h-10 items-center rounded-full border px-3.5 text-sm font-semibold transition-colors lg:min-h-9 ${active ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}
           >
             {option.label}
@@ -134,7 +131,7 @@ export function NotificationInbox() {
     </div>
     {error && <div role="alert" className="app-surface p-4 text-danger-ink">{error}<Button variant="secondary" onClick={() => void load()}>Retry</Button></div>}
     {loading && <p role="status" className="text-sm text-ink-secondary">Loading notifications…</p>}
-    {!loading && !error && !visibleNotifications.length && <div className="app-surface p-6"><h2 className="font-semibold text-ink">{category === 'all' ? 'You’re all caught up' : 'No matching notifications on this page'}</h2><p className="mt-2 text-sm text-ink-secondary">{category === 'all' ? 'Class activity and messages will appear here.' : 'Switch back to All to see every notification.'}</p></div>}
+    {!loading && !error && !visibleNotifications.length && <div className="app-surface p-6"><h2 className="font-semibold text-ink">{category === 'all' ? 'You’re all caught up' : 'No matching notifications'}</h2><p className="mt-2 text-sm text-ink-secondary">{category === 'all' ? 'Class activity and messages will appear here.' : 'Switch back to All to see every notification.'}</p></div>}
     <div className="space-y-2" aria-busy={loading}>
       {!loading && visibleNotifications.map((item, index) => {
         const destination = notificationDestination(item)
