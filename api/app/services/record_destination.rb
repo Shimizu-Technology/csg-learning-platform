@@ -34,8 +34,11 @@ class RecordDestination
     return unless path.is_a?(String) && path.start_with?("/") && !path.match?(/[\s\\]/) && !path.start_with?("//")
 
     raw_uri = URI.parse(path)
-    raw_params = URI.decode_www_form(raw_uri.query.to_s).group_by(&:first).filter_map { |key, entries| [ key, entries.first.last ] if entries.size == 1 }.to_h
-    if (cohort_files = raw_uri.path.match(%r{\A/admin/cohorts/([1-9]\d*)\z})) && raw_params["tab"] == "files" && raw_params["file"].to_s.match?(/\A[1-9]\d*\z/)
+    raw_groups = URI.decode_www_form(raw_uri.query.to_s).group_by(&:first)
+    raw_params = raw_groups.filter_map { |key, entries| [ key, entries.first.last ] if entries.size == 1 }.to_h
+    student_entries = raw_groups["student"]
+    valid_student = student_entries.nil? || (student_entries.size == 1 && student_entries.first.last.to_s.match?(/\A[1-9]\d*\z/))
+    if (cohort_files = raw_uri.path.match(%r{\A/admin/cohorts/([1-9]\d*)\z})) && raw_params["tab"] == "files" && raw_params["file"].to_s.match?(/\A[1-9]\d*\z/) && valid_student
       return build(kind: "cohort_file", id: raw_params["file"], context: { cohort_id: cohort_files[1], student_id: raw_params["student"], staff: true })
     end
 

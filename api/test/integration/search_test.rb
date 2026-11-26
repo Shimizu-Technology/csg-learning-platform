@@ -90,34 +90,60 @@ class SearchTest < ActionDispatch::IntegrationTest
     search(@student, "Ownfile")
     refute groups.key?("cohort_file")
 
-    # Pre-pause file with a post-pause version rename: old filename matches, new filename never leaks.
+    # Pre-pause file with a post-pause version rename, title edit, and folder rename:
+    # only the pre-pause filename matches; post-pause title/folder never match or render.
     versioned = @cohort.cohort_files.create!(
-      kind: "file", title: "Deck", folder: "Slides", filename: "embargoed.pdf", content_type: "application/pdf", file_size: 123,
+      kind: "file", title: "Postpausetitle", folder: "Postpausefolder", filename: "embargoed.pdf", content_type: "application/pdf", file_size: 123,
       s3_key: "cohort_files/cohort_#{@cohort.id}/shared/v2/embargoed.pdf", upload_key: "cohort_file_uploads/v2", upload_expires_at: 1.day.from_now,
-      version_number: 2, ready: true, ready_at: 1.day.ago, shared_at: 5.days.ago, created_at: 5.days.ago, uploaded_by: @instructor
+      version_number: 2, ready: true, ready_at: 1.day.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 1.day.ago, uploaded_by: @instructor
     )
     versioned.versions.create!(
       version_number: 1, filename: "original.pdf", content_type: "application/pdf", file_size: 100,
       s3_key: "cohort_files/cohort_#{@cohort.id}/shared/v1/original.pdf", upload_key: "cohort_file_uploads/v1", upload_expires_at: 1.day.from_now,
       ready: true, ready_at: 4.days.ago, created_at: 4.days.ago, uploaded_by: @instructor
     )
-    search(@student, "embargoed")
-    refute groups.key?("cohort_file")
+    %w[embargoed Postpausetitle Postpausefolder].each do |leaked|
+      search(@student, leaked)
+      refute groups.key?("cohort_file"), "expected #{leaked} not to match after pause"
+    end
     search(@student, "original")
     assert_equal [ versioned.id.to_s ], groups.fetch("cohort_file").map { |r| r["id"] }
-    assert_includes groups.fetch("cohort_file").first["snippet"], "original.pdf"
+    assert_equal "original.pdf", groups.fetch("cohort_file").first["title"]
+    assert_equal "original.pdf", groups.fetch("cohort_file").first["snippet"]
 
-    # Pre-pause Learn Doc renamed after pause: old title matches, new title never leaks.
+    # Pre-pause Learn Doc renamed and moved to a new folder after pause: old title matches,
+    # post-pause title and folder never match or render.
     renamed_doc = @cohort.cohort_files.create!(
-      kind: "doc", title: "Postpauseheading", folder: "Notes", doc_content: "v2", doc_version: 2,
-      doc_updated_at: 1.day.ago, shared_at: 5.days.ago, created_at: 5.days.ago, ready: true, uploaded_by: @instructor
+      kind: "doc", title: "Postpauseheading", folder: "Postpausedocfolder", doc_content: "v2", doc_version: 2,
+      doc_updated_at: 1.day.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 1.day.ago, ready: true, uploaded_by: @instructor
     )
     renamed_doc.doc_revisions.create!(revision_number: 1, title: "Prepauseheading", content: "v1", created_at: 4.days.ago, edited_by: @instructor)
-    search(@student, "Postpauseheading")
-    refute groups.key?("cohort_file")
+    %w[Postpauseheading Postpausedocfolder].each do |leaked|
+      search(@student, leaked)
+      refute groups.key?("cohort_file"), "expected #{leaked} not to match after pause"
+    end
     search(@student, "Prepauseheading")
     assert_equal [ renamed_doc.id.to_s ], groups.fetch("cohort_file").map { |r| r["id"] }
     assert_equal "Prepauseheading", groups.fetch("cohort_file").first["title"]
+    assert_equal "Learn Doc", groups.fetch("cohort_file").first["snippet"]
+
+    # Mixed active + paused cohorts preserve ts_rank order among active matches.
+    active_cohort = Cohort.create!(curriculum: @curriculum, name: "Active rank cohort", start_date: 14.days.ago.to_date, status: :active)
+    Enrollment.create!(user: @student, cohort: active_cohort, status: :active, joined_at: 1.day.ago)
+    low_rank = active_cohort.cohort_files.create!(
+      kind: "doc", title: "Rankmerge overview notes", folder: "General", doc_content: "x", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    high_rank = active_cohort.cohort_files.create!(
+      kind: "doc", title: "Rankmerge rankmerge rankmerge", folder: "Rankmerge", doc_content: "x", doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    paused_match = @cohort.cohort_files.create!(
+      kind: "doc", title: "Rankmerge paused archive", folder: "Slides", doc_content: "x",
+      doc_updated_at: 4.days.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 4.days.ago, ready: true, uploaded_by: @instructor
+    )
+    search(@student, "Rankmerge")
+    ranked_ids = groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_includes ranked_ids, paused_match.id.to_s
+    assert_operator ranked_ids.index(high_rank.id.to_s), :<, ranked_ids.index(low_rank.id.to_s)
   end
 
   test "staff cohort file search excludes archived owners and applies eligibility before the limit" do

@@ -40,10 +40,11 @@ class RecordDestinationTest < ActiveSupport::TestCase
     assert_equal "/admin/cohorts/4?tab=files&student=18&file=42", RecordDestination.to_web_path(staff_student_file)
     assert_equal "/staff/files?cohort_id=4&student=18&file=42", RecordDestination.to_native_href(staff_student_file)
     assert_equal "/admin/cohorts/4?tab=files&student=18&file=42", RecordDestination.to_web_path(RecordDestination.from_path("/admin/cohorts/4?tab=files&student=18&file=42"))
-    # Duplicate tab or file params fall back to the staff cohort destination rather than matching cohort_file.
+    # Duplicate tab, file, or student params fall back to the staff cohort destination rather than matching cohort_file.
     assert_equal "/admin/cohorts/4", RecordDestination.to_web_path(RecordDestination.from_path("/admin/cohorts/4?tab=files&tab=other&file=42"))
     assert_equal "/admin/cohorts/4", RecordDestination.to_web_path(RecordDestination.from_path("/admin/cohorts/4?tab=files&file=42&file=43"))
-    assert_equal "/admin/cohorts/4?tab=files&file=42", RecordDestination.to_web_path(RecordDestination.from_path("/admin/cohorts/4?tab=files&student=18&student=19&file=42"))
+    assert_equal "/admin/cohorts/4", RecordDestination.to_web_path(RecordDestination.from_path("/admin/cohorts/4?tab=files&student=18&student=19&file=42"))
+    assert_equal "/admin/cohorts/4", RecordDestination.to_web_path(RecordDestination.from_path("/admin/cohorts/4?tab=files&student=bad&file=42"))
   end
 
   test "multiple fragment delimiters are rejected" do

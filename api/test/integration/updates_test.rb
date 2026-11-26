@@ -184,6 +184,43 @@ class UpdatesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "notifications category=updates includes scheduling-failure system notices for announcements" do
+    announcement = Announcement.create!(title: "Scheduled update", body: "Details", author: @admin, audience: :global, status: :draft)
+    failure_notice = Notification.create!(
+      user: @admin,
+      notification_type: :system,
+      notifiable: announcement,
+      title: "Not sent: scheduler lost access",
+      body: announcement.title,
+      path: "/announcements?scope=manage&status=draft"
+    )
+    published_announcement = publish("Live update")
+    published_notice = @admin.notifications.find_by(notifiable: published_announcement) || Notification.create!(
+      user: @admin,
+      notification_type: :announcement,
+      notifiable: published_announcement,
+      title: published_announcement.title,
+      body: "Details",
+      path: "/announcements/#{published_announcement.id}"
+    )
+    other_system = Notification.create!(
+      user: @admin,
+      notification_type: :system,
+      notifiable: @admin,
+      title: "Account notice",
+      path: "/dashboard"
+    )
+
+    as_user(@admin) do
+      get "/api/v1/notifications", params: { category: "updates" }, headers: headers
+      assert_response :success
+      ids = response.parsed_body["notifications"].map { |n| n["id"] }
+      assert_includes ids, failure_notice.id
+      assert_includes ids, published_notice.id
+      refute_includes ids, other_system.id
+    end
+  end
+
   private
 
   def publish(title, cohort = nil)

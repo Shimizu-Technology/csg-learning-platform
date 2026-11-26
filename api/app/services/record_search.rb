@@ -346,6 +346,7 @@ class RecordSearch
 
     paused_enrollments, active_enrollments = @enrollments.partition(&:paused?)
     active_ids = active_enrollments.map(&:cohort_id).uniq
+    active_scored = []
     if active_ids.any?
       active_scope = CohortFile.ready.student_visible.where(cohort_id: active_ids, student_id: [ nil, @viewer.id ])
       add("cohort_file", matched(active_scope, "title")) do |file|
@@ -353,18 +354,22 @@ class RecordSearch
         next unless enrollment && enrollment.file_available_for_read?(file)
 
         snippet = [ file.folder, file.filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
-        row(file, file.title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
+        entry = row(file, file.title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
+        active_scored << [ file.search_priority.to_i, -file.search_rank.to_f, file.id, entry ]
+        entry
       end
     end
 
     return if paused_enrollments.empty?
 
-    paused_results = paused_drive_file_results(paused_enrollments)
-    return if paused_results.empty?
+    paused_scored = paused_drive_file_results(paused_enrollments)
+    return if paused_scored.empty?
 
     group = @groups.find { |g| g[:type] == "cohort_file" }
-    combined = ((group && group[:results]) || []) + paused_results
-    combined = combined.sort_by { |result| [ result[:title].casecmp?(plain(@query)) ? 0 : 1, result[:id].to_i ] }.first(LIMIT)
+    combined = (active_scored + paused_scored)
+      .sort_by { |priority, neg_rank, id, _| [ priority, neg_rank, id ] }
+      .first(LIMIT)
+      .map(&:last)
     group ? group[:results] = combined : @groups << { type: "cohort_file", results: combined }
   end
 
@@ -387,7 +392,7 @@ class RecordSearch
     return [] if pre_pause.empty?
 
     need_versions = pre_pause.select do |file|
-      !file.doc? && !by_cohort[file.cohort_id].file_available_for_read?(file)
+      !file.doc? && !file.link? && !by_cohort[file.cohort_id].file_available_for_read?(file)
     end
     versions_by_file = if need_versions.any?
       CohortFileVersion.ready
@@ -401,7 +406,8 @@ class RecordSearch
     end
 
     need_revisions = pre_pause.select do |file|
-      file.doc? && !by_cohort[file.cohort_id].media_available_for_read?(file.doc_updated_at || file.updated_at)
+      enrollment = by_cohort[file.cohort_id]
+      file.doc? && !enrollment.media_available_for_read?(file.doc_updated_at || file.updated_at)
     end
     revisions_by_file = if need_revisions.any?
       CohortDocRevision
@@ -421,6 +427,8 @@ class RecordSearch
       check_deadline!
       enrollment = by_cohort[file.cohort_id]
       cutoff = enrollment.file_read_cutoff
+      row_untouched = enrollment.media_available_for_read?(file.updated_at)
+      readable_folder = row_untouched ? file.folder : nil
       if file.doc?
         if enrollment.media_available_for_read?(file.doc_updated_at || file.updated_at)
           readable_title = file.title
@@ -431,6 +439,13 @@ class RecordSearch
           readable_title = rev.title
         end
         readable_filename = nil
+      elsif file.link?
+        # Saved links have no revision history; skip rows edited after the pause
+        # so renamed link titles or folders never leak.
+        next unless row_untouched
+
+        readable_title = file.title
+        readable_filename = nil
       else
         if enrollment.file_available_for_read?(file)
           readable_filename = file.filename
@@ -440,16 +455,42 @@ class RecordSearch
 
           readable_filename = ver.filename
         end
-        readable_title = file.title
+        # Non-doc rows have no historical title column: fall back to the
+        # immutable pre-pause filename whenever the row changed after pause.
+        readable_title = row_untouched ? file.title : readable_filename
       end
 
-      lexemes = [ readable_title, readable_filename, file.folder ].compact.join(" ").downcase.scan(/[[:alnum:]_]+/)
+      doc_text = [ readable_title, readable_filename, readable_folder ].compact.join(" ")
+      lexemes = doc_text.downcase.scan(/[[:alnum:]_]+/)
       next unless query_tokens.all? { |token| lexemes.any? { |lexeme| lexeme.start_with?(token) } }
 
-      snippet = [ file.folder, readable_filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
-      matched_rows << [ readable_title.to_s.downcase == query_down ? 0 : 1, file.id, row(file, readable_title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet) ]
+      snippet = [ readable_folder, readable_filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
+      matched_rows << {
+        id: file.id,
+        priority: readable_title.to_s.downcase == query_down ? 0 : 1,
+        doc: doc_text,
+        entry: row(file, readable_title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
+      }
     end
+    return [] if matched_rows.empty?
 
-    matched_rows.sort_by { |priority, id, _| [ priority, id ] }.first(LIMIT).map(&:last)
+    ranks = paused_ts_ranks(matched_rows)
+    matched_rows
+      .map { |item| [ item[:priority], -ranks.fetch(item[:id], 0.0), item[:id], item[:entry] ] }
+      .sort_by { |priority, neg_rank, id, _| [ priority, neg_rank, id ] }
+      .first(LIMIT)
+  end
+
+  def paused_ts_ranks(matched_rows)
+    tokens = @words.map { |word| "#{word}:*" }.join(" & ")
+    return {} if tokens.empty? || matched_rows.empty?
+
+    conn = ApplicationRecord.connection
+    values_sql = matched_rows.map { |item| "(#{item[:id].to_i}, #{conn.quote(item[:doc])})" }.join(", ")
+    sql = <<~SQL
+      SELECT v.id, ts_rank(to_tsvector('simple', v.doc), to_tsquery('simple', #{conn.quote(tokens)})) AS rank
+      FROM (VALUES #{values_sql}) AS v(id, doc)
+    SQL
+    conn.select_rows(sql).to_h { |id, rank| [ id.to_i, rank.to_f ] }
   end
 end
